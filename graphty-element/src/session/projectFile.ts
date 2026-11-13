@@ -24,6 +24,7 @@ import {
     type NodeId,
     PROJECT_FILE,
     type ResultShape,
+    type RuleTree,
     type RunId,
     type SetDefinitionInput,
     type StyleDocument,
@@ -2070,10 +2071,46 @@ function timelineOn(tx: TransactionScope): boolean {
 }
 
 /**
+ * A rule tree with every `"ghosted"` state leaf reading `"outsideWindow"`, however deep.
+ * @param rule - The rule.
+ * @returns The rule rewritten, or the same object when it reads no `"ghosted"` leaf.
+ */
+function ghostedLeavesOutside(rule: RuleTree): RuleTree {
+    switch (rule.kind) {
+        case "state":
+            return rule.state === "ghosted" ? { ...rule, state: "outsideWindow" } : rule;
+        case "all":
+        case "any": {
+            const of = rule.of.map(ghostedLeavesOutside);
+            return of.every((each, at) => each === rule.of[at]) ? rule : { ...rule, of };
+        }
+        case "not": {
+            const of = ghostedLeavesOutside(rule.of);
+            return of === rule.of ? rule : { ...rule, of };
+        }
+        case "union": {
+            let moved = false;
+            const branches = rule.branches.map((branch) => ({
+                ...branch,
+                steps: branch.steps.map((step) => {
+                    const next = ghostedLeavesOutside(step.rule);
+                    moved ||= next !== step.rule;
+                    return next === step.rule ? step : { ...step, rule: next };
+                }),
+            }));
+            return moved ? { ...rule, branches } : rule;
+        }
+        default:
+            return rule;
+    }
+}
+
+/**
  * Bring a timed project saved before what lies outside the time window had a state of its own up
- * to date. Its layers selecting `"ghosted"` drew what lay outside the window, so they select
- * `"outsideWindow"` now, and a saved `outside: "ghost"` becomes `visible: true` on them. A project
- * brought up to date selects no `"ghosted"` layer, so this finds nothing the second time.
+ * to date. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant what
+ * lay outside the window, so they read `"outsideWindow"` now, and a saved `outside: "ghost"` is
+ * written to the style layers the way `time.setSettings` writes it. A project brought up to date
+ * reads no `"ghosted"`, so this finds nothing the second time.
  * @param tx - The transaction.
  * @param playback - The saved timeline settings.
  */
@@ -2083,18 +2120,35 @@ async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Pro
         return;
     }
 
-    const drawn =
-        typeof playback === "object" && playback !== null && "outside" in playback && playback.outside === "ghost";
     for (const layer of tx.styles.list()) {
-        const { selector, source, target } = layer;
-        if (source.by === "element" || selector.match !== "state" || selector.state !== "ghosted") {
+        const { selector, source } = layer;
+        if (source.by === "element") {
             continue;
         }
 
-        await tx.styles.update(layer.id, {
-            selector: { match: "state", state: "outsideWindow" },
-            ...(drawn ? { set: { ...layer.set, [`${target}.visible`]: true } } : {}),
-        });
+        if (selector.match === "state" && selector.state === "ghosted") {
+            await tx.styles.update(layer.id, { selector: { match: "state", state: "outsideWindow" } });
+        } else if (selector.match === "rule") {
+            const where = ghostedLeavesOutside(selector.where);
+            if (where !== selector.where) {
+                await tx.styles.update(layer.id, { selector: { ...selector, where } });
+            }
+        }
+    }
+
+    for (const set of tx.sets.list()) {
+        const { definition } = set;
+        if (definition.kind === "rule" && typeof definition.where === "object") {
+            const where = ghostedLeavesOutside(definition.where);
+            if (where !== definition.where) {
+                tx.sets.redefine(set.id, { ...definition, where });
+            }
+        }
+    }
+
+    // Saved before the drawing lived in the layers: with no layer drawing it, one is added.
+    if (typeof playback === "object" && playback !== null && "outside" in playback && playback.outside === "ghost") {
+        await tx.time.setSettings({ outside: "ghost" });
     }
 }
 

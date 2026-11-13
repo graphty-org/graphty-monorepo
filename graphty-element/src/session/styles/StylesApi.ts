@@ -250,6 +250,7 @@ import { selectorStates } from "./selector";
 import {
     arrange,
     documentRows,
+    drawsOutsideWindow,
     findRow,
     folderIdsOf,
     hiddenRowKeys,
@@ -2857,27 +2858,29 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
         }
 
-        // A ghost (what a held condition would remove, or what lies outside the time window) is
-        // drawn faint, a member keeping its branch's color. Over the full graph a ghost that a
-        // branch holds is a member like any other, so the branches are drawn over the ghosts.
+        // A ghost (what a held condition would remove, and what lies outside the time window
+        // while the stack draws it) is drawn faint, a member keeping its branch's color. Over the
+        // full graph a ghost that a branch holds is a member like any other, so the branches are
+        // drawn over the ghosts.
         const restLayers = view.rest === "faint" ? 2 : 0;
         const ghostAt = view.base === "full" ? restLayers : specs.length;
-        specs.splice(
-            ghostAt,
-            0,
+        const held = (state: "ghosted" | "outsideWindow", show: boolean): LayerSpec[] => [
             {
                 name: "Held",
                 target: "node",
-                selector: { match: "state", state: "ghosted" },
-                set: { "node.opacity": 0.2 },
+                selector: { match: "state", state },
+                set: { ...(show ? { "node.visible": true } : {}), "node.opacity": 0.2 },
             },
             {
                 name: "Held",
                 target: "edge",
-                selector: { match: "state", state: "ghosted" },
-                set: { "edge.opacity": 0.15 },
+                selector: { match: "state", state },
+                set: { ...(show ? { "edge.visible": true } : {}), "edge.opacity": 0.15 },
             },
-        );
+        ];
+        // What lies outside the window stays drawn: the view suspends the layers that draw it.
+        const outside = drawsOutsideWindow(current()) ? held("outsideWindow", true) : [];
+        specs.splice(ghostAt, 0, ...held("ghosted", false), ...outside);
 
         const layers = specs.map((spec, at) => {
             const checked = check(spec, `graphty-branches-${String(at)}`);

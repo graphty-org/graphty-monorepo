@@ -28,6 +28,7 @@ import type {
     EdgeId,
     EdgeMember,
     EdgeReading,
+    ElementState,
     LayerId,
     LayoutId,
     NodeId,
@@ -2054,6 +2055,12 @@ function baseStyleOf(style: unknown, target: "node" | "edge"): StaticStyle {
     return written;
 }
 
+/** The states each live repaint follows: one wakes only for a layer reading its own. */
+const HOVER_STATES: readonly ElementState[] = ["hovered"];
+const PIN_STATES: readonly ElementState[] = ["pinned"];
+const SELECTION_STATES: readonly ElementState[] = ["selected", "hovered"];
+const WINDOW_STATES: readonly ElementState[] = ["ghosted", "outsideWindow"];
+
 /**
  * The layers the element owns, which sit at the bottom of every stack.
  *
@@ -3589,14 +3596,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             advanceTick();
             // A union step reading "hovered-or-selected" follows the pointer.
             notifier.notify({ kind: "hover" });
-            repaintStates({ node: nodes, edge: [] });
+            repaintStates({ node: nodes, edge: [] }, HOVER_STATES);
             // The pointer moved to another node, or off every node: repaint what a hover layer paints.
             repaintHover();
             publish(watchers, "selection:hover-changed", { before, after });
         },
         onHoverPreview: (ids) => {
             advanceTick();
-            repaintStates({ node: ids.flatMap((id) => nodeIndex(id) ?? []), edge: [] });
+            repaintStates({ node: ids.flatMap((id) => nodeIndex(id) ?? []), edge: [] }, HOVER_STATES);
         },
         onPeek: (dirty, peeked) => {
             peekLayers = peeked === null ? NO_LAYERS : peekLayersOf(peeked);
@@ -3643,16 +3650,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
     const teardown = new AbortController();
     // A `{match:"state"}` layer reads the selection and the pointer live, which change with no
-    // step: each change repaints exactly the elements whose state moved, when a layer reads one.
-    const readsState = (): boolean =>
-        stack?.compiled().some((entry) => entry.layer.selector.match === "state") ?? false;
-    const repaintStates = (dirty: ElementIndices, rowsOnly = false): void => {
+    // step: each change repaints exactly the elements whose state moved, when a layer reads it.
+    const readsState = (states: readonly ElementState[]): boolean =>
+        stack
+            ?.compiled()
+            .some(({ layer: { selector } }) => selector.match === "state" && states.includes(selector.state)) ?? false;
+    const repaintStates = (dirty: ElementIndices, states: readonly ElementState[], rowsOnly = false): void => {
         if (dirty.node.length > 0 || dirty.edge.length > 0) {
             stateRevision++;
             // A rule reading a state follows it through its live scope.
             notifier.notify({ kind: "state" });
         }
-        if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0) || !readsState()) {
+        if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0) || !readsState(states)) {
             return;
         }
 
@@ -3684,7 +3693,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const at = key.startsWith("n:") ? nodeIndex(nodeOfKey(key)) : undefined;
             return at === undefined ? [] : [at];
         });
-        repaintStates({ node: nodes, edge: [] });
+        repaintStates({ node: nodes, edge: [] }, PIN_STATES);
     });
     // The selection as last repainted, so a change repaints what moved: one byte per element.
     let paintedSelection: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
@@ -3701,7 +3710,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     repaintSelected = (): void => {
         // No layer reads the selection: nothing to repaint, and nothing remembered, so the first
         // change after one is added repaints every element once rather than trusting old bytes.
-        if (!readsState()) {
+        if (!readsState(SELECTION_STATES)) {
             paintedSelection = null;
             return;
         }
@@ -3710,7 +3719,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const now = { node: owner.nodeMask(), edge: owner.edgeMask() };
         const before = paintedSelection;
         paintedSelection = now;
-        repaintStates({ node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) });
+        repaintStates(
+            { node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) },
+            SELECTION_STATES,
+        );
     };
     // The ghosts and what lies outside the time window, as last repainted: a window move, a slide
     // or a held condition repaints the elements that entered or left either state.
@@ -3759,7 +3771,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             notifier.notify({ kind: "state" });
         }
 
-        if (!readsState()) {
+        if (!readsState(WINDOW_STATES)) {
             painted.ghosts = null;
             painted.outside = null;
             return;
@@ -3775,6 +3787,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 node: [...Array.from(held.node), ...Array.from(window.node)],
                 edge: [...Array.from(held.edge), ...Array.from(window.edge)],
             },
+            WINDOW_STATES,
             rowsOnly,
         );
     };
@@ -3783,13 +3796,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // that `inState` reads already agree.
     dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
         const graph = snapshot();
-        repaintStates({
-            node: [...dirty].flatMap((key) => {
-                const row = graph.ids.indexOf(nodeOfKey(key));
-                return row === INVALID_INDEX ? [] : [row];
-            }),
-            edge: [],
-        });
+        repaintStates(
+            {
+                node: [...dirty].flatMap((key) => {
+                    const row = graph.ids.indexOf(nodeOfKey(key));
+                    return row === INVALID_INDEX ? [] : [row];
+                }),
+                edge: [],
+            },
+            PIN_STATES,
+        );
     });
     // The live scopes `{match:"member"}` layers test (design/sets 11): each watches its scope and
     // repaints exactly the elements that moved, or both halves whole after a freeze.
@@ -3823,6 +3839,33 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         notifier.dispose();
         selection?.endPeek();
     });
+    // What the renderer draws, by row, for a layer's count under a time window: each kind read
+    // only when asked, and again only when its drawn mask moves, which a window step never does.
+    const drawnRowsOf = (
+        mask: () => { readonly version: number; forEachMember(visit: (index: number) => void): void },
+    ) => {
+        let kept: { of: unknown; version: number; rows: number[] } | null = null;
+        return (): number[] => {
+            const now = mask();
+            if (kept?.of !== now || kept.version !== now.version) {
+                const rows: number[] = [];
+                now.forEachMember((index) => rows.push(index));
+                kept = { of: now, version: now.version, rows };
+            }
+
+            return kept.rows;
+        };
+    };
+    const drawnNodeRows = drawnRowsOf(() => visibility.drawnMasks.nodes());
+    const drawnEdgeRows = drawnRowsOf(() => visibility.drawnMasks.edges());
+    const drawnRows = {
+        get nodes(): number[] {
+            return drawnNodeRows();
+        },
+        get edges(): number[] {
+            return drawnEdgeRows();
+        },
+    };
     const nodeIndex = nodeIndexOf(snapshot);
     const edgeIndex = edgeIndexOf(snapshot);
     const hoverSource = createHoverSource(snapshot, () => {
@@ -3907,18 +3950,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // beside a load would paint half a graph and then be handed the other half.
         queue,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
-        drawn: () => {
-            if (!visibility.ghosting) {
-                return null;
-            }
-
-            const rows = (mask: { forEachMember(visit: (index: number) => void): void }): number[] => {
-                const found: number[] = [];
-                mask.forEachMember((index) => found.push(index));
-                return found;
-            };
-            return { nodes: rows(visibility.drawnMasks.nodes()), edges: rows(visibility.drawnMasks.edges()) };
-        },
+        drawn: () => (visibility.ghosting ? drawnRows : null),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         inputRevision: () => inputs.tick.value,
         stateRevision: () => stateRevision,
@@ -4457,14 +4489,21 @@ function paintsRowAlone(entry: CompiledLayer): boolean {
  * Not of this kind, so an add under one paints the whole graph: a `top`, which ranks a column; a
  * `member` or `rule` selector, whose set can follow the structure; `state` and `hover`, which can
  * reach a neighbor; a value read at an edge's end, which an edit or a degree moves on every edge
- * at that node; and a template's `|count` or `|rank`, which no settled fact describes.
+ * at that node; and a template's `|count` or `|rank`, which no settled fact describes. The state
+ * `"outsideWindow"` is of this kind: an element's own time places it, and what a visibility pass
+ * moves in or out of it is repainted by that pass.
  * @param entry - The layer.
  * @returns True when it does.
  */
 function paintsFromRowAndColumn(entry: CompiledLayer): boolean {
     const { match } = entry.selector;
+    const { selector } = entry.layer;
     return (
-        (match === "everything" || match === "has" || match === "ids" || match === "expression") &&
+        (match === "everything" ||
+            match === "has" ||
+            match === "ids" ||
+            match === "expression" ||
+            (selector.match === "state" && selector.state === "outsideWindow")) &&
         !entry.reads.some((path) => edgeEndPathOf(path) !== undefined) &&
         !Object.values(entry.layer.encode ?? {}).some(
             (binding) => binding !== undefined && "template" in binding && readsWholeColumn(binding.template),

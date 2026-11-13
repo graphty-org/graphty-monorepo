@@ -75,6 +75,27 @@ function nodeIds(session: GraphSession, bytes: Uint8Array | undefined): string[]
         .sort();
 }
 
+/**
+ * Whether a node or an edge is drawn, as the style layers resolve its `visible`.
+ * @param session - The session.
+ * @param target - The node, or the edge.
+ * @returns False when a layer hides it.
+ */
+function drawn(session: GraphSession, target: { node: string } | { edge: string }): boolean {
+    const channel = "node" in target ? "node.visible" : "edge.visible";
+    return session.styles.explain(target).merged[channel] !== false;
+}
+
+/**
+ * The id of the edge s0 -> s1, outside every window that starts after step 1.
+ * @param session - The session.
+ * @returns Its id.
+ */
+function firstEdge(session: GraphSession): string {
+    const edge = session.data.edges().find((each) => each.source === "s0" && each.target === "s1");
+    return String(edge?.id);
+}
+
 describe("timeline ghosts", () => {
     it("keeps what lies outside the window drawn, hidden by style, and ghosts it when asked", async () => {
         const session = await trace();
@@ -262,6 +283,117 @@ describe("timeline ghosts", () => {
             opened.dispose();
             again.dispose();
         }
+    });
+
+    it("reads Outside from the rows that paint, so hiding the Ghost row reads Hide and Ghost draws again", async () => {
+        const session = await trace();
+        await session.time.window({ from: 3, to: 6 });
+        await session.time.setSettings({ outside: "ghost" });
+        assert.isTrue(drawn(session, { node: "s0" }));
+
+        const row = session.styles.list().find((layer) => layer.name === "Ghost");
+        await session.styles.hideRow(row?.row ?? row?.id ?? "", true);
+        assert.strictEqual(session.time.settings.outside, "hide");
+        assert.isFalse(drawn(session, { node: "s0" }));
+
+        await session.time.setSettings({ outside: "ghost" });
+        assert.strictEqual(session.time.settings.outside, "ghost");
+        assert.isTrue(drawn(session, { node: "s0" }));
+        assert.isTrue(drawn(session, { edge: firstEdge(session) }));
+        session.dispose();
+    });
+
+    it("draws nodes and edges alike when a reader's own layer selects only nodes", async () => {
+        const session = await trace(false);
+        await session.time.window({ from: 3, to: 6 });
+        await session.styles.add({
+            name: "Outside the window",
+            target: "node",
+            selector: { match: "state", state: "outsideWindow" },
+            set: { "node.visible": true, "node.opacity": 0.2 },
+        });
+        assert.strictEqual(session.time.settings.outside, "hide", "the edges are still hidden");
+
+        await session.time.setSettings({ outside: "ghost" });
+        assert.strictEqual(session.time.settings.outside, "ghost");
+        assert.isTrue(drawn(session, { node: "s0" }));
+        assert.isTrue(drawn(session, { edge: firstEdge(session) }));
+        session.dispose();
+    });
+
+    it("keeps what lies outside drawn faint while a branches view is open under Outside: Ghost", async () => {
+        const session = await trace();
+        await session.time.window({ from: 3, to: 6 });
+        await session.time.setSettings({ outside: "ghost" });
+        const view = session.styles.showBranches({
+            rule: {
+                kind: "union",
+                side: "nodes",
+                within: "visible",
+                branches: [
+                    {
+                        start: "none",
+                        color: "#009E73",
+                        steps: [{ op: "add", rule: { kind: "state", state: "selected" } }],
+                    },
+                ],
+            },
+        });
+        await session.styles.settled();
+        assert.isTrue(drawn(session, { node: "s0" }));
+        assert.strictEqual(session.styles.explain({ node: "s0" }).merged["node.opacity"], 0.2);
+        view.end();
+        await session.styles.settled();
+
+        await session.time.setSettings({ outside: "hide" });
+        const hidden = session.styles.showBranches({
+            rule: {
+                kind: "union",
+                side: "nodes",
+                within: "visible",
+                branches: [
+                    {
+                        start: "none",
+                        color: "#009E73",
+                        steps: [{ op: "add", rule: { kind: "state", state: "selected" } }],
+                    },
+                ],
+            },
+        });
+        await session.styles.settled();
+        assert.isFalse(drawn(session, { node: "s0" }), "Outside: Hide stays hidden");
+        hidden.end();
+        await session.styles.settled();
+        session.dispose();
+    });
+
+    it("brings a saved Ghost choice with no layer to draw it, and a rule on the old state, up to date on load", async () => {
+        const session = await trace(false);
+        await session.time.window({ from: 3, to: 6 });
+        await session.styles.add({
+            name: "Old outside rule",
+            target: "node",
+            selector: { match: "rule", where: { kind: "all", of: [{ kind: "state", state: "outsideWindow" }] } },
+            set: { "node.color": "#123456" },
+        });
+        await session.time.setSettings({ missing: "outside" });
+        const { text } = await session.project.save();
+        session.dispose();
+        const before = text
+            .replaceAll('"state":"outsideWindow"', '"state":"ghosted"')
+            .replace('"playback":{"missing":"outside"}', '"playback":{"missing":"outside","outside":"ghost"}');
+        assert.include(before, '"outside":"ghost"');
+
+        const opened = createGraphSession() as ElementSession;
+        await opened.project.open(before);
+        assert.strictEqual(opened.time.settings.outside, "ghost");
+        assert.isTrue(drawn(opened, { node: "s0" }));
+        const rule = opened.styles.list().find((layer) => layer.name === "Old outside rule");
+        assert.deepEqual(rule?.selector, {
+            match: "rule",
+            where: { kind: "all", of: [{ kind: "state", state: "outsideWindow" }] },
+        });
+        opened.dispose();
     });
 
     it("adds the Ghost row directly below Selected with the field, and takes it away with it", async () => {

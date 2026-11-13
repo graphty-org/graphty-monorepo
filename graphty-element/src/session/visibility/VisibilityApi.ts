@@ -1610,6 +1610,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     type ElementBytes = { readonly node: Uint8Array; readonly edge: Uint8Array };
     let ghostCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
     let outsideCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
+    /** What {@link outsideCache} was last answered under this turn, or null in a new turn. */
+    let outsideStamp: readonly unknown[] | null = null;
 
     /**
      * One byte per element, 1 for what a held condition would remove but is drawn, or null while
@@ -1717,21 +1719,40 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return null;
         }
 
-        const active = upToDate();
-        filterBytesOf(active.graph);
-        const key = [nodeMaskValue.version, edgeMaskValue.version, filterCache];
-        if (outsideCache !== null && sameInputs(outsideCache.key, key)) {
+        // A repaint asks once per element: within one turn, with the state, the masks and the
+        // graph unmoved, the bytes are the ones just answered.
+        // ponytail: per turn, since a set a filter names can move with no command; stamp the set
+        // signatures too if a pass spanning turns ever costs.
+        const stamp = (): readonly unknown[] => [
+            nodeMaskValue.version,
+            edgeMaskValue.version,
+            dispatcher.state,
+            sources.snapshot(),
+        ];
+        if (outsideCache !== null && outsideStamp !== null && sameInputs(outsideStamp, stamp())) {
             return outsideCache.bytes;
         }
 
-        const passing = passingOf(active.graph);
-        const bytes = outsideAfterSlide(passing, active.graph) ?? {
-            node: outsideRows(active.graph.nodeCount, passing.nodes, nodeMaskValue),
-            edge: outsideRows(active.graph.edgeCount, passing.edges, edgeMaskValue),
-        };
-        outsideCache = { key, bytes };
+        const active = upToDate();
+        filterBytesOf(active.graph);
+        const key = [nodeMaskValue.version, edgeMaskValue.version, filterCache];
+        if (outsideCache === null || !sameInputs(outsideCache.key, key)) {
+            const passing = passingOf(active.graph);
+            const bytes = outsideAfterSlide(passing, active.graph) ?? {
+                node: outsideRows(active.graph.nodeCount, passing.nodes, nodeMaskValue),
+                edge: outsideRows(active.graph.edgeCount, passing.edges, edgeMaskValue),
+            };
+            outsideCache = { key, bytes };
+        }
 
-        return bytes;
+        if (outsideStamp === null) {
+            queueMicrotask(() => {
+                outsideStamp = null;
+            });
+        }
+
+        outsideStamp = stamp();
+        return outsideCache.bytes;
     };
 
     /**

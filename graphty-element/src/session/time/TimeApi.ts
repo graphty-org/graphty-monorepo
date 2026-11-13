@@ -25,7 +25,9 @@ import type { Run } from "../runs";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
+import type { CompiledLayer } from "../styles/Layer";
 import type { Selector } from "../styles/selector";
+import { drawsOutsideWindow, paintedStack } from "../styles/tree";
 import type { HistoryStepId, SessionEventMap } from "../types";
 import type {
     FilterResult,
@@ -1670,56 +1672,57 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * How an element outside the window draws: the `visible` the topmost enabled layer selecting
-     * that state sets, the element's own included.
-     * @returns `"ghost"` when it is drawn.
+     * The layers of one kind selecting what lies outside the window that paint now: enabled, and
+     * not in a hidden row.
+     * @param target - Nodes or edges.
+     * @returns Them, bottom first, the element's own included.
      */
-    const outsideNow = (): "hide" | "ghost" => {
-        const stack = dispatcher.state.styles;
-        for (let at = stack.length - 1; at >= 0; at--) {
-            const { layer } = stack[at];
-            const visible = layer.set?.["node.visible"];
-            if (layer.enabled && layer.target === "node" && selectsOutside(layer) && visible !== undefined) {
-                return visible === false ? "hide" : "ghost";
-            }
-        }
-
-        return DEFAULT_TIME_SETTINGS.outside;
-    };
+    const outsideLayers = (target: "node" | "edge"): CompiledLayer[] =>
+        paintedStack(dispatcher.state.styles).filter(
+            ({ layer }) => layer.enabled && layer.target === target && selectsOutside(layer),
+        );
 
     /**
-     * The style writes that make what lies outside the window draw one way: `visible` on every
-     * layer a reader or a template put in the stack selecting that state, or two new layers when
-     * none does and it is to draw.
+     * How an element outside the window draws, read from the layers selecting that state.
+     * @returns `"ghost"` when nodes and edges alike are drawn.
+     */
+    const outsideNow = (): "hide" | "ghost" => (drawsOutsideWindow(dispatcher.state.styles) ? "ghost" : "hide");
+
+    /**
+     * The style writes that make what lies outside the window draw one way: for nodes and for
+     * edges, `visible` on every painting layer a reader or a template put in the stack selecting
+     * that state, or a new layer when none does and it is to draw.
      * @param outside - How it draws.
      * @returns The commands.
      */
     const outsideWrites = (outside: "hide" | "ghost"): StylePatchCommand[] => {
         const drawn = outside === "ghost";
-        const own = dispatcher.state.styles.filter(
-            ({ layer }) => layer.source.by !== "element" && selectsOutside(layer),
-        );
-        if (own.length === 0) {
-            return drawn
-                ? (["node", "edge"] as const).map((target) => ({
-                      op: "style.patch",
-                      action: "add",
-                      spec: {
-                          name: "Outside the time window",
-                          target,
-                          selector: { match: "state", state: "outsideWindow" },
-                          set: { [`${target}.visible`]: true },
-                      },
-                  }))
-                : [];
-        }
+        return (["node", "edge"] as const).flatMap((target): StylePatchCommand[] => {
+            const own = outsideLayers(target).filter(({ layer }) => layer.source.by !== "element");
+            if (own.length === 0) {
+                return drawn
+                    ? [
+                          {
+                              op: "style.patch",
+                              action: "add",
+                              spec: {
+                                  name: "Outside the time window",
+                                  target,
+                                  selector: { match: "state", state: "outsideWindow" },
+                                  set: { [`${target}.visible`]: true },
+                              },
+                          },
+                      ]
+                    : [];
+            }
 
-        return own.map(({ layer }) => ({
-            op: "style.patch",
-            action: "update",
-            id: layer.id,
-            patch: { set: { ...layer.set, [`${layer.target}.visible`]: drawn } },
-        }));
+            return own.map(({ layer }) => ({
+                op: "style.patch",
+                action: "update",
+                id: layer.id,
+                patch: { set: { ...layer.set, [`${target}.visible`]: drawn } },
+            }));
+        });
     };
 
     /**

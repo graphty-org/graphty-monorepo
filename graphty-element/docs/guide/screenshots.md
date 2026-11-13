@@ -64,11 +64,18 @@ const transparent = await graph.captureScreenshot({
 Before capturing, verify support:
 
 ```typescript
-const canCapture = graph.canCaptureScreenshot();
-if (!canCapture) {
-    console.log("Screenshot capture not supported");
+const check = await graph.canCaptureScreenshot({ width: 7680, height: 4320 });
+if (!check.supported) {
+    // A code and its values, such as { code: "RESOLUTION_TOO_HIGH", params: { maxPixels: 33177600, ... } }
+    console.log(check.reason?.code, check.reason?.params);
+}
+for (const warning of check.warnings ?? []) {
+    // "W_LARGE_CAPTURE" ({ width, height, megapixels }) or "W_HIGH_MEMORY" ({ memoryMB })
+    console.log(warning.code, warning.params);
 }
 ```
+
+The reason and the warnings are codes with their values, never sentences: your application words them.
 
 ## Downloading Screenshots
 

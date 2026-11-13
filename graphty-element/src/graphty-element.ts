@@ -4586,6 +4586,8 @@ export class Graphty extends LitElement {
      * @param options - How to load
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty source rejects and leaves the current graph untouched
+     * @param options.signal - Cancels the load: it rejects with the signal's reason (an
+     *     `AbortError` by default) and adds nothing, leaving the graph as it was
      * @returns Promise that resolves to `{ loadId }` when data is loaded
      * @since 1.5.0
      * @example
@@ -4593,7 +4595,11 @@ export class Graphty extends LitElement {
      * const { loadId } = await element.addDataFromSource('json', { url: 'https://example.com/data.json' });
      * ```
      */
-    async addDataFromSource(type: string, opts?: object, options?: { replace?: boolean }): Promise<{ loadId: number }> {
+    async addDataFromSource(
+        type: string,
+        opts?: object,
+        options?: { replace?: boolean; signal?: AbortSignal },
+    ): Promise<{ loadId: number }> {
         const held = this.#afterRestore();
         if (held !== undefined) {
             await held;
@@ -4613,6 +4619,8 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.signal - Cancels the load, its read included: it rejects with the signal's
+     *     reason (an `AbortError` by default) and adds nothing, leaving the graph as it was
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
@@ -4643,6 +4651,7 @@ export class Graphty extends LitElement {
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
+            signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
         const held = this.#afterRestore();
@@ -4664,6 +4673,8 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.signal - Cancels the load, its read included: it rejects with the signal's
+     *     reason (an `AbortError` by default) and adds nothing, leaving the graph as it was
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
@@ -4696,6 +4707,7 @@ export class Graphty extends LitElement {
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
+            signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
         const held = this.#afterRestore();

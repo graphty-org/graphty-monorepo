@@ -296,7 +296,7 @@
           "76"
         ]
       },
-      "knownFailure": "<data> for an undeclared key is an error and its value is dropped (sources.md 2.4)"
+      "knownFailure": "<data> for an undeclared key is an error and its value is dropped (sources.md 2.4) (#7650)"
     },
     {
       "file": "graphology/missing_nodes.graphml",
@@ -579,7 +579,7 @@
           }
         ]
       },
-      "roundTripFailure": "a node id with spaces is not an NMTOKEN, so export refuses it without sanitizeIds \"mangle\" (sources.md 2.1)"
+      "roundTripRefusal": "E_ID_CHARSET"
     },
     {
       "file": "igraph/test.graphml",
@@ -1229,7 +1229,7 @@
           "bar"
         ]
       },
-      "knownFailure": "<key> declared inside <graph> is skipped and its data rejected (sources.md 2.4)"
+      "knownFailure": "<key> declared inside <graph> is skipped and its data rejected (sources.md 2.4) (#7650)"
     },
     {
       "file": "cytoscape/simple.graphml",
@@ -1942,7 +1942,7 @@
         "edges": 4,
         "directed": true
       },
-      "knownFailure": "per-edge directed other than true/false skips the edge (sources.md 2.4)"
+      "knownFailure": "per-edge directed other than true/false skips the edge (sources.md 2.4) (#7650)"
     },
     {
       "file": "authored/graph-in-edge.graphml",
@@ -9827,7 +9827,7 @@
           }
         ]
       },
-      "roundTripFailure": "a node id with spaces is not an NMTOKEN, so export refuses it without sanitizeIds \"mangle\" (sources.md 2.1)"
+      "roundTripRefusal": "E_ID_CHARSET"
     },
     {
       "file": "networkx-generated/graphml-string-ids-1.graphml",
@@ -10003,7 +10003,7 @@
           }
         ]
       },
-      "roundTripFailure": "a node id with spaces is not an NMTOKEN, so export refuses it without sanitizeIds \"mangle\" (sources.md 2.1)"
+      "roundTripRefusal": "E_ID_CHARSET"
     },
     {
       "file": "networkx-generated/graphml-infer-path-0.graphml",
@@ -18005,7 +18005,7 @@
           }
         ]
       },
-      "roundTripFailure": "a node id with spaces is not an NMTOKEN, so export refuses it without sanitizeIds \"mangle\" (sources.md 2.1)"
+      "roundTripRefusal": "E_ID_CHARSET"
     },
     {
       "file": "networkx-generated/graphml-infer-string-ids-1.graphml",
@@ -18155,7 +18155,7 @@
           }
         ]
       },
-      "roundTripFailure": "a node id with spaces is not an NMTOKEN, so export refuses it without sanitizeIds \"mangle\" (sources.md 2.1)"
+      "roundTripRefusal": "E_ID_CHARSET"
     }
   ]
 }

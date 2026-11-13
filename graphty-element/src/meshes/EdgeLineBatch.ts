@@ -5,7 +5,7 @@ import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 import { Buffer, Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 
 import { UNTIMED_AGE } from "../session/time/ageFade";
-import { CustomLineRenderer } from "./CustomLineRenderer";
+import { CustomLineRenderer, type JoinedPatternKind } from "./CustomLineRenderer";
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
 import {
     EDGE_STATIC_ATTRIBUTES,
@@ -85,10 +85,15 @@ const scratchColor = new Float32Array(FLOATS_PER_COLOR);
 export interface EdgeLineMeta {
     joinedLine?: boolean;
     /**
-     * A dashed or dotted line: which, its element's length along the line, `line.patternCount`, and the gap between
+     * A patterned line (dashes, dots, boxes, diamonds or stars): which, its element's length along the line, `line.patternCount`, and the gap between
      * two elements (`line.dashGap`, in world units; unset, the elements spread from end to end).
      */
-    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined; gap?: number | undefined };
+    pattern?: {
+        kind: JoinedPatternKind;
+        elementLength: number;
+        count?: number | undefined;
+        gap?: number | undefined;
+    };
     /**
      * A joined line drawn with a shader or a taper (`edgeJoinShader`'s `EDGE_WIDENED`): each slot
      * also carries the whole edge's length, and the static values in a buffer of their own.

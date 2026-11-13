@@ -412,6 +412,8 @@ export function endWords(code: string, params: AiResultParams, provider: string,
         case "AI_HISTORY_UNAVAILABLE":
         case "AI_STORAGE_FAILED":
             return note("This chat is not being saved.");
+        case "AI_NO_PREVIOUS_COMMAND":
+            return note("There is no message to send again.");
         case "AI_HISTORY_NEWER_FORMAT":
             return note("Saved by a newer version of graphty, so it was left as it is.");
         default:

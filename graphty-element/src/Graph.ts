@@ -547,6 +547,7 @@ interface Reservation {
     readonly generation: number;
     readonly replace: boolean;
     readonly turn: LoadTurn;
+    readonly signal?: AbortSignal;
 }
 
 /** Each graph's operation queue; see {@link operationQueueOf}. */
@@ -3110,14 +3111,16 @@ export class Graph implements GraphContext {
      * @param options - How to load
      * @param options.replace - Replace the graph with what the source holds, but only once all of
      *     it has parsed: a malformed or empty source rejects and leaves the graph as it was
+     * @param options.signal - Cancels the load: it rejects with the signal's reason (an
+     *     `AbortError` by default) and adds nothing, leaving the graph as it was
      * @returns Promise that resolves to the load's id when data is loaded
      */
     async addDataFromSource(
         type: string,
         opts: object = {},
-        options?: { replace?: boolean },
+        options?: { replace?: boolean; signal?: AbortSignal },
     ): Promise<{ loadId: number }> {
-        return this.loadReserved(type, opts, this.reserveLoad(options?.replace));
+        return this.loadReserved(type, opts, this.reserveLoad(options?.replace, options?.signal));
     }
 
     /**
@@ -3131,9 +3134,11 @@ export class Graph implements GraphContext {
      * #3382). A replacing load supersedes this graph's earlier loads, which will never dispatch,
      * so it takes their places in the line at once rather than waiting for their reads.
      * @param replace - Whether the load replaces the graph
+     * @param signal - Cancels the load
      * @returns The reservation to hand to `loadReserved`, which gives the place up
      */
-    private reserveLoad(replace = false): Reservation {
+    private reserveLoad(replace = false, signal?: AbortSignal): Reservation {
+        signal?.throwIfAborted();
         if (replace) {
             for (const superseded of this.turns) {
                 superseded.leave();
@@ -3142,7 +3147,13 @@ export class Graph implements GraphContext {
         }
         const turn = loadLineOf(dispatcherOf(this.session)).join();
         this.turns.add(turn);
-        return { loadId: ++this.loadCount, generation: this.dataManager.beginLoad(replace), replace, turn };
+        return {
+            loadId: ++this.loadCount,
+            generation: this.dataManager.beginLoad(replace),
+            replace,
+            turn,
+            ...(signal === undefined ? {} : { signal }),
+        };
     }
 
     /**
@@ -3163,6 +3174,7 @@ export class Graph implements GraphContext {
      * @param load.generation - The load's place in line
      * @param load.replace - Whether the load replaces the graph
      * @param load.turn - Its place in the session's load line
+     * @param load.signal - Cancels the load
      * @param pair - What a pair load adds; set only for the call that made it, so a door that reads
      *     first passes what it found before its first await
      * @returns The load's id
@@ -3196,6 +3208,7 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
+     * @param options.signal - Cancels the load, its read included; see `addDataFromSource`
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
      * @param options.graphName - Which graph to read, by name, from a file that holds several
@@ -3221,9 +3234,10 @@ export class Graph implements GraphContext {
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
+            signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
-        const load = this.reserveLoad(options?.replace);
+        const load = this.reserveLoad(options?.replace, options?.signal);
         try {
             const { detectFormat } = await import("./data/format-detection.js");
 
@@ -3234,6 +3248,7 @@ export class Graph implements GraphContext {
                 // Read first 2KB for format detection
                 const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
                 this.dataManager.throwIfSuperseded(load.generation, file.name);
+                options?.signal?.throwIfAborted();
                 const detected = detectFormat(file.name, sample);
 
                 if (!detected) {
@@ -3246,9 +3261,10 @@ export class Graph implements GraphContext {
             // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
             // declaration), and a binary format such as a zip would not survive a text read.
             const content = new Uint8Array(await file.arrayBuffer());
+            options?.signal?.throwIfAborted();
 
             // Load using appropriate DataSource
-            const { replace: _replace, ...sourceOptions } = options ?? {};
+            const { replace: _replace, signal: _signal, ...sourceOptions } = options ?? {};
             return await this.loadReserved(
                 format,
                 {
@@ -3280,6 +3296,7 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
+     * @param options.signal - Cancels the load, its fetch included; see `addDataFromSource`
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
@@ -3315,14 +3332,15 @@ export class Graph implements GraphContext {
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
+            signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
-        const load = this.reserveLoad(options?.replace);
+        const load = this.reserveLoad(options?.replace, options?.signal);
         const pair = pairImports.get(this);
         try {
             const { format, fetchedContent } = options?.format
                 ? { format: options.format, fetchedContent: undefined }
-                : await this.urlFormat(url, load.generation).catch((error: unknown) => {
+                : await this.urlFormat(url, load.generation, options?.signal).catch((error: unknown) => {
                       pair?.readFailed(error);
                       throw error;
                   });
@@ -3331,13 +3349,18 @@ export class Graph implements GraphContext {
             // A key is only carried when there is something to say. `edgeSource: undefined` would
             // reach the load as a declared-and-empty override and turn the probe off for a file that
             // named nothing, which is the failure this release exists to remove.
+            // The configured id path rides along only when it says something: the schema's default
+            // "id" would turn off the JSON reader's own-shape reading (Cytoscape.js, graphology,
+            // vis, JGF and node-link documents) and load nothing, as loadFromFile never did.
             const configured = this.styles.config.data.knownFields;
             const edgeSource = options?.edgeSource ?? configured.edgeSrcIdPath;
             const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
+            const nodeIdPath =
+                options?.nodeIdPath ?? (configured.nodeIdPath === "id" ? undefined : configured.nodeIdPath);
             const { graphIndex, graphName, styles, styleOptions } = options ?? {};
             const mergedOptions = {
-                nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
                 ...presentOnly({
+                    nodeIdPath,
                     edgeSource,
                     edgeTarget,
                     graphIndex,
@@ -3364,11 +3387,13 @@ export class Graph implements GraphContext {
      * The format of a file at a URL: from its extension, else from its content, which is fetched for it.
      * @param url - The URL
      * @param generation - The load's generation, to stop when another load superseded it
+     * @param signal - Cancels the fetch
      * @returns The format, and the content when it was fetched
      */
     private async urlFormat(
         url: string,
         generation: number,
+        signal?: AbortSignal,
     ): Promise<{ format: string; fetchedContent: Uint8Array | undefined }> {
         const { detectFormat } = await import("./data/format-detection.js");
         // First try extension-based detection (no fetch needed)
@@ -3378,7 +3403,7 @@ export class Graph implements GraphContext {
         }
 
         // Extension didn't match - fetch content for detection
-        const response = await fetch(url);
+        const response = await fetch(url, signal === undefined ? undefined : { signal });
         if (!response.ok) {
             throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
         }

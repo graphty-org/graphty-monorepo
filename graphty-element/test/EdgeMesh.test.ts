@@ -14,7 +14,7 @@ import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import { EDGE_CONSTANTS } from "../src/constants/meshConstants";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
 import { MeshCache } from "../src/meshes/MeshCache";
-import { edgeLineFor } from "./helpers/edgeLine";
+import { batchLineFor, edgeLineFor } from "./helpers/edgeLine";
 
 describe("EdgeMesh", () => {
     let scene: Scene;
@@ -514,7 +514,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 0.5);
@@ -531,7 +531,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 1);
@@ -548,7 +548,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 0);
@@ -565,7 +565,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 0.7);

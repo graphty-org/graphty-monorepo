@@ -857,8 +857,9 @@ describe("results and errors in Cytoscape terms", () => {
             ["f", "g"],
         ]);
         cy.add({ data: { id: "h" } });
+        expect(() => cy.graphtyDeltaPageRank({ maxIterations: 2000 })).toThrow(/DeltaPageRank: the ranks overflowed/);
         expect(() => cy.graphtyDeltaPageRank({ maxIterations: 2000 })).toThrow(
-            /graphtyDeltaPageRank: the ranks overflowed/,
+            expect.objectContaining({ code: "E_BAD_OPTION" }),
         );
         const prio = cy.graphtyDeltaPageRank({ priority: true, maxIterations: 2000 });
         expect(prio.rank("#a")).toBeCloseTo(cy.graphtyPageRank({ directed: true }).rank("#a") ?? NaN, 6);

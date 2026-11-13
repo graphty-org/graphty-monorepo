@@ -176,6 +176,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.chartLineWidth": "mesh",
     "node.chartBorderColor": "mesh",
     "node.chartBorderWidth": "mesh",
+    "node.chartBackgroundColor": "mesh",
+    "node.chartBackgroundOpacity": "mesh",
     // How a group is sized round its members: read by the layout each frame, no mesh's identity.
     "node.groupPadding": "content",
     "node.groupPaddingRatio": "content",

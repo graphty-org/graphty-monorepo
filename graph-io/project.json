@@ -56,13 +56,24 @@
                 "cwd": "graph-io"
             }
         },
+        "typecheck-stories": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "tsc --noEmit -p fidelity-stories/tsconfig.json",
+                "cwd": "graph-io"
+            },
+            "dependsOn": ["build", { "projects": ["graphty-element"], "target": "build" }],
+            "cache": true,
+            "inputs": ["default", "^production", { "input": "default", "projects": ["graphty-element"] }],
+            "outputs": []
+        },
         "build-storybook": {
             "executor": "nx:run-commands",
             "options": {
                 "command": "npm run build-storybook",
                 "cwd": "graph-io"
             },
-            "dependsOn": ["build", { "projects": ["graphty-element"], "target": "build" }],
+            "dependsOn": ["build", { "projects": ["graphty-element"], "target": "build" }, "typecheck-stories"],
             "outputs": ["{projectRoot}/fidelity-stories/storybook-static"]
         },
         "storybook": {

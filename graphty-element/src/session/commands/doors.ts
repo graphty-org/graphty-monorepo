@@ -692,11 +692,11 @@ const ADD_FROM_SOURCE = calls(
     [imports("merge", { type: "json", config: { data: TINY_JSON } })],
 );
 
-/** Loading from a URL: the text fetched, and the id path the element reads. */
-const LOAD_FROM_URL = calls(
-    [TINY_JSON_URL],
-    [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES, nodeIdPath: "id" } })],
-);
+/**
+ * Loading from a URL: the bytes fetched, and no id path, since the element's is the default "id" and
+ * naming it would turn off the JSON reader's own-shape reading.
+ */
+const LOAD_FROM_URL = calls([TINY_JSON_URL], [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES } })]);
 
 /**
  * Loading from a URL on the element, whose rows above set the node id path to `key` and the edge

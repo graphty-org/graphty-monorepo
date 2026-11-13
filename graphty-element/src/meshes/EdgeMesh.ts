@@ -26,7 +26,13 @@ import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
-import { CustomLineRenderer, type EdgeFade, type JoinedLineOptions } from "./CustomLineRenderer";
+import {
+    CustomLineRenderer,
+    type EdgeFade,
+    JOINED_PATTERN_KINDS,
+    type JoinedLineOptions,
+    type JoinedPatternKind,
+} from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
@@ -411,27 +417,25 @@ void main() {
 
     /**
      * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
-     * slot in a line batch: every patterned type, laid along whatever route the edge takes
-     * (issue #3102), except a dashed or dotted curve, or one through bends or round a self-loop,
-     * which is a joined line in a batch that measures its dashes along the whole route. So is a dashed or dotted line
-     * with a dash length or gap of its own (`line.dashLength`, `line.dashGap`): a pattern element's shape is fixed.
+     * slot in a line batch: a pattern of two shapes (dash-dot), a wave or a glyph, laid along whatever route the edge
+     * takes (issue #3102). A dash, dot, box, diamond or star line, straight or not, is a joined line in a batch that
+     * draws its elements in its shader, measured along the whole route with the spacing pattern elements take
+     * (`EdgeLineBatch.spacingFor`): one slot per piece of the route, where pattern elements took one per element, so
+     * hundreds of thin patterned edges no longer put hundreds of thousands of pieces on every frame (issue #7404).
+     * ponytail: dash-dot, waves and glyphs still draw one slot per element; give the shader their shapes if a graph of
+     * many thin ones is ever slow.
      * @param style - The resolved style.
-     * @param loop - Whether the edge is a self-loop, which is never a straight line.
      * @returns True for pattern elements.
      */
-    static drawsAsPattern(style: EdgeStyleConfig, loop = false): boolean {
+    static drawsAsPattern(style: EdgeStyleConfig): boolean {
         const lineType = style.line?.type ?? "solid";
         if (!PATTERNED_TYPES.has(lineType)) {
             return false;
         }
 
-        const { line } = style;
-        const routed =
-            loop ||
-            line?.bezier === true ||
-            [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
-        const ownDashes = line?.dashLength !== undefined || line?.dashGap !== undefined;
-        return !((routed || ownDashes) && (lineType === "dash" || lineType === "dot"));
+        // a pattern of one plain shape draws in a joined line's shader, so it costs one slot per piece of its route
+        // whatever its length or width (issue #7404)
+        return !Object.hasOwn(JOINED_PATTERN_KINDS, lineType);
     }
 
     /**
@@ -509,7 +513,6 @@ void main() {
      * @param widened - A batch whose slots carry a taper (`edge.taper`): a joined line with the
      *     static attributes (`EdgeLineBatch`), in a batch of its own. An animated line is drawn
      *     still when widened.
-     * @param loop - Whether the edge is a self-loop (see {@link EdgeMesh.drawsAsPattern}).
      * @param byShape - Share the batch with every line of the same shape, whatever its color (see
      *     above); the caller then colors each slot it takes.
      * @returns The batch to take a slot in, or null for a patterned line.
@@ -520,7 +523,6 @@ void main() {
         style: EdgeStyleConfig,
         scene: Scene,
         widened = false,
-        loop = false,
         byShape = false,
     ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
@@ -552,7 +554,7 @@ void main() {
         const fade = widened ? this.fadeOf(style) : undefined;
         const opaque = this.drawsOpaque(style);
 
-        if (this.drawsAsPattern(style, loop)) {
+        if (this.drawsAsPattern(style)) {
             return null;
         }
 
@@ -561,7 +563,7 @@ void main() {
         // are placed along a straight line from end to end, so they cannot follow a bend. Its
         // width and element sizes are the pattern elements' own (world units), so a bent dashed
         // edge is as thick as the straight one beside it.
-        if (lineType === "dash" || lineType === "dot") {
+        if (Object.hasOwn(JOINED_PATTERN_KINDS, lineType)) {
             const is2D = this.is2DMode(scene);
             const width = options.width / 40;
             return cache.getBatch(
@@ -577,7 +579,7 @@ void main() {
                             minScreenWidth: style.line?.minScreenWidth,
                             fade,
                             opaque,
-                            pattern: this.joinedPattern(lineType, width, style),
+                            pattern: this.joinedPattern(lineType as JoinedPatternKind, width, style),
                         },
                         scene,
                     ),
@@ -618,24 +620,27 @@ void main() {
     }
 
     /**
-     * The dashes or dots of a dashed or dotted joined line, in world units.
-     * @param kind - Dashes or dots.
+     * The elements of a patterned joined line, in world units.
+     * @param kind - Dashes, dots, boxes, diamonds or stars.
      * @param width - The line's width, in world units.
      * @param style - The resolved style.
      * @returns The pattern.
      */
     private static joinedPattern(
-        kind: "dash" | "dot",
+        kind: JoinedPatternKind,
         width: number,
         style: EdgeStyleConfig,
     ): NonNullable<JoinedLineOptions["pattern"]> {
-        const { dashLength, dashGap } = style.line ?? {};
+        // a dash length or gap of its own is a dashed or dotted line's (`line.dashLength`, `line.dashGap`)
+        const own = kind === "dash" || kind === "dot";
+        const dashLength = own ? style.line?.dashLength : undefined;
+        const dashGap = own ? style.line?.dashGap : undefined;
         // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
         // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
         const dotShort = kind === "dot" ? (dashLength ?? 1) - 1 : 0;
         return {
             kind,
-            elementLength: kind === "dash" ? width * (style.line?.dashLength ?? 3) : width,
+            elementLength: kind === "dash" ? width * (dashLength ?? 3) : width,
             count: style.line?.patternCount,
             gap: dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort),
         };

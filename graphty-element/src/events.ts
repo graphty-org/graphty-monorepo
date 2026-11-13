@@ -322,8 +322,14 @@ export interface StyleChangedEvent {
 export interface DataLoadingProgressEvent {
     type: "data-loading-progress";
     format: string;
+    /** Bytes of the file the source has read so far; 0 for a source that reads no file. */
     bytesProcessed: number;
+    /**
+     * The file's size in bytes: a File's size, else the bytes read once the source has read the
+     * whole file (a URL is read whole before its first records). Absent while unknown.
+     */
     totalBytes?: number;
+    /** `bytesProcessed` as a percentage of `totalBytes`, whenever the total is known. */
     percentage?: number;
     /**
      * How many node RECORDS the source has handed over so far.

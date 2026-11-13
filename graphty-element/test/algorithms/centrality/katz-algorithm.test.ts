@@ -34,7 +34,8 @@ describe("KatzCentralityAlgorithm", () => {
 
         it("calculates katz scores for all nodes", async () => {
             const fakeGraph = await mockGraph({ dataPath: "./data4.json" });
-            const algo = new KatzCentralityAlgorithm(fakeGraph);
+            // Below 1 / lambda_max of data4, where the default alpha of 0.1 diverges.
+            const algo = new KatzCentralityAlgorithm(fakeGraph, { alpha: 0.02 });
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
@@ -47,6 +48,20 @@ describe("KatzCentralityAlgorithm", () => {
             }
         });
 
+        it("fails with E_NOT_CONVERGED when alpha is too large for the graph, instead of publishing scores", async () => {
+            // The complete graph on 11 nodes has lambda_max 10, so the default alpha 0.1 diverges.
+            const ids = Array.from({ length: 11 }, (_, i) => `n${String(i)}`);
+            const edges = ids.flatMap((src, i) => ids.slice(i + 1).map((dst) => ({ srcId: src, dstId: dst })));
+            const graph = await mockGraph({ nodes: ids.map((id) => ({ id })), edges });
+            let thrown: unknown;
+            try {
+                await new KatzCentralityAlgorithm(graph).run();
+            } catch (error) {
+                thrown = error;
+            }
+            assert.strictEqual((thrown as { code?: string } | undefined)?.code, "E_NOT_CONVERGED");
+        });
+
         it("handles empty graph", async () => {
             const emptyGraph = await mockGraph();
             const algo = new KatzCentralityAlgorithm(emptyGraph);
@@ -56,7 +71,8 @@ describe("KatzCentralityAlgorithm", () => {
 
         it("well-connected nodes have higher katz centrality", async () => {
             const fakeGraph = await mockGraph({ dataPath: "./data4.json" });
-            const algo = new KatzCentralityAlgorithm(fakeGraph);
+            // Below 1 / lambda_max of data4, where the default alpha of 0.1 diverges.
+            const algo = new KatzCentralityAlgorithm(fakeGraph, { alpha: 0.02 });
             await algo.run();
 
             // Valjean should have high katz centrality

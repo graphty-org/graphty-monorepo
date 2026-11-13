@@ -59,7 +59,7 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
                 return {
                     status: "permission-denied",
                     error: new ScreenshotError(
-                        "Clipboard permission is denied. Please allow clipboard access in browser settings.",
+                        "Clipboard permission is denied",
                         ScreenshotErrorCode.CLIPBOARD_PERMISSION_DENIED,
                     ),
                 };
@@ -93,7 +93,7 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
             return {
                 status: "permission-denied",
                 error: new ScreenshotError(
-                    "Clipboard permission denied. This may be due to browser security policies. Try clicking the button again, or check your browser's clipboard permissions.",
+                    "Clipboard permission denied",
                     ScreenshotErrorCode.CLIPBOARD_PERMISSION_DENIED,
                     error,
                 ),

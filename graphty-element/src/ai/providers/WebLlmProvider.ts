@@ -4,9 +4,20 @@
  * @module ai/providers/WebLlmProvider
  */
 
+// Types only: erased at runtime, so the optional peer is never loaded by this import.
+import type {
+    ChatCompletion,
+    ChatCompletionChunk,
+    ChatCompletionMessageParam,
+    ChatCompletionRequestBase,
+    ChatCompletionTool,
+    MLCEngineInterface,
+} from "@mlc-ai/web-llm";
+
 import { aiProviderDescriptor } from "../../catalog/ai";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { toolJsonSchema } from "../engine/jsonSchema";
+import { missingPackage } from "../missingPackage";
 import type {
     LlmProvider,
     LlmResponse,
@@ -17,8 +28,19 @@ import type {
     ToolDefinition,
 } from "./types";
 
-/** Progress callback type */
-export type ProgressCallback = (progress: number, text: string) => void;
+/**
+ * What the provider is doing while it loads: `"module"` loads `@mlc-ai/web-llm`, `"engine"`
+ * downloads and compiles the model, `"ready"` is the model loaded.
+ */
+export type WebLlmProgressStage = "module" | "engine" | "ready";
+
+/**
+ * Progress while the provider loads.
+ * @param progress - From 0 to 1.
+ * @param stage - What it is doing.
+ * @param detail - During `"engine"`, WebLLM's own report text, untranslated; absent otherwise.
+ */
+export type ProgressCallback = (progress: number, stage: WebLlmProgressStage, detail?: string) => void;
 
 /** Model information */
 export interface WebLlmModelInfo {
@@ -61,13 +83,7 @@ export async function requireWebLlmPackage(): Promise<void> {
     try {
         await import("@mlc-ai/web-llm");
     } catch (error_) {
-        throw new GraphtyError({
-            code: "E_MISSING_PACKAGE",
-            message: `The in-browser AI provider needs the optional package ${WEBLLM_PACKAGE}.`,
-            source: "config",
-            details: { package: WEBLLM_PACKAGE, feature: "webllm" },
-            cause: error_,
-        });
+        throw missingPackage(WEBLLM_PACKAGE, "webllm", error_);
     }
 }
 
@@ -108,47 +124,19 @@ const AVAILABLE_MODELS: WebLlmModelInfo[] = WEBLLM.models.map((model) => {
     };
 });
 
-// OpenAI API key names (snake_case required by API)
-interface OpenAiRequestOptions {
-    temperature?: number;
-    max_tokens?: number;
-    stream?: boolean;
-    tools?: Record<string, unknown>[];
-    tool_choice?: string;
-}
-
-interface OpenAiToolCall {
+/** A tool call as WebLLM returns it, whole or streamed. */
+interface WebLlmToolCall {
     id?: string;
-    function?: {
-        name?: string;
-        arguments?: string | Record<string, unknown>;
-    };
+    function?: { name?: string; arguments?: string };
 }
 
-interface OpenAiMessage {
-    role: string;
-    content?: string | null;
-    tool_call_id?: string;
-    tool_calls?: OpenAiToolCall[];
-}
-
-interface OpenAiUsage {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-}
-
-interface OpenAiResponse {
-    choices?: {
-        message?: {
-            content?: string;
-            tool_calls?: OpenAiToolCall[];
-        };
-        delta?: {
-            content?: string;
-            tool_calls?: OpenAiToolCall[];
-        };
-    }[];
-    usage?: OpenAiUsage;
+/**
+ * Parse a tool call's arguments. WebLLM declares them JSON text; an object is taken as it is.
+ * @param args - The arguments.
+ * @returns The parsed arguments, or none.
+ */
+function parseArguments(args: string | Record<string, unknown> | undefined): Record<string, unknown> {
+    return typeof args === "string" ? (JSON.parse(args) as Record<string, unknown>) : (args ?? {});
 }
 
 /**
@@ -158,7 +146,7 @@ interface OpenAiResponse {
  * @param callbacks - Streaming callbacks for text and tool calls.
  */
 function emitToolCalls(
-    toolCallsArray: OpenAiToolCall[] | undefined,
+    toolCallsArray: WebLlmToolCall[] | undefined,
     toolCalls: ToolCall[],
     callbacks: StreamCallbacks,
 ): void {
@@ -171,15 +159,44 @@ function emitToolCalls(
             const toolCall: ToolCall = {
                 id: tc.id ?? `call_${Date.now()}`,
                 name: tc.function.name,
-                arguments:
-                    typeof tc.function.arguments === "string"
-                        ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
-                        : (tc.function.arguments ?? {}),
+                arguments: parseArguments(tc.function.arguments),
             };
             toolCalls.push(toolCall);
             callbacks.onToolCall(toolCall.name, toolCall.arguments);
         }
     }
+}
+
+/**
+ * The error a cancelled request rejects with.
+ * @returns A new one.
+ */
+const ABORTED = (): Error => new Error("Request was aborted");
+
+/**
+ * Throw the cancelled error once the signal has fired.
+ * @param signal - The request's signal.
+ */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+    if (signal?.aborted) {
+        throw ABORTED();
+    }
+}
+
+/**
+ * Stop the engine's generation when the signal fires, so a cancelled turn frees the GPU at once.
+ * @param engine - The engine generating.
+ * @param signal - The request's signal.
+ * @returns Stops listening.
+ */
+function interruptOnAbort(engine: MLCEngineInterface, signal: AbortSignal | undefined): () => void {
+    const interrupt = (): void => {
+        engine.interruptGenerate();
+    };
+    signal?.addEventListener("abort", interrupt, { once: true });
+    return () => {
+        signal?.removeEventListener("abort", interrupt);
+    };
 }
 
 /**
@@ -202,7 +219,7 @@ export class WebLlmProvider implements LlmProvider {
     private mockMode = false;
 
     // WebLLM engine instance (dynamically imported)
-    private engine: unknown = null;
+    private engine: MLCEngineInterface | null = null;
 
     // WebLLM's own list of models it accepts tools for, read once the package has loaded
     private toolCapableModelIds?: readonly string[];
@@ -350,26 +367,30 @@ export class WebLlmProvider implements LlmProvider {
     /**
      * Emit progress to all registered callbacks (used for testing).
      * @param progress - Progress value (0-1)
-     * @param text - Progress message text
+     * @param stage - What the provider is doing
+     * @param detail - WebLLM's own report text
      */
-    simulateProgress(progress: number, text: string): void {
-        this.emitProgress(progress, text);
+    simulateProgress(progress: number, stage: WebLlmProgressStage, detail?: string): void {
+        this.emitProgress(progress, stage, detail);
     }
 
     /**
      * Emit progress to all registered callbacks.
      * @param progress - Progress value (0-1)
-     * @param text - Progress message text
+     * @param stage - What the provider is doing
+     * @param detail - WebLLM's own report text
      */
-    private emitProgress(progress: number, text: string): void {
+    private emitProgress(progress: number, stage: WebLlmProgressStage, detail?: string): void {
         for (const callback of this.progressCallbacks) {
-            callback(progress, text);
+            callback(progress, stage, detail);
         }
     }
 
     /**
      * Initialize the WebLLM engine.
      * This lazy-loads the @mlc-ai/web-llm package and downloads the model.
+     * @throws A `GraphtyError` with `E_NO_WEBGPU` when the browser has no usable WebGPU, or
+     *     `E_MISSING_PACKAGE` when `@mlc-ai/web-llm` is not installed.
      */
     async initialize(): Promise<void> {
         if (this.mockMode) {
@@ -381,43 +402,42 @@ export class WebLlmProvider implements LlmProvider {
         // Check WebGPU availability
         const webGpuAvailable = await WebLlmProvider.isWebGPUAvailable();
         if (!webGpuAvailable) {
-            throw new Error(
-                "WebGPU is not supported in this browser. " +
-                    "Please use Chrome 113+ or another WebGPU-enabled browser.",
-            );
+            throw new GraphtyError({
+                code: "E_NO_WEBGPU",
+                message: "The in-browser AI provider needs WebGPU, which this browser does not offer.",
+                source: "config",
+                details: { feature: "webllm" },
+            });
         }
 
         try {
-            this.emitProgress(0, "Loading WebLLM module...");
+            this.emitProgress(0, "module");
 
             // Dynamically import @mlc-ai/web-llm
             let webllm;
             try {
                 webllm = await import("@mlc-ai/web-llm");
-            } catch {
-                throw new Error(
-                    "Failed to load @mlc-ai/web-llm. This is an optional dependency for in-browser AI. " +
-                        "To use WebLLM, install it with: npm install @mlc-ai/web-llm",
-                );
+            } catch (error_) {
+                throw missingPackage(WEBLLM_PACKAGE, "webllm", error_);
             }
 
-            this.emitProgress(0.1, "Creating engine...");
+            this.emitProgress(0.1, "engine");
 
             this.toolCapableModelIds = webllm.functionCallingModelIds;
             const modelId = this.model ?? DEFAULT_MODEL_ID;
 
             // Create engine with progress callback
             this.engine = await webllm.CreateMLCEngine(modelId, {
-                initProgressCallback: (report: { progress: number; text: string }) => {
+                initProgressCallback: (report) => {
                     // Map progress from 0.1 to 1.0 (reserve 0-0.1 for module loading)
                     const mappedProgress = 0.1 + report.progress * 0.9;
-                    this.emitProgress(mappedProgress, report.text);
+                    this.emitProgress(mappedProgress, "engine", report.text);
                 },
             });
 
             this.initialized = true;
             this.ready = true;
-            this.emitProgress(1, "Model loaded successfully");
+            this.emitProgress(1, "ready");
         } catch (error) {
             this.initialized = false;
             this.ready = false;
@@ -428,10 +448,11 @@ export class WebLlmProvider implements LlmProvider {
     /**
      * Make the engine ready for a request: initialize it once when `initializeOnFirstUse` is set,
      * otherwise fail as before.
+     * @returns The engine.
      */
-    private async ensureInitialized(): Promise<void> {
+    private async ensureInitialized(): Promise<MLCEngineInterface> {
         if (this.initialized && this.engine) {
-            return;
+            return this.engine;
         }
 
         if (!this.initializeOnFirstUse) {
@@ -442,6 +463,11 @@ export class WebLlmProvider implements LlmProvider {
             this.initializing = undefined;
         });
         await this.initializing;
+        if (!this.engine) {
+            throw new Error("WebLLM not initialized. Call initialize() first.");
+        }
+
+        return this.engine;
     }
 
     /**
@@ -459,49 +485,43 @@ export class WebLlmProvider implements LlmProvider {
         options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
     ): Promise<LlmResponse> {
         if (options?.signal?.aborted) {
-            throw new Error("Request was aborted");
+            throw ABORTED();
         }
 
         if (this.mockMode) {
             return this.generateMock(messages, tools);
         }
 
-        await this.ensureInitialized();
+        const engine = await this.ensureInitialized();
+        const signal = options?.signal;
+        const stopEngine = interruptOnAbort(engine, signal);
 
         try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const engine = this.engine as any;
             const sendTools = this.shouldSendTools(tools, options?.toolChoice);
 
-            let response = (await engine.chat.completions.create(
-                this.buildRequest(messages, sendTools ? tools : [], false),
-            )) as OpenAiResponse;
+            let response = await engine.chat.completions.create({
+                ...this.buildRequest(messages, sendTools ? tools : []),
+                stream: false,
+            });
 
             // Sent tools, WebLLM constrains a Hermes model to a JSON list of calls, so it cannot
             // answer in words. An empty list means it has nothing to call: ask again without tools
             // for the text answer.
-            if (sendTools && !response.choices?.[0]?.message?.tool_calls?.length) {
-                if (options?.signal?.aborted) {
-                    throw new Error("Request was aborted");
-                }
-
-                response = (await engine.chat.completions.create(
-                    this.buildRequest(messages, [], false),
-                )) as OpenAiResponse;
+            if (sendTools && !response.choices[0]?.message.tool_calls?.length) {
+                throwIfAborted(signal);
+                response = await engine.chat.completions.create({
+                    ...this.buildRequest(messages, []),
+                    stream: false,
+                });
             }
 
-            // Check for abort after async operation
-            if (options?.signal?.aborted) {
-                throw new Error("Request was aborted");
-            }
-
+            throwIfAborted(signal);
             return this.convertResponse(response);
         } catch (error) {
-            if (String(error).includes("aborted")) {
-                throw new Error("Request was aborted");
-            }
-
+            throwIfAborted(signal);
             throw error;
+        } finally {
+            stopEngine();
         }
     }
 
@@ -519,7 +539,7 @@ export class WebLlmProvider implements LlmProvider {
         signal?: AbortSignal,
     ): Promise<void> {
         if (signal?.aborted) {
-            throw new Error("Request was aborted");
+            throw ABORTED();
         }
 
         if (this.mockMode) {
@@ -527,26 +547,24 @@ export class WebLlmProvider implements LlmProvider {
             return;
         }
 
-        await this.ensureInitialized();
+        const engine = await this.ensureInitialized();
+        const stopEngine = interruptOnAbort(engine, signal);
 
         try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const engine = this.engine as any;
             const sendTools = this.shouldSendTools(tools);
 
-            const stream = await engine.chat.completions.create(
-                this.buildRequest(messages, sendTools ? tools : [], true),
-            );
+            const stream: AsyncIterable<ChatCompletionChunk> = await engine.chat.completions.create({
+                ...this.buildRequest(messages, sendTools ? tools : []),
+                stream: true,
+            });
 
             let accumulatedText = "";
             const toolCalls: ToolCall[] = [];
 
-            for await (const chunk of stream as AsyncIterable<OpenAiResponse>) {
-                if (signal?.aborted) {
-                    throw new Error("Request was aborted");
-                }
+            for await (const chunk of stream) {
+                throwIfAborted(signal);
 
-                const delta = chunk.choices?.[0]?.delta;
+                const delta = chunk.choices[0]?.delta;
                 if (!delta) {
                     continue;
                 }
@@ -566,9 +584,15 @@ export class WebLlmProvider implements LlmProvider {
                 toolCalls,
             });
         } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error));
+            let err = error instanceof Error ? error : new Error(String(error));
+            if (signal?.aborted) {
+                err = ABORTED();
+            }
+
             callbacks.onError(err);
-            throw error;
+            throw err;
+        } finally {
+            stopEngine();
         }
     }
 
@@ -585,16 +609,10 @@ export class WebLlmProvider implements LlmProvider {
      * Dispose of the engine and free resources.
      */
     async dispose(): Promise<void> {
-        if (this.engine) {
-            try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const engine = this.engine as any;
-                if (typeof engine.unload === "function") {
-                    await engine.unload();
-                }
-            } catch {
-                // Ignore disposal errors
-            }
+        try {
+            await this.engine?.unload();
+        } catch {
+            // Ignore disposal errors
         }
 
         this.engine = null;
@@ -617,25 +635,16 @@ export class WebLlmProvider implements LlmProvider {
      * Build a chat completion request in the OpenAI shape WebLLM takes.
      * @param messages - Conversation messages
      * @param tools - Tools to send; empty for none
-     * @param stream - Whether to stream the response
-     * @returns The request
+     * @returns The request, without `stream`
      */
-    private buildRequest(
-        messages: Message[],
-        tools: ToolDefinition[],
-        stream: boolean,
-    ): OpenAiRequestOptions & { messages: OpenAiMessage[] } {
+    private buildRequest(messages: Message[], tools: ToolDefinition[]): ChatCompletionRequestBase {
         // OpenAI API requires snake_case keys
         /* eslint-disable camelcase */
-        const request: OpenAiRequestOptions & { messages: OpenAiMessage[] } = {
+        const request: ChatCompletionRequestBase = {
             messages: this.convertMessages(messages),
             temperature: this.temperature ?? 0.7,
             max_tokens: this.maxTokens ?? 1024,
         };
-
-        if (stream) {
-            request.stream = true;
-        }
 
         if (tools.length > 0) {
             request.tools = this.convertTools(tools);
@@ -651,7 +660,7 @@ export class WebLlmProvider implements LlmProvider {
      * @param messages - Messages to convert
      * @returns Array of OpenAI formatted messages
      */
-    private convertMessages(messages: Message[]): OpenAiMessage[] {
+    private convertMessages(messages: Message[]): ChatCompletionMessageParam[] {
         /* eslint-disable camelcase */
         return messages.map((msg) => {
             if (msg.role === "tool") {
@@ -672,7 +681,7 @@ export class WebLlmProvider implements LlmProvider {
                     content: JSON.stringify(msg.toolCalls.map((tc) => ({ name: tc.name, arguments: tc.arguments }))),
                     tool_calls: msg.toolCalls.map((tc) => ({
                         id: tc.id,
-                        type: "function",
+                        type: "function" as const,
                         function: {
                             name: tc.name,
                             arguments: JSON.stringify(tc.arguments),
@@ -694,9 +703,9 @@ export class WebLlmProvider implements LlmProvider {
      * @param tools - Tool definitions to convert
      * @returns Array of OpenAI formatted tool objects
      */
-    private convertTools(tools: ToolDefinition[]): Record<string, unknown>[] {
+    private convertTools(tools: ToolDefinition[]): ChatCompletionTool[] {
         return tools.map((t) => ({
-            type: "function",
+            type: "function" as const,
             function: {
                 name: t.name,
                 description: t.description,
@@ -711,24 +720,17 @@ export class WebLlmProvider implements LlmProvider {
      * @param response - OpenAI response to convert
      * @returns Converted LLM response
      */
-    private convertResponse(response: OpenAiResponse): LlmResponse {
-        const choice = response.choices?.[0];
-        const message = choice?.message ?? {};
+    private convertResponse(response: ChatCompletion): LlmResponse {
+        const message = response.choices[0]?.message;
 
         const toolCalls: ToolCall[] = [];
         // OpenAI API uses snake_case
-        const responseToolCalls = message.tool_calls;
-        if (responseToolCalls) {
-            for (const tc of responseToolCalls) {
-                toolCalls.push({
-                    id: tc.id ?? `call_${Date.now()}`,
-                    name: tc.function?.name ?? "",
-                    arguments:
-                        typeof tc.function?.arguments === "string"
-                            ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
-                            : (tc.function?.arguments ?? {}),
-                });
-            }
+        for (const tc of message?.tool_calls ?? []) {
+            toolCalls.push({
+                id: tc.id,
+                name: tc.function.name,
+                arguments: parseArguments(tc.function.arguments),
+            });
         }
 
         // OpenAI API uses snake_case for usage fields
@@ -736,7 +738,7 @@ export class WebLlmProvider implements LlmProvider {
         const completionTokens = response.usage?.completion_tokens;
 
         return {
-            text: message.content ?? "",
+            text: message?.content ?? "",
             toolCalls,
             usage: response.usage
                 ? {
@@ -790,7 +792,7 @@ export class WebLlmProvider implements LlmProvider {
         // Stream character by character with small delays
         for (const char of response.text) {
             if (signal?.aborted) {
-                throw new Error("Request was aborted");
+                throw ABORTED();
             }
 
             callbacks.onChunk(char);

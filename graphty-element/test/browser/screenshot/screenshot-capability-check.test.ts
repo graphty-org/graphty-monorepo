@@ -1,12 +1,14 @@
-import { afterEach, assert, test } from "vitest";
+import { afterEach, assert, test, vi } from "vitest";
 
 import type { Graph } from "../../../src/Graph.js";
 import type { CapabilityCheck } from "../../../src/screenshot/capability-check.js";
+import { ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError.js";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
 afterEach(() => {
+    vi.restoreAllMocks();
     cleanupTestGraphWithData(graph);
 });
 
@@ -32,11 +34,10 @@ test("canCaptureScreenshot warns about large dimensions", async () => {
     });
 
     assert.equal(check.supported, true, "4K should be supported");
-    assert.ok(check.warnings, "Should have warnings for large screenshot");
-    assert.ok(
-        check.warnings.some((w) => w.includes("Large screenshot") || w.includes("large")),
-        "Warning should mention large screenshot",
-    );
+    // 3840 x 2160 is exactly the 4K warning threshold; 31.6 MB is under the memory warning.
+    assert.deepEqual(check.warnings, [
+        { code: "W_LARGE_CAPTURE", params: { width: 3840, height: 2160, megapixels: 8.3 } },
+    ]);
 });
 
 test("canCaptureScreenshot rejects excessive dimensions", async () => {
@@ -48,30 +49,27 @@ test("canCaptureScreenshot rejects excessive dimensions", async () => {
     });
 
     assert.equal(check.supported, false, "Excessive dimensions should not be supported");
-    assert.ok(check.reason, "Should provide reason");
-    assert.match(check.reason, /exceeds.*limit/i, "Reason should mention exceeding limit");
+    assert.deepEqual(check.reason, {
+        code: ScreenshotErrorCode.DIMENSION_TOO_LARGE,
+        params: { width: 20000, height: 20000, maxDimension: 16384 },
+    });
 });
 
-test("canCaptureScreenshot warns about high memory usage", async () => {
+test("canCaptureScreenshot supports 8K with a size and a memory warning", async () => {
     graph = await createTestGraphWithData();
 
+    // 7680 x 4320 is exactly the pixel limit, which is allowed: only more pixels are refused.
     const check: CapabilityCheck = await graph.canCaptureScreenshot({
-        width: 7680, // 8K
+        width: 7680,
         height: 4320,
     });
 
-    assert.ok(typeof check.estimatedMemoryMB === "number", "Should have memory estimate");
-
-    // 8K should either be not supported or have warnings
-    if (check.supported) {
-        assert.ok(check.warnings, "8K should have warnings if supported");
-        assert.ok(
-            check.warnings.some((w) => w.toLowerCase().includes("memory") || w.includes("large")),
-            "Should have memory-related warning",
-        );
-    } else {
-        assert.ok(check.reason, "Should provide reason for not being supported");
-    }
+    assert.equal(check.supported, true);
+    assert.equal(check.reason, undefined);
+    assert.deepEqual(check.warnings, [
+        { code: "W_LARGE_CAPTURE", params: { width: 7680, height: 4320, megapixels: 33.2 } },
+        { code: "W_HIGH_MEMORY", params: { memoryMB: 127 } },
+    ]);
 });
 
 test("canCaptureScreenshot estimates memory usage accurately", async () => {
@@ -103,19 +101,16 @@ test("canCaptureScreenshot works with multiplier", async () => {
     assert.ok(typeof check.estimatedMemoryMB === "number", "Should have memory estimate");
 });
 
-test("canCaptureScreenshot warns about very high multiplier", async () => {
+test("canCaptureScreenshot refuses a multiplier past the pixel limit", async () => {
     graph = await createTestGraphWithData();
 
     const check: CapabilityCheck = await graph.canCaptureScreenshot({
         multiplier: 10,
     });
 
-    // Very high multiplier should either fail or have warnings
-    if (check.supported) {
-        assert.ok(check.warnings, "Very high multiplier should have warnings if supported");
-    } else {
-        assert.ok(check.reason, "Should provide reason for not being supported");
-    }
+    assert.equal(check.supported, false);
+    assert.equal(check.reason?.code, ScreenshotErrorCode.RESOLUTION_TOO_HIGH);
+    assert.equal(check.reason?.params.maxPixels, 33_177_600);
 });
 
 test("canCaptureScreenshot works with default options", async () => {
@@ -127,19 +122,26 @@ test("canCaptureScreenshot works with default options", async () => {
     assert.ok(typeof check.estimatedMemoryMB === "number", "Should have memory estimate");
 });
 
-test("canCaptureScreenshot checks format support", async () => {
+test("canCaptureScreenshot supports WebP where the browser encodes it", async () => {
     graph = await createTestGraphWithData();
 
-    // WebP should be supported in modern browsers
-    const checkWebP: CapabilityCheck = await graph.canCaptureScreenshot({
-        format: "webp",
+    const check: CapabilityCheck = await graph.canCaptureScreenshot({ format: "webp" });
+
+    assert.equal(check.supported, true);
+    assert.equal(check.reason, undefined);
+});
+
+test("canCaptureScreenshot refuses WebP where the browser cannot encode it", async () => {
+    graph = await createTestGraphWithData();
+    // A browser without a WebP encoder hands back a PNG when asked for WebP.
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) => {
+        callback(new Blob([], { type: "image/png" }));
     });
 
-    // WebP might not be supported in all test environments
-    if (!checkWebP.supported) {
-        assert.ok(checkWebP.reason, "Should provide reason if WebP not supported");
-        assert.match(checkWebP.reason, /webp/i, "Reason should mention WebP");
-    }
+    const check: CapabilityCheck = await graph.canCaptureScreenshot({ format: "webp" });
+
+    assert.equal(check.supported, false);
+    assert.deepEqual(check.reason, { code: ScreenshotErrorCode.UNSUPPORTED_FORMAT, params: { format: "webp" } });
 });
 
 test("canCaptureScreenshot handles edge case: very small dimensions", async () => {

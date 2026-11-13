@@ -1313,7 +1313,7 @@ export const Badge: Story = {
  * Shortening a number too big to show.
  *
  * Every cat is given a count of 1500 in an ordinary label, drawn with the element's default label
- * style, and smart overflow draws each one as `1k`.
+ * style, and smart overflow draws each one as the default cap, `999+`.
  */
 export const SmartOverflow: Story = {
     args: {
@@ -1329,16 +1329,16 @@ export const SmartOverflow: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "SmartOverflow");
-        // READ AS INK, IN THE FONT THIS BROWSER DREW. Each label's ink is matched against `1k` and
-        // `1500` measured with this browser's own fallback for the element's default font, so the
+        // READ AS INK, IN THE FONT THIS BROWSER DREW. Each label's ink is matched against `999+`,
+        // `1500` and the old `1k` measured with this browser's own fallback for the element's default font, so the
         // check does not depend on which font a machine happens to have (see drawnText).
         const wrong = labelGeometry(scene)
-            .map((label) => ({ label, read: drawnText(label, ["1k", "1500"], DEFAULT_LABEL_FONT, 10) }))
-            .filter(({ read }) => read.best !== "1k");
+            .map((label) => ({ label, read: drawnText(label, ["999+", "1500", "1k"], DEFAULT_LABEL_FONT, 10) }))
+            .filter(({ read }) => read.best !== "999+");
 
         await holds(
             wrong.length === 0,
-            `Styles/Label SmartOverflow: every label asks for 1500 with smart overflow on and should read 1k; ` +
+            `Styles/Label SmartOverflow: every label asks for 1500 with smart overflow on and should read 999+; ` +
                 `${String(wrong.length)} read otherwise -- ${wrong
                     .map(
                         ({ label, read }) =>

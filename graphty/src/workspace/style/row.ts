@@ -11,7 +11,13 @@
 
 import type { ChannelDescriptor, ShaderUse } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
-import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
+import {
+    type ColumnRef,
+    type GraphSession,
+    type Layer,
+    OVERFLOW_SHAPES,
+    type TransactionScope,
+} from "@graphty/graphty-element/session";
 
 import { findTreeRow, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { DEFAULT_NAME_KEY } from "./cards";
@@ -78,7 +84,7 @@ export function everythingRow(session: GraphSession): LayerId[] {
  * @param target - nodes or edges.
  * @returns the layers.
  */
-export function rowLayers(session: GraphSession, ids: readonly LayerId[], target: Target): Layer[] {
+export function rowLayers(session: TransactionScope, ids: readonly LayerId[], target: Target): Layer[] {
     return session.styles.list().filter((layer) => layer.target === target && ids.includes(layer.id));
 }
 
@@ -217,7 +223,7 @@ export const EVERYTHING_LAYER: NewLayer = {
  * @param session - the element's session.
  * @returns the layer, or undefined for an empty stack.
  */
-export function topmostRow(session: GraphSession): Layer | undefined {
+export function topmostRow(session: TransactionScope): Layer | undefined {
     return [...session.styles.list()]
         .reverse()
         .find((layer) => layer.source.by !== "element" || layer.source.reason === "default");
@@ -287,7 +293,7 @@ export const startingAdds = new WeakSet<GraphSession>();
  * @returns the scoped selector, or undefined when a layer that paints everything may hold it.
  */
 function scopeFor(
-    session: GraphSession,
+    session: TransactionScope,
     target: Target,
     channel: Channel,
     binding: DataBinding,
@@ -309,7 +315,7 @@ function scopeFor(
  * @param id - the row.
  * @returns the place, or undefined when the row is gone.
  */
-function placeAbove(session: GraphSession, id: string): { parent: string | null; index: number } | undefined {
+function placeAbove(session: TransactionScope, id: string): { parent: string | null; index: number } | undefined {
     const found = findTreeRow(session.styles.tree(), id);
     if (found === undefined) {
         return undefined;
@@ -349,7 +355,7 @@ function sameSelector(a: Layer["selector"], b: Layer["selector"]): boolean {
  * @returns the id of the layer written to.
  */
 export async function writeLine(
-    session: GraphSession,
+    session: TransactionScope,
     ids: readonly LayerId[],
     target: Target,
     channel: Channel,
@@ -429,7 +435,7 @@ function othersWriting(layers: readonly Layer[], own: Layer | undefined, channel
 
 /** What writeLine writes, and where. */
 interface LinePlan {
-    readonly session: GraphSession;
+    readonly session: TransactionScope;
     readonly layers: readonly Layer[];
     readonly target: Target;
     readonly channel: Channel;

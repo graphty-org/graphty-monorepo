@@ -1,6 +1,6 @@
 import type { F32, F64, GraphSnapshot, NumericVector, ReverseView, U32 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { checkNumber, checkWeights, withCode } from "../errors.js";
 
 /** Options of the index-based PageRank (graph-format design 14.2 Port 3). @public */
 export interface PageRankOptions {
@@ -38,6 +38,8 @@ export interface PageRankResult {
  * @param s - The snapshot
  * @param o - Algorithm options
  * @returns The scores, the iteration count and the convergence flag
+ * @throws RangeError (code `E_BAD_OPTION`) for a dampingFactor outside [0, 1] or a NaN or negative maxIterations or
+ *   tolerance, or (code `E_BAD_WEIGHT`) for a NaN, infinite or negative weight when `weighted` is set
  * @public
  */
 export function pageRank(s: GraphSnapshot, o: PageRankOptions = {}): PageRankResult {
@@ -205,6 +207,20 @@ function powerStep(
 }
 
 /**
+ * Refuse PageRank options out of range (`E_BAD_OPTION`), and NaN, infinite or negative weights when `weighted` is
+ * set (`E_BAD_WEIGHT`).
+ * @param s - The snapshot
+ * @param o - Algorithm options
+ * @internal
+ */
+export function checkPageRankOptions(s: GraphSnapshot, o: PageRankOptions | undefined): void {
+    checkNumber("pageRank", "dampingFactor", o?.dampingFactor ?? 0.85, { min: 0, max: 1 });
+    checkNumber("pageRank", "maxIterations", o?.maxIterations ?? 100, { min: 0, integer: true });
+    checkNumber("pageRank", "tolerance", o?.tolerance ?? 1e-6, { min: 0 });
+    checkWeights("pageRank", o?.weighted === true ? (exactWeights(s) ?? s.weights) : null);
+}
+
+/**
  * The shared power iteration.
  * @param s - The snapshot
  * @param p - The normalised personalization, or null for the uniform teleport
@@ -212,6 +228,7 @@ function powerStep(
  * @returns The scores, the iteration count and the convergence flag
  */
 function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResult {
+    checkPageRankOptions(s, o);
     const n = s.nodeCount;
     const maxIter = o.maxIterations ?? 100;
     const tol = o.tolerance ?? 1e-6;

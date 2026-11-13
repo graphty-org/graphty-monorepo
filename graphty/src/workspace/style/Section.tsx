@@ -521,7 +521,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                 <ShaderEditorDialog
                     session={ctx.session}
                     tab={tab}
-                    put={(scope, id, params) => addShader({ ...ctx, session: scope }, id, params)}
+                    put={(scope, id, params) => addShader(ctx, id, params, scope)}
                     init={code}
                     onClose={() => {
                         setCode(null);

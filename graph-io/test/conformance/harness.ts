@@ -20,6 +20,7 @@ import { importAllGraphs, importGraph, type ImportGraphResult, listGraphs, regis
 import { SNIFF_HEAD_BYTES } from "../../src/sniff.js";
 import { ImportError, type ImportReport, type LossNote } from "../../src/types.js";
 import { compareSnapshots, type SnapshotDiff, valuesEqual } from "../helpers/roundtrip.js";
+import { isAnnouncedRefusal } from "./generative.js";
 
 /** test/conformance/fixtures. */
 const FIXTURES_ROOT = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -111,10 +112,16 @@ export interface Fixture {
     readonly options?: Readonly<Record<string, unknown>>;
     /** The expected result. */
     readonly expected: Expected;
-    /** Set when graph-io does not meet the expectation today: the cause and its sources.md section. */
+    /** Set when graph-io does not meet the expectation today: the cause, its sources.md section and its tracking issue (#N). */
     readonly knownFailure?: string;
-    /** Set when the import -> export -> import round trip does not hold today: the cause. */
+    /** Set when the import -> export -> import round trip does not hold today: the cause and its tracking issue (#N). */
     readonly roundTripFailure?: string;
+    /**
+     * Set when the exporter refuses this graph by design under its default options (the file needs
+     * an option such as `sanitizeIds: "mangle"`): the E_ code check() must announce and export()
+     * must throw. The round trip then checks the refusal instead of the read-back.
+     */
+    readonly roundTripRefusal?: string;
     /** networkx-differential only: where networkx's own read-back departs from the spec, and why the expectation does not follow it. */
     readonly networkxDisagrees?: string;
     /** Where the oracle departs from the specification: what it does instead, and why the expectation follows the spec. */
@@ -607,6 +614,11 @@ export async function checkRoundTrip(format: string, fixture: Fixture): Promise<
         // a session's node ids are Cytoscape SUIDs; a 2.x session's are names, which need new ones
         const options = format === "cys" ? { sanitizeIds: "mangle" as const } : {};
         const notes = exporter.check(first.snapshot, options);
+        if (fixture.roundTripRefusal !== undefined) {
+            return await checkRefusal(fixture.roundTripRefusal, notes, () =>
+                exporter.exportToString(first.snapshot, options),
+            );
+        }
         // a session is a zip archive: only export() writes it
         const written =
             format === "cys"
@@ -625,6 +637,30 @@ export async function checkRoundTrip(format: string, fixture: Fixture): Promise<
         const name = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
         return [`threw: ${name.slice(0, 300)}`];
     }
+}
+
+/**
+ * Check a declared refusal: check() announces the note and export() throws the refusal error
+ * that carries it out (E_ID_CHARSET is thrown as E_INVALID_ID).
+ * @param code - the E_ note code
+ * @param notes - check()'s notes
+ * @param write - the export
+ * @returns the problems, empty when the refusal is as declared
+ */
+async function checkRefusal(code: string, notes: readonly LossNote[], write: () => Promise<string>): Promise<string[]> {
+    const announced = notes.filter((n) => n.code.startsWith("E_")).map((n) => n.code);
+    const problems = announced.includes(code)
+        ? []
+        : [`check() announced ${announced.join(", ") || "no E_ code"}, not ${code}`];
+    try {
+        await write();
+        problems.push(`export() wrote the file instead of refusing it with ${code}`);
+    } catch (err) {
+        if (!isAnnouncedRefusal(err, [code])) {
+            problems.push(`export() threw ${String((err as { code?: unknown }).code)}, not the refusal of ${code}`);
+        }
+    }
+    return problems;
 }
 
 /**

@@ -5,7 +5,6 @@
  */
 
 import type { Scene } from "@babylonjs/core";
-import debounce from "lodash/debounce.js";
 
 import type { XRInputHandler } from "../cameras/XRInputHandler";
 import {
@@ -59,8 +58,8 @@ import type { ProviderLiveSpeech, ProviderSpeech, VoiceSession } from "./voice/V
 // Loaded before an AiManager is built: its key manager restores persisted keys as it is built.
 export { loadEncryptStorage } from "./keys";
 
-/** Default debounce delay for schema updates in milliseconds */
-const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
+/** The graph events after which the schema is read again: the data it describes changed. */
+const SCHEMA_STALE_EVENTS = ["data-added", "data-cleared", "snapshot-replaced", "snapshot-dropped"] as const;
 
 /**
  * Configuration for enabling encrypted key persistence.
@@ -452,8 +451,7 @@ export class AiManager {
     private readonly keysSeen = new Set<string>();
     private readonly statusManager: AiStatusManager;
     private schemaManager: SchemaManager | null = null;
-    private dataAddedListenerId: symbol | null = null;
-    private debouncedSchemaUpdate: ReturnType<typeof debounce> | null = null;
+    private schemaListenerIds: symbol[] = [];
     private disposed = false;
     private initialized = false;
     /** The assistant's `voice`, absent for none. */
@@ -947,23 +945,13 @@ export class AiManager {
         // Extract initial schema
         this.schemaManager.extract();
 
-        // Set up debounced schema update
-        this.debouncedSchemaUpdate = debounce(() => {
-            if (this.schemaManager) {
-                this.schemaManager.invalidateCache();
-            }
-        }, SCHEMA_UPDATE_DEBOUNCE_MS);
-
-        // Listen for data-added events to update schema
-        try {
-            const { eventManager } = this.graph;
-            this.dataAddedListenerId = eventManager.addListener("data-added", () => {
-                this.debouncedSchemaUpdate?.();
-            });
-        } catch {
-            // EventManager may not be available in all contexts (e.g., tests)
-            // Schema will still work, just won't auto-update
-        }
+        // Dropping the cache is cheap and the next prompt extracts again, so there is nothing to debounce.
+        const { eventManager } = this.graph;
+        this.schemaListenerIds = SCHEMA_STALE_EVENTS.map((type) =>
+            eventManager.addListener(type, () => {
+                this.schemaManager?.invalidateCache();
+            }),
+        );
     }
 
     /**
@@ -1318,22 +1306,23 @@ export class AiManager {
     /**
      * Retry the last AI command that was executed.
      * Useful for retrying after transient errors.
-     * @returns Promise resolving to the execution result
-     * @throws Error if no previous command exists or AI is not initialized
+     * @returns Promise resolving to the execution result: `AI_DISPOSED` and `AI_NOT_ENABLED` as
+     *     from `execute()`, and `AI_NO_PREVIOUS_COMMAND` when no command has run yet
      */
     async retry(): Promise<ExecutionResult> {
-        if (this.disposed) {
-            throw new Error("AI Manager has been disposed.");
-        }
-
-        if (!this.controller) {
-            throw new Error("AI not enabled. Call enableAiControl() first.");
+        if (this.disposed || !this.controller) {
+            // The same coded result execute() gives in either state.
+            return this.execute("");
         }
 
         const lastInput = this.controller.getLastInput();
-
         if (!lastInput) {
-            throw new Error("No previous command to retry.");
+            return {
+                success: false,
+                message: "No previous command to retry.",
+                code: "AI_NO_PREVIOUS_COMMAND",
+                params: {},
+            };
         }
 
         return this.controller.execute(lastInput);
@@ -1404,22 +1393,11 @@ export class AiManager {
         this.talkAsked = false;
         this.voiceOptions = undefined;
 
-        // Cancel any pending debounced updates
-        if (this.debouncedSchemaUpdate) {
-            this.debouncedSchemaUpdate.cancel();
-            this.debouncedSchemaUpdate = null;
+        for (const id of this.schemaListenerIds) {
+            this.graph?.eventManager.removeListener(id);
         }
 
-        // Remove event listener
-        if (this.dataAddedListenerId && this.graph) {
-            try {
-                const { eventManager } = this.graph;
-                eventManager.removeListener(this.dataAddedListenerId);
-            } catch {
-                // EventManager may not be available
-            }
-            this.dataAddedListenerId = null;
-        }
+        this.schemaListenerIds = [];
 
         // Clean up schema manager
         this.schemaManager = null;

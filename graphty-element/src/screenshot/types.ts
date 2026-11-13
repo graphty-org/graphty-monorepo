@@ -1,6 +1,11 @@
 import type { CameraState } from "../camera/types.js";
 
-export type ClipboardStatus = "success" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
+/**
+ * What happened to a capture's clipboard copy. `"not-requested"` when the clipboard was not one of
+ * the capture's destinations.
+ */
+export type ClipboardStatus =
+    "success" | "not-requested" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
 
 /**
  * Options for quality enhancement during screenshot capture.

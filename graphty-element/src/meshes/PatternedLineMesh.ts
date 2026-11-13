@@ -20,7 +20,7 @@
  * - Phase 4: Connected patterns (sinewave, zigzag) positioning
  */
 
-import { type Mesh, type Scene, Vector3 } from "@babylonjs/core";
+import { type Scene, Vector3 } from "@babylonjs/core";
 
 import type { ArrowCap } from "./ArrowCapBatch";
 import {
@@ -279,7 +279,9 @@ export class PatternedLineMesh {
      * batch every element of its shape is drawn from (issue #444).
      */
     elements: ArrowCap[] = [];
+    /** The line type this line draws. */
     pattern: PatternType;
+    /** The unit direction from the route's start to its end, as the line was last laid. */
     lineDirection = new Vector3(1, 0, 0);
     private lastLength = 0;
     private readonly scene: Scene;
@@ -300,20 +302,8 @@ export class PatternedLineMesh {
     private laid: { points: Vector3[]; along: number[] } | null = null;
     private static readonly SEGMENT_LENGTH = 0.75; // Fixed segment length for all edges (for instancing)
 
-    // PHASE 5: Edge compatibility properties (mimic AbstractMesh interface)
-    // These aren't used by PatternedLineMesh but are set by Edge.ts for consistency
-    isPickable = false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    metadata: any = {};
-    // Properties to maintain compatibility with AbstractMesh interface in tests
-    position = new Vector3(0, 0, 0);
-    scaling = new Vector3(1, 1, 1);
-    visibility = 1;
-    name = "PatternedLineMesh";
-    isDisposed = false;
-    sourceMesh: Mesh | null = null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    material: any = null;
+    /** Whether {@link PatternedLineMesh.dispose} has given up its elements. */
+    private disposed = false;
 
     /**
      * Creates a new patterned line mesh
@@ -341,6 +331,7 @@ export class PatternedLineMesh {
      * Called every frame by Edge.update() during physics simulation
      * @param start - Starting point of the line
      * @param end - Ending point of the line
+     * @internal
      */
     update(start: Vector3, end: Vector3): void {
         this.updatePath([start, end]);
@@ -350,11 +341,12 @@ export class PatternedLineMesh {
      * Lay the line along a route: its elements spread along the route's own length, each pointing along the route
      * where it sits, so a dashed or dotted line turns the route's corners and follows its curve (issue #3102).
      * @param route - The route's points, in order from where the line starts to where it ends; at least two.
+     * @internal
      */
     updatePath(route: readonly Vector3[]): void {
         // A disposed line stays disposed: re-sizing it would take fresh slots for elements nothing
         // will ever give back.
-        if (this.isDisposed || route.length < 2) {
+        if (this.disposed || route.length < 2) {
             return;
         }
 
@@ -385,6 +377,7 @@ export class PatternedLineMesh {
      * Only the hiding half does anything, as for a batched line: showing it again is the next
      * placement's job, which the visibility mask asks for by invalidating the edge's endpoints.
      * @param drawn - Whether the line is on screen.
+     * @internal
      */
     setDrawn(drawn: boolean): void {
         for (const element of this.elements) {
@@ -392,7 +385,10 @@ export class PatternedLineMesh {
         }
     }
 
-    /** Stop drawing the line because the visibility mask hid its edge, keeping each element's place. */
+    /**
+     * Stop drawing the line because the visibility mask hid its edge, keeping each element's place.
+     * @internal
+     */
     park(): void {
         for (const element of this.elements) {
             element.park();
@@ -402,6 +398,7 @@ export class PatternedLineMesh {
     /**
      * Draw the line again as it was when it was parked.
      * @returns True when every element was put back.
+     * @internal
      */
     unpark(): boolean {
         let back = true;
@@ -438,13 +435,22 @@ export class PatternedLineMesh {
     /**
      * Give up every element's slot. A batch goes with the last element drawn from it, taking its
      * mesh and its material, so nothing is left in the scene.
+     * @internal
      */
     dispose(): void {
         for (const element of this.elements) {
             element.dispose();
         }
         this.elements = [];
-        this.isDisposed = true;
+        this.disposed = true;
+    }
+
+    /**
+     * Whether the line was disposed, as `AbstractMesh.isDisposed()` answers for a mesh (issue #7127).
+     * @returns True once {@link PatternedLineMesh.dispose} has run.
+     */
+    isDisposed(): boolean {
+        return this.disposed;
     }
 
     /**
@@ -780,6 +786,7 @@ export class PatternedLineMesh {
      * the near end of its first piece to the far end of its last, as drawn (a sine wave's first period
      * is centered on the line's start; a zigzag's last piece stops at its last turn, capped).
      * @returns The two ends, or null for any other line.
+     * @internal
      */
     drawnEnds(): [Vector3, Vector3] | null {
         const span = this.waveSpan();
@@ -790,6 +797,7 @@ export class PatternedLineMesh {
      * The route this line is drawn along, as it was last laid: the route's points from end to end, or for a wave
      * with a period of its own from where its first piece starts to where its last ends ({@link drawnEnds}).
      * @returns The points, in order, as fresh vectors; null before the line was laid.
+     * @internal
      */
     drawnRoute(): Vector3[] | null {
         if (this.laid === null) {
@@ -811,6 +819,7 @@ export class PatternedLineMesh {
     /**
      * The middle of the route this line was last laid along, halfway along its length.
      * @returns The point.
+     * @internal
      */
     routeMiddle(): Vector3 {
         return this.onRoute((this.laid?.along.at(-1) ?? 0) / 2).point;

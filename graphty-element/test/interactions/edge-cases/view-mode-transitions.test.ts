@@ -1,164 +1,120 @@
 /**
- * View Mode Transition Tests
- *
- * Tests verify switching between view modes correctly cleans up state.
+ * @file Switching between the 2D and 3D views leaves no input state of the view before behind: after
+ * any run of switches, a real drag across empty canvas (test/helpers/real-input.ts) does what the
+ * view now shown does -- pans the 2D drawing with the pointer, turns the 3D camera. And a node's Z,
+ * flattened by the 2D view, comes back with undo. Read through the element's public API.
  */
 
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 
-import { Graph } from "../../../src/Graph";
-import { nextFrame } from "../../helpers/real-input";
-import { configureGraph } from "../../helpers/testSetup";
+import type { Graphty } from "../../../index.js";
+import { drag, nextFrame } from "../../helpers/real-input";
+import { applied, at, EMPTY, mounted } from "../helpers/mounted-element";
 
-const TEST_NODES = [
-    { id: "node1", x: 0, y: 0, z: 0 },
-    { id: "node2", x: 5, y: 0, z: 0 },
-];
-const TEST_EDGES = [{ src: "node1", dst: "node2" }];
+type ViewMode = "2d" | "3d";
 
-describe("View Mode Transitions", () => {
-    let graph: Graph;
-    let container: HTMLDivElement;
-
-    beforeEach(async () => {
-        container = document.createElement("div");
-        container.style.width = "800px";
-        container.style.height = "600px";
-        document.body.appendChild(container);
-
-        graph = new Graph(container);
-        await graph.init();
-        await configureGraph(graph, { viewMode: "3d", layout: "fixed", layoutOptions: { dim: 3 } });
-        await graph.addNodes(TEST_NODES);
-        await graph.addEdges(TEST_EDGES);
-        await graph.waitForStableFrame();
-    });
-
-    afterEach(() => {
-        vi.restoreAllMocks();
-        graph.dispose();
-        document.body.removeChild(container);
-    });
-
-    test("2D -> 3D cleans up 2D input state", async () => {
-        await graph.setViewMode("2d");
-        await graph.waitForStableFrame();
-
-        assert.equal(graph.getViewMode(), "2d", "Should be in 2D mode");
-
-        await graph.setViewMode("3d");
-        await graph.waitForStableFrame();
-
-        assert.equal(graph.getViewMode(), "3d", "Should be in 3D mode");
-
-        const activeController = graph.camera.getActiveController();
-        assert.isDefined(activeController, "Active controller should be defined");
-        assert.equal(graph.getNodes().length, 2, "All nodes should still exist");
-    });
-
-    test("3D -> 2D cleans up orbit state", async () => {
-        assert.equal(graph.getViewMode(), "3d", "Should start in 3D mode");
-
-        await graph.setViewMode("2d");
-        await graph.waitForStableFrame();
-
-        assert.equal(graph.getViewMode(), "2d", "Should be in 2D mode");
-
-        const activeController = graph.camera.getActiveController();
-        assert.isDefined(activeController, "Active controller should be defined");
-        if (activeController) {
-            assert.isDefined(activeController.camera.orthoTop, "2D camera should have orthoTop");
-        }
-
-        assert.equal(graph.getNodes().length, 2, "All nodes should still exist");
-    });
-
-    test("rapid mode switching does not corrupt state", async () => {
-        assert.equal(graph.getViewMode(), "3d", "Should start in 3D mode");
-        assert.equal(graph.getNodes().length, 2, "Should have 2 nodes initially");
-
-        const modes: ("2d" | "3d")[] = ["2d", "3d", "2d", "3d", "2d", "3d"];
-        for (const mode of modes) {
-            await graph.setViewMode(mode);
+/**
+ * Switch the view through modes, the last one shown and at rest.
+ * @param element - The element.
+ * @param modes - The modes, in order.
+ * @param settle - Whether to let each switch come to rest before the next; otherwise one frame.
+ */
+async function switchThrough(element: Graphty, modes: readonly ViewMode[], settle: boolean): Promise<void> {
+    for (const mode of modes) {
+        await element.setViewMode(mode);
+        if (settle) {
+            await element.waitForStableFrame();
+        } else {
             await nextFrame();
         }
-
-        await graph.waitForStableFrame();
-
-        assert.isDefined(graph.scene, "Scene should still exist");
-        const activeController = graph.camera.getActiveController();
-        assert.isDefined(activeController, "Active controller should exist");
-        if (activeController) {
-            const cameraPos = activeController.camera.position;
-            assert.isTrue(isFinite(cameraPos.x), "Camera X should be finite");
-            assert.isTrue(isFinite(cameraPos.y), "Camera Y should be finite");
-            assert.isTrue(isFinite(cameraPos.z), "Camera Z should be finite");
-        }
-
-        assert.equal(graph.getNodes().length, 2, "All nodes should still exist");
-    });
-
-    /**
-     * Move node1 off the Z = 0 plane in 3D and wait for the frame that draws it.
-     *
-     * Through the session, not by writing the mesh: every frame that updates nodes redraws each
-     * mesh from the layout's positions, so a Z written onto the mesh lasted only until the next
-     * such frame -- which a slow runner reached inside a fixed sleep.
-     * @returns node1.
-     */
-    async function liftNode1(): Promise<NonNullable<ReturnType<Graph["getNode"]>>> {
-        const node1 = graph.getNode("node1");
-        assert.isDefined(node1, "Node 1 should exist");
-        assert.isNotNull(node1);
-
-        await graph.getSession().positions.set([{ id: "node1", x: 0, y: 0, z: 5 }]);
-        await graph.waitForStableFrame();
-        return node1;
     }
 
-    test("3D -> 2D -> 3D keeps the node on the plane, and undoing the 2D switch gives its Z back", async () => {
+    await element.waitForStableFrame();
+}
+
+/**
+ * Assert a drag across empty canvas pans the 2D drawing with the pointer.
+ * @param element - The element, in 2D.
+ */
+async function assertDragPans(element: Graphty): Promise<void> {
+    const start = at(element, "a");
+
+    await drag(element, EMPTY, { x: EMPTY.x + 60, y: EMPTY.y - 30 });
+    await applied(element);
+
+    const end = at(element, "a");
+    assert.closeTo(end.x - start.x, 60, 2, "the drawing moved right with the pointer");
+    assert.closeTo(end.y - start.y, -30, 2, "the drawing moved up with the pointer");
+}
+
+/**
+ * Assert a drag across empty canvas turns the 3D camera about the vertical.
+ * @param element - The element, in 3D.
+ */
+async function assertDragTurns(element: Graphty): Promise<void> {
+    await element.setCameraState({ pivotRotation: { x: 0, y: 0, z: 0 } });
+    await applied(element);
+
+    await drag(element, EMPTY, { x: EMPTY.x + 100, y: EMPTY.y });
+    await applied(element);
+
+    const rotation = element.getCameraState().pivotRotation;
+    assert.isDefined(rotation, "the 3D camera reports its turn");
+    assert.isAbove(Math.abs(rotation.y), 0.05, "the drag turned the camera");
+}
+
+describe.each([
+    ["3D -> 2D", "3d", ["2d"], true],
+    ["2D -> 3D", "2d", ["3d"], true],
+    ["3D -> 2D -> 3D -> 2D", "3d", ["2d", "3d", "2d"], true],
+    ["six switches a frame apart, ending in 2D", "3d", ["2d", "3d", "2d", "3d", "3d", "2d"], false],
+    ["six switches a frame apart, ending in 3D", "3d", ["2d", "3d", "2d", "3d", "2d", "3d"], false],
+] as const)("after %s", (_name, start, modes, settle) => {
+    it("a drag across empty canvas does what the view shown does", async () => {
+        const element = await mounted(start);
+
+        await switchThrough(element, modes, settle);
+
+        const shown = modes[modes.length - 1];
+        assert.strictEqual(element.getViewMode(), shown);
+        if (shown === "2d") {
+            await assertDragPans(element);
+        } else {
+            await assertDragTurns(element);
+        }
+    });
+});
+
+describe("a node off the plane", () => {
+    it("is flattened in 2D, stays flat back in 3D, and undoing the 2D switch gives its Z back", async () => {
         // The Z a 2D switch flattens is kept in history only, as it is for a pinned node: a switch
         // back to 3D lays the graph out again, and under `fixed` that keeps the flattened row.
         // Undo is what returns the arrangement the reader had before the switch.
-        const node1 = await liftNode1();
+        const element = await mounted("3d");
+        const z = (): number => {
+            const out = { x: 0, y: 0, z: 0 };
+            element.session.positions.read(element.session.snapshot().ids.requireIndex("a"), out);
+            return out.z;
+        };
+        // Node a's data puts it on the plane; the reader lifts it off
+        await element.session.positions.set([{ id: "a", x: -4, y: 0, z: 5 }]);
+        await element.waitForStableFrame();
+        assert.closeTo(z(), 5, 0.01, "node a starts off the plane");
 
-        await graph.setViewMode("2d");
-        await graph.waitForStableFrame();
-        assert.closeTo(node1.mesh.position.z, 0, 0.01, "flattened in 2D");
+        await switchThrough(element, ["2d"], true);
+        assert.closeTo(z(), 0, 0.01, "flattened in 2D");
 
-        await graph.setViewMode("3d");
-        await graph.waitForStableFrame();
-        assert.closeTo(node1.mesh.position.z, 0, 0.01, "a switch back to 3D does not invent a Z");
+        await switchThrough(element, ["3d"], true);
+        assert.closeTo(z(), 0, 0.01, "a switch back to 3D does not invent a Z");
 
-        await graph.getSession().undo();
-        await graph.waitForStableFrame();
-        assert.equal(graph.getViewMode(), "2d", "the first undo returns to 2D");
-        assert.closeTo(node1.mesh.position.z, 0, 0.01, "still on the plane in 2D");
+        await element.session.undo();
+        await element.waitForStableFrame();
+        assert.strictEqual(element.getViewMode(), "2d", "the first undo returns to 2D");
+        assert.closeTo(z(), 0, 0.01, "still on the plane in 2D");
 
-        await graph.getSession().undo();
-        await graph.waitForStableFrame();
-        assert.equal(graph.getViewMode(), "3d", "the second undo returns to 3D");
-        assert.closeTo(node1.mesh.position.z, 5, 0.01, "with the Z the node had before the 2D switch");
-    });
-
-    test("camera type changes correctly with view mode", async () => {
-        assert.equal(graph.getViewMode(), "3d", "Should be in 3D mode");
-        let controller = graph.camera.getActiveController();
-        assert.isDefined(controller, "Controller should exist in 3D mode");
-
-        await graph.setViewMode("2d");
-        await graph.waitForStableFrame();
-
-        controller = graph.camera.getActiveController();
-        if (controller) {
-            assert.isDefined(controller.camera.orthoTop, "2D mode should use orthographic camera");
-        }
-
-        await graph.setViewMode("3d");
-        await graph.waitForStableFrame();
-
-        controller = graph.camera.getActiveController();
-        assert.isDefined(controller, "Controller should exist after switching back to 3D");
+        await element.session.undo();
+        await element.waitForStableFrame();
+        assert.strictEqual(element.getViewMode(), "3d", "the second undo returns to 3D");
+        assert.closeTo(z(), 5, 0.01, "with the Z the node had before the 2D switch");
     });
 });

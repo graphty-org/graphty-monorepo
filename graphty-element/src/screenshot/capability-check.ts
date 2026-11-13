@@ -1,11 +1,51 @@
+import type { CodedFact } from "../session/shared.js";
 import { BROWSER_LIMITS, calculateDimensions } from "./dimensions.js";
+import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import type { ScreenshotOptions } from "./types.js";
 
+/**
+ * Something a capture can make but might struggle with. Each code carries these `params`:
+ *
+ * - `W_LARGE_CAPTURE` -- the image is past 4K and may fail on devices with little memory:
+ *   `{ width, height, megapixels }`.
+ * - `W_HIGH_MEMORY` -- the capture needs over 100 MB of canvas memory: `{ memoryMB }`, rounded up.
+ * @since 3.40.0
+ */
+export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
+
+/**
+ * Whether a capture with some options can be made, and what may go wrong with it. Every remark is
+ * a code with its values, never a sentence: the application words it.
+ */
 export interface CapabilityCheck {
     supported: boolean;
-    reason?: string;
-    warnings?: string[];
+    /**
+     * Why the capture cannot be made, when it cannot: the code `captureScreenshot` would throw
+     * with the same options, and that error's details as `params` (for example
+     * `RESOLUTION_TOO_HIGH` with `{ width, height, totalPixels, maxPixels }`, or
+     * `UNSUPPORTED_FORMAT` with `{ format }`).
+     */
+    reason?: CodedFact<ScreenshotErrorCode>;
+    /** What may go wrong with a capture that can be made; absent when nothing may. */
+    warnings?: CodedFact<ScreenshotWarningCode>[];
     estimatedMemoryMB: number;
+}
+
+/**
+ * The refusal a dimension error stands for.
+ * @param error - What `calculateDimensions` threw.
+ * @returns The coded reason.
+ */
+function refusalOf(error: unknown): CodedFact<ScreenshotErrorCode> {
+    if (!(error instanceof ScreenshotError)) {
+        return { code: ScreenshotErrorCode.INVALID_DIMENSIONS, params: {} };
+    }
+
+    const details = typeof error.details === "object" && error.details !== null ? error.details : {};
+    const params = Object.fromEntries(
+        Object.entries(details).filter(([, value]) => typeof value === "number" || typeof value === "string"),
+    ) as Record<string, number | string>;
+    return { code: error.code, params };
 }
 
 /**
@@ -24,35 +64,30 @@ export async function canCaptureScreenshot(
     try {
         dims = calculateDimensions(canvas, options);
     } catch (error) {
-        // If dimension calculation fails, it's not supported
-        return {
-            supported: false,
-            reason: error instanceof Error ? error.message : "Invalid dimensions",
-            estimatedMemoryMB: 0,
-        };
+        return { supported: false, reason: refusalOf(error), estimatedMemoryMB: 0 };
     }
 
     const pixels = dims.width * dims.height;
     const memoryMB = (pixels * 4) / (1024 * 1024);
 
-    const warnings: string[] = [];
-
-    // Check format support
     if (options.format === "webp" && !(await supportsWebP())) {
         return {
             supported: false,
-            reason: "WebP format not supported in this browser",
+            reason: { code: ScreenshotErrorCode.UNSUPPORTED_FORMAT, params: { format: "webp" } },
             estimatedMemoryMB: memoryMB,
         };
     }
 
-    // Warnings
+    const warnings: CodedFact<ScreenshotWarningCode>[] = [];
     if (pixels >= BROWSER_LIMITS.WARN_PIXELS) {
-        warnings.push(`Large screenshot (${(pixels / 1e6).toFixed(1)}MP) may fail on some devices`);
+        warnings.push({
+            code: "W_LARGE_CAPTURE",
+            params: { width: dims.width, height: dims.height, megapixels: Math.round(pixels / 1e5) / 10 },
+        });
     }
 
     if (memoryMB > 100) {
-        warnings.push(`High memory usage (~${memoryMB.toFixed(0)}MB) - may cause performance issues`);
+        warnings.push({ code: "W_HIGH_MEMORY", params: { memoryMB: Math.ceil(memoryMB) } });
     }
 
     return {

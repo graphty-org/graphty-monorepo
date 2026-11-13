@@ -86,13 +86,10 @@ export async function importSample(
     imageBaseUrl?: string,
 ): Promise<string> {
     await element.updateComplete;
-    // session.data.import rather than loadFromUrl, for two reasons. loadFromUrl has no layout
-    // option, so a file's own coordinates were thrown away for the seeded force layout and
-    // every position scored 0 against references that keep them; `layout: "recommended"` is
-    // the public way to keep them (graphty-element picks "fixed" when every node carries a
-    // coordinate, else a computed layout). And loadFromUrl always passes the element's
-    // nodeIdPath ("id" by default) to the JSON reader, which then skips its Cytoscape.js
-    // dialect and loads nothing (E_EMPTY_LOAD): a graphty-element defect.
+    // session.data.import, which takes the format's own reader options (formatOptions) that
+    // loadFromUrl does not. `layout: "recommended"` keeps a file's own coordinates (graphty-element
+    // picks "fixed" when every node carries one, else a computed layout), so positions are scored
+    // against references that keep them.
     const config = { ...formatOptions, ...(graphName === undefined ? { url } : { url, graphName }) };
     const named =
         (graphName === undefined ? "" : `, graphName: ${JSON.stringify(graphName)}`) +

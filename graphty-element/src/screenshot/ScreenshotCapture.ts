@@ -411,7 +411,7 @@ export class ScreenshotCapture {
         const enhancementState = enhancement?.state;
         // Handle destinations
         const destinations = finalOptions.destination ?? { blob: true };
-        let clipboardStatus: ClipboardStatus = "success";
+        let clipboardStatus: ClipboardStatus = "not-requested";
         let clipboardError: Error | undefined;
 
         // Start capturing the blob (this promise will be shared)

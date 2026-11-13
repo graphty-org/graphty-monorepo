@@ -29,7 +29,7 @@ export function colorToHex(s: string): string | undefined {
 
     // BabylonJS only reads the long forms, so a collapsed #RGB or #RGBA is expanded.
     if (hex.length === 4 || hex.length === 5) {
-        hex = hex.replace(/[0-9A-F]/g, "$&$&");
+        hex = hex.replaceAll(/[0-9A-F]/g, "$&$&");
     }
 
     return hex;

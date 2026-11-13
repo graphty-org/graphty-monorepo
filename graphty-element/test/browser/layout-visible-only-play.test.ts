@@ -1,8 +1,8 @@
 /**
  * @file `behavior.layout.visibleOnlyWhilePlaying`: what a layout over only what the filter shows
- * does while time plays and the moving window changes what is shown at every step. "hold", the
- * default, lays nothing out during the play and lays out once at the pause; "follow" lays out
- * again during the play.
+ * does while time plays and the moving window changes what is shown at every step. "follow", the
+ * default, lays out again during the play; "hold" lays nothing out during the play and lays out
+ * once at the pause.
  */
 
 import "../../src/graphty-element";
@@ -96,8 +96,8 @@ describe("a layout over only what the filter shows while time plays", () => {
         });
     }
 
-    it("holds the layout while time plays by default, and lays out once at the pause", async () => {
-        const { made, layouts } = await element();
+    it("holds the layout while time plays under hold, and lays out once at the pause", async () => {
+        const { made, layouts } = await element("hold");
         const shownBefore = [...made.session.visibility.nodes];
 
         made.session.time.play({ motion: "steps", interval: 0, loop: true });
@@ -110,8 +110,8 @@ describe("a layout over only what the filter shows while time plays", () => {
         assert.strictEqual(layouts(), 1, "one layout over what the pause shows");
     });
 
-    it("lays out again while time plays under follow", async () => {
-        const { made, layouts } = await element("follow");
+    it.each([["follow"], ["unset"]] as const)("lays out again while time plays under %s", async (whilePlaying) => {
+        const { made, layouts } = await element(whilePlaying === "unset" ? undefined : whilePlaying);
 
         made.session.time.play({ motion: "steps", interval: 0, loop: true });
         await vi.waitUntil(() => layouts() > 0);

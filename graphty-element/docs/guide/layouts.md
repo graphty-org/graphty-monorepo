@@ -671,10 +671,10 @@ await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "
 - **The layout runs again when the filter changes**, and when `visibleOnly` is switched on or off.
 - **A hidden node stays where it was**, so taking the filter away shows it where it last was
   drawn; the layout then runs again over everything shown.
-- **While time plays, the layout holds.** A playing [time window](./timeline) changes what the
-  filter shows at every step, so by default the nodes stay where they are during the play and the
-  layout runs once, over what is shown, when the play pauses or ends. Set
-  `layout.visibleOnlyWhilePlaying: "follow"` to lay out again at every step instead.
+- **While time plays, it can hold.** A playing [time window](./timeline) changes what the
+  filter shows at every step, so by default the layout runs again at every step. Set
+  `layout.visibleOnlyWhilePlaying: "hold"` to keep the nodes where they are during the play and
+  lay out once, over what is shown, when the play pauses or ends.
 - **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and
   those still push and pull on its members unless the filter hides them.
 

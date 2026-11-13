@@ -2492,7 +2492,7 @@ export class LayoutManager implements Manager {
         // While time plays the window moves every frame: under "hold" the layout waits for the
         // pause, which calls this again.
         const { visibleOnlyWhilePlaying } = this.styles.config.behavior.layout;
-        if (visibleOnlyWhilePlaying !== "follow" && this.scopeSource?.playing?.() === true) {
+        if (visibleOnlyWhilePlaying === "hold" && this.scopeSource?.playing?.() === true) {
             return;
         }
 

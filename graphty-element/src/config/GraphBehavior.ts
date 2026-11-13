@@ -287,10 +287,10 @@ const GraphLayoutOpts = z.strictObject({
      * What `visibleOnly` does while time plays, when the moving time window changes what the
      * filter shows every frame.
      *
-     * "hold": the layout keeps the nodes where they are while time plays and runs again once, over
-     * what is shown, when the play pauses or ends. "follow": it runs again at every change, as it
-     * does when time is still -- a full layout per frame, thrown away by the next one. Unset means
-     * "hold". A layout over the whole graph ignores it.
+     * "follow": it runs again at every change, as it does when time is still -- a full layout per
+     * frame, thrown away by the next one. "hold": the layout keeps the nodes where they are while
+     * time plays and runs again once, over what is shown, when the play pauses or ends. Unset means
+     * "follow". A layout over the whole graph ignores it.
      */
     visibleOnlyWhilePlaying: z.enum(["hold", "follow"]).optional(),
 });

@@ -15,11 +15,16 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
 import { addModel, fileInput, openCustom, openModels, openShapes, previewOf, written } from "./modelHarness";
 import { dotPng, quadGlb } from "./quadGlb";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** The car kit's folder, as the file chooser reads it (relative to the graphty project). */
 const KIT_FOLDER = "src/workspace/style/__fixtures__/car-kit";

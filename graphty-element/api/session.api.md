@@ -294,6 +294,9 @@ export interface AutosaveLookupOptions {
 export { AwsCredentials }
 
 // @public
+export type BackgroundImageProblem = CodedFact<"E_IMAGE_DECODE">;
+
+// @public
 export interface BatchResult {
     readonly completed: number;
     readonly label: string;
@@ -925,6 +928,9 @@ export interface DataSourceInput {
     readonly source?: string;
     readonly type?: string;
 }
+
+// @public
+export const DEFAULT_BACKGROUND_IMAGE_SIZE = 4096;
 
 // @beta
 export const DEFAULT_BRANCH_PALETTE: readonly string[];
@@ -2417,7 +2423,11 @@ export type GraphtyErrorCode =
 /**
 * A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
 */
-| "E_IMAGE_LOAD" | "E_INTERNAL";
+| "E_IMAGE_LOAD"
+/**
+* A picture the browser cannot decode, so it cannot be drawn (`prepareBackgroundImage`): HEIC in a browser without HEIC support, a damaged file, or a file that is not a picture. `params.format` (its media type, or "" when unknown), `params.fileName` when it is a file.
+*/
+| "E_IMAGE_DECODE" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -4175,6 +4185,26 @@ export interface PositionEntry {
 
 // @public
 export type Precision = "f32" | "f64";
+
+// @public
+export function prepareBackgroundImage(file: Blob, options?: PrepareBackgroundImageOptions): Promise<PreparedBackgroundImage>;
+
+// @public
+export interface PrepareBackgroundImageOptions {
+    readonly maxSize?: number;
+}
+
+// @public
+export type PreparedBackgroundImage = {
+    readonly ok: true;
+    readonly data: string;
+    readonly width: number;
+    readonly height: number;
+    readonly scaled: boolean;
+} | {
+    readonly ok: false;
+    readonly problem: BackgroundImageProblem;
+};
 
 // @public
 export type PreviewDefaultedPart = "palette" | "scale" | "domain" | "range";

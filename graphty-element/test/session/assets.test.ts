@@ -484,6 +484,20 @@ describe("session.assets: fetching a URL", () => {
             found: 64,
         });
     });
+
+    it("keeps a failed sample's status and does not cache the failure", async () => {
+        stubFetch(500, new Uint8Array(0));
+        const assets = createAssetsApi();
+        assertRejected(await assets.ready("asset:sample/box"), "E_MODEL_FETCH", {
+            url: "asset:sample/box",
+            status: 500,
+            offline: false,
+        });
+        const spy = stubFetch(200, glb(triangleGltf({ buffers: [{ byteLength: 36 }] }), TRIANGLE_BIN));
+        const again = await assets.ready("asset:sample/box");
+        assert.strictEqual(spy.mock.calls.length, 1);
+        assert.strictEqual(again.state, "accepted", JSON.stringify(again.problems));
+    });
 });
 
 /** A served file: its status (200 by default), its bytes and the type header it is sent with. */

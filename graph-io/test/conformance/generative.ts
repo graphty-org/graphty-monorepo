@@ -803,11 +803,6 @@ interface KnownFailure {
 /** The open bugs; each has its minimal case in fixtures/generative/cases.json. */
 export const KNOWN_FAILURES: readonly KnownFailure[] = [
     {
-        target: "pajek",
-        cause: "an infinite edge weight is written as `Infinity`, which the Pajek importer reads as a parameter name without a value (E_PAJEK_LINE) and drops the edge; check() announces nothing (#7656)",
-        matches: (g) => g.edges.some((e) => e.w === Infinity || e.w === -Infinity),
-    },
-    {
         target: "gml",
         cause: 'a text cell equal to NetworkX\'s list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing (#7649)',
         matches: (g) => allTexts(g).some((t) => t === "[]" || t === "()" || t === "_networkx_list_start"),

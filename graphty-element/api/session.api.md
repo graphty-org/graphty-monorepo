@@ -5336,6 +5336,7 @@ export interface RunsApi {
     remove(id: RunId): RunRemoval;
     rename(id: RunId, name: string | null): Promise<void>;
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
+    sweep(algorithm: AlgorithmKey, option: OptionDescriptor["name"], values: readonly unknown[], options?: SweepOptions): Run<SweepResult>;
 }
 
 // @public
@@ -7074,6 +7075,31 @@ export interface SummaryGroup {
     readonly name?: string;
     readonly rank?: number;
     readonly size: number;
+}
+
+// @public
+export interface SweepOptions extends RunOptions {
+    readonly label?: string;
+    readonly params?: Readonly<Record<string, unknown>>;
+    readonly scope?: ScopeInput;
+    readonly seed?: number;
+    readonly style?: RunStyle;
+}
+
+// @public
+export interface SweepResult extends BatchResult {
+    readonly option: OptionDescriptor["name"];
+    readonly rows: readonly SweepRow[];
+}
+
+// @public
+export interface SweepRow {
+    readonly failure?: BatchStepFailure;
+    readonly graph?: Readonly<Record<string, unknown>>;
+    readonly ok: boolean;
+    readonly runId?: RunId;
+    readonly summary?: ResultSummary;
+    readonly value: unknown;
 }
 
 // @public

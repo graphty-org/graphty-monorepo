@@ -39,7 +39,7 @@ const config = defineConfig({
             reporter: ["text", "json-summary", "json", "lcov", "html"],
             reportsDirectory: "coverage",
             include: ["src/**/*.ts"],
-            exclude: ["**/*.d.ts", "**/*.test.ts", "**/index.ts"],
+            exclude: ["**/*.d.ts", "**/*.test.ts"],
             thresholds: {
                 lines: 90,
                 functions: 90,

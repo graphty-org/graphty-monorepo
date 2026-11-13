@@ -110,15 +110,10 @@ describe("InputManager", () => {
 
         await inputManager.startPlayback(recordedEvents);
 
-        // Wait for playback to complete with timeout
-        await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error("Playback timeout - event not received"));
-            }, 5000);
-
+        // Wait for playback to complete; the one hang guard ends a playback that never does.
+        await new Promise<void>((resolve) => {
             eventManager.onGraphEvent.add((event) => {
                 if ((event as { type: string }).type === "input-playback-completed") {
-                    clearTimeout(timeout);
                     resolve();
                 }
             });

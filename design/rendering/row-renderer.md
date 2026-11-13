@@ -1284,6 +1284,15 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   0.63, 0.68, 0.87 and 0.80 s (load average 20-22 in the first two rounds, 13-16 in the last two), so the 0.8 s target
   is met in three runs of four; 100k + 1M typed master 5.93 and 6.07 s, branch 5.83 and 6.77 s (load average 7.6-13.8),
   unchanged: its first frame waits on edge work, the duplicate-edge checks (stage 117) and `publishPositions`. Correction (sixth pull request): the duplicate-edge checks were already gone (stage 117, see the first pull request's note), and `publishPositions` costs a few ms; what is profiled under it (0.5-0.66 s) is the first snapshot freeze it asks for, mostly identity completion (`GraphStore.writeSessionColumnsWhole`). Session edges' hashes now read each node's hash once (`withNodeHashes` in `edgeIdentity.ts`) instead of hashing both end ids per edge: 450 to 355 ms of CPU at 100k + 1M, equal hashes on both render paths (`test/data/edgeIdentity.test.ts`, node id hashes counted).
+- **Every feeder through the column door (cosmos-gap.md G8), seventh pull request: an edge's ends asked once.** A row
+  line cannot end at a 2D node below z-index 0 (`Node.isDrawnBehindEdges`), so `UpdateManager.unbuiltEdgePainted` asks
+  each end, and for a row drawn with no `Node` that read the row's look from `NodeBatches.lookOf`, a map read per end:
+  2M at 100k + 1M, 0.44 s of CPU in one profiled load. `NodeBatches.paintedBehindEdges` is now set the first time any
+  row is painted below z-index 0 and never cleared; until then no look is read. Under `"objects"` there are no node
+  batches and the answer was already false. Proof: `test/browser/edge-row-lines.test.ts` (a 2D lean load reads no
+  look; it read 6 before), and a 2D lean load with every row at z-index -1 still builds each edge's `Edge`. The time
+  left in the edge paint is `EdgeRowLines.paintRow`: its `unpaintRow` reads the 1M-entry line map for a row it never
+  drew, and `PulledLineBatch.grow` rebuilds the index buffer at 1M pieces (0.2-0.3 s).
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

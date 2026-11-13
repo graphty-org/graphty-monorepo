@@ -252,12 +252,17 @@ describe("kept sets under undo", () => {
         session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Core" });
         await session.undo();
         await session.redo();
-        await session
+        const failure = new Error("refused");
+        const escaped = await session
             .transaction("Refused", (tx) => {
                 tx.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" }, { name: "Gone" });
-                throw new Error("refused");
+                throw failure;
             })
-            .catch(() => undefined);
+            .then(
+                () => null,
+                (error: unknown) => error,
+            );
+        assert.strictEqual(escaped, failure, "the transaction rethrew the batch's own error");
 
         assert.deepEqual(heard, ["created:command", "removed:undo", "created:redo"]);
         session.dispose();

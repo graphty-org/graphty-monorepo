@@ -4651,6 +4651,33 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * {@link planTemplate}, with the document's palettes and label looks held before its layers are
+     * checked, and let go again when the apply is refused.
+     * @param document - The document.
+     * @param templateId - What to record as the template.
+     * @param at - Where the layers go.
+     * @returns The plan.
+     */
+    const planCarrying = (
+        document: StyleDocument,
+        templateId: string | undefined,
+        at: TemplatePosition | undefined,
+    ): EditPlan<TemplateReport> => {
+        checkCarried(document);
+        const restore = holdCarried(
+            scales.carried,
+            document,
+            current().map((entry) => specOf(entry.layer)),
+        );
+        try {
+            return planTemplate(document, templateId, at);
+        } catch (error) {
+            restore();
+            throw error;
+        }
+    };
+
+    /**
      * The plan a style command asks for, against the stack as it stands now.
      * @param command - The command.
      * @returns The plan. Throws a `GraphtyError` to refuse it.
@@ -4682,21 +4709,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
             document = layers.every((spec, at) => spec === document.layers[at]) ? document : { ...document, layers };
 
-            // The document's palettes and label looks are held before its layers are checked, and
-            // let go again when the apply is refused.
-            checkCarried(document);
-            const restore = holdCarried(
-                scales.carried,
-                document,
-                current().map((entry) => specOf(entry.layer)),
-            );
-            let plan: ReturnType<typeof planTemplate>;
-            try {
-                plan = planTemplate(document, command.templateId, command.at);
-            } catch (error) {
-                restore();
-                throw error;
-            }
+            const plan = planCarrying(document, command.templateId, command.at);
             const unknown = dropped.flatMap((uses, at) =>
                 uses.map((use): CodedFact<"shader.unknown"> => ({
                     code: "shader.unknown",

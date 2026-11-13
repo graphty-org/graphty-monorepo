@@ -149,12 +149,12 @@ export function carriedFor(
  * @throws `E_BAD_COMMAND` naming the first bad entry.
  */
 export function checkCarried(document: CarriedDocument): void {
-    const kinds: readonly unknown[] = ["sequential", "diverging", "categorical"];
+    const kinds: ReadonlySet<unknown> = new Set(["sequential", "diverging", "categorical"]);
     for (const palette of document.palettes ?? []) {
         const { id, colors, kind } = palette as { id?: unknown; colors?: unknown; kind?: unknown };
         const colorList =
             Array.isArray(colors) && colors.length > 0 && colors.every((each) => typeof each === "string");
-        if (typeof id !== "string" || !colorList || !kinds.includes(kind)) {
+        if (typeof id !== "string" || !colorList || !kinds.has(kind)) {
             throw badCommand("A style document carries a palette that is not an id, a kind and a list of colors.", {
                 palette: typeof id === "string" ? id : null,
             });

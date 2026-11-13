@@ -56,7 +56,9 @@ export function FindSettingBox({
                 placeholder={FIND_SETTING}
                 aria-label={FIND_SETTING}
                 aria-keyshortcuts="/"
-                rightSection={query === "" ? <Kbd size="xs">/</Kbd> : undefined}
+                // Always given (null while typing): the field wraps its input only when it has one, so
+                // dropping it would mount a new input and lose the keys typed after the first.
+                rightSection={query === "" ? <Kbd size="xs">/</Kbd> : null}
             />
         </div>
     );

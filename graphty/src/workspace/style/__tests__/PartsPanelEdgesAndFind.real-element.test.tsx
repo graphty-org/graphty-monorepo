@@ -316,13 +316,15 @@ describe("Find a setting", () => {
     });
 
     it("with the cosmograph and node-models experiments off, Find a setting finds no fade, blending or picture", async () => {
-        await openProject([every("Key", "edge", { "edge.color": "#ff0000" })]);
+        await openProject([
+            every("Key", "edge", { "edge.color": "#ff0000" }),
+            every("Dots", "node", { "node.shape": "box" }),
+        ]);
         const tab = await openStyle("Key", "edge");
         const results = await find(tab, "blending");
         within(results).getByText("No setting matches");
-        await userEvent.click(within(tab).getByRole("button", { name: "Clear search" }));
-        await showKind("node");
-        const pictures = await find(tab, "picture");
+        const nodes = await openStyle("Dots");
+        const pictures = await find(nodes, "picture");
         assert.notInclude(found(pictures), "node.texture");
         assert.notInclude(found(pictures), "node.model");
     });

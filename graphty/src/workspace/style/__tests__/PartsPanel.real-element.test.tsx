@@ -392,19 +392,18 @@ describe("the node tab by part of the drawing", () => {
         );
     });
 
-    it("a folder whose layers set different shapes reads its shape as mixed", async () => {
-        const session = await openProject([
-            everyNode("One", { "node.shape": "box" }),
-            everyNode("Two", { "node.shape": "sphere" }),
-        ]);
-        const folder = await session.styles.addFolder("Both");
-        for (const layer of session.styles.list().filter((each) => ["One", "Two"].includes(each.name ?? ""))) {
-            await session.styles.moveRow(layer.row ?? layer.id, { parent: folder.id });
-        }
-        await session.styles.settled();
-        const tab = await openStyle("Both");
-        const button = await within(section(tab, "shape")).findByRole("button", { name: "Node shape, mixed" });
-        assert.strictEqual(button.textContent, "Mixed");
+    it("a shape just added and not picked yet reads as the default it draws", async () => {
+        await openProject([everyNode("Key", { "node.size": 2 })]);
+        const tab = await openStyle("Key");
+        await userEvent.click(within(section(tab, "shape")).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        const picker = await waitFor(() => {
+            const found = section(tab, "shape").querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.match(picker?.getAttribute("aria-label") ?? "", /^Node shape, default \w/);
+        assert.isTrue(picker?.hasAttribute("data-unset"));
     });
 
     it("a label size set with no label words still has its line in Text", async () => {

@@ -400,6 +400,8 @@ interface WhichPickerProps {
     readonly adding?: string;
     /** Goes to the other kind's tab with a card on a field it carries. */
     readonly onElsewhere?: (field: CardField) => void;
+    /** Given, the folded row reads the cards as this one line instead of a chip per card. */
+    readonly summary?: (session: GraphSession, cards: readonly Card[]) => string;
 }
 
 /**
@@ -415,6 +417,7 @@ interface WhichPickerProps {
  * @param props.autoOpen - open on arrival when it has no cards
  * @param props.adding - a field to open on with a card on it
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
+ * @param props.summary - reads the folded row's cards as one line
  * @param props.held - cards it edits instead of a layer's
  * @returns The picker
  */
@@ -426,6 +429,7 @@ export function WhichPicker({
     autoOpen = false,
     adding,
     onElsewhere,
+    summary,
 }: WhichPickerProps): React.JSX.Element | null {
     const rows = held === undefined ? pickRows(session, ids, side) : [];
     const shown = held === undefined ? shownOf(rows) : heldShown(held.cards);
@@ -505,6 +509,14 @@ export function WhichPicker({
                     side={side}
                     buttonRef={rowButton}
                     regionId={regionId}
+                    line={
+                        summary === undefined || shown.length === 0
+                            ? undefined
+                            : summary(
+                                  session,
+                                  shown.map((each) => each.card),
+                              )
+                    }
                     onOpen={(key) => {
                         // With no card, focus lands on Add a condition, whose list opens on a
                         // press: open already, the press would close it.
@@ -529,6 +541,7 @@ export function WhichPicker({
  * @param props.side - nodes or edges
  * @param props.buttonRef - the row button, which focus returns to
  * @param props.regionId - the open cards' id, which the row controls
+ * @param props.line - the cards as one line, drawn in place of the chips
  * @param props.onOpen - opens the cards, on a chip's card when one was clicked
  * @returns The row
  */
@@ -540,6 +553,7 @@ function WhichRow({
     side,
     buttonRef,
     regionId,
+    line,
     onOpen,
 }: Readonly<{
     session: GraphSession;
@@ -549,6 +563,7 @@ function WhichRow({
     side: Side;
     buttonRef: React.RefObject<HTMLButtonElement | null>;
     regionId: string;
+    line?: string;
     onOpen: (key?: string) => void;
 }>): React.JSX.Element {
     const stats = session.data.statistics();
@@ -563,6 +578,11 @@ function WhichRow({
         return `${words[at].replace(LAYER_TOKEN, LAYER_SPOKEN)}${countWords}`;
     });
     const hint = `All ${many(total, side)}`;
+    // What the folded row reads after its count: every element, the one rule line, or each chip.
+    let ruleWords: readonly string[] = line === undefined ? spoken : [line];
+    if (shown.length === 0) {
+        ruleWords = [hint];
+    }
     // A layer whose conditions leave nothing is flagged on its count, or on a chip that leaves none.
     const none =
         held === undefined &&
@@ -584,12 +604,7 @@ function WhichRow({
                 aria-expanded={false}
                 aria-controls={regionId}
                 // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
-                aria-label={[
-                    `Which ${NOUN[side].many}`,
-                    head,
-                    none ? `no ${NOUN[side].one} matches` : "",
-                    ...(shown.length === 0 ? [hint] : spoken),
-                ]
+                aria-label={[`Which ${NOUN[side].many}`, head, none ? `no ${NOUN[side].one} matches` : "", ...ruleWords]
                     .filter((part) => part !== "")
                     .join(", ")}
                 onClick={(event) => {
@@ -608,12 +623,18 @@ function WhichRow({
                     {together && <NoneBadge side={side} />}
                 </Group>
                 <span className="ws-which-chips">
-                    {shown.length === 0 ? (
+                    {line !== undefined && (
+                        <Text size="xs" span truncate="end" title={line} className="ws-which-line">
+                            {line}
+                        </Text>
+                    )}
+                    {line === undefined && shown.length === 0 && (
                         // Read with the panel, not a warning: every element is a fine answer.
                         <Text size="xs" c="dimmed" span className="ws-which-hint">
                             {hint}
                         </Text>
-                    ) : (
+                    )}
+                    {line === undefined &&
                         shown.map((each, at) => (
                             <Chip
                                 key={each.key}
@@ -625,8 +646,7 @@ function WhichRow({
                                     setCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
                                 }}
                             />
-                        ))
-                    )}
+                        ))}
                 </span>
             </UnstyledButton>
         </div>

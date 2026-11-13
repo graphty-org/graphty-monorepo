@@ -9,8 +9,9 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
 import { shownChannel } from "./offered";
+import { GradientRow } from "./parts/GradientRow";
 import { Field, type RowContext } from "./PropertyRow";
-import { carriedOpacity, lineIn, partlySet, startingAdds, writeIn } from "./row";
+import { carriedOpacity, lineIn, partlySet, removeLine, startingAdds, writeIn } from "./row";
 import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
@@ -167,7 +168,8 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
         const shown = held === undefined ? undefined : shownChannel(ctx.session, ctx.side, channel, isSet(ctx, held));
         return shown?.renderable === true ? [shown] : [];
     });
-    const set = descriptors.filter((d) => isSet(ctx, d));
+    const quiet = new Set(spec.quiet ?? []);
+    const set = descriptors.filter((d) => !quiet.has(d.channel) && isSet(ctx, d));
     const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
     const note = sectionNote(ctx, spec, set);
     // Opacity is set in the color's own box, so "+" never offers it, and a color line set to a
@@ -176,7 +178,14 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
         set.flatMap((d) => (OPACITY_OF[d.channel] === undefined ? [] : (carriedOpacity(ctx, d.channel) ?? []))),
     );
     const boxed = new Set(Object.values(OPACITY_OF));
-    const unset = descriptors.filter((d) => !set.includes(d) && !pending.includes(d) && !boxed.has(d.channel));
+    const unset = descriptors.filter(
+        (d) =>
+            !set.includes(d) &&
+            !pending.includes(d) &&
+            !boxed.has(d.channel) &&
+            !quiet.has(d.channel) &&
+            (spec.offer === undefined || spec.offer.includes(d.channel)),
+    );
     // A line "+" added keeps the place it was added at, below the lines set before it, once its
     // value is written too: drawn in the section's order, it would jump above them under the
     // reader's eyes.
@@ -270,6 +279,16 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
             />
         );
     };
+    // A list section's item heading, before the first line of each item the row sets.
+    const headed = new Set<string>();
+    const itemHead = (d: ChannelDescriptor): React.ReactNode => {
+        const item = spec.items?.find((each) => each.channels.includes(d.channel));
+        if (item === undefined || headed.has(item.id)) {
+            return null;
+        }
+        headed.add(item.id);
+        return <ItemHead key={`item-${item.id}`} ctx={ctx} item={item} onFail={fail("removed")} />;
+    };
     if (descriptors.length === 0) {
         return null;
     }
@@ -281,6 +300,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                 label={spec.title}
                 headingLevel={3}
                 empty={set.length + pending.length === 0}
+                hasConfiguredValues={spec.configured}
                 collapsible={false}
                 actions={
                     <AddButton
@@ -298,15 +318,18 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                     />
                 }
             >
-                {lines.map((d) =>
-                    d.channel === "node.wireframe" ? (
-                        <WireframeRow key={d.channel} ctx={ctx} />
-                    ) : (
+                {lines.map((d) => [
+                    itemHead(d),
+                    specialLine(ctx, spec, d) ?? (
                         <Field
                             key={d.channel}
                             ctx={ctx}
                             descriptor={d}
-                            word={under(d) && d.modifies !== undefined ? settingWord(d.modifies, d.channel) : undefined}
+                            word={
+                                under(d) && d.modifies !== undefined
+                                    ? settingWord(d.modifies, d.channel)
+                                    : spec.words?.[d.channel]
+                            }
                             setting={under(d)}
                             settings={settingsAdd(d)}
                             pending={pending.includes(d)}
@@ -315,7 +338,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                             }}
                         />
                     ),
-                )}
+                ])}
             </ControlSection>
             {/* Outside the section's body, so it shows while the section sets nothing yet. */}
             {note !== null && (
@@ -323,6 +346,98 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                     {note}
                 </Text>
             )}
+        </div>
+    );
+}
+
+/**
+ * A line drawn by its own control rather than a property field: Shape's Wireframe, and in a list
+ * section (the panel by part) the gradient's stops, which stand for its colors and their places.
+ * @param ctx - the row.
+ * @param spec - the section.
+ * @param d - the property.
+ * @returns the line; false to draw no line for it; undefined for an ordinary field.
+ */
+function specialLine(ctx: RowContext, spec: SectionSpec, d: ChannelDescriptor): React.ReactNode {
+    if (d.channel === "node.wireframe") {
+        return <WireframeRow key={d.channel} ctx={ctx} />;
+    }
+    if (spec.items !== undefined && d.channel === "node.gradientColors") {
+        return <GradientRow key={d.channel} ctx={ctx} />;
+    }
+    if (
+        spec.items !== undefined &&
+        d.channel === "node.gradientStops" &&
+        lineIn(ctx, "node.gradientColors") !== undefined
+    ) {
+        return false;
+    }
+    return undefined;
+}
+
+/**
+ * A list section's heading line for one item the row sets (Drop shadow, Gradient): its name, and a
+ * minus that takes every property of the item off the row in one step per layer.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.item - the item
+ * @param props.onFail - reports a failed removal
+ * @returns The line
+ */
+function ItemHead({
+    ctx,
+    item,
+    onFail,
+}: Readonly<{
+    ctx: RowContext;
+    item: NonNullable<SectionSpec["items"]>[number];
+    onFail: (error: unknown) => void;
+}>): React.JSX.Element {
+    const remove = async (): Promise<void> => {
+        const { many } = ctx;
+        if (many !== undefined) {
+            for (const channel of item.channels) {
+                if (many.count(channel) > 0) {
+                    await many.clear(channel);
+                }
+            }
+            return;
+        }
+        for (const layer of ctx.layers) {
+            const held = item.channels.filter(
+                (channel) => layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined,
+            );
+            if (held.length > 0 && !layer.locked) {
+                await removeLine(ctx.session, layer, ...held);
+            }
+        }
+    };
+    const label = `Remove ${item.name.toLowerCase()}`;
+    return (
+        <div className="ws-row ws-item-head" data-item={item.id}>
+            <div className="ws-field" data-named="">
+                <span className="ws-field-label">
+                    <Text span size="xs" fw={600} className="ws-field-name">
+                        {item.name}
+                    </Text>
+                </span>
+                <div className="ws-field-control" />
+                <span className="ws-slot" />
+                <span className="ws-slot">
+                    <Tooltip label={label} position="top">
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label={label}
+                            onClick={() => {
+                                remove().catch(onFail);
+                            }}
+                        >
+                            <GLYPHS.remove size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                </span>
+            </div>
         </div>
     );
 }

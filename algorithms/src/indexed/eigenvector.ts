@@ -83,7 +83,34 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
     }
     scaleToUnitLength(x);
     const shift = !s.directed || mode === "total" ? hubShift(rel.rowPtr, rel.colIdx) : 1;
-    // The unscaled passes `(A + shift I) x`, as webgpu-graph-algorithms keeps them, so both stop at the same pass.
+    const { it, converged } = powerIterate(rel, shift, x, maxIter, tol);
+    if (!converged) {
+        throw new ConvergenceError("eigenvectorCentrality", maxIter, tol);
+    }
+    if (o.normalized !== false) {
+        minMaxRescale(x);
+    }
+    return { scores: x, iterations: it, converged };
+}
+
+/**
+ * Power iteration from the unit-length `x`, left holding the last pass scaled to unit length. The change is measured
+ * on the unscaled passes `(A + shift I) x`, as webgpu-graph-algorithms keeps them, so both stop at the same pass.
+ * @param rel - The feeding relation
+ * @param shift - The identity shift
+ * @param x - The start vector, overwritten with the result
+ * @param maxIter - The pass cap
+ * @param tol - The relative tolerance
+ * @returns The passes run and whether the last met the tolerance
+ */
+function powerIterate(
+    rel: Relation,
+    shift: number,
+    x: F64,
+    maxIter: number,
+    tol: number,
+): { it: number; converged: boolean } {
+    const n = x.length;
     let raw = new Float64Array(n);
     let previous = new Float64Array(n);
     let it = 0;
@@ -102,13 +129,7 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
         scaleToUnitLength(x);
         [raw, previous] = [previous, raw];
     }
-    if (!converged) {
-        throw new ConvergenceError("eigenvectorCentrality", maxIter, tol);
-    }
-    if (o.normalized !== false) {
-        minMaxRescale(x);
-    }
-    return { scores: x, iterations: it, converged };
+    return { it, converged };
 }
 
 /**

@@ -186,12 +186,13 @@ export async function eigenvectorCentrality(
         return empty(r.dest, r.maxIterations, options?.onProgress);
     }
     const shifted = !s.directed;
+    const foldedWeights = r.weights === undefined ? s.weights : null;
     const run = await runPowerIteration(ctx, r.n, {
         normMode: 2,
         adjacency: coreOf(ctx, s, algorithm),
         alternate: null,
         alpha: 1,
-        beta: shifted ? hubShift(s, r.weights === undefined ? s.weights : null) : 0,
+        beta: shifted ? hubShift(s, foldedWeights) : 0,
         uniformP: 0,
         betaTimesIterate: shifted,
         seed: shifted ? seedOf(s) : undefined,

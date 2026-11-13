@@ -4,16 +4,11 @@
  * record / XML readers that coexist. The scans read src/ through the TypeScript compiler API
  * and plain text; they do not import the modules.
  *
- * Every test here fails deliberately and pins a finding of the audit report:
- * - seven functions exceed 150 lines (json/exporter.ts `plan` 237, graphml/exporter.ts
- *   `planExport` 232, pajek/exporter.ts `writeParts` 184, csv/exporter.ts `planExport` 183,
- *   gexf/xml.ts `scanXmlSyntax` 176, gexf/exporter.ts `collectAttributes` 170, json/importer.ts
- *   `importCytoscape` 164);
- * - "is edge e the mirror half of an expanded pair" is implemented in eight exporters, "the
- *   explicit weight text of edge e" in seven, "an f64 text with a decimal point guaranteed" in
- *   four, the XML entity decoder and NAMED_ENTITIES table in two, `isSpace` in three, and
- *   `E_CSV_UNCLOSED_QUOTE` is defined by two independent CSV record readers (csv/records.ts on
- *   papaparse, neo4j/records.ts hand-written).
+ * Each test guards a finding of the audit report that is now fixed: no function is longer than
+ * 150 lines; "is edge e the mirror half of an expanded pair", "the explicit weight text of edge
+ * e", "an f64 text with a decimal point guaranteed", the XML entity decoder with its
+ * NAMED_ENTITIES table and `isSpace` are each implemented once; and one CSV record reader defines
+ * `E_CSV_UNCLOSED_QUOTE`.
  */
 
 import { readdirSync, readFileSync, statSync } from "node:fs";

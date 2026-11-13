@@ -98,6 +98,16 @@ function judged(h: JobHistory, now: number): boolean {
 }
 
 /**
+ * When a job's current run of failures began.
+ * @param runs - the job's runs, newest first
+ * @returns the time of the oldest failure since its last pass, or undefined when its newest run passed
+ */
+function firstOfStreak(runs: JobRun[]): number | undefined {
+    const streak = runs.findIndex((r) => r.ok);
+    return (streak === -1 ? runs : runs.slice(0, streak)).at(-1)?.at;
+}
+
+/**
  * The jobs failing chronically: failed in at least half of their newest LAST_RUNS runs of the last SHARE_MS (MIN_RUNS
  * at least), or failed in every run for STREAK_MS. Worst first. An aggregator (All Checks Pass) is not judged: it fails whenever any
  * job it summarizes fails, so its share is the union of theirs and it was chronic while no job of its own was (#6068).
@@ -116,9 +126,7 @@ export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] 
         // A weekly job judged by its streak alone may have no run this recent: show its newest runs instead.
         const last = recent.length ? recent : h.runs.slice(0, LAST_RUNS);
         const failed = last.filter((r) => !r.ok).length;
-        const streak = h.runs.findIndex((r) => r.ok);
-        const streakRuns = streak === -1 ? h.runs : h.runs.slice(0, streak);
-        const failingSince = streakRuns.at(-1)?.at;
+        const failingSince = firstOfStreak(h.runs);
         const byShare = recent.length >= MIN_RUNS && failed * 2 >= recent.length;
         const byStreak = failingSince !== undefined && now - failingSince >= STREAK_MS;
         if (!byShare && !byStreak) {

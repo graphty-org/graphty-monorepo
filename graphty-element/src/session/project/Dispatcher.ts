@@ -1823,13 +1823,19 @@ export class Dispatcher {
             group.keys.add(key);
         }
 
-        options.signal?.addEventListener(
-            "abort",
-            () => {
+        const { signal } = options;
+        if (signal !== undefined) {
+            const cancel = (): void => {
                 this.obsolete(job, "cancel");
-            },
-            { once: true },
-        );
+            };
+            signal.addEventListener("abort", cancel, { once: true });
+            // A signal that outlives the job would keep it, and its command's records, alive.
+            const off = (): void => {
+                signal.removeEventListener("abort", cancel);
+            };
+            job.promise.then(off, off);
+        }
+
         this.launch(job, concrete, group, options.beside === true, state);
         if (options.signal?.aborted === true) {
             this.obsolete(job, "cancel");

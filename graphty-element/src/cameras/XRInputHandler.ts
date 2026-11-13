@@ -783,14 +783,16 @@ export class XRInputHandler {
     }
 
     /**
-     * The hand's state from its controller's trigger, when the trigger pinches.
+     * The hand's state from its controller's trigger, when the trigger pinches. A tracked hand is
+     * an input source too, whose "trigger" is the runtime's pinch button; it is read from its
+     * joints instead, with the pinch distances' hysteresis (#6949).
      * @param handedness - Which hand
      * @returns The state while the trigger is held, or null to fall through to hand tracking
      */
     private controllerHandState(handedness: "left" | "right"): HandState | null {
         let controllerEntry: ControllerEntry | null = null;
         for (const entry of this.gestureControllers.values()) {
-            if (entry.handedness === handedness) {
+            if (entry.handedness === handedness && entry.controller.inputSource.hand === undefined) {
                 controllerEntry = entry;
                 break;
             }

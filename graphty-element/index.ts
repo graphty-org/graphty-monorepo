@@ -391,7 +391,7 @@ export type {
 export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
-export type { CapabilityCheck } from "./src/screenshot/capability-check";
+export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/capability-check";
 
 // =============================================================================
 // Video capture exports

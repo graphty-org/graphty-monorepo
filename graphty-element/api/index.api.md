@@ -652,16 +652,14 @@ export interface Capabilities {
     readonly xr: XrCapability;
 }
 
-// @public (undocumented)
+// @public
 export interface CapabilityCheck {
     // (undocumented)
     estimatedMemoryMB: number;
-    // (undocumented)
-    reason?: string;
+    reason?: CodedFact<ScreenshotErrorCode>;
     // (undocumented)
     supported: boolean;
-    // (undocumented)
-    warnings?: string[];
+    warnings?: CodedFact<ScreenshotWarningCode>[];
 }
 
 // @public
@@ -692,8 +690,8 @@ export interface CaptureEstimate {
 // @public
 export const CARBON_COLORS: readonly ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"];
 
-// @public (undocumented)
-export type ClipboardStatus = "success" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
+// @public
+export type ClipboardStatus = "success" | "not-requested" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
 
 // @public
 export interface CodedFact<Code extends string = string> {
@@ -7715,6 +7713,9 @@ export interface ScreenshotResult {
         enhancementTime?: number;
     };
 }
+
+// @public
+export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
 
 // @public
 export class SelectionManager implements Manager {

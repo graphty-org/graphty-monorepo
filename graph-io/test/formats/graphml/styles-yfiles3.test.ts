@@ -260,9 +260,23 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
         expect(typeof node("shapePoints", "flowchart-card")).toBe("string");
         expect(node("borderColor", "flowchart-decision")).toBe("#505050");
         expect(node("borderWidth", "flowchart-annotation")).toBe(0);
-        expect(node("shape", "default")).toBe("rectangle");
+        // a style with no type is a data parallelogram, as yEd Live draws it
+        expect(node("shape", "default")).toBe("parallelogram");
         expect(node("fill", "default")).toBe("#b7c9e3");
         expect(node("borderColor", "default")).toBe("#000000");
+    });
+
+    it("draws the lines inside a FlowchartNodeStyle's internal storage and predefined process as its picture", async () => {
+        const { node } = await sheet("specimen-node-shapes-p3.graphml");
+        for (const id of ["flowchart-internal-storage", "flowchart-predefined-process"]) {
+            const picture = decodeURIComponent(String(node("image", id)));
+            expect(picture).toContain('stroke="#505050"');
+            expect(node("imageFit", id)).toBe("fill");
+        }
+        expect(decodeURIComponent(String(node("image", "flowchart-internal-storage")))).toContain(
+            "M10,0L10,36M0,10L56,10",
+        );
+        expect(node("image", "flowchart-data")).toBeNull();
     });
 });
 

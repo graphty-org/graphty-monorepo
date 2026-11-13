@@ -817,6 +817,7 @@ export class Edge {
         width: number;
         visibility: number;
         centre: Vector3;
+        pattern: JoinedPatternKind | null;
     } | null;
     get drawnPattern(): readonly ArrowCap[];
     // (undocumented)

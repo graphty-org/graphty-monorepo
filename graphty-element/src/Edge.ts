@@ -24,10 +24,11 @@ import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
+import type { JoinedPatternKind } from "./meshes/CustomLineRenderer";
 import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch";
 import { gradientPieceColors } from "./meshes/edgeGradient";
 import { EDGE_STATE_BITS } from "./meshes/edgeJoinShader";
-import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
+import type { EdgeLineBatch, EdgeLineMeta } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
     arcThroughBend,
@@ -1156,11 +1157,19 @@ export class Edge {
      * finds one batch where it used to find one mesh per edge. The edge itself is where the
      * answer moved to: the batch's name carries the interned appearance, exactly as the instance
      * name did, the length is the drawn extent the bounding box used to carry, and the width is
-     * the line width the batch was built with.
-     * @returns The appearance, or null for a patterned line, whose elements are read through
+     * the line width the batch was built with, and the pattern the batch's shader draws along
+     * the line (a dash, dot, box, diamond or star line), or null for a solid one.
+     * @returns The appearance, or null for a line drawn as pattern elements, whose elements are read through
      *     {@link Edge.drawnPattern}.
      */
-    get drawnLine(): { name: string; length: number; width: number; visibility: number; centre: Vector3 } | null {
+    get drawnLine(): {
+        name: string;
+        length: number;
+        width: number;
+        visibility: number;
+        centre: Vector3;
+        pattern: JoinedPatternKind | null;
+    } | null {
         if (this.pulled) {
             const src = this.endPosition("source");
             const dst = this.endPosition("target");
@@ -1170,6 +1179,7 @@ export class Edge {
                 width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 visibility: this.pulled.visibility,
                 centre: Vector3.Center(src, dst),
+                pattern: null,
             };
         }
 
@@ -1191,6 +1201,8 @@ export class Edge {
             // A batch keyed by shape draws each slot at the opacity this edge wrote into it.
             visibility: ownColor ? this.lineOpacity : batch.mesh.visibility,
             centre: this.curveMiddle(batch),
+            // the line type whose elements the batch's shader draws along the line (issue #7404), or null for none
+            pattern: (batch.mesh.metadata as EdgeLineMeta | null)?.pattern?.kind ?? null,
         };
     }
 

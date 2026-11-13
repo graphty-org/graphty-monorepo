@@ -34,6 +34,7 @@
 
 import { type F32, type GraphSnapshot, maskTest, type NodeMask, type U32 } from "@graphty/graph-format";
 
+import { refusal } from "../indexed/common.js";
 import { addClusterPull, type ClusterField, clusterField } from "./clusters.js";
 import { assertCollision, collide, settleCollisions } from "./collision.js";
 import {
@@ -70,7 +71,10 @@ function resolveCenter(center: ArrayLike<number> | undefined): [number, number, 
     for (let axis = 0; axis < 3 && axis < center.length; axis++) {
         const v = center[axis];
         if (!Number.isFinite(v)) {
-            throw new RangeError(`center[${axis}] is not finite`);
+            throw refusal(new RangeError(`center[${axis}] is not finite`), "E_BAD_OPTION", {
+                option: "center",
+                value: v,
+            });
         }
         out[axis] = v;
     }
@@ -88,8 +92,12 @@ function resolveCenter(center: ArrayLike<number> | undefined): [number, number, 
  */
 function checkNumber(name: string, value: number, lo: number, hi: number, integer: boolean): number {
     if (!Number.isFinite(value) || value < lo || value > hi || (integer && !Number.isInteger(value))) {
-        throw new RangeError(
-            `FruchtermanReingoldSimulation: ${name} must be ${integer ? "an integer" : "a finite number"} in [${lo}, ${hi}], got ${value}`,
+        throw refusal(
+            new RangeError(
+                `FruchtermanReingoldSimulation: ${name} must be ${integer ? "an integer" : "a finite number"} in [${lo}, ${hi}], got ${value}`,
+            ),
+            "E_BAD_OPTION",
+            { option: name, value },
         );
     }
     return value;
@@ -164,12 +172,20 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         // a number and a string, not the option types: a JavaScript caller may pass any value
         const dim: number = options.dim ?? FA2_DEFAULTS.dim;
         if (dim !== 2 && dim !== 3) {
-            throw new RangeError(`FruchtermanReingoldSimulation: dim must be 2 or 3, got ${String(dim)}`);
+            throw refusal(
+                new RangeError(`FruchtermanReingoldSimulation: dim must be 2 or 3, got ${String(dim)}`),
+                "E_BAD_OPTION",
+                { option: "dim", value: dim },
+            );
         }
         this.dim = dim;
         const scale = options.scale ?? FA2_DEFAULTS.scale;
         if (!Number.isFinite(scale) || scale <= 0) {
-            throw new RangeError(`FruchtermanReingoldSimulation: scale must be a finite number > 0, got ${scale}`);
+            throw refusal(
+                new RangeError(`FruchtermanReingoldSimulation: scale must be a finite number > 0, got ${scale}`),
+                "E_BAD_OPTION",
+                { option: "scale", value: scale },
+            );
         }
         this.scale = scale;
         this.center = resolveCenter(options.center);
@@ -181,16 +197,20 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             this.kOption = null;
         } else {
             if (!Number.isFinite(k) || k < 0) {
-                throw new RangeError(
-                    `FruchtermanReingoldSimulation: k must be null, 0 or a finite number > 0, got ${k}`,
+                throw refusal(
+                    new RangeError(`FruchtermanReingoldSimulation: k must be null, 0 or a finite number > 0, got ${k}`),
+                    "E_BAD_OPTION",
+                    { option: "k", value: k },
                 );
             }
             this.kOption = k;
         }
         const cooling: string = options.cooling ?? "linear";
         if (cooling !== "linear" && cooling !== "adaptive") {
-            throw new RangeError(
-                `FruchtermanReingoldSimulation: cooling must be "linear" or "adaptive", got ${cooling}`,
+            throw refusal(
+                new RangeError(`FruchtermanReingoldSimulation: cooling must be "linear" or "adaptive", got ${cooling}`),
+                "E_BAD_OPTION",
+                { option: "cooling", value: cooling },
             );
         }
         this.adaptive = cooling === "adaptive";
@@ -800,21 +820,33 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         if (typeof spec === "string") {
             const column = snapshot.nodes.get(spec);
             if (column === null) {
-                throw new RangeError(
-                    `FruchtermanReingoldSimulation: fixed names node column "${spec}", which the snapshot does not hold`,
+                throw refusal(
+                    new RangeError(
+                        `FruchtermanReingoldSimulation: fixed names node column "${spec}", which the snapshot does not hold`,
+                    ),
+                    "E_UNKNOWN_COLUMN",
+                    { option: "fixed", column: spec },
                 );
             }
             if (column.dtype !== "bool") {
-                throw new TypeError(
-                    `FruchtermanReingoldSimulation: fixed names node column "${spec}", which is ${column.dtype}, not bool`,
+                throw refusal(
+                    new TypeError(
+                        `FruchtermanReingoldSimulation: fixed names node column "${spec}", which is ${column.dtype}, not bool`,
+                    ),
+                    "E_COLUMN_TYPE",
+                    { option: "fixed", column: spec, dtype: column.dtype, expected: "bool" },
                 );
             }
             return new Uint32Array(column.data.subarray(0, words));
         }
         if (spec !== null) {
             if (spec.length < words) {
-                throw new RangeError(
-                    `FruchtermanReingoldSimulation: the fixed mask has ${spec.length} words, ${words} needed for ${n} nodes`,
+                throw refusal(
+                    new RangeError(
+                        `FruchtermanReingoldSimulation: the fixed mask has ${spec.length} words, ${words} needed for ${n} nodes`,
+                    ),
+                    "E_BAD_OPTION",
+                    { option: "fixed", length: spec.length, expected: words },
                 );
             }
             return new Uint32Array(spec.subarray(0, words));

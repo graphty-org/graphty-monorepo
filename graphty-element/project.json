@@ -38,11 +38,11 @@
         "lint": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "node ../tools/test-slots.mjs --lint eslint --concurrency 2 $ESLINT_CACHE && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit",
+                "command": "npm run lint",
                 "cwd": "graphty-element"
             },
             "outputs": ["{projectRoot}/node_modules/.cache/eslint"],
-            "dependsOn": ["^build"]
+            "dependsOn": ["^build", "build"]
         },
         "semantic-release": {
             "executor": "nx:run-commands",

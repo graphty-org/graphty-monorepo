@@ -3172,16 +3172,18 @@ describe("actions/cache in the workflows", () => {
         for (const project of ["graphty-element", "graphty"]) {
             const target = JSON.parse(readFileSync(new URL(`../${project}/project.json`, import.meta.url), "utf8"))
                 .targets.lint;
-            // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file
-            assert.match(
-                target.options.command,
-                /^(node \.\.\/tools\/test-slots\.mjs --lint )?eslint [^&]*\$ESLINT_CACHE &&/,
-            );
+            // the nx target and `npm run lint` are one command, so they run the same checks under the same slot
+            assert.equal(target.options.command, "npm run lint");
+            const script = JSON.parse(readFileSync(new URL(`../${project}/package.json`, import.meta.url), "utf8"))
+                .scripts.lint;
+            // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file; eslint runs
+            // in the machine-wide lint slot so agents' eslints never stack up and get killed (#5904)
+            assert.match(script, /^node \.\.\/tools\/test-slots\.mjs --lint eslint [^&]*\$ESLINT_CACHE &&/);
             assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
             // never "--concurrency auto": it starts one type-aware worker (2.5 GB or more each) per two cores, 16 on
             // the 32-core dev machine, which drove the machine out of memory and got the lint killed with SIGTERM
             // ("Terminated", #5181); a fixed 2 is what auto gives on CI's 4-core runner
-            assert.doesNotMatch(target.options.command, /--concurrency auto/);
+            assert.doesNotMatch(script, /--concurrency auto/);
         }
     });
 

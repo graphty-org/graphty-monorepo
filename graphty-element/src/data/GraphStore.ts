@@ -23,6 +23,7 @@ import {
     type IdentityGraph,
     PAIRS_ORDERED_ATTRIBUTE,
     sessionEdgeHash,
+    withNodeHashes,
 } from "./edgeIdentity";
 import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "./positions";
 
@@ -2243,9 +2244,10 @@ export class GraphStore {
         const bound = builder.edgeBound;
         const hashes = new Uint32Array(2 * bound);
         const minusOnes = new Int32Array(bound).fill(-1);
+        const ends = withNodeHashes(graph, builder.nodeBound);
         for (const { row, counter, fileId } of this.sessionEdges) {
             if (builder.hasEdge(row)) {
-                const { a, b } = sessionEdgeHash(graph, row, counter, fileId, ordered);
+                const { a, b } = sessionEdgeHash(ends, row, counter, fileId, ordered);
                 hashes[2 * row] = a;
                 hashes[2 * row + 1] = b;
             }

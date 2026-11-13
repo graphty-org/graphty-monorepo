@@ -17,6 +17,7 @@ import {
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
 import { DEFAULT_LABEL_GRADIENT_COLORS } from "../config/RichTextStyle";
+import { GraphtyLogger, type Logger } from "../logging";
 import { toColorValue } from "../session/styles/channels";
 import { FrameRoster } from "./FrameRoster";
 import { type GlyphLabelEntry, GlyphLabels, recordRuns } from "./GlyphLabels";
@@ -43,6 +44,8 @@ import { RichTextRenderer } from "./RichTextRenderer";
 import { pixelsPerUnit } from "./screenSize";
 
 /** The depth-fading labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "label"]);
+
 const depthFadeFrames = new FrameRoster();
 /** The labels with a `minScreenSize`, each shown or hidden by its size on screen before every frame. */
 const minScreenSizeFrames = new FrameRoster();
@@ -1391,19 +1394,11 @@ export class RichTextLabel {
             const scale = MAX_TEXTURE_SIZE / Math.max(textureWidth, textureHeight);
             textureWidth = Math.floor(textureWidth * scale);
             textureHeight = Math.floor(textureHeight * scale);
-            // Only warn in non-test environments
-            // Check if we're in a test environment by looking for vitest or testing context
-            const isTest =
-                typeof globalThis !== "undefined" &&
-                ("__vitest_worker__" in globalThis ||
-                    "__vitest_environment__" in globalThis ||
-                    (typeof window !== "undefined" && window.location.href.includes("vitest")));
-
-            if (!isTest) {
-                console.warn(
-                    `RichTextLabel: Texture size clamped to ${textureWidth}x${textureHeight} (max: ${MAX_TEXTURE_SIZE})`,
-                );
-            }
+            logger.warn("Label texture size clamped", {
+                width: textureWidth,
+                height: textureHeight,
+                max: MAX_TEXTURE_SIZE,
+            });
         }
 
         return { width: textureWidth, height: textureHeight };
@@ -2571,21 +2566,9 @@ export class RichTextLabel {
      * @param text - The new text content
      */
     public setText(text: string): void {
-        const numericValue = Number(text);
-        if (this.options.smartOverflow && !Number.isNaN(numericValue)) {
-            const num = Number.parseInt(text, 10);
-            if (num > this.options.maxNumber) {
-                if (num >= 1000) {
-                    this.options.text = `${Math.floor(num / 1000)}k`;
-                } else {
-                    this.options.text = `${this.options.maxNumber}${this.options.overflowSuffix}`;
-                }
-            } else {
-                this.options.text = text;
-            }
-        } else {
-            this.options.text = text;
-        }
+        this.options.text = this.options.smartOverflow
+            ? BadgeStyleManager.overflowText(text, this.options.maxNumber, this.options.overflowSuffix)
+            : text;
 
         this._parseRichText();
         this._calculateDimensions();

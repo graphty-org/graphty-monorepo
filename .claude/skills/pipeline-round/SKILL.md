@@ -283,11 +283,19 @@ From the broker file (`tmp/pr-status/status.json`): every open pull request into
 (its `author`) whose `All Checks Pass` concluded `failure` on its head, that conflicts with master, or has unanswered
 review findings. A pull request anyone else opened -- the owner's, a master-guard revert (step 1) -- is not this step's: skip it.
 
+**Most-blocking first.** Order them by how many issues list them in `tmp/issue-round/free-queue.json`
+`blocked[].prs`, and start one fix subagent per red or conflicting pull request with no live owner, with no fixed
+number (only issue-round's step 1 limits on slots, load, memory and disk). Write the `fix attempt` marker when it
+starts: issue-round counts the pull request's files again from then on.
+
 - Its branch's issue has a live `taken` marker (its session is alive, see "Alive"): that session owns it. Skip.
 - Otherwise classify the failure from the failed job (see "Failure classes"): outside, re-run the failed jobs once;
   code or a conflict, mark the issue and start a fix subagent on the existing branch (fix prompt above), which merges
   `origin/master` (never rebase), fixes and pushes. Already on master: wait.
-- Red for 24 hours with no new commit and a fix attempt already made: list it in the round's last line as stranded.
+- **Split or close** a pull request with 150 or more changed files, or 2 failed fix attempts: the fix subagent lands
+  the green part as its own pull request. When no split works, close it with
+  `pipeline-round: closed -- <reason>; branch kept` (a closed pull request can be reopened) and give its issues a
+  `released` marker with the evidence.
 
 **Dependabot pull requests** (author `dependabot[bot]`): `dependabot-automerge.yml` arms their auto-merge; one with
 auto-merge off gets it turned on as graphty-agent (`gh pr merge <n> --auto --merge`), except Actions updates, which
@@ -297,10 +305,10 @@ wait for the owner. A red one is classified like an agent pull request.
 
 A branch on GitHub with commits master lacks, whose issue's newest marker is `ready <branch> <sha>` at its tip, and
 no open pull request (a subagent whose `pr-open.sh` failed, or a job that stopped at its `ready` marker while master
-was red): open it, oldest first, at most 10 open at once, so master is not buried in conflicts. Only while master is
-green (see "While master is red" in the shared file), and a few per round, as many as CI's runners allow (the
-`pipeline-health` MCP tool `runners`: `ci.saturated` ok and `ci.runner_wait` not red); `pr-open.sh` merges master
-first. Run, from the branch's worktree (or a new worktree of the branch),
+was red): open it, oldest first, as many as CI's runners allow (the `pipeline-health` MCP tool `runners`:
+`ci.saturated` ok and `ci.runner_wait` not red), checked again after each one. `CI_PR_RUN_CAP` already limits how many
+pull requests CI runs at once. Only while master is green (see "While master is red" in the shared file);
+`pr-open.sh` merges master first. Run, from the branch's worktree (or a new worktree of the branch),
 `tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` with a Proof that cites the `ready` marker and the
 tests the branch ran. Exit 2 (a conflict with master) goes to a fix subagent.
 

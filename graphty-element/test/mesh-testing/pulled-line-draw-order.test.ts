@@ -4,7 +4,7 @@
  * numbers its slots. Lines that cross blend in draw order, so one batch drawing every width in
  * plain piece order drew another picture wherever lines of two widths crossed (#6392).
  */
-import { MeshBuilder, NullEngine, RawTexture, Scene } from "@babylonjs/core";
+import { type IndicesArray, MeshBuilder, NullEngine, RawTexture, Scene } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { JOIN_TEMPLATE_INDICES, JOIN_TEMPLATE_VERTICES } from "../../src/meshes/edgeJoinShader";
@@ -13,6 +13,8 @@ import { PulledLineBatch } from "../../src/meshes/PulledLineBatch";
 describe("pulled line batch draw order", () => {
     let scene: Scene;
     let batch: PulledLineBatch;
+    /** The index list last uploaded: the batch keeps no CPU copy of it, so the upload is where it is read. */
+    let uploaded: IndicesArray = [];
 
     beforeEach(() => {
         const engine = new NullEngine();
@@ -20,7 +22,13 @@ describe("pulled line batch draw order", () => {
         engine.updateTextureData = (): void => undefined;
         scene = new Scene(engine);
         const rows = RawTexture.CreateRGBATexture(new Float32Array(4), 1, 1, scene);
-        batch = new PulledLineBatch(MeshBuilder.CreateBox("line", {}, scene), scene, () => rows);
+        const mesh = MeshBuilder.CreateBox("line", {}, scene);
+        const setIndices = mesh.setIndices.bind(mesh);
+        mesh.setIndices = (indices, ...rest) => {
+            uploaded = indices;
+            return setIndices(indices, ...rest);
+        };
+        batch = new PulledLineBatch(mesh, scene, () => rows);
     });
 
     afterEach(() => {
@@ -33,7 +41,7 @@ describe("pulled line batch draw order", () => {
      */
     function drawn(): number[] {
         batch.flush();
-        const indices = batch.mesh.getIndices() ?? [];
+        const indices = uploaded;
         return Array.from({ length: batch.drawnCount }, (_, at) =>
             Math.floor((indices[at * JOIN_TEMPLATE_INDICES.length] ?? 0) / JOIN_TEMPLATE_VERTICES),
         );

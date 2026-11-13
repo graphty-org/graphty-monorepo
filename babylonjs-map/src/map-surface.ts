@@ -895,16 +895,15 @@ export abstract class MapSurface {
             entry.state = "loading";
             this.inflight++;
             const url = entry.layer.resolved.url(entry.tile);
-            let load: Promise<BaseTexture>;
-            try {
-                load =
+            // Started at once, inside the executor: a loader that throws before returning a promise
+            // fails the tile, never the render.
+            const load = new Promise<BaseTexture>((resolve) => {
+                resolve(
                     entry.layer.resolved.tone === "gray"
                         ? sharedGrayPicture(url).then((source) => this.options.loadTexture(source, this.scene))
-                        : this.options.loadTexture(url, this.scene);
-            } catch (error) {
-                // A loader that throws before returning a promise fails the tile, never the render.
-                load = Promise.reject(error);
-            }
+                        : this.options.loadTexture(url, this.scene),
+                );
+            });
             load.then(
                 (texture) => {
                     this.loaded(entry, texture);

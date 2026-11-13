@@ -16,8 +16,15 @@
  *
  * unless the branch holds a breaking commit scoped to the package since the merge base
  * (`feat(graphty-element)!: ...`, or a `BREAKING CHANGE:` footer under that scope), which is what
- * makes the release a major. `workspace:` ranges are internal: tools/check-published-deps.mjs
- * checks them. Widening a range is allowed in a minor.
+ * makes the release a major. A narrowed range or a removed required peer also passes when a
+ * commit on the branch declares it with a line
+ *
+ *   Peer-Change: <package> <peer> <old range> -> <new range, or "removed">
+ *
+ * (owner, 2026-11-10: while nobody outside consumes the packages, a change that would be breaking
+ * lands as an ordinary feat/fix commit whose message says what changed for callers).
+ * `workspace:` ranges are internal: tools/check-published-deps.mjs checks them. Widening a range
+ * is allowed in a minor.
  *
  * Why it exists: a consumer's install must not break in a minor
  * (design/ai/tanstack-ai-harness-design.md, section 7, rule 7).
@@ -70,11 +77,16 @@ function existingPeerChange(before, after, name, range) {
     const now = after.peerDependencies ?? {};
     const inDeps = name in (after.dependencies ?? {});
     if (!(name in now)) {
-        if (inDeps) return `peer dependency "${name}" moved into dependencies`;
-        return optional(before, name) ? undefined : `peer dependency "${name}" removed`;
+        if (inDeps) return { message: `peer dependency "${name}" moved into dependencies` };
+        if (optional(before, name)) return undefined;
+        return { message: `peer dependency "${name}" removed`, peer: name, from: range, to: "removed" };
     }
-    if (!accepts(range, now[name])) return `peer dependency "${name}" narrowed from "${range}" to "${now[name]}"`;
-    if (optional(before, name) && !optional(after, name)) return `peer dependency "${name}" is now required`;
+    if (!accepts(range, now[name])) {
+        const message = `peer dependency "${name}" narrowed from "${range}" to "${now[name]}"`;
+        return { message, peer: name, from: range, to: now[name] };
+    }
+    if (optional(before, name) && !optional(after, name))
+        return { message: `peer dependency "${name}" is now required` };
     return undefined;
 }
 
@@ -82,7 +94,8 @@ function existingPeerChange(before, after, name, range) {
  * The peer dependency changes between two manifests that only a major may make.
  * @param before - the package.json on the base
  * @param after - the package.json being checked
- * @returns one message per breaking change
+ * @returns one { message } per breaking change; a narrowed or removed peer also carries the
+ *   { peer, from, to } a Peer-Change line must name to declare it
  */
 export function peerChanges(before, after) {
     const old = before.peerDependencies ?? {};
@@ -95,7 +108,7 @@ export function peerChanges(before, after) {
     }
     for (const name of Object.keys(now)) {
         if (!(name in old) && !now[name].startsWith("workspace:")) {
-            problems.push(`new peer dependency "${name}"`);
+            problems.push({ message: `new peer dependency "${name}"` });
         }
     }
     return problems;
@@ -112,6 +125,23 @@ export function breaksScope(subject, body, scopes) {
     const header = /^\w+\(([^)]*)\)(!)?:/.exec(subject);
     if (!header || !header[1].split(",").some((s) => scopes.includes(s.trim()))) return false;
     return header[2] === "!" || /^BREAKING[ -]CHANGE:/m.test(body);
+}
+
+/**
+ * Whether a commit message declares one peer change with a Peer-Change line.
+ * @param message - the commit's subject and body
+ * @param scopes - the names the package goes by
+ * @param problem - a narrowed or removed peer from peerChanges
+ * @returns true when a line names this package, peer, old range and new range exactly
+ */
+export function declaresPeerChange(message, scopes, problem) {
+    if (!problem.peer) return false;
+    for (const [, pkg, peer, from, to] of message.matchAll(
+        /^Peer-Change:\s*(\S+)\s+(\S+)\s+(.+?)\s+->\s+(.+?)\s*$/gm,
+    )) {
+        if (scopes.includes(pkg) && peer === problem.peer && from === problem.from && to === problem.to) return true;
+    }
+    return false;
 }
 
 /**
@@ -154,7 +184,7 @@ function selfTest() {
     let failed = 0;
     for (const [after, expected] of cases) {
         const problems = peerChanges(base, after);
-        if (problems.length !== 1 || !expected.test(problems[0])) {
+        if (problems.length !== 1 || !expected.test(problems[0].message)) {
             console.error(`self-test: expected ${expected}, got ${JSON.stringify(problems)}`);
             failed++;
         }
@@ -186,11 +216,51 @@ function selfTest() {
     ];
     for (const [subject, body] of breaking) if (!breaksScope(subject, body, scopes)) failed++;
     for (const [subject, body] of notBreaking) if (breaksScope(subject, body, scopes)) failed++;
+    const [narrowed] = peerChanges(
+        base,
+        variant((m) => (m.peerDependencies.lit = "^3.2.0")),
+    );
+    const [removed] = peerChanges(
+        base,
+        variant((m) => delete m.peerDependencies.lit),
+    );
+    const [added] = peerChanges(
+        base,
+        variant((m) => (m.peerDependencies.react = "*")),
+    );
+    const declared = [
+        ["fix(graphty-element): x\nPeer-Change: graphty-element lit ^3.0.0 -> ^3.2.0", narrowed],
+        ["fix: x\n\nPeer-Change: @graphty/graphty-element lit ^3.0.0 -> ^3.2.0\n", narrowed],
+        ["fix: x\nPeer-Change: graphty-element lit ^3.0.0 -> removed", removed],
+    ];
+    const undeclared = [
+        ["fix(graphty-element): x", narrowed],
+        ["fix: x\nPeer-Change: layout lit ^3.0.0 -> ^3.2.0", narrowed],
+        ["fix: x\nPeer-Change: graphty-element ai ^3.0.0 -> ^3.2.0", narrowed],
+        ["fix: x\nPeer-Change: graphty-element lit ^3.0.0 -> ^3.3.0", narrowed],
+        ["fix: x\nPeer-Change: graphty-element lit ^3.0.0 -> ^3.2.0", removed],
+        ["fix: x\nPeer-Change: graphty-element react * -> *", added],
+    ];
+    for (const [message, problem] of declared) {
+        if (!declaresPeerChange(message, [...scopes, "@graphty/graphty-element"], problem)) {
+            console.error(`self-test: a declared change was refused: ${JSON.stringify(message)}`);
+            failed++;
+        }
+    }
+    for (const [message, problem] of undeclared) {
+        if (declaresPeerChange(message, [...scopes, "@graphty/graphty-element"], problem)) {
+            console.error(`self-test: an undeclared change was accepted: ${JSON.stringify(message)}`);
+            failed++;
+        }
+    }
     if (failed > 0) {
         console.error(`check-peer-deps-stable self-test FAILED (${failed})`);
         process.exit(1);
     }
-    console.log(`check-peer-deps-stable self-test: ${cases.length} planted changes failed, the allowed ones passed`);
+    console.log(
+        `check-peer-deps-stable self-test: ${cases.length} planted changes failed, the allowed ones passed, ` +
+            `${declared.length} Peer-Change lines accepted and ${undeclared.length} wrong ones refused`,
+    );
 }
 
 if (process.argv.includes("--self-test")) {
@@ -213,22 +283,32 @@ if (process.argv.includes("--self-test")) {
         } catch {
             continue; // a new package: nothing published to stay compatible with
         }
-        const problems = peerChanges(before, after);
-        if (problems.length === 0) continue;
+        const all = peerChanges(before, after);
+        if (all.length === 0) continue;
         const scopes = [dir, after.name, after.name.replace(/^@graphty\//, "")];
+        const messages = all.map((p) => p.message).join("; ");
         if (commits.some(([subject, body = ""]) => breaksScope(subject, body, scopes))) {
-            console.log(`ok    ${after.name}: peer changes ride a breaking commit: ${problems.join("; ")}`);
+            console.log(`ok    ${after.name}: peer changes ride a breaking commit: ${messages}`);
             continue;
         }
+        const problems = all.filter(
+            (p) => !commits.some(([subject, body = ""]) => declaresPeerChange(`${subject}\n${body}`, scopes, p)),
+        );
+        if (problems.length < all.length) {
+            const ok = all.filter((p) => !problems.includes(p)).map((p) => p.message);
+            console.log(`ok    ${after.name}: declared by a Peer-Change line: ${ok.join("; ")}`);
+        }
+        if (problems.length === 0) continue;
         failed += problems.length;
         console.log(`FAIL  ${after.name}`);
-        for (const p of problems) console.log(`        ${p}`);
+        for (const p of problems) console.log(`        ${p.message}`);
     }
     if (failed > 0) {
         console.error(
-            `\n${failed} peer dependency change(s) that only a major may make, and no breaking commit scoped to the ` +
-                "package on this branch. Keep the peer, or land the change with the package's next major " +
-                '(CLAUDE.md, "Breaking changes and major releases").',
+            `\n${failed} peer dependency change(s) that only a major may make, with no breaking commit scoped to the ` +
+                "package and no Peer-Change line declaring it on this branch. Keep the peer, or declare a narrowed or " +
+                "removed peer in a commit message with a line `Peer-Change: <package> <peer> <old> -> <new|removed>` " +
+                '(CLAUDE.md, "Public API and breaking changes").',
         );
         process.exit(1);
     }

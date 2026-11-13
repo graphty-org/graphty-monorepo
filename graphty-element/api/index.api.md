@@ -8320,7 +8320,6 @@ export interface XRConfig {
     ar: XRModeConfig;
     enabled: boolean;
     input: XRInputConfig;
-    teleportation: XRTeleportationConfig;
     ui: XRUIConfig;
     vr: XRModeConfig;
 }
@@ -8330,11 +8329,9 @@ export type XRControllerButton = "a" | "b" | "x" | "y";
 
 // @public
 export interface XRInputConfig {
-    controllers: boolean;
     enableZAmplificationInDesktop?: boolean;
     handTracking: boolean;
     nearInteraction: boolean;
-    physics: boolean;
     zAxisAmplification?: number;
 }
 
@@ -8360,12 +8357,6 @@ export interface XRSessionStartedEvent {
     requestedReferenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded";
     // (undocumented)
     type: "xr-session-started";
-}
-
-// @public
-export interface XRTeleportationConfig {
-    easeTime: number;
-    enabled: boolean;
 }
 
 // @public

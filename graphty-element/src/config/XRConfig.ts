@@ -54,8 +54,9 @@ export interface XRModeConfig {
     referenceSpaceType: XRReferenceSpaceType;
 
     /**
-     * Optional WebXR features to request
-     * @example ["hand-tracking", "hit-test"]
+     * Optional WebXR features to request when the session starts. The session gets each one the
+     * device supports; the rest are skipped.
+     * @example ["anchors", "hit-test"]
      * @default []
      */
     optionalFeatures?: string[];
@@ -72,26 +73,16 @@ export interface XRInputConfig {
     handTracking: boolean;
 
     /**
-     * Enable controller input
-     * @default true
-     */
-    controllers: boolean;
-
-    /**
-     * Enable near interaction (touching objects with hands)
+     * Enable near interaction: hands and controllers touch and grab up close, each drawing a
+     * touch orb
      * @default true
      */
     nearInteraction: boolean;
 
     /**
-     * Enable physics for hand joints
-     * @default false
-     */
-    physics: boolean;
-
-    /**
      * Z-axis movement amplification factor in XR mode
-     * Multiplies Z-axis delta to make depth manipulation more practical
+     * Multiplies Z-axis delta during a node drag (a headset pinch or trigger drag, or a pointer
+     * drag) to make depth manipulation more practical. X and Y follow the hand one to one.
      * @default 10.0
      */
     zAxisAmplification?: number;
@@ -101,23 +92,6 @@ export interface XRInputConfig {
      * @default false
      */
     enableZAmplificationInDesktop?: boolean;
-}
-
-/**
- * Configuration for XR teleportation
- */
-export interface XRTeleportationConfig {
-    /**
-     * Enable teleportation feature
-     * @default false
-     */
-    enabled: boolean;
-
-    /**
-     * Duration of teleportation animation in milliseconds
-     * @default 200
-     */
-    easeTime: number;
 }
 
 /** A face button of a Quest Touch controller: A and B on the right, X and Y on the left. */
@@ -193,11 +167,6 @@ export interface XRConfig {
      */
     input: XRInputConfig;
 
-    /**
-     * Teleportation configuration
-     */
-    teleportation: XRTeleportationConfig;
-
     /** The assistant in an immersive session; absent, every default. */
     ai?: XRAiConfig;
 }
@@ -225,18 +194,12 @@ export const defaultXRConfig: XRConfig = {
     ar: {
         enabled: true,
         referenceSpaceType: "local-floor",
-        optionalFeatures: ["hit-test"],
+        optionalFeatures: [],
     },
     input: {
         handTracking: true,
-        controllers: true,
         nearInteraction: true,
-        physics: false,
         zAxisAmplification: 10,
         enableZAmplificationInDesktop: false,
-    },
-    teleportation: {
-        enabled: false,
-        easeTime: 200,
     },
 };

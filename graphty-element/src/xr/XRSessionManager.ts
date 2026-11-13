@@ -39,6 +39,8 @@ interface XRSessionConfig {
     };
     /** Whether XR sessions track hands (`xr.input.handTracking`). Defaults to true. */
     handTracking?: boolean;
+    /** Whether hands and controllers touch and grab up close (`xr.input.nearInteraction`). Defaults to true. */
+    nearInteraction?: boolean;
     /** Called once when a session the manager started ends, however it ended. */
     onSessionEnded?: (ended: { mode: "immersive-vr" | "immersive-ar"; cause: XRSessionEndCause }) => void;
 }
@@ -188,11 +190,12 @@ export class XRSessionManager {
                 disableTeleportation: true, // Match demo
                 // Babylon turns hand tracking on by default; the configuration decides instead.
                 disableHandTracking: this._config.handTracking === false,
+                disableNearInteraction: this._config.nearInteraction === false,
             });
 
             // Actually enter the VR session
             logger.debug("Entering VR session");
-            await this.enterSession(this.xrHelper, "immersive-vr", this._config.vr.referenceSpaceType);
+            await this.enterSession(this.xrHelper, "immersive-vr", this._config.vr);
             logger.debug("Entered VR session");
 
             // Log available features
@@ -248,6 +251,7 @@ export class XRSessionManager {
                 disableTeleportation: true,
                 // Babylon enables its hand tracking feature regardless of optionalFeatures.
                 disableHandTracking: this._config.handTracking === false,
+                disableNearInteraction: this._config.nearInteraction === false,
                 uiOptions: {
                     sessionMode: "immersive-ar",
                 },
@@ -257,7 +261,7 @@ export class XRSessionManager {
 
             // Actually enter the AR session
             logger.debug("Entering AR session");
-            await this.enterSession(this.xrHelper, "immersive-ar", this._config.ar.referenceSpaceType);
+            await this.enterSession(this.xrHelper, "immersive-ar", this._config.ar);
             logger.debug("Entered AR session");
 
             // Log available features
@@ -284,16 +288,18 @@ export class XRSessionManager {
 
     /**
      * Start the session, in the configured reference space or the first fallback the device grants
-     * (see {@link referenceSpaceFallbacks}), and watch for it to end.
+     * (see {@link referenceSpaceFallbacks}), with the mode's configured optional features
+     * requested, and watch for it to end.
      * @param helper - The XR experience the session runs in
      * @param mode - The session mode
-     * @param requested - The configured reference space type
+     * @param modeConfig - The mode's configuration
      */
     private async enterSession(
         helper: WebXRDefaultExperience,
         mode: "immersive-vr" | "immersive-ar",
-        requested: XRReferenceSpaceType,
+        modeConfig: XRSessionConfig["vr"],
     ): Promise<void> {
+        const requested = modeConfig.referenceSpaceType;
         const { baseExperience } = helper;
         const { sessionManager } = baseExperience;
         const candidates = referenceSpaceFallbacks(requested);
@@ -320,7 +326,8 @@ export class XRSessionManager {
         };
 
         // A fallback is granted only if the session was asked for it; "local" always is.
-        const optionalFeatures = candidates.slice(1).filter((type) => type !== "local");
+        const fallbacks = candidates.slice(1).filter((type) => type !== "local");
+        const optionalFeatures = [...new Set([...fallbacks, ...(modeConfig.optionalFeatures ?? [])])];
         await baseExperience.enterXRAsync(mode, requested, undefined, { optionalFeatures });
         logger.debug("Reference space", { requested, granted: this.referenceSpaceType });
         const stopLaserOnRows = laserOnRows(this.scene, helper);

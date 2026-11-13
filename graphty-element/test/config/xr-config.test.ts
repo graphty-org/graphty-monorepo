@@ -38,15 +38,9 @@ describe("XR Configuration Schema", () => {
                 },
                 input: {
                     handTracking: true,
-                    controllers: true,
                     nearInteraction: true,
-                    physics: false,
                     zAxisAmplification: 10.0,
                     enableZAmplificationInDesktop: false,
-                },
-                teleportation: {
-                    enabled: false,
-                    easeTime: 200,
                 },
             };
 
@@ -70,13 +64,9 @@ describe("XR Configuration Schema", () => {
             assert.equal(parsed.ar.enabled, true);
             assert.equal(parsed.ar.referenceSpaceType, "local-floor");
             assert.equal(parsed.input.handTracking, true);
-            assert.equal(parsed.input.controllers, true);
             assert.equal(parsed.input.nearInteraction, true);
-            assert.equal(parsed.input.physics, false);
             assert.equal(parsed.input.zAxisAmplification, 10.0);
             assert.equal(parsed.input.enableZAmplificationInDesktop, false);
-            assert.equal(parsed.teleportation.enabled, false);
-            assert.equal(parsed.teleportation.easeTime, 200);
         });
 
         test("should preserve user-provided values", () => {
@@ -129,14 +119,6 @@ describe("XR Configuration Schema", () => {
         test("should reject zero unavailableMessageDuration", () => {
             const config = {
                 ui: { unavailableMessageDuration: 0 },
-            };
-            const result = xrConfigSchema.safeParse(config);
-            assert.isFalse(result.success);
-        });
-
-        test("should reject negative easeTime", () => {
-            const config = {
-                teleportation: { easeTime: -100 },
             };
             const result = xrConfigSchema.safeParse(config);
             assert.isFalse(result.success);
@@ -211,29 +193,18 @@ describe("XR Configuration Schema", () => {
             const parsed = xrConfigSchema.parse(config);
 
             assert.equal(parsed.input.handTracking, true);
-            assert.equal(parsed.input.controllers, true);
             assert.equal(parsed.input.nearInteraction, true);
-            assert.equal(parsed.input.physics, false);
             assert.equal(parsed.input.zAxisAmplification, 10.0);
             assert.equal(parsed.input.enableZAmplificationInDesktop, false);
-        });
-
-        test("should apply defaults for nested teleportation config", () => {
-            const config = { teleportation: {} };
-            const parsed = xrConfigSchema.parse(config);
-
-            assert.equal(parsed.teleportation.enabled, false);
-            assert.equal(parsed.teleportation.easeTime, 200);
         });
     });
 
     describe("AR specific defaults", () => {
-        test("should include hit-test in AR optional features by default", () => {
-            const config = {};
-            const parsed = xrConfigSchema.parse(config);
+        test("requests no optional features by default, in AR or VR", () => {
+            const parsed = xrConfigSchema.parse({});
 
-            assert.isArray(parsed.ar.optionalFeatures);
-            assert.include(parsed.ar.optionalFeatures, "hit-test");
+            assert.deepEqual(parsed.ar.optionalFeatures, []);
+            assert.deepEqual(parsed.vr.optionalFeatures, []);
         });
 
         test("should allow overriding AR optional features", () => {

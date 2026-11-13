@@ -617,7 +617,7 @@ export class XRInputHandler {
         const pressed = new Set<XRControllerButton>();
         for (const controller of this.xr.input.controllers) {
             const { gamepad, handedness, hand } = controller.inputSource;
-            if (gamepad === undefined || hand !== undefined) {
+            if (gamepad === undefined || hand) {
                 continue;
             }
 
@@ -792,7 +792,7 @@ export class XRInputHandler {
     private controllerHandState(handedness: "left" | "right"): HandState | null {
         let controllerEntry: ControllerEntry | null = null;
         for (const entry of this.gestureControllers.values()) {
-            if (entry.handedness === handedness && entry.controller.inputSource.hand === undefined) {
+            if (entry.handedness === handedness && !entry.controller.inputSource.hand) {
                 controllerEntry = entry;
                 break;
             }

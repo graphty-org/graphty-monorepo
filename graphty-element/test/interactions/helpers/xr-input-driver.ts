@@ -123,7 +123,7 @@ export async function createXRInputDriver(
         const helper = element.getXRSessionManager()?.getXRHelper();
         assert.exists(helper, "no XR session");
         const sources = helper.input.controllers.filter((source) =>
-            input === "hand" ? source.inputSource.hand !== undefined : source.motionController !== undefined,
+            input === "hand" ? Boolean(source.inputSource.hand) : source.motionController !== undefined,
         );
         assert.lengthOf(sources, 2, `the emulated ${input}s are not tracked`);
         assert.isTrue(controller().getInputHandler().isEnabled(), "the XR input handler is not enabled");

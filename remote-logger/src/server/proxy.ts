@@ -244,7 +244,7 @@ function passThrough(
  * @param contentType - The upstream Content-Type header
  * @returns The decoded HTML
  */
-export function decodeHtml(body: Buffer, contentType: string | undefined): string {
+function decodeHtml(body: Buffer, contentType: string | undefined): string {
     const charsetPattern = /charset\s*=\s*["']?([\w.:-]+)/i;
     const declared =
         charsetPattern.exec(contentType ?? "")?.[1] ??

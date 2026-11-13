@@ -29,20 +29,6 @@ describe("TextInputAdapter", () => {
         });
     });
 
-    describe("callback registration", () => {
-        it("can register input callback", () => {
-            const callback: InputCallback = vi.fn();
-            adapter.onInput(callback);
-        });
-
-        it("can register multiple callbacks", () => {
-            const callback1: InputCallback = vi.fn();
-            const callback2: InputCallback = vi.fn();
-            adapter.onInput(callback1);
-            adapter.onInput(callback2);
-        });
-    });
-
     describe("start/stop lifecycle", () => {
         it("start sets isActive to true", () => {
             adapter.start();

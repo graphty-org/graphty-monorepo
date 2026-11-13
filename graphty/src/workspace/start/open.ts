@@ -407,29 +407,9 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
  * @param url - the address.
  * @returns the source.
  */
-function urlSource(url: string): Incoming {
+export function urlSource(url: string): Incoming {
     const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "") || new URL(url).hostname;
     return { name, source: { config: { url }, name } };
-}
-
-/**
- * Opens the graph file at a web address as a new project named after the file, drawn as a first
- * file is. The element reads the format from the address and the file.
- * @param workspace - the workspace store.
- * @param url - the address.
- */
-export function openUrl(workspace: WorkspaceStore, url: string): void {
-    openSeparate(workspace, urlSource(url));
-}
-
-/**
- * The graph file at a web address, added as any source is (Paste of an address, the Web address
- * box): on the start screen it opens as a new project; in a project it is added to it.
- * @param ctx - the command context.
- * @param url - the address.
- */
-export function addUrl(ctx: CommandContext, url: string): void {
-    addSource(ctx, urlSource(url));
 }
 
 /**
@@ -631,11 +611,12 @@ export async function pasteSource(ctx: CommandContext): Promise<void> {
         ctx.workspace.set({ notice: { message: "Clipboard empty" } });
         return;
     }
-    if (pasted.kind === "url") {
-        addUrl(ctx, pasted.url);
-        return;
-    }
-    addSource(ctx, { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } });
+    addSource(
+        ctx,
+        pasted.kind === "url"
+            ? urlSource(pasted.url)
+            : { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } },
+    );
 }
 
 /**

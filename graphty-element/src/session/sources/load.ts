@@ -14,6 +14,7 @@ import {
     type LoadFromSourceOptions,
     registry,
     SOURCE_FORMAT_PREFIX,
+    sourceEndpoint,
     type SourceListing,
     type SourceListQuery,
     type SourceProbe,
@@ -92,7 +93,9 @@ async function accessFor(
     params?: Readonly<Record<string, unknown>>,
 ): Promise<Access> {
     const descriptor = descriptorOf(id);
-    const endpoint = options.endpoint ?? descriptor?.defaultEndpoint ?? null;
+    // The `url` source's address is its endpoint, so a credential is found by that address's origin.
+    const found = sourceEndpoint(descriptor, params ?? {}, options.endpoint);
+    const endpoint = found === null ? null : String(found);
     const slot = slotNameOf(id);
     if (options.credential !== undefined) {
         return { endpoint, credential: options.credential, slot, stored: false };
@@ -266,7 +269,7 @@ function importCommand(
         op: "data.import-source",
         source: {
             type: `${SOURCE_FORMAT_PREFIX}${input.source}`,
-            config: input.config,
+            config: read.info?.params ?? input.config,
             ...(input.name === undefined ? {} : { name: input.name }),
         },
         mode: options.mode ?? "replace",
@@ -363,7 +366,9 @@ function loadFacts(
     return {
         source: input.source,
         version: read.info?.version ?? descriptorOf(input.source)?.version ?? 1,
-        config: input.config,
+        // What the read worked out from the data (a CSV's id column) is saved with the params, so a
+        // reopened project, a refresh or a next page reads the data the same way.
+        config: read.info?.params ?? input.config,
         endpoint: read.info?.endpoint ?? access.endpoint,
         // The ledger keeps only the recordable choices; the credential and `write` never reach it.
         // The mode is the one the load ran with, as an opened project's record says it.

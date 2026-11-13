@@ -18,7 +18,6 @@ import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
-import { NETWORK_DIALOG } from "../server/commands";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
@@ -27,6 +26,7 @@ import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
+import { NETWORK_DIALOG, NetworkDataDialog } from "./NetworkDataDialog";
 import { openDataset, openFiles, openGenerated, openNetworkSample, openSample, pickFiles } from "./open";
 import { SampleCard } from "./SampleCard";
 import { GENERATED, type LibraryTile, NETWORK_TILES, type NetworkTile, offeredTiles } from "./sampleLibrary";
@@ -727,6 +727,8 @@ export function StartScreen(): React.JSX.Element {
                     </Paper>
                 </div>
             ) : null}
+            {/* Only here: the app proper adds network data through its own Network data panel. */}
+            <NetworkDataDialog />
         </div>
     );
 }

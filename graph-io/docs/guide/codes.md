@@ -280,6 +280,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GRAPHML_KEY_DOMAIN_UNSUPPORTED"></a>`W_GRAPHML_KEY_DOMAIN_UNSUPPORTED`: A key declared for hyperedges, ports or endpoints (never used), other than a yFiles port key. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_LOCATOR_DROPPED"></a>`W_GRAPHML_LOCATOR_DROPPED`: A `<locator>` element. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_NAMESPACE"></a>`W_GRAPHML_NAMESPACE`: The `<graphml>` root is in a namespace other than GraphML's; it is read as GraphML. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_NAMESPACE_DROPPED"></a>`W_GRAPHML_NAMESPACE_DROPPED`: A kept namespace prefix that is not an XML NCName, or is `xml` or `xmlns`, is not written on the root tag. Save: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_NESTED_GRAPH_DATA"></a>`W_GRAPHML_NESTED_GRAPH_DATA`: Data of a nested `<graph>`; only the top-level graph has attributes. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_ORIGINAL_ID_IGNORED"></a>`W_GRAPHML_ORIGINAL_ID_IGNORED`: A `graphty:originalId` value that is not text, or arrives after the node was added (after its nested graph). Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_PARENT_CYCLE"></a>`W_GRAPHML_PARENT_CYCLE`: Nodes whose parent chain never reaches a root are written at the top level. Save: [graphml](./formats/graphml.md).

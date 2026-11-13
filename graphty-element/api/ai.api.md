@@ -951,7 +951,7 @@ export interface PersistenceConfig {
 }
 
 // @public
-export type ProgressCallback = (progress: number, text: string) => void;
+export type ProgressCallback = (progress: number, stage: WebLlmProgressStage, detail?: string) => void;
 
 // @public
 export interface PropertySummary {
@@ -1161,6 +1161,9 @@ export interface WebLlmModelInfo {
     size: string;
     supportsTools?: boolean;
 }
+
+// @public
+export type WebLlmProgressStage = "module" | "engine" | "ready";
 
 // @public
 export interface WebLlmProviderOptions {

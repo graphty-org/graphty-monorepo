@@ -78,6 +78,19 @@ export const LEAN_TEMPLATE = { indices: LEAN_TEMPLATE_INDICES, vertices: LEAN_TE
 /** Floats in one texel. */
 const TEXEL_FLOATS = 4;
 
+/** Slots a piece's draw key orders under one group's rank: a table holds far fewer pieces. */
+const SLOTS_PER_RANK = 2 ** 32;
+
+/**
+ * The pieces of one width, numbered as the object path's batch of that width numbers its slots:
+ * the next new slot and the freed ones, taken last first.
+ */
+interface WidthGroup {
+    readonly rank: number;
+    highWater: number;
+    readonly free: number[];
+}
+
 /** A row number no row has: the piece draws nothing. */
 const NO_ROW = -1;
 
@@ -98,6 +111,20 @@ export class PulledLineBatch {
     private highWater = 0;
 
     private readonly free: number[] = [];
+
+    /**
+     * Each piece's draw key: its width group's rank, then the slot the object path's batch of that width gives it.
+     * The object path draws a batch per width, one after another in the order they were made, and draw order
+     * decides how lines that cross blend; the index list draws pieces in this order (#6392).
+     */
+    private keys = new Float64Array(0);
+
+    /** The width groups, by width, and by rank: the order this batch met them. */
+    private readonly groups = new Map<number, WidthGroup>();
+    private readonly ranked: WidthGroup[] = [];
+
+    /** Whether a piece took a key out of draw order since the index list was last built. */
+    private reorder = false;
 
     /** The first and last table line written since the last upload, or -1. */
     private dirtyFirst = -1;
@@ -185,20 +212,32 @@ export class PulledLineBatch {
 
     /**
      * Hand out a piece, drawing nothing until {@link PulledLineBatch.setRows}.
+     * @param width - The width {@link PulledLineBatch.setLook} will give it, which places it in draw order as the
+     *     object path's batch of that width would draw it.
      * @returns The piece.
      */
-    acquire(): number {
-        const reused = this.free.pop();
-        if (reused !== undefined) {
-            return reused;
+    acquire(width = 0): number {
+        let piece = this.free.pop();
+        if (piece === undefined) {
+            if (this.highWater === this.rows.length / this.pieceFloats) {
+                this.grow();
+            }
+
+            piece = this.highWater++;
+            this.setCount();
         }
 
-        if (this.highWater === this.rows.length / this.pieceFloats) {
-            this.grow();
+        let group = this.groups.get(width);
+        if (group === undefined) {
+            group = { rank: this.ranked.length, highWater: 0, free: [] };
+            this.groups.set(width, group);
+            this.ranked.push(group);
         }
 
-        const piece = this.highWater++;
-        this.setCount();
+        const key = group.rank * SLOTS_PER_RANK + (group.free.pop() ?? group.highWater++);
+        // With one width a piece's key is its own number, as the free pieces are taken in the same order.
+        this.reorder ||= this.keys[piece] !== key;
+        this.keys[piece] = key;
         return piece;
     }
 
@@ -209,6 +248,8 @@ export class PulledLineBatch {
     release(piece: number): void {
         this.setRows(piece, NO_ROW, NO_ROW);
         this.free.push(piece);
+        const key = this.keys[piece] ?? 0;
+        this.ranked[Math.floor(key / SLOTS_PER_RANK)]?.free.push(key % SLOTS_PER_RANK);
     }
 
     /**
@@ -384,6 +425,10 @@ export class PulledLineBatch {
         const material = this.mesh.material as ShaderMaterial | null;
         material?.setTexture("rowPosition", this.rowPositions());
         this.flushRoutes();
+        if (this.reorder) {
+            this.index();
+        }
+
         if (this.dirtyFirst < 0) {
             return;
         }
@@ -480,16 +525,38 @@ export class PulledLineBatch {
         this.index();
     }
 
-    /** The template once per piece the table has room for, numbered so `gl_VertexID / vertices` is the piece. */
+    /**
+     * The template once per piece the table has room for, numbered so `gl_VertexID / vertices` is the piece, the
+     * pieces handed out first and in draw order ({@link PulledLineBatch.keys}).
+     */
     private index(): void {
         const capacity = this.rows.length / this.pieceFloats;
         const { indices: template, vertices } = this.template;
+        if (this.keys.length !== capacity) {
+            // a piece not yet handed out keys as its own number, which is the key one width gives it
+            const keys = Float64Array.from({ length: capacity }, (_, piece) => piece);
+            keys.set(this.keys);
+            this.keys = keys;
+        }
+
+        const { keys, highWater } = this;
+        // ponytail: sorts every handed-out piece, at most once a frame and only while widths interleave; give each
+        // group its own index range if a large mixed-width load shows it
+        const drawn =
+            this.ranked.length > 1
+                ? Uint32Array.from({ length: highWater }, (_, piece) => piece).sort(
+                      (a, b) => (keys[a] ?? 0) - (keys[b] ?? 0) || a - b,
+                  )
+                : null;
         const indices = new Uint32Array(capacity * template.length);
-        for (let piece = 0; piece < capacity; piece++) {
+        for (let at = 0; at < capacity; at++) {
+            const piece = at < highWater ? (drawn?.[at] ?? at) : at;
             for (let i = 0; i < template.length; i++) {
-                indices[piece * template.length + i] = template[i] + piece * vertices;
+                indices[at * template.length + i] = template[i] + piece * vertices;
             }
         }
+
+        this.reorder = false;
 
         this.mesh.setIndices(indices, capacity * vertices);
         // Keep the list on the GPU only: Babylon's CPU copy is 4 bytes an index (120 B an edge) that nothing reads.

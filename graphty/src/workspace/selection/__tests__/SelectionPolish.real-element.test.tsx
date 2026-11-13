@@ -27,6 +27,21 @@ import { Workspace } from "../../Workspace";
 withFeatures([]);
 
 /**
+ * Opens the selection's workspace from the Style tab's Style Nodes... line (issue #6810): a style
+ * layer's selection is read and edited there, never in the sidebar.
+ * @returns the workspace.
+ */
+async function openWs(): Promise<HTMLElement> {
+    if (document.querySelector(".sel-ws") === null) {
+        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+    }
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(found, "the workspace is open");
+        return found;
+    });
+}
+/**
  * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
  * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
  * new step's Value field, or the selected row's pane button And... (spec 3.0, 3.2).
@@ -40,7 +55,9 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
         return;
     }
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+        await userEvent.click(
+            within(where).getAllByRole("button", { name: /^(Edit |Style (Nodes|Edges)\.\.\.)/ })[0] ?? document.body,
+        );
     }
     const control = await waitFor(() => {
         const ws = document.querySelector<HTMLElement>(".sel-ws");
@@ -258,6 +275,7 @@ describe("the value picker and the cards a value opens", () => {
                 ],
             },
         });
+        await openWs();
         const row = await waitFor(() => {
             const found = document.querySelector<HTMLElement>('[data-row="top"]');
             assert.isNotNull(found);
@@ -290,6 +308,7 @@ describe("the editor's verbs, groups and words", () => {
             },
         });
         // The Add row is drawn under the group a row of which is selected.
+        await openWs();
         await userEvent.click(document.querySelector('[data-row="deg"] .sel-value') ?? document.body);
         await startCondition();
         await pickValue("Isolated");
@@ -307,7 +326,7 @@ describe("the editor's verbs, groups and words", () => {
     it("Or... then Escape takes the new group back", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "One", { match: "rule", where: DEGREE_6_TO_10 });
-        await userEvent.click(screen.getByRole("treeitem", { name: "Which nodes" }));
+        await userEvent.click(screen.getByRole("button", { name: "Style Nodes..." }));
         await userEvent.click(await screen.findByRole("button", { name: "Or..." }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("{Escape}");
@@ -354,6 +373,7 @@ describe("the editor's verbs, groups and words", () => {
                 ],
             },
         });
+        await openWs();
         const row = document.querySelector<HTMLElement>('[data-row="deg"]');
         await userEvent.click(row?.querySelector(".sel-value") ?? document.body);
         await waitFor(() => {
@@ -372,8 +392,7 @@ describe("the editor's verbs, groups and words", () => {
     it("a single group goes by the selection's title, never a letter", async () => {
         const session = await lesMis();
         await openLayer(session, "One", { match: "rule", where: DEGREE_6_TO_10 });
-        const row = document.querySelector<HTMLElement>(".sel-step-row[data-row]");
-        await userEvent.click(row?.querySelector(".sel-value") ?? document.body);
+        await userEvent.click(screen.getByRole("button", { name: "Style Nodes..." }));
         // No key over the preview (ws-polish 3): the outline draws no group row, and no letter.
         const outline = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws-outline");
@@ -543,6 +562,7 @@ describe("polish round 3", () => {
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Offstep, / }));
+        await openWs();
         const row = await waitFor(() => {
             const found = document.querySelector<HTMLElement>('[data-row="deg"]');
             assert.isNotNull(found);
@@ -569,7 +589,7 @@ describe("polish round 3", () => {
                 ],
             },
         });
-        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which / }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
         const second = await waitFor(() => {
             const found = document.querySelector<HTMLElement>('.sel-ws [data-row="b"]');
             assert.isNotNull(found);

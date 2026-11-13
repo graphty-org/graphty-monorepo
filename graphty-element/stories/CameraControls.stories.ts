@@ -3,6 +3,7 @@ import "../index.ts";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
 import { ref } from "lit/directives/ref.js";
+import { userEvent } from "storybook/test";
 
 import { Graphty } from "../src/graphty-element";
 import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn, eventually, holds } from "./assertions";
@@ -53,7 +54,7 @@ const flies = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d
 
     const before = where();
 
-    buttons[0].click();
+    await userEvent.click(buttons[0]);
     await eventually(
         () => where() !== before,
         `Camera Controls ${story}: pressing "${buttons[0].textContent.trim()}" left the camera at ` +
@@ -63,7 +64,7 @@ const flies = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d
     const afterPreset = where();
 
     // The last button is Reset, which must bring it back somewhere else again.
-    buttons[buttons.length - 1].click();
+    await userEvent.click(buttons[buttons.length - 1]);
     await eventually(
         () => where() !== afterPreset,
         `Camera Controls ${story}: pressing "${buttons[buttons.length - 1].textContent.trim()}" left ` +

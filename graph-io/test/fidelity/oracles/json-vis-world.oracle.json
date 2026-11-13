@@ -3,7 +3,7 @@
     "program": "vis-network",
     "version": "vis-network 9.1.9 (standalone), svgcanvas 2.6.0",
     "command": "new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); once(\"stabilizationIterationsDone\"); stopSimulation(); net.renderer._redraw() onto an svgcanvas Context",
-    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring) and shadow blur (a shadow is drawn sharp); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
+    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed (with the paths added to it), a clip keeps its evenodd rule, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
     "svgKind": "vector",
     "canvas": {
         "width": 1200,
@@ -29,6 +29,347 @@
             "x": -33.10038688561612,
             "y": -13.91792981183367
         }
+    },
+    "drawn": {
+        "about": "vis-network's own account of where it drew each node, for naming the SVG's shapes: each node's id, its center (net.getPositions() through net.canvasToDOM) and its bounding box's width and height (net.getBoundingBox through net.canvasToDOM), in the SVG's pixels",
+        "nodes": [
+            {
+                "id": "2",
+                "x": 565.2521139258224,
+                "y": 496.36389553463056,
+                "w": 14.04503700906207,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "3",
+                "x": 689.0302589021858,
+                "y": 421.58126627807775,
+                "w": 14.04503700906207,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "4",
+                "x": 807.6509811712006,
+                "y": 423.5152997933334,
+                "w": 14.04503700906207,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "5",
+                "x": 686.4515475485115,
+                "y": 293.93505427120306,
+                "w": 14.045037009062185,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "6",
+                "x": 757.366109774553,
+                "y": 181.76111038637373,
+                "w": 14.045037009062185,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "7",
+                "x": 825.0572828085017,
+                "y": 106.33380329140232,
+                "w": 14.04503700906207,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "9",
+                "x": 804.4275919791078,
+                "y": 329.39233538422377,
+                "w": 14.045037009062185,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "10",
+                "x": 674.8473464569774,
+                "y": 544.7147334160225,
+                "w": 19.064584280264512,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "11",
+                "x": 794.7574244028294,
+                "y": 493.1405063425378,
+                "w": 18.394723713782696,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "12",
+                "x": 547.8458122885213,
+                "y": 630.4568859256908,
+                "w": 19.0645842802644,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "13",
+                "x": 703.213171347394,
+                "y": 658.1780329776889,
+                "w": 19.0645842802644,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "14",
+                "x": 771.5490222197614,
+                "y": 531.8211766476513,
+                "w": 19.0645842802644,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "15",
+                "x": 703.8578491858126,
+                "y": 517.638264202443,
+                "w": 19.0645842802644,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "16",
+                "x": 609.0902069382844,
+                "y": 484.115016604678,
+                "w": 19.064584280264512,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "17",
+                "x": 587.815838270472,
+                "y": 627.233496733598,
+                "w": 19.0645842802644,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "18",
+                "x": 464.03769329410864,
+                "y": 589.197504266903,
+                "w": 19.064584280264455,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "19",
+                "x": 635.5219983134454,
+                "y": 733.6053400726603,
+                "w": 19.064584280264512,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "20",
+                "x": 660.6644340117691,
+                "y": 631.746241602528,
+                "w": 19.0645842802644,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "21",
+                "x": 527.2161214591274,
+                "y": 583.3954037211361,
+                "w": 19.064584280264512,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "22",
+                "x": 506.5864306297335,
+                "y": 410.6217430249622,
+                "w": 19.0645842802644,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "23",
+                "x": 541.3990339043357,
+                "y": 299.73715481697,
+                "w": 19.064584280264512,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "25",
+                "x": 676.7813799722331,
+                "y": 261.70116235027507,
+                "w": 19.0645842802644,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "26",
+                "x": 770.9043443813428,
+                "y": 311.98603374692266,
+                "w": 19.0645842802644,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "27",
+                "x": 547.2011344501027,
+                "y": 114.71461519084363,
+                "w": 19.064584280264512,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "28",
+                "x": 527.2161214591274,
+                "y": 790.9816676919121,
+                "w": 19.0645842802644,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "29",
+                "x": 460.8143041020158,
+                "y": 707.8182265359179,
+                "w": 19.064584280264512,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "31",
+                "x": 456.94623707150447,
+                "y": 406.1089981560323,
+                "w": 19.064584280264455,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "32",
+                "x": 435.671868403692,
+                "y": 314.56474510059695,
+                "w": 19.064584280264455,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "33",
+                "x": 307.38097855839874,
+                "y": 591.1315377821588,
+                "w": 19.064584280264455,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "34",
+                "x": 337.0361591256525,
+                "y": 696.8587032828025,
+                "w": 19.064584280264455,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "36",
+                "x": 715.4620502773466,
+                "y": 845.7792839574896,
+                "w": 19.064584280264512,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "37",
+                "x": 766.3915995124128,
+                "y": 700.0820924748953,
+                "w": 19.064584280264512,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "38",
+                "x": 861.159241759941,
+                "y": 611.7612286115527,
+                "w": 19.064584280264512,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "39",
+                "x": 785.0872568265511,
+                "y": 611.1165507731341,
+                "w": 19.0645842802644,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "40",
+                "x": 764.4575659971572,
+                "y": 776.7987552467038,
+                "w": 19.0645842802644,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "41",
+                "x": 603.9327842309359,
+                "y": 742.6308298105201,
+                "w": 19.0645842802644,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "42",
+                "x": 892.7484558424503,
+                "y": 374.51978407352294,
+                "w": 19.0645842802644,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "43",
+                "x": 868.8953758209636,
+                "y": 751.0116417099614,
+                "w": 19.064584280264512,
+                "h": 18.050979475719714
+            },
+            {
+                "id": "S8",
+                "x": 888.880388811939,
+                "y": 264.9245515423679,
+                "w": 20.064968152576057,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "S24",
+                "x": 628.4305420908412,
+                "y": 156.61867468804996,
+                "w": 25.084515423778385,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "S1",
+                "x": 585.2371269167977,
+                "y": 531.8211766476513,
+                "w": 20.064968152576057,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "S35",
+                "x": 825.0572828085017,
+                "y": 850.2920288264195,
+                "w": 25.084515423778498,
+                "h": 18.0509794757196
+            },
+            {
+                "id": "S30",
+                "x": 352.5084272476979,
+                "y": 482.1809830894223,
+                "w": 25.084515423778385,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "T8",
+                "x": 892.7484558424503,
+                "y": 50.24683134898771,
+                "w": 19.558165750303715,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "T24",
+                "x": 505.29707495289637,
+                "y": 192.07595580107068,
+                "w": 24.577713021505986,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "T1",
+                "x": 634.8773204750267,
+                "y": 398.3728640950096,
+                "w": 19.558165750303715,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "T35",
+                "x": 580.7243820478678,
+                "y": 320.3668456463639,
+                "w": 24.57771302150593,
+                "h": 18.050979475719657
+            },
+            {
+                "id": "T30",
+                "x": 372.4934402386732,
+                "y": 651.0865767550847,
+                "w": 24.577713021506042,
+                "h": 18.0509794757196
+            }
+        ]
     },
     "pageErrors": []
 }

@@ -34,8 +34,7 @@ beforeEach(async () => {
     ) {
         enabled.push(config);
         // The mock answers in the provider's place; a stand-in key makes the panel read as set up.
-        await realEnable.call(this, { ...config, providerInstance: new MockLlmProvider() });
-        this.getApiKeyManager()?.setKey(config.provider, "stand-in-key");
+        await realEnable.call(this, { ...config, apiKey: "stand-in-key", providerInstance: new MockLlmProvider() });
     });
 });
 
@@ -84,8 +83,9 @@ describe("the Assistant's effort", () => {
 
         await waitFor(() => {
             assert.strictEqual(enabled.at(-1)?.reasoningEffort, "high");
+            // Kept once the assistant has taken it.
+            assert.strictEqual(readAssistantChoice()?.effort, "high");
         });
-        assert.strictEqual(readAssistantChoice()?.effort, "high");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("menu"));
         });

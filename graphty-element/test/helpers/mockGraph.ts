@@ -282,4 +282,4 @@ export function getMockNode(graph: Graph, nodeId: string | number): any {
 // An algorithm's result is no longer scattered onto the render objects; these read it out of what
 // the run published. See ./algorithmResults for the 1.x key vocabulary and what it became.
 export type { ResultCarrier } from "./algorithmResults";
-export { getEdgeResult, getGraphResult, getNodeResult } from "./algorithmResults";
+export { getEdgeResult, getGraphResult, getNodeResult, partitionOf } from "./algorithmResults";

@@ -24,8 +24,10 @@
  *
  * Every Babylon.js default that would reach its CDN is off: the loading screen (its logo is on
  * cdn.babylonjs.com) is never shown, the glTF validator (a script on cdn.babylonjs.com) is pointed
- * at a local script that fails, and while a model loads any script or file request to a
- * babylonjs.com host is refused. PBR materials reflect a small bundled neutral environment
+ * at a local script that fails, and while a model loads any script request to a babylonjs.com host
+ * is refused. A model's own file and texture requests are held to its files by the request guard
+ * (src/models/requestGuard.ts); other requests on the page, a babylonjs.com texture included, pass
+ * untouched (issue #7437). PBR materials reflect a small bundled neutral environment
  * ({@link neutralEnvironment}), never `createDefaultEnvironment()`, which fetches from
  * assets.babylonjs.com.
  */
@@ -91,7 +93,7 @@ GLTFValidation.Configuration = {
     url: "data:text/javascript,throw new Error('graphty-element does not bundle the glTF validator')",
 };
 
-/** Loads running now. Babylon's CDN is refused while there is at least one. */
+/** Loads running now. Babylon's CDN scripts are refused while there is at least one. */
 let activeLoads = 0;
 
 /**
@@ -109,13 +111,17 @@ function isBabylonHost(url: string): boolean {
 }
 
 /**
- * Wrap one of Babylon's URL hooks so that, while a model loads, a babylonjs.com URL throws instead
- * of being requested. Outside a load the previous hook runs unchanged, so a page's own use of
- * Babylon is untouched.
+ * Wrap Babylon's script URL hook so that, while a model loads, a babylonjs.com script (a decoder or
+ * the validator, which this chunk does not bundle) throws instead of being requested. Outside a
+ * load the previous hook runs unchanged.
+ *
+ * `Tools.PreprocessUrl`, the hook for files and images, is not wrapped: it is page-wide, so a
+ * refusal there also refused a page's own babylonjs.com textures requested during a load (issue
+ * #7437). A model's own requests are held to its files by the request guard instead.
  * @param previous - The hook installed before this one.
  * @returns The wrapped hook.
  */
-function refuseBabylonHosts(previous: (url: string) => string): (url: string) => string {
+function refuseBabylonScripts(previous: (url: string) => string): (url: string) => string {
     return (url: string): string => {
         if (activeLoads > 0 && isBabylonHost(url)) {
             throw new Error(`graphty-element: a model load asked for ${url}; nothing is fetched from Babylon's CDN`);
@@ -125,8 +131,7 @@ function refuseBabylonHosts(previous: (url: string) => string): (url: string) =>
     };
 }
 
-Tools.ScriptPreprocessUrl = refuseBabylonHosts(Tools.ScriptPreprocessUrl);
-Tools.PreprocessUrl = refuseBabylonHosts(Tools.PreprocessUrl);
+Tools.ScriptPreprocessUrl = refuseBabylonScripts(Tools.ScriptPreprocessUrl);
 
 /**
  * Make every PBRMaterial created in `scene` use the PBR shaders bundled above, as
@@ -192,7 +197,8 @@ async function texturesSettled(textures: BaseTexture[]): Promise<void> {
  * The bytes are handed to Babylon as an in-memory file, so the load itself makes no request and
  * relative references resolve against an empty root rather than the page. References to other
  * files (an OBJ's `mtllib`, an MTL's `map_Kd`) must already be URLs the caller made, such as
- * `blob:` URLs. The promise resolves once every texture has loaded or failed, and the file's
+ * `blob:` URLs: no request guard holds them, so a file a reader supplied goes through
+ * src/models/loadModel.ts instead. The promise resolves once every texture has loaded or failed, and the file's
  * cameras and lights are removed from the container. glTF animations do not start.
  * @param scene - The scene the container belongs to.
  * @param bytes - The model file's bytes.

@@ -315,10 +315,9 @@ describe("PopoutPanel positioning", () => {
 });
 
 describe("PopoutPanel focus", () => {
-    it("does not take focus when a closed pop-out is rendered", async () => {
-        renderPopout(
-            <div>
-                <button data-testid="elsewhere">Elsewhere</button>
+    it("does not take focus when a closed pop-out is rendered", () => {
+        const popouts = (
+            <>
                 <Popout>
                     <Popout.Trigger>
                         <button>Open A</button>
@@ -335,18 +334,28 @@ describe("PopoutPanel focus", () => {
                         <Popout.Content>B</Popout.Content>
                     </Popout.Panel>
                 </Popout>
-            </div>,
+            </>
+        );
+        const layout = (withPopouts: boolean): React.ReactElement => (
+            <MantineProvider theme={compactTheme}>
+                <PopoutManager>
+                    <button data-testid="elsewhere">Elsewhere</button>
+                    {withPopouts ? popouts : null}
+                </PopoutManager>
+            </MantineProvider>
         );
 
+        // Focus is somewhere else on the page before the pop-outs first render.
+        const { rerender } = render(layout(false));
         const elsewhere = screen.getByTestId("elsewhere");
         elsewhere.focus();
-        expect(document.activeElement).toBe(elsewhere);
 
         // Every closed panel used to focus its own trigger on first render, so
         // the last pop-out on the page stole the focus from whatever had it.
-        await waitFor(() => {
-            expect(document.activeElement).toBe(elsewhere);
-        });
+        // The render flushes the mount effects, where that steal happened.
+        rerender(layout(true));
+        expect(screen.getByRole("button", { name: "Open B" })).toBeInTheDocument();
+        expect(document.activeElement).toBe(elsewhere);
     });
 
     it("leaves focus alone when manageFocus is off", async () => {

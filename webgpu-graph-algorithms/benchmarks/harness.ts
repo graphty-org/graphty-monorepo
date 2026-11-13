@@ -5,8 +5,9 @@
  * `teardown` hook (release the snapshot a run uploaded), the `gpu` field of every session (adapter identity, driver, the
  * requested limits, software flag, runtime, subgroup size) and the runner class, so numbers from the RTX 4070 SUPER, the
  * gpu-linux-t4 lane and a browser never mix. Every benchmark runs its body `runs` times (default 5) after one warm-up and
- * reports the MEDIAN wall time plus the median process.memoryUsage() heap-and-buffer delta of one run; with `--expose-gc`
- * the garbage collector runs before every measured iteration. Sessions are appended to benchmarks/out/<runner-class>.json
+ * reports the MEDIAN wall time plus the median process.memoryUsage() heap-and-buffer delta of one run; a row that sets
+ * `collectGarbage` runs the garbage collector before every measured iteration (the harness switches `--expose-gc` on
+ * itself, issue #6565; why it is not the default: issue #7368). Sessions are appended to benchmarks/out/<runner-class>.json
  * (gitignored, 6.4); the checked-in baseline is benchmarks/results/<runner-class>.json and scripts/bench-compare.js compares
  * the last session of each. The JSON shape is graph-format's plus the two fields, so a future merge tool reads both.
  */
@@ -15,6 +16,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { cpus, hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 
 import { runnerClass } from "../scripts/runner-class.js";
 import { type GpuContext } from "../src/context.js";
@@ -70,10 +73,23 @@ export interface BenchOptions {
     readonly items?: number | undefined;
     /** What `items` counts ("bytes", "nodes"). */
     readonly unit?: string | undefined;
+    /**
+     * Run a full garbage collection before every measured run (default false). Only for rows whose fresh per-run input
+     * leaves garbage V8 would otherwise collect inside a later timed run (the upload rows, issue #6565). It costs the
+     * other rows: the ~3 ms collection leaves the GPU idle just before the timer, and the first submit after even 1 ms
+     * of idle waits 0.1-0.3 ms longer on Dawn, which moved every small row 1.2-1.9x on the T4 (issue #7368).
+     */
+    readonly collectGarbage?: boolean | undefined;
 }
 
-/** The global gc hook exposed by `node --expose-gc`. */
-declare const gc: (() => void) | undefined;
+/**
+ * The garbage collector, switched on here rather than by a `node --expose-gc` flag every caller must remember. Without it
+ * no collection ran before the upload timer: each run's fresh input left the previous one's arrays for V8 to collect INSIDE a
+ * later timed run, so the 16 MB upload alternated 8 / 14 ms run to run and a median of 5 flipped between the two (issue
+ * #6565).
+ */
+setFlagsFromString("--expose-gc");
+const gc = runInNewContext("gc") as () => void;
 
 /** The process-wide default run count (5); run.ts sets it from --runs N. */
 let defaultRuns = 5;
@@ -130,12 +146,10 @@ export function setBenchRuns(runs: number): void {
 }
 
 /**
- * Run the garbage collector when `--expose-gc` is on.
+ * Run the garbage collector.
  */
 function collectGarbage(): void {
-    if (typeof gc === "function") {
-        gc();
-    }
+    gc();
 }
 
 /**
@@ -160,7 +174,7 @@ function median(values: readonly number[]): number {
 
 /**
  * Measure one benchmark: one warm-up run, then `runs` measured runs, each with a fresh input from `setup()`, a garbage
- * collection before the timer starts, and the timer closed by the device queue's onSubmittedWorkDone() so queued GPU work
+ * collection before the timer starts when `collectGarbage` is set, and the timer closed by the device queue's onSubmittedWorkDone() so queued GPU work
  * is inside the measurement.
  * @param group - the benchmark group
  * @param name - the benchmark name
@@ -180,7 +194,9 @@ export async function bench<T>(
     let keepAlive: unknown = NEVER;
     for (let i = 0; i <= runs; i++) {
         const input = await benchCase.setup();
-        collectGarbage();
+        if (options.collectGarbage === true) {
+            collectGarbage();
+        }
         const before = residentBytes();
         const start = performance.now();
         keepAlive = await benchCase.run(input);
@@ -306,7 +322,7 @@ export interface BenchSession {
     readonly node: string;
     /** CPU model string. */
     readonly cpu: string;
-    /** Whether --expose-gc was on. */
+    /** Whether the garbage collector was available to rows that set `collectGarbage` (always true since issue #6565; false in older sessions). */
     readonly exposeGc: boolean;
     /** The adapter the session ran on. */
     readonly gpu: GpuSessionInfo;
@@ -372,7 +388,7 @@ export function appendSession(
         host: hostname(),
         node: process.version,
         cpu: cpus()[0]?.model ?? "unknown",
-        exposeGc: typeof gc === "function",
+        exposeGc: true,
         gpu,
         runnerClass: cls,
         results,

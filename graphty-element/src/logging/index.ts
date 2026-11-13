@@ -51,4 +51,8 @@ export { type ConsoleSinkOptions, createConsoleSink } from "./sinks/ConsoleSink.
 export { createRemoteSink, type RemoteSinkOptions } from "./sinks/RemoteSink.js";
 export { clearLoggingConfig, loadLoggingConfig, saveLoggingConfig } from "./storage.js";
 export { LOG_LEVEL_NAMES, LOG_LEVEL_TO_NAME, LogLevel, type LogRecord, parseLogLevel, type Sink } from "./types.js";
-export { type ParsedLoggingParams, parseLoggingURLParams } from "./URLParamParser.js";
+export {
+    type ParsedLoggingParams,
+    parseLoggingURLParams,
+    type ParseLoggingURLParamsOptions,
+} from "./URLParamParser.js";

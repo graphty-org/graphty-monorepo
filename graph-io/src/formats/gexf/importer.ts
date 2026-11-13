@@ -87,6 +87,7 @@ import { isWeightField, parseWeightText } from "../../common/weights.js";
 import {
     isWhitespace,
     localName,
+    MAX_HINT_RESERVE,
     sniffXmlText,
     tokenizeXml,
     xmlDeclaredEncoding,
@@ -1324,9 +1325,9 @@ class GexfReader implements XmlHandler {
         }
         try {
             if (domain === "node") {
-                this.sink.reserve(count, undefined);
+                this.sink.reserve(Math.min(count, MAX_HINT_RESERVE), undefined);
             } else {
-                this.sink.reserve(undefined, count);
+                this.sink.reserve(undefined, Math.min(count, MAX_HINT_RESERVE));
             }
         } catch (err) {
             if (!(err instanceof GraphFormatError)) {
@@ -2112,11 +2113,10 @@ class GexfReader implements XmlHandler {
      */
     private dropUndeclaredNodes(): void {
         const { sink, report } = this;
-        const removable = sink as GraphSink & { removeNodeByIndex?: (index: number) => ArrayLike<number> };
         for (const [index, id] of this.implicitNodes) {
             report.error("validation-error", "E_UNKNOWN_NODE", `edge references undeclared node "${String(id)}"`);
-            if (typeof removable.removeNodeByIndex === "function") {
-                const edges = removable.removeNodeByIndex(index);
+            if (sink.removeNodeByIndex !== undefined) {
+                const edges = sink.removeNodeByIndex(index);
                 report.counts.nodes--;
                 report.counts.edges -= edges.length;
                 report.counts.skippedEdges += edges.length;
@@ -3143,7 +3143,7 @@ function stripAngles(text: string): string {
  * A numeric viz attribute.
  * @param attrs - the element's attributes
  * @param name - the attribute name
- * @returns the number; E_COLUMN_TYPE when absent or not a number
+ * @returns the number; E_COLUMN_TYPE when absent or not a finite number
  */
 function vizNumber(attrs: ReadonlyMap<string, string>, name: string): number {
     const text = attrs.get(name);
@@ -3151,8 +3151,11 @@ function vizNumber(attrs: ReadonlyMap<string, string>, name: string): number {
         throw new GraphFormatError("E_COLUMN_TYPE", `viz element without a ${name} attribute`, { attribute: name });
     }
     const value = parseDecimalText(text);
-    if (Number.isNaN(value)) {
-        throw new GraphFormatError("E_COLUMN_TYPE", `viz ${name}="${text}" is not a number`, { attribute: name });
+    // INF, Infinity and text past the f64 range parse to Infinity: no place, size, thickness or color is infinite
+    if (!Number.isFinite(value)) {
+        throw new GraphFormatError("E_COLUMN_TYPE", `viz ${name}="${text}" is not a finite number`, {
+            attribute: name,
+        });
     }
     return value;
 }

@@ -1005,6 +1005,33 @@ describe("oracle comparison", () => {
         );
     });
 
+    it("leaves out every line of a caption wrapped in three whose first two are another caption's words", () => {
+        // Cytoscape wraps "shape=PARALLELOGRAM 60x30" in three lines, the first two being the caption of the
+        // specimen beside it, "shape=PARALLELOGRAM" (cx-specimen-node-shapes): its third line is the caption's too
+        const g = {
+            ...graphtyScene(),
+            texts: [
+                text("shape=\nPARALLELOGRAM\n60x30", 50, 50, 12, { owner: "cap-shape-parallelogram-wide" }),
+                text("shape=PARALLELOGRAM", 150, 50, 12, { owner: "cap-shape-parallelogram" }),
+            ],
+        };
+        const o = {
+            ...graphtyScene(),
+            side: "oracle" as const,
+            texts: [
+                text("shape=", 50, 50),
+                text("PARALLELOGRAM", 50, 60),
+                text("60x30", 50, 70),
+                text("shape=PARALLELOGRAM", 150, 50),
+                text("note", 9, 9),
+            ],
+        };
+        assert.deepEqual(
+            withoutCaptions(o, g).texts.map((t) => t.content),
+            ["note"],
+        );
+    });
+
     it("leaves out a caption node a sheet ids by number once it is named by its cap-* attribute", () => {
         // a GML sheet ids its caption node 5 and keeps "cap-fill-red" in its comment; the program draws it as a node
         const o = { ...graphtyScene(), side: "oracle" as const };

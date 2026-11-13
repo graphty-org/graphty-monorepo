@@ -93,8 +93,8 @@ describe("labels from an attribute (task T10) on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    it("a Label entry picked from Text's + binds the label and states the counts", async () => {
-        // Three nodes on one spot, so the overlap rule (on in the workspace) hides two of their labels.
+    it("a Label entry picked from Text's + binds the label, and every label is drawn", async () => {
+        // Three nodes on one spot, so their labels overlap: the workspace hides none of them.
         // Labels stay in their own places: moved off the nodes, the stack's labels would all fit.
         const { session, element, store } = await openWithGraph(true);
         act(() => {
@@ -116,33 +116,17 @@ describe("labels from an attribute (task T10) on the real element", () => {
             const binding = readerLayers(session)[0]?.encode?.["node.label"];
             assert.equal(binding !== undefined && "by" in binding ? binding.by : undefined, "data.name");
         });
-        // The statement is the element's counts, read live, the hidden part included.
-        await waitFor(() => {
-            const { labeled, hiddenByOverlap } = element.nodeLabelCounts;
-            assert.equal(labeled, NODES.length);
-            assert.isAbove(hiddenByOverlap, 0, "stacked labels overlap");
-            assert.isNotNull(
-                within(styleTab()).getByText(`${String(labeled)} labels, ${String(hiddenByOverlap)} hidden`),
-            );
-        });
-        // Show all labels turns the overlap rule off on the element: every label is drawn.
-        const showAll = within(styleTab()).getByRole("checkbox", { name: "Show all labels" });
-        assert.isFalse((showAll as HTMLInputElement).checked);
-        await userEvent.click(showAll);
         await waitFor(() => {
             assert.isFalse(element.layoutBehavior?.labels?.declutter);
+            assert.equal(element.nodeLabelCounts.labeled, NODES.length);
             assert.equal(element.nodeLabelCounts.hiddenByOverlap, 0);
             for (const node of NODES) {
                 assert.isTrue(element.labelOf(node.id)?.drawn, node.name);
             }
-            assert.isNotNull(within(styleTab()).getByText(`${String(NODES.length)} labels`));
         });
-        // And back: the rule hides the stacked labels again.
-        await userEvent.click(within(styleTab()).getByRole("checkbox", { name: "Show all labels" }));
-        await waitFor(() => {
-            assert.isTrue(element.layoutBehavior?.labels?.declutter);
-            assert.isAbove(element.nodeLabelCounts.hiddenByOverlap, 0);
-        });
+        // The row states no count and offers no switch: every label a style asks for is drawn.
+        assert.isNull(within(styleTab()).queryByText(/^\d+ labels?(, \d+ hidden)?$/));
+        assert.isNull(within(styleTab()).queryByRole("checkbox", { name: "Show all labels" }));
     });
 
     it('Add label line labels Everything as Text "+" does, by the open attribute or one picked', async () => {

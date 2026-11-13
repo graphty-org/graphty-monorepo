@@ -708,6 +708,96 @@ export interface ComponentStatistics {
 }
 
 // @public
+export type Condition<F extends ConditionField = ConditionField> = {
+    readonly type: "number";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "range" | "top" | Presence;
+    readonly min?: number;
+    readonly max?: number;
+    readonly top?: number;
+    readonly from?: "high" | "low";
+    readonly percent?: boolean;
+} | {
+    readonly type: "category";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "values" | Presence;
+    readonly values: readonly string[];
+    readonly gaps: boolean;
+} | {
+    readonly type: "text";
+    readonly key: string;
+    readonly field: F;
+    readonly match: ConditionTextMode | Presence | "list";
+    readonly text: string;
+    readonly caseSensitive: boolean;
+    readonly ids?: readonly string[];
+} | {
+    readonly type: "date";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "before" | "after" | "between" | Presence;
+    readonly min?: number;
+    readonly max?: number;
+} | {
+    readonly type: "yes-no";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "yes" | "no" | "unset" | Presence;
+} | {
+    readonly type: "source";
+    readonly key: string;
+    readonly field: F;
+    readonly sources: readonly SourceKey[];
+} | {
+    readonly type: "ends";
+    readonly key: "ends";
+    readonly reading: "clipped" | "incident";
+} | {
+    readonly type: "fixed";
+    readonly key: string;
+    readonly leaf: RuleTree | null;
+    readonly selector?: Selector_2;
+    readonly repeat?: true;
+};
+
+// @public
+export const CONDITION_SOURCE_PATH = "@source";
+
+// @public
+export interface ConditionField {
+    readonly kind: ConditionFieldKind;
+    readonly on: "node" | "edge";
+    readonly path: string;
+    readonly range?: {
+        readonly min: number;
+        readonly max: number;
+    };
+}
+
+// @public
+export type ConditionFieldKind = ReadableValueKind | "name" | "source" | "date";
+
+// @public
+export function conditionFields(session: GraphSession, on: "node" | "edge"): ListedConditionField[];
+
+// @public
+export const conditionKey: (field: Pick<ConditionField, "on" | "path">) => string;
+
+// @public
+export function conditionLeaf(condition: Condition): RuleTree | null;
+
+// @public
+export function conditionOf<F extends ConditionField>(leaf: RuleTree, fields: readonly F[], at: number): Condition<F>;
+
+// @public
+export function conditionSelector(conditions: readonly Condition[], ends?: readonly RuleTree[]): Selector_2;
+
+// @public
+export type ConditionTextMode = "substring" | "starts-with" | "ends-with" | "exact";
+
+// @public
 export interface CostBasis {
     readonly derivationSeconds: number;
     readonly edges: number | null;
@@ -903,6 +993,9 @@ export interface DraftTable {
     readonly rowCount: number;
     readonly weightCandidate?: string;
 }
+
+// @public
+export function edgeConditions<F extends ConditionField>(selector: Selector_2, fields: readonly F[]): Condition<F>[];
 
 // @public
 export type EdgeEnd = "source" | "target";
@@ -2460,6 +2553,14 @@ export type GraphtyWarningCode =
 */
 | "W_LIMITS_IGNORED"
 /**
+* More rows ask to be drawn as objects of their own (a look no batch draws, such as a border)
+* than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
+* plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
+* many asked, `params.cap` the budget.
+* @experimental cosmograph
+*/
+| "W_OBJECT_CAP"
+/**
 * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
 * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
 * size sits, and `params.value` the size.
@@ -2770,6 +2871,20 @@ export interface HopsLeaf {
 }
 
 // @public
+export interface ImportColumnsInput {
+    readonly attributes?: {
+        readonly nodes?: Readonly<Record<string, ArrayLike<unknown>>>;
+        readonly edges?: Readonly<Record<string, ArrayLike<unknown>>>;
+    };
+    readonly ids?: ArrayLike<string | number>;
+    readonly nodeCount: number;
+    readonly positions?: ArrayLike<number>;
+    readonly sources: ArrayLike<number>;
+    readonly targets: ArrayLike<number>;
+    readonly weights?: ArrayLike<number>;
+}
+
+// @public
 export interface ImportOptions {
     readonly history?: "step" | "start";
     readonly layout?: "recommended" | "keep";
@@ -2814,6 +2929,9 @@ export function isAlgorithmRunCommand(value: unknown): value is AlgorithmRunComm
 export function isAssetId(value: unknown): value is AssetId;
 
 // @public
+export const isConditionFinished: (condition: Condition) => boolean;
+
+// @public
 export function isGraphtyError(value: unknown): value is GraphtyErrorFor;
 
 // @public
@@ -2845,15 +2963,28 @@ export type ItemKey = {
 
 // @public
 export interface JoinChoices {
+    readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
     readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
     readonly columns?: readonly string[];
+    readonly compare?: boolean;
+    readonly endKinds?: {
+        readonly source?: string;
+        readonly target?: string;
+    };
     readonly ignore?: readonly JoinWarning[];
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly keys: readonly JoinKey[];
+    readonly kindIds?: "shared" | "scoped";
+    readonly link?: JoinLink;
+    readonly lookup?: JoinLookup;
+    readonly mapping?: JoinMapping;
+    readonly membership?: string;
+    readonly names?: Readonly<Record<string, string>>;
     readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
     readonly unknownEnds?: "add" | "leave-out";
+    readonly unmatchedFrom?: "keep" | "drop";
     readonly unmatchedRows?: "leave-out" | "add";
     readonly via?: SourceKey;
 }
@@ -2862,6 +2993,28 @@ export interface JoinChoices {
 export interface JoinKey {
     readonly file: string;
     readonly graph: Path;
+}
+
+// @public
+export interface JoinLink {
+    readonly as?: "edges" | "nodes";
+    readonly columns: readonly string[];
+    readonly kind?: string;
+    readonly maxShared?: number;
+    readonly minShared?: number;
+}
+
+// @public
+export interface JoinLookup {
+    readonly columns?: readonly string[];
+    readonly name?: string;
+    readonly rows: readonly Readonly<Record<string, unknown>>[];
+}
+
+// @public
+export interface JoinMapping {
+    readonly columns?: readonly [from: string, to: string];
+    readonly many?: "first" | "list";
 }
 
 // @public
@@ -2883,6 +3036,12 @@ export interface JoinRecord {
 }
 
 // @public
+export type JoinReduce = "count" | "sum" | "min" | "max" | "mean" | "first" | "last" | "list";
+
+// @public
+export type JoinRegion = "both" | "only-from" | "only-onto";
+
+// @public
 export interface JoinReport {
     readonly clashes: readonly {
         readonly column: string;
@@ -2890,30 +3049,43 @@ export interface JoinReport {
     }[];
     readonly extraIgnoringCase: number;
     readonly extraIgnoringSpaces: number;
+    readonly fanOut: number;
+    readonly mappedToMany: number;
     readonly matched: number;
+    readonly merged: number;
     readonly newEdges: number;
     readonly newNodes: number;
     readonly notInGraph: number;
+    readonly onlyFrom: number;
+    readonly onlyOnto: number;
+    readonly pairsBelowMin: number;
+    readonly pairsLinked: number;
+    readonly regions?: {
+        readonly nodes: Readonly<Record<JoinRegion, number>>;
+    };
     readonly repeatedKeys: number;
     readonly rowFates: readonly JoinRowFate[];
     readonly rowMatches: readonly (readonly (NodeId_2 | EdgeId)[])[];
     readonly unknownEndRows: number;
+    readonly unmapped: number;
     readonly unreadRows: number;
     readonly updatedNodes: number;
+    readonly valuesOverCap: number;
     readonly withoutValue: number;
     readonly withoutValueIds: readonly (NodeId_2 | EdgeId)[];
 }
 
 // @public
-export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out";
+export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out" | "merged" | "linked" | "over-cap";
 
 // @public
-export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace";
+export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link";
 
 // @public
 export interface JoinSuggestion {
     readonly confident: boolean;
     readonly keys: readonly JoinKey[];
+    readonly link?: JoinLink;
     readonly repeated?: "both";
     readonly shape: JoinShape;
 }
@@ -3197,15 +3369,24 @@ export interface Limits {
     edgesDrawn: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
+    objectEdges: number;
+    objectRows: number;
     renderCeiling: number;
     selectionCap: number;
 }
 
 // @public
-export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>;
+export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges">>;
 
 // @public
 export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;
+
+// @public
+export interface ListedConditionField extends ConditionField {
+    readonly from: ReadableValue["from"] | "source";
+    readonly integer?: true;
+    readonly value?: ReadableValue;
+}
 
 export { listSources }
 
@@ -3237,6 +3418,7 @@ export interface LoadDraft {
     readonly graphtyDocument?: "project" | "document";
     joinReport(choices: JoinChoices): JoinReport;
     load(choices?: LoadChoices): Promise<void>;
+    lookup(): JoinLookup;
     readonly mapping: LoadMappingRead;
     missing(choices?: LoadChoices): Readonly<Record<string, readonly ColumnRole[]>>;
     report(choices?: LoadChoices): Promise<LoadReport>;
@@ -3596,6 +3778,17 @@ export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied"
 
 // @public
 export type NetworkRequestKind = "model" | "texture" | "source";
+
+// @public
+export function newCondition<F extends ConditionField>(field: F): Exclude<Condition<F>, {
+    type: "fixed" | "ends";
+}>;
+
+// @public
+export function nodeConditionLeaves(selector: Selector_2): readonly RuleTree[] | null;
+
+// @public
+export function nodeConditions<F extends ConditionField>(selector: Selector_2, fields: readonly F[]): Condition<F>[];
 
 // @public
 export type NodeId = string | number;
@@ -5623,6 +5816,10 @@ export interface SessionDataApi {
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
+    count(): {
+        readonly nodes: number;
+        readonly edges: number;
+    };
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgePage(options: EdgePageOptions & {
@@ -5644,6 +5841,7 @@ export interface SessionDataApi {
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
+    importColumns(columns: ImportColumnsInput): Promise<void>;
     issues(options?: {
         readonly includeIgnored?: boolean;
         readonly includeFixed?: boolean;
@@ -5696,6 +5894,7 @@ export interface SessionDataApi {
     setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
+    sourceInput(key: SourceKey): DataSourceInput | undefined;
     sources(): readonly LoadedSource[];
     sourceSettings(key: SourceKey): SourceSettings | undefined;
     sourcesOf(id: NodeId_2 | EdgeId, options?: {

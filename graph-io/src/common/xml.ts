@@ -92,6 +92,14 @@ export class XmlSyntaxError extends Error {
 }
 
 /**
+ * The most nodes or edges a file's own count hint (GraphML `parse.nodes` / `parse.edges`, GEXF
+ * `<nodes count>` / `<edges count>`) reserves in the sink. The hint is untrusted: a 200-byte file
+ * can claim four billion edges, and reserving that allocates gigabytes or throws a RangeError. A
+ * larger hint reserves this many and the sink grows as elements arrive.
+ */
+export const MAX_HINT_RESERVE = 2 ** 16;
+
+/**
  * The most elements open at once that the XML tokenizer reads; a deeper document stops with an `XmlNestingError`.
  * @category Plugin helpers
  */

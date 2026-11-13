@@ -213,9 +213,8 @@ const css = `
     box-sizing: border-box;
     min-width: 0;
     max-width: calc(100vw - 12px);
-    /* The list scrolls itself (no ScrollArea), clamped to the viewport less 6px each side and to
-       the visual viewport's cap (viewportCap.ts); the menus' chevron rows (cm-menu) cover 24px at
-       a scrollable end, so keyboard scrolling keeps the highlight clear of them. */
+    /* A list built on Combobox directly scrolls the surface, clamped to the viewport less 6px
+       each side and to the visual viewport's cap (viewportCap.ts). */
     max-height: min(calc(100vh - 12px), ${VIEWPORT_CAP});
     overflow-y: auto;
     scrollbar-width: none;
@@ -226,6 +225,29 @@ const css = `
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
     box-shadow: var(--cm-menu-shadow);
+}
+/* A field's own list (Select, Autocomplete, MultiSelect, TagsInput, ComboInput): the surface only
+   frames it, with no padding of its own, and the role="listbox" inside carries the 8px and
+   scrolls itself (no ScrollArea), so its rows scroll to the surface's edge and the combobox's
+   popup is the scroller. Restated at four classes to beat the popover surface's padding. */
+.cm-listbox.cm-listbox-frame.cm-menu-surface,
+.cm-listbox.cm-listbox-frame.cm-menu-surface.cm-popover-surface {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
+/* The menus' chevron rows (cm-menu) cover 24px at a scrollable end, so keyboard scrolling keeps
+   the highlight clear of them. */
+.cm-listbox-frame .cm-listbox-options {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 0;
+    flex: 0 1 auto;
+    overflow-y: auto;
+    scrollbar-width: none;
+    scroll-padding-block: 24px;
+    padding: 8px 0;
 }
 .cm-listbox .cm-listbox-option {
     gap: 4px;

@@ -96,6 +96,7 @@ export default defineConfig({
                         { text: "Drawing Nodes as Models", link: "/guide/node-models" },
                         { text: "Label Size & Number Format", link: "/guide/label-size-and-numbers" },
                         { text: "Data Sources", link: "/guide/data-sources" },
+                        { text: "Joining Data", link: "/guide/joins" },
                         { text: "Network Sources", link: "/guide/network-sources" },
                         { text: "Click to Expand", link: "/guide/click-to-expand" },
                         { text: "Previewing a Load", link: "/guide/load-preview" },

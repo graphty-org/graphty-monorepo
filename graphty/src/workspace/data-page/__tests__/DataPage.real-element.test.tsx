@@ -471,6 +471,53 @@ describe("the Data page on the real element", () => {
         assert.lengthOf(session.data.sources(), 1);
     });
 
+    it("Edit source... reopens a load made outside the page on the files and roles graphty-element kept, and replaces only that load", async () => {
+        await page.viewport(1366, 768);
+        const store = createWorkspaceStore({ project: { name: "team", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        let found: GraphSession | undefined;
+        await waitFor(() => {
+            found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+        });
+        if (found === undefined) {
+            throw new Error("the element never came up");
+        }
+        const session = found;
+        // Two loads the app never saw: people, then ties read with its weight as an attribute.
+        await act(async () => {
+            await session.data.import({ config: { file: new File([PEOPLE], "people.csv") } });
+            await session.data.import(
+                { config: { file: new File([TIES], "ties.csv") } },
+                { mode: "merge", mapping: { weight: null } },
+            );
+        });
+        assert.lengthOf(session.data.sources(), 2);
+
+        const row = await screen.findByRole("listitem", { name: "ties.csv" });
+        await userEvent.click(within(row).getAllByRole("button")[0]);
+        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Edit source..." }));
+        await screen.findByRole("heading", { name: "Replace: ties.csv" });
+        await waitFor(() => {
+            assert.equal(
+                screen.getByRole<HTMLInputElement>("combobox", { name: "Role of weight" }).value,
+                "Attribute",
+                "the role the load was read with comes back",
+            );
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+        await waitFor(() => {
+            assert.equal(store.get().page, "panels");
+        });
+        assert.deepEqual(
+            session.data.sources().map((each) => each.name),
+            ["people.csv", "ties.csv"],
+            "only ties.csv is replaced; people.csv stays",
+        );
+        assert.equal(session.data.statistics().edgeCount, 3, "the load is replaced, not loaded twice");
+    });
+
     it("Sources says a load left a row out; the source's inspector counts it and lists the row", async () => {
         await page.viewport(1366, 768);
         const { store } = await openFromEmptyApp();

@@ -122,6 +122,35 @@ describe("the Project package", () => {
         });
     });
 
+    it("reopens a remembered file asking only to read it, never to edit it", async () => {
+        const dir = await navigator.storage.getDirectory();
+        const handle = await dir.getFileHandle("reopen-read.graphty.json", { create: true });
+        const proto = FileSystemHandle.prototype as unknown as {
+            queryPermission: (options: { mode: string }) => Promise<PermissionState>;
+            requestPermission: (options: { mode: string }) => Promise<PermissionState>;
+        };
+        vi.spyOn(proto, "queryPermission").mockResolvedValue("prompt");
+        const request = vi
+            .spyOn(proto, "requestPermission")
+            .mockImplementation(({ mode }) => Promise.resolve(mode === "read" ? "granted" : "denied"));
+        const read = vi.spyOn(FileSystemFileHandle.prototype, "getFile");
+        await rememberRecent({ id: "h", name: "Handled", nodes: 2, at: 1, handle });
+        render(<Workspace />);
+
+        await userEvent.click(await screen.findByRole("gridcell", { name: /^Handled/ }));
+        await waitFor(() => {
+            assert.isAbove(request.mock.calls.length, 0);
+        });
+        assert.deepEqual(
+            request.mock.calls.map(([options]) => options.mode),
+            ["read"],
+        );
+        await waitFor(() => {
+            assert.isAbove(read.mock.calls.length, 0);
+        });
+        await dir.removeEntry("reopen-read.graphty.json");
+    });
+
     it("lists a project kept in this browser, and Remove from this browser asks first, then deletes it", async () => {
         vi.spyOn(navigator.storage, "persisted").mockResolvedValue(true);
         await rememberRecent({ id: "f", name: "A file", nodes: 3, at: 1, handle: {} as FileSystemFileHandle });

@@ -221,6 +221,8 @@ class Cycle {
     approvalMerges: number[] = [];
     slice?: SliceDecision & { dispatched: boolean };
     private readonly jsonCursors = new Map<string, unknown>();
+    /** Each JSON cursor's stored text, as last read or written this cycle. */
+    private readonly jsonStored = new Map<string, string | undefined>();
 
     readonly d: Deps;
 
@@ -245,6 +247,7 @@ class Cycle {
             return this.jsonCursors.get(name) as T;
         }
         const raw = await this.cursor(name);
+        this.jsonStored.set(name, raw);
         let v = fallback;
         try {
             if (raw) {
@@ -257,9 +260,21 @@ class Cycle {
         return v;
     }
 
+    /**
+     * Stores a JSON cursor, unless it holds that JSON already: most of them (a 45 KB review-lag state among them) are
+     * the same from one cycle to the next, and a put costs a write unit per KB (#6813). Compared with the stored text,
+     * not the parsed value json() handed out, which a caller may have changed in place.
+     * @param name - the cursor name
+     * @param v - the value to store as JSON
+     */
     async setJson(name: string, v: unknown): Promise<void> {
         this.jsonCursors.set(name, v);
-        await setCursor(this.d.store, name, JSON.stringify(v), this.now);
+        const text = JSON.stringify(v);
+        const stored = this.jsonStored.has(name) ? this.jsonStored.get(name) : await this.cursor(name);
+        this.jsonStored.set(name, text);
+        if (stored !== text) {
+            await setCursor(this.d.store, name, text, this.now);
+        }
     }
 
     /**
@@ -755,6 +770,7 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
     const ghost = (x: Collected): boolean =>
         !!prs && x.repo === c.d.repo && isGhostRun(x.run, prs, prs.length < OPEN_PAGE);
     const open = xs.filter((x) => x.run.status !== "completed" && !ghost(x));
+    const ghosts = xs.filter((x) => x.run.status !== "completed" && ghost(x));
     const jobs = open.flatMap((x) => x.jobs ?? []);
     const unfinished = (repo: string): GhRun[] => open.filter((x) => x.repo === repo).map((x) => x.run);
     const noJobs = open
@@ -791,7 +807,7 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
         c.o("slices.queue_wait_min", cost.queueWaitMin);
     }
     const prev = await c.json<HoldersSnapshot | undefined>(SNAPSHOT.holders, undefined);
-    await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now));
+    await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now, ghosts));
 }
 
 /**

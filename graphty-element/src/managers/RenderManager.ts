@@ -155,7 +155,8 @@ interface ShaderCompilers {
 let shaderCompilers: Promise<ShaderCompilers> | null = null;
 
 /**
- * Loads one compiler's script from Babylon's CDN and instantiates its WebAssembly.
+ * Loads one compiler's script from Babylon's CDN, or from `Tools.ScriptBaseUrl` when the page set it,
+ * and instantiates its WebAssembly.
  * @param name - Which compiler; its script defines a global of the same name.
  * @returns The instantiated compiler.
  */
@@ -169,7 +170,9 @@ async function loadCompiler(name: "glslang" | "twgsl"): Promise<unknown> {
         throw new Error(`${name}.js loaded but defined no ${name}`);
     }
 
-    return factory(`${base}.wasm`);
+    // Resolved as Babylon resolves the script: its versioned CDN path, or under `Tools.ScriptBaseUrl`
+    // when the page serves Babylon's scripts itself, so the .wasm always comes from where its script did.
+    return factory(Tools.GetBabylonScriptURL(`${base}.wasm`));
 }
 
 /**

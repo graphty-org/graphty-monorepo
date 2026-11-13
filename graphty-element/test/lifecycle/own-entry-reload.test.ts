@@ -1,7 +1,8 @@
 /**
  * What a real reload does with this tab's own entry beyond naming it: the tab names the entry as
  * soon as it starts, a reload waits for the lock of the page it replaces and gives up on a lock that
- * is never released, and `keepCamera` puts the view back. A file of its own, so it has its own file
+ * is never released, `keepCamera` puts the view back, and a reload that comes while a page is
+ * reopening the tab's work still finds the work. A file of its own, so it has its own file
  * guard beside own-entry.test.ts's three-engine walk.
  */
 
@@ -109,6 +110,32 @@ describe.each(ENGINES)("%s", (engine) => {
             [],
             "the entry the tab named is its own",
         );
+    });
+
+    it("a reload while the page reopens the work, after the page wrote its own setup, still finds the work (issue #6484)", async () => {
+        const key = `own-reopening-${engine}`;
+        const { page } = await opened(key);
+        const entry = await editSaved(page, key);
+        const { probes } = await page.evaluate<PageCheck>("fixture.check()");
+
+        // A reload into a page that reopens kept work as an app does: it lists the key first, loads
+        // no data of its own, sets itself up while autosave starts (which writes an entry of the
+        // page's own), and restores by hand. It has not restored the work yet.
+        const reopening = fx.url({ key, tab: `${key}.a`, list: 1, n: 0, rows: "none", restore: "manual", setup: 1 });
+        let from = fx.log.length;
+        await page.goto(reopening);
+        assert.deepEqual(owned((await listedAt(`${key}.a`, from)).entries), [entry]);
+        await page.waitForFunction(
+            `window.fixture !== undefined && ![null, ${JSON.stringify(entry)}].includes(fixture.status().entry)`,
+        );
+
+        // The second reload, before the work was reopened, still names the work as this tab's.
+        from = fx.log.length;
+        await page.reload();
+        assert.deepEqual(owned((await listedAt(`${key}.a`, from)).entries), [entry]);
+        await page.waitForFunction("window.fixture !== undefined");
+        const reopened = await page.evaluate<PageCheck>(`fixture.restore(${JSON.stringify(entry)})`);
+        assert.deepEqual(reopened.probes, probes, "the newest work came back");
     });
 
     it("puts the camera back after a real reload with keepCamera", async () => {

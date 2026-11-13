@@ -190,7 +190,9 @@ async function main(): Promise<number> {
         const all: BenchResult[] = [];
         for (const name of args.groups) {
             const group = GROUPS[name];
-            console.log(`\n== ${name} (${process.version}, median of ${args.runs} runs)\n`);
+            console.log(
+                `\n== ${name} (${process.version}, median of ${args.runs} runs unless the group sets its own)\n`,
+            );
             const results = await group(ctx);
             printTable(results);
             all.push(...results);

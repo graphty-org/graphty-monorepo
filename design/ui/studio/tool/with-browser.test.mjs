@@ -11,6 +11,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const gate = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
+// run under tools/low-priority.sh, every waiter here would be in the low lane
+delete process.env.BROWSER_SLOT_PRIORITY;
 const until = async (cond) => {
     while (!cond()) await new Promise((ok) => setTimeout(ok, 50));
 };
@@ -214,5 +216,42 @@ test("a warm browser of --prove's warm-pool check (REAL_WARM_HOLD=1) waits in th
             // already let go
         }
         for (const p of [pool, build]) rmSync(p, { recursive: true, force: true });
+    }
+});
+
+test("the studio's waits keep the shared gate's lanes: a low-lane waiter never holds up an ordinary one, a high mark holds both", async () => {
+    // the studio's own copy of the gate let only the oldest ticket look, so a low-lane waiter for slots
+    // 4 to 8 kept an ordinary one from a free slot 1, and it never looked at the high lane's marks
+    const pool = mkdtempSync(join(tmpdir(), "with-browser-test-"));
+    const holders = [4, 5, 6, 7, 8].map((i) =>
+        spawn("flock", [join(pool, `slot${i}`), "sleep", "600"], { stdio: "ignore", detached: true }),
+    );
+    const env = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_GPU: "1" };
+    const high = join(pool, `.high-${process.pid}`);
+    let low;
+    try {
+        await until(() => spawnSync("flock", ["-n", join(pool, "slot8"), "true"]).status !== 0);
+        low = spawn(gate, ["true"], { env: { ...env, BROWSER_SLOT_PRIORITY: "low" }, stdio: "ignore" });
+        await until(() => readdirSync(pool).some((f) => f.startsWith(".low-")));
+        writeFileSync(high, "");
+        const said = join(pool, "said");
+        const ordinary = spawn(
+            gate,
+            ["sh", "-c", `cp "$BROWSER_SLOT_FILE.holder" ${said}.holder; echo $BROWSER_SLOT > ${said}`],
+            { env },
+        );
+        let err = "";
+        ordinary.stderr.on("data", (d) => (err += d));
+        const done = new Promise((ok) => ordinary.on("exit", ok));
+        await until(() => /waiting for one of 8 browser slots/.test(err));
+        assert.ok(!existsSync(said), "an ordinary waiter took a slot while a high-lane mark was live");
+        rmSync(high);
+        assert.equal(await done, 0, err);
+        assert.equal(readFileSync(said, "utf8").trim(), "1");
+        assert.match(readFileSync(`${said}.holder`, "utf8"), /^\d+ \S+ .* :: sh -c cp /);
+    } finally {
+        low?.kill("SIGTERM");
+        for (const h of holders) process.kill(-h.pid);
+        rmSync(pool, { recursive: true, force: true });
     }
 });

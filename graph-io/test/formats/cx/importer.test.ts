@@ -970,6 +970,33 @@ describe("cxImporter: groups, visual properties and provenance (research-cx.md 3
         expect(codes(report)).toEqual([CX_ISSUE.DANGLING_REFERENCE]);
     });
 
+    it("reports malformed provenance elements and ids instead of dropping them silently", async () => {
+        const { snapshot: s, report } = await load(
+            cx([
+                { nodes: [{ "@id": 1 }] },
+                { citations: [7, { "@id": "x", "dc:identifier": "pmid:2" }, { "@id": 50 }] },
+                { supports: ["bad"] },
+                { nodeCitations: [3, { po: [1], citations: [50, "nope"] }] },
+                { nodeSupports: [{ po: [1], supports: 60 }] },
+                { functionTerms: [null] },
+                { reifiedEdges: [false] },
+            ]),
+        );
+        const citations = s.extensions.get("cx:citations");
+        expect(citations?.rowCount).toBe(2);
+        expect(value(s, "citations", 1)).toEqual([50]);
+        const bad = report.issues.filter((i) => i.code === CX_ISSUE.BAD_ASPECT_BLOCK).map((i) => i.element);
+        expect(bad).toEqual(["citations", "supports", "nodeCitations", "functionTerms", "reifiedEdges"]);
+        const ids = report.issues.filter((i) => i.code === CX_ISSUE.INVALID_ID).map((i) => i.element);
+        expect(ids).toEqual(["citations", "nodeCitations"]);
+        expect(report.issues.filter((i) => i.code === CX_ISSUE.BAD_VALUE).map((i) => i.element)).toEqual([
+            "nodeSupports",
+        ]);
+        expect(report.issues.every((i) => i.code === CX_ISSUE.DANGLING_REFERENCE || typeof i.line === "number")).toBe(
+            true,
+        );
+    });
+
     it("keeps unknown and NDEx aspects verbatim", async () => {
         const { snapshot, report } = await load(
             cx([

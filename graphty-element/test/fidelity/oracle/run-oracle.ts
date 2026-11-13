@@ -335,6 +335,7 @@ export async function readOracleStored(): Promise<OracleStored> {
 const judgementOf = (scored: OracleScored): Judgement => ({
     failures: scored.report.failures,
     judged: scored.report.judged,
+    wholeDrawing: scored.report.wholeDrawing,
     scores: scored.scores,
 });
 

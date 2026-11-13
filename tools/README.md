@@ -118,9 +118,10 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 
 ### Secret Scan and Secret Files
 
-`.husky/pre-commit` runs secretlint (`.secretlintrc.json`) on the staged files and refuses a commit that holds
+`.husky/pre-commit` runs secretlint (`.secretlintrc.json`) on the staged changes and refuses a commit that holds
 something shaped like a credential, then runs prettier on the staged files (`tools/format-staged.sh`).
-`.husky/pre-push` runs the same scan on every file the branch changed since it left `origin/master`, the Git LFS
+`.husky/pre-push` runs the same scan on every file the branch changed since it left `origin/master` and on every
+line each of its commits adds (a secret a later commit removes is still pushed, so it is still refused), the Git LFS
 upload (`tools/lfs-pre-push.sh`) and the committed-images limit; `pr-open.sh` runs the scan and the LFS upload
 too. For a false positive, add the path to `.secretlintignore`. Tokens live in the root `.env` (gitignored);
 scripts read them from there and never print them. `.claude/settings.json` denies agents `Read` on `.env` files,
@@ -214,7 +215,9 @@ section). The two packages without a CLAUDE.md:
 
 ### Coverage Thresholds
 
-All packages: 80% lines/functions/statements, 75% branches
+At least 80% lines, functions and statements and 75% branches in every package; graph-format, graph-io,
+graph-samples, babylonjs-map, algorithms and layout require 90% in all four. Every package is moving to 90
+(issue #3043); a package's thresholds rise to 90 in the pull request that brings it there.
 
 ## Testing
 
@@ -355,8 +358,9 @@ requests an hour, shared by everything acting as it. Until the limit resets, eve
 
 - **Read pull request status from the local broker, not from GitHub.** `tools/pr-status-broker.mjs`
   runs under servherd and writes every open pull request's labels, draft and merge state, rollup
-  and checks to `<main checkout>/tmp/pr-status/status.json` once a minute, in one GraphQL query
-  (about 3 points a query, 180 an hour; the file's `rateLimit.cost` has the real figure). Where a
+  and checks to `<main checkout>/tmp/pr-status/status.json` once a minute, in GraphQL pages of 10
+  pull requests (1 point a page: about 4 points a minute, 240 an hour for 35 open; the file's
+  `rateLimit.cost` has the real figure). Where a
   check ran more than once on the head commit, the file keeps the newest; `truncated` or
   `checksTruncated` means the list is incomplete.
   Read that file (check `fetchedAt` and `error`). If `servherd_list` does not show

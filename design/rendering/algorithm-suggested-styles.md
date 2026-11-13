@@ -18,8 +18,30 @@ The algorithms feature currently runs algorithms on graphs and stores results in
 1. Automatically visualize algorithm results without manual configuration
 2. Account for different algorithm types (centrality, community, pathfinding, clustering, etc.)
 3. Handle different element types (nodes, edges, paths, graph-level)
-4. Use selectors (JMESPath) when needed to target specific elements
+4. Scope every layer with a selector (JMESPath) that matches only the elements carrying this algorithm's result
 5. Provide sensible, visually distinct defaults that highlight the algorithm's findings
+
+### Rule: paint only your own result
+
+A suggested layer writes only to the nodes and edges that carry a value the algorithm produced.
+Never use an empty selector (`selector: ""`): it matches every node or edge, and because layers
+stack bottom to top and the last writer wins, a whole-graph layer overwrites every algorithm
+beneath it. A metric every node has is scoped with `` <result path> != `null` ``; a path or a
+tree is scoped with `` isInPath == `true` ``. Dimming what the algorithm did not select is the
+reader's choice and never ships in `suggestedStyles`. Full rule: `graphty-element/CLAUDE.md`,
+"Algorithm Styles".
+
+### When the styling appears
+
+A load-time run (`algorithmsOnLoad` with `runAlgorithmsOnLoad`) paints its encoding as soon as
+the run finishes, in the same step that records the run. Nothing in the run, the style layers or
+the repaint waits for the layout: the paint is applied once, not every frame, so a moving layout
+costs no extra repaint. The only thing in the element that waits is the camera's final framing,
+which holds until an outstanding paint lands so it measures the nodes at their styled sizes.
+`test/browser/algorithms-on-load-options.test.ts` pins this with the layout paused for the whole
+test. The algorithm stories wait for the layout to settle only so their own assertions read a
+finished picture; under visual capture the layout's pre-steps settle it before the first frame,
+so the order does not change the captured picture.
 
 ## Proposed Solution
 
@@ -39,7 +61,7 @@ class DegreeAlgorithm extends Algorithm {
             layers: [
                 {
                     node: {
-                        selector: "", // Apply to all nodes
+                        selector: "algorithmResults.graphty.degree.degreePct != `null`", // Only the nodes carrying this run's result
                         calculatedStyle: {
                             inputs: ["algorithmResults.graphty.degree.degreePct"],
                             output: "style.shape.size",
@@ -247,7 +269,7 @@ node.algorithmResults.graphty.degree = {
 // Layers added to graph.styles.layers
 {
   node: {
-    selector: "",  // JMESPath selector
+    selector: "algorithmResults.graphty.degree.degreePct != `null`", // Only the nodes carrying this run's result
     calculatedStyle: {
       inputs: ["algorithmResults.graphty.degree.degreePct"],
       output: "style.shape.size",
@@ -445,7 +467,7 @@ We will implement this feature using an **iterative, phased approach** to valida
     layers: [
         {
             node: {
-                selector: "",
+                selector: "algorithmResults.<namespace>.<type>.<metric>Pct != `null`", // Only the nodes carrying this run's result
                 calculatedStyle: {
                     inputs: ["algorithmResults.<namespace>.<type>.<metric>Pct"],
                     output: "style.shape.size",
@@ -455,7 +477,7 @@ We will implement this feature using an **iterative, phased approach** to valida
         },
         {
             node: {
-                selector: "",
+                selector: "algorithmResults.<namespace>.<type>.<metric>Pct != `null`", // Only the nodes carrying this run's result
                 calculatedStyle: {
                     inputs: ["algorithmResults.<namespace>.<type>.<metric>Pct"],
                     output: "style.texture.color",
@@ -478,7 +500,7 @@ We will implement this feature using an **iterative, phased approach** to valida
     layers: [
         {
             node: {
-                selector: "",
+                selector: "algorithmResults.<namespace>.<type>.communityId != `null`", // Only the nodes carrying this run's result
                 calculatedStyle: {
                     inputs: ["algorithmResults.<namespace>.<type>.communityId"],
                     output: "style.texture.color",
@@ -543,7 +565,7 @@ We will implement this feature using an **iterative, phased approach** to valida
     layers: [
         {
             node: {
-                selector: "",
+                selector: "algorithmResults.<namespace>.<type>.level != `null`", // Only the nodes carrying this run's result
                 calculatedStyle: {
                     inputs: ["algorithmResults.<namespace>.<type>.level"],
                     output: "style.texture.color",

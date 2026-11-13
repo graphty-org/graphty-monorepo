@@ -273,7 +273,15 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionDataApi", members: ["ignoreIssue"], reason: "covered-by", by: "issues.ignore", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
-        members: ["editJoin", "editJoinReport", "matchesSource", "replaceSource", "reloadSource", "sourceSettings"],
+        members: [
+            "editJoin",
+            "editJoinReport",
+            "matchesSource",
+            "replaceSource",
+            "reloadSource",
+            "sourceSettings",
+            "sourceInput",
+        ],
         reason: "needs-host",
         kind: BY_DESIGN,
     },
@@ -293,7 +301,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "LoadDraft", members: ["graphtyDocument", "styles"], reason: "whole-document", kind: BY_DESIGN },
-    { root: "LoadDraft", members: ["suggestJoin", "joinReport"], reason: "needs-host", kind: BY_DESIGN },
+    { root: "LoadDraft", members: ["suggestJoin", "joinReport", "lookup"], reason: "needs-host", kind: BY_DESIGN },
     {
         root: "RunsApi",
         members: ["answered", "layers", "readers"],
@@ -553,12 +561,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionConfig", members: ["acceleration"], reason: "machine-preference", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
-        members: ["store", "snapshot", "undirected", "fingerprint"],
+        members: ["store", "snapshot", "undirected", "fingerprint", "importColumns"],
         reason: "raw-data",
         kind: BY_DESIGN,
     },
     { root: "SessionDataApi", members: ["nodes"], reason: "covered-by", by: "query.nodes", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["edges"], reason: "covered-by", by: "query.edges", kind: BY_DESIGN },
+    { root: "SessionDataApi", members: ["count"], reason: "covered-by", by: "query.statistics", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["prepare"], reason: "needs-host", kind: BY_DESIGN },
     {
         root: "SessionDataApi",

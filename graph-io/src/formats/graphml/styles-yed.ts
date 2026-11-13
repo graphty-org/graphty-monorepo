@@ -20,7 +20,7 @@ import {
     flattenQuadSpline,
     nodeOffsetsToPoints,
 } from "../../styles/canon/bends.js";
-import { canonColor, colorOpacity } from "../../styles/canon/color.js";
+import { canonColor, colorOpacity, hexChannels } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
@@ -40,7 +40,13 @@ import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
-import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
+import type {
+    StyleProperty,
+    StyleTarget,
+    StyleValue,
+    StyleWorkBudget,
+    StyleWriteCapabilities,
+} from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { YED_UML_STEREOTYPE_DROP, yedNodePicture, yedUmlClassPicture } from "./styles-yed-drawing.js";
 import { type BpmnDrawing, svgPicture, yedBpmnPicture } from "./styles-yed-live-drawing.js";
@@ -1803,7 +1809,7 @@ function readPicture(real: Realizer, resources: ReadonlyMap<string, string>, put
  * @returns the darker color
  */
 function javaDarker(hex: string): string {
-    return hexOf(channelsOf(hex).map((c) => Math.floor(c * 0.7)));
+    return hexOf(hexChannels(hex).map((c) => Math.floor(c * 0.7)));
 }
 
 /**
@@ -1813,19 +1819,10 @@ function javaDarker(hex: string): string {
  * @returns the brighter color
  */
 function javaBrighter(hex: string): string {
-    const channels = channelsOf(hex);
+    const channels = hexChannels(hex);
     return channels.every((c) => c === 0)
         ? "#030303"
         : hexOf(channels.map((c) => Math.min(255, Math.floor((c > 0 && c < 3 ? 3 : c) / 0.7))));
-}
-
-/**
- * The red, green and blue of a color.
- * @param hex - the `#rrggbb` color
- * @returns the three channels, 0 to 255
- */
-function channelsOf(hex: string): number[] {
-    return [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
 }
 
 /**
@@ -1859,7 +1856,7 @@ export function putRaisedBorder(fill: string | null, put: PutValue): void {
  * @returns the lighter color
  */
 export function towardWhite(hex: string, share: number): string {
-    return hexOf(channelsOf(hex).map((c) => Math.round(c + (255 - c) * share)));
+    return hexOf(hexChannels(hex).map((c) => Math.round(c + (255 - c) * share)));
 }
 
 /**
@@ -1932,7 +1929,7 @@ export function putPanelPaint(color: string, put: PutValue): void {
     put("fill", towardWhite(color, 0.75));
     put("fillGradient", color);
     put("fillGradientAngle", 90);
-    put("borderColor", hexOf(channelsOf(color).map((c) => Math.round(c * 0.8))));
+    put("borderColor", hexOf(hexChannels(color).map((c) => Math.round(c * 0.8))));
     put("borderWidth", 1);
 }
 
@@ -2946,7 +2943,7 @@ function nestedGroupPut(put: PutValue): PutValue {
     return (property, value) => {
         const darker =
             property === "fill" && typeof value === "string" && HEX_COLOR.test(value)
-                ? hexOf(channelsOf(value).map((c) => Math.max(0, c - YED_NESTED_GROUP_DARKER)))
+                ? hexOf(hexChannels(value).map((c) => Math.max(0, c - YED_NESTED_GROUP_DARKER)))
                 : value;
         put(property, darker);
     };
@@ -3364,6 +3361,24 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
     return label;
 }
 
+/** A node's gradient values, which the y:ShapeNode writes only beside a fill color. */
+const GRADIENT_PROPERTIES = ["fillGradient", "fillGradientAngle", "fillGradientColors", "fillGradientStops"] as const;
+
+/**
+ * Records a node's gradient values as approximated when it has no fill color: a y:Fill's color2 needs its color, so
+ * the gradient is not written.
+ * @param get - the node's values
+ * @param approximate - records approximations
+ */
+function noteUnwrittenGradient(get: GetValue, approximate: Approximate): void {
+    for (const property of GRADIENT_PROPERTIES) {
+        const had = get(property);
+        if (had !== null) {
+            approximate(property, had);
+        }
+    }
+}
+
 /**
  * A node's `y:ShapeNode` from its values.
  * @param get - the node's values
@@ -3387,8 +3402,11 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
             noteGradientAngle(get, approximate);
         }
         noteGradientRamp(get, { fill, second, shape: yedShape ?? "rectangle" }, approximate);
-    } else if (fillOpacity === 0) {
-        node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
+    } else {
+        noteUnwrittenGradient(get, approximate);
+        if (fillOpacity === 0) {
+            node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
+        }
     }
     const border = lineTree(get, ["borderColor", "borderWidth", "borderStyle"], approximate);
     if (border !== null) {
@@ -3786,8 +3804,8 @@ export function graphmlStyledExport(
         (property, value) => {
             approximated.add(target, property, value);
         };
-    const picture = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
-        input.picture(target, property as never);
+    const picture = (t: StyleTarget, property: StyleProperty): readonly (StyleValue | null)[] =>
+        input.picture(t, property);
     const nodeColumns = treeColumns(snapshot.nodes);
     const edgeColumns = treeColumns(snapshot.edges);
     const getNode = elementValues(picture, "node", GRAPHML_STYLE_CAPABILITIES.node);

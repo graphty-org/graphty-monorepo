@@ -242,12 +242,14 @@ export const PickFromFlyout: Story = {
         await waitFor(() => expect(face).toHaveFocus());
         await expect(face).toHaveAttribute("tabindex", "0");
         // The pick handed focus to the face by script, not by a key that moves focus: its tooltip
-        // stays hidden, so no bubble covers the toolbar the reader is working in. Wait for the
-        // decision, so the story ends settled.
+        // stays hidden, so no bubble covers the toolbar the reader is working in. A real mouse pick
+        // never mounts it; a replayed one (Storybook's own UI) mounts it and dismisses it at once.
         await waitFor(() => {
             const id = face.getAttribute("aria-describedby");
-            expect(id).not.toBeNull();
-            const tip = document.getElementById(id ?? "");
+            if (id === null) {
+                return;
+            }
+            const tip = document.getElementById(id);
             expect(tip).toHaveTextContent(/Ellipse/);
             expect(tip).toHaveAttribute("data-cm-dismissed");
         });

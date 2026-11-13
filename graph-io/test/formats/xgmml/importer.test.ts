@@ -83,6 +83,9 @@ describe("xgmmlImporter facts and sniffing", () => {
         expect(sniff(enc(cy3("")))).toBe(0.95);
         expect(sniff(enc(draft("")))).toBe(0.95);
         expect(sniff(enc("<!-- Database: 70 -->\n<graph label='x'>"))).toBe(0.5);
+        expect(
+            sniff(enc('<?xml version="1.0"?>\n<!-- written by X -->\n<graph xmlns="http://www.cs.rpi.edu/XGMML">')),
+        ).toBe(0.95);
         expect(sniff(enc('<graph id="v" cy:view="1" xmlns="http://www.cs.rpi.edu/XGMML">'))).toBe(0.95);
         expect(sniff(enc('<graphml xmlns="http://graphml.graphdrawing.org/xmlns">'))).toBe(0);
         expect(sniff(enc('<gexf xmlns="http://gexf.net/1.3">'))).toBe(0);

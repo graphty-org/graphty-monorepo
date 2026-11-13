@@ -914,6 +914,39 @@ jobs:
                   pnpm exec nx run-many -t build-storybook --parallel=3
                   --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
 
+            # The browser test shards restore Babylon.js's GLSL compilers from master's cache (the Test job's "Restore
+            # the Babylon.js GLSL compilers"), and a pull request never saves a cache, while a master push runs no
+            # tests: so the master build fetches and saves them here, once per Babylon.js version, or every browser
+            # shard of every pull request fetched its own copy from cdn.babylonjs.com, which answered 403 (#6787).
+            - name: Key the Babylon.js GLSL compilers by version
+              id: babylon-compilers-key
+              if: steps.reuse-build.outputs.artifacts-run == '' && env.SAVE_CACHES == 'true'
+              run: echo "key=babylon-shader-compilers-$(node -p "require('./graphty-element/node_modules/@babylonjs/core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+            - name: Look up the Babylon.js GLSL compilers
+              id: babylon-compilers
+              if: steps.babylon-compilers-key.outputs.key
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
+                  lookup-only: true
+
+            # Warming a cache must never turn the master build red: a CDN refusal here leaves the entry unsaved, and
+            # the shards fetch on their own as before until a later master push saves it.
+            - name: Fetch the Babylon.js GLSL compilers
+              id: babylon-compilers-fetch
+              if: steps.babylon-compilers-key.outputs.key && steps.babylon-compilers.outputs.cache-hit != 'true'
+              continue-on-error: true
+              run: node vitest.babylon-compilers.mjs
+
+            - name: Save the Babylon.js GLSL compilers
+              if: steps.babylon-compilers-fetch.outcome == 'success' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
+
             - name: Save the style fidelity reference pictures
               if: steps.reuse-build.outputs.artifacts-run == '' && steps.fidelity-references.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
               uses: actions/cache/save@v6
@@ -1750,6 +1783,37 @@ jobs:
             - name: Install Playwright's other browsers
               if: matrix.browsers
               run: pnpm exec playwright install ${{ matrix.browsers }}
+
+            # graphty-element loads Babylon.js's GLSL compilers before it opens WebGPU, and the browser tests answer
+            # those requests from a local copy (vitest.babylon-compilers.mjs), never cdn.babylonjs.com: a CDN that
+            # did not answer once failed a gpu-loss shard on an unrelated pull request (#6787). Cached per Babylon.js
+            # version, so the CDN is asked only when the version changes; the fetch step fills a miss. The copy pull
+            # requests restore is the one the Storybooks job saves on each master push (a pull request saves nothing).
+            # The version is graphty-element's Babylon.js, the one the script fetches: the root package does not
+            # depend on it and resolves it only through pnpm's hoisting.
+            - name: Key the Babylon.js GLSL compilers by version
+              id: babylon-compilers-key
+              if: matrix.needs-browser
+              run: echo "key=babylon-shader-compilers-$(node -p "require('./graphty-element/node_modules/@babylonjs/core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the Babylon.js GLSL compilers
+              id: babylon-compilers
+              if: matrix.needs-browser
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
+
+            - name: Fetch the Babylon.js GLSL compilers
+              if: matrix.needs-browser
+              run: node vitest.babylon-compilers.mjs
+
+            - name: Save the Babylon.js GLSL compilers
+              if: matrix.needs-browser && steps.babylon-compilers.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
 
             # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled.
             # The .deb files apt chose are cached per runner image, as playwright-system-deps does for Chromium's,

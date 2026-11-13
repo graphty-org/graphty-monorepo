@@ -477,6 +477,8 @@ describe("session.data edits land after a load queued before them (issue #3526)"
         readonly name: string;
         readonly edit: (session: GraphSession) => Promise<unknown>;
         readonly check: (session: GraphSession) => void;
+        /** The edit cancels the load still reading, which then rejects with `E_SUPERSEDED`. */
+        readonly supersedes?: true;
     }[] = [
         {
             name: "addNodes",
@@ -509,6 +511,7 @@ describe("session.data edits land after a load queued before them (issue #3526)"
         {
             name: "clear",
             edit: (session) => session.data.clear(),
+            supersedes: true,
             check: (session) => {
                 assert.strictEqual(session.data.snapshot().nodeCount, 0, "the clear landed under the load");
             },
@@ -521,7 +524,10 @@ describe("session.data edits land after a load queued before them (issue #3526)"
             const older = await heldLoad(session, 5);
             const edited = each.edit(session);
             older.read.open();
-            await Promise.all([older.load.catch(() => undefined), edited]);
+            await Promise.all([
+                each.supersedes === true ? assertSuperseded(older.load, "the load under the clear") : older.load,
+                edited,
+            ]);
             each.check(session);
         });
     }

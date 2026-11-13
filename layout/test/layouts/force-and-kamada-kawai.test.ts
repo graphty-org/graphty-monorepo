@@ -84,10 +84,10 @@ describe("kamadaKawai", () => {
         const d32 = Float32Array.from(d);
         assert.deepEqual(Array.from(layout.kamadaKawai(s, { dist: d32 }).positions), Array.from(computed.positions));
         // in 3D too
-        const in3d = layout.kamadaKawai(s, { dim: 3 });
+        const in3d = layout.kamadaKawai(s, { dim: 3, seed: 42 });
         assert.equal(in3d.dim, 3);
         assert.deepEqual(
-            Array.from(layout.kamadaKawai(s, { dim: 3, dist: d32 }).positions),
+            Array.from(layout.kamadaKawai(s, { dim: 3, dist: d32, seed: 42 }).positions),
             Array.from(in3d.positions),
         );
     });
@@ -204,8 +204,8 @@ describe("kamadaKawai", () => {
         );
     });
 
-    it("starts a 3D layout from seed 42 by default", () => {
-        // layout 1.x's kamadaKawaiLayout on a 4-node path; a change to the default 3D start (a float32 start
+    it("starts a 3D layout from the seed, and from a random seed without one", () => {
+        // layout 1.x's kamadaKawaiLayout (seed 42) on a 4-node path; a change to the 3D start (a float32 start
         // included) moves it
         const s = fromEdgeArrays({
             directed: false,
@@ -218,10 +218,19 @@ describe("kamadaKawai", () => {
             -0.011746840551495552, 0.2619185447692871, 0.2061464488506317, 0.008163494989275932, 0.7830175161361694,
             0.6199741363525391, 0.04973255842924118,
         ];
-        const actual = Array.from(layout.kamadaKawai(s, { dim: 3 }).positions);
+        const actual = Array.from(layout.kamadaKawai(s, { dim: 3, seed: 42 }).positions);
         assert.equal(actual.length, expected.length);
         expected.forEach((v, k) => assert.closeTo(actual[k], v, 1e-6, `component ${k}`));
-        assert.deepEqual(Array.from(layout.kamadaKawai(s, { dim: 3, seed: 42 }).positions), actual);
+        // no seed: the generator draws one from Math.random (0.5 -> 500000), as every unseeded layout does
+        const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+        try {
+            assert.deepEqual(
+                Array.from(layout.kamadaKawai(s, { dim: 3 }).positions),
+                Array.from(layout.kamadaKawai(s, { dim: 3, seed: 500000 }).positions),
+            );
+        } finally {
+            random.mockRestore();
+        }
     });
 });
 

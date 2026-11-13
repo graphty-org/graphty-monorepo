@@ -19,7 +19,7 @@ const engines: [string, object][] = [
     ["bipartite", { nodes: ["a", "c"] }],
     ["circular", {}],
     ["grid", {}],
-    ["kamada-kawai", {}],
+    ["kamada-kawai", { seed: 42 }], // its 3D start is random without a seed
     ["multipartite", { subsetKey: { first: ["a", "c"], second: ["b", "d"] } }],
     ["planar", {}],
     ["radial", {}],

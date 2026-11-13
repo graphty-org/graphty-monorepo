@@ -22,7 +22,7 @@ import { type GraphSnapshot } from "@graphty/graph-format";
 import fc from "fast-check";
 
 import { importGraph } from "../../src/registry.js";
-import { buildSnapshot, exporterOf, graphArb } from "./generative.js";
+import { buildSnapshot, exporterOf, graphArb, isAnnouncedRefusal } from "./generative.js";
 import { loadManifests } from "./harness.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -152,12 +152,19 @@ export async function validateExports(python: string): Promise<SchemaResult> {
         const write = async (snapshot: GraphSnapshot, prefix: string): Promise<void> => {
             for (const target of SCHEMA_EXPORTS) {
                 const file = `${prefix}-${n++}.${target.suffix}`;
+                const exporter = exporterOf(target.format);
+                const refusals = exporter
+                    .check(snapshot, target.options)
+                    .map((note) => note.code)
+                    .filter((code) => code.startsWith("E_"));
                 try {
-                    const text = await exporterOf(target.format).exportToString(snapshot, target.options);
-                    writeFileSync(join(dir, file), text);
-                } catch {
-                    // an export check() refuses is not a document; the round-trip layers cover it
-                    continue;
+                    writeFileSync(join(dir, file), await exporter.exportToString(snapshot, target.options));
+                } catch (err) {
+                    // an export check() refused is not a document; the round-trip layers cover it
+                    if (isAnnouncedRefusal(err, refusals)) {
+                        continue;
+                    }
+                    throw err;
                 }
                 if (target.format === "dot" && prefix === "generated") {
                     counts[file] = [snapshot.nodeCount, snapshot.edgeCount];

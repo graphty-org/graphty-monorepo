@@ -113,6 +113,7 @@ export type {
     AgreementOptions,
     BranchesView,
     DefaultPalettes,
+    DrawnValue,
     ElementLayerSpec,
     HighlightSpec,
     LayerPatch,

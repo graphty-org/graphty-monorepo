@@ -155,6 +155,7 @@ import { beneathAuthored, placementLayers } from "./autoApply";
 import {
     channelDescriptor,
     isChannel,
+    labelStyleFieldChannels,
     mergeShaderUses,
     placeOfUse,
     readRenamedChannels,
@@ -423,6 +424,26 @@ export interface LayerReach {
     readonly locked: boolean;
     /** The channels its layers set or encode. */
     readonly sets: readonly Channel[];
+    /**
+     * Every channel its layers write: what {@link LayerReach.sets} lists, and for each label style
+     * value it sets (`node.labelStyle`, `node.tooltipStyle`, `node.xlabelStyle`, an arrow
+     * caption's style), each field it holds as the channel that writes that field on its own: a
+     * `node.labelStyle` of `{ font: "Georgia" }` writes `node.labelFont` too. What a style editor
+     * reads to tell which of its rows a layer fills.
+     * @since 3.40.0
+     */
+    readonly writes: readonly Channel[];
+}
+
+/**
+ * How many drawn elements carry one value of a channel: see {@link StylesApi.drawnValues}.
+ * @since 3.40.0
+ */
+export interface DrawnValue {
+    /** The value, as {@link StylesApi.explain} reports it for one element. */
+    readonly value: unknown;
+    /** How many drawn elements carry it. */
+    readonly count: number;
 }
 
 /**
@@ -1055,6 +1076,22 @@ export interface StylesApi {
      * @since 3.16.0
      */
     counts(id: LayerId): StyleCounts;
+    /**
+     * The values one channel is drawn with across the graph, and how many drawn elements carry
+     * each, most first: what a value picker lists as "in this graph". Elements a filter hides and
+     * elements nothing paints on the channel are left out; one value decided by several layers is
+     * one entry. Read through the same walk as {@link StylesApi.agreement}, so the two never
+     * disagree, and kept until the stack, the data, a run or an element's state changes.
+     *
+     * ```ts
+     * session.styles.drawnValues("node.shape"); // [{ value: "box", count: 40 }, { value: "sphere", count: 2 }]
+     * ```
+     * @param channel - The channel.
+     * @returns One entry per value, most elements first.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `channel` names no channel.
+     * @since 3.40.0
+     */
+    drawnValues(channel: Channel): readonly DrawnValue[];
     /**
      * How many of the elements a layer's rule matches are drawn now: `counts(id).matched` less those
      * a filter hides.
@@ -5383,11 +5420,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                             ...(Object.keys(layer.encode ?? {}) as Channel[]),
                         ]),
                     );
+                    const writes = new Set<Channel>(sets);
+                    for (const layer of parts) {
+                        for (const [channel, value] of Object.entries(layer.set ?? {})) {
+                            for (const field of labelStyleFieldChannels(channel as Channel, value)) {
+                                writes.add(field);
+                            }
+                        }
+                    }
                     return Object.freeze({
                         row: key,
                         layers: Object.freeze(parts.map((layer) => layer.id)),
                         ...(reached.get(key) as { hidden: boolean; locked: boolean }),
                         sets: Object.freeze([...sets]),
+                        writes: Object.freeze([...writes]),
                     });
                 }),
             );
@@ -5888,6 +5934,38 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         drawnCount(id: LayerId): number {
             return selectsAmongDrawn(id).count;
+        },
+
+        drawnValues(channel: Channel): readonly DrawnValue[] {
+            requireChannel(channel);
+            return kept(JSON.stringify(["drawnValues", channel]), () => {
+                const drawn = elementsOf(DRAWN);
+                // Only the channel's own kind: the walk over the other kind would paint nothing on it.
+                const own = [...(channel.startsWith("node.") ? drawn.nodes : drawn.edges)];
+                const elements = channel.startsWith("node.") ? { nodes: own, edges: [] } : { nodes: [], edges: own };
+                const answer = styleAgreement(elements, countSources(), channel).channels[0];
+                if (answer === undefined) {
+                    return Object.freeze([]);
+                }
+                const shares =
+                    answer.state === "agree"
+                        ? [{ value: answer.value, count: own.length - answer.unpainted }]
+                        : answer.breakdown;
+                const byValue = new Map<string, { value: unknown; count: number }>();
+                for (const { value, count } of shares) {
+                    const key = JSON.stringify([typeof value, value]);
+                    const held = byValue.get(key);
+                    if (held === undefined) {
+                        byValue.set(key, { value, count });
+                    } else {
+                        held.count += count;
+                    }
+                }
+                // A stable sort: equal counts keep the order the walk met them in.
+                return Object.freeze(
+                    [...byValue.values()].sort((a, b) => b.count - a.count).map((entry) => Object.freeze(entry)),
+                );
+            });
         },
 
         setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {

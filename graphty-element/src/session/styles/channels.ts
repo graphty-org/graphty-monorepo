@@ -948,6 +948,15 @@ export interface ChannelDescriptor {
      * @experimental file-styles
      */
     readonly feature?: "file-styles";
+    /**
+     * What a list channel's value holds, on a channel whose value is a list of items written
+     * separated by spaces: `"color"` for CSS colors (a gradient's, a pie's slices), `"number"` for
+     * numbers (a gradient's stops, a pie's sizes). Read and write its items with
+     * `readChannelList` and `writeChannelList` from the `./catalog` entry rather than splitting
+     * the text. Absent on every other channel.
+     * @since 3.40.0
+     */
+    readonly listOf?: "color" | "number";
 }
 
 /**
@@ -5106,6 +5115,22 @@ const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ),
 ]);
 
+/** What each space-separated list channel holds: see {@link ChannelDescriptor.listOf}. */
+const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color" | "number">([
+    ["node.gradientColors", "color"],
+    ["node.gradientStops", "number"],
+    ["node.pieColors", "color"],
+    ["node.pieSizes", "number"],
+    ["node.pieOpacities", "number"],
+    ["node.stripeColors", "color"],
+    ["node.stripeSizes", "number"],
+    ["node.stripeOpacities", "number"],
+    ["node.chartColors", "color"],
+    ["node.chartValues", "number"],
+    ["edge.gradientColors", "color"],
+    ["edge.gradientStops", "number"],
+]);
+
 /**
  * How far one step moves a number channel: see {@link ChannelDescriptor.step}.
  * @param descriptor - The declared descriptor.
@@ -5134,6 +5159,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const value = shippedDefault(descriptor) ?? descriptor.default;
         const step = descriptor.step ?? stepOf(descriptor);
         const modifies = MODIFIES.get(descriptor.channel);
+        const listOf = LIST_OF.get(descriptor.channel);
 
         return [
             descriptor.channel,
@@ -5142,6 +5168,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(value === undefined ? {} : { default: value }),
                 ...(step === undefined ? {} : { step }),
                 ...(modifies === undefined ? {} : { modifies }),
+                ...(listOf === undefined ? {} : { listOf }),
                 // @experimental file-styles
                 ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },
@@ -5151,6 +5178,50 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
 
 /** Every channel name, in table order. */
 export const CHANNELS: readonly Channel[] = Object.keys(CHANNEL_DESCRIPTORS) as Channel[];
+
+/** Where each label style field lands in the renderer's spelling, for the fields whose two spellings differ. */
+const LABEL_STYLE_PATH_OF_FIELD: ReadonlyMap<string, string> = new Map(
+    (Object.keys(LABEL_FIELD_OF_SUFFIX) as (keyof typeof LABEL_FIELD_OF_SUFFIX)[]).map((suffix) => [
+        LABEL_FIELD_OF_SUFFIX[suffix],
+        LABEL_STYLE_PATH_OF_SUFFIX[suffix],
+    ]),
+);
+
+/** Every channel by its target and style path, built on first use. */
+let channelAtPath: ReadonlyMap<string, Channel> | undefined;
+
+/**
+ * The field channels one written label style value stands for: `node.labelFont` for the `font`
+ * of a `node.labelStyle`, `edge.arrowHeadTextSize` for the `sizePx` of an
+ * `edge.arrowHeadTextStyle`. A field no channel writes on its own is left out.
+ * @param channel - A channel that takes a label style (`accepts: "labelStyle"`), or any other.
+ * @param value - The value written to it.
+ * @returns The field channels, in the order the value lists its fields; empty for any other channel.
+ */
+export function labelStyleFieldChannels(channel: Channel, value: unknown): readonly Channel[] {
+    const descriptor = CHANNEL_DESCRIPTORS[channel] as ChannelDescriptor | undefined;
+    if (descriptor?.accepts !== "labelStyle" || typeof value !== "object" || value === null) {
+        return [];
+    }
+
+    channelAtPath ??= new Map(
+        CHANNELS.map((each): [string, Channel] => {
+            const { target, stylePath } = CHANNEL_DESCRIPTORS[each];
+            return [`${target} ${stylePath}`, each];
+        }),
+    );
+    const found: Channel[] = [];
+    for (const [field, held] of Object.entries(value)) {
+        const path = LABEL_STYLE_PATH_OF_FIELD.get(field) ?? field;
+        const at =
+            held === undefined ? undefined : channelAtPath.get(`${descriptor.target} ${descriptor.stylePath}.${path}`);
+        if (at !== undefined && at !== channel) {
+            found.push(at);
+        }
+    }
+
+    return found;
+}
 
 /** Every channel that carries a colour, which is the set {@link ColorChannel} names. */
 export const COLOR_CHANNELS: readonly ColorChannel[] = CHANNELS.filter(

@@ -38,6 +38,7 @@ import { DATASETS, GENERATOR_CATALOG } from "@graphty/graph-samples";
 import { BUILT_IN_ALGORITHMS } from "../catalog/algorithms";
 import { registeredCameraDescriptors } from "../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS } from "../catalog/cameras";
+import { channelValuesOf } from "../catalog/channelValues";
 import { FORMAT_DESCRIPTORS } from "../catalog/formats";
 import { registeredLayoutDescriptors } from "../catalog/layoutRegistry";
 import { LAYOUT_DESCRIPTORS } from "../catalog/layouts";
@@ -56,7 +57,7 @@ import { catalogFormatDescriptors } from "../catalog/writerRegistry";
 import { transitionDescriptors } from "../transitions/registry";
 import { describeMetrics, type MetricsSource } from "./metrics";
 import { optionsFor, type OptionsForSource } from "./optionsFor";
-import { sessionChannels } from "./styles/channels";
+import { channelDescriptor, sessionChannels } from "./styles/channels";
 import type { SessionCatalogApi } from "./types";
 
 /**
@@ -262,6 +263,19 @@ export function createSessionCatalog(
          * @returns The channels, in table order.
          */
         channels: (target) => sessionChannels(target, fileStyles()),
+        /**
+         * Every value of one enum channel this session offers, named, with its picture.
+         * @param channel - The channel.
+         * @returns The values; empty for a channel that is not an enum or that the session does not offer.
+         */
+        channelValues: (channel) => {
+            const target = channelDescriptor(channel)?.target;
+            return channelValuesOf(
+                target === undefined
+                    ? undefined
+                    : sessionChannels(target, fileStyles()).find((each) => each.channel === channel),
+            );
+        },
         /**
          * Every shader, one entry per id: the element's presets, the registered ones, then the
          * project's own (pasted, or carried in by a file). A project shader replaces a catalog entry

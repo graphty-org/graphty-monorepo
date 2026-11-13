@@ -549,6 +549,7 @@ export interface CatalogApi {
     // (undocumented)
     cameras(): readonly CameraDescriptor[];
     channels(target: "node" | "edge"): readonly ChannelDescriptor[];
+    channelValues(channel: Channel): readonly ChannelValueDescriptor[];
     datasets(): readonly DatasetMeta[];
     // (undocumented)
     formats(): readonly FormatDescriptor[];
@@ -606,6 +607,7 @@ export interface ChannelDescriptor {
     readonly feature?: "file-styles";
     readonly follows?: Channel;
     readonly group: ChannelGroup;
+    readonly listOf?: "color" | "number";
     readonly max?: number;
     readonly min?: number;
     readonly modifies?: Channel;
@@ -641,6 +643,13 @@ export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor
 
 // @public
 export type ChannelValue = string | number | boolean | LabelStyle | Rgba | readonly ShaderUse[];
+
+// @public
+export interface ChannelValueDescriptor {
+    readonly glyph?: string;
+    readonly id: string;
+    readonly plainName: string;
+}
 
 // @public
 export type ChannelValueKind = "color" | "number" | "text" | "boolean" | "enum" | "labelStyle" | "nothing"
@@ -2332,6 +2341,9 @@ export interface ReadableValue {
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 
 // @public
+export function readChannelList(channel: Channel, value: unknown): readonly (string | number)[];
+
+// @public
 export function removeShaderParam(draft: ShaderTextDraft, name: string, index?: number): ShaderTextDraft;
 
 // @public
@@ -3189,6 +3201,9 @@ export interface WithdrawnCapability {
     readonly subject: string;
     readonly withdrawnIn: string;
 }
+
+// @public
+export function writeChannelList(channel: Channel, items: readonly (string | number)[]): string;
 
 // (No @packageDocumentation comment for this package)
 

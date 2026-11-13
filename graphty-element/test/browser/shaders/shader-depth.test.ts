@@ -27,6 +27,7 @@ import { EdgeShaderDrawing } from "../../../src/meshes/EdgeShaderDrawing";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { SHADER_PRESETS } from "../../../src/shaders/presets";
 import { defineShader } from "../../../src/simple/defineShader";
+import { pixelsAt as pixelsAtScreen } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 
 const WIDTH = 400;
@@ -200,20 +201,11 @@ async function untilDrawn(element: Graphty, count: number, edges: number): Promi
  * @returns r, g, b per point.
  */
 async function pixelsAt(element: Graphty, points: readonly Vector3[]): Promise<[number, number, number][]> {
-    const { engine } = element.graph;
-    const scene = element.graph.getScene();
-    await drawnFrames(scene, 2);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const read: [number, number, number][] = [];
-    for (const point of points) {
-        const at = element.worldToScreen(point);
-        const x = Math.round(at.x * scale);
-        const y = Math.round(engine.getRenderHeight() - at.y * scale);
-        const pixel = (await engine.readPixels(x, y, 1, 1)) as unknown as Uint8Array;
-        read.push([pixel[0], pixel[1], pixel[2]]);
-    }
-
-    return read;
+    const read = await pixelsAtScreen(
+        element,
+        points.map((point) => element.worldToScreen(point)),
+    );
+    return read.map(([r, g, b]) => [r, g, b]);
 }
 
 /**

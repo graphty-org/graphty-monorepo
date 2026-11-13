@@ -28,11 +28,14 @@ describe("assistant tasks, replayed", () => {
                 );
                 const { result } = await assistant.say(prompt, ...batches);
                 const request = assistant.engine.requests.at(-1);
+                const results = request === undefined ? [] : resultsOf(request.messages);
                 return {
                     prompt,
                     calls: batches.flat(),
-                    results: request === undefined ? [] : resultsOf(request.messages),
-                    text: "",
+                    results,
+                    // A scripted engine has no words of its own: its answer is what its calls read,
+                    // so an answer check passes only when the reference calls fetch the right value.
+                    text: results.map((result) => JSON.stringify(result.body)).join("\n"),
                     code: result.code ?? "",
                     inputTokens: 0,
                     outputTokens: 0,

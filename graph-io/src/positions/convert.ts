@@ -71,23 +71,42 @@ export function toFilePositions(
     const out = new Float64Array(coords.length);
     const down = extra.yAxis === "down";
     const stretch = yStretch(extra);
+    // 2D or 3D is decided once for the whole drawing, so a node on the z = 0 plane of a 3D drawing
+    // gets the z origin like every other node
+    const realZ = extra.sourceDims === 3 || hasZ(coords);
     for (let i = 0; i < coords.length; i += 3) {
-        let y = coords[i + 1] / stretch;
+        // toNeutral's steps undone in reverse: the flip, the anchor shift, then the stretch
+        let x = coords[i];
+        let y = coords[i + 1];
         let z = coords[i + 2];
         if (down) {
             y = flipY(y);
             z = flipY(z);
         }
-        out[i] = coords[i];
-        out[i + 1] = y;
-        out[i + 2] = z === 0 && extra.sourceDims !== 3 ? 0 : z + (extra.zOrigin ?? 0);
-        const row = i / 3;
         if (extra.anchor === "top-left" && sizes !== undefined) {
-            out[i] -= sizes.width[row] / 2;
-            out[i + 1] -= down ? sizes.height[row] / 2 : -sizes.height[row] / 2;
+            const row = i / 3;
+            x -= sizes.width[row] / 2;
+            y -= down ? sizes.height[row] / 2 : -sizes.height[row] / 2;
         }
+        out[i] = x;
+        out[i + 1] = y / stretch;
+        out[i + 2] = realZ || Number.isNaN(z) ? z + (extra.zOrigin ?? 0) : 0;
     }
     return out;
+}
+
+/**
+ * Whether any placed row has a z other than 0.
+ * @param coords - x, y, z per node; NaN rows are unplaced
+ * @returns true for a 3D drawing
+ */
+function hasZ(coords: Float64Array): boolean {
+    for (let i = 2; i < coords.length; i += 3) {
+        if (coords[i] !== 0 && !Number.isNaN(coords[i])) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**

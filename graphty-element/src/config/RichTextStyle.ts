@@ -1,6 +1,30 @@
+import * as jmespath from "jmespath";
 import { z } from "zod";
 
+import type { RichTextLabelOptions } from "../meshes/RichTextLabel";
 import { AdvancedColorStyle, ColorStyle, TextLocation } from "./common";
+
+/** jmespath's parser, which its type declarations leave out (it is exported by jmespath 0.16). */
+const { compile } = jmespath as unknown as { compile: (expression: string) => unknown };
+
+/**
+ * Whether a JMESPath expression parses (issue #6845). A label's `textPath` is checked once, when its style is set, so
+ * a typo is refused there rather than drawing every label as its fallback.
+ * @param expression - The expression.
+ * @returns True when it parses.
+ */
+function compiles(expression: string): boolean {
+    // an empty path names no path, as it always did
+    if (expression === "") {
+        return true;
+    }
+    try {
+        compile(expression);
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 /**
  * The colors a label's background gradient runs through when it is switched on and names none.
@@ -67,7 +91,7 @@ const BorderConfig = z.strictObject({
 export const RichTextStyle = z.strictObject({
     // Basic properties from original TextBlockStyle
     enabled: z.boolean().default(false).optional(),
-    textPath: z.string().optional(),
+    textPath: z.string().refine(compiles, { message: "textPath is not a JMESPath expression" }).optional(),
     location: TextLocation.default("top").optional(),
 
     // Text content
@@ -270,4 +294,108 @@ export function drawnText<T extends Pick<RichTextStyleType, "enabled" | "fontSiz
     return block?.enabled === true && (block.fontSize === undefined || block.fontSize >= MIN_DRAWN_FONT_SIZE)
         ? block
         : undefined;
+}
+
+/**
+ * The words a label, tooltip or caption block draws for one element: its own `text`, or what its `textPath` reads from
+ * the element's data.
+ * @param data - The element's data.
+ * @param block - The block.
+ * @returns The words, or undefined when the block names none (the caller's fallback then applies).
+ */
+export function labelTextOf(data: unknown, block: Record<string, unknown> | undefined): string | undefined {
+    const text = block?.text;
+    if (text !== undefined && text !== null) {
+        return typeof text === "string" || typeof text === "number" || typeof text === "boolean"
+            ? String(text)
+            : undefined;
+    }
+    const path = block?.textPath;
+    if (typeof path !== "string" || path === "") {
+        return undefined;
+    }
+    // The expression parsed when the style was set (`RichTextStyle`). What can still throw is a function given a value
+    // of the wrong type by this element's own data (`length(@)` on a number), which is this element having no value
+    // for the path, as a missing key is.
+    try {
+        const found: unknown = jmespath.search(data, path);
+        if (found === null || found === undefined) {
+            return undefined;
+        }
+        return typeof found === "string" ? found : JSON.stringify(found);
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * A label's background color as the one string the label renderer takes: an advanced color style's solid value,
+ * or a gradient's first color as a fallback.
+ * @param color - The block's background color.
+ * @returns The color, or undefined for none.
+ */
+function labelBackgroundColor(color: RichTextStyleType["backgroundColor"]): string | undefined {
+    if (!color) {
+        return undefined;
+    }
+    if (typeof color === "string") {
+        return color;
+    }
+    if (color.colorType === "solid") {
+        return color.value;
+    }
+    if (color.colorType === "gradient") {
+        return color.colors[0];
+    }
+    return undefined;
+}
+
+/**
+ * A label's borders with a color each, the only ones the label renderer can draw.
+ * @param borders - The block's borders.
+ * @returns The borders, or undefined when none has a color, so the renderer's default empty list is used.
+ */
+function labelBorders(
+    borders: RichTextStyleType["borders"],
+): { width: number; color: string; spacing: number }[] | undefined {
+    const valid = (borders ?? [])
+        .filter((border): border is typeof border & { color: string } => border.color !== undefined)
+        .map((border) => ({ width: border.width, color: border.color, spacing: border.spacing }));
+    return valid.length > 0 ? valid : undefined;
+}
+
+/**
+ * The options the label renderer takes for one rich-text block, shared by a node's label and tooltip and an edge's
+ * label and captions: the block, with what its owner works out (the words, where it hangs) over it, its colors and
+ * borders in the forms the renderer draws, and without the fields only the style reads.
+ * @param block - The resolved rich-text block.
+ * @param set - What the owner works out: the words, and where and against what the label hangs.
+ * @returns The options.
+ */
+export function richTextLabelOptions(
+    block: RichTextStyleType,
+    set: Partial<RichTextLabelOptions>,
+): RichTextLabelOptions {
+    let backgroundGradientColors = block.backgroundGradientColors?.filter(
+        (color): color is string => color !== undefined,
+    );
+    if (backgroundGradientColors?.length === 0) {
+        backgroundGradientColors = undefined;
+    }
+    const borders = labelBorders(block.borders);
+    const backgroundColor = labelBackgroundColor(block.backgroundColor);
+    const {
+        location: _location,
+        textPath: _textPath,
+        enabled: _enabled,
+        ...options
+    }: RichTextLabelOptions = {
+        ...block,
+        ...set,
+        // a transparent panel is no panel
+        backgroundColor: backgroundColor === "transparent" ? undefined : backgroundColor,
+        backgroundGradientColors,
+        ...(borders !== undefined && { borders }),
+    };
+    return options;
 }

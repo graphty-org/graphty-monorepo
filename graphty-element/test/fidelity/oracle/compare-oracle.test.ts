@@ -1732,6 +1732,13 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.isBelow(drawn.properties["node.width"].passRate ?? 1, 1);
     });
 
+    it("reads no fill on a node under half a pixel across, on either drawing", () => {
+        // yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size (graphml-stm32-func)
+        const thin = (): PNode[] => [...grid(), node("thin", 300, 200, 40, { w: 0.34, h: 4, fill: fill("#ffffff") })];
+        const r = compareOracle("t", sceneOf("oracle", 600, 400, thin()), sceneOf("graphty", 600, 400, thin()));
+        assert.strictEqual(r.properties["node.fill"].passRate, 1);
+    });
+
     it("passes a drawing judged against itself, with a passing verdict and no failures", () => {
         const r = compareOracle("t", sceneOf("oracle", 600, 400, grid()), sceneOf("graphty", 600, 400, grid()));
         assert.deepEqual(failing(r), []);

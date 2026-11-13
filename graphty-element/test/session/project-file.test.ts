@@ -242,6 +242,31 @@ describe("the project file", () => {
         target.session.dispose();
     });
 
+    it("keeps the name the reader gave a run, and opens a file whose runs carry none (#829)", async () => {
+        const source = await busySession();
+        await source.session.runs.rename("links", "My links");
+        const { text } = await source.session.project.save();
+        const saved = JSON.parse(text) as { members: { kind: string; runs?: { name?: string }[] }[] };
+        const runs = saved.members.find((member) => member.kind === "graphty-results")?.runs;
+        assert.strictEqual(runs?.[0].name, "My links");
+
+        const { harness: target } = withDegree();
+        await target.session.project.open(text);
+        assert.strictEqual(target.session.runs.get("links")?.record.name, "My links");
+
+        // A file written before runs carried a name: the run opens unnamed.
+        delete runs?.[0].name;
+        const { harness: older } = withDegree();
+        const report = await older.session.project.open(JSON.stringify(saved));
+        assert.deepStrictEqual(report.problems, []);
+        assert.isNull(older.session.runs.get("links")?.record.name);
+        assert.strictEqual(older.session.results.get("links")?.node("b")?.value, 2);
+
+        source.session.dispose();
+        target.session.dispose();
+        older.session.dispose();
+    });
+
     it("carries edge results and the edge selection over to the edge ids of the session it opens in", async () => {
         const source = await busySession();
         const [, middle] = source.session.data.edges();

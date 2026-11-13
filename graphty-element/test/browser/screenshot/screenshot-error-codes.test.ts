@@ -39,11 +39,8 @@ test("throws RESOLUTION_TOO_HIGH when total pixels exceed limit", async () => {
         assert.fail("Should have thrown ScreenshotError");
     } catch (err) {
         assert.ok(err instanceof ScreenshotError, "Error should be ScreenshotError");
-        assert.ok(
-            err.code === ScreenshotErrorCode.RESOLUTION_TOO_HIGH ||
-                err.code === ScreenshotErrorCode.DIMENSION_TOO_LARGE,
-            `Error code should be RESOLUTION_TOO_HIGH or DIMENSION_TOO_LARGE, got ${err.code}`,
-        );
+        // Each side is under the 16384 px limit, so only the pixel count is refused.
+        assert.equal(err.code, ScreenshotErrorCode.RESOLUTION_TOO_HIGH);
     }
 });
 

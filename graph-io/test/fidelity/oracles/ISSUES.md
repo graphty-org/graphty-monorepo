@@ -152,9 +152,6 @@ Gaps found while finishing, each open:
   `dot-specimen-groups-p12` draws its `default` label too large (label.size), because graphty does not stretch
   the layout by the sheet's `ratio=2` as Graphviz does (the same sheet already fails node.width and node.height).
   On a side that names no caption (an SVG of free texts), a specimen labeled as a caption is still dropped.
-- graph-io's vis writer writes a vis-network node fitted to its label as a sized `dot`, whose label the reader then
-  hangs below it (labelOffsetY 4 on reading back): six vis round trips in graph-io's harness, one in its block
-  tests and fourteen in graphty-element's export round trips run as expected failures until it is fixed.
 - The Cytoscape.js writer keeps a node's own opacity under a translucent class as an exceptions column that comes
   back as a layer of its own (graphty-element `export-styles` and `export-round-trip`, expected failures), and
   rounds a label offset to 5 decimals where the rules hold 4.333333333333334 (two harness plans, expected

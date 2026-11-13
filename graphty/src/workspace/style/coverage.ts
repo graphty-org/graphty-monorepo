@@ -258,6 +258,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.chartLineWidth": NOT_PLACED,
     "node.chartBorderColor": NOT_PLACED,
     "node.chartBorderWidth": NOT_PLACED,
+    "node.chartBackgroundColor": NOT_PLACED,
+    "node.chartBackgroundOpacity": NOT_PLACED,
     "edge.minScreenWidth": NOT_PLACED,
     "edge.fadeEnd": at("Edges, Line, Fade end (the cosmograph experiment)"),
     "edge.fadeStart": at("Edges, Line, Fade end, Fade start (the cosmograph experiment)"),

@@ -90,8 +90,6 @@
         "@nx/vitest": "22.7.12",
         "@nx/web": "22.7.12",
         "@secretlint/secretlint-rule-preset-recommend": "^13.0.6",
-        "@semantic-release/changelog": "^6.0.3",
-        "@semantic-release/git": "^10.0.1",
         "@sonar/scan": "5.0.1",
         "@types/node": "^20.19.9",
         "@vitest/browser": "catalog:",
@@ -115,7 +113,6 @@
         "pngjs": "^7.0.0",
         "prettier": "^3.4.2",
         "secretlint": "^13.0.6",
-        "semantic-release": "^25.0.2",
         "semver": "^7.7.3",
         "storybook": "^9.1.21",
         "tsx": "^4.20.3",
@@ -132,8 +129,7 @@
     "pnpm": {
         "auditConfig": {
             "ignoreGhsas": [
-                "GHSA-vfj7-8cjw-p6xm",
-                "GHSA-86w9-cpqp-85rv"
+                "GHSA-vfj7-8cjw-p6xm"
             ]
         }
     }

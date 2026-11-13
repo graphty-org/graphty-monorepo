@@ -7,6 +7,7 @@ import { type EdgePosition, LayoutEngine, type Position } from "../../../src/lay
 import { layoutManagerInternals } from "../../../src/managers/LayoutManager";
 import type { Node } from "../../../src/Node";
 import { SCREENSHOT_CONSTANTS } from "../../../src/screenshot/constants";
+import { ScreenshotError, ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
@@ -164,8 +165,8 @@ test("waitForSettle times out if layout never settles", async () => {
     await vi.advanceTimersByTimeAsync(SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
 
     const error = await outcome;
-    assert.ok(error instanceof Error, "Should throw an error");
-    assert.match(error.message, /settle|timeout/i, "Error message should mention settling or timeout");
+    assert.ok(error instanceof ScreenshotError, "Should throw a ScreenshotError");
+    assert.equal(error.code, ScreenshotErrorCode.LAYOUT_SETTLE_TIMEOUT);
 });
 
 test("timing.settleTimeoutMs sets how long waitForSettle waits", async () => {

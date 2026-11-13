@@ -20,7 +20,7 @@ import { channelWord, groupRank, hexOf, valueName } from "../style/words";
 import { DistributionRows } from "./Distribution";
 import { useAsyncValue, useSessionVersion } from "./hooks";
 import { nodeKey } from "./inspected";
-import { focusValuesNext, selectNode } from "./reads";
+import { focusValuesNext, hidden, selectNode } from "./reads";
 import { PathValues } from "./RunValues";
 import { count, formatNumber, nodeName } from "./words";
 
@@ -160,7 +160,8 @@ function NumberValues({
                         preview: session.styles.preview(binding, { channel: channel as Channel }),
                     },
                 ];
-            } catch {
+            } catch (error) {
+                hidden("styles.preview", error);
                 return [];
             }
         }),

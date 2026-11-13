@@ -30633,11 +30633,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 0.792,
-            "label.offset": 0.95,
+            "label.offset": 1,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.95,
+            "label.anchor": 1,
             "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
@@ -30681,11 +30681,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.95,
+            "label.offset": 1,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.95,
+            "label.anchor": 1,
             "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
@@ -56466,35 +56466,9 @@
             }
         },
         "json-vis-nodelegend": {
-            "label.present": {
-                "floor": 1,
-                "to": 0.952,
-                "reason": "json-vis-nodelegend now records where vis-network drew each node, so these elements are judged for the first time. The legend nodes have no positions in the file and vis-network draws 1004 35 px below 1002, so 1002's Server label sits on 1004's position and the comparator names it as 1004's label (issue #7402); edge 1->204's label.rotation fails like its five sibling edges already listed.",
-                "date": "2026-11-13"
-            },
-            "label.text": {
-                "floor": 1,
-                "to": 0.95,
-                "reason": "json-vis-nodelegend now records where vis-network drew each node, so these elements are judged for the first time. The legend nodes have no positions in the file and vis-network draws 1004 35 px below 1002, so 1002's Server label sits on 1004's position and the comparator names it as 1004's label (issue #7402); edge 1->204's label.rotation fails like its five sibling edges already listed.",
-                "date": "2026-11-13"
-            },
             "label.rotation": {
                 "floor": 0.792,
                 "to": 0.778,
-                "reason": "json-vis-nodelegend now records where vis-network drew each node, so these elements are judged for the first time. The legend nodes have no positions in the file and vis-network draws 1004 35 px below 1002, so 1002's Server label sits on 1004's position and the comparator names it as 1004's label (issue #7402); edge 1->204's label.rotation fails like its five sibling edges already listed.",
-                "date": "2026-11-13"
-            }
-        },
-        "json-vis-nodelegend@matched": {
-            "label.present": {
-                "floor": 1,
-                "to": 0.952,
-                "reason": "json-vis-nodelegend now records where vis-network drew each node, so these elements are judged for the first time. The legend nodes have no positions in the file and vis-network draws 1004 35 px below 1002, so 1002's Server label sits on 1004's position and the comparator names it as 1004's label (issue #7402); edge 1->204's label.rotation fails like its five sibling edges already listed.",
-                "date": "2026-11-13"
-            },
-            "label.text": {
-                "floor": 1,
-                "to": 0.95,
                 "reason": "json-vis-nodelegend now records where vis-network drew each node, so these elements are judged for the first time. The legend nodes have no positions in the file and vis-network draws 1004 35 px below 1002, so 1002's Server label sits on 1004's position and the comparator names it as 1004's label (issue #7402); edge 1->204's label.rotation fails like its five sibling edges already listed.",
                 "date": "2026-11-13"
             }

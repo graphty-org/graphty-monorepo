@@ -2328,23 +2328,30 @@ export interface Association {
 
 /**
  * A vector oracle's own account of where its program drew each node (`drawn` in its metadata): the node's id, its
- * center and its bounding box's size, in the SVG's pixels (vis-network's getPositions and getBoundingBox).
+ * center and its bounding box's size and corners, in the SVG's pixels (vis-network's getPositions and getBoundingBox).
+ * The box holds the node's label, so a label drawn below the shape puts it off the center.
  */
 export interface DrawnNodes {
-    nodes: { id: string; x: number; y: number; w: number; h: number }[];
+    nodes: { id: string; x: number; y: number; w: number; h: number; box?: PBox }[];
 }
 
 /**
  * The oracle's primitives with each shape, picture or text drawn centered on a node the program says it drew there
  * named as that node, as markup would name it: the only identity a drawing with no ids and no legible labels has
  * (json-vis-siblings: no positions in the file, labels below vis-network's draw threshold). A primitive centered on
- * two drawn nodes, or larger than the node's box, stays unnamed.
+ * two drawn nodes, or larger than the node's box, stays unnamed. A text is named only for a node whose box is centered
+ * on it, one that draws its label inside its shape: a node whose label is drawn below its shape has a box off its
+ * center, and the text on its center is another node's label (json-vis-nodelegend: 1002's Server sits on 1004's dot).
  * @param prims - the oracle's primitives
  * @param drawn - where the program drew each node
  * @returns the primitives, the named ones with a node hint
  */
 export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[] {
+    const labelInside = (n: DrawnNodes["nodes"][number]): boolean =>
+        n.box === undefined ||
+        (Math.abs(cx(n.box) - n.x) <= 1 + 0.1 * n.w && Math.abs(cy(n.box) - n.y) <= 1 + 0.1 * n.h);
     const on = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
+        (p.kind === "shape" || p.kind === "image" || labelInside(n)) &&
         Math.abs(cx(p.box) - n.x) <= 1 + 0.1 * n.w &&
         Math.abs(cy(p.box) - n.y) <= 1 + 0.1 * n.h &&
         bw(p.box) <= 1.5 * n.w + 2 &&

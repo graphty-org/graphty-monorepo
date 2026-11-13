@@ -70,6 +70,7 @@ import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
 import type { LimitsOption } from "./session/limits";
 import { loadLineOf } from "./session/loadLine";
 import type { NoteChange } from "./session/notes/types";
+import { cancelReasonOf } from "./session/project/Dispatcher";
 import type { GraphSlice } from "./session/project/state";
 import {
     PROJECT_FILE,
@@ -3303,13 +3304,31 @@ export class Graphty extends LitElement {
     }
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
-     * not a step, and from 2D it switches to 3D first in the same step.
+     * not a step, and from 2D it switches to 3D first in the same step. A switch that fails is
+     * reported as `graph-error`; `setViewMode` hands the caller the failure instead.
      */
     set viewMode(value: ViewMode | undefined) {
         const oldValue = this.viewMode;
 
         if (value !== undefined) {
-            void this.#graph.setViewMode(value).catch(() => undefined);
+            void this.#graph.setViewMode(value).catch((error: unknown) => {
+                // A refused VR or AR entry is reported by the entry itself (context "xr"), and a
+                // layout the switch could not build by the layout (context "layout").
+                const reported =
+                    value === "vr" || value === "ar" || (isGraphtyError(error) && error.source === "layout");
+                if (!reported && cancelReasonOf(error) === undefined) {
+                    this.#graph
+                        .getEventManager()
+                        .emitGraphError(
+                            this.#graph,
+                            error instanceof Error ? error : new Error(String(error)),
+                            "other",
+                            {
+                                viewMode: value,
+                            },
+                        );
+                }
+            });
         }
 
         this.requestUpdate("viewMode", oldValue);

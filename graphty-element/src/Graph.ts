@@ -5995,10 +5995,14 @@ export class Graph implements GraphContext {
      * not a step -- it is a device session -- but VR and AR draw in 3D, so asking for one from 2D
      * switches to 3D first, and the switch and the entry are one step. When entry fails, because
      * the browser has no WebXR or the session is refused, nothing is recorded, the graph stays in
-     * the dimension it was in, and the failure is logged rather than thrown.
+     * the dimension it was in, the failure is reported as `graph-error` with context `"xr"`, and
+     * the returned promise rejects with it.
      * @param mode - The view mode to set: "2d", "3d", "ar", or "vr"
      * @param options - Optional queueing options; `skipQueue` switches at once.
      * @returns Promise that resolves when view mode is set
+     * @throws A `GraphtyError` (as a rejection) for VR or AR: `E_UNSUPPORTED` when XR is off
+     *     (`xr.enabled`) or the browser has no WebXR, `E_XR_SESSION_FAILED` when the browser or
+     *     headset refuses the session.
      * @example
      * ```typescript
      * // Switch to 2D orthographic view
@@ -6034,12 +6038,8 @@ export class Graph implements GraphContext {
             return;
         }
 
-        try {
-            // From 2D the op switches to 3D itself, in the same step.
-            await this.session.execute({ op: "view.immersive", mode });
-        } catch (error) {
-            console.warn(`[Graph] Cannot switch to ${mode} mode:`, error);
-        }
+        // From 2D the op switches to 3D itself, in the same step.
+        await this.session.execute({ op: "view.immersive", mode });
     }
 
     /**
@@ -6233,8 +6233,8 @@ export class Graph implements GraphContext {
      * session is not the document. From 2D, `session.execute` switches to 3D first, in the same
      * step. A failed entry is also reported as `graph-error` with context `"xr"`.
      * @param mode - VR, AR, or null to leave.
-     * @throws A `GraphtyError` with `E_UNSUPPORTED` without WebXR; whatever the browser rejects
-     *     the session with otherwise.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` without WebXR, or `E_XR_SESSION_FAILED` when
+     *     the session cannot start.
      */
     private async setImmersive(mode: "vr" | "ar" | null): Promise<void> {
         if (mode === null) {
@@ -6340,8 +6340,11 @@ export class Graph implements GraphContext {
     /**
      * Set XR configuration.
      * Merges the partial into the configuration in force, so `{ ui: { enabled: false } }` leaves
-     * the rest as it was. After init the XR session manager and the canvas buttons are rebuilt
-     * from it, ending an immersive session first, and `capabilities:changed` fires.
+     * the rest as it was. After init the canvas buttons are redrawn from it and
+     * `capabilities:changed` fires. A running VR or AR session keeps going: `input` drag settings
+     * apply at once, and the session settings (`vr`, `ar`, `input.handTracking`,
+     * `input.nearInteraction`) from the next session. Only turning `xr.enabled` on or off rebuilds
+     * XR, ending a running session first.
      * @param config - Partial XR configuration to apply
      */
     setXRConfig(config: PartialXRConfig): void {
@@ -6356,9 +6359,18 @@ export class Graph implements GraphContext {
             input: { ...current.input, ...patch.input },
         });
         this.graphContext.updateConfig({ xr: fullConfig });
-        if (this.initialized) {
-            void this.reinitializeXR();
+        if (!this.initialized) {
+            return;
         }
+
+        if (fullConfig.enabled !== current.enabled) {
+            void this.reinitializeXR();
+            return;
+        }
+
+        this.xrSessionManager?.configure(this.xrSessionConfig());
+        this.drawXRButtons();
+        this.xrAvailability.changed();
     }
 
     /**
@@ -8728,8 +8740,27 @@ export class Graph implements GraphContext {
     saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): void {
         assertViewName(name);
         // Checked above, so the immediate lane records it before this returns; a refusal from
-        // here on would be a defect, and is left unhandled on purpose.
-        void this.session.views.save([{ name, camera: camera ?? this.getCameraState() }]);
+        // here on would be a defect, reported as `graph-error`.
+        this.reportUnawaited(this.session.views.save([{ name, camera: camera ?? this.getCameraState() }]), {
+            op: "views.save",
+        });
+    }
+
+    /**
+     * Report a failure of work nobody awaits as `graph-error` (context `"other"`), instead of
+     * leaving it to the page's unhandled-rejection channel.
+     * @param work - The promise nobody holds.
+     * @param details - What the work was.
+     */
+    private reportUnawaited(work: Promise<unknown>, details: Record<string, unknown>): void {
+        work.catch((error: unknown) => {
+            this.eventManager.emitGraphError(
+                this,
+                error instanceof Error ? error : new Error(String(error)),
+                "other",
+                details,
+            );
+        });
     }
 
     /**
@@ -8870,7 +8901,8 @@ export class Graph implements GraphContext {
         }
 
         if (views.length > 0) {
-            void this.session.views.save(views);
+            // A name the views refuse rejects; nobody holds this promise, so it is reported.
+            this.reportUnawaited(this.session.views.save(views), { op: "views.save" });
         }
     }
 
@@ -9674,17 +9706,7 @@ export class Graph implements GraphContext {
     private initializeXR(): void {
         const xrConfig = this.xrConfig();
         if (xrConfig.enabled) {
-            // The headset can end the session itself; the view then leaves VR or AR as it would
-            // for `view.immersive` with `null` (`xrSessionEnded`).
-            this.xrSessionManager = new XRSessionManager(this.scene, {
-                vr: xrConfig.vr,
-                ar: xrConfig.ar,
-                handTracking: xrConfig.input.handTracking,
-                nearInteraction: xrConfig.input.nearInteraction,
-                onSessionEnded: ({ mode, cause }) => {
-                    this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
-                },
-            });
+            this.xrSessionManager = new XRSessionManager(this.scene, this.xrSessionConfig());
         }
 
         this.#unwatchXrButtons ??= this.xrAvailability.onChange(() => {
@@ -9720,6 +9742,25 @@ export class Graph implements GraphContext {
                 .catch((error: unknown) => {
                     console.error("Failed to enter XR mode:", error);
                 });
+        };
+    }
+
+    /**
+     * What the XR session manager starts sessions with, from the configuration in force.
+     * @returns The session manager's configuration.
+     */
+    private xrSessionConfig(): ConstructorParameters<typeof XRSessionManager>[1] {
+        const { vr, ar, input } = this.xrConfig();
+        return {
+            vr,
+            ar,
+            handTracking: input.handTracking,
+            nearInteraction: input.nearInteraction,
+            // The headset can end the session itself; the view then leaves VR or AR as it would
+            // for `view.immersive` with `null` (`xrSessionEnded`).
+            onSessionEnded: ({ mode, cause }) => {
+                this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+            },
         };
     }
 
@@ -9766,10 +9807,17 @@ export class Graph implements GraphContext {
     /**
      * Enter XR mode (VR or AR)
      * @param mode - The XR mode to enter ('immersive-vr' or 'immersive-ar')
+     * @throws A `GraphtyError`: `E_UNSUPPORTED` when XR is off or the browser has no WebXR,
+     *     `E_XR_SESSION_FAILED` when the session cannot start. Nothing is left running.
      */
     public async enterXR(mode: "immersive-vr" | "immersive-ar"): Promise<void> {
         if (!this.xrSessionManager) {
-            throw new Error("XR is not initialized");
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "XR is off for this graph (xr.enabled).",
+                source: "view",
+                details: { mode: immersiveOf(mode), reason: "xr-disabled" },
+            });
         }
 
         // Inside the click that entered, before anything waits: a headset asks for the microphone
@@ -9783,9 +9831,28 @@ export class Graph implements GraphContext {
             await this.xrSessionManager.enterAR(previousCamera ?? undefined);
         }
         this.immersiveSince = `${mode === "immersive-vr" ? "vr" : "ar"}:${new Date().toISOString()}`;
+        try {
+            await this.bindXRSession();
+        } catch (error) {
+            // The session started but cannot be driven: end it rather than leave it running.
+            await this.exitXR().catch((exitError: unknown) => {
+                graphLogger.warn("Could not end the XR session that failed to start", { error: exitError });
+            });
+            throw GraphtyError.wrap(error, {
+                code: "E_XR_SESSION_FAILED",
+                source: "view",
+                recoverable: true,
+                details: { mode: immersiveOf(mode) },
+            });
+        }
+    }
 
-        // Phase 3: Set up XR camera controller and input handler
-        const xrHelper = this.xrSessionManager.getXRHelper();
+    /**
+     * Drive the session just entered: the XR camera controller, its per-frame update, and the
+     * assistant's controls.
+     */
+    private async bindXRSession(): Promise<void> {
+        const xrHelper = this.xrSessionManager?.getXRHelper();
         if (!xrHelper) {
             throw new Error("XR helper not available after session creation");
         }

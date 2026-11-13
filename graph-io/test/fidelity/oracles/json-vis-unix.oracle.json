@@ -3,7 +3,7 @@
     "program": "vis-network",
     "version": "vis-network 9.1.9 (standalone), svgcanvas 2.6.0",
     "command": "new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); once(\"stabilizationIterationsDone\"); stopSimulation(); net.renderer._redraw() onto an svgcanvas Context",
-    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring) and shadow blur (a shadow is drawn sharp); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
+    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed (with the paths added to it), a clip keeps its evenodd rule, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
     "svgKind": "vector",
     "canvas": {
         "width": 1200,
@@ -29,6 +29,298 @@
             "x": -72.50938247550037,
             "y": -1.7291938284701611
         }
+    },
+    "drawn": {
+        "about": "vis-network's own account of where it drew each node, for naming the SVG's shapes: each node's id, its center (net.getPositions() through net.canvasToDOM) and its bounding box's width and height (net.getBoundingBox through net.canvasToDOM), in the SVG's pixels",
+        "nodes": [
+            {
+                "id": "5th Edition",
+                "x": 618.2494311781165,
+                "y": 372.94181127925754,
+                "w": 44.99752071247724,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "6th Edition",
+                "x": 532.9228784155662,
+                "y": 445.35710934747453,
+                "w": 44.99752071247724,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "PWB 1.0",
+                "x": 728.8371344295797,
+                "y": 321.85815140167813,
+                "w": 38.86916998948334,
+                "h": 15.718049193101422
+            },
+            {
+                "id": "LSX",
+                "x": 485.2073719365085,
+                "y": 377.9940413770401,
+                "w": 22.71365556005054,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "1 BSD",
+                "x": 511.02988132517504,
+                "y": 535.7358922078074,
+                "w": 30.572680156601223,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "Mini Unix",
+                "x": 443.105454454987,
+                "y": 428.51634235486597,
+                "w": 40.173890869770105,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "Wollongong",
+                "x": 455.45535024956666,
+                "y": 489.7044624280106,
+                "w": 49.22251391599394,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "Interdata",
+                "x": 638.4583515692468,
+                "y": 450.40933944525716,
+                "w": 38.8806822325447,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "Unix/TS 3.0",
+                "x": 632.283403671957,
+                "y": 333.08532939675047,
+                "w": 48.91552076769119,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "PWB 2.0",
+                "x": 694.0328826448552,
+                "y": 403.81655076570667,
+                "w": 38.86916998948334,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "7th Edition",
+                "x": 718.7326742340146,
+                "y": 536.8586100073146,
+                "w": 44.997520712477126,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "8th Edition",
+                "x": 781.0435121066664,
+                "y": 624.4305983688794,
+                "w": 44.997520712477126,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "32V",
+                "x": 704.1373428404204,
+                "y": 632.8509818651837,
+                "w": 21.84256250174144,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "V7M",
+                "x": 665.9649376571742,
+                "y": 580.644604188097,
+                "w": 24.018376440337306,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "Ultrix-11",
+                "x": 619.9335078773773,
+                "y": 569.9787850927783,
+                "w": 36.53218464802853,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "Xenix",
+                "x": 774.307205309623,
+                "y": 473.9864132349092,
+                "w": 27.518098330988778,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "UniPlus+",
+                "x": 808.5500981945938,
+                "y": 523.3859964132278,
+                "w": 39.52920525833429,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "9th Edition",
+                "x": 864.6859881699559,
+                "y": 618.8170093713433,
+                "w": 44.99752071247724,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "2 BSD",
+                "x": 513.8366758239431,
+                "y": 615.4488559728215,
+                "w": 30.572680156601223,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "2.8 BSD",
+                "x": 591.8655628896963,
+                "y": 662.041644652372,
+                "w": 37.12698387286525,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "2.9 BSD",
+                "x": 530.6774428165518,
+                "y": 720.9843291265022,
+                "w": 37.12698387286514,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "3 BSD",
+                "x": 666.5262965569278,
+                "y": 718.7388935274876,
+                "w": 30.572680156601223,
+                "h": 15.718049193101251
+            },
+            {
+                "id": "4 BSD",
+                "x": 677.7534745520003,
+                "y": 780.4883725003858,
+                "w": 30.572680156601223,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "4.1 BSD",
+                "x": 715.9258797352464,
+                "y": 708.0730744321688,
+                "w": 37.12698387286514,
+                "h": 15.718049193101251
+            },
+            {
+                "id": "4.2 BSD",
+                "x": 797.3229201995214,
+                "y": 771.506630104328,
+                "w": 37.12698387286514,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "4.3 BSD",
+                "x": 802.9365091970576,
+                "y": 851.219593869342,
+                "w": 37.12698387286514,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "Ultrix-32",
+                "x": 878.1586017640427,
+                "y": 773.7520657033424,
+                "w": 37.11547162980389,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "PWB 1.2",
+                "x": 770.3776930113477,
+                "y": 387.53714267285164,
+                "w": 38.86916998948334,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "USG 1.0",
+                "x": 790.586613402478,
+                "y": 235.40888083962056,
+                "w": 37.998076931174296,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "CB Unix 1",
+                "x": 786.6571011042026,
+                "y": 152.32776367608477,
+                "w": 43.23614752409014,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "USG 2.0",
+                "x": 813.6023282923763,
+                "y": 288.7379763162145,
+                "w": 37.99807693117418,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "CB Unix 2",
+                "x": 715.3645208354928,
+                "y": 118.08487079111393,
+                "w": 43.23614752409014,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "CB Unix 3",
+                "x": 626.6698146744209,
+                "y": 131.55748438520084,
+                "w": 43.23614752409014,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "Unix/TS++",
+                "x": 554.8158755059574,
+                "y": 146.71417467854855,
+                "w": 44.98600846941588,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "PDP-11 Sys V",
+                "x": 623.301661275899,
+                "y": 49.03772612141864,
+                "w": 57.50365409146093,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "USG 3.0",
+                "x": 719.2940331337682,
+                "y": 289.2993352159681,
+                "w": 37.998076931174296,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "Unix/TS 1.0",
+                "x": 552.0090810071894,
+                "y": 320.7354336021708,
+                "w": 48.91552076769119,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "TS 4.0",
+                "x": 578.9543081953631,
+                "y": 223.0589850450409,
+                "w": 31.010145392932714,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "System V.0",
+                "x": 482.961936337494,
+                "y": 224.18170284454817,
+                "w": 47.31915639651686,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "System V.2",
+                "x": 400.44217807371183,
+                "y": 215.19996044849023,
+                "w": 47.3191563965168,
+                "h": 15.718049193101365
+            },
+            {
+                "id": "System V.3",
+                "x": 326.9041622059876,
+                "y": 201.72734685440335,
+                "w": 47.31915639651686,
+                "h": 15.718049193101336
+            }
+        ]
     },
     "pageErrors": []
 }

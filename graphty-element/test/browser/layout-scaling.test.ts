@@ -11,8 +11,9 @@
  * with it -- n/4 calls in a loop -- so a cost per call that grows with the graph shows up as a
  * quadratic loop.
  *
- * A call whose work grows faster than its reach today is an expected failure naming the issue
- * that records it, so the fix turns it green and its methods move into the registry.
+ * A call whose work grows faster than its reach today names the issue that records it: its test
+ * asserts the growth still exceeds the bound (every correctness check still has to pass), so the
+ * fix turns it red, and then its methods move into the registry.
  *
  * The render loop is stopped, so no frame runs while a call is counted, and strict state is off,
  * as it is for a consumer (see `data-path-scaling.test.ts`).
@@ -100,8 +101,8 @@ interface Case {
     /** `linear` when the call reaches every node, `constant` when it reaches one record. */
     readonly growth: Growth;
     /**
-     * The issue recording that the call does more work than its reach today. Its test is expected
-     * to fail until the issue is fixed, and its methods stay out of the registry.
+     * The issue recording that the call does more work than its reach today. Its test asserts the
+     * growth still exceeds the bound until the issue is fixed, and its methods stay out of the registry.
      */
     readonly superlinear?: number;
     /** The layout engine the graph runs before the call; `random` when absent. */
@@ -408,10 +409,10 @@ describe("layout, positions and pinning do work in proportion to their reach", (
 
     for (const { methods, growth, superlinear, layout, prepare, check } of CASES) {
         const reach = growth === "linear" ? "no more than linear in the graph" : "about the same at any size";
-        // A call with an open superlinear issue is expected to fail, so the fix turns it green.
-        const test = superlinear === undefined ? it : it.fails;
+        // A call with an open superlinear issue must still exceed the bound (so its fix turns the test
+        // red) and must still pass its check: only the growth assertion is inverted.
         const name = `${methods.join(", ")}: ${reach}`;
-        test(superlinear === undefined ? name : `${name} (not yet: #${String(superlinear)})`, async () => {
+        it(superlinear === undefined ? name : `${name} (not yet: #${String(superlinear)})`, async () => {
             await assertScalesLinearly(
                 async (size) => {
                     const element = await mount(size, layout ?? "random");
@@ -424,7 +425,7 @@ describe("layout, positions and pinning do work in proportion to their reach", (
                         element.remove();
                     }
                 },
-                { sizes: SIZES, growth, counter: `elements visited by ${methods.join(", ")}` },
+                { sizes: SIZES, growth, counter: `elements visited by ${methods.join(", ")}`, superlinear },
             );
         });
     }

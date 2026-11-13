@@ -63,7 +63,7 @@ import {
     superseded,
 } from "./master-guard.mjs";
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
-import { summarize } from "./pr-status-broker.mjs";
+import { fetchAll, summarize } from "./pr-status-broker.mjs";
 import { BIN_LIMIT_MS, binCost, packBins } from "./test-select.mjs";
 import {
     fingerprint,
@@ -6172,6 +6172,37 @@ describe("pr-status-broker", () => {
         assert.equal(b.state, null);
         assert.equal(b.author, null, "a deleted account");
         assert.deepEqual(b.checks, {});
+    });
+
+    it("follows the pages of open pull requests and sums their cost", async () => {
+        const asked = [];
+        const page = (after, nodes, next) => ({
+            rateLimit: { remaining: 100 - asked.length, resetAt: "r", cost: 1 },
+            repository: { pullRequests: { pageInfo: { hasNextPage: next, endCursor: `c${asked.length}` }, nodes } },
+        });
+        const data = await fetchAll(async (after) => {
+            asked.push(after);
+            return asked.length === 1 ? page(after, [{ number: 1 }], true) : page(after, [{ number: 2 }], false);
+        });
+        assert.deepEqual(asked, [null, "c1"]);
+        assert.deepEqual(
+            data.repository.pullRequests.nodes.map((pr) => pr.number),
+            [1, 2],
+        );
+        assert.equal(data.repository.pullRequests.pageInfo.hasNextPage, false);
+        assert.deepEqual(data.rateLimit, { remaining: 98, resetAt: "r", cost: 2 });
+    });
+
+    it("stops after its last page and says the list is incomplete", async () => {
+        let n = 0;
+        const data = await fetchAll(async () => ({
+            rateLimit: { cost: 1 },
+            repository: {
+                pullRequests: { pageInfo: { hasNextPage: true, endCursor: `c${++n}` }, nodes: [{ number: n }] },
+            },
+        }));
+        assert.equal(n, 10);
+        assert.equal(data.repository.pullRequests.pageInfo.hasNextPage, true);
     });
 });
 

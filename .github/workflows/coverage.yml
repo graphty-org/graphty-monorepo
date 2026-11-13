@@ -16,42 +16,9 @@ env:
     SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
 
 jobs:
-    # Merge blob reports from graphty-element shards
-    merge-reports:
-        name: Merge Test Reports
-        runs-on: ubuntu-24.04
-        steps:
-            - uses: actions/checkout@v7
-              with:
-                  ref: ${{ inputs.ref }}
-
-            - uses: pnpm/action-setup@v6
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v7
-              with:
-                  node-version: 22.x
-                  cache: "pnpm"
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
-
-            - name: Download all blob reports
-              uses: actions/download-artifact@v8
-              with:
-                  pattern: blob-report-*
-                  path: graphty-element/.vitest-reports
-                  merge-multiple: true
-
-            - name: Merge test reports
-              run: cd graphty-element && pnpm exec vitest --merge-reports || true
-
     # Merge and publish coverage to Coveralls
     coverage:
         name: Publish Coverage
-        needs: merge-reports
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v7
@@ -101,11 +68,11 @@ jobs:
                   echo "Downloaded coverage artifacts:"
                   find coverage-reports -name 'lcov.info' -exec ls -la {} \;
 
+            # fails the job on any missing package or failed merge, so coverage/lcov.info exists after it
             - name: Merge coverage reports
               run: ./tools/merge-coverage.sh --ci --artifacts coverage-reports
 
             - name: Publish to Coveralls
-              if: hashFiles('coverage/lcov.info') != ''
               uses: coverallsapp/github-action@v2
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}

@@ -61,6 +61,10 @@ export interface SessionMetadata {
 interface SessionData {
     metadata: SessionMetadata;
     logs: LogEntry[];
+    /** When the server received each entry of `logs` (epoch ms), in the same order; retention and eviction use it */
+    receivedMs: number[];
+    /** When the server last received logs for the session (epoch ms) */
+    lastActivityMs: number;
 }
 
 /**
@@ -186,6 +190,15 @@ const DEFAULT_RETENTION_DAYS = 7;
  */
 const DEFAULT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
+/** Default number of logs kept per session. */
+const DEFAULT_MAX_LOGS_PER_SESSION = 10_000;
+
+/** Default number of logs kept across all sessions. */
+const DEFAULT_MAX_TOTAL_LOGS = 100_000;
+
+/** Default number of sessions kept. */
+const DEFAULT_MAX_SESSIONS = 1_000;
+
 /**
  * Options for LogStorage constructor.
  */
@@ -196,6 +209,27 @@ export interface LogStorageOptions {
     retentionDays?: number;
     /** Interval between cleanup checks in milliseconds (default: 1 hour) */
     cleanupIntervalMs?: number;
+    /** Logs kept per session; the oldest are dropped beyond it (default: 10,000) */
+    maxLogsPerSession?: number;
+    /** Logs kept across all sessions; the oldest received are dropped beyond it (default: 100,000) */
+    maxTotalLogs?: number;
+    /** Sessions kept; a new session drops the one idle longest beyond it (default: 1,000) */
+    maxSessions?: number;
+}
+
+/**
+ * Count the ERROR level logs in a list.
+ * @param logs - The log entries
+ * @returns The number of ERROR logs
+ */
+function countErrors(logs: LogEntry[]): number {
+    let count = 0;
+    for (const log of logs) {
+        if (log.level.toUpperCase() === "ERROR") {
+            count++;
+        }
+    }
+    return count;
 }
 
 /**
@@ -252,6 +286,10 @@ export class LogStorage {
     private readonly startTime = Date.now();
     private readonly jsonlWriter?: JsonlWriter;
     private readonly retentionDays: number;
+    private readonly maxLogsPerSession: number;
+    private readonly maxTotalLogs: number;
+    private readonly maxSessions: number;
+    private totalLogs = 0;
     private cleanupTimer?: ReturnType<typeof setInterval>;
     private serverConfig?: ServerConfig;
 
@@ -268,6 +306,9 @@ export class LogStorage {
             options.retentionDays ??
             (envRetention ? parseIntegerSetting("REMOTE_LOG_RETENTION_DAYS", envRetention, 1) : undefined) ??
             DEFAULT_RETENTION_DAYS;
+        this.maxLogsPerSession = options.maxLogsPerSession ?? DEFAULT_MAX_LOGS_PER_SESSION;
+        this.maxTotalLogs = options.maxTotalLogs ?? DEFAULT_MAX_TOTAL_LOGS;
+        this.maxSessions = options.maxSessions ?? DEFAULT_MAX_SESSIONS;
 
         // Start periodic cleanup timer
         const cleanupInterval = options.cleanupIntervalMs ?? DEFAULT_CLEANUP_INTERVAL_MS;
@@ -303,7 +344,11 @@ export class LogStorage {
         // Refuse before storing anything: the marker becomes a directory name for the JSONL file
         assertSafeMarker(projectMarker);
 
+        const now = Date.now();
         if (!sessionData) {
+            if (this.sessions.size >= this.maxSessions) {
+                this.evictIdlestSession();
+            }
             // Create new session
             sessionData = {
                 metadata: {
@@ -317,13 +362,19 @@ export class LogStorage {
                     errorCount: 0,
                 },
                 logs: [],
+                receivedMs: [],
+                lastActivityMs: now,
             };
             this.sessions.set(sessionId, sessionData);
         }
 
+        sessionData.lastActivityMs = now;
+
         // Add logs and update metadata
         for (const log of logs) {
             sessionData.logs.push(log);
+            sessionData.receivedMs.push(now);
+            this.totalLogs++;
             sessionData.metadata.logCount++;
             sessionData.metadata.lastLogTime = log.time;
 
@@ -344,6 +395,11 @@ export class LogStorage {
                 });
             }
         }
+
+        if (sessionData.logs.length > this.maxLogsPerSession) {
+            this.dropOldest(sessionData, sessionData.logs.length - this.maxLogsPerSession);
+        }
+        this.enforceTotalCap();
 
         // Update optional metadata if provided
         if (options.worktreePath && !sessionData.metadata.worktreePath) {
@@ -446,7 +502,7 @@ export class LogStorage {
         if (!filter.projectMarker && !filter.sessionId) {
             // Clear all
             cleared = this.sessions.size;
-            this.sessions.clear();
+            this.clear();
         } else {
             // Clear selectively
             const toDelete: string[] = [];
@@ -461,7 +517,7 @@ export class LogStorage {
             }
 
             for (const sessionId of toDelete) {
-                this.sessions.delete(sessionId);
+                this.deleteSession(sessionId);
                 cleared++;
             }
         }
@@ -474,6 +530,7 @@ export class LogStorage {
      */
     clear(): void {
         this.sessions.clear();
+        this.totalLogs = 0;
     }
 
     /**
@@ -648,34 +705,21 @@ export class LogStorage {
         const sessionsToRemove: string[] = [];
 
         for (const [sessionId, sessionData] of this.sessions) {
-            // Filter out expired logs
-            const remainingLogs = sessionData.logs.filter((log) => new Date(log.time).getTime() > cutoffMs);
+            // Expire by the server's receive time, never the client's clock. Entries are in receive order,
+            // so the expired ones are a prefix.
+            const expired = sessionData.receivedMs.findIndex((ms) => ms > cutoffMs);
 
-            if (remainingLogs.length === 0) {
+            if (expired === -1) {
                 // Session has no remaining logs, mark for removal
                 sessionsToRemove.push(sessionId);
-            } else if (remainingLogs.length !== sessionData.logs.length) {
-                // Some logs were removed, update the session
-                sessionData.logs = remainingLogs;
-
-                // Recalculate metadata
-                let errorCount = 0;
-                for (const log of remainingLogs) {
-                    if (log.level.toUpperCase() === "ERROR") {
-                        errorCount++;
-                    }
-                }
-
-                sessionData.metadata.logCount = remainingLogs.length;
-                sessionData.metadata.errorCount = errorCount;
-                sessionData.metadata.firstLogTime = remainingLogs[0].time;
-                sessionData.metadata.lastLogTime = remainingLogs[remainingLogs.length - 1].time;
+            } else if (expired > 0) {
+                this.dropOldest(sessionData, expired);
             }
         }
 
         // Remove empty sessions
         for (const sessionId of sessionsToRemove) {
-            this.sessions.delete(sessionId);
+            this.deleteSession(sessionId);
         }
 
         // Clean up old JSONL files
@@ -684,5 +728,85 @@ export class LogStorage {
         }
 
         return sessionsToRemove.length;
+    }
+
+    /**
+     * Remove a session and its logs.
+     * @param sessionId - The session to remove
+     */
+    private deleteSession(sessionId: string): void {
+        const sessionData = this.sessions.get(sessionId);
+        if (sessionData) {
+            this.totalLogs -= sessionData.logs.length;
+            this.sessions.delete(sessionId);
+        }
+    }
+
+    /**
+     * Drop a session's oldest logs and keep its metadata in step; a session left empty is removed.
+     * @param sessionData - The session
+     * @param count - How many logs to drop
+     */
+    private dropOldest(sessionData: SessionData, count: number): void {
+        const removed = sessionData.logs.splice(0, count);
+        sessionData.receivedMs.splice(0, count);
+        this.totalLogs -= removed.length;
+        if (sessionData.logs.length === 0) {
+            this.sessions.delete(sessionData.metadata.sessionId);
+            return;
+        }
+        const { metadata } = sessionData;
+        metadata.logCount = sessionData.logs.length;
+        metadata.errorCount -= countErrors(removed);
+        metadata.firstLogTime = sessionData.logs[0].time;
+        metadata.lastLogTime = sessionData.logs[sessionData.logs.length - 1].time;
+    }
+
+    /**
+     * Remove the session that has gone longest without receiving logs.
+     */
+    private evictIdlestSession(): void {
+        let idlest: SessionData | undefined;
+        for (const sessionData of this.sessions.values()) {
+            if (!idlest || sessionData.lastActivityMs < idlest.lastActivityMs) {
+                idlest = sessionData;
+            }
+        }
+        if (idlest) {
+            this.deleteSession(idlest.metadata.sessionId);
+        }
+    }
+
+    /**
+     * Drop the oldest received logs across all sessions until the total is within its cap.
+     */
+    private enforceTotalCap(): void {
+        while (this.totalLogs > this.maxTotalLogs) {
+            // The session holding the oldest entry, and the receive time of the next session's oldest entry
+            let oldest: SessionData | undefined;
+            let nextOldestMs = Infinity;
+            for (const sessionData of this.sessions.values()) {
+                if (sessionData.receivedMs.length === 0) {
+                    continue;
+                }
+                const first = sessionData.receivedMs[0];
+                if (!oldest || first < oldest.receivedMs[0]) {
+                    nextOldestMs = oldest ? oldest.receivedMs[0] : nextOldestMs;
+                    oldest = sessionData;
+                } else if (first < nextOldestMs) {
+                    nextOldestMs = first;
+                }
+            }
+            if (!oldest) {
+                return;
+            }
+            // Drop that session's entries up to the next session's oldest, at least one, and no more than the excess
+            const excess = this.totalLogs - this.maxTotalLogs;
+            let count = 1;
+            while (count < excess && count < oldest.receivedMs.length && oldest.receivedMs[count] <= nextOldestMs) {
+                count++;
+            }
+            this.dropOldest(oldest, count);
+        }
     }
 }

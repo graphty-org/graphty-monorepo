@@ -5,8 +5,10 @@
  * container node with its members nested inside), then every logical edge in index order with its
  * explicit weight, `key` (the edge id role), ports and attributes.
  *
- * What the format keeps and what check() reports: any id and any text (DOT quotes everything
- * except a text ending in a backslash, which the lexer cannot read back); bool / i32 / f64 cells
+ * What the format keeps and what check() reports: any id and any text (written quoted, except an HTML
+ * string, written bare: one the importer listed in `meta.extra.dot.html`, or, for a graph with no such
+ * list, any text shaped like `<...>` with balanced brackets; a text with a backslash
+ * before a quote or a line break, or at its end, cannot be quoted and fails the save); bool / i32 / f64 cells
  * (f64 written with a decimal point so the dtype survives re-import; other numeric dtypes are
  * written and read back inferred); containment through the parent role (clusters); graph
  * attributes; node positions as `pos="x,y"`. Mixed direction is folded per onMixedDirection
@@ -41,7 +43,7 @@ import {
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
-import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotStyledExport, isHtmlString } from "./styles.js";
+import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotHtmlTexts, dotStyledExport } from "./styles.js";
 
 /** The node columns written as rank subgraphs rather than as node attributes. */
 const RANK_COLUMNS: ReadonlySet<string> = new Set([RANK_COLUMN, RANK_SET_COLUMN]);
@@ -330,15 +332,6 @@ function endsWithBackslash(text: string): boolean {
 }
 
 /**
- * Write a text as a DOT ID: an HTML string bare, everything else through quoteDotId.
- * @param text - the text
- * @returns the DOT ID
- */
-function writeId(text: string): string {
-    return isHtmlString(text) ? text : quoteDotId(text);
-}
-
-/**
  * Write a port text (`f0`, `f0:ne`, `ne`) as its DOT spelling after the endpoint.
  * @param port - the port text
  * @returns `:port[:compass]`
@@ -530,6 +523,9 @@ class ExportPlan {
 
     private readonly extraNotes: LossNote[] = [];
 
+    /** The texts written as HTML strings (styles.ts dotHtmlTexts). */
+    private readonly html: ReadonlySet<string>;
+
     /**
      * Plan one export.
      * @param snapshot - the snapshot
@@ -539,6 +535,7 @@ class ExportPlan {
     constructor(snapshot: GraphSnapshot, resolved: ResolvedExportOptions, options?: DotExportOptions) {
         this.snapshot = snapshot;
         this.resolved = resolved;
+        this.html = dotHtmlTexts(snapshot);
         const { indent, name, strict } = options ?? {};
         if (name !== undefined && name !== null && typeof name !== "string") {
             throw badOption("name", name, "a string or null");
@@ -909,7 +906,7 @@ class ExportPlan {
             if (rank.isSet(i) && set.isSet(i)) {
                 const key = String(set.value(i));
                 const entry = sets.get(key) ?? { rank: String(rank.value(i)), members: [] };
-                entry.members.push(writeId(this.idText(i)));
+                entry.members.push(this.writeId(this.idText(i)));
                 sets.set(key, entry);
             }
         }
@@ -947,7 +944,7 @@ class ExportPlan {
             yield `${pad}${this.nodeStatement(i, idText)};\n`;
         }
         const inner = `${pad}${this.indent}`;
-        yield `${pad}subgraph ${writeId(idText)} {\n`;
+        yield `${pad}subgraph ${this.writeId(idText)} {\n`;
         if (!idText.startsWith(CLUSTER_PREFIX)) {
             yield `${inner}cluster=true;\n`;
         }
@@ -959,7 +956,7 @@ class ExportPlan {
         }
         for (const child of kids) {
             if (emitted[child] === 1) {
-                yield `${inner}${writeId(this.idText(child))};\n`;
+                yield `${inner}${this.writeId(this.idText(child))};\n`;
             } else {
                 yield* this.writeNode(child, depth + 1, emitted);
             }
@@ -975,7 +972,7 @@ class ExportPlan {
      */
     private nodeStatement(i: number, idText: string): string {
         const attributes = this.nodeAttributes(i);
-        return attributes.length === 0 ? writeId(idText) : `${writeId(idText)} [${attributes.join(", ")}]`;
+        return attributes.length === 0 ? this.writeId(idText) : `${this.writeId(idText)} [${attributes.join(", ")}]`;
     }
 
     /**
@@ -1046,7 +1043,7 @@ class ExportPlan {
                 text = "UTF-8";
             }
             if (text !== null) {
-                out.push(`${quoteDotId(this.attributeName(column))}=${writeId(text)}`);
+                out.push(`${quoteDotId(this.attributeName(column))}=${this.writeId(text)}`);
             }
         }
         return out;
@@ -1072,10 +1069,10 @@ class ExportPlan {
             }
             const key = this.keyText(e);
             if (key !== null) {
-                attributes.unshift(`${KEY_ATTRIBUTE}=${writeId(key)}`);
+                attributes.unshift(`${KEY_ATTRIBUTE}=${this.writeId(key)}`);
             }
-            const source = `${writeId(this.idText(list.src[e]))}${this.portText(this.sourcePort, e)}`;
-            const target = `${writeId(this.idText(list.dst[e]))}${this.portText(this.targetPort, e)}`;
+            const source = `${this.writeId(this.idText(list.src[e]))}${this.portText(this.sourcePort, e)}`;
+            const target = `${this.writeId(this.idText(list.dst[e]))}${this.portText(this.targetPort, e)}`;
             const tail = attributes.length === 0 ? "" : ` [${attributes.join(", ")}]`;
             yield `${indent}${source} ${op} ${target}${tail};\n`;
         }
@@ -1109,6 +1106,16 @@ class ExportPlan {
         }
         const text = cellText(column, e);
         return text === null || text.length === 0 ? "" : writePort(text);
+    }
+
+    /**
+     * Write a text as a DOT ID: an HTML string (styles.ts dotHtmlTexts) bare, everything else through quoteDotId (a
+     * quoted `"<init>"` decodes to the same text as the HTML `<init>`, so the DOT importer records which was which).
+     * @param text - the text
+     * @returns the DOT ID
+     */
+    private writeId(text: string): string {
+        return this.html.has(text) ? text : quoteDotId(text);
     }
 
     /**

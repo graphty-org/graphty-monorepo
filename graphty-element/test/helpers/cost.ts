@@ -23,6 +23,12 @@ export interface ScalingOptions {
     readonly counter?: string | (() => string);
     /** A tighter bound on large / small than `growth` gives, for a test that held one before. */
     readonly maxRatio?: number;
+    /**
+     * The open issue recording that the operation still grows faster than `growth` allows. The
+     * assertion is then inverted: it requires the growth to exceed the bound, so a fix turns the
+     * test red and the field is deleted. Everything else `measure` checks still has to pass.
+     */
+    readonly superlinear?: number;
 }
 
 /**
@@ -53,7 +59,15 @@ export async function assertScalesLinearly(
 
     // A count of 0 means the counter saw nothing, not that the operation is free.
     assert.isAbove(small, 0, message);
-    assert.isAtMost(large, allowed * small, message);
+    if (options.superlinear === undefined) {
+        assert.isAtMost(large, allowed * small, message);
+    } else {
+        assert.isAbove(
+            large,
+            allowed * small,
+            `${message}; expected to exceed the bound until issue #${String(options.superlinear)} is fixed`,
+        );
+    }
     return { small, large };
 }
 

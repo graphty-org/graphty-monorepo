@@ -260,9 +260,10 @@ export class EdgeRowLines {
             () => rows.positionTexture,
             { route: "straight", lean: this.host.lean() },
         );
-        const piece = batch.acquire();
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
-        batch.setLook(piece, look.rgb, look.opacity, EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20);
+        const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
+        const piece = batch.acquire(drawnWidth);
+        batch.setLook(piece, look.rgb, look.opacity, drawnWidth);
         batch.setRows(piece, source, target);
         let at = this.batches.indexOf(batch);
         if (at === -1) {

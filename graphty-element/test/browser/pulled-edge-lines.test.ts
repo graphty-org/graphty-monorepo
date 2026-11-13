@@ -164,6 +164,8 @@ describe("pulled edge lines", () => {
                         EDGES * (lean ? 6 : 30),
                         `${name}: indices drawn`,
                     );
+                    // The index list lives on the GPU only: no CPU copy kept after upload (30 indices, 120 B, per edge).
+                    assert.strictEqual(pulled.mesh.getIndices()?.length ?? 0, 0, `${name}: CPU index copy kept`);
 
                     placeAll();
                     const [still, stillPulled] = await both();

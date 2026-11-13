@@ -13,6 +13,8 @@ import { fileURLToPath } from "node:url";
 const gate = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
 // run under tools/low-priority.sh, every waiter here would be in the low lane
 delete process.env.BROWSER_SLOT_PRIORITY;
+// the gate logs each wait to the machine's tmp/waits.jsonl; a planted pool's waits are not the machine's
+process.env.PIPELINE_WAIT_LOG = "off";
 const until = async (cond) => {
     while (!cond()) await new Promise((ok) => setTimeout(ok, 50));
 };

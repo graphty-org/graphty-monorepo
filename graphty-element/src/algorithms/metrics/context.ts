@@ -52,7 +52,7 @@ export function detachedRunContext(runId: string): MetricRunContext {
  * turn once a frame's worth of work has built up.
  * @param items - What to visit, in order.
  * @param context - Where progress goes and where cancellation arrives.
- * @param phase - What to call this step in a progress line.
+ * @param phase - The step, as a kebab-case code (`"reading-scores"`) an application words; never a sentence.
  * @param visit - What to do with one item.
  * @returns A promise that settles once every item has been visited.
  * @throws Whatever `signal.throwIfAborted` throws once the run has been cancelled, which is a

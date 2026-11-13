@@ -261,6 +261,7 @@ describe("gateRun: above the cap with no approximate method", () => {
         const scopes = details.scopes as readonly { scope: unknown; seconds: number; exact: boolean }[];
         assert.lengthOf(scopes, 1);
         assert.equal(scopes[0].scope, "largest-component");
+        assert.notProperty(scopes[0], "label", "the scope names the kind; an application words it");
         assert.isAtMost(scopes[0].seconds, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS);
         assert.isFalse(scopes[0].exact, "the edge count of a component is scaled, and must not read as counted");
     });

@@ -311,6 +311,17 @@ describe("Neo4j robustness: typed values", () => {
         expect(value(s, "nodes", "d.text", 0)).toBe("2020-01-01T00:00:00[Europe/Berlin]");
     });
 
+    it("neo4j-datetime-named-zone: a date-only zoned value takes the zone's offset", async () => {
+        const { s, report } = await load(
+            ":ID,d:datetime\n1,2020-06-01[Europe/Berlin]\n2,2020-01-01[Europe/Berlin]\n3,2020-06-01T00:00-04:00[Europe/Berlin]\n",
+        );
+        expect(codes(report)).toEqual([]);
+        expect(value(s, "nodes", "d", 0)).toBe(Date.UTC(2020, 4, 31, 22));
+        expect(value(s, "nodes", "d", 1)).toBe(Date.UTC(2019, 11, 31, 23));
+        expect(value(s, "nodes", "d", 2)).toBe(Date.UTC(2020, 5, 1, 4));
+        expect(value(s, "nodes", "d.text", 0)).toBe("2020-06-01[Europe/Berlin]");
+    });
+
     it("neo4j-datetime-named-zone: an unknown zone name is E_COLUMN_TYPE", async () => {
         const { s, report } = await load(":ID,d:datetime\n1,2020-01-01T00:00:00[Mars/Olympus]\n2,\n");
         expect(ids(s)).toEqual([2]);

@@ -197,7 +197,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
         // pair of nodes apart costs every edge between them.
         const { snapshot: cutInput, edgeRemap, run } = this.accelerated(member, "undirected");
 
-        context.report({ phase: "Finding the cut", total: null });
+        context.report({ phase: "finding-the-cut", total: null });
         const { value: cut, precision } = await run(work);
 
         // Every declared edge maps onto the input edge it was merged into, so both edges of a
@@ -208,7 +208,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
         }
 
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Marking the cut", graphEdges, (edge) => {
+        await forEachChunked(context, "marking-the-cut", graphEdges, (edge) => {
             const merged = edgeRemap === null ? edge.row : edgeRemap[edge.row];
 
             edges.push({ id: edge.id, values: { in: merged !== INVALID_INDEX && inCut[merged] === 1 } });
@@ -216,7 +216,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
 
         let firstSide = 0;
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Marking the sides", nodeIds, (nodeId) => {
+        await forEachChunked(context, "marking-the-sides", nodeIds, (nodeId) => {
             const onFirstSide = maskTest(cut.side, cutInput.ids.indexOf(nodeId));
             firstSide += onFirstSide ? 1 : 0;
 

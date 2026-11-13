@@ -20,11 +20,7 @@ const GRADIENT_PIECES = 64;
  * @returns The hex, or null.
  */
 function hexOf(text: string): string | null {
-    try {
-        return colorToHex(text) ?? null;
-    } catch {
-        return null;
-    }
+    return colorToHex(text) ?? null;
 }
 
 /**

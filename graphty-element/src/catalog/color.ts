@@ -35,19 +35,13 @@ export function normalizeHexAnchor(color: string): string | null {
         return null;
     }
 
-    try {
-        const hex = colorToHex(color.trim());
-        if (hex === undefined) {
-            return null;
-        }
-
-        // colorjs.io answers eight digits for a colour that carried an alpha channel.
-        const six = hex.length === 9 ? hex.slice(0, 7) : hex;
-
-        return SIX_DIGIT_HEX.test(six) ? six.toUpperCase() : null;
-    } catch {
-        // The parser throws on a string it cannot read at all. That is an answer, not a frame
-        // this function takes down.
+    const hex = colorToHex(color.trim());
+    if (hex === undefined) {
         return null;
     }
+
+    // colorjs.io answers eight digits for a colour that carried an alpha channel.
+    const six = hex.length === 9 ? hex.slice(0, 7) : hex;
+
+    return SIX_DIGIT_HEX.test(six) ? six.toUpperCase() : null;
 }

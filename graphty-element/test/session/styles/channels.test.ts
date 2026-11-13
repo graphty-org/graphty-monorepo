@@ -6,6 +6,7 @@ import { defaultEdgeStyle } from "../../../src/config/EdgeStyle";
 import { defaultNodeStyle, NodeShapes } from "../../../src/config/NodeStyle";
 import {
     type ArrowValue,
+    asColorValue,
     type AuthoredValue,
     CHANNEL_DESCRIPTORS,
     type ChannelDescriptor,
@@ -1057,6 +1058,15 @@ describe("what each channel carries", () => {
 
         assert.strictEqual(kinds.filter((kind) => kind === "nothing").length, 1);
         assert.isFalse(drawn(CHANNEL_DESCRIPTORS["node.marker"]));
+    });
+});
+
+describe("asColorValue", () => {
+    it("accepts a carried colour and refuses an object whose hex is not a string", () => {
+        const color = toColorValue("#ff0000");
+        assert.strictEqual(asColorValue(color), color);
+        assert.isNull(asColorValue({ hex: 5 }));
+        assert.isNull(asColorValue("#ff0000"));
     });
 });
 

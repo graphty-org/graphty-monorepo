@@ -1736,7 +1736,8 @@ function withZoneOffset(text: string, spec: DeclaredTypeSpec): string {
     } catch {
         throw new GraphFormatError("E_COLUMN_TYPE", `"${text}" names an unknown time zone ${zone}`, { value: text });
     }
-    if (/(Z|z|[+-]\d{2}(:?\d{2})?)$/.test(local)) {
+    // an offset counts only after a time: in a date-only text the day (`-01`) looks like one
+    if (/[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|z|[+-]\d{2}(:?\d{2})?)$/.test(local)) {
         return local;
     }
     const wall = parseTemporal(local, "localDateTime").value;

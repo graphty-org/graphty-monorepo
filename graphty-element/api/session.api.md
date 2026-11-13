@@ -4378,15 +4378,13 @@ export { QueryLanguage }
 
 // @public
 export interface QueryValidation {
-    // (undocumented)
     error?: {
         code: GraphtyErrorCode;
-        message: string;
         position: number;
+        params: Readonly<Record<string, unknown>>;
     };
     // (undocumented)
     ok: boolean;
-    // (undocumented)
     unresolvedPaths: readonly {
         path: Path;
         reason: "unknown-run" | "unknown-attribute";

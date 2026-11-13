@@ -4309,6 +4309,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
             fileStyles: fileStylesOn,
+            // The timeline experiment gates detection, as `session.time.candidates()` is gated.
+            timeCandidates: () => (timelineOn() ? time.api.candidates() : []),
+            query: {
+                unresolvedPathsOf: (where) => engine.unresolvedPathsOf(where),
+                answerablePaths: () => [
+                    ...(paths.candidates?.("", "node") ?? []),
+                    ...(paths.candidates?.("", "edge") ?? []),
+                ],
+            },
         }),
         features: settleFeatures,
         timelineOn,

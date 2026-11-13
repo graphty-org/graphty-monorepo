@@ -1308,6 +1308,8 @@ const S: Record<string, (p: P) => string> = {
     "runners.macos": (p) => `(${fmtN(num(p, "jobs"))} on macOS)`,
     "runners.queued_runs": (p) =>
         `Also queued: ${fmtN(num(p, "runs"))} ${str(p, "workflow")} runs (${event(String(p.event ?? ""))}) with no job created yet, the oldest since ${at(p, "since")}.`,
+    "runners.stuck_runs": (p) =>
+        `Stuck at GitHub: ${fmtN(num(p, "runs"))} ${str(p, "workflow")} runs (${event(String(p.event ?? ""))}) of pull requests no longer open, queued since ${at(p, "since")}; not counted as queued.`,
     "runners.one_repo": (p) =>
         `All in ${str(p, "repo")}; no other graphty-org repository ran a job in ${fmtN(num(p, "h"))} h.`,
 

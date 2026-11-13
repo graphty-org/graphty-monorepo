@@ -118,9 +118,10 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 
 ### Secret Scan and Secret Files
 
-`.husky/pre-commit` runs secretlint (`.secretlintrc.json`) on the staged files and refuses a commit that holds
+`.husky/pre-commit` runs secretlint (`.secretlintrc.json`) on the staged changes and refuses a commit that holds
 something shaped like a credential, then runs prettier on the staged files (`tools/format-staged.sh`).
-`.husky/pre-push` runs the same scan on every file the branch changed since it left `origin/master`, the Git LFS
+`.husky/pre-push` runs the same scan on every file the branch changed since it left `origin/master` and on every
+line each of its commits adds (a secret a later commit removes is still pushed, so it is still refused), the Git LFS
 upload (`tools/lfs-pre-push.sh`) and the committed-images limit; `pr-open.sh` runs the scan and the LFS upload
 too. For a false positive, add the path to `.secretlintignore`. Tokens live in the root `.env` (gitignored);
 scripts read them from there and never print them. `.claude/settings.json` denies agents `Read` on `.env` files,

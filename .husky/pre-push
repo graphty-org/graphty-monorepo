@@ -22,7 +22,8 @@ printf '%s\n' "$PUSH_REFS" | "$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1
 PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$GATE_DIR/tools/push-base.mjs")} || exit 1
 export PUSH_BASE_REF
 
-# Secret scan of every file this branch changes since it left that branch. It runs here as
+# Secret scan of every line each commit since this branch left that branch adds, so a secret a later
+# commit removes is still refused. It runs here as
 # well as in pre-commit because a commit made with a temporary core.hooksPath skips pre-commit.
 PREPUSH_ROOT="$PWD" "$GATE_DIR/tools/scan-secrets.sh" "$(git merge-base "$PUSH_BASE_REF" HEAD)" HEAD || exit 1
 

@@ -82,6 +82,22 @@ function activeFor(runs: JobRun[]): number {
 }
 
 /**
+ * Whether a job is judged at all: it still runs, and is neither an aggregator nor a bisect.yml point job (chronicJobs).
+ * @param h - the job's history
+ * @param now - the current time, in ms
+ * @returns whether the job is judged
+ */
+function judged(h: JobHistory, now: number): boolean {
+    const newest = h.runs[0];
+    return (
+        newest !== undefined &&
+        now - newest.at <= activeFor(h.runs) &&
+        !AGGREGATORS.has(shortName(h.job)) &&
+        !(h.workflow === "bisect.yml" && shortName(h.job).startsWith("Point "))
+    );
+}
+
+/**
  * The jobs failing chronically: failed in at least half of their newest LAST_RUNS runs of the last SHARE_MS (MIN_RUNS
  * at least), or failed in every run for STREAK_MS. Worst first. An aggregator (All Checks Pass) is not judged: it fails whenever any
  * job it summarizes fails, so its share is the union of theirs and it was chronic while no job of its own was (#6068).
@@ -93,13 +109,7 @@ function activeFor(runs: JobRun[]): number {
 export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] {
     const out: ChronicJob[] = [];
     for (const h of histories) {
-        const newest = h.runs[0];
-        if (
-            !newest ||
-            now - newest.at > activeFor(h.runs) ||
-            AGGREGATORS.has(shortName(h.job)) ||
-            (h.workflow === "bisect.yml" && shortName(h.job).startsWith("Point "))
-        ) {
+        if (!judged(h, now)) {
             continue;
         }
         const recent = h.runs.filter((r) => now - r.at <= SHARE_MS).slice(0, LAST_RUNS);

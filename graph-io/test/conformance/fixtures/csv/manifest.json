@@ -1326,8 +1326,7 @@
           "Beta",
           "Gamma"
         ]
-      },
-      "roundTripFailure": "a node table without edges exports as an edge list, which drops isolated nodes (declared loss W_CSV_ISOLATED_NODES)"
+      }
     },
     {
       "file": "snap/facebook_combined-head.txt",

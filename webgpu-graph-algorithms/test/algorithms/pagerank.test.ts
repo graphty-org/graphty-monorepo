@@ -309,6 +309,17 @@ describe("pageRank / personalizedPageRank (GPU, spec 8.2 / 9.7)", () => {
             "E_ABORTED",
         );
         await expectRejection(pageRank(ctx, snapshot, { maxIterations: 0 }), "E_INVALID_ARGUMENT");
+        for (const dampingFactor of [Number.NaN, -0.1, 1.5]) {
+            const bad = await expectRejection(pageRank(ctx, snapshot, { dampingFactor }), "E_INVALID_ARGUMENT");
+            expect(bad.details.argument).toBe("dampingFactor");
+        }
+        for (const tolerance of [Number.NaN, -1e-6, Number.POSITIVE_INFINITY]) {
+            const bad = await expectRejection(
+                personalizedPageRank(ctx, snapshot, new Float32Array(n).fill(1), { tolerance }),
+                "E_INVALID_ARGUMENT",
+            );
+            expect(bad.details.argument).toBe("tolerance");
+        }
         const seen: number[] = [];
         let total = -1;
         const dest = new Float32Array(n);

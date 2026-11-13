@@ -104,8 +104,8 @@ describe("XRInputHandler hand state", () => {
             },
             input: {
                 controllers: sources,
-                onControllerAddedObservable: { add: () => undefined },
-                onControllerRemovedObservable: { add: () => undefined },
+                onControllerAddedObservable: { add: () => undefined, remove: () => undefined },
+                onControllerRemovedObservable: { add: () => undefined, remove: () => undefined },
             },
         } as unknown as WebXRDefaultExperience;
         handler = new XRInputHandler(pivot, xr);

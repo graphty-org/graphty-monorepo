@@ -256,10 +256,13 @@ interface DefinitionBase<C extends CommandLike> {
 export interface UndoableDefinition<C extends CommandLike> extends DefinitionBase<C> {
     readonly undo: {
         readonly kind: "undoable";
-        /** What the step is called in the history ("Changed colour of Hubs"). */
-        label(command: C, state: ProjectState): string;
+        /**
+         * What the step is called in the history ("Changed colour of Hubs"). `services` reaches
+         * what sits beside the state, such as a removed set's name.
+         */
+        label(command: C, state: ProjectState, services: CommandServices): string;
         /** What the step did, as a code and its values, for an application to word. */
-        fact(command: C, state: ProjectState): CodedFact<HistoryCode>;
+        fact(command: C, state: ProjectState, services: CommandServices): CodedFact<HistoryCode>;
         /** Steps with equal keys recorded close together become one step. */
         coalesce?(command: C): string | null;
     };
@@ -1969,7 +1972,10 @@ export class Dispatcher {
         state: ProjectState,
     ): Group {
         return this.group(
-            { label: undoable.undo.label(concrete, state), fact: undoable.undo.fact(concrete, state) },
+            {
+                label: undoable.undo.label(concrete, state, this.services),
+                fact: undoable.undo.fact(concrete, state, this.services),
+            },
             origin === null ? (undoable.undo.coalesce?.(concrete) ?? null) : null,
             {},
             origin?.step ?? null,
@@ -2003,7 +2009,7 @@ export class Dispatcher {
             job.slot = this.scheduler.enqueue(
                 lane.categoryOf?.(concrete) ?? lane.category,
                 (context) => this.turn(job, context),
-                job.definition.undo.label(concrete, state),
+                job.definition.undo.label(concrete, state, this.services),
             );
             job.status = "queued";
             group.jobs.add(job);
@@ -2111,8 +2117,8 @@ export class Dispatcher {
             // Its own writes, reverted when it fails; the job that dispatched it goes on.
             job.revert = group.draft.checkpoint();
         } else if (group.tx === null && group.after === null && group.named === undefined) {
-            group.label = definition.undo.label(command, state);
-            group.fact = definition.undo.fact(command, state);
+            group.label = definition.undo.label(command, state, this.services);
+            group.fact = definition.undo.fact(command, state, this.services);
             group.key = definition.undo.coalesce?.(command) ?? null;
             if (this.open.has(group)) {
                 group.view = undefined;
@@ -2305,8 +2311,8 @@ export class Dispatcher {
                 recorded === null
                     ? { label: group.label, fact: group.fact }
                     : {
-                          label: job.definition.undo.label(job.command, this.store.state),
-                          fact: job.definition.undo.fact(job.command, this.store.state),
+                          label: job.definition.undo.label(job.command, this.store.state, this.services),
+                          fact: job.definition.undo.fact(job.command, this.store.state, this.services),
                       },
                 null,
                 // Recorded as its own step when the transaction's is no longer on top: it is

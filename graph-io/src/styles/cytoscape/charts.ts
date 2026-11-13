@@ -13,6 +13,7 @@
 
 import { itemAt } from "../../common/text.js";
 import { DIALOG_LINE_HEIGHT, dialogWidth } from "../../formats/gexf/dialog-metrics.js";
+import { hexChannels } from "../canon/color.js";
 import { num6 } from "../canon/number.js";
 import type { StyleColumn, StyleValue } from "../types.js";
 import { colorSchemeColors } from "./color-schemes.js";
@@ -510,8 +511,7 @@ const RANGE_HEADROOM = 0.1;
  * @returns the color
  */
 function mix(a: string, b: string, t: number): string {
-    const rgb = (c: string): number[] => [1, 3, 5].map((k) => Number.parseInt(c.slice(k, k + 2), 16));
-    const [x, y] = [rgb(a), rgb(b)];
+    const [x, y] = [hexChannels(a), hexChannels(b)];
     if ([...x, ...y].some((v) => !Number.isFinite(v))) {
         return a;
     }

@@ -28,7 +28,7 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import type { ShaderParams } from "../../src/catalog/shaders";
+import type { ShaderDescriptor, ShaderParams } from "../../src/catalog/shaders";
 import type { LayerSpec } from "../../src/catalog/types";
 import type { Graphty } from "../../src/graphty-element";
 import { everyFrameAnimationsOn } from "../../src/managers/everyFrameAnimations";
@@ -36,6 +36,7 @@ import { NodeShaderDrawing } from "../../src/meshes/NodeShaderDrawing";
 import { assertGraphLoaded, assertNodesInFromEdges, type Drawn, drawn } from "../assertions";
 import { eventWaitingDecorator, isVisualCapture, realInput, untilFrames, waitForGraphSettled } from "../helpers";
 import { NODE_EFFECT_PRESETS, presetId } from "./nodeEffectPresets";
+import { presetControls, presetParams } from "./presetControls";
 
 /** A 3 x 3 grid in three groups, each node with an uncertainty and a degree to bind. */
 const NODES = Array.from({ length: 9 }, (_, i) => ({
@@ -187,49 +188,17 @@ async function clickTarget(scene: Drawn, parameters: Record<string, unknown>): P
 }
 
 /**
- * The preset's parameters as Storybook controls, at their defaults.
+ * A node-effect preset's catalog entry.
  * @param id - The preset.
- * @returns The args and their controls.
+ * @returns Its descriptor.
  */
-function controlsOf(id: string): { args: Record<string, number | string>; argTypes: NonNullable<Story["argTypes"]> } {
+function descriptorOf(id: string): ShaderDescriptor {
     const preset = NODE_EFFECT_PRESETS.find((candidate) => candidate.descriptor.id === id);
     if (preset === undefined) {
         throw new Error(`"${id}" is not a node-effect preset`);
     }
 
-    const args: Record<string, number | string> = {};
-    const argTypes: Record<string, NonNullable<Story["argTypes"]>[string]> = {};
-    for (const param of preset.descriptor.params) {
-        args[param.name] = param.default as number | string;
-        argTypes[param.name] =
-            param.type === "color"
-                ? { name: param.plainName, control: "color" }
-                : {
-                      name: param.plainName,
-                      control: {
-                          type: "range",
-                          min: param.min,
-                          max: param.max,
-                          step: param.type === "integer" ? 1 : 0.01,
-                      },
-                  };
-    }
-
-    return { args, argTypes };
-}
-
-/**
- * The preset's own parameters out of a story's args, which Storybook also fills with the
- * element's event handlers.
- * @param id - The preset.
- * @param storyArgs - The args.
- * @returns The parameters.
- */
-function paramsOf(id: string, storyArgs: ShaderParams): ShaderParams {
-    const names = new Set(
-        NODE_EFFECT_PRESETS.find((each) => each.descriptor.id === id)?.descriptor.params.map((param) => param.name),
-    );
-    return Object.fromEntries(Object.entries(storyArgs).filter(([name]) => names.has(name)));
+    return preset.descriptor;
 }
 
 const meta: Meta = {
@@ -264,8 +233,9 @@ function effectStory(
 ): Story {
     return {
         name: options.name,
-        ...controlsOf(id),
-        render: (storyArgs) => render([layer(presetId(id), paramsOf(id, storyArgs))], { selected: options.selected }),
+        ...presetControls(descriptorOf(id)),
+        render: (storyArgs) =>
+            render([layer(presetId(id), presetParams(descriptorOf(id), storyArgs))], { selected: options.selected }),
         play: async ({ canvasElement, parameters }) => {
             await waitForGraphSettled(canvasElement);
             const scene = await drawn(canvasElement, `Shaders/Node Effects ${options.name}`);

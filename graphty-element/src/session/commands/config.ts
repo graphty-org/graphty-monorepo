@@ -85,7 +85,18 @@ function configLeaves(values: ProjectConfigPatch): [string, unknown][] {
         const key = CONFIG_KEYS.get(path);
         if (key !== undefined) {
             if (value !== undefined) {
-                const parsed = key.schema.safeParse(value);
+                // A transform can throw rather than refuse (a color it cannot parse): refused all the same.
+                let parsed: ReturnType<typeof key.schema.safeParse>;
+                try {
+                    parsed = key.schema.safeParse(value);
+                } catch (cause) {
+                    throw badPatch(
+                        `${JSON.stringify(value)} is not a value the setting "${path}" takes.`,
+                        { key: path, value },
+                        cause,
+                    );
+                }
+
                 if (!parsed.success) {
                     throw badPatch(
                         `${JSON.stringify(value)} is not a value the setting "${path}" takes: ${parsed.error.issues[0]?.message ?? "refused"}.`,

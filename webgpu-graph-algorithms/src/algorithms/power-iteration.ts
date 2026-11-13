@@ -79,6 +79,22 @@ export interface PowerIterationRun {
 }
 
 /**
+ * Refuses a convergence tolerance that is not a finite number >= 0: NaN or a negative value never converges, so
+ * the run would spend every iteration and report converged: false instead of rejecting the input.
+ * @param tolerance - the resolved option
+ * @param algorithm - the caller's name, for the message
+ */
+export function checkTolerance(tolerance: number, algorithm: string): void {
+    if (!Number.isFinite(tolerance) || tolerance < 0) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${algorithm}: tolerance must be a finite number >= 0`, {
+            argument: "tolerance",
+            value: tolerance,
+            expected: "a finite number >= 0",
+        });
+    }
+}
+
+/**
  * Validates `options.dest` for a score result of `n` elements.
  * @param dest - the caller's destination array, if any
  * @param n - the node count

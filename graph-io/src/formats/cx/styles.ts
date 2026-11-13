@@ -48,6 +48,7 @@ import type {
     StyleTarget,
     StyleWriteCapabilities,
 } from "../../styles/types.js";
+import { isStyleProperty } from "../../styles/vocabulary.js";
 import type { LossNote } from "../../types.js";
 import { exactFromBlock, nonEmpty } from "../xgmml/styles.js";
 
@@ -403,9 +404,12 @@ export function lossOf(n: StyleNote): LossNote {
         column: null,
         count: n.params.count,
         style:
-            n.params.target === null || n.params.property === null || n.params.target === "graph"
+            n.params.target === null ||
+            n.params.property === null ||
+            n.params.target === "graph" ||
+            !isStyleProperty(n.params.target, n.params.property)
                 ? undefined
-                : Object.freeze({ target: n.params.target, property: n.params.property as never }),
+                : Object.freeze({ target: n.params.target, property: n.params.property }),
     });
 }
 

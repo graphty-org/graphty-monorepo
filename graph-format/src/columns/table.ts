@@ -27,6 +27,7 @@ import {
     type U32,
 } from "../types/index.js";
 import { type TableParts } from "../types/internal.js";
+import { jsonKey } from "../util/json-key.js";
 import { assertOneOf } from "../util/options.js";
 import { claimHolder, holderCount, isShared, noteShared } from "../util/shared-buffers.js";
 import { bitmapGet } from "./bitmap.js";
@@ -516,7 +517,7 @@ export function tableWithColumns(
 
 /**
  * The comparable key of one set cell for uniqueness checks: the number, string, boolean or
- * dictionary value; json values are compared by their JSON text.
+ * dictionary value; json values are compared by their canonical text (NaN, Infinity and -0 kept apart).
  * @param column - the column
  * @param row - a set row
  * @returns the key
@@ -544,7 +545,7 @@ function uniqueKey(column: Column, row: number): unknown {
         case "list":
             return JSON.stringify(column.sliceOf(row));
         case "json":
-            return JSON.stringify(column.values[row]);
+            return jsonKey(column.values[row]);
         default: {
             const name: string = dtype;
             throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${name}`, { dtype: name });

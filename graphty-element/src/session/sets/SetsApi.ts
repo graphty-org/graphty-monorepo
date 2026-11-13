@@ -929,6 +929,8 @@ export function createSetsApi(
             return id;
         },
 
+        removedName: (id) => store.tombstone(id)?.name,
+
         restore({ id }) {
             const live = store.get(id);
             if (live !== undefined) {

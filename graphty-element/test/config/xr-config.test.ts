@@ -59,6 +59,9 @@ describe("XR Configuration Schema", () => {
             assert.equal(parsed.ui.position, "bottom-right");
             assert.equal(parsed.ui.unavailableMessageDuration, 5000);
             assert.equal(parsed.ui.showAvailabilityWarning, false);
+            assert.equal(parsed.ui.vrLabel, "VR");
+            assert.equal(parsed.ui.arLabel, "AR");
+            assert.equal(parsed.ui.unavailableLabel, "VR / AR NOT AVAILABLE");
             assert.equal(parsed.vr.enabled, true);
             assert.equal(parsed.vr.referenceSpaceType, "local-floor");
             assert.equal(parsed.ar.enabled, true);

@@ -4,14 +4,15 @@
  */
 
 import type { AbstractMesh } from "@babylonjs/core";
+import { RemoteLogClient } from "@graphty/remote-logger";
 import type { Meta } from "@storybook/web-components-vite";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
 
-import { LABEL_STYLE_FIELDS } from "../src/catalog/label-style";
+import { LABEL_STYLE_DESCRIPTORS, LABEL_STYLE_FIELDS } from "../src/catalog/label-style";
 import type { Channel, Encoding, LabelStyle, LayerSpec, StaticStyle } from "../src/catalog/types";
-import { type GraphBackgroundConfig, NodeShapes, type ViewMode } from "../src/config";
+import { EdgeArrowTypes, type GraphBackgroundConfig, NodeShapes, type ViewMode } from "../src/config";
 import type { AlgorithmOnLoad } from "../src/config/DataConfig";
 import { pageDefaultFeatures } from "../src/features/resolve";
 import type { Graphty } from "../src/graphty-element";
@@ -647,148 +648,80 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     return g;
 };
 
+/** The console methods {@link remoteLogging} forwards. */
+const FORWARDED_CONSOLE_METHODS = ["log", "info", "warn", "error"] as const;
+
 /**
- * Decorator that enables remote logging for XR debugging.
- * Logs are sent to the server specified in VITE_REMOTE_LOG_URL env var (default: https://localhost:9077/log)
- * Start the server with: npm run dev:xr
+ * Forward the console to a remote-logger server while a story is shown, for debugging on an XR
+ * headset whose console cannot be seen. Use it as a story's `beforeEach`: the cleanup it returns
+ * puts the console back when the story is left.
  *
- * Usage:
- * ```
- * export default {
- *     decorators: [eventWaitingDecorator, remoteLoggingDecorator],
- * }
- * ```
+ * The server is the one `VITE_REMOTE_LOG_URL` names, by its base URL (the client posts to
+ * `<url>/log`): start `npx remote-log-server --port {{port}}` from the remote-logger package
+ * through servherd and set the variable to the URL servherd gives it. Unset, nothing is forwarded
+ * and the console is left alone.
+ *
+ * Batching, retries and dropping a batch the server never took are `RemoteLogClient`'s, so the
+ * logs a story writes with no server listening are given up after the retries, never kept.
+ * @returns The cleanup that restores the console, or nothing when no server is named.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const remoteLoggingDecorator = (story: any): any => {
-    // Only enable in browser environment
-    if (typeof window !== "undefined") {
-        enableRemoteLoggingInBrowser();
+export const remoteLogging = (): (() => void) | undefined => {
+    const serverUrl = import.meta.env.VITE_REMOTE_LOG_URL as string | undefined;
+
+    if (!serverUrl) {
+        return undefined;
     }
 
-    return story();
+    const client = new RemoteLogClient({
+        serverUrl,
+        sessionPrefix: "storybook",
+        throttlePatterns: [
+            { pattern: /Max number of touches/, intervalMs: 5000 },
+            { pattern: /Max touches exceeded/, intervalMs: 5000 },
+        ],
+    });
+    /* eslint-disable no-console -- the console is what this forwards */
+    const originals = FORWARDED_CONSOLE_METHODS.map((method) => [method, console[method].bind(console)] as const);
+
+    for (const [method, original] of originals) {
+        console[method] = (...args: unknown[]): void => {
+            original(...args);
+
+            // The client reports its own failed sends on the console; forwarding that would send
+            // one more batch for every batch that failed.
+            if (typeof args[0] === "string" && args[0].startsWith("[RemoteLogClient]")) {
+                return;
+            }
+
+            client.log(method.toUpperCase(), args.map(formatConsoleArg).join(" "));
+        };
+    }
+
+    return () => {
+        for (const [method, original] of originals) {
+            console[method] = original;
+        }
+
+        void client.close();
+    };
+    /* eslint-enable no-console */
 };
 
 /**
- * Enable remote logging in the browser.
- * Intercepts console.log/warn/error/info and sends to remote server.
+ * One console argument as text.
+ * @param arg - What was passed to the console.
+ * @returns It as JSON when it is an object that serialises, otherwise as a string.
  */
-function enableRemoteLoggingInBrowser(): void {
-    // Don't enable twice
-    if ((window as unknown as { __remoteLoggingEnabled?: boolean }).__remoteLoggingEnabled) {
-        return;
+function formatConsoleArg(arg: unknown): string {
+    if (typeof arg !== "object" || arg === null) {
+        return String(arg);
     }
 
-    (window as unknown as { __remoteLoggingEnabled?: boolean }).__remoteLoggingEnabled = true;
-
-    // Use VITE_REMOTE_LOG_URL env var or fall back to localhost
-    const SERVER_URL = (import.meta.env.VITE_REMOTE_LOG_URL as string | undefined) ?? "https://localhost:9077/log";
-    const SESSION_ID = `storybook-${Date.now().toString(36)}`;
-    const LOG_BUFFER: { time: string; level: string; message: string }[] = [];
-    let flushTimer: ReturnType<typeof setTimeout> | null = null;
-
-    // Throttling for repeated messages
-    const lastMessages = new Map<string, number>();
-    const THROTTLE_MS = 5000;
-    const THROTTLE_PATTERNS = [/Max number of touches/, /Max touches exceeded/];
-
-    function shouldThrottle(message: string): boolean {
-        for (const pattern of THROTTLE_PATTERNS) {
-            if (pattern.test(message)) {
-                const key = pattern.source;
-                const lastTime = lastMessages.get(key) ?? 0;
-                const now = Date.now();
-                if (now - lastTime < THROTTLE_MS) {
-                    return true;
-                }
-
-                lastMessages.set(key, now);
-                return false;
-            }
-        }
-        return false;
+    try {
+        return JSON.stringify(arg, null, 2);
+    } catch {
+        return "[Circular or non-serializable object]";
     }
-
-    function flushLogs(): void {
-        if (LOG_BUFFER.length === 0) {
-            return;
-        }
-
-        const logsToSend = LOG_BUFFER.splice(0, LOG_BUFFER.length);
-        fetch(SERVER_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId: SESSION_ID, logs: logsToSend }),
-        }).catch(() => {
-            // Put logs back on failure
-            LOG_BUFFER.unshift(...logsToSend);
-        });
-    }
-
-    function formatArgs(args: unknown[]): string {
-        return args
-            .map((arg) => {
-                if (typeof arg === "object" && arg !== null) {
-                    try {
-                        return JSON.stringify(arg, null, 2);
-                    } catch {
-                        return "[Circular or non-serializable object]";
-                    }
-                }
-
-                return String(arg);
-            })
-            .join(" ");
-    }
-
-    function queueLog(level: string, args: unknown[]): void {
-        const message = formatArgs(args);
-        if (shouldThrottle(message)) {
-            return;
-        }
-
-        LOG_BUFFER.push({
-            time: new Date().toISOString(),
-            level,
-            message,
-        });
-        if (flushTimer) {
-            clearTimeout(flushTimer);
-        }
-
-        flushTimer = setTimeout(flushLogs, 100);
-    }
-
-    // Store original console methods and override them with remote logging wrappers
-    // This is intentional - the remote logging system intercepts console.* calls
-    /* eslint-disable no-console */
-    const originalConsole = {
-        log: console.log.bind(console),
-        warn: console.warn.bind(console),
-        error: console.error.bind(console),
-        info: console.info.bind(console),
-    };
-
-    // Override console methods
-    console.log = (...args: unknown[]) => {
-        originalConsole.log(...args);
-        queueLog("LOG", args);
-    };
-    console.warn = (...args: unknown[]) => {
-        originalConsole.warn(...args);
-        queueLog("WARN", args);
-    };
-    console.error = (...args: unknown[]) => {
-        originalConsole.error(...args);
-        queueLog("ERROR", args);
-    };
-    console.info = (...args: unknown[]) => {
-        originalConsole.info(...args);
-        queueLog("INFO", args);
-    };
-
-    originalConsole.log(`[RemoteLogging] Enabled with session: ${SESSION_ID}`);
-    /* eslint-enable no-console */
 }
 
 /**
@@ -801,23 +734,30 @@ function enableRemoteLoggingInBrowser(): void {
  */
 export const nodeShapes = NodeShapes.options;
 
-/** Every arrow cap a layer can ask for, which is what `edge.arrowHead` and `edge.arrowTail` take. */
-export const arrowTypes = [
-    "normal",
-    "inverted",
-    "dot",
-    "sphere-dot",
-    "open-dot",
-    "none",
-    "tee",
-    "open-normal",
-    "diamond",
-    "open-diamond",
-    "crow",
-    "box",
-    "half-open",
-    "vee",
-] as const;
+/**
+ * Every arrow cap a layer can ask for, which is what `edge.arrowHead` and `edge.arrowTail` take, in
+ * the order the schema declares them.
+ *
+ * READ OFF `EdgeArrowTypes`, NEVER RETYPED, for the reason `nodeShapes` is: the hand-written copy
+ * held fourteen of the schema's arrows, so the arrow pickers offered none of the rest.
+ */
+export const arrowTypes = EdgeArrowTypes.options;
+
+/**
+ * The values a label style field takes, read off the element's own label style descriptors, for a
+ * select control's options.
+ * @param field - A label style field that takes one of a fixed set of values.
+ * @returns Those values, in the order the descriptor lists them.
+ */
+export function labelStyleValues(field: keyof LabelStyle): readonly string[] {
+    const values = LABEL_STYLE_DESCRIPTORS.find((descriptor) => descriptor.field === field)?.values;
+
+    if (!values) {
+        throw new Error(`label style field ${field} takes no fixed set of values`);
+    }
+
+    return values;
+}
 
 /**
  * Real (browser-trusted) pointer input for play functions.

@@ -115,6 +115,18 @@ describe("kept sets under undo", () => {
         session.dispose();
     });
 
+    it("names a restored set by the name it had when it was removed", async () => {
+        const session = sessionOf();
+        const id = session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Core" });
+        await session.execute({ op: "set.remove", id });
+        await session.execute({ op: "set.restore", id });
+
+        const step = session.history.steps[session.history.position - 1];
+        assert.strictEqual(step?.label, 'Restored the set "Core"');
+        assert.deepEqual(step?.fact, { code: "set.restore", params: { set: "Core" } });
+        session.dispose();
+    });
+
     it("never gives a new set the id of an undone or restored one: the register does not rewind", async () => {
         const session = sessionOf();
         const undone = session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Core" });

@@ -60,8 +60,6 @@ export function builtInRuns(
             getSnapshot: () => store.getSnapshot(),
             undirected: (graph: ReturnType<typeof store.getSnapshot>) => store.undirected(graph),
             getEdge: (id: string) => edges.get(id),
-            applyStylesToExistingNodes: (): void => undefined,
-            applyStylesToExistingEdges: (): void => undefined,
         };
         const graph = {
             getDataManager: () => dataManager,

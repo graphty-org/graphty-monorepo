@@ -83,6 +83,7 @@ interface ArrowHeadOptions {
     image?: string; // The picture an "image" cap draws (a URL or a data URL)
     side?: "left" | "right"; // Draw only the cap's half on this side of its line (unset: all of it)
     outline?: number; // An open cap's outline thickness, in the line's width units (unset: the cap's own thin frame)
+    fill?: string; // An open cap's inside colour (unset: the inside is left empty)
 }
 
 /**
@@ -138,7 +139,13 @@ function sided(mesh: Mesh, side: "left" | "right" | undefined): Mesh {
     };
     const corner = (i: number): number[] => [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
     const out: number[] = [];
+    // a filled open cap's inside comes first (FilledArrowRenderer.createOpenOutline): what is kept of it, still first
+    const meta = mesh.metadata as { capFill?: number } | null;
+    let inside = 0;
     for (let i = 0; i + 2 < indices.length; i += 3) {
+        if (i === meta?.capFill) {
+            inside = out.length / 3;
+        }
         const kept = clipTriangle([corner(indices[i]), corner(indices[i + 1]), corner(indices[i + 2])], keep, at);
         for (let k = 1; k + 1 < kept.length; k++) {
             out.push(...kept[0], ...kept[k], ...kept[k + 1]);
@@ -149,6 +156,9 @@ function sided(mesh: Mesh, side: "left" | "right" | undefined): Mesh {
     data.positions = out;
     data.indices = Array.from({ length: out.length / 3 }, (_, i) => i);
     data.applyToMesh(mesh);
+    if (meta?.capFill !== undefined) {
+        meta.capFill = inside;
+    }
     mesh.name = `${mesh.name}-${side}-half`;
     return mesh;
 }
@@ -901,9 +911,22 @@ void main() {
             options.outline !== undefined && options.outline > 0 && arrowType in FilledArrowRenderer.OPEN_OUTLINES
                 ? Math.round((options.outline / 40 / length) * 1000) / 1000
                 : undefined;
-        const openKey = stroke === undefined ? widthKey : `${widthKey}|s${String(stroke)}`;
+        // AN OPEN CAP'S INSIDE (#7565), when given a colour, is filled inside its frame, as yEd fills a framed edge's
+        // arrowheads: the frame drawn as an outline (the cap's own thin one when it has no width), its inside drawn
+        // apart from it. The colour is the batch's, so it is part of the key.
+        const fill =
+            options.fill !== undefined && arrowType in FilledArrowRenderer.OPEN_OUTLINES ? options.fill : undefined;
+        const openKey = `${widthKey}${stroke === undefined ? "" : `|s${String(stroke)}`}${fill === undefined ? "" : `|f${fill}`}`;
         const open = (): Mesh | null =>
-            stroke === undefined ? null : FilledArrowRenderer.createOpenOutline(arrowType, scene, stroke, breadth);
+            stroke === undefined && fill === undefined
+                ? null
+                : FilledArrowRenderer.createOpenOutline(
+                      arrowType,
+                      scene,
+                      stroke ?? FilledArrowRenderer.FILLED_FRAME,
+                      breadth,
+                      fill !== undefined,
+                  );
 
         if (is2D) {
             // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
@@ -925,6 +948,9 @@ void main() {
                             ),
                         side,
                     );
+                    if (fill !== undefined) {
+                        FilledArrowRenderer.paintInside2D(source, fill, opacity, scene);
+                    }
                     source.visibility = opacity;
                     return source;
                 },
@@ -944,6 +970,7 @@ void main() {
                 size: length, // World-space length (e.g., 0.5 units)
                 color: options.color,
                 opacity,
+                fill,
             },
             scene,
             reuse,

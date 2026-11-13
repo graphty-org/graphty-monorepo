@@ -603,6 +603,7 @@ export interface ChannelValues {
     "edge.arrowHeadGap": number;
     "edge.arrowHeadStack": string;
     "edge.arrowHeadColor": ColorValue;
+    "edge.arrowHeadFillColor": ColorValue;
     "edge.arrowHeadOpacity": number;
     "edge.arrowHeadImage": string;
     "edge.arrowHeadText": string;
@@ -626,6 +627,7 @@ export interface ChannelValues {
     "edge.arrowTailGap": number;
     "edge.arrowTailStack": string;
     "edge.arrowTailColor": ColorValue;
+    "edge.arrowTailFillColor": ColorValue;
     "edge.arrowTailOpacity": number;
     "edge.arrowTailImage": string;
     "edge.arrowTailText": string;
@@ -647,6 +649,7 @@ export interface ChannelValues {
     "edge.arrowMiddleHeadOutlineWidth": number;
     "edge.arrowMiddleHeadPosition": number;
     "edge.arrowMiddleHeadColor": ColorValue;
+    "edge.arrowMiddleHeadFillColor": ColorValue;
     "edge.arrowMiddleHeadOpacity": number;
     "edge.arrowMiddleHeadImage": string;
     "edge.arrowMiddleTail": ArrowValue;
@@ -656,6 +659,7 @@ export interface ChannelValues {
     "edge.arrowMiddleTailOutlineWidth": number;
     "edge.arrowMiddleTailPosition": number;
     "edge.arrowMiddleTailColor": ColorValue;
+    "edge.arrowMiddleTailFillColor": ColorValue;
     "edge.arrowMiddleTailOpacity": number;
     "edge.arrowMiddleTailImage": string;
     "edge.animationSpeed": number;
@@ -762,6 +766,10 @@ export type ColorChannel =
     | "edge.arrowTailTextBackground"
     | "edge.arrowMiddleHeadColor"
     | "edge.arrowMiddleTailColor"
+    | "edge.arrowHeadFillColor"
+    | "edge.arrowTailFillColor"
+    | "edge.arrowMiddleHeadFillColor"
+    | "edge.arrowMiddleTailFillColor"
     | "edge.outlineColor"
     | "edge.underlayColor"
     | "edge.overlayColor"
@@ -1206,7 +1214,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Gap" | "Stack" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Gap" | "Stack" | "Color" | "FillColor" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -1335,6 +1343,18 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             follows: "edge.color",
             stylePath: `arrow${end}.color`,
             renderable: true,
+        },
+        {
+            ...id("FillColor"),
+            plainName: `Arrow ${end} Fill Color`,
+            shortName: `${end} fill color`,
+            group: "arrows",
+            accepts: "color",
+            stylePath: `arrow${end}.fillColor`,
+            renderable: true,
+            caveat:
+                "The color an open cap's inside is filled with, inside its outline, which keeps the cap's color. " +
+                "Unset, the inside is empty. Only open caps draw it.",
         },
         {
             ...id("Opacity"),
@@ -1494,7 +1514,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The six channels of a cap drawn part-way along the line: `edge.arrowMiddleHead`, `edge.arrowMiddleHeadSize` and so on. */
 type ArrowMidChannel<End extends "MiddleHead" | "MiddleTail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Color" | "Opacity" | "Image"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Color" | "FillColor" | "Opacity" | "Image"}`;
 
 /**
  * The channels of a cap drawn part-way along the line, pointing toward the target (`MiddleHead`) or the source

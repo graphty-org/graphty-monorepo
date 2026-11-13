@@ -691,6 +691,13 @@ export interface EdgeStyleValues {
     readonly sourceArrowColor: StyleColor;
     /** The color of the arrow at the target end. */
     readonly targetArrowColor: StyleColor;
+    /**
+     * The color a hollow arrow at the source end is filled with, inside its outline in `sourceArrowColor` (yEd's framed
+     * edges); absent, its inside is empty.
+     */
+    readonly sourceArrowFillColor: StyleColor;
+    /** The color a hollow arrow at the target end is filled with, as `sourceArrowFillColor` says. */
+    readonly targetArrowFillColor: StyleColor;
     /** The label's text color. */
     readonly labelColor: StyleColor;
     /** The opacity of the whole edge, 0..1. */

@@ -1403,9 +1403,10 @@ void main() {
         const inside = (mesh.metadata as { capFill?: number } | null)?.capFill ?? 0;
         const total = mesh.getTotalIndices();
         const vertices = mesh.getTotalVertices();
-        mesh.subMeshes = [];
-        new SubMesh(0, 0, vertices, 0, inside, mesh);
-        new SubMesh(1, 0, vertices, inside, total - inside, mesh);
+        mesh.subMeshes = [
+            new SubMesh(0, 0, vertices, 0, inside, mesh, undefined, true, false),
+            new SubMesh(1, 0, vertices, inside, total - inside, mesh, undefined, true, false),
+        ];
     }
 
     /**

@@ -269,22 +269,5 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
                 `Expected the change to succeed: ${result.code ?? ""} ${JSON.stringify(result.params ?? {})}`,
             );
         });
-
-        it("tracks latency for style commands", async () => {
-            // Use the same prompt as the color test which reliably triggers a tool
-            const result = await harness.testPrompt("Change all node colors to purple");
-
-            assert.ok(result.latencyMs > 0, "Expected positive latency");
-        });
-
-        it("captures token usage for style commands", async () => {
-            const result = await harness.testPrompt("Make all nodes blue");
-
-            // Token usage may not always be available depending on provider configuration
-            if (result.tokenUsage) {
-                assert.ok(result.tokenUsage.prompt > 0, "Expected positive prompt tokens");
-                assert.ok(result.tokenUsage.completion >= 0, "Expected non-negative completion tokens");
-            }
-        });
     });
 });

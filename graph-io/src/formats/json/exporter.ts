@@ -789,7 +789,12 @@ function reservedKeys(snapshot: GraphSnapshot, resolved: Resolved): Readonly<Rec
 function planTable(ctx: PlanContext, table: Iterable<Column>, domain: Domain): ColumnPlan[] {
     const plans: ColumnPlan[] = [];
     const used = new Set<string>();
-    for (const column of table) {
+    const columns = [...table];
+    // a position written as x / y (vis, graphology) takes those keys from any plain column, whatever the order
+    if (domain === "node" && columns.some((column) => xySlotOf(ctx.dialect, column) !== undefined)) {
+        used.add("attribute:x").add("attribute:y");
+    }
+    for (const column of columns) {
         const { role } = column.meta;
         if (role !== null && (STRUCTURAL_ROLES.has(role) || TEMPORAL_ROLES.has(role))) {
             continue;
@@ -942,6 +947,28 @@ const XY_SLOTS: Partial<Record<JsonDialect, Slot>> = {
 };
 
 /**
+ * Whether a position column can be written as x / y: a float column of two or more components.
+ * @param column - the column
+ * @returns true when it can
+ */
+function isPlanar(column: Column): boolean {
+    return (column.dtype === "f32" || column.dtype === "f64") && column.meta.components >= 2;
+}
+
+/**
+ * The vis / graphology x / y slot a node column is written into, if it is a position column it fits.
+ * @param dialect - the dialect
+ * @param column - the column
+ * @returns the slot, or undefined
+ */
+function xySlotOf(dialect: JsonDialect, column: Column): Slot | undefined {
+    const slot = XY_SLOTS[dialect];
+    return (slot === "xyUp" || slot === "xyDown") && column.meta.role === "position" && isPlanar(column)
+        ? slot
+        : undefined;
+}
+
+/**
  * The slot of a node position column: Cytoscape's position, vis and graphology x / y for a float column of two or more
  * components (a non-zero z is noted), else a plain array attribute with the role lost.
  * @param ctx - the plan context
@@ -952,7 +979,7 @@ function planPositionSlot(ctx: PlanContext, column: Column): ColumnPlan {
     const { dialect, note } = ctx;
     const { meta } = column;
     const slot = XY_SLOTS[dialect];
-    if (slot !== undefined && (column.dtype === "f32" || column.dtype === "f64") && meta.components >= 2) {
+    if (slot !== undefined && isPlanar(column)) {
         const z = countNonZeroZ(column);
         if (z > 0) {
             note(

@@ -459,12 +459,15 @@ second. `bars.mjs` is the same: its walks are `real.mjs` sessions that each take
 1 screens run as `bars.mjs --inner`, which it puts through the gate itself, so the gate passes a
 `bars.mjs` command through without a slot (wrapped, it used to hold one idle slot for the whole run).
 
-Waiting starts are served first come, first served: each waiter takes a ticket in the pool's
-`queue/` folder, named by when it asked, and only the oldest live ticket may take the next free
-slot; a waiter that was killed leaves a ticket the next waiter removes. `node --test
-design/ui/studio/tool/with-browser.test.mjs` checks the order, the dead waiter and the `bars.mjs`
-pass-through with no browser. Commands that take the machine's slots without this script (the
-pre-push gate's browser shards) do not queue; they take a slot when they find one free.
+`with-browser.sh` waits through the machine's one gate, `tools/with-browser.sh`, so a study
+session follows the same rules as every other browser command. Waiting starts are served first
+come, first served: each waiter takes a ticket in the pool's `queue/` folder, named by when it
+asked, and takes a free slot only while no older live ticket could take that slot too; a waiter
+that was killed leaves a ticket the next waiter removes. The low-priority lane
+(`BROWSER_SLOT_PRIORITY=low`) keeps tickets of its own and takes only slot 4 and up, so it never
+holds up an ordinary waiter, and while a high-lane command (the cut's screenshot preview) waits,
+no other command takes a slot. `node --test design/ui/studio/tool/with-browser.test.mjs` checks the
+order, the dead waiter, the lanes and the `bars.mjs` pass-through with no browser.
 
 **Warm browsers.** A cold start launches a browser, opens the app on a clean profile and lets it
 settle: 7 to 11 seconds after its slot. So the tool keeps a few browsers warm: launched, the app

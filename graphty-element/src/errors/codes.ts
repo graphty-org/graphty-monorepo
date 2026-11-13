@@ -711,9 +711,13 @@ export type GraphtyErrorCode =
      */
     | "E_MODEL_DIGEST_MISMATCH"
     /**
-     * A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+     * A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed". Also a skybox background image that could not be loaded, as the detail of the element's `graphty-skybox-failed` event, `params.url` its first 256 characters.
      */
     | "E_IMAGE_LOAD"
+    /**
+     * A picture the browser cannot decode, so it cannot be drawn (`prepareBackgroundImage`): HEIC in a browser without HEIC support, a damaged file, or a file that is not a picture. `params.format` (its media type, or "" when unknown), `params.fileName` when it is a file.
+     */
+    | "E_IMAGE_DECODE"
     | "E_INTERNAL";
 
 /**
@@ -1083,6 +1087,7 @@ const CODE_TABLE = {
     E_MODEL_UNKNOWN_ASSET: "E_MODEL_UNKNOWN_ASSET",
     E_MODEL_DIGEST_MISMATCH: "E_MODEL_DIGEST_MISMATCH",
     E_IMAGE_LOAD: "E_IMAGE_LOAD",
+    E_IMAGE_DECODE: "E_IMAGE_DECODE",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

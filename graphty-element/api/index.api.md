@@ -3242,7 +3242,7 @@ export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
     // (undocumented)
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
+    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
 // @public (undocumented)
@@ -4399,9 +4399,13 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_DIGEST_MISMATCH"
 /**
-* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed". Also a skybox background image that could not be loaded, as the detail of the element's `graphty-skybox-failed` event, `params.url` its first 256 characters.
 */
-| "E_IMAGE_LOAD" | "E_INTERNAL";
+| "E_IMAGE_LOAD"
+/**
+* A picture the browser cannot decode, so it cannot be drawn (`prepareBackgroundImage`): HEIC in a browser without HEIC support, a damaged file, or a file that is not a picture. `params.format` (its media type, or "" when unknown), `params.fileName` when it is a file.
+*/
+| "E_IMAGE_DECODE" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -4505,6 +4509,11 @@ export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields
 
 // @public
 export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
+
+// @public
+export interface GraphtySkyboxLoadedDetail {
+    readonly url: string;
+}
 
 // @public
 export type GraphtyWarningCode =
@@ -7252,7 +7261,7 @@ export interface RendererStatus {
 // @public
 export class RenderManager implements Manager {
     constructor(canvas: HTMLCanvasElement, eventManager: EventManager, config?: RenderManagerConfig);
-    applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void;
+    applyBackground(background: GraphBackgroundConfig, onSkybox: (url: string, loaded: boolean) => void): void;
     applyLighting(lighting: Lighting): void;
     set backgroundOverride(color: string | null);
     // @internal

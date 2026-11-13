@@ -1805,6 +1805,19 @@ export const BACKGROUND_SECTION_WORDS = {
         const named = word === "" ? hex : `${word} (${hex})`;
         return `No color set: drawn in ${named}`;
     },
+    /**
+     * A picture graphty-element could not decode (`E_IMAGE_DECODE`), so it is not the background.
+     * @param problem - the element's report.
+     * @returns the notice's sentence, such as "IMG_0001.HEIC is HEIC, which this browser cannot draw."
+     */
+    notDrawn: (problem: CodedFact): string => {
+        const name = typeof problem.params.fileName === "string" ? problem.params.fileName : "This image";
+        const format = typeof problem.params.format === "string" ? problem.params.format : "";
+        const kind = format.replace(/^image\//, "").toUpperCase();
+        return kind === ""
+            ? `${name} could not be drawn: this browser cannot read it as an image.`
+            : `${name} is ${kind}, which this browser cannot draw.`;
+    },
 } as const;
 
 /** The Quality row's choices: the reader's `shaderSettings.quality`. */

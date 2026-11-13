@@ -206,6 +206,10 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
     // (undocumented)
+    "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    // (undocumented)
+    "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
+    // (undocumented)
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     // (undocumented)
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
@@ -264,6 +268,8 @@ export interface GraphtyElementJSXProps {
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     // (undocumented)
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
+    // (undocumented)
+    "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
     // (undocumented)
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;

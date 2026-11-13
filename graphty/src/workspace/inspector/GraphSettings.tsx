@@ -15,7 +15,7 @@ import {
     type Lighting,
     LIGHTING_VALUES,
 } from "@graphty/graphty-element/schema";
-import type { GraphSession, GraphSettingKey } from "@graphty/graphty-element/session";
+import { type GraphSession, type GraphSettingKey, prepareBackgroundImage } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
@@ -23,7 +23,6 @@ import { selectionWorkspaceOn } from "../features";
 import { useSizeBound } from "../frame/useSizeBound";
 import { GLYPHS } from "../glyphs";
 import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
-import { readDataUrl } from "../start/open";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { BACKGROUND_SECTION_WORDS, BACKGROUND_WORDS } from "../style/words";
@@ -442,7 +441,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
 
 /**
  * The background image: an address typed in (Enter), or an image from this computer, chosen or
- * dropped on the row, kept in the project as a `data:` address.
+ * dropped on the row, prepared by graphty-element and kept in the project as a `data:` address.
  * @param props - Component props
  * @param props.address - the image address in effect, or "" for none or an uploaded image
  * @param props.onCommit - writes a new address
@@ -452,6 +451,7 @@ function BackgroundImage({
     address,
     onCommit,
 }: Readonly<{ address: string; onCommit: (data: string) => void }>): React.JSX.Element {
+    const { store } = useWorkspace();
     return (
         <FileSource
             variant="row"
@@ -462,7 +462,16 @@ function BackgroundImage({
             label="Upload image"
             onUrl={onCommit}
             onFiles={([file]) => {
-                void readDataUrl(file).then(onCommit);
+                // graphty-element decodes, turns and scales it; one it cannot use is a failure notice.
+                void prepareBackgroundImage(file).then((prepared) => {
+                    if (prepared.ok) {
+                        onCommit(prepared.data);
+                    } else {
+                        store.set({
+                            notice: { message: BACKGROUND_SECTION_WORDS.notDrawn(prepared.problem), error: true },
+                        });
+                    }
+                });
             }}
         />
     );

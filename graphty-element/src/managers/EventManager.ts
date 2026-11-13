@@ -516,6 +516,7 @@ export class EventManager implements Manager {
             case "lifecycle-initialized":
             case "lifecycle-disposed":
             case "skybox-loaded":
+            case "skybox-failed":
             case "operation-queue-active":
             case "operation-queue-idle":
             case "operation-batch-complete":

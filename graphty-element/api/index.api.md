@@ -890,6 +890,8 @@ export class DataManager implements Manager {
     nodeAtRow(row: number): Node_2 | undefined;
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
+    // @internal
+    nodeIdAtRow(row: number): NodeIdType | undefined;
     get nodes(): ReadonlyMap<string | number, Node_2>;
     // @internal
     get nodesByIndex(): readonly (Node_2 | undefined)[];

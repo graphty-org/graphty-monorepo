@@ -253,6 +253,49 @@ describe("pr-review.sh", () => {
         assert.ok(!existsSync(argsLog), "the branch's own copy did not run the review");
     });
 
+    // #6901: an older branch copy launches master's from a temporary directory holding only pr-review.sh and
+    // branch-note.mjs; master's copy must fetch issue-queue.mjs from origin/master and keep the trust check.
+    it("reads the issue through master's issue-queue.mjs when launched from a bare temporary directory", () => {
+        git(work, "checkout", "-q", "master");
+        writeFileSync(join(work, "tools/issue-queue.mjs"), readFileSync(new URL("./issue-queue.mjs", import.meta.url)));
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "chore(tools): issue queue");
+        git(work, "push", "-q", "origin", "master");
+        git(work, "checkout", "-q", "fix/1234-thing");
+        const launched = mkdtempSync(join(dir, "launched-"));
+        writeFileSync(join(launched, "pr-review.sh"), readFileSync(script));
+        writeFileSync(join(launched, "branch-note.mjs"), readFileSync(new URL("./branch-note.mjs", import.meta.url)));
+        const runLaunched = () =>
+            spawnSync("bash", [join(launched, "pr-review.sh"), "--proof", proof], {
+                cwd: work,
+                env: { ...env, PR_REVIEW_LOCAL: "", PR_REVIEW_FROM_MASTER: "1", FAKE_OUT: "Blocking findings: 0" },
+                encoding: "utf8",
+            });
+        writeIssue("someone-else");
+        let r = runLaunched();
+        assert.equal(r.status, 1, r.stdout + r.stderr);
+        assert.match(r.stderr, /untrusted account/);
+        assert.ok(!existsSync(argsLog), "an untrusted issue still stops the review");
+        writeIssue();
+        r = runLaunched();
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.match(readFileSync(promptLog, "utf8"), /^The body of the issue\.$/m);
+    });
+
+    it("stops loudly when issue-queue.mjs is neither beside it nor on origin/master", () => {
+        const launched = mkdtempSync(join(dir, "launched-"));
+        writeFileSync(join(launched, "pr-review.sh"), readFileSync(script));
+        writeFileSync(join(launched, "branch-note.mjs"), readFileSync(new URL("./branch-note.mjs", import.meta.url)));
+        const r = spawnSync("bash", [join(launched, "pr-review.sh"), "--proof", proof], {
+            cwd: work,
+            env: { ...env, PR_REVIEW_FROM_MASTER: "1" },
+            encoding: "utf8",
+        });
+        assert.equal(r.status, 1, r.stdout + r.stderr);
+        assert.match(r.stderr, /tools\/issue-queue\.mjs is not beside .* could not be read from origin\/master/);
+        assert.ok(!existsSync(argsLog), "claude was not called");
+    });
+
     it("names data files and summarizes a large diff, keeping the prompt small", () => {
         mkdirSync(join(work, "design/mockups"), { recursive: true });
         mkdirSync(join(work, "graphty/public/samples"), { recursive: true });

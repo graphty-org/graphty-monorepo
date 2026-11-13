@@ -810,11 +810,16 @@ describe("checking a layer before it is committed", () => {
         assert.deepStrictEqual(codesOf(result), ["E_SELECTOR_EMPTY"]);
     });
 
-    it("refuses a layer that writes no channel at all", () => {
+    it("accepts a layer that writes no channel yet, whoever made it (issue #5905)", () => {
         const { styles } = makeStyles();
-        const result = styles.validate({ name: "Empty", target: "node", selector: { match: "everything" } });
+        const empty = { name: "Empty", target: "node", selector: { match: "everything" } } as const;
 
-        assert.deepStrictEqual(codesOf(result), ["E_BAD_LAYER"]);
+        assert.deepStrictEqual(codesOf(styles.validate(empty)), []);
+        assert.deepStrictEqual(codesOf(styles.validate({ ...empty, source: { by: "user" } })), []);
+        assert.deepStrictEqual(
+            codesOf(styles.validate({ ...empty, source: { by: "template", templateId: "mine" } })),
+            [],
+        );
     });
 
     it("refuses a channel the layer's target does not paint", () => {
@@ -938,14 +943,14 @@ describe("refusals, and where they arrive", () => {
         }
     });
 
-    it("refuses an update that would leave a layer add would have refused", async () => {
+    it("keeps a layer an update leaves writing no channel, in place and painting nothing (issue #5905)", async () => {
         const { styles } = makeStyles();
         const added = await styles.add(layerSpec("Sound"));
 
-        const code = await codeOfRejection(styles.update(added.id, { set: undefined }));
+        await styles.update(added.id, { set: undefined });
 
-        assert.strictEqual(code, "E_BAD_LAYER");
-        assert.strictEqual(styles.get(added.id)?.set?.["node.color"], "#ff0000");
+        assert.deepStrictEqual(namesOf(styles), ["Default", "Sound"]);
+        assert.isUndefined(styles.get(added.id)?.set?.["node.color"]);
     });
 });
 
@@ -1514,6 +1519,18 @@ describe("a style document, out and back in", () => {
         assert.deepStrictEqual(namesOf(styles), ["Default", "Mine"]);
         assert.strictEqual(report.applied.length, 1);
         assert.deepStrictEqual(report.unbound, []);
+    });
+
+    it("loads a layer that writes no channel, as it loads a starting row (issue #5905)", async () => {
+        const { styles } = makeStyles();
+
+        const report = await styles.applyTemplate({
+            version: 1,
+            layers: [{ name: "Not yet styled", target: "node", selector: { match: "everything" } }],
+        });
+
+        assert.deepStrictEqual(namesOf(styles), ["Default", "Not yet styled"]);
+        assert.strictEqual(report.applied.length, 1);
     });
 
     it("applies what binds, disables what does not, and reports both with what it needs", async () => {

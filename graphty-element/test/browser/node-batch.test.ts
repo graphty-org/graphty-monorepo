@@ -113,16 +113,20 @@ async function layer(element: Graphty, ids: number[], set: Record<string, unknow
  * Load the nodes and paint them by their data, in a view.
  * @param element - The element.
  * @param view - The view.
+ * @param sized - Whether half the nodes are drawn bigger.
  */
-async function loaded(element: Graphty, view: "2d" | "3d"): Promise<void> {
+async function loaded(element: Graphty, view: "2d" | "3d", sized = true): Promise<void> {
     await element.session.data.addNodes(NODES);
     await element.graph.setLayout("fixed", { dim: 3 });
     await element.setViewMode(view);
-    await layer(
-        element,
-        NODES.filter((node) => node.big).map((node) => node.id),
-        { "node.size": 1.6 },
-    );
+    if (sized) {
+        await layer(
+            element,
+            NODES.filter((node) => node.big).map((node) => node.id),
+            { "node.size": 1.6 },
+        );
+    }
+
     for (const [tone, color] of Object.entries(TONES)) {
         await layer(
             element,
@@ -146,6 +150,23 @@ async function frameOn(graph: Graph, path: "objects" | "batched"): Promise<Frame
     const frame = await readFrame(graph);
     assert.isAbove(drawn(frame), 500, "the frame holds a graph");
     return frame;
+}
+
+/**
+ * The bytes a batch sends the GPU for each row: its per-instance vertex buffers.
+ * @param mesh - The batch.
+ * @returns The bytes.
+ */
+function bytesPerRow(mesh: Mesh): number {
+    let bytes = 0;
+    for (const kind of mesh.getVerticesDataKinds()) {
+        const buffer = mesh.getVertexBuffer(kind);
+        if (buffer?.getIsInstanced() === true) {
+            bytes += buffer.getSize() * 4;
+        }
+    }
+
+    return bytes;
 }
 
 /**
@@ -175,6 +196,28 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(objects, batched), 0);
         // One draw per shape: the two sizes share a batch, each row scaled in its matrix.
         assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 1);
+    });
+
+    it("send 20 bytes a row while no row of a batch is scaled, 84 once one is, with the object rows' picture", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d", false);
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(overBar(objects, batched), 0);
+        const [batch] = batches(graph.getScene()).filter((mesh) => mesh.isEnabled());
+        assert.equal(bytesPerRow(batch), 20, "a row color and a row number, no matrix");
+
+        const big = await layer(element, [0, 5], { "node.size": 1.6 });
+        await element.waitForStableFrame();
+        assert.equal(bytesPerRow(batch), 84, "a scaled row brings the matrices back");
+        const scaled = await readFrame(graph);
+        assert.notEqual(overBar(batched, scaled), 0);
+        assert.equal(overBar(scaled, await frameOn(graph, "objects")), 0);
+
+        await element.session.styles.remove(big);
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.equal(overBar(objects, await frameOn(graph, "batched")), 0);
     });
 
     it("keep no mesh for a batched row, and give each row its mesh back on the object path", async () => {
@@ -887,6 +930,30 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const styles = new Set(NODES.map((node) => batches?.lookOf(node.id)?.paint.style));
         assert.isFalse(styles.has(undefined), "every row is drawn with no Node");
         assert.equal(styles.size, 2);
+    });
+
+    it("keep no Map entry per row for a batched graph with no Node, through a repaint and a removal", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d");
+        const batches = graph.getNodeBatches();
+        assert.isNotNull(batches);
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        // A row's group and slot are read from its row, not from a Map entry each (89 B a row at 1M).
+        assert.equal(batches?.rowMapEntries, 0);
+
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(paint);
+        if (batches === null || paint === null) {
+            return;
+        }
+
+        batches.unpaintRow(4);
+        assert.equal(batches.batchedNodes, NODES.length - 1);
+        assert.isTrue(batches.paintRow(4, paint));
+        assert.equal(batches.batchedNodes, NODES.length);
+        assert.equal(batches.rowMapEntries, 0);
     });
 
     it("draw a row with no Node from its paint, the picture its Node drew, and build no Node", async () => {

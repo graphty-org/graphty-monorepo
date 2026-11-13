@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty-element",
-    "version": "3.38.0",
+    "version": "3.39.0",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
     "customElements": "./dist/custom-elements.json",
@@ -154,7 +154,7 @@
         "coverage:shard:storybook:5": "COVERAGE_DIR=.coverage-parts/storybook-5 vitest run --project=storybook --shard=5/5 --coverage",
         "coverage:fast": "vitest run --project=default --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
-        "lint": "eslint && node eslint-rules/node-position-funnel.test.mjs && node eslint-rules/node-mesh-funnel.test.mjs && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit && npm run typecheck:strict-consumer",
+        "lint": "node ../tools/test-slots.mjs --lint eslint --concurrency 2 $ESLINT_CACHE && node eslint-rules/node-position-funnel.test.mjs && node eslint-rules/node-mesh-funnel.test.mjs && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit && npm run typecheck:strict-consumer",
         "benchmark": "tsx benchmarks/run.ts",
         "fidelity:ratchet": "tsx scripts/fidelity-ratchet.ts",
         "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json && tsc -p tsconfig.strict-consumer.json && tsc -p tsconfig.no-jsx-opt-in.json",

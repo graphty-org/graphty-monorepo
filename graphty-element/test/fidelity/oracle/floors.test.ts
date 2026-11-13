@@ -260,10 +260,36 @@ describe("style fidelity gate", () => {
         const pruned = ratchetKnown(records(known), [gate], undefined, true);
         assert.deepEqual(pruned.records.known.s, { "stray.present": ["x"], "node.fill": ["d"], "stray.extra": [] });
         assert.strictEqual(pruned.removed, 2);
+        // a list of keys prunes only those keys
+        assert.deepEqual(ratchetKnown(records(known), [gate], undefined, ["other"]).records.known.s, known.s);
+        assert.strictEqual(ratchetKnown(records(known), [gate], undefined, ["s"]).removed, 2);
         assert.include(gateReportText([gate], "none", null), "s stray.present: rect@1");
         // a run that judged no element (a sample that drew nothing) prunes nothing
         const blank = judgeKey("s", run({}, {}, {}), known.s, undefined);
         assert.deepEqual(blank.gone, {});
+    });
+
+    it("prunes a known failure of a property the sample now judges only on the drawing as a whole", () => {
+        // json-vis-siblings: edge.curve is judged once for the drawing ("edges"), so its per-edge entries can never pass
+        // or fail, though the edges are still drawn; node.fill still judges node a one by one, so drawn node b, not
+        // judged for its fill now, is kept
+        const judged = {
+            "edge.curve": ["edges"],
+            "edge.present": ["a->b", "c->d"],
+            "node.fill": ["a"],
+            "node.present": ["a", "b"],
+        };
+        const known = { s: { "edge.curve": ["a->b", "c->d"], "node.fill": ["b"] } };
+        const gate = judgeKey(
+            "s",
+            { ...run({}, { "edge.curve": 1 }, judged), wholeDrawing: ["edges"] },
+            known.s,
+            undefined,
+        );
+        assert.deepEqual(gate.gone, { "edge.curve": ["a->b", "c->d"] });
+        // a run that does not say what it judged as the whole drawing (a gate file written before) prunes none of them
+        const kept = judgeKey("s", run({}, { "edge.curve": 1 }, judged), known.s, undefined);
+        assert.deepEqual(kept.gone, {});
     });
 
     it("raises a floor and records a new one, and never lowers one", () => {

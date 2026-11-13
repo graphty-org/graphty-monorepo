@@ -3,7 +3,7 @@
     "program": "vis-network",
     "version": "vis-network 9.1.9 (standalone), svgcanvas 2.6.0",
     "command": "new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); once(\"stabilizationIterationsDone\"); stopSimulation(); net.renderer._redraw() onto an svgcanvas Context",
-    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring) and shadow blur (a shadow is drawn sharp); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
+    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed (with the paths added to it), a clip keeps its evenodd rule, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
     "svgKind": "vector",
     "canvas": {
         "width": 1200,
@@ -29,6 +29,158 @@
             "x": 25.800972776837057,
             "y": -50.980439829705574
         }
+    },
+    "drawn": {
+        "about": "vis-network's own account of where it drew each node, for naming the SVG's shapes: each node's id, its center (net.getPositions() through net.canvasToDOM) and its bounding box's width and height (net.getBoundingBox through net.canvasToDOM), in the SVG's pixels",
+        "nodes": [
+            {
+                "id": "1",
+                "x": 476.19902722316294,
+                "y": 555.9804398297056,
+                "w": 73.9580078125,
+                "h": 78
+            },
+            {
+                "id": "2",
+                "x": 904.199027223163,
+                "y": 640.9804398297056,
+                "w": 73.9580078125,
+                "h": 70.88888888888891
+            },
+            {
+                "id": "3",
+                "x": 262.19902722316294,
+                "y": 195.98043982970557,
+                "w": 73.9580078125,
+                "h": 63.77777777777783
+            },
+            {
+                "id": "10",
+                "x": 329.19902722316294,
+                "y": 691.9804398297056,
+                "w": 81.744140625,
+                "h": 78
+            },
+            {
+                "id": "11",
+                "x": 292.19902722316294,
+                "y": 514.9804398297056,
+                "w": 80.705078125,
+                "h": 67.33333333333337
+            },
+            {
+                "id": "12",
+                "x": 558.199027223163,
+                "y": 392.9804398297056,
+                "w": 81.744140625,
+                "h": 53.11111111111114
+            },
+            {
+                "id": "100",
+                "x": 772.199027223163,
+                "y": 639.9804398297056,
+                "w": 89.5302734375,
+                "h": 46
+            },
+            {
+                "id": "101",
+                "x": 985.199027223163,
+                "y": 770.9804398297056,
+                "w": 89.53027343750011,
+                "h": 46
+            },
+            {
+                "id": "102",
+                "x": 844.199027223163,
+                "y": 775.9804398297056,
+                "w": 89.5302734375,
+                "h": 46
+            },
+            {
+                "id": "103",
+                "x": 1001.199027223163,
+                "y": 523.9804398297056,
+                "w": 89.5302734375,
+                "h": 60.22222222222217
+            },
+            {
+                "id": "104",
+                "x": 859.199027223163,
+                "y": 506.9804398297056,
+                "w": 89.5302734375,
+                "h": 46
+            },
+            {
+                "id": "201",
+                "x": 1056.1990272231628,
+                "y": 650.9804398297056,
+                "w": 89.53027343750023,
+                "h": 46
+            },
+            {
+                "id": "202",
+                "x": 196.19902722316294,
+                "y": 76.98043982970557,
+                "w": 89.5302734375,
+                "h": 56.66666666666663
+            },
+            {
+                "id": "204",
+                "x": 483.19902722316294,
+                "y": 797.9804398297056,
+                "w": 64,
+                "h": 78
+            },
+            {
+                "id": "230",
+                "x": 146.19902722316294,
+                "y": 249.98043982970557,
+                "w": 89.5302734375,
+                "h": 49.55555555555554
+            },
+            {
+                "id": "231",
+                "x": 368.19902722316294,
+                "y": 124.98043982970557,
+                "w": 89.5302734375,
+                "h": 49.55555555555554
+            },
+            {
+                "id": "1000",
+                "x": 659.199027223163,
+                "y": 378.9804398297056,
+                "w": 47.4755859375,
+                "h": 46
+            },
+            {
+                "id": "1001",
+                "x": 699.199027223163,
+                "y": 481.9804398297056,
+                "w": 41.234375,
+                "h": 46
+            },
+            {
+                "id": "1002",
+                "x": 576.199027223163,
+                "y": 386.9804398297056,
+                "w": 41.234375,
+                "h": 46
+            },
+            {
+                "id": "1003",
+                "x": 670.199027223163,
+                "y": 487.9804398297056,
+                "w": 61.46875,
+                "h": 45.99999999999994
+            },
+            {
+                "id": "1004",
+                "x": 578.199027223163,
+                "y": 421.9804398297056,
+                "w": 76.2685546875,
+                "h": 46
+            }
+        ]
     },
     "pageErrors": []
 }

@@ -890,6 +890,8 @@ export class DataManager implements Manager {
     nodeAtRow(row: number): Node_2 | undefined;
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
+    // @internal
+    nodeIdAtRow(row: number): NodeIdType | undefined;
     get nodes(): ReadonlyMap<string | number, Node_2>;
     // @internal
     get nodesByIndex(): readonly (Node_2 | undefined)[];
@@ -8320,7 +8322,6 @@ export interface XRConfig {
     ar: XRModeConfig;
     enabled: boolean;
     input: XRInputConfig;
-    teleportation: XRTeleportationConfig;
     ui: XRUIConfig;
     vr: XRModeConfig;
 }
@@ -8330,11 +8331,9 @@ export type XRControllerButton = "a" | "b" | "x" | "y";
 
 // @public
 export interface XRInputConfig {
-    controllers: boolean;
     enableZAmplificationInDesktop?: boolean;
     handTracking: boolean;
     nearInteraction: boolean;
-    physics: boolean;
     zAxisAmplification?: number;
 }
 
@@ -8363,17 +8362,14 @@ export interface XRSessionStartedEvent {
 }
 
 // @public
-export interface XRTeleportationConfig {
-    easeTime: number;
-    enabled: boolean;
-}
-
-// @public
 export interface XRUIConfig {
+    arLabel: string;
     enabled: boolean;
     position: "bottom-left" | "bottom-right" | "top-left" | "top-right";
     showAvailabilityWarning: boolean;
+    unavailableLabel: string;
     unavailableMessageDuration: number;
+    vrLabel: string;
 }
 
 // @public

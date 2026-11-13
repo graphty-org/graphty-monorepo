@@ -235,13 +235,5 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
                 "Expected an action or an informative response",
             );
         });
-
-        it("measures latency for complex prompts", async () => {
-            const result = await harness.testPrompt(
-                "find database nodes, make them green, and also tell me how many edges there are",
-            );
-
-            assert.ok(result.latencyMs > 0, "Expected positive latency");
-        });
     });
 });

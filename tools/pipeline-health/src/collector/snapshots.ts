@@ -379,6 +379,11 @@ export interface HoldersSnapshot {
     holders: Record<string, HolderCount>;
     /** Runs queued with no job created yet, by the same key, and the oldest's creation. */
     noJobs: Record<string, { runs: number; since: number }>;
+    /**
+     * Runs GitHub still reports unfinished whose pull request is no longer open (isGhostRun), by the same key: left out
+     * of every count above, and listed so a run stuck at GitHub stays visible (issue #7358).
+     */
+    stuck?: Record<string, { runs: number; since: number }>;
     /** The running jobs of each saturated cycle, last 24 h. */
     saturated: { at: number; running: Record<string, number> }[];
 }
@@ -429,6 +434,7 @@ function countJobs(holders: Record<string, HolderCount>, key: string, jobs: GhJo
  * @param mainRepo - the monorepo, as owner/name
  * @param saturated - whether the pool is saturated this cycle
  * @param now - the current time, in ms
+ * @param ghosts - the unfinished runs whose pull request is no longer open, left out of `open`
  * @returns the new snapshot
  */
 export function nextHolders(
@@ -437,17 +443,25 @@ export function nextHolders(
     mainRepo: string,
     saturated: boolean,
     now: number,
+    ghosts: { run: GhRun; repo: string }[] = [],
 ): HoldersSnapshot {
     const holders: Record<string, HolderCount> = {};
     const noJobs: HoldersSnapshot["noJobs"] = {};
+    const stuck: NonNullable<HoldersSnapshot["stuck"]> = {};
+    const add = (to: HoldersSnapshot["noJobs"], key: string, run: GhRun): void => {
+        const n = to[key] ?? { runs: 0, since: Date.parse(run.created_at) };
+        to[key] = { runs: n.runs + 1, since: Math.min(n.since, Date.parse(run.created_at)) };
+    };
+    for (const { run, repo } of ghosts) {
+        add(stuck, holderKey(run, repo, mainRepo), run);
+    }
     for (const { run, repo, jobs } of open) {
         if (run.status === "completed") {
             continue;
         }
         const key = holderKey(run, repo, mainRepo);
         if (!jobs?.length) {
-            const n = noJobs[key] ?? { runs: 0, since: Date.parse(run.created_at) };
-            noJobs[key] = { runs: n.runs + 1, since: Math.min(n.since, Date.parse(run.created_at)) };
+            add(noJobs, key, run);
             continue;
         }
         countJobs(holders, key, jobs);
@@ -463,7 +477,7 @@ export function nextHolders(
             ),
         });
     }
-    return { at: now, holders, noJobs, saturated: sat };
+    return { at: now, holders, noJobs, stuck, saturated: sat };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

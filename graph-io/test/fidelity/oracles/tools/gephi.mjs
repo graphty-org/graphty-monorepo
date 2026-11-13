@@ -18,27 +18,21 @@
 // JAVA_HOME: a JDK 17 (default <main checkout>/tmp/style-fidelity/tools/jre17/jdk-17*);
 // GEPHI_JAR: gephi-toolkit-0.11.3-all.jar (default <main checkout>/tmp/style-fidelity/tools/gephi/).
 // Then run rasterize.mjs on the written SVGs for the PNGs.
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
-import { isolatedGitEnv } from "../../../../../tools/isolated-git-env.mjs";
 import { gunzipSync } from "node:zlib";
+
+import { mainCheckout } from "./main-checkout.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const oracles = resolve(here, "..");
 const repo = resolve(here, "../../../../..");
 const testDir = resolve(here, "../../..");
 const exporter = resolve(here, "../../references/GephiExport.java");
-const mainCheckout = dirname(
-    execFileSync("git", ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
-        encoding: "utf8",
-        env: isolatedGitEnv(),
-    }).trim(),
-);
 const tools = join(mainCheckout, "tmp/style-fidelity/tools");
 const javaHome =
     process.env.JAVA_HOME ??

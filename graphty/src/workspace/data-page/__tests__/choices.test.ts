@@ -11,6 +11,7 @@ import {
 import { afterEach, assert, describe, it } from "vitest";
 
 import {
+    carriedChoices,
     INITIAL_CHOICES,
     initialChoices,
     loadChoices,
@@ -120,6 +121,26 @@ describe("the Data page's choices", () => {
         assert.isNull(mapping.tables.edges.weight);
         const report = await draft.report(choices);
         assert.equal(report.weights.resolvedFrom, "none");
+    });
+
+    it("reads a load's own choices back as the page's, and sends the same mapping again", async () => {
+        const draft = await prepare({ file: new File([TRIPS], "trips.csv") });
+        const [table] = draft.tables;
+        const carried = {
+            unmatched: "add" as const,
+            mapping: {
+                rowsAre: "edges" as const,
+                source: "from_station",
+                target: { column: "to_station" },
+                weight: null,
+            },
+        };
+        const choices = carriedChoices(draft, carried);
+        assert.equal(choices.unmatched, "add");
+        assert.equal(roleOf(draft, table, "from_station", choices), "source");
+        assert.equal(roleOf(draft, table, "to_station", choices), "target");
+        assert.notEqual(roleOf(draft, table, "trips", choices), "weight");
+        assert.equal((await draft.report(loadChoices(draft, choices, "replace"))).counts.edgeRecords, 3);
     });
 
     it("loads an edge list whose linking columns the reader names", async () => {

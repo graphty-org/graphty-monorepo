@@ -26,6 +26,7 @@ import { identityNodeIdMap, nodeIdMapFromF64, nodeIdMapFromIds } from "../ids/no
 import { EMPTY_GRAPH_META, resolveGraphMeta as resolveSharedGraphMeta } from "../snapshot/graph-meta.js";
 import { createSnapshot, type GraphSnapshot } from "../snapshot/graph-snapshot.js";
 import {
+    checkI1,
     checkI5Orientation,
     checkI6,
     checkI8NaN,
@@ -104,10 +105,14 @@ function arrayTypeError(name: string, expected: string): GraphFormatError {
 
 /**
  * Check the classes of the input arrays (a Float64Array passed as weights or a plain array passed as
- * colIdx would otherwise produce a snapshot whose bytes are wrong on the GPU) and the node count.
+ * colIdx would otherwise produce a snapshot whose bytes are wrong on the GPU), the node count, the
+ * edge count against the arc count (I3) and, below "none", the row pointers (I1) -- before anything
+ * walks the rows or allocates by edgeCount, so a malformed input is rejected in O(n) instead of after
+ * billions of out-of-bounds reads or a huge allocation.
  * @param input - the input
+ * @param level - the validation level ("none" trusts the row pointers)
  */
-function checkShape(input: CsrInput): void {
+function checkShape(input: CsrInput, level: ValidationLevel): void {
     if (!Number.isInteger(input.nodeCount) || input.nodeCount < 0 || input.nodeCount > MAX_COUNT) {
         throw new GraphFormatError("E_TOO_LARGE", `nodeCount ${input.nodeCount} is not an integer in [0, MAX_COUNT]`, {
             count: input.nodeCount,
@@ -140,6 +145,16 @@ function checkShape(input: CsrInput): void {
             expected: input.nodeCount + 1,
             found: input.rowPtr.length,
         });
+    }
+    const arcCount = input.colIdx.length;
+    if (input.edgeCount !== undefined && input.edgeCount > arcCount) {
+        throw invariantViolation("I3", `edgeCount ${input.edgeCount} exceeds arcCount ${arcCount}`, {
+            edgeCount: input.edgeCount,
+            arcCount,
+        });
+    }
+    if (level !== "none") {
+        checkI1({ rowPtr: input.rowPtr, colIdx: input.colIdx, nodeCount: input.nodeCount, arcCount });
     }
 }
 
@@ -238,7 +253,20 @@ function resolveUndirectedPerms(input: CsrInput): ResolvedPerms {
             reason: "missing arcToEdge",
         });
     }
-    const edgeCount = input.edgeCount ?? maxValue(arcToEdge) + 1;
+    let { edgeCount } = input;
+    if (edgeCount === undefined) {
+        // every edge has at least one arc, so a derived count above the arc count means arcToEdge
+        // holds an out-of-range value: reject it before deriveEdgeToArc allocates by it
+        const max = maxValue(arcToEdge);
+        if (max >= input.colIdx.length) {
+            throw invariantViolation("I5", `arcToEdge holds ${max}, not below arcCount ${input.colIdx.length}`, {
+                array: "arcToEdge",
+                found: max,
+                arcCount: input.colIdx.length,
+            });
+        }
+        edgeCount = max + 1;
+    }
     return { arcToEdge, edgeToArc: input.edgeToArc ?? deriveEdgeToArc(arcToEdge, edgeCount), edgeCount };
 }
 
@@ -716,7 +744,7 @@ function resolveOptions(options: FromCsrOptions): {
  */
 export function fromCsr(input: CsrInput, options: FromCsrOptions = {}): GraphSnapshot {
     const { level, copy, sortRows } = resolveOptions(options);
-    checkShape(input);
+    checkShape(input, level);
     const resolved = resolveCore(input, level);
     const { directed, nodeCount } = input;
     const claims = input.flags;

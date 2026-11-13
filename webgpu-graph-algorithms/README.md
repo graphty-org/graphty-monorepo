@@ -525,9 +525,9 @@ ctx.release(s); // when the graph goes away; ctx.dispose() at the end of the pro
 
 | Option          | Default | Meaning                                                                                                              |
 | --------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
-| `dampingFactor` | `0.85`  | the probability of following an arc; the rest teleports                                                              |
+| `dampingFactor` | `0.85`  | the probability of following an arc, in [0, 1]; the rest teleports. Anything else is `E_INVALID_ARGUMENT`            |
 | `maxIterations` | `100`   | an integer >= 1; anything else is `E_INVALID_ARGUMENT`                                                               |
-| `tolerance`     | `1e-6`  | converged when the L1 change of the whole vector falls below `tolerance * nodeCount` (NetworkX's rule)               |
+| `tolerance`     | `1e-6`  | a finite number >= 0; converged when the L1 change falls below `tolerance * nodeCount` (NetworkX's rule)             |
 | `weighted`      | `true`  | arc weights are the transition mass; `false` weighs every arc 1. A snapshot with no weights is unweighted either way |
 
 `GpuPageRankResult` comes back: `scores` (one f32 per node, summing to 1 up to f32 rounding), `iterations`

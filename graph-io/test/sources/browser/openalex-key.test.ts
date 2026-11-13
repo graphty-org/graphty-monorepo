@@ -52,11 +52,12 @@ describe("the OpenAlex key in a browser", () => {
 
     it("is never sent to an origin it is not bound to", async () => {
         await seen();
-        await loadFromSource(
+        const { snapshot } = await loadFromSource(
             "openalex",
             { work: "W1" },
             { fetch: standIn, credential: credentials.forSlot(slot, KEY, { origins: ["https://elsewhere.example"] }) },
         );
+        expect(snapshot.ids.has("W102")).toBe(true);
         const log = await seen();
         expect(log.length).toBeGreaterThan(0);
         expect(log.every((s) => s.apiKey === null)).toBe(true);

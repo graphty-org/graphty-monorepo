@@ -238,8 +238,21 @@ else
     run_step "Peer dependencies stable" "pnpm run check:peer-deps"
     # When the push adds or changes a package.json, a project.json, nx.json or release-hold.json:
     # `nx release --dry-run --skip-publish`, so a project the release train cannot version fails this
-    # push instead of holding every release (#3318). See tools/release-dry-run.mjs.
-    run_step "Release dry run" "node \"$GATE_TOOLS/release-dry-run.mjs\""
+    # push instead of holding every release (#3318). See tools/release-dry-run.mjs. Exit 3: GitHub refused
+    # nx (this machine's request budget), so the push goes on unchecked and no source pass is recorded.
+    bg_poll
+    echo -e "${YELLOW}> Release dry run${NC}"
+    release_rc=0
+    node "$GATE_TOOLS/release-dry-run.mjs" || release_rc=$?
+    if [ "$release_rc" = 0 ]; then
+        echo -e "${GREEN}[PASS] Release dry run passed${NC}"
+    elif [ "$release_rc" = 3 ]; then
+        echo -e "${YELLOW}[NOT CHECKED] Release dry run: GitHub refused nx (above); this push was not checked${NC}"
+        RELEASE_UNCHECKED=1
+    else
+        step_failed "Release dry run"
+    fi
+    echo ""
 
     # graphty-element's data sources read files through @graphty/graph-io importers: no papaparse, no
     # fast-xml-parser and no hand-written parser in graphty-element/src/data. Reads source only.
@@ -293,10 +306,10 @@ else
     bg_wait
 
     # Recorded only when nothing changed while the checks ran (prepush-inputs.mjs record compares), and
-    # only when SonarQube checked the push: a pass it did not check would let the next push of these
+    # only when SonarQube and the release dry run checked the push: a pass they did not check would let the next push of these
     # files, golden's landing push included, skip the scan. An empty GATE_KEY also keeps tools/prepush.sh
     # from recording or reusing a whole-gate pass.
-    if grep -q "SonarQube did NOT check this push" "$SONAR_LOG" 2>/dev/null; then
+    if [ -n "${RELEASE_UNCHECKED:-}" ] || grep -q "SonarQube did NOT check this push" "$SONAR_LOG" 2>/dev/null; then
         GATE_KEY=""
     elif [ -n "$GATE_KEY" ]; then
         node "$GATE_TOOLS/prepush-inputs.mjs" record source "$GATE_KEY" || GATE_KEY=""

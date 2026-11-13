@@ -631,15 +631,14 @@ describe("the held candidate", () => {
         assert.equal(holdAction({ held: "t", sha: "s", state: "red" }), "none", "a master slot never replaces it");
         assert.equal(holdAction({ held: "unknown", sha: "s", state: "red" }), "none");
     });
-    it("replaces a red held head with a newer green run, never a head awaiting the owner's review (#5052)", () => {
+    it("replaces a held head with a newer green run, even one awaiting the owner's review (#5052, #6604)", () => {
         const at = (state, heldState, newer = true) => holdAction({ held: "t", sha: "s", state, heldState, newer });
-        for (const heldState of ["red", "owner-item", "rejected"]) {
+        for (const heldState of ["red", "owner-item", "rejected", "refused", "green-images"]) {
             assert.equal(at("green-images", heldState), "replace", heldState);
             assert.equal(at("green-clean", heldState), "replace", heldState);
         }
         assert.equal(at("red", "red"), "none", "a red run never replaces a red hold");
         assert.equal(at("owner-item", "red"), "none");
-        assert.equal(at("green-images", "green-images"), "none", "his pending review is never discarded");
         assert.equal(at("green-clean", "approved"), "none", "an approved head's promotion is due");
         assert.equal(at("green-clean", ""), "none", "a held head no run judged yet is tested first");
         assert.equal(at("green-clean", "red", false), "none", "an older commit's late verdict never replaces it");

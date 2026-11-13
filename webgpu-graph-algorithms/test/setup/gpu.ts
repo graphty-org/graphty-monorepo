@@ -4,9 +4,9 @@
  * probes ONE adapter for the policy verdict and the printed summary, and never throws: requireGpu(t) and the
  * acquire*() helpers enforce GRAPHTY_GPU_REQUIRE (unset = skip, any, hardware, <vendor>; scripts/gpu-policy.js).
  * Every device comes from a FRESH adapter (an adapter is consumed by one requestDevice, spec 2.2 step 1).
- * acquire() wraps a GpuContext with an onError sink; afterEach fails the test when the sink collected anything
- * ("a wrong result is never a skip"; an uncaptured error is never a pass). afterAll disposes every context and
- * raw device, appends every context's pipeline keys to GRAPHTY_PIPELINE_KEY_LOG (one JSON-encoded key per line
+ * acquire() wraps a GpuContext with an onError sink, and acquireRaw() puts the same sink on its device; afterEach
+ * fails the test when the sink collected anything ("a wrong result is never a skip"; an uncaptured error is never a
+ * pass). afterAll disposes every context and raw device, appends every context's pipeline keys to GRAPHTY_PIPELINE_KEY_LOG (one JSON-encoded key per line
  * in keys-<pid>.jsonl; test/setup/global.ts reads them at P2-T2) and disposes both Dawn handles, as a consumer
  * would (the Dawn instances themselves live until the process exits: src/node/index.ts, issue #30).
  *
@@ -34,6 +34,7 @@ import {
     requestDevice,
     summarizeAdapter,
 } from "../../src/device/acquire.js";
+import { installUncapturedErrorSink, PendingErrorSlot } from "../../src/device/lost.js";
 import type { WebGpuGraphError } from "../../src/errors.js";
 import { createNodeGpu, type NodeGpuHandle } from "../../src/node/index.js";
 import type { AdapterSummary, LimitPolicy } from "../../src/types/context.js";
@@ -135,6 +136,27 @@ export function uncapturedErrors(): readonly WebGpuGraphError[] {
 }
 
 /**
+ * Removes and returns the errors the sink collected so far, for a test that delivers an uncaptured error on purpose
+ * and asserts it: the afterEach hook then sees only what arrives later.
+ * @returns the drained errors
+ */
+export function takeUncapturedErrors(): WebGpuGraphError[] {
+    return uncaptured.splice(0);
+}
+
+/**
+ * The afterEach hook's check (spec 11.2: an uncaptured error is never a pass): throws when `errors` is non-empty.
+ * @param errors - the errors a test left behind
+ */
+export function assertNoUncapturedErrors(errors: readonly WebGpuGraphError[]): void {
+    if (errors.length > 0) {
+        throw new Error(
+            `uncaptured GPU errors during the test (spec 11.2: never a pass):\n${errors.map((e) => `${e.code}: ${e.message}`).join("\n")}`,
+        );
+    }
+}
+
+/**
  * Skips the calling test when no adapter exists and the policy is "skip"; THROWS (fails) under any / hardware /
  * <vendor> when the adapter is absent or violates the policy; returns otherwise.
  */
@@ -150,8 +172,9 @@ export function requireGpu(t: TestContext): void {
 }
 
 /**
- * A FRESH adapter and device (raised limits) with NO context around them; registered for destroy() in afterAll.
- * The default feature list drops subgroups under GRAPHTY_GPU_NO_SUBGROUPS=1, as createContext does.
+ * A FRESH adapter and device (raised limits) with NO context around them but the setup's uncapturederror sink;
+ * registered for destroy() in afterAll. The default feature list drops subgroups under GRAPHTY_GPU_NO_SUBGROUPS=1, as
+ * createContext does.
  */
 export async function acquireRaw(options: RawOptions = {}): Promise<RawDevice> {
     return rawDevice(dawn().gpu, options);
@@ -185,6 +208,10 @@ async function rawDevice(gpu: GPU, options: RawOptions): Promise<RawDevice> {
         label: "acquireRaw",
         requiredLimits: buildRequiredLimits(adapter, options.limits ?? "raise"),
         requiredFeatures: buildRequiredFeatures(adapter, [], options.optionalFeatures ?? defaultOptionalFeatures()),
+    });
+    // the same sink as acquire()'s contexts, so a raw device's uncaptured error fails the test too (spec 11.2)
+    installUncapturedErrorSink(device, new PendingErrorSlot(), (error) => {
+        uncaptured.push(error);
     });
     rawDevices.push(device);
     return { gpu, adapter, device, info: adapter.info };
@@ -297,12 +324,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-    const errors = uncaptured.splice(0);
-    if (errors.length > 0) {
-        throw new Error(
-            `uncaptured GPU errors during the test (spec 11.2: never a pass):\n${errors.map((e) => `${e.code}: ${e.message}`).join("\n")}`,
-        );
-    }
+    assertNoUncapturedErrors(takeUncapturedErrors());
 });
 
 afterAll(async () => {

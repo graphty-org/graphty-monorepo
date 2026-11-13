@@ -365,24 +365,13 @@ async function applyRead(
         layers.push(...(value?.result?.applied ?? []), ...(value?.result?.unbound ?? []).map((entry) => entry.layerId));
     }
 
-    await hide(translation.hidden, namespace, ctx, notes);
+    await hide(translation.hidden, namespace, ctx);
+    // graph-io gives the background as a color it read; a refusal is a defect, reported with its own code.
     if (translation.background !== null) {
-        await ctx
-            .inline({
-                op: "config.set",
-                values: { background: { backgroundType: "color", color: translation.background } },
-            })
-            .catch(() => {
-                notes.push({
-                    code: FILE_STYLE_TRANSLATION_ISSUE.NO_COUNTERPART,
-                    params: {
-                        property: "background",
-                        target: "graph",
-                        count: 1,
-                        samples: [translation.background ?? ""],
-                    },
-                });
-            });
+        await ctx.inline({
+            op: "config.set",
+            values: { background: { backgroundType: "color", color: translation.background } },
+        });
     }
 
     // The file turns the whole drawing (Graphviz's rotate=90 and landscape): the 2D view turns, labels and all.
@@ -501,14 +490,8 @@ function positionOf(stack: readonly CompiledLayer[], replacing: boolean): "above
  * @param hidden - The hidden elements per kind.
  * @param namespace - The load's namespace.
  * @param ctx - The import's context.
- * @param notes - Where a refusal is noted.
  */
-async function hide(
-    hidden: Translation["hidden"],
-    namespace: string,
-    ctx: UndoableContext,
-    notes: FileStyleNote[],
-): Promise<void> {
+async function hide(hidden: Translation["hidden"], namespace: string, ctx: UndoableContext): Promise<void> {
     const leaves: RuleTree[] = [];
     if (hidden.node !== null) {
         leaves.push({
@@ -530,20 +513,9 @@ async function hide(
 
     const rule: RuleTree = { kind: "not", of: leaves.length === 1 ? leaves[0] : { kind: "any", of: leaves } };
     const current = ctx.state.visibility.filter;
-    try {
-        await ctx.inline({
-            op: "visibility.set",
-            filter: current === null ? rule : { kind: "all", of: [current, rule] },
-        });
-    } catch {
-        notes.push({
-            code: FILE_STYLE_TRANSLATION_ISSUE.NO_COUNTERPART,
-            params: {
-                property: "visible",
-                target: null,
-                count: (hidden.node?.count ?? 0) + (hidden.edge?.count ?? 0),
-                samples: [],
-            },
-        });
-    }
+    // The rule is built here from the file's columns; a refusal is a defect, reported with its own code.
+    await ctx.inline({
+        op: "visibility.set",
+        filter: current === null ? rule : { kind: "all", of: [current, rule] },
+    });
 }

@@ -10,11 +10,9 @@
 
 import { type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 
-import { MAX_ITERATIONS_PER_STEP } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { createForceAtlas2 } from "../../src/layouts/forceatlas2.js";
-import { type ForceAtlas2Stats, type GpuLayoutSimulation } from "../../src/types/layout.js";
-import { type ForceAtlas2Options } from "../../src/types/options.js";
+import { type ForceAtlas2Stats } from "../../src/types/layout.js";
 import { runFrameLoop, runFrameLoopUntilSettled } from "../helpers/frame-loop.js";
 import { fixture, randomEdges, snapshotOf } from "../helpers/graphs.js";
 import {
@@ -53,108 +51,6 @@ function controllerOf(stats: ForceAtlas2Stats): ControllerSample {
 
 function lcgUnit(seed: number): number {
     return ((seed * 9301 + 49297) % 233280) / 233280;
-}
-
-function nextTick(): Promise<void> {
-    return new Promise<void>((resolve) => {
-        setTimeout(() => {
-            resolve();
-        }, 0);
-    });
-}
-
-/** Chromium clamps nested zero-delay timers to 4 ms; measured (the median of 20 ticks), never assumed. */
-async function measureTickMs(): Promise<number> {
-    const ticks: number[] = [];
-    for (let i = 0; i < 20; i++) {
-        const start = performance.now();
-        await nextTick();
-        ticks.push(performance.now() - start);
-    }
-    ticks.sort((a, b) => a - b);
-    return Math.max(ticks[ticks.length / 2], 0.5);
-}
-
-/** One batch of k iterations, timed from the call to the readback landing. */
-async function timedStep(sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>, k: number): Promise<number> {
-    const start = performance.now();
-    await sim.step(k);
-    return performance.now() - start;
-}
-
-/**
- * The UNCONTENDED wall time of one batch: the minimum of three timings, so a batch queued behind another
- * process's GPU work (a sibling run on the dev box) cannot under-size k (see test/layouts/frame-loop.test.ts).
- */
-async function minTimedStep(
-    sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>,
-    k: number,
-): Promise<number> {
-    let best = Infinity;
-    for (let i = 0; i < 3; i++) {
-        best = Math.min(best, await timedStep(sim, k));
-    }
-    return best;
-}
-
-/**
- * iterationsPerStep that makes one batch outlast at least four ticks here: the step(8) estimate is VERIFIED and k
- * doubled until a batch measures >= 4 ticks, each timing the minimum of three runs (see
- * test/layouts/frame-loop.test.ts); throws with the measured ratio
- * when even MAX_ITERATIONS_PER_STEP stays under two ticks. Leaves ctx.pipelines warm (compile-once per context).
- */
-async function calibrateHeavyStep(ctx: GpuContext, snapshot: GraphSnapshot, tickMs: number): Promise<number> {
-    const scratch = createForceAtlas2(ctx, { seed: 7, maxIter: 1_000_000, settleThreshold: 0 });
-    const positions = new Float32Array(3 * snapshot.nodeCount).fill(NaN);
-    scratch.load(snapshot, positions);
-    await scratch.step(8);
-    const batchMs = Math.max(await minTimedStep(scratch, 8), 0.05);
-    let k = Math.min(MAX_ITERATIONS_PER_STEP, Math.max(8, Math.ceil((8 * 4 * tickMs) / batchMs)));
-    let measuredMs = await minTimedStep(scratch, k);
-    while (measuredMs < 4 * tickMs && k < MAX_ITERATIONS_PER_STEP) {
-        k = Math.min(MAX_ITERATIONS_PER_STEP, k * 2);
-        measuredMs = await minTimedStep(scratch, k);
-    }
-    scratch.dispose();
-    if (measuredMs < 2 * tickMs) {
-        throw new Error(
-            `calibrateHeavyStep: step(${k}) measured ${measuredMs.toFixed(3)} ms against ${tickMs.toFixed(3)} ms ticks ` +
-                `(${(measuredMs / tickMs).toFixed(2)} ticks per batch): even MAX_ITERATIONS_PER_STEP iterations cannot ` +
-                "keep a batch in flight across two tick starts on this adapter",
-        );
-    }
-    return k;
-}
-
-/**
- * The graph and iterations-per-step of a flight-dependent run: calibrateHeavyStep on random1k at `scale` and, when
- * even MAX_ITERATIONS_PER_STEP cannot outlast the ticks there (a fast adapter behind slow timers: the macOS runner's
- * Chromium ticks 25-35 ms while its Metal device runs 256 iterations of random1k in 64 ms), on the fixture at twice
- * and four times the scale -- each doubling of the node count quadruples the exact repulsion tile's work -- before
- * giving up with the last measurement. An abandoned fixture is released again.
- */
-async function calibrateFlight(
-    ctx: GpuContext,
-    scale: number,
-    tickMs: number,
-): Promise<{ readonly snapshot: GraphSnapshot; readonly k: number }> {
-    let failure: unknown = null;
-    for (const factor of [1, 2, 4]) {
-        const { snapshot } = fixture("random1k", scale * factor);
-        try {
-            const k = await calibrateHeavyStep(ctx, snapshot, tickMs);
-            if (factor > 1) {
-                console.warn(
-                    `[frame-loop] calibrated on random1k at ${factor}x the scale (${snapshot.nodeCount} nodes): step(${k}) against ${tickMs.toFixed(1)} ms ticks`,
-                );
-            }
-            return { snapshot, k };
-        } catch (err: unknown) {
-            failure = err;
-            ctx.release(snapshot);
-        }
-    }
-    throw failure;
 }
 
 /**
@@ -329,8 +225,11 @@ describe("frame loop in Chromium (spec 11.4 last bullet: also on SwiftShader and
         await requireBrowserGpu(t);
         const ctx = await acquireBrowser();
         expectAdapterMatchesFlagSet(ctx);
-        const { snapshot, k } = await calibrateFlight(ctx, browserScale(), await measureTickMs());
+        const { snapshot } = fixture("random1k", browserScale());
         const n = snapshot.nodeCount;
+        await warmPipelines(ctx, snapshot); // the loop's own simulation below is never stepped before the loop
+        // any batch length: every write's flight is constructed (submitBeforeWrites), never sized from timings
+        const k = 4;
         const positions = new Float32Array(3 * n).fill(NaN);
         const sim = createForceAtlas2(ctx, {
             seed: 7,
@@ -355,6 +254,7 @@ describe("frame loop in Chromium (spec 11.4 last bullet: also on SwiftShader and
             iterationsPerStep: k,
             maxInFlight: 2,
             setPositionAt: writes,
+            submitBeforeWrites: ctx.device.queue,
             onTick: (tick) => {
                 const write = writes.find((w) => w.tick === tick);
                 if (write !== undefined) {
@@ -369,7 +269,7 @@ describe("frame loop in Chromium (spec 11.4 last bullet: also on SwiftShader and
         for (const hold of report.positionHolds) {
             expect(hold.held, `write at tick ${hold.tick} on node ${hold.index}`).toBe(true);
         }
-        expect(Math.max(...inFlightAtWrite)).toBeGreaterThanOrEqual(1);
+        expect(inFlightAtWrite).toEqual(writes.map(() => 1)); // every write met the one batch submitted before it
         expect(report.maxObservedInFlight).toBeLessThanOrEqual(2);
         expectMonotone(report.iterationsDoneByTick, new Set(writes.map((w) => w.tick)));
         await sim.flush();

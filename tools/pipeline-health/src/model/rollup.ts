@@ -1,6 +1,10 @@
 // Rollups, recomputed and never incremented (10.3): a dirty 5-minute bucket is rebuilt from the raw items copied
 // into it, then its 15-minute, hourly and daily parents from their children. A parent whose children have expired
-// (a backfill of an old day) is rebuilt from below, down to the raw items.
+// (a backfill of an old day) is rebuilt from below, down to the raw items. A bucket is stored as gzipped JSON, and
+// only when it changed: its index item keeps a short hash of each metric's stored bucket (#6813).
+
+import { createHash } from "node:crypto";
+import { gunzipSync, gzipSync } from "node:zlib";
 
 import { addValue, emptyHistogram, mergeInto, quantile } from "./histogram.js";
 import {
@@ -120,6 +124,17 @@ const pick = ({ n, sum, hist, vals, max, last, lastAt, dims }: Bucket): Bucket =
     ...(last === undefined ? {} : { last, lastAt }),
     ...(dims ? { dims } : {}),
 });
+
+/**
+ * The bucket a stored rollup item holds: its gzipped JSON, or the fields of an item written before #6813.
+ * @param r - a stored rollup item
+ * @returns the bucket
+ */
+export function storedBucket(r: Item): Bucket {
+    return r.gz instanceof Uint8Array
+        ? (JSON.parse(gunzipSync(r.gz).toString("utf8")) as Bucket)
+        : pick(r as RollupItem);
+}
 
 const SOURCES = new Map<string, { metric: string; source: MetricSource }[]>();
 for (const m of METRICS) {
@@ -277,7 +292,7 @@ export async function readStored(
             }
             const b = out.get(r.start) ?? new Map();
             out.set(r.start, b);
-            b.set(m, pick(r));
+            b.set(m, storedBucket(r));
         }
     }
     return out;
@@ -343,32 +358,49 @@ export async function computePeriod(
 }
 
 /**
- * Writes one recomputed bucket of every metric, and empties the metrics it no longer holds.
+ * Writes the metrics of one recomputed bucket that changed, and empties the metrics it no longer holds. The index
+ * item keeps a hash of each metric's stored bucket, so a bucket recomputed unchanged (a dirty mark whose items fold
+ * to the same values, an hour or day an unrelated write marked) costs no write: every cycle used to rewrite every
+ * metric of every dirty bucket and its parents, most of the table's write units (#6813).
  * @param store - the table
  * @param step - bucket size
  * @param start - bucket start, epoch ms
  * @param buckets - the recomputed bucket of each metric
  * @param nowMs - current time
- * @returns how many metric buckets were written (0 when the bucket expires within the hour)
+ * @returns how many metric buckets were written (0 when none changed or the bucket expires within the hour)
  */
 async function writePeriod(store: Store, step: Step, start: number, buckets: Buckets, nowMs: number): Promise<number> {
     if (!kept(step, start, nowMs)) {
         return 0;
     }
     const ttl = ttlAt(start + KEEP_MS[step]);
-    const prev = ((await store.get(idxKey(step, start)))?.metrics as string[] | undefined) ?? [];
+    const idx = await store.get(idxKey(step, start));
+    const prev = (idx?.metrics as string[] | undefined) ?? [];
+    const prevSums = (idx?.sums as Record<string, string> | undefined) ?? {};
     const ops: BatchOp[] = [];
     for (const m of prev) {
         if (!buckets.has(m)) {
             ops.push({ delete: rollKey(m, step, start) });
         }
     }
+    const sums: Record<string, string> = {};
+    let written = 0;
     for (const [m, b] of buckets) {
-        ops.push({ put: { ...rollKey(m, step, start), metric: m, step, start, ttl, ...pick(b) } });
+        const json = JSON.stringify(pick(b));
+        sums[m] = createHash("sha256").update(json).digest("base64").slice(0, 12);
+        if (sums[m] !== prevSums[m]) {
+            ops.push({ put: { ...rollKey(m, step, start), metric: m, step, start, ttl, gz: gzipSync(json) } });
+            written++;
+        }
     }
-    ops.push({ put: { ...idxKey(step, start), metrics: [...buckets.keys()].sort(), ttl } }); // NOSONAR(S2871): code-unit order, the same in every locale, keeps the index stable
+    if (!ops.length) {
+        return 0;
+    }
+    // The buckets before the index: an index never holds the hash of a bucket that failed to be stored.
     await store.batch(ops);
-    return buckets.size;
+    const metrics = [...buckets.keys()].sort(); // NOSONAR(S2871): code-unit order, the same in every locale, keeps the index stable
+    await store.put({ ...idxKey(step, start), metrics, sums, ttl });
+    return written;
 }
 
 /** Most dirty marks one recompute consumes. */
@@ -495,7 +527,7 @@ export async function loadSeries(
         to: skTime(to),
     })) as RollupItem[]) {
         if (isLive(r, nowMs)) {
-            out.set(r.start, pick(r));
+            out.set(r.start, storedBucket(r));
         }
     }
     return out;

@@ -44,9 +44,6 @@ const EDGES = [
     { src: "n12", dst: "n29" },
 ];
 
-/** How long to give the layout before deciding it is never going to settle. */
-const SETTLE_TIMEOUT_MS = 10000;
-
 /**
  * How far a reported box may sit from the graph it claims to frame, in world units.
  *
@@ -158,25 +155,6 @@ describe("framing the graph", () => {
     });
 
     /**
-     * Wait for the layout to stop moving.
-     * @returns Whether it stopped, as opposed to running out of time.
-     */
-    async function settle(): Promise<boolean> {
-        return new Promise<boolean>((done) => {
-            const timer = setTimeout(() => {
-                off();
-                done(false);
-            }, SETTLE_TIMEOUT_MS);
-
-            const off = graph.on("graph-settled", () => {
-                clearTimeout(timer);
-                off();
-                done(true);
-            });
-        });
-    }
-
-    /**
      * The largest gap between a reported box and the graph it was measuring.
      * @param framing - The framing to score.
      * @returns That distance, in world units.
@@ -193,8 +171,9 @@ describe("framing the graph", () => {
     }
 
     it("frames the graph the layout has produced, not the one it produced a step earlier", async () => {
-        assert.isTrue(await settle(), "the layout settled");
-        // The capture's tail: the element frames once more after settling, before the final frame.
+        // The layout's convergence and the capture's tail: the element frames once more after
+        // settling, before the final frame. Waited on as a state, so a layout that settled before
+        // this line is not missed, and with no deadline of its own.
         await graph.waitForStableFrame();
 
         assert.isNotEmpty(framings, "the element framed the graph at least once");
@@ -209,7 +188,6 @@ describe("framing the graph", () => {
     });
 
     it("honours a zoomToFit() asked for after the layout has stopped", async () => {
-        assert.isTrue(await settle(), "the layout settled");
         await graph.waitForStableFrame();
 
         const before = framings.length;

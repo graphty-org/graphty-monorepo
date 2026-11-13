@@ -104,7 +104,6 @@ export type {
     XRControllerButton,
     XRInputConfig,
     XRModeConfig,
-    XRTeleportationConfig,
     XRUIConfig,
 } from "./src/config/index";
 

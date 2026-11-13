@@ -1,15 +1,12 @@
 /**
  * @file A label a layer asks for, checked against the pixels on the canvas.
  *
- * WHY THIS FILE EXISTS. Four test files mention the `node.label` channel and all four assert the
- * model: `test/managers/style-painter.test.ts` adds a layer that sets `node.label`, asks the
- * painter what it resolved, and finds the words and `enabled: true` -- which is true, and says
- * nothing about whether anything built a label. The leaf tests next to it
- * (`Edge.label.test.ts`, `Edge.arrowText.test.ts`, `label-attachOffset.test.ts`) construct a
- * `RichTextLabel` by hand, or declare a style object literal and assert the fields they just
- * typed. Between the painter's answer and the frame there was nothing at all, and that is
- * exactly where the defect lived: the painter reported a label on a node that had no label
- * object and no label mesh anywhere in the scene.
+ * WHAT IT CHECKS. `test/managers/style-painter.test.ts` adds a layer that sets `node.label` and
+ * asks the painter what it resolved, which says nothing about whether anything built a label.
+ * `Edge.label.test.ts`, `Edge.arrowText.test.ts` and `label-attachOffset.test.ts` read where a
+ * real node's or edge's label plane sits. This file reads the pixels: between the painter's
+ * answer and the frame is where the defect lived, the painter reporting a label on a node that
+ * had no label object and no label mesh anywhere in the scene.
  *
  * WHAT MAKES THIS DIFFERENT FROM THE OTHER PIXEL TEST. `style-paint-pixels.test.ts` samples the
  * MOST COLOURFUL pixel near a node and skips anything whose channel spread is under 24, because

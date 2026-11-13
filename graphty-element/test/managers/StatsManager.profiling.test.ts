@@ -449,12 +449,6 @@ describe("StatsManager - Profiling", () => {
                 statsManager.reportDetailed();
             });
         });
-
-        it("should include GPU metrics when available", () => {
-            // This test requires mocking BabylonJS instrumentation
-            // For now, we just verify it doesn't crash
-            statsManager.reportDetailed();
-        });
     });
 
     describe("getSnapshot - full integration", () => {

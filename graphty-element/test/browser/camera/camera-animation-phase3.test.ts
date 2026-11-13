@@ -130,6 +130,14 @@ test("skipQueue option bypasses operation queue", async () => {
     }
 
     assert.ok(Math.abs(state.position.x - 25) < 5);
+
+    // And it stays there: the animation it interrupted does not go on to move the camera
+    await graph.waitForSettled();
+    const settled = graph.getCameraState().position;
+    assert.isDefined(settled);
+    assert.closeTo(settled.x, 25, 0.5, "x once settled");
+    assert.closeTo(settled.y, 25, 0.5, "y once settled");
+    assert.closeTo(settled.z, 25, 0.5, "z once settled");
 });
 
 test("operation queue allows sequential animations", async () => {
@@ -174,6 +182,11 @@ test("operation queue allows sequential animations", async () => {
 
     // Should be at second target (y=50)
     assert.ok(Math.abs(finalState.position.y - 50) < 10, `Final Y is ${finalState.position.y}, expected ~50`);
+
+    // The cancelled first animation reported no state; only the second one did
+    const toFirst = positions.filter((p) => Math.abs(p.x - 50) < 1 && Math.abs(p.y) < 1);
+    assert.deepEqual(toFirst, [], "no camera state toward the cancelled first target");
+    assert.deepEqual(positions, [{ x: 0, y: 50, z: 0 }], "only the second animation reported its state");
 });
 
 test("camera animation with custom description", async () => {

@@ -89,14 +89,13 @@ describe("Dependency Ordering", () => {
         await queueManager.waitForCompletion();
 
         // Should execute both
-        assert.equal(executionOrder.length, 2);
+        assert.sameMembers(executionOrder, ["custom-op-1", "custom-op-2"]);
     });
 
     it("should sort multiple operation categories correctly", async () => {
         const executionOrder: string[] = [];
 
-        // Queue operations in reverse dependency order
-        // TODO: We must avoid operations that obsolete each other
+        // Queue operations in reverse dependency order; none of these three obsoletes another
         queueManager.queueOperation("layout-set", () => {
             executionOrder.push("layout-set");
         });
@@ -129,7 +128,7 @@ describe("Dependency Ordering", () => {
 
         // layout-set does NOT depend on data-add in stateless design
         // So we just verify they all execute
-        assert.equal(executionOrder.length, 3);
+        assert.sameMembers(executionOrder, ["layout-set", "data-add", "style-init"]);
     });
 
     it("should handle multiple operations of the same category", async () => {
@@ -164,8 +163,11 @@ describe("Dependency Ordering", () => {
 
         // All data-add operations should execute (order preserved within category)
         // camera-update has no dependency on data-add, so it executes in queue order
-        assert.equal(executionOrder.length, 4);
-        assert.deepEqual(executionOrder.slice(0, 3), ["data-add-1", "data-add-2", "data-add-3"]);
+        assert.sameMembers(executionOrder, ["data-add-1", "data-add-2", "data-add-3", "camera-update"]);
+        assert.deepEqual(
+            executionOrder.filter((op) => op.startsWith("data-add")),
+            ["data-add-1", "data-add-2", "data-add-3"],
+        );
     });
 
     it("should maintain order within same category", async () => {
@@ -191,11 +193,11 @@ describe("Dependency Ordering", () => {
         assert.deepEqual(executionOrder, ["data-1", "data-2", "data-3", "data-4", "data-5"]);
     });
 
-    it("should handle complex dependency chains", async () => {
+    it("should order a dependency chain and drop the algorithm-run that data-add obsoletes", async () => {
         const executionOrder: string[] = [];
 
-        // Create a complex chain with operations that have dependencies but no obsolescence
-        // Queue in reverse order to test dependency sorting
+        // Queued in reverse dependency order. data-add obsoletes the algorithm-run queued before it
+        // (src/constants/obsolescence-rules.ts), so that one never runs.
         queueManager.queueOperation("algorithm-run", () => {
             executionOrder.push("algorithm-run");
         });
@@ -230,26 +232,27 @@ describe("Dependency Ordering", () => {
         // style-init -> data-add (data-add depends on style-init)
         assert.isTrue(indices["style-init"] < indices["data-add"]);
 
-        // data-add -> algorithm-run (data-add obsoletes algorithm-run, so algorithm-run won't run)
-        // But since data-add is queued after algorithm-run, algorithm-run should run first if not obsoleted
-        // Actually, data-add obsoletes algorithm-run, so only data-add should run
-        // Let's test the actual execution order
-        assert.equal(executionOrder.length, 3); // Only style-init, data-add, layout-set should run
-        // layout-set does NOT depend on data-add in stateless design, so order can vary
-        assert.isTrue(executionOrder.includes("style-init"));
-        assert.isTrue(executionOrder.includes("data-add"));
-        assert.isTrue(executionOrder.includes("layout-set"));
+        assert.notInclude(executionOrder, "algorithm-run", "data-add obsoleted it");
+        // layout-set does NOT depend on data-add in stateless design, so its place can vary
+        assert.sameMembers(executionOrder, ["style-init", "data-add", "layout-set"]);
     });
 
-    // Phase 1 Tests - These will FAIL initially
-    it("should have layout-update → layout-set dependency", () => {
-        // This test will FAIL initially
+    it("should sort layout-set before a layout-update queued ahead of it", async () => {
+        const executionOrder: string[] = [];
 
-        const deps = (OperationQueueManager as any).CATEGORY_DEPENDENCIES;
-        const hasLayoutUpdateToLayoutSet = deps.some(
-            (dep: [string, string]) => dep[0] === "layout-update" && dep[1] === "layout-set",
-        );
-        assert.isTrue(hasLayoutUpdateToLayoutSet, "Missing layout-update → layout-set dependency");
+        // Batch mode applies no obsolescence, so the layout-update that layout-set would otherwise
+        // obsolete stays in the batch and only the dependency decides the order.
+        queueManager.enterBatchMode();
+        queueManager.queueOperation("layout-update", () => {
+            executionOrder.push("layout-update");
+        });
+        queueManager.queueOperation("layout-set", () => {
+            executionOrder.push("layout-set");
+        });
+        await queueManager.exitBatchMode();
+        await queueManager.waitForCompletion();
+
+        assert.deepEqual(executionOrder, ["layout-set", "layout-update"]);
     });
 
     it("should execute layout-set before layout-update", async () => {

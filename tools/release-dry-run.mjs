@@ -12,7 +12,7 @@
 // The push's changes are measured from its merge base with the branch it merges into
 // (tools/push-base.mjs). RELEASE_DRY_RUN_COMMAND replaces the nx command (the tests use it).
 //
-// Usage: node tools/release-dry-run.mjs      (exit 1 when the dry run fails)
+// Usage: node tools/release-dry-run.mjs      (exit 1 when the dry run fails, exit 3 when GitHub refused it)
 import { execFileSync, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -23,7 +23,21 @@ const RELEASE_FILES = /(^|\/)(package|project)\.json$|^(nx|release-hold)\.json$/
 const COMMAND = "pnpm exec nx release --dry-run --skip-publish";
 // nx asks GitHub for the repository's releases; a 403 or a rate limit there is this machine's GitHub
 // budget running out, not a change the release train cannot version (26 gate failures on 2026-10-24).
-const GITHUB_REFUSED = /status code (403|429)|rate limit/i;
+// Only nx's own error line counts -- the last line of the output, past nx's "--verbose" hint -- so a
+// real versioning error with a 403 or "rate limit" somewhere above it (a stack trace, an npm registry
+// warning) still fails. Such a run is NOT_CHECKED, not a pass: the gate shows it and records no pass.
+const GITHUB_REFUSED = /Request failed with status code (403|429)|rate limit exceeded|secondary rate limit/i;
+export const NOT_CHECKED = 3;
+
+/**
+ * nx's error line: the last non-blank line of a failed run's output, skipping nx's "--verbose" hint.
+ * @param output - the run's stdout and stderr
+ * @returns the line, or ""
+ */
+function errorLine(output) {
+    const lines = output.split("\n").filter((l) => l.trim() && !/--verbose/.test(l));
+    return lines.at(-1) ?? "";
+}
 
 /**
  * Whether a push's changed files can change what the release train versions.
@@ -57,14 +71,14 @@ export function check(files, env = process.env, log = console.log) {
         log(`${command}: passed`);
         return 0;
     }
-    const tail = `${run.stdout ?? ""}${run.stderr ?? ""}`.trimEnd().split("\n").slice(-40).join("\n");
-    log(tail);
-    if (GITHUB_REFUSED.test(tail)) {
+    const output = `${run.stdout ?? ""}${run.stderr ?? ""}`;
+    log(output.trimEnd().split("\n").slice(-40).join("\n"));
+    if (GITHUB_REFUSED.test(errorLine(output))) {
         log(
             `\nWARNING: ${command} was refused by GitHub (a 403 or a rate limit, above): this machine's failure, ` +
                 "not the change's, so the push is not stopped. The release dry run did NOT check this push.",
         );
-        return 0;
+        return NOT_CHECKED;
     }
     log(
         `\n${command} failed (exit ${run.status ?? run.signal}): the release train would fail on this change. ` +

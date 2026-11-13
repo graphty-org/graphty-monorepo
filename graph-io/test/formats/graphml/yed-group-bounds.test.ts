@@ -9,6 +9,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { gmlGroupBounds } from "../../../src/formats/gml/groups.js";
+import { foldedMembers } from "../../../src/formats/graphml/yed-group-bounds.js";
 import { extractPositions } from "../../../src/positions/index.js";
 import { createRegistry } from "../../../src/registry.js";
 import { resolveStyles } from "../../../src/styles/internal.js";
@@ -70,5 +72,58 @@ describe("yEd open groups", () => {
             [328, 166, 96, 80],
             [576, 158.72, 79.2, 103.28],
         ]);
+    });
+});
+
+describe("yEd groups of any size and depth", () => {
+    const N = 100_000;
+
+    it("bounds a group of 100,000 members", async () => {
+        const nodes = ["node [ id 0 isGroup 1 graphics [ x 0 y 0 w 10 h 10 ] ]"];
+        for (let i = 1; i <= N; i++) {
+            nodes.push(`node [ id ${String(i)} gid 0 graphics [ x ${String(i)} y ${String(-i)} w 2 h 2 ] ]`);
+        }
+        const { snapshot } = await registry.importGraph(`graph [ ${nodes.join(" ")} ]`, { format: "gml" });
+        // the members span x 0..N+1 and y -N-1..0, grown by the 15 pt insets
+        expect(gmlGroupBounds(snapshot).get(snapshot.ids.indexOf(0))).toEqual([-15, -N - 16, N + 16, 15]);
+    });
+
+    it("bounds and folds a chain of 100,000 nested groups", async () => {
+        const nodes = ["node [ id 0 isGroup 1 graphics [ x 0 y 0 w 10 h 10 ] ]"];
+        for (let i = 1; i <= N; i++) {
+            const leaf = i === N ? "" : "isGroup 1 ";
+            nodes.push(`node [ id ${String(i)} ${leaf}gid ${String(i - 1)} graphics [ x 0 y 0 w 2 h 2 ] ]`);
+        }
+        const { snapshot } = await registry.importGraph(`graph [ ${nodes.join(" ")} ]`, { format: "gml" });
+        // each level grows the leaf's 2 x 2 box by 15 on every side
+        const depth = N;
+        expect(gmlGroupBounds(snapshot).get(snapshot.ids.indexOf(0))).toEqual([
+            -1 - 15 * depth,
+            -1 - 15 * depth,
+            1 + 15 * depth,
+            1 + 15 * depth,
+        ]);
+        const closed = snapshot.ids.indexOf(1);
+        const hidden = foldedMembers(snapshot, (row) => row === closed);
+        expect(hidden.size).toBe(N - 1);
+        expect(hidden.has(closed)).toBe(false);
+    });
+
+    it("folds a nesting cycle by the closed group on it, which stays drawn", async () => {
+        // 1 in 2, 2 in 3, 3 in 1, and 4 in 1: a cycle the file should not have
+        const { snapshot } = await registry.importGraph(
+            "graph [ node [ id 1 isGroup 1 gid 2 ] node [ id 2 isGroup 1 gid 3 ] node [ id 3 isGroup 1 gid 1 ] node [ id 4 gid 1 ] ]",
+            { format: "gml" },
+        );
+        const row = (id: number): number => snapshot.ids.indexOf(id);
+        for (const start of [1, 2, 3]) {
+            const hidden = foldedMembers(snapshot, (r) => r === row(start));
+            expect([...hidden].sort(), String(start)).toEqual(
+                [1, 2, 3, 4]
+                    .filter((id) => id !== start)
+                    .map(row)
+                    .sort(),
+            );
+        }
     });
 });

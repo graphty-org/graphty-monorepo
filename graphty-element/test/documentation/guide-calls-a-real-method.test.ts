@@ -20,6 +20,8 @@ import { join } from "node:path";
 
 import { assert, describe, it } from "vitest";
 
+import { publicMemberNames } from "./class-members";
+
 /**
  * The members a guide may name on `element` or `graph` that are not declared by either class.
  *
@@ -70,24 +72,6 @@ function markdownUnder(dir: string): string[] {
     }
 
     return found;
-}
-
-/**
- * The names a source file declares: methods, getters, setters and fields.
- * @param file - the source file to read
- * @returns the declared names
- */
-function declaredMembers(file: string): Set<string> {
-    const source = readFileSync(file, "utf8");
-    const names = new Set<string>();
-
-    for (const match of source.matchAll(
-        /^\s{4}(?:(?:public|private|protected|static|readonly|async|get|set)\s+)*([A-Za-z_$][\w$]*)\s*[(:<]/gm,
-    )) {
-        names.add(match[1]);
-    }
-
-    return names;
 }
 
 /**
@@ -163,12 +147,13 @@ const REBOUND: Record<string, readonly string[]> = {
 const GUIDES = markdownUnder("docs/guide");
 
 describe("the names the guides teach", () => {
-    for (const [receiver, file] of [
-        ["element", "src/graphty-element.ts"],
-        ["graph", "src/Graph.ts"],
+    for (const [receiver, file, className] of [
+        ["element", "src/graphty-element.ts", "Graphty"],
+        ["graph", "src/Graph.ts", "Graph"],
     ] as const) {
-        it(`every \`${receiver}.<name>\` in a guide is declared by ${file}`, () => {
-            const declared = declaredMembers(file);
+        it(`every \`${receiver}.<name>\` in a guide is a public member of ${className}`, () => {
+            // Private and protected members are declared too, but a reader cannot call them.
+            const declared = publicMemberNames(file, className);
             const wrong: string[] = [];
 
             for (const guide of GUIDES) {

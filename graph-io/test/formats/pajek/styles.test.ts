@@ -300,6 +300,37 @@ describe("Pajek styles: where an arc's arrowhead stops", () => {
     });
 });
 
+describe("Pajek styles: a polygon whose corners cannot be read", () => {
+    it("measures where an arrowhead stops at the ellipse instead", async () => {
+        const { snapshot } = await load("*Vertices 2\n1 a 0.1 0.1\n2 b 0.5 0.1\n*Arcs\n1 2\n");
+        const ap = async (shape: string, shapePoints: string | null): Promise<string | undefined> => {
+            const styles = planStyles(
+                {
+                    format: "test",
+                    node: {
+                        values: {
+                            shape: [shape, shape],
+                            shapePoints: [shapePoints, shapePoints],
+                            width: [20, 20],
+                            height: [20, 20],
+                        },
+                    },
+                    edge: { values: { arrowPosition: [0.5] } },
+                    fingerprint: styleFingerprint(snapshot),
+                },
+                { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+            );
+            const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
+            return /^1 2 .*\bap (\S+)/m.exec(out)?.[1];
+        };
+        const ellipse = await ap("ellipse", null);
+        expect(ellipse).toBeDefined();
+        for (const bad of ["", "1", "a,b c,d e,f", "1,2 3,4", "1,2,3 4,5 6,7"]) {
+            expect(await ap("polygon", bad)).toBe(ellipse);
+        }
+    });
+});
+
 describe("Pajek styles: a label's baseline through its point", () => {
     it("lifts a label by its own face's half height: Courier's is less than Arial's", async () => {
         // pajek-synth-vertices v29: Courier 12 at lr 12 lphi 180, its baseline through the vertex center

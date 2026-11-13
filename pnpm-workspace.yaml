@@ -72,6 +72,13 @@ patchedDependencies:
     # first PBR material decodes threw "Cannot read properties of null (reading 'program')" as an
     # unhandled rejection (issue #6683). This stops the decode once the engine is disposed.
     "@babylonjs/core@8.56.2": patches/@babylonjs__core@8.56.2.patch
+    # Mantine 8.3.18's useCombobox keeps the list's id in a ref that Combobox.Options fills in an
+    # effect, and nothing re-renders the target afterwards. A list open when it mounts
+    # (defaultDropdownOpened, or dropdownOpened true from the start) leaves its combobox with
+    # aria-expanded="false" and no aria-controls until the next re-render, so a screen reader is
+    # told the list is closed. The patch re-renders the combobox once when the id is set
+    # (issue #1913).
+    "@mantine/core@8.3.18": patches/@mantine__core@8.3.18.patch
 
 # Security floors for transitive packages that a parent in pnpm-lock.yaml pins to a vulnerable
 # version. Each line names the parent that holds it back; delete an entry once that parent moves
@@ -123,8 +130,8 @@ overrides:
     # knip locked zod 4.6.5 (GHSA-mrhx-c7xc-m3w5).
     "zod@>=4.0.0 <4.6.6": ^4.6.6
     # @sonar/scan 5.0.1 locked node-forge 1.4.0 (GHSA-86w9-cpqp-85rv and the other fixes of the 1.4.1
-    # security release).
-    "node-forge@<1.4.1": ^1.4.1
+    # security release), then 1.4.2 (GHSA-j8rw-jp99-435v, GHSA-w4xr-hqv8-ch44, GHSA-6889-vf6x-f3g5).
+    "node-forge@<1.4.3": ^1.4.3
     # vitepress 1.x depends on vite 5, which the Vite 6.4.3 advisories do not patch.
     "vite@<6.4.3": ^6.4.3
     # graphty-element builds TanStack AI and the provider SDKs it drives into its own chunks, so

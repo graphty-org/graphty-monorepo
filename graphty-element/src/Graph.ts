@@ -5197,9 +5197,9 @@ export class Graph implements GraphContext {
         const scan = rowScanOf(this.scene);
         if (scan !== undefined) {
             for (const row of scan.rowsInRegion(polygon)) {
-                const node = this.dataManager.nodeAtRow(row);
-                if (node !== undefined) {
-                    ids.push(node.id);
+                const id = this.dataManager.nodeIdAtRow(row);
+                if (id !== undefined) {
+                    ids.push(id);
                 }
             }
 
@@ -6323,7 +6323,6 @@ export class Graph implements GraphContext {
             vr: { ...current.vr, ...patch.vr },
             ar: { ...current.ar, ...patch.ar },
             input: { ...current.input, ...patch.input },
-            teleportation: { ...current.teleportation, ...patch.teleportation },
         });
         this.graphContext.updateConfig({ xr: fullConfig });
         if (this.initialized) {
@@ -7509,6 +7508,9 @@ export class Graph implements GraphContext {
 
         // For immediate (non-animated) updates, skipQueue or a transition of no time, apply directly
         if (!options || !options.animate || options.skipQueue || options.duration === 0) {
+            // A placement made now is where the camera stays: an animation still running toward an
+            // earlier request would otherwise go on moving it and end at that request's target.
+            this.operationQueue.cancelByCategory("camera-update");
             this.applyCameraStateImmediate(resolvedState);
             // Emit event
             this.eventManager.emit("camera-state-changed", { state: resolvedState });
@@ -9647,6 +9649,7 @@ export class Graph implements GraphContext {
                 vr: xrConfig.vr,
                 ar: xrConfig.ar,
                 handTracking: xrConfig.input.handTracking,
+                nearInteraction: xrConfig.input.nearInteraction,
                 onSessionEnded: ({ mode, cause }) => {
                     this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
                 },

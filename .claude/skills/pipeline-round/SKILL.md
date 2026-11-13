@@ -87,7 +87,7 @@ incident with a named cause (#5052).
   `blocking`), the open `Nightly missed slot <date hh:mm> UTC: <cause>` issue (filed by release.yml's slot job when a
   full, restart or candidate run ends without moving nightly; `Nightly stalled since` is only the fallback for a slot
   with no run at all) and the `Nightly held on <sha12>` issue.
-- **An unreviewable or stale hold is fixed this round:** a held head judged red, owner-item or rejected while
+- **An unreviewable or stale hold is fixed this round:** a held head judged red, owner-item, rejected or refused while
   newer green runs could not replace it, a hold whose fix forward is not moving, or one older than a slot with no
   fix in flight. Fix forward (step 6), or end it with
   `gh workflow run nightly-abandon.yml --ref master -f reason="<why>"` (allowed, needs no owner).
@@ -166,7 +166,7 @@ first-parent merges since the last green full run.
   `Refs #<red issue>` and a Proof naming the red run (a mechanical revert auto-merges on the light check; its merge
   starts the restart). Comment on the culprit's issue, and start the fix forward on an ordinary branch with a fix
   subagent. Fix forward instead of reverting when the revert conflicts or the fix is smaller.
-- **A full run red twice running** (the two newest completed full runs failed): swarm it. Start one fix subagent
+- **A full run red twice running** (the two newest full-run verdicts are `red`): swarm it. Start one fix subagent
   per failing test group or job, not one fix job for the whole run, each on its own issue (the `Full run red` issue
   for the first, one filed per further group), each with step 1's fix prompt plus: reproduce it under `taskset -c 0`,
   name the mechanism, fix it there, never a longer wait or a raised timeout. Skip a group another session already
@@ -224,8 +224,11 @@ version` (409) means it is propagating (minutes); otherwise re-run the failed pu
 A full run that is green but changed screenshots (`green-images`), or not green-clean after its one re-run, holds its
 commit H on `channel/candidate` with a `Nightly held on <sha12>` issue (CLAUDE.md, "The held nightly candidate"). A
 red cause is fixed forward from `origin/channel/candidate` (step 1's fix prompt, that base, `Refs #<hold issue>`). A
-newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item or rejected on its
-own (`hold.mjs replace`); a held green-images head awaiting review is never replaced.
+newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item, rejected, refused or
+green-images on its own (`hold.mjs replace`): a held head awaiting the owner's review is replaced too, so nightly
+never waits behind it (#6604); only an approved head, or one whose approval merged, is never replaced. An approval the promotion gate refused
+records `refused`: once its cause is fixed on master, re-dispatch the command the hold issue names (it tries the same
+approval again, #6783).
 
 - **Before asking the owner,** open his proofroom review page (servherd `proofroom-review`, cwd
   `.worktrees/proofroom-review`; command in CLAUDE.md, "Visual review") in your own browser tab and confirm it lists
@@ -379,6 +382,14 @@ Each: signal, meaning, action. Add to this list (see the next section).
   spender (a per-pull-request REST loop, a tight poll) and file or fix it.
 - **Worktrees git refuses to remove** because of untracked build output: leave them; a fix belongs in
   `tools/worktree-cleanup.mjs`, not a forced removal.
+- **The loop stopped running.** CronCreate jobs expire 7 days after they are created (the 2026-11-04 loop ran its last
+  round 2026-11-11 and nobody noticed for a day). Start it again and follow "Renewing the loop" in `shared.md`.
+- **A full run cancelled with every lane green.** An advisory `continue-on-error` job that hits its timeout (ci.yml's
+  Performance Benchmarks, #7507) leaves a full run's GitHub conclusion `cancelled` (or `failure`) although every lane
+  passed and the Verdict job recorded `green-clean` or `green-images` (runs 43389691481 and 43421576817 on
+  2026-11-13). Judge master by that verdict (the `release.yml` line of `shared.md`'s state block), never by
+  the conclusion: such a run is green, master is not red, and nothing is bisected or reverted for it. Reading the
+  conclusion and skipping cancelled runs kept master red for hours on an older failure.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the
   Release status issue.
 
@@ -386,7 +397,7 @@ Each: signal, meaning, action. Add to this list (see the next section).
 
 When a round meets something this file or `shared.md` does not cover, or a step here turns out wrong: handle it, then
 fix the file -- a new "Known situations" entry or a corrected step -- on a branch
-(`./tools/worktree-new.sh docs/pipeline-round-<topic> origin/master --issue <N>`), and open its pull request like any
+(`./tools/worktree-new.sh chore/pipeline-round-<topic> origin/master --issue <N>`), and open its pull request like any
 change. Resolved failure modes go in `lessons.md` beside this file. A rule both skills need goes in `shared.md`, never
 in both. Never work around the skill in the session or in memory only. A situation that needs the same manual work
 every time becomes an issue for a tool fix. Keep this file a checklist: no daemons, no state files, no scripts of its
@@ -395,7 +406,8 @@ own.
 ## Running it
 
 One session runs each skill at a time; other sessions may still work by hand and are coordinated only through the
-`in-progress` label and markers. A /loop expires after seven days; start it again then. To pause, stop the loop.
+`in-progress` label and markers. A /loop expires after seven days; each round renews it (`shared.md`, "Renewing the
+loop"). To pause, stop the loop.
 
 - **Normal:** both skills. Two clients, `/loop 30m /pipeline-round` in one and `/loop 30m /issue-round` in the other;
   or one client, `/loop 30m run /pipeline-round, then /issue-round` (issue-round always after pipeline-round).

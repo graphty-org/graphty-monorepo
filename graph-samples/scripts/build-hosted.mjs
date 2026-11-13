@@ -391,6 +391,39 @@ function copySmallDatasets() {
     return index;
 }
 
+/**
+ * One large dataset's file: the published copy with the recorded SHA-256 when there is one, else built
+ * from its sources; either way checked to hold every node column its metadata declares.
+ * @param {object} dataset - an entry of DATASETS
+ * @param {string | undefined} recordedSha - the SHA-256 hosted.ts records, when reusing published files
+ * @returns {Promise<{ gz: Buffer, snapshot: object }>} the gzipped bytes and the decoded snapshot
+ */
+async function builtFile(dataset, recordedSha) {
+    // canary first, then graphty.app (before canary serves the data, or while it cannot be read); both are
+    // checked against the recorded SHA-256
+    let gz =
+        (await publishedCopy(`${REUSE_URL}${dataset.meta.name}.gsnp.gz`, recordedSha)) ??
+        (await publishedCopy(`${BASE_URL}${dataset.meta.name}.gsnp.gz`, recordedSha));
+    let snapshot;
+    if (gz === null) {
+        const files = {};
+        for (const key of dataset.sources) {
+            files[key] = await source(key);
+        }
+        snapshot = fromEdgeArrays(await dataset.build(files));
+        gz = gzipSync(snapshot.toBytes(), { level: 9 });
+    } else {
+        console.log(`${dataset.meta.name}: reusing the published file (sha256 ${recordedSha})`);
+        snapshot = fromBytes(gunzipSync(gz));
+    }
+    for (const column of Object.keys(dataset.meta.attributes)) {
+        if (snapshot.nodes.get(column) === null) {
+            throw new Error(`${dataset.meta.name}: the snapshot has no node column "${column}"`);
+        }
+    }
+    return { gz, snapshot };
+}
+
 async function main() {
     mkdirSync(outDir, { recursive: true });
     const small = copySmallDatasets();
@@ -408,28 +441,7 @@ async function main() {
         const recordedSha = reusePublished
             ? recorded.find((meta) => meta.name === dataset.meta.name)?.sha256
             : undefined;
-        // canary first, then graphty.app (before canary serves the data, or while it cannot be read); both are
-        // checked against the recorded SHA-256
-        let gz =
-            (await publishedCopy(`${REUSE_URL}${dataset.meta.name}.gsnp.gz`, recordedSha)) ??
-            (await publishedCopy(`${BASE_URL}${dataset.meta.name}.gsnp.gz`, recordedSha));
-        let snapshot;
-        if (gz === null) {
-            const files = {};
-            for (const key of dataset.sources) {
-                files[key] = await source(key);
-            }
-            snapshot = fromEdgeArrays(await dataset.build(files));
-            gz = gzipSync(snapshot.toBytes(), { level: 9 });
-        } else {
-            console.log(`${dataset.meta.name}: reusing the published file (sha256 ${recordedSha})`);
-            snapshot = fromBytes(gunzipSync(gz));
-        }
-        for (const column of Object.keys(dataset.meta.attributes)) {
-            if (snapshot.nodes.get(column) === null) {
-                throw new Error(`${dataset.meta.name}: the snapshot has no node column "${column}"`);
-            }
-        }
+        const { gz, snapshot } = await builtFile(dataset, recordedSha);
         writeFileSync(path.join(outDir, `${dataset.meta.name}.gsnp.gz`), gz);
         const {
             name,

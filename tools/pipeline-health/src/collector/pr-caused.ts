@@ -97,40 +97,23 @@ export async function changedFiles(gh: GitHub, repo: string, prs: number[]): Pro
 }
 
 /**
- * Sets `prCaused` on the finished attempt-1 ci.yml pull request runs among `runs` (in place).
+ * Each candidate's failed test files that are its own: not flaky in 28 days and not shared with another pull
+ * request's run (sharedWith); and the earlier runs counted on a shared test, re-marked as not caused.
  * @param store - the metrics store
- * @param gh - the GitHub client
- * @param repo - the repository, as owner/name
- * @param runs - this cycle's run items
+ * @param cands - the runs to judge
+ * @param judged - the run ids judged this cycle, never re-marked from here
  * @param now - the current time, in ms
- * @returns earlier runs, stored with prCaused true, that a shared failure found this cycle makes false
+ * @returns each candidate's own failed files, by run, and the re-marked earlier runs, by run id
  */
-export async function markPrCaused(
+async function ownFailures(
     store: Store,
-    gh: GitHub,
-    repo: string,
-    runs: RunItem[],
+    cands: RunItem[],
+    judged: Set<number>,
     now: number,
-): Promise<RunItem[]> {
-    const due = runs.filter(
-        (r) =>
-            r.workflow === "ci.yml" &&
-            r.event === "pull_request" &&
-            r.attempt === 1 &&
-            r.status === "completed" &&
-            FINISHED.has(r.conclusion ?? ""),
-    );
-    for (const r of due) {
-        r.prCaused = false;
-    }
-    const cands = due.filter((r) => r.cause === "change" && r.pr !== undefined && r.repo === repo);
-    if (!cands.length) {
-        return [];
-    }
+): Promise<{ fails: Map<RunItem, string[]>; unmarked: Map<number, RunItem> }> {
     const flaky = await flakyHistory(store, now);
     const fails = new Map<RunItem, string[]>();
     const unmarked = new Map<number, RunItem>();
-    const judged = new Set(due.map((r) => r.runId));
     const history = new Map<string, Promise<Item[]>>();
     const rowsOf = (file: string): Promise<Item[]> => {
         let rows = history.get(file);
@@ -163,6 +146,41 @@ export async function markPrCaused(
             fails.set(r, files);
         }
     }
+    return { fails, unmarked };
+}
+
+/**
+ * Sets `prCaused` on the finished attempt-1 ci.yml pull request runs among `runs` (in place).
+ * @param store - the metrics store
+ * @param gh - the GitHub client
+ * @param repo - the repository, as owner/name
+ * @param runs - this cycle's run items
+ * @param now - the current time, in ms
+ * @returns earlier runs, stored with prCaused true, that a shared failure found this cycle makes false
+ */
+export async function markPrCaused(
+    store: Store,
+    gh: GitHub,
+    repo: string,
+    runs: RunItem[],
+    now: number,
+): Promise<RunItem[]> {
+    const due = runs.filter(
+        (r) =>
+            r.workflow === "ci.yml" &&
+            r.event === "pull_request" &&
+            r.attempt === 1 &&
+            r.status === "completed" &&
+            FINISHED.has(r.conclusion ?? ""),
+    );
+    for (const r of due) {
+        r.prCaused = false;
+    }
+    const cands = due.filter((r) => r.cause === "change" && r.pr !== undefined && r.repo === repo);
+    if (!cands.length) {
+        return [];
+    }
+    const { fails, unmarked } = await ownFailures(store, cands, new Set(due.map((r) => r.runId)), now);
     const out = [...unmarked.values()];
     if (!fails.size) {
         return out;

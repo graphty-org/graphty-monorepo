@@ -1,8 +1,8 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { Lcg } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
-import { RandomNumberGenerator } from "../utils/random.js";
 import { type CommonLayoutOptions, resolve, result } from "./common.js";
 
 /** Residual `|L x - theta x|` at which an eigenvector counts as found, relative to the Gershgorin bound on L. */
@@ -113,11 +113,11 @@ function spectralRows(
     const laplacian = (x: F64): F64 => applyLaplacian(g, degree, x);
     // a loop, not Math.max(...degree): spreading n arguments overflows the stack on large graphs (#7032)
     const tolerance = TOLERANCE * 2 * degree.reduce((max, d) => Math.max(max, d), 1);
-    const rng = new RandomNumberGenerator(seed ?? undefined);
+    const rng = new Lcg(seed);
     // the constant vector, the eigenvector of 0, and then every component found so far
     const found: F64[] = [new Float64Array(n).fill(1 / Math.sqrt(n))];
     for (let d = 0; d < dim; d++) {
-        const start = Float64Array.from({ length: n }, () => (rng.rand() as number) - 0.5);
+        const start = Float64Array.from({ length: n }, () => rng.next() - 0.5);
         const component = orthonormal(start, found) ? smallest(laplacian, start, found, tolerance) : start.fill(0);
         found.push(component);
         for (let i = 0; i < n; i++) {

@@ -311,8 +311,8 @@ seedPositions(s, positions, 42, 2, 1, null, "fa2");
 ```
 
 The arguments are positional and all required: the snapshot, the owner's stride-3 scene-unit array (modified
-in place, length `3 * nodeCount`), the LCG seed (`0` or `null` draws a random one, the CPU port's quirk kept
-bit for bit), `dim` (`2` or `3`), the scene `scale` (> 0), the scene `center` (an `ArrayLike<number>`, or
+in place, length `3 * nodeCount`), the LCG seed (an integer >= 0, or `null` for a random one; any other value
+throws `E_INVALID_ARGUMENT`), `dim` (`2` or `3`), the scene `scale` (> 0), the scene `center` (an `ArrayLike<number>`, or
 `null` for the origin), and the draw range: `"fa2"` is `[-1, 1)` in layout units, `"fr"` is `[0, 1)`.
 ForceAtlas2 and the spring preset seed with `"fa2"`, Fruchterman-Reingold with `"fr"`.
 

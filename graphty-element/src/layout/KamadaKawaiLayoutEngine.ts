@@ -136,6 +136,14 @@ const kamadaKawaiLayoutOptionsSchema = defineOptions({
             description: "Place strongly connected nodes closer together",
         },
     },
+    seed: {
+        schema: z.number().int().nonnegative().nullable().default(null),
+        meta: {
+            label: "Random Seed",
+            description: "Seed of the random 3D start, for a reproducible layout",
+            advanced: true,
+        },
+    },
 });
 
 const KamadaKawaiLayoutConfig = z.strictObject({
@@ -147,6 +155,7 @@ const KamadaKawaiLayoutConfig = z.strictObject({
     scale: z.number().positive().default(1),
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(3),
+    seed: z.number().int().nonnegative().or(z.null()).default(null),
 });
 type KamadaKawaiLayoutConfigType = z.infer<typeof KamadaKawaiLayoutConfig>;
 type KamadaKawaiLayoutOpts = Partial<KamadaKawaiLayoutConfigType>;
@@ -216,6 +225,7 @@ export class KamadaKawaiLayout extends SnapshotLayoutEngine {
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
                 dim,
+                seed: this.config.seed,
             }),
             this.config.scalingFactor,
         );

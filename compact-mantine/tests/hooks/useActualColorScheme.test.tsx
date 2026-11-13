@@ -1,64 +1,67 @@
-import { MantineProvider, useComputedColorScheme } from "@mantine/core";
+import { MantineProvider } from "@mantine/core";
 import { renderHook } from "@testing-library/react";
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { compactTheme, useActualColorScheme } from "../../src";
 
-// Mock the useComputedColorScheme hook
-vi.mock("@mantine/core", async () => {
-    const actual = await vi.importActual("@mantine/core");
-    return {
-        ...actual,
-        useComputedColorScheme: vi.fn(() => "dark"),
-    };
-});
+/**
+ * Render the hook under a real MantineProvider and keep every value it returned, first render
+ * included: the fallback shows only on the first render, before the OS preference is read.
+ * @param fallback - passed to the hook; left out to use its default
+ * @param force - the provider's forced scheme; left out for "auto"
+ * @returns every value the hook returned, in order
+ */
+function renders(fallback?: "light" | "dark", force?: "light" | "dark"): string[] {
+    const seen: string[] = [];
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <MantineProvider theme={compactTheme} defaultColorScheme="auto" forceColorScheme={force}>
+            {children}
+        </MantineProvider>
+    );
+    renderHook(
+        () => {
+            const scheme = fallback === undefined ? useActualColorScheme() : useActualColorScheme(fallback);
+            seen.push(scheme);
+            return scheme;
+        },
+        { wrapper },
+    );
+    return seen;
+}
+
+/**
+ * Make the OS report a light or dark preference (tests/setup.ts reports dark).
+ * @param scheme - the preference the OS reports
+ */
+function osPrefers(scheme: "light" | "dark"): void {
+    const real = window.matchMedia;
+    vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
+        ...real(query),
+        matches: query === "(prefers-color-scheme: dark)" ? scheme === "dark" : false,
+    }));
+}
 
 describe("useActualColorScheme", () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <MantineProvider theme={compactTheme}>{children}</MantineProvider>
-    );
-
-    beforeEach(() => {
-        vi.mocked(useComputedColorScheme).mockReturnValue("dark");
+    it("returns the forced scheme", () => {
+        expect(renders(undefined, "light").at(-1)).toBe("light");
+        expect(renders(undefined, "dark").at(-1)).toBe("dark");
     });
 
-    it("returns computed color scheme", () => {
-        const { result } = renderHook(() => useActualColorScheme(), { wrapper });
-        expect(result.current).toBe("dark");
-    });
-
-    it("calls useComputedColorScheme with dark as default fallback", () => {
-        renderHook(() => useActualColorScheme(), { wrapper });
-        expect(useComputedColorScheme).toHaveBeenCalledWith("dark");
-    });
-
-    it("returns light when system preference is light", () => {
-        vi.mocked(useComputedColorScheme).mockReturnValue("light");
-        const { result } = renderHook(() => useActualColorScheme(), { wrapper });
-        expect(result.current).toBe("light");
+    it.each(["light", "dark"] as const)("resolves auto to the OS preference %s", (scheme) => {
+        osPrefers(scheme);
+        expect(renders().at(-1)).toBe(scheme);
     });
 
     describe("configurable fallback (Issue #2)", () => {
-        it("uses provided fallback when called with 'light'", () => {
-            renderHook(() => useActualColorScheme("light"), { wrapper });
-            expect(useComputedColorScheme).toHaveBeenCalledWith("light");
+        it("defaults to 'dark' before the OS preference is known", () => {
+            osPrefers("light");
+            expect(renders()).toEqual(["dark", "light"]);
         });
 
-        it("uses provided fallback when called with 'dark'", () => {
-            renderHook(() => useActualColorScheme("dark"), { wrapper });
-            expect(useComputedColorScheme).toHaveBeenCalledWith("dark");
-        });
-
-        it("defaults to 'dark' fallback when no argument provided", () => {
-            renderHook(() => useActualColorScheme(), { wrapper });
-            expect(useComputedColorScheme).toHaveBeenCalledWith("dark");
-        });
-
-        it("returns the resolved color scheme from useComputedColorScheme", () => {
-            vi.mocked(useComputedColorScheme).mockReturnValue("light");
-            const { result } = renderHook(() => useActualColorScheme("light"), { wrapper });
-            expect(result.current).toBe("light");
+        it("uses the provided fallback before the OS preference is known", () => {
+            osPrefers("dark");
+            expect(renders("light")).toEqual(["light", "dark"]);
         });
     });
 });

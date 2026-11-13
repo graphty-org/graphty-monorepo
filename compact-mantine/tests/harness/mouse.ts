@@ -106,6 +106,12 @@ export async function release(): Promise<void> {
     }
 }
 
+/** Release a held button and forget where the pointer was, so a failed drag leaves nothing behind. */
+export async function resetMouse(): Promise<void> {
+    await release();
+    pointer = { x: 0, y: 0 };
+}
+
 /**
  * Press on an element, move the pointer by an offset in steps and release there.
  * @param element - what the press lands on

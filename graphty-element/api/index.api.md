@@ -656,12 +656,14 @@ export interface Capabilities {
 export interface CapabilityCheck {
     // (undocumented)
     estimatedMemoryMB: number;
+    height?: number;
     // (undocumented)
     reason?: string;
     // (undocumented)
     supported: boolean;
     // (undocumented)
     warnings?: string[];
+    width?: number;
 }
 
 // @public
@@ -2756,6 +2758,7 @@ export interface GlobeLook {
 export class Graph implements GraphContext {
     constructor(element: Element | string, useMockInput?: boolean, options?: {
         readonly antialias?: boolean;
+        readonly preserveDrawingBuffer?: boolean;
     });
     readonly acceleration: AccelerationController;
     addDataFromSource(type: string, opts?: object, options?: {
@@ -2967,6 +2970,7 @@ export class Graph implements GraphContext {
     // (undocumented)
     pinOnDrag?: boolean;
     get pixelRatio(): PixelRatio;
+    readonly preserveDrawingBuffer: boolean;
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
@@ -3544,6 +3548,8 @@ export class Graphty extends LitElement {
     set pixelRatio(value: PixelRatio);
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
+    get preserveDrawingBuffer(): boolean;
+    set preserveDrawingBuffer(value: boolean);
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
@@ -4609,6 +4615,12 @@ export type GraphtyWarningCode =
 * `params.requested` is the value given, `params.active` the one in use.
 */
 | "W_ANTIALIAS_LATE"
+/**
+* `preserveDrawingBuffer` was changed after the element built its engine, which reads it only
+* then: the engine keeps the value it was built with. Raised as a `graphty-warning` event.
+* `params.requested` is the value given, `params.active` the one in use.
+*/
+| "W_PRESERVE_DRAWING_BUFFER_LATE"
 /**
 * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
 * `node.modelSourceUp` turns it.
@@ -7606,6 +7618,7 @@ export enum ScreenshotErrorCode {
     ASPECT_RATIO_MISMATCH = "ASPECT_RATIO_MISMATCH",
     // (undocumented)
     CANVAS_ALLOCATION_FAILED = "CANVAS_ALLOCATION_FAILED",
+    CAPTURE_ABORTED = "CAPTURE_ABORTED",
     // (undocumented)
     CLIPBOARD_NOT_SECURE_CONTEXT = "CLIPBOARD_NOT_SECURE_CONTEXT",
     // (undocumented)
@@ -7616,8 +7629,8 @@ export enum ScreenshotErrorCode {
     CLIPBOARD_WRITE_FAILED = "CLIPBOARD_WRITE_FAILED",
     // (undocumented)
     DIMENSION_TOO_LARGE = "DIMENSION_TOO_LARGE",
-    // (undocumented)
     ENGINE_NOT_CONFIGURED = "ENGINE_NOT_CONFIGURED",
+    INVALID_BACKGROUND_COLOR = "INVALID_BACKGROUND_COLOR",
     // (undocumented)
     INVALID_DIMENSIONS = "INVALID_DIMENSIONS",
     // (undocumented)
@@ -7654,6 +7667,7 @@ export interface ScreenshotLegendSection {
 
 // @public (undocumented)
 export interface ScreenshotOptions {
+    backgroundColor?: string;
     camera?: CameraState | {
         preset: string;
         params?: Readonly<Record<string, unknown>>;
@@ -7679,6 +7693,7 @@ export interface ScreenshotOptions {
     // (undocumented)
     quality?: number;
     showSelection?: boolean;
+    signal?: AbortSignal;
     // (undocumented)
     strictAspectRatio?: boolean;
     // (undocumented)
@@ -7686,6 +7701,7 @@ export interface ScreenshotOptions {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
         settleTimeoutMs?: number;
+        captureNow?: AbortSignal;
     };
     // (undocumented)
     transparentBackground?: boolean;

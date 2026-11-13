@@ -93,6 +93,11 @@ interface RenderManagerConfig {
     pixelRatio?: PixelRatio;
     /** Whether the WebGL engine built when no `engine` is passed multisamples. Left out, true. */
     antialias?: boolean;
+    /**
+     * Whether the WebGL engine built when no `engine` is passed keeps each drawn frame's buffer
+     * (WebGL's `preserveDrawingBuffer`). Left out, true.
+     */
+    preserveDrawingBuffer?: boolean;
 }
 
 /**
@@ -289,14 +294,19 @@ export async function openWebGPUEngine(
  * missing, which the log reports as E_NO_WEBGL.
  * @param canvas - The element's canvas.
  * @param antialias - Whether the context multisamples; the element's `antialias`.
+ * @param preserveDrawingBuffer - Whether the context keeps each drawn frame; the element's
+ *     `preserveDrawingBuffer`. Screenshots work either way; a consumer's own read of the canvas
+ *     between frames needs it.
  * @returns The engine and the scene.
  */
-function openWebGL(canvas: HTMLCanvasElement, antialias: boolean): { engine: Engine; scene: Scene } {
+function openWebGL(
+    canvas: HTMLCanvasElement,
+    antialias: boolean,
+    preserveDrawingBuffer: boolean,
+): { engine: Engine; scene: Scene } {
     let engine: Engine | undefined;
     try {
-        engine = new Engine(canvas, antialias, {
-            preserveDrawingBuffer: true, // Required for screenshots
-        });
+        engine = new Engine(canvas, antialias, { preserveDrawingBuffer });
         return { engine, scene: new Scene(engine) };
     } catch (error) {
         try {
@@ -974,7 +984,11 @@ export class RenderManager implements Manager {
         this.pacesWebGpuFrames = this.config.pacesWebGpuFrames ?? ((): boolean => false);
 
         if (this.config.engine === undefined) {
-            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas, this.config.antialias ?? true));
+            ({ engine: this.engine, scene: this.scene } = openWebGL(
+                this.canvas,
+                this.config.antialias ?? true,
+                this.config.preserveDrawingBuffer ?? true,
+            ));
         } else {
             this.engine = this.config.engine;
             this.scene = new Scene(this.engine);

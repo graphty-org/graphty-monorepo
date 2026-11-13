@@ -1,6 +1,7 @@
 import {
     type AbstractMesh,
     type Camera,
+    Color4,
     Constants,
     CreateScreenshotAsync,
     CreateScreenshotUsingRenderTarget,
@@ -16,6 +17,7 @@ import {
 } from "@babylonjs/core";
 
 import type { ViewInsets } from "../camera/types.js";
+import { colorToHex } from "../config/common.js";
 import { type Graph, operationQueueOf } from "../Graph.js";
 import { CustomLineRenderer } from "../meshes/CustomLineRenderer.js";
 import { RichTextLabel } from "../meshes/RichTextLabel.js";
@@ -94,29 +96,61 @@ export class ScreenshotCapture {
      * @returns Screenshot result with blob, metadata, and destination status
      */
     async captureScreenshot(options: ScreenshotOptions = {}): Promise<ScreenshotResult> {
+        const { signal } = options;
+        const captureNow = options.timing?.captureNow;
+        throwIfAborted(signal);
+
         // Check if we should wait for other operations (default: true)
         const waitForOperations = options.timing?.waitForOperations ?? true;
 
-        if (waitForOperations) {
-            // Enqueue the screenshot operation to ensure sequential execution
-            // Store the result in a variable and return it after the queue completes
-            let result: ScreenshotResult | null = null;
-
-            await operationQueueOf(this.graph).queueOperationAsync(
-                "render-update",
-                async () => {
-                    result = await this.doScreenshotCapture(options);
-                },
-                { description: "capture screenshot" },
-            );
-
-            // Result will always be set by the queued operation
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            return result!;
+        if (!waitForOperations || captureNow?.aborted === true) {
+            // Execute immediately without waiting for other operations
+            return this.doScreenshotCapture(options);
         }
 
-        // Execute immediately without waiting for other operations
-        return this.doScreenshotCapture(options);
+        // Queued, so captures run one after another. `captureNow` starts it ahead of the queue,
+        // and `signal` withdraws it while it waits there; either way the queued turn then only
+        // waits for the capture already running, or does nothing.
+        let started: Promise<ScreenshotResult> | undefined;
+        const start = (): Promise<ScreenshotResult> => (started ??= this.doScreenshotCapture(options));
+        const queued = operationQueueOf(this.graph).queueOperationAsync(
+            "render-update",
+            async () => {
+                if (signal?.aborted !== true || started) {
+                    await start();
+                }
+            },
+            { description: "capture screenshot" },
+        );
+
+        const controller = new AbortController();
+        try {
+            return await new Promise<ScreenshotResult>((resolve, reject) => {
+                const run = (): void => {
+                    start().then(resolve, reject);
+                };
+                captureNow?.addEventListener("abort", run, { signal: controller.signal });
+                // Once started, the capture itself watches the signal.
+                signal?.addEventListener(
+                    "abort",
+                    () => {
+                        if (!started) {
+                            reject(abortError());
+                        }
+                    },
+                    { signal: controller.signal },
+                );
+                queued.then(() => {
+                    if (started) {
+                        run();
+                    } else {
+                        reject(abortError());
+                    }
+                }, reject);
+            });
+        } finally {
+            controller.abort();
+        }
     }
 
     /**
@@ -145,16 +179,6 @@ export class ScreenshotCapture {
     private async doScreenshotCapture(options: ScreenshotOptions): Promise<ScreenshotResult> {
         const startTime = Date.now();
 
-        // Check engine configuration
-        const gl = (this.engine as Engine)._gl;
-
-        if (gl && !gl.getContextAttributes()?.preserveDrawingBuffer) {
-            throw new ScreenshotError(
-                "Screenshot requires Engine to be created with preserveDrawingBuffer: true",
-                ScreenshotErrorCode.ENGINE_NOT_CONFIGURED,
-            );
-        }
-
         // Get timing options with defaults
         const timing = {
             waitForSettle: true,
@@ -169,8 +193,13 @@ export class ScreenshotCapture {
 
         // 2. Wait for layout to settle if requested
         if (timing.waitForSettle) {
-            await this.waitForLayoutSettle(timing.settleTimeoutMs ?? SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
+            await this.waitForLayoutSettle(
+                timing.settleTimeoutMs ?? SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS,
+                options.signal,
+                timing.captureNow,
+            );
         }
+        throwIfAborted(options.signal);
 
         // 3. Handle camera override
         const cameraOverride = options.camera ? await this.overrideCamera(options, options.camera) : undefined;
@@ -332,19 +361,23 @@ export class ScreenshotCapture {
             finalOptions.quality ??
             (format === "jpeg" ? SCREENSHOT_CONSTANTS.DEFAULT_JPEG_QUALITY : SCREENSHOT_CONSTANTS.DEFAULT_PNG_QUALITY);
 
+        // A solid color, when given, is the background whatever transparentBackground says.
+        const background = backgroundColorOf(finalOptions.backgroundColor);
+        const transparent = background === undefined && finalOptions.transparentBackground === true;
+
         // Validate format-specific options
-        if (finalOptions.transparentBackground && format !== "png" && format !== "webp") {
+        if (transparent && format !== "png" && format !== "webp") {
             throw new ScreenshotError(
                 "Transparent background requires PNG or WebP format",
                 ScreenshotErrorCode.TRANSPARENT_REQUIRES_PNG,
             );
         }
 
-        // Handle transparent background
+        // Handle a transparent or solid background
         let backgroundState;
-        if (finalOptions.transparentBackground) {
+        if (transparent || background !== undefined) {
             const skyboxMesh = this.findSkyboxMesh();
-            backgroundState = enableTransparentBackground(this.scene, skyboxMesh);
+            backgroundState = enableTransparentBackground(this.scene, skyboxMesh, background);
             // A graph drawn on demand would hand back its last frame, background and all:
             // draw one with the background cleared before reading the canvas.
             this.requestFrame();
@@ -373,6 +406,8 @@ export class ScreenshotCapture {
         }
 
         try {
+            // The last moment a withdrawn capture can still leave nothing behind.
+            throwIfAborted(finalOptions.signal);
             return await this.deliver(finalOptions, { format, quality }, dimensions, enhancement, startTime);
         } finally {
             // Restore background state if it was modified
@@ -494,10 +529,16 @@ export class ScreenshotCapture {
      * Throws ScreenshotError with LAYOUT_SETTLE_TIMEOUT if the layout doesn't settle
      * within the given timeout.
      * @param timeoutMs - How long to wait, in milliseconds.
+     * @param signal - Aborted, the wait rejects with CAPTURE_ABORTED.
+     * @param captureNow - Aborted, the wait ends as though the layout had settled.
      * @returns Promise that resolves when layout has settled
      * @internal
      */
-    private async waitForLayoutSettle(timeoutMs: number): Promise<void> {
+    private async waitForLayoutSettle(
+        timeoutMs: number,
+        signal?: AbortSignal,
+        captureNow?: AbortSignal,
+    ): Promise<void> {
         const layoutManager = this.graph.getLayoutManager();
 
         if (!layoutManager.layoutEngine) {
@@ -509,22 +550,51 @@ export class ScreenshotCapture {
         // converge would time out on every capture of a paused graph.
         const atRest = (): boolean => !layoutManager.running || layoutManager.isSettled;
 
-        if (atRest()) {
+        if (atRest() || captureNow?.aborted === true) {
             return Promise.resolve();
         }
+        throwIfAborted(signal);
 
         // Wait for layout to settle (with timeout)
         return new Promise((resolve, reject) => {
             let completed = false;
             let listenerId: symbol | null = null;
+            const stopListening = new AbortController();
 
             const cleanup = (): void => {
                 clearTimeout(timeout);
+                stopListening.abort();
                 if (listenerId) {
                     this.graph.eventManager.removeListener(listenerId);
                     listenerId = null;
                 }
             };
+
+            const finish = (outcome: () => void): void => {
+                if (!completed) {
+                    completed = true;
+                    cleanup();
+                    outcome();
+                }
+            };
+            captureNow?.addEventListener(
+                "abort",
+                () => {
+                    finish(resolve);
+                },
+                { signal: stopListening.signal },
+            );
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    finish(() => {
+                        reject(abortError());
+                    });
+                },
+                {
+                    signal: stopListening.signal,
+                },
+            );
 
             const timeout = setTimeout(() => {
                 if (!completed) {
@@ -570,6 +640,14 @@ export class ScreenshotCapture {
                 resolve();
             });
         });
+    }
+
+    /**
+     * Whether the canvas keeps its last drawn frame between frames.
+     * @returns True for a WebGL context with preserveDrawingBuffer.
+     */
+    private keepsFrames(): boolean {
+        return (this.engine as Engine)._gl?.getContextAttributes()?.preserveDrawingBuffer === true;
     }
 
     /**
@@ -625,6 +703,12 @@ export class ScreenshotCapture {
                 1 / Math.min(this.canvas.width, this.canvas.height);
             let dataUrl: string;
             if (sameSize || !sameShape) {
+                // Babylon copies the canvas at the end of the next frame. A canvas that keeps no
+                // frame (WebGPU, or WebGL without preserveDrawingBuffer) holds a picture only in a
+                // frame that drew one, and a graph drawn on demand may draw none: ask for one.
+                if (!this.keepsFrames()) {
+                    this.requestFrame();
+                }
                 dataUrl = await CreateScreenshotAsync(this.engine, camera, size);
             } else {
                 const scale = captureWidth / this.canvas.width;
@@ -923,6 +1007,49 @@ function tryDownload(blob: Blob, filename: string): boolean {
         // Download failed, but we continue
         return false;
     }
+}
+
+/**
+ * The error a capture withdrawn by its `signal` rejects with.
+ * @returns The error.
+ */
+function abortError(): ScreenshotError {
+    return new ScreenshotError("Screenshot capture was aborted", ScreenshotErrorCode.CAPTURE_ABORTED);
+}
+
+/**
+ * Reject a capture whose `signal` is already aborted.
+ * @param signal - The capture's signal.
+ */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+    if (signal?.aborted === true) {
+        throw abortError();
+    }
+}
+
+/**
+ * The clear color for a capture's `backgroundColor`, opaque.
+ * @param color - Any CSS color, or undefined for none.
+ * @returns The color, or undefined when none was asked for.
+ */
+function backgroundColorOf(color: string | undefined): Color4 | undefined {
+    if (color === undefined) {
+        return undefined;
+    }
+
+    let hex: string | undefined;
+    try {
+        hex = colorToHex(color);
+    } catch {
+        hex = undefined;
+    }
+    if (hex === undefined || !/^#[0-9A-F]{6}$/.test(hex)) {
+        throw new ScreenshotError(`Not a color: ${color}`, ScreenshotErrorCode.INVALID_BACKGROUND_COLOR, {
+            backgroundColor: color,
+        });
+    }
+
+    return Color4.FromHexString(`${hex}FF`);
 }
 
 interface EnhancementState {

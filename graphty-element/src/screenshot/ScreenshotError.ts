@@ -1,5 +1,9 @@
 export enum ScreenshotErrorCode {
     // Engine/Configuration
+    /**
+     * No longer raised: a capture works whether or not the WebGL canvas keeps its frames
+     * (`preserveDrawingBuffer`). Kept so code that compares against it still compiles.
+     */
     ENGINE_NOT_CONFIGURED = "ENGINE_NOT_CONFIGURED",
     SCREENSHOT_CAPTURE_FAILED = "SCREENSHOT_CAPTURE_FAILED",
 
@@ -33,6 +37,12 @@ export enum ScreenshotErrorCode {
 
     // Timing
     LAYOUT_SETTLE_TIMEOUT = "LAYOUT_SETTLE_TIMEOUT",
+    /** The capture's `signal` was aborted before the picture was read. */
+    CAPTURE_ABORTED = "CAPTURE_ABORTED",
+
+    // Background
+    /** `backgroundColor` is not a color. */
+    INVALID_BACKGROUND_COLOR = "INVALID_BACKGROUND_COLOR",
 
     // Capture
     VIDEO_CAPTURE_FAILED = "VIDEO_CAPTURE_FAILED",

@@ -202,6 +202,18 @@ element.addEventListener("graphty-warning", (e) => {
 });
 ```
 
+## Keeping each frame (preserveDrawingBuffer)
+
+The WebGL canvas keeps each drawn frame, so the page can read the canvas between frames with
+`canvas.toDataURL()`, `toBlob()` or `drawImage(canvas)`. Keeping it costs a full-frame copy on
+every frame drawn. A page that never reads the canvas itself can turn it off;
+`captureScreenshot` and `captureAnimation` work either way. It is read when the engine is built,
+like `antialias`, and a later change raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+
+```html
+<graphty-element preserve-drawing-buffer="false"></graphty-element>
+```
+
 ## Drawing only when something changes
 
 Whichever renderer draws, the element draws a new frame on every animation frame by default, even

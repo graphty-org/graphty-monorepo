@@ -23,18 +23,31 @@ const dataUrl = await graph.captureScreenshot({
 
 ## Screenshot Options
 
-| Option        | Type              | Default       | Description             |
-| ------------- | ----------------- | ------------- | ----------------------- |
-| `width`       | `number`          | canvas width  | Output width in pixels  |
-| `height`      | `number`          | canvas height | Output height in pixels |
-| `format`      | `'png' \| 'jpeg'` | `'png'`       | Image format            |
-| `quality`     | `number`          | `0.9`         | JPEG quality (0-1)      |
-| `transparent` | `boolean`         | `false`       | Transparent background  |
+| Option                  | Type                        | Default       | Description                                       |
+| ----------------------- | --------------------------- | ------------- | ------------------------------------------------- |
+| `width`                 | `number`                    | canvas width  | Output width in pixels                            |
+| `height`                | `number`                    | canvas height | Output height in pixels                           |
+| `format`                | `'png' \| 'jpeg' \| 'webp'` | `'png'`       | Image format                                      |
+| `quality`               | `number`                    | `0.9`         | JPEG quality (0-1)                                |
+| `transparentBackground` | `boolean`                   | `false`       | Transparent background (PNG and WebP)             |
+| `backgroundColor`       | `string`                    | canvas color  | A solid background in any CSS color, every format |
+| `signal`                | `AbortSignal`               | none          | Cancels a capture that is still waiting           |
 
 Before capturing, a screenshot waits for queued operations and for a moving layout to come to
 rest. `timing` changes that: `{ waitForOperations: false }` or `{ waitForSettle: false }` skips a
 wait, and `{ settleTimeoutMs: 5000 }` sets how long to wait for the layout (default 30,000 ms)
 before the capture fails with the `LAYOUT_SETTLE_TIMEOUT` error code.
+
+A capture that is waiting can be cancelled, or told to stop waiting and take the frame on screen:
+
+```typescript
+const cancel = new AbortController();
+const now = new AbortController();
+const shot = graph.captureScreenshot({
+    signal: cancel.signal, // cancel.abort() rejects with the CAPTURE_ABORTED error code
+    timing: { captureNow: now.signal }, // now.abort() captures the current frame at once
+});
+```
 
 ### Examples
 
@@ -54,19 +67,27 @@ const compressed = await graph.captureScreenshot({
 
 // Transparent background
 const transparent = await graph.captureScreenshot({
-    transparent: true,
+    transparentBackground: true,
     format: "png",
+});
+
+// White background, whatever the canvas color
+const white = await graph.captureScreenshot({
+    backgroundColor: "#ffffff",
+    format: "jpeg",
 });
 ```
 
 ## Checking Capabilities
 
-Before capturing, verify support:
+Before capturing, check that the options can be captured and how large the image will be:
 
 ```typescript
-const canCapture = graph.canCaptureScreenshot();
-if (!canCapture) {
-    console.log("Screenshot capture not supported");
+const check = await graph.canCaptureScreenshot({ multiplier: 2 });
+if (check.supported) {
+    console.log(`${check.width} x ${check.height} pixels`);
+} else {
+    console.log("Cannot capture:", check.reason);
 }
 ```
 

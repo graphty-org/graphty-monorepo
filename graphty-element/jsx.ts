@@ -277,6 +277,11 @@ export interface GraphtyElementJSXProps {
      */
     antialias?: Graphty["antialias"];
     /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    preserveDrawingBuffer?: Graphty["preserveDrawingBuffer"];
+    /**
      * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
      */
     limits?: Graphty["limits"];
@@ -440,6 +445,11 @@ export interface GraphtyElementJSXProps {
      * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
      */
     "render-path"?: string;
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    "preserve-drawing-buffer"?: boolean;
     /**
      * Sets the threshold and applies it immediately.
      *

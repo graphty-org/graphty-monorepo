@@ -822,7 +822,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
-    { root: "Graph", members: ["fetchNodes", "fetchEdges"], reason: "needs-host", kind: BY_DESIGN },
+    {
+        root: "Graph",
+        members: ["fetchNodes", "fetchEdges", "fetchNeighborEdges"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
     {
         root: "Graph",
         members: [

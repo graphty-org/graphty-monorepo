@@ -121,6 +121,7 @@ import {
     AdHocData,
     defaultXRConfig,
     FetchEdgesFn,
+    FetchNeighborEdgesFn,
     FetchNodesFn,
     GraphBackground,
     type GraphBackgroundConfig,
@@ -766,6 +767,7 @@ export class Graph implements GraphContext {
     // graph
     fetchNodes?: FetchNodesFn;
     fetchEdges?: FetchEdgesFn;
+    fetchNeighborEdges?: FetchNeighborEdgesFn;
     initialized = false;
 
     /**
@@ -2906,6 +2908,7 @@ export class Graph implements GraphContext {
         // property.
         this.fetchNodes = parsed.fetchNodes as FetchNodesFn | undefined;
         this.fetchEdges = parsed.fetchEdges as FetchEdgesFn | undefined;
+        this.fetchNeighborEdges = parsed.fetchNeighborEdges as FetchNeighborEdgesFn | undefined;
 
         if (typeof type === "string") {
             // The settings and the layout it names are one step.

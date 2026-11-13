@@ -2824,6 +2824,8 @@ export class Graph implements GraphContext {
     // (undocumented)
     fetchEdges?: FetchEdgesFn;
     // (undocumented)
+    fetchNeighborEdges?: FetchNeighborEdgesFn;
+    // (undocumented)
     fetchNodes?: FetchNodesFn;
     forgetAiKeys(options?: {
         readonly provider?: ProviderType;

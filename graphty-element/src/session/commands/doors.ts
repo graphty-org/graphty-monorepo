@@ -1645,6 +1645,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinOnDrag: INPUT,
             fetchNodes: HOST_HOOK,
             fetchEdges: HOST_HOOK,
+            fetchNeighborEdges: HOST_HOOK,
             initialized: LIFECYCLE,
             runAlgorithmsOnLoad: assigns(false, [{ op: "config.set", values: { runAlgorithmsOnLoad: false } }]),
             enableDetailedProfiling: PROFILING,

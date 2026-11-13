@@ -120,6 +120,59 @@ describe("expansion switched on through the element's own behaviour setting", ()
         assert.strictEqual(fetchNodes.mock.calls.length, 1);
     });
 
+    test("fetchNeighborEdges adds the edges among the new neighbors in the same step", async () => {
+        const fetchEdges = vi.fn().mockReturnValue(
+            new Set([
+                { source: "a", target: "b" },
+                { source: "a", target: "c" },
+            ]),
+        );
+        const fetchNodes = vi.fn().mockReturnValue([{ id: "b" }, { id: "c" }]);
+        const fetchNeighborEdges = vi.fn().mockReturnValue([
+            { source: "b", target: "c" }, // among the new neighbors
+            { source: "c", target: "z" }, // to a node already in the graph
+            { source: "b", target: "elsewhere" }, // to a node nothing brought: left out
+            { source: "a", target: "b" }, // the edge followed to get here: not duplicated
+        ]);
+        graph.setLayoutBehavior({ fetchNodes, fetchEdges, fetchNeighborEdges });
+        await graph.addNodes([{ id: "a" }, { id: "z" }]);
+        const session = graph.getSession();
+        const steps = session.history.steps.length;
+
+        doubleClick(graph, "a");
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.steps, steps + 1, "one step");
+        });
+
+        assert.deepEqual([...(fetchNeighborEdges.mock.calls[0][0] as Set<string>)].sort(), ["b", "c"]);
+        assert.strictEqual(graph.getEdgeCount(), 4);
+        assert.isUndefined(graph.getDataManager().getNode("elsewhere"));
+
+        await session.undo();
+        assert.strictEqual(graph.getEdgeCount(), 0, "one undo removes everything the expansion added");
+    });
+
+    test("without fetchNeighborEdges an expansion adds only the node's own edges", async () => {
+        const fetchEdges = vi.fn().mockReturnValue(
+            new Set([
+                { source: "a", target: "b" },
+                { source: "a", target: "c" },
+            ]),
+        );
+        const fetchNodes = vi.fn().mockReturnValue([{ id: "b" }, { id: "c" }]);
+        graph.setLayoutBehavior({ fetchNodes, fetchEdges });
+        await graph.addNodes([{ id: "a" }]);
+        const session = graph.getSession();
+        const steps = session.history.steps.length;
+
+        doubleClick(graph, "a");
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.steps, steps + 1, "one step");
+        });
+
+        assert.strictEqual(graph.getEdgeCount(), 2);
+    });
+
     test("naming one pacing setting does not switch expansion back off", () => {
         const fetchEdges = vi.fn().mockReturnValue(new Set([{ source: "a", target: "b" }]));
         const fetchNodes = vi.fn().mockReturnValue([{ id: "b", data: {} }]);

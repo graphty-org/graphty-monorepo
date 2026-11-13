@@ -43,9 +43,9 @@ import { hasWords, measureLine, RichTextParser, wrapLines } from "./RichTextPars
 import { RichTextRenderer } from "./RichTextRenderer";
 import { pixelsPerUnit } from "./screenSize";
 
-/** The depth-fading labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "label"]);
 
+/** The depth-fading labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
 const depthFadeFrames = new FrameRoster();
 /** The labels with a `minScreenSize`, each shown or hidden by its size on screen before every frame. */
 const minScreenSizeFrames = new FrameRoster();

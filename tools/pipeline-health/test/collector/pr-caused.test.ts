@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { GitHub } from "../../src/collector/github.js";
-import { markPrCaused, touched } from "../../src/collector/pr-caused.js";
+import { addUnmarked, markPrCaused, touched } from "../../src/collector/pr-caused.js";
 import { floorTo, rollKey, type RunItem, type TestItem } from "../../src/model/items.js";
 import { METRICS } from "../../src/model/metrics.js";
 import { putRaw } from "../../src/model/raw.js";
@@ -159,6 +159,18 @@ describe("markPrCaused", () => {
         const runs = [run(401, 8)];
         await markPrCaused(store, gh, REPO, runs, NOW);
         expect(runs[0].prCaused).toBeUndefined();
+    });
+});
+
+describe("addUnmarked", () => {
+    it("changes the cycle's newer copy of a run instead of adding the stored one", () => {
+        const newer = run(601, 20, { cause: "flaky", prCaused: true });
+        const items = [newer];
+        addUnmarked(items, [run(601, 20, { prCaused: false }), run(602, 21, { prCaused: false })]);
+        expect(items.map((i) => [i.runId, i.cause, i.prCaused])).toEqual([
+            [601, "flaky", false],
+            [602, "change", false],
+        ]);
     });
 });
 

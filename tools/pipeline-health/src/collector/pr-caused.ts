@@ -7,7 +7,7 @@
 // false otherwise. Changed files come from one GraphQL query per cycle (pullRequest.files), and only when a
 // candidate has such a failure.
 
-import { DAY, homeKey, type RunItem, skTime } from "../model/items.js";
+import { DAY, homeKey, type RawItem, type RunItem, skTime } from "../model/items.js";
 import { isLive, type Item, type Store } from "../model/store.js";
 import { flakyHistory, testKey } from "./flaky.js";
 import type { GitHub } from "./github.js";
@@ -228,4 +228,21 @@ async function sharedWith(
         }
     }
     return out;
+}
+
+/**
+ * Adds the runs markPrCaused re-marked to the cycle's items. When the cycle already holds a newer copy of one
+ * (a passing rerun made it flaky), only that copy's prCaused changes, so the stored copy never overwrites it.
+ * @param items - the cycle's items, changed in place
+ * @param unmarked - the re-marked earlier runs
+ */
+export function addUnmarked(items: RawItem[], unmarked: RunItem[]): void {
+    for (const o of unmarked) {
+        const held = items.find((i): i is RunItem => i.kind === "run" && i.id === o.id && i.attempt === o.attempt);
+        if (held) {
+            held.prCaused = false;
+        } else {
+            items.push(o);
+        }
+    }
 }

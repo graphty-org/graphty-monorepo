@@ -1,5 +1,5 @@
 {
-    "about": "Per sample, per property: the least share of elements that must match the source program's drawing in what graphty-element is asked to draw (test/fidelity/scorecard.test.ts). Floors only rise; record them with GRAPHTY_FIDELITY_RECORD=1. A property no longer judged at all is taken off its floors and listed in `retired` with its reason.",
+    "about": "Per sample, per property: the least share of elements that must match the source program's drawing in what graphty-element is asked to draw (test/fidelity/scorecard.test.ts). Floors only rise; record them with GRAPHTY_FIDELITY_RECORD=1, which raises each floor to the score measured, never lowers one and keeps the samples it did not run. A drop accepted below a floor is listed in `allowedDrops` with the rate accepted (`to`); a score below `to` fails. A property no longer judged at all is taken off its floors and listed in `retired` with its reason.",
     "floors": {
         "dot-profile": {
             "position": 0,
@@ -364,18 +364,18 @@
         "dot-real-linux-kernel": {
             "position": 0,
             "size": 0.7230769230769231,
-            "shape": 0.9692307692307692,
+            "shape": 1,
             "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
-            "borderWidth": 0.8,
+            "borderWidth": 1,
             "borderStyle": 1,
             "labelText": 1,
             "labelColor": 1,
             "labelPosition": 1,
             "visible": 1,
             "edgeColor": 1,
-            "edgeOpacity": 0.8088235294117647,
+            "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
@@ -443,7 +443,7 @@
         "dot-real-happiness": {
             "position": 0,
             "size": 0.9615384615384616,
-            "shape": 0.9871794871794872,
+            "shape": 1,
             "fill": 1,
             "fillOpacity": 1,
             "borderWidth": 1,
@@ -480,18 +480,18 @@
         },
         "dot-synth-nodes": {
             "position": 0,
-            "size": 0.7264150943396226,
-            "shape": 0.7358490566037735,
+            "size": 0.8113207547169812,
+            "shape": 0.8867924528301887,
             "fillOpacity": 1,
             "borderColor": 1,
-            "borderWidth": 0.9811320754716981,
+            "borderWidth": 0.9905660377358491,
             "borderStyle": 1,
-            "labelText": 0.9433962264150944,
+            "labelText": 0.9528301886792453,
             "labelColor": 0.9805825242718447,
             "labelPosition": 0.9902912621359223,
             "visible": 1,
             "edgeColor": 1,
-            "edgeOpacity": 0.9908256880733946,
+            "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
@@ -499,7 +499,7 @@
         },
         "dot-synth-edges-clusters": {
             "position": 0,
-            "size": 0.9852941176470589,
+            "size": 1,
             "shape": 1,
             "fillOpacity": 1,
             "borderColor": 1,
@@ -654,7 +654,7 @@
         "graphml-yfiles-html-stag-flowchart": {
             "position": 1,
             "size": 1,
-            "shape": 0.43243243243243246,
+            "shape": 1,
             "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 1,
@@ -673,7 +673,7 @@
         "graphml-synthetic-nodes": {
             "position": 1,
             "size": 1,
-            "shape": 0.8169014084507042,
+            "shape": 0.8309859154929577,
             "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
@@ -707,7 +707,7 @@
             "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 1,
-            "arrows": 0.7798165137614679,
+            "arrows": 0.926605504587156,
             "edgeLabel": 1
         },
         "gml-need4stacks261": {
@@ -733,21 +733,21 @@
         "gml-synthetic-coverage": {
             "position": 1,
             "size": 1,
-            "shape": 0.875,
+            "shape": 0.9375,
             "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 1,
-            "borderStyle": 0.7567567567567568,
+            "borderStyle": 1,
             "labelText": 1,
             "labelColor": 1,
-            "labelPosition": 0.95,
+            "labelPosition": 0.9625,
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 1,
-            "arrows": 0.6625,
+            "arrows": 0.8,
             "edgeLabel": 1
         },
         "json-cyjs-winecheese": {
@@ -817,7 +817,7 @@
             "borderStyle": 1,
             "labelText": 0.990909090909091,
             "labelColor": 1,
-            "labelPosition": 0.9904761904761905,
+            "labelPosition": 1,
             "visible": 1
         },
         "json-cyjs-synth-edges": {
@@ -832,10 +832,10 @@
             "labelPosition": 1,
             "visible": 1,
             "edgeColor": 1,
-            "edgeOpacity": 0.9473684210526315,
+            "edgeOpacity": 0.9649122807017544,
             "edgeWidth": 1,
             "lineStyle": 1,
-            "arrows": 0.8947368421052632,
+            "arrows": 0.9649122807017544,
             "edgeLabel": 1
         },
         "json-cyjs-synth-edges-saved": {
@@ -850,10 +850,10 @@
             "labelPosition": 1,
             "visible": 1,
             "edgeColor": 1,
-            "edgeOpacity": 0.9473684210526315,
+            "edgeOpacity": 0.9649122807017544,
             "edgeWidth": 1,
             "lineStyle": 1,
-            "arrows": 0.8947368421052632,
+            "arrows": 0.9649122807017544,
             "edgeLabel": 1
         },
         "json-sigma-lesmis": {
@@ -983,16 +983,16 @@
             "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 1,
-            "borderStyle": 0.9857142857142858,
+            "borderStyle": 1,
             "labelText": 1,
             "labelColor": 1,
             "labelPosition": 1,
             "visible": 1,
-            "edgeColor": 0.9634146341463414,
+            "edgeColor": 1,
             "edgeOpacity": 0.9878048780487805,
             "edgeWidth": 1,
             "lineStyle": 1,
-            "arrows": 0.9634146341463414,
+            "arrows": 1,
             "edgeLabel": 1
         },
         "cys-import-and-save": {
@@ -1969,98 +1969,510 @@
         }
     },
     "allowedDrops": {
-        "cx-syn-bypass/labelPosition": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8689, 2026-10-20)",
-        "cx2-syn-bypass/labelPosition": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8689, 2026-10-20)",
-        "cx2-syn-mappings/labelPosition": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.1458, 2026-10-20)",
-        "cx2-synthetic-lethal/labelPosition": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.0000, 2026-10-20)",
-        "cx2-u2os-hierarchy/labelPosition": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.0000, 2026-10-20)",
-        "cys-syn-bypass/labelPosition": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8793, 2026-10-20)",
-        "dot-real-happiness/labelColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9872, 2026-10-20)",
-        "dot-real-linux-kernel/borderColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9767, 2026-10-20)",
-        "dot-real-linux-kernel/edgeColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9706, 2026-10-20)",
-        "dot-real-linux-kernel/visible": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a Graphviz style=invis node is kept visible, painting nothing, so the edges ending at it are drawn as Graphviz draws them (0.8000, 2026-11-07)",
-        "dot-synth-edges-clusters/edgeLabel": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9804, 2026-10-20)",
-        "dot-synth-nodes/borderColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9796, 2026-10-20)",
-        "dot-synth-nodes/labelColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9802, 2026-10-20)",
-        "dot-synth-nodes/labelPosition": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9901, 2026-10-20)",
-        "dot-synth-nodes/visible": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a Graphviz style=invis node is kept visible, painting nothing, so the edge ending at it is drawn as Graphviz draws it (0.9906, 2026-11-07)",
-        "gexf-cns-wos/edgeOpacity": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9780, 2026-10-20)",
-        "gexf-cns-wos/labelText": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8889, 2026-10-20)",
-        "gexf-graphology-rio/edgeOpacity": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9819, 2026-10-20)",
-        "gexf-graphology-rio/labelText": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.6448, 2026-10-20)",
-        "gexf-gsa-fpki-certs/labelText": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8500, 2026-10-20)",
-        "gexf-miserables/labelText": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9351, 2026-10-20)",
-        "gexf-qvge-mine-airing/edgeColor": "reference corrected: Gephi Toolkit 0.11.3's own SVG (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
-        "gexf-qvge-mine-airing/edgeOpacity": "reference corrected against Gephi Toolkit 0.11.3's own drawing (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg): Gephi merges a repeated directed edge (58->59, 52->53, 47->42, 31->34, 37->30, 23->14) into one, so the repeats are not drawn; the gexf-file scene is graph-io's own reading of the file and draws them",
-        "gexf-qvge-mine-airing/edgeWidth": "reference corrected against Gephi Toolkit 0.11.3's own drawing (gexf-qvge-mine-airing.svg): each merged edge is stroked 2.0, the sum of its two weights, where the gexf-file scene says 1",
-        "gexf-sigma-ediaspora/edgeOpacity": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9244, 2026-10-20)",
-        "gexf-sigma-ediaspora/labelText": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.5769, 2026-10-20)",
-        "gexf-synth-13-hierarchy/arrows": "reference corrected against Gephi Toolkit 0.11.3's own drawing of the GEXF specimen gexf-specimen-arrows-p6: in a defaultedgetype=undirected graph Gephi drops a type=directed edge and draws every other edge without an arrowhead; the gexf-file scene is graph-io's own reading of the file",
-        "gexf-synth-13-hierarchy/edgeColor": "reference corrected: Gephi Toolkit 0.11.3's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
-        "gexf-synth-13-hierarchy/edgeOpacity": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws each edge at the mean of its end nodes' alphas (stroke-opacity), not the file's edge alpha the old JSON scene reported",
-        "gexf-synth-13-hierarchy/edgeWidth": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every edge as thick as its weight (graphstore keeps no viz:thickness: e7's thickness 8 is drawn 1.0), not the thickness the old JSON scene reported",
-        "gexf-synth-13-hierarchy/fillOpacity": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every node opaque (fill-opacity 1.0, NODE_OPACITY 100); the old JSON scene reported the file's alpha",
-        "gexf-synth-13-hierarchy/labelText": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9333, 2026-10-20)",
-        "gexf-synth-13-hierarchy/lineStyle": "reference corrected: Gephi draws every edge solid (its preview has no dash); the old JSON scene reported the file's viz:shape",
-        "gexf-synth-13-hierarchy/shape": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every node a circle, whatever its viz:shape; the old JSON scene reported the file's shapes",
-        "gexf-synth-nx-viz/edgeColor": "reference corrected: Gephi Toolkit 0.11.3's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
-        "gexf-synth-nx-viz/edgeOpacity": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws each edge at the mean of its end nodes' alphas (stroke-opacity), not the file's edge alpha the old JSON scene reported",
-        "gexf-synth-nx-viz/edgeWidth": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every edge as thick as its weight (graphstore keeps no viz:thickness: e7's thickness 8 is drawn 1.0), not the thickness the old JSON scene reported",
-        "gexf-synth-nx-viz/fillOpacity": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every node opaque (fill-opacity 1.0, NODE_OPACITY 100); the old JSON scene reported the file's alpha",
-        "gexf-synth-nx-viz/labelText": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9688, 2026-10-20)",
-        "gexf-synth-nx-viz/shape": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every node a circle, whatever its viz:shape; the old JSON scene reported the file's shapes",
-        "gml-synthetic-coverage/borderColor": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
-        "gml-synthetic-coverage/borderWidth": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
-        "gml-synthetic-coverage/edgeWidth": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws a line of width 0.5 one wide (#5787), and the reference says 0.5",
-        "graphml-galaxy-lcms-workflow/edgeColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yEd framed edge is asked for as yEd draws it: its white middle line with a #5f809d frame (line.outline), where the reference reads the frame's color as the line's (0.0000, 2026-11-07)",
-        "graphml-galaxy-lcms-workflow/edgeWidth": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yEd framed edge is asked for as yEd draws it: a middle line inside a frame of the file's width, where the reference reads the whole frame as the line (0.0000, 2026-11-07)",
-        "graphml-galaxy-lcms-workflow/shape": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws these rounded rectangles round (#5788), and the reference says rect",
-        "graphml-libcitygml-mapping/borderColor": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
-        "graphml-libcitygml-mapping/borderWidth": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
-        "graphml-libcitygml-mapping/shape": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws these node types in their own outline, size and line (#5788), not the reference's box",
-        "graphml-magiclantern-architecture/size": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws these node types in their own outline, size and line (#5788), not the reference's box",
-        "graphml-stm32-func/borderColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yEd image node draws no border, as yEd draws it (0.8929, 2026-11-07)",
-        "graphml-stm32-func/borderWidth": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yEd image node draws no border, as yEd draws it (0.8980, 2026-11-07)",
-        "graphml-stm32-func/fill": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yEd image node paints no fill, as yEd draws it (0.8980, 2026-11-07)",
-        "graphml-stm32-func/fillOpacity": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yEd image node paints no fill, as yEd draws it (0.8980, 2026-11-07)",
-        "graphml-synthetic-edges/edgeWidth": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws a line of width 0.5 one wide (#5787), and the reference says 0.5",
-        "graphml-synthetic-nodes/borderColor": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
-        "graphml-synthetic-nodes/borderWidth": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
-        "graphml-synthetic-nodes/edgeOpacity": "reference corrected against yEd's own drawing: this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws a closed folder (grp-closed) without its members h0, h1, h2 and the edge e69 between two of them (no \"hidden N\" text in graphml-synthetic-nodes.svg), and graph-io now hides them as yEd does",
-        "graphml-synthetic-nodes/fill": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yEd image or SVG node paints no fill, as yEd draws it (0.9718, 2026-11-07)",
-        "graphml-synthetic-nodes/fillOpacity": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yEd image or SVG node paints no fill, as yEd draws it (0.9697, 2026-11-07)",
-        "graphml-synthetic-nodes/labelPosition": "both references are wrong for yEd's sides model: the file stores no label box for label-sides-n, -s, -e and -w, and yed_facts.py and draw.io place those labels inside the node, where yEd draws a sides label beyond the side its modelPosition names (above for n); graphty-element now draws every label place the file sets (labelLocation) instead of the eight most common, so those labels are drawn as yEd draws them",
-        "graphml-synthetic-nodes/labelText": "reference corrected against yEd's own drawing: this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws a closed folder (grp-closed) without its members h0, h1, h2 and the edge e69 between two of them (no \"hidden N\" text in graphml-synthetic-nodes.svg), and graph-io now hides them as yEd does",
-        "graphml-synthetic-nodes/size": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws these node types in their own outline, size and line (#5788), not the reference's box",
-        "graphml-synthetic-nodes/visible": "reference corrected against yEd's own drawing: this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws a closed folder (grp-closed) without its members h0, h1, h2 and the edge e69 between two of them (no \"hidden N\" text in graphml-synthetic-nodes.svg), and graph-io now hides them as yEd does",
-        "graphml-yfiles-html-ss13-tree/edgeLabel": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yFiles for HTML label's markup is drawn as text, its tags not shown, where the reference keeps the markup (0.9891, 2026-11-07)",
-        "graphml-yfiles-html-ss13-tree/labelText": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yFiles for HTML label's markup is drawn as text, its tags not shown, where the reference keeps the markup (0.9885, 2026-11-07)",
-        "json-cyjs-graphmaker/lineStyle": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8819, 2026-10-20)",
-        "json-cyjs-synth-nodes/borderStyle": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8571, 2026-10-20)",
-        "json-cyjs-synth-nodes/fill": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9815, 2026-10-20)",
-        "json-cyjs-synth-nodes/fillOpacity": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9909, 2026-10-20)",
-        "json-cyjs-synth-nodes/shape": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9182, 2026-10-20)",
-        "json-cyjs-synth-nodes/visible": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9909, 2026-10-20)",
-        "json-graphology-synth/edgeLabel": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma draws no edge labels unless renderEdgeLabels is on, which a graphology file never sets, so graphty no longer draws them",
-        "json-graphology-synth/labelText": "the JSON reference records no label for the six hidden: true nodes, but sigma 4 draws them and their labels (graph-io/test/fidelity/oracles/json-graphology-synth.png); graph-io now asks for them as sigma 4 draws them",
-        "json-graphology-synth/visible": "the JSON reference is wrong against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma 4 hides an element by visibility \"hidden\" and draws the six nodes the file marks hidden: true (sigma 3's key), which the reference recorded as hidden; graph-io now reads them as sigma 4 draws them",
-        "json-vis-synth/borderColor": "reference corrected against vis-network 9.1.9's own drawing: an image node (12) and an icon node (14) draw no border",
-        "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)",
-        "json-vis-synth/borderWidth": "reference corrected against vis-network 9.1.9's own drawing: an image node (12) and an icon node (14) draw no border",
-        "json-vis-synth/fill": "reference corrected against vis-network 9.1.9's own drawing (graph-io/test/fidelity/oracles/json-vis-synth.svg): an image node (12) is its picture alone and an icon node (14) its glyph alone, with no box behind them; the old JSON scene gave them the default fill",
-        "json-vis-synth/fillOpacity": "reference corrected against vis-network 9.1.9's own drawing (graph-io/test/fidelity/oracles/json-vis-synth.svg): node 24's opacity 0.3 does not fade its color given as the name black, which overrideOpacity leaves as it is, so vis-network draws it opaque",
-        "json-vis-synth/labelText": "reference corrected against vis-network 9.1.9's own drawing: node 28's font.multi html label is drawn as its text, bold and plain, without its <b> tags",
-        "pajek-1crn/edgeColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.0000, 2026-10-20)",
-        "pajek-graphstream-b/fill": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8378, 2026-10-20)",
-        "pajek-graphstream-b/shape": "reference corrected against Pajek 6.02's own SVG export draws every diamond as a six-cornered polygon cut q wide at its top and bottom (q 0.001 by default; pajek-specimen-node-shapes q-0-5-diamond a hexagon, q-2-diamond a bow tie), so graph-io writes it as a polygon with its shapePoints, which this scorecard classes as other; the oracle report passes node.shape on this sample (111/111)",
-        "pajek-lin-rel4/labelColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9615, 2026-10-20)",
-        "pajek-lin-rel4/shape": "reference corrected against Pajek 6.02's own SVG export draws every diamond as a six-cornered polygon cut q wide at its top and bottom (q 0.001 by default; pajek-specimen-node-shapes q-0-5-diamond a hexagon, q-2-diamond a bow tie), so graph-io writes it as a polygon with its shapePoints, which this scorecard classes as other; the oracle report passes node.shape on this sample (225/225)",
-        "pajek-synth-lines/arrows": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9753, 2026-10-20)",
-        "pajek-synth-lines/edgeLabel": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.6543, 2026-10-20)",
-        "pajek-synth-lines/lineStyle": "reference corrected against Pajek 6.02's own SVG export (pajek-synth-lines.svg): Dots and a negative value are stroke-dasharray:5, dashes on a line thinner than 10/3 px (2->3, 7->8) and dots on a wider one, and the pattern p is not carried to the next line (5->6 after p Solid is drawn dotted for its negative value); the oracle report's edge.dash went 65/88 -> 85/88",
-        "pajek-synth-vertices/labelColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8933, 2026-10-20)",
-        "pajek-synth-vertices/shape": "reference corrected against Pajek 6.02's own SVG export draws every diamond as a six-cornered polygon cut q wide at its top and bottom (q 0.001 by default; pajek-specimen-node-shapes q-0-5-diamond a hexagon, q-2-diamond a bow tie), so graph-io writes it as a polygon with its shapePoints, which this scorecard classes as other; the oracle report passes node.shape on this sample; and a placed vertex line that names no shape and starts with bc, bw, s_size or another such key is drawn in the shape before it (Pajek 6.02 probes of the third fix round)",
-        "xgmml-syn-bypass/labelPosition": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8793, 2026-10-20)"
+        "cx-syn-bypass/labelPosition": {
+            "floor": 1,
+            "to": 0.8688524590163934,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8689, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "cx2-syn-bypass/labelPosition": {
+            "floor": 1,
+            "to": 0.8688524590163934,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8689, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "cx2-syn-mappings/labelPosition": {
+            "floor": 1,
+            "to": 0.14583333333333334,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.1458, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "cx2-synthetic-lethal/labelPosition": {
+            "floor": 1,
+            "to": 0,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.0000, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "cx2-u2os-hierarchy/labelPosition": {
+            "floor": 1,
+            "to": 0,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.0000, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "cys-syn-bypass/labelPosition": {
+            "floor": 1,
+            "to": 0.8793103448275862,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8793, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "dot-real-happiness/labelColor": {
+            "floor": 1,
+            "to": 0.9871794871794872,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9872, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "dot-real-linux-kernel/borderColor": {
+            "floor": 1,
+            "to": 0.9767441860465116,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9767, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "dot-real-linux-kernel/edgeColor": {
+            "floor": 1,
+            "to": 0.9705882352941176,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9706, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "dot-real-linux-kernel/visible": {
+            "floor": 1,
+            "to": 0.8,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a Graphviz style=invis node is kept visible, painting nothing, so the edges ending at it are drawn as Graphviz draws them (0.8000, 2026-11-07)",
+            "date": "2026-11-13"
+        },
+        "dot-synth-edges-clusters/edgeLabel": {
+            "floor": 0.9901960784313726,
+            "to": 0.9803921568627451,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9804, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "dot-synth-nodes/borderColor": {
+            "floor": 1,
+            "to": 0.9795918367346939,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9796, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "dot-synth-nodes/labelColor": {
+            "floor": 0.9805825242718447,
+            "to": 0.9801980198019802,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9802, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "dot-synth-nodes/labelPosition": {
+            "floor": 0.9902912621359223,
+            "to": 0.9900990099009901,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9901, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "dot-synth-nodes/visible": {
+            "floor": 1,
+            "to": 0.9905660377358491,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a Graphviz style=invis node is kept visible, painting nothing, so the edge ending at it is drawn as Graphviz draws it (0.9906, 2026-11-07)",
+            "date": "2026-11-13"
+        },
+        "gexf-cns-wos/edgeOpacity": {
+            "floor": 1,
+            "to": 0.9779816513761468,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9780, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "gexf-cns-wos/labelText": {
+            "floor": 1,
+            "to": 0.8888888888888888,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8889, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "gexf-graphology-rio/edgeOpacity": {
+            "floor": 1,
+            "to": 0.98193315266486,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9819, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "gexf-graphology-rio/labelText": {
+            "floor": 1,
+            "to": 0.644808743169399,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.6448, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "gexf-gsa-fpki-certs/labelText": {
+            "floor": 1,
+            "to": 0.85,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8500, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "gexf-miserables/labelText": {
+            "floor": 1,
+            "to": 0.935064935064935,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9351, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "gexf-qvge-mine-airing/edgeColor": {
+            "floor": 1,
+            "to": 0.9401709401709402,
+            "reason": "reference corrected: Gephi Toolkit 0.11.3's own SVG (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
+            "date": "2026-11-13"
+        },
+        "gexf-qvge-mine-airing/edgeOpacity": {
+            "floor": 1,
+            "to": 0.9658119658119658,
+            "reason": "reference corrected against Gephi Toolkit 0.11.3's own drawing (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg): Gephi merges a repeated directed edge (58->59, 52->53, 47->42, 31->34, 37->30, 23->14) into one, so the repeats are not drawn; the gexf-file scene is graph-io's own reading of the file and draws them",
+            "date": "2026-11-13"
+        },
+        "gexf-qvge-mine-airing/edgeWidth": {
+            "floor": 1,
+            "to": 0.9487179487179487,
+            "reason": "reference corrected against Gephi Toolkit 0.11.3's own drawing (gexf-qvge-mine-airing.svg): each merged edge is stroked 2.0, the sum of its two weights, where the gexf-file scene says 1",
+            "date": "2026-11-13"
+        },
+        "gexf-sigma-ediaspora/edgeOpacity": {
+            "floor": 1,
+            "to": 0.924433249370277,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9244, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "gexf-sigma-ediaspora/labelText": {
+            "floor": 1,
+            "to": 0.5769230769230769,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.5769, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-13-hierarchy/arrows": {
+            "floor": 0.7627118644067796,
+            "to": 0.5254237288135594,
+            "reason": "reference corrected against Gephi Toolkit 0.11.3's own drawing of the GEXF specimen gexf-specimen-arrows-p6: in a defaultedgetype=undirected graph Gephi drops a type=directed edge and draws every other edge without an arrowhead; the gexf-file scene is graph-io's own reading of the file",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-13-hierarchy/edgeColor": {
+            "floor": 1,
+            "to": 0.1864406779661017,
+            "reason": "reference corrected: Gephi Toolkit 0.11.3's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-13-hierarchy/edgeOpacity": {
+            "floor": 1,
+            "to": 0.1016949152542373,
+            "reason": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws each edge at the mean of its end nodes' alphas (stroke-opacity), not the file's edge alpha the old JSON scene reported",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-13-hierarchy/edgeWidth": {
+            "floor": 1,
+            "to": 0.7627118644067796,
+            "reason": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every edge as thick as its weight (graphstore keeps no viz:thickness: e7's thickness 8 is drawn 1.0), not the thickness the old JSON scene reported",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-13-hierarchy/fillOpacity": {
+            "floor": 1,
+            "to": 0.5333333333333333,
+            "reason": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every node opaque (fill-opacity 1.0, NODE_OPACITY 100); the old JSON scene reported the file's alpha",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-13-hierarchy/labelText": {
+            "floor": 1,
+            "to": 0.9333333333333333,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9333, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-13-hierarchy/lineStyle": {
+            "floor": 0.864406779661017,
+            "to": 0.5932203389830508,
+            "reason": "reference corrected: Gephi draws every edge solid (its preview has no dash); the old JSON scene reported the file's viz:shape",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-13-hierarchy/shape": {
+            "floor": 0.9666666666666667,
+            "to": 0.31666666666666665,
+            "reason": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every node a circle, whatever its viz:shape; the old JSON scene reported the file's shapes",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-nx-viz/edgeColor": {
+            "floor": 1,
+            "to": 0.5284974093264249,
+            "reason": "reference corrected: Gephi Toolkit 0.11.3's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-nx-viz/edgeOpacity": {
+            "floor": 1,
+            "to": 0.05181347150259067,
+            "reason": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws each edge at the mean of its end nodes' alphas (stroke-opacity), not the file's edge alpha the old JSON scene reported",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-nx-viz/edgeWidth": {
+            "floor": 1,
+            "to": 0.5025906735751295,
+            "reason": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every edge as thick as its weight (graphstore keeps no viz:thickness: e7's thickness 8 is drawn 1.0), not the thickness the old JSON scene reported",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-nx-viz/fillOpacity": {
+            "floor": 1,
+            "to": 0.3125,
+            "reason": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every node opaque (fill-opacity 1.0, NODE_OPACITY 100); the old JSON scene reported the file's alpha",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-nx-viz/labelText": {
+            "floor": 1,
+            "to": 0.96875,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9688, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "gexf-synth-nx-viz/shape": {
+            "floor": 1,
+            "to": 0.25,
+            "reason": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every node a circle, whatever its viz:shape; the old JSON scene reported the file's shapes",
+            "date": "2026-11-13"
+        },
+        "gml-synthetic-coverage/borderColor": {
+            "floor": 1,
+            "to": 0.9324324324324325,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
+            "date": "2026-11-13"
+        },
+        "gml-synthetic-coverage/borderWidth": {
+            "floor": 1,
+            "to": 0.9375,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
+            "date": "2026-11-13"
+        },
+        "gml-synthetic-coverage/edgeWidth": {
+            "floor": 1,
+            "to": 0.8,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws a line of width 0.5 one wide (#5787), and the reference says 0.5",
+            "date": "2026-11-13"
+        },
+        "graphml-galaxy-lcms-workflow/edgeColor": {
+            "floor": 1,
+            "to": 0,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yEd framed edge is asked for as yEd draws it: its white middle line with a #5f809d frame (line.outline), where the reference reads the frame's color as the line's (0.0000, 2026-11-07)",
+            "date": "2026-11-13"
+        },
+        "graphml-galaxy-lcms-workflow/edgeWidth": {
+            "floor": 1,
+            "to": 0,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yEd framed edge is asked for as yEd draws it: a middle line inside a frame of the file's width, where the reference reads the whole frame as the line (0.0000, 2026-11-07)",
+            "date": "2026-11-13"
+        },
+        "graphml-galaxy-lcms-workflow/shape": {
+            "floor": 1,
+            "to": 0.5217391304347826,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws these rounded rectangles round (#5788), and the reference says rect",
+            "date": "2026-11-13"
+        },
+        "graphml-libcitygml-mapping/borderColor": {
+            "floor": 1,
+            "to": 0.23529411764705882,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
+            "date": "2026-11-13"
+        },
+        "graphml-libcitygml-mapping/borderWidth": {
+            "floor": 1,
+            "to": 0.23529411764705882,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
+            "date": "2026-11-13"
+        },
+        "graphml-libcitygml-mapping/shape": {
+            "floor": 1,
+            "to": 0.6274509803921569,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws these node types in their own outline, size and line (#5788), not the reference's box",
+            "date": "2026-11-13"
+        },
+        "graphml-magiclantern-architecture/size": {
+            "floor": 1,
+            "to": 0.9736842105263158,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws these node types in their own outline, size and line (#5788), not the reference's box",
+            "date": "2026-11-13"
+        },
+        "graphml-synthetic-edges/edgeWidth": {
+            "floor": 1,
+            "to": 0.8532110091743119,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws a line of width 0.5 one wide (#5787), and the reference says 0.5",
+            "date": "2026-11-13"
+        },
+        "graphml-synthetic-nodes/borderColor": {
+            "floor": 1,
+            "to": 0.9552238805970149,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
+            "date": "2026-11-13"
+        },
+        "graphml-synthetic-nodes/borderWidth": {
+            "floor": 1,
+            "to": 0.8591549295774648,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: a UML class or 3D rectangle is a flat box in a raised border with no line, its strips not drawn yet (#5839), and the reference gives it a line",
+            "date": "2026-11-13"
+        },
+        "graphml-synthetic-nodes/edgeOpacity": {
+            "floor": 1,
+            "to": 0.9583333333333334,
+            "reason": "reference corrected against yEd's own drawing: this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws a closed folder (grp-closed) without its members h0, h1, h2 and the edge e69 between two of them (no \"hidden N\" text in graphml-synthetic-nodes.svg), and graph-io now hides them as yEd does",
+            "date": "2026-11-13"
+        },
+        "graphml-synthetic-nodes/labelPosition": {
+            "floor": 0.9154929577464789,
+            "to": 0.8235294117647058,
+            "reason": "both references are wrong for yEd's sides model: the file stores no label box for label-sides-n, -s, -e and -w, and yed_facts.py and draw.io place those labels inside the node, where yEd draws a sides label beyond the side its modelPosition names (above for n); graphty-element now draws every label place the file sets (labelLocation) instead of the eight most common, so those labels are drawn as yEd draws them",
+            "date": "2026-11-13"
+        },
+        "graphml-synthetic-nodes/labelText": {
+            "floor": 0.9859154929577465,
+            "to": 0.9436619718309859,
+            "reason": "reference corrected against yEd's own drawing: this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws a closed folder (grp-closed) without its members h0, h1, h2 and the edge e69 between two of them (no \"hidden N\" text in graphml-synthetic-nodes.svg), and graph-io now hides them as yEd does",
+            "date": "2026-11-13"
+        },
+        "graphml-synthetic-nodes/size": {
+            "floor": 1,
+            "to": 0.971830985915493,
+            "reason": "reference corrected against yEd's own drawing (#3109): this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws these node types in their own outline, size and line (#5788), not the reference's box",
+            "date": "2026-11-13"
+        },
+        "graphml-synthetic-nodes/visible": {
+            "floor": 1,
+            "to": 0.9577464788732394,
+            "reason": "reference corrected against yEd's own drawing: this sample's reference scene is an earlier reading of the file and not yEd's drawing, and the oracle report (oracle-report.test.ts, against yEd's SVG) judges this property: yEd draws a closed folder (grp-closed) without its members h0, h1, h2 and the edge e69 between two of them (no \"hidden N\" text in graphml-synthetic-nodes.svg), and graph-io now hides them as yEd does",
+            "date": "2026-11-13"
+        },
+        "graphml-yfiles-html-ss13-tree/edgeLabel": {
+            "floor": 1,
+            "to": 0.9890710382513661,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yFiles for HTML label's markup is drawn as text, its tags not shown, where the reference keeps the markup (0.9891, 2026-11-07)",
+            "date": "2026-11-13"
+        },
+        "graphml-yfiles-html-ss13-tree/labelText": {
+            "floor": 1,
+            "to": 0.9885057471264368,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the oracle report (oracle-report.test.ts, against the program's SVG) judges this property. a yFiles for HTML label's markup is drawn as text, its tags not shown, where the reference keeps the markup (0.9885, 2026-11-07)",
+            "date": "2026-11-13"
+        },
+        "json-cyjs-graphmaker/lineStyle": {
+            "floor": 1,
+            "to": 0.8819188191881919,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8819, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "json-cyjs-synth-nodes/borderStyle": {
+            "floor": 1,
+            "to": 0.8571428571428571,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8571, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "json-cyjs-synth-nodes/fill": {
+            "floor": 1,
+            "to": 0.9814814814814815,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9815, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "json-cyjs-synth-nodes/fillOpacity": {
+            "floor": 1,
+            "to": 0.990909090909091,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9909, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "json-cyjs-synth-nodes/visible": {
+            "floor": 1,
+            "to": 0.990909090909091,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9909, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "json-graphology-synth/edgeLabel": {
+            "floor": 1,
+            "to": 0.8555555555555555,
+            "reason": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma draws no edge labels unless renderEdgeLabels is on, which a graphology file never sets, so graphty no longer draws them",
+            "date": "2026-11-13"
+        },
+        "json-graphology-synth/labelText": {
+            "floor": 1,
+            "to": 0.95,
+            "reason": "the JSON reference records no label for the six hidden: true nodes, but sigma 4 draws them and their labels (graph-io/test/fidelity/oracles/json-graphology-synth.png); graph-io now asks for them as sigma 4 draws them",
+            "date": "2026-11-13"
+        },
+        "json-graphology-synth/visible": {
+            "floor": 1,
+            "to": 0.94,
+            "reason": "the JSON reference is wrong against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma 4 hides an element by visibility \"hidden\" and draws the six nodes the file marks hidden: true (sigma 3's key), which the reference recorded as hidden; graph-io now reads them as sigma 4 draws them",
+            "date": "2026-11-13"
+        },
+        "json-vis-synth/borderColor": {
+            "floor": 1,
+            "to": 0.9710144927536232,
+            "reason": "reference corrected against vis-network 9.1.9's own drawing: an image node (12) and an icon node (14) draw no border",
+            "date": "2026-11-13"
+        },
+        "json-vis-synth/borderWidth": {
+            "floor": 1,
+            "to": 0.971830985915493,
+            "reason": "reference corrected against vis-network 9.1.9's own drawing: an image node (12) and an icon node (14) draw no border",
+            "date": "2026-11-13"
+        },
+        "json-vis-synth/fill": {
+            "floor": 1,
+            "to": 0.971830985915493,
+            "reason": "reference corrected against vis-network 9.1.9's own drawing (graph-io/test/fidelity/oracles/json-vis-synth.svg): an image node (12) is its picture alone and an icon node (14) its glyph alone, with no box behind them; the old JSON scene gave them the default fill",
+            "date": "2026-11-13"
+        },
+        "json-vis-synth/fillOpacity": {
+            "floor": 1,
+            "to": 0.9571428571428572,
+            "reason": "reference corrected against vis-network 9.1.9's own drawing (graph-io/test/fidelity/oracles/json-vis-synth.svg): node 24's opacity 0.3 does not fade its color given as the name black, which overrideOpacity leaves as it is, so vis-network draws it opaque",
+            "date": "2026-11-13"
+        },
+        "json-vis-synth/labelText": {
+            "floor": 1,
+            "to": 0.9859154929577465,
+            "reason": "reference corrected against vis-network 9.1.9's own drawing: node 28's font.multi html label is drawn as its text, bold and plain, without its <b> tags",
+            "date": "2026-11-13"
+        },
+        "pajek-1crn/edgeColor": {
+            "floor": 1,
+            "to": 0,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.0000, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "pajek-graphstream-b/fill": {
+            "floor": 1,
+            "to": 0.8378378378378378,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8378, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "pajek-graphstream-b/shape": {
+            "floor": 1,
+            "to": 0.7927927927927928,
+            "reason": "reference corrected against Pajek 6.02's own SVG export draws every diamond as a six-cornered polygon cut q wide at its top and bottom (q 0.001 by default; pajek-specimen-node-shapes q-0-5-diamond a hexagon, q-2-diamond a bow tie), so graph-io writes it as a polygon with its shapePoints, which this scorecard classes as other; the oracle report passes node.shape on this sample (111/111)",
+            "date": "2026-11-13"
+        },
+        "pajek-lin-rel4/labelColor": {
+            "floor": 1,
+            "to": 0.9615384615384616,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9615, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "pajek-lin-rel4/shape": {
+            "floor": 1,
+            "to": 0.8034188034188035,
+            "reason": "reference corrected against Pajek 6.02's own SVG export draws every diamond as a six-cornered polygon cut q wide at its top and bottom (q 0.001 by default; pajek-specimen-node-shapes q-0-5-diamond a hexagon, q-2-diamond a bow tie), so graph-io writes it as a polygon with its shapePoints, which this scorecard classes as other; the oracle report passes node.shape on this sample (225/225)",
+            "date": "2026-11-13"
+        },
+        "pajek-synth-lines/arrows": {
+            "floor": 1,
+            "to": 0.9753086419753086,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9753, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "pajek-synth-lines/edgeLabel": {
+            "floor": 1,
+            "to": 0.654320987654321,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.6543, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "pajek-synth-lines/lineStyle": {
+            "floor": 1,
+            "to": 0.8024691358024691,
+            "reason": "reference corrected against Pajek 6.02's own SVG export (pajek-synth-lines.svg): Dots and a negative value are stroke-dasharray:5, dashes on a line thinner than 10/3 px (2->3, 7->8) and dots on a wider one, and the pattern p is not carried to the next line (5->6 after p Solid is drawn dotted for its negative value); the oracle report's edge.dash went 65/88 -> 85/88",
+            "date": "2026-11-13"
+        },
+        "pajek-synth-vertices/labelColor": {
+            "floor": 1,
+            "to": 0.92,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8933, 2026-10-20)",
+            "date": "2026-11-13"
+        },
+        "pajek-synth-vertices/shape": {
+            "floor": 1,
+            "to": 0.8641975308641975,
+            "reason": "reference corrected against Pajek 6.02's own SVG export draws every diamond as a six-cornered polygon cut q wide at its top and bottom (q 0.001 by default; pajek-specimen-node-shapes q-0-5-diamond a hexagon, q-2-diamond a bow tie), so graph-io writes it as a polygon with its shapePoints, which this scorecard classes as other; the oracle report passes node.shape on this sample; and a placed vertex line that names no shape and starts with bc, bw, s_size or another such key is drawn in the shape before it (Pajek 6.02 probes of the third fix round)",
+            "date": "2026-11-13"
+        },
+        "xgmml-syn-bypass/labelPosition": {
+            "floor": 1,
+            "to": 0.8793103448275862,
+            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8793, 2026-10-20)",
+            "date": "2026-11-13"
+        }
     },
     "retired": {
         "graphml-yfiles-html-stag-flowchart/fill": "no longer judged: every node is filled with a LinearGradient (#e8eef7 to #b7c9e3), so its reference marks it paintedOver and its flat first stop is not judged; the oracle scorecard judges the gradient against the drawing (node.gradient 1 per view) (#6265)"

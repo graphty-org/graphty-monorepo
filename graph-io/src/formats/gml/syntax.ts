@@ -543,14 +543,7 @@ function validateStructure(tokens: GmlTokens): void {
             );
         }
         if (checkValue(tokens, i) === TOKEN_OPEN) {
-            if (stack.length >= MAX_GML_DEPTH) {
-                throw new GmlSyntaxError(
-                    SYNTAX_DEPTH_CODE,
-                    `records nested more than ${String(MAX_GML_DEPTH)} levels deep at line ${tokens.line[value]}`,
-                    tokens.line[value],
-                );
-            }
-            stack.push(value);
+            pushOpen(tokens, stack, value);
         }
         i = value + 1;
     }
@@ -563,6 +556,23 @@ function validateStructure(tokens: GmlTokens): void {
         );
     }
     tokens.match = match;
+}
+
+/**
+ * Open a record, refusing one nested deeper than `MAX_GML_DEPTH`.
+ * @param tokens - the lexed tokens
+ * @param stack - the open `[` tokens
+ * @param open - the `[` to open
+ */
+function pushOpen(tokens: GmlTokens, stack: number[], open: number): void {
+    if (stack.length >= MAX_GML_DEPTH) {
+        throw new GmlSyntaxError(
+            SYNTAX_DEPTH_CODE,
+            `records nested more than ${String(MAX_GML_DEPTH)} levels deep at line ${tokens.line[open]}`,
+            tokens.line[open],
+        );
+    }
+    stack.push(open);
 }
 
 /**

@@ -422,21 +422,23 @@ function isAbortLike(error: unknown): error is Error {
  * Abort one controller when a signal aborts, carrying the reason across.
  * @param source - The signal to watch.
  * @param target - The controller to abort.
+ * @returns A function that removes the listener, so a long-lived source does not keep the target.
  */
-function forwardAbort(source: AbortSignal, target: AbortController): void {
+function forwardAbort(source: AbortSignal, target: AbortController): () => void {
     if (source.aborted) {
         target.abort(source.reason);
 
-        return;
+        return () => undefined;
     }
 
-    source.addEventListener(
-        "abort",
-        () => {
-            target.abort(source.reason);
-        },
-        { once: true },
-    );
+    const onAbort = (): void => {
+        target.abort(source.reason);
+    };
+    source.addEventListener("abort", onAbort, { once: true });
+
+    return () => {
+        source.removeEventListener("abort", onAbort);
+    };
 }
 
 /**
@@ -1116,13 +1118,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
         const execution = new AbortController();
         this.executionController = execution;
-        forwardAbort(context.signal, execution);
-
+        const detachQueue = forwardAbort(context.signal, execution);
         const { signal } = this.definition;
-
-        if (signal !== undefined) {
-            forwardAbort(signal, execution);
-        }
+        const detachCaller = signal === undefined ? undefined : forwardAbort(signal, execution);
 
         const timeBox = this.startTimeBox();
         this.surroundings.notify?.("start");
@@ -1169,6 +1167,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 this.fail(error);
             }
         } finally {
+            detachQueue();
+            detachCaller?.();
+
             if (generation === this.generationValue) {
                 this.clearTimeBox();
             }

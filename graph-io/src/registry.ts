@@ -1554,7 +1554,9 @@ function shownUrl(url: string | URL): string {
         const absolute = new URL(url);
         return `${absolute.protocol}//${absolute.host}${absolute.pathname}`;
     } catch {
-        return String(url).replace(/[?#].*$/s, "");
+        const text = String(url);
+        const cut = text.search(/[?#]/);
+        return cut === -1 ? text : text.slice(0, cut);
     }
 }
 

@@ -8,7 +8,8 @@
  * package's package.json with the one on the merge base with origin/master ($PEER_DEPS_BASE
  * overrides the base) and fails on:
  *
- *   1. a removed peer dependency;
+ *   1. a removed required peer dependency (an optional one may go: no install that worked can
+ *      break, and tools/check-published-deps.mjs fails a shipped file that still imports it);
  *   2. a new peer dependency, or an optional one made required;
  *   3. a peer dependency moved into dependencies;
  *   4. a narrowed range: one that no longer accepts every version the old range accepted.
@@ -18,8 +19,7 @@
  * makes the release a major. `workspace:` ranges are internal: tools/check-published-deps.mjs
  * checks them. Widening a range is allowed in a minor.
  *
- * Why it exists: graphty-element's AI SDK peers are to be removed when TanStack AI replaces the
- * SDK, and nothing would have stopped that removal from shipping in a minor
+ * Why it exists: a consumer's install must not break in a minor
  * (design/ai/tanstack-ai-harness-design.md, section 7, rule 7).
  *
  * Usage: node tools/check-peer-deps-stable.mjs [--self-test]
@@ -59,6 +59,26 @@ function accepts(before, after) {
 }
 
 /**
+ * The breaking change to one peer the base declared, if any.
+ * @param before - the package.json on the base
+ * @param after - the package.json being checked
+ * @param name - the peer
+ * @param range - its range on the base
+ * @returns the message, or undefined when the change is allowed
+ */
+function existingPeerChange(before, after, name, range) {
+    const now = after.peerDependencies ?? {};
+    const inDeps = name in (after.dependencies ?? {});
+    if (!(name in now)) {
+        if (inDeps) return `peer dependency "${name}" moved into dependencies`;
+        return optional(before, name) ? undefined : `peer dependency "${name}" removed`;
+    }
+    if (!accepts(range, now[name])) return `peer dependency "${name}" narrowed from "${range}" to "${now[name]}"`;
+    if (optional(before, name) && !optional(after, name)) return `peer dependency "${name}" is now required`;
+    return undefined;
+}
+
+/**
  * The peer dependency changes between two manifests that only a major may make.
  * @param before - the package.json on the base
  * @param after - the package.json being checked
@@ -70,17 +90,8 @@ export function peerChanges(before, after) {
     const problems = [];
     for (const [name, range] of Object.entries(old)) {
         if (range.startsWith("workspace:")) continue;
-        if (!(name in now)) {
-            problems.push(
-                name in (after.dependencies ?? {})
-                    ? `peer dependency "${name}" moved into dependencies`
-                    : `peer dependency "${name}" removed`,
-            );
-        } else if (!accepts(range, now[name])) {
-            problems.push(`peer dependency "${name}" narrowed from "${range}" to "${now[name]}"`);
-        } else if (optional(before, name) && !optional(after, name)) {
-            problems.push(`peer dependency "${name}" is now required`);
-        }
+        const problem = existingPeerChange(before, after, name, range);
+        if (problem) problems.push(problem);
     }
     for (const name of Object.keys(now)) {
         if (!(name in old) && !now[name].startsWith("workspace:")) {
@@ -128,7 +139,7 @@ function selfTest() {
         return copy;
     };
     const cases = [
-        [variant((m) => delete m.peerDependencies.ai), /^peer dependency "ai" removed$/],
+        [variant((m) => delete m.peerDependencies.lit), /^peer dependency "lit" removed$/],
         [variant((m) => (m.peerDependencies.react = "*")), /^new peer dependency "react"$/],
         [variant((m) => delete m.peerDependenciesMeta.ai), /^peer dependency "ai" is now required$/],
         [
@@ -153,6 +164,7 @@ function selfTest() {
         variant((m) => (m.peerDependencies.lit = ">=3.0.0")),
         variant((m) => (m.peerDependencies["@x/y"] = "workspace:*")),
         variant((m) => (m.peerDependenciesMeta.lit = { optional: true })),
+        variant((m) => delete m.peerDependencies.ai),
     ];
     for (const after of allowed) {
         const problems = peerChanges(base, after);

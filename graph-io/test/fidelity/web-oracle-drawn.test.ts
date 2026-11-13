@@ -26,9 +26,14 @@ describe("vis-network's file oracles", () => {
         for (const id of ids) {
             const meta = JSON.parse(readFileSync(join(oracles, `${id}.oracle.json`), "utf8")) as {
                 observed: { nodes: number };
-                drawn?: { nodes: unknown[] };
+                drawn?: { nodes: { box?: unknown }[] };
             };
             assert.strictEqual(meta.drawn?.nodes.length, meta.observed.nodes, `${id}: drawn nodes`);
+            // the box's corners, not only its size: a label drawn below the shape puts it off the center (#7402)
+            assert.isTrue(
+                meta.drawn?.nodes.every((n) => n.box !== undefined),
+                `${id}: drawn boxes`,
+            );
         }
     });
 });

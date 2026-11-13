@@ -5,7 +5,8 @@
  *
  * - `graph` / `digraph` set the direction through the DirectionResolver (rule 1 of 8.4); `strict`
  *   merges parallel edges as cgraph does and is recorded in `meta.extra.dot.strict`; the graph name
- *   becomes `meta.name`.
+ *   becomes `meta.name`. The texts written as HTML strings (`<...>`) are listed in `meta.extra.dot.html`, since
+ *   their cells hold the same text as a quoted string with the same brackets.
  * - node, edge and graph attribute statements (`node [..]`, `edge [..]`, `graph [..]`, `ID = ID`)
  *   are stateful, scoped defaults applied to the elements created after them in the same or a
  *   nested subgraph; every element receives its effective attributes as plain cells, so the
@@ -93,6 +94,7 @@ import { dotLayout } from "./layout.js";
 import {
     CLUSTER_COLUMN,
     DOT_FORMAT,
+    DOT_META_KEY,
     DOT_ORIGIN,
     KEY_ATTRIBUTE,
     LABEL_ATTRIBUTE,
@@ -921,6 +923,7 @@ class DotParser {
             throw new DotSyntaxError(`expected "graph" or "digraph", found ${describeToken(token)}`, token.line);
         }
         const headerLine = token.line;
+        lexer.htmlTexts.clear();
         token = lexer.next();
         let name: string | null = null;
         if (token.kind === "id") {
@@ -939,6 +942,11 @@ class DotParser {
         const root = this.newScope(null, headerLine, true, null);
         this.statementList(root);
         this.applyInherited();
+        if (lexer.htmlTexts.size > 0) {
+            // which texts were HTML strings, since the text alone cannot say (a quoted "<init>" is plain text)
+            const dot = { ...(this.strict ? { strict: true } : {}), html: [...lexer.htmlTexts] };
+            this.sink.setMeta({ extra: { [DOT_META_KEY]: dot } });
+        }
         return lexer.next();
     }
 

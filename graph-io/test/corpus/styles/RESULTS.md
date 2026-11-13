@@ -116,7 +116,7 @@ Tool values are elements drawn with the writing program's default.
 | cys/generated/graphty-written-block-truncated.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 625 | 0 | W_STYLE_BLOCK_IGNORED |
 | cys/generated/graphty-written-native-edit.cys | ok | 45 | 62 | 5 | 3 | 103 | 1% | 1% | 0 | 0 | 0 |  |
 | cys/generated/graphty-written.cys | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 |  |
-| dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv | ok | 108 | 926 | 4 | 3 | 80 | 100% | 0% | 0 | 7130 | 0 | W_STYLE_BAD_VALUE, W_STYLE_HTML_LABEL |
+| dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv | ok | 108 | 926 | 4 | 3 | 80 | 100% | 0% | 0 | 7130 | 0 | W_STYLE_BAD_VALUE |
 | dot/DynamicalSystemsGroup_cats__cats_pkg.gv | ok | 456 | 1003 | 6 | 5 | 1071 | 0% | 0% | 0 | 11125 | 0 | W_STYLE_HTML_LABEL |
 | dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot | ok | 18 | 20 | 9 | 7 | 28 | 21% | 14% | 0 | 286 | 0 | W_STYLE_HTML_LABEL |
 | dot/damoqiongqiu_NiceFish__dependencies.dot | ok | 126 | 75 | 7 | 5 | 82 | 27% | 27% | 0 | 1801 | 0 |  |
@@ -159,7 +159,7 @@ Tool values are elements drawn with the writing program's default.
 | dot/graphviz-gallery-undirected-root.gv | ok | 1054 | 1083 | 6 | 7 | 1637 | 23% | 23% | 0 | 13043 | 0 |  |
 | dot/raphael-group_machina__T_seed9_mut1.dot | ok | 79 | 78 | 6 | 5 | 134 | 5% | 0% | 0 | 1257 | 0 | W_STYLE_COLOR_LIST |
 | dot/vivek3141_super-mario-neat__Digraph.gv | ok | 281 | 878 | 5 | 8 | 1837 | 48% | 0% | 0 | 7235 | 0 |  |
-| dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 6 | 5 | 867 | 54% | 0% | 0 | 3639 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_HTML_LABEL |
+| dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 5 | 5 | 867 | 54% | 0% | 0 | 3639 | 0 | W_STYLE_ALPHA_DROPPED |
 | gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz | ok | 225 | 1090 | 6 | 4 | 0 | - | - | 0 | 9229 | 0 |  |
 | gexf/fidelity/graphology-rio.gexf.gz | ok | 366 | 1107 | 7 | 6 | 796 | 0% | 0% | 0 | 10342 | 0 |  |
 | gexf/fidelity/synth-13-hierarchy.gexf | ok | 60 | 104 | 6 | 5 | 140 | 69% | 0% | 0 | 1256 | 0 | W_STYLE_UNKNOWN_VALUE |

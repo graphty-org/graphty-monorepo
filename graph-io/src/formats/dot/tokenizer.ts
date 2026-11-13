@@ -113,6 +113,12 @@ export class DotTokenizer {
     private readonly onAmbiguity: ((numeral: string, line: number) => void) | null;
 
     /**
+     * The text of every HTML string lexed so far, outer brackets kept: which texts the document wrote as HTML, since
+     * a quoted `"<init>"` and an HTML `<init>` decode to the same text. The importer clears it per graph.
+     */
+    readonly htmlTexts = new Set<string>();
+
+    /**
      * Create a lexer over a whole document.
      * @param text - the DOT text (BOM already removed)
      * @param onAmbiguity - called for a badly delimited numeral (`1e3`, which Graphviz splits into
@@ -337,7 +343,9 @@ export class DotTokenizer {
                 depth--;
                 if (depth === 0) {
                     this.pos = i + 1;
-                    return { kind: "id", text: text.slice(start, i + 1), quoted: false, html: true, line };
+                    const html = text.slice(start, i + 1);
+                    this.htmlTexts.add(html);
+                    return { kind: "id", text: html, quoted: false, html: true, line };
                 }
             } else if (c === 0x0a || (c === 0x0d && text.charCodeAt(i + 1) !== 0x0a)) {
                 this.line++;

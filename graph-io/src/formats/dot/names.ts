@@ -73,7 +73,8 @@ export const KEY_ATTRIBUTE = "key";
 export const PIN_ATTRIBUTE = "pin";
 
 /**
- * The key under meta.extra holding the format's graph flags (`{ strict: true }`).
+ * The key under meta.extra holding the format's graph flags (`{ strict: true }`) and the texts the file wrote as
+ * HTML strings (`{ html: ["<b>x</b>"] }`, outer brackets kept).
  * @category Plugin helpers
  */
 export const DOT_META_KEY = "dot";

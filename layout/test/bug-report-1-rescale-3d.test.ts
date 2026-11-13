@@ -74,8 +74,11 @@ describe("Bug Report #1: rescaleLayout causes NaN for Z coordinates in 3D", () =
         );
 
         // Verify the bug is fixed
+        assert.isNumber(result.a[2]);
         assert.isNotNaN(result.a[2]);
+        assert.isNumber(result.b[2]);
         assert.isNotNaN(result.b[2]);
+        assert.isNumber(result.c[2]);
         assert.isNotNaN(result.c[2]);
     });
 });

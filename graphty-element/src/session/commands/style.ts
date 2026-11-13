@@ -372,7 +372,9 @@ const stylePatch: UndoableDefinition<StylePatchCommand> = {
         kind: "undoable",
         label: patchLabel,
         fact: patchFact,
-        // A drag of a colour picker is one step: updates of the same keys of one layer merge.
+        // A drag of a color picker is one step: updates of the same keys of one layer merge. The
+        // keys are `set` and `encode`, not channels, so edits of two channels within a second merge
+        // too; the merged step's fact then names both (History's mergedFact).
         coalesce: (command) =>
             command.action === "update" ? `style:${command.id}:${Object.keys(command.patch).sort().join(",")}` : null,
     },

@@ -1693,6 +1693,7 @@ export class Graph implements GraphContext {
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
             visibleEdges: () => this.session.visibility.edges,
+            playing: () => this.session.time.playing,
             detached: (scope) => {
                 try {
                     const { freshness } = this.session.sets.status(scope);
@@ -1719,6 +1720,11 @@ export class Graph implements GraphContext {
             if (cause !== "restore" && cause !== "rollback") {
                 this.layoutManager.relayoutForVisibility();
             }
+        });
+        // Under `layout.visibleOnlyWhilePlaying: "hold"` a play's window moves lay nothing out:
+        // the pause lays out what it stopped on.
+        this.session.on("time:pause", () => {
+            this.layoutManager.relayoutForVisibility();
         });
 
         // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.

@@ -935,12 +935,12 @@ A predicted link.
 
 The best-F1 threshold's precision and recall, that F1, and the ranking AUC.
 
-| Member      | Type     | Meaning                                                                                                                                                                                    |
-| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `precision` | `number` | The precision at the score threshold with the best F1. Every metric ranks a held-out edge ahead of a non-edge with the same score, so a score that ties every pair reports 1 for all four. |
-| `recall`    | `number` | The recall at that threshold.                                                                                                                                                              |
-| `f1Score`   | `number` | The best F1 over every threshold.                                                                                                                                                          |
-| `auc`       | `number` | The chance that a held-out edge scores above a non-edge, a tie counting as the edge scoring higher; 0.5 when either list is empty.                                                         |
+| Member      | Type     | Meaning                                                                                                                                                                                         |
+| ----------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `precision` | `number` | The precision at the score threshold with the best F1. A threshold never splits pairs with the same score, so a score that ties every pair reports the share of held-out edges among all pairs. |
+| `recall`    | `number` | The recall at that threshold.                                                                                                                                                                   |
+| `f1Score`   | `number` | The best F1 over every threshold.                                                                                                                                                               |
+| `auc`       | `number` | The chance that a held-out edge scores above a non-edge, a tie counting half; 0.5 when either list is empty.                                                                                    |
 
 <!-- generated:resultTypes:end -->
 

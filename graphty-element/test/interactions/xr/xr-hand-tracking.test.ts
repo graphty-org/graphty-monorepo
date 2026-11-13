@@ -16,8 +16,6 @@ import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { isPinching, pinchStrength } from "../../../src/cameras/InputUtils";
 import type { PivotController } from "../../../src/cameras/PivotController";
-import type { Graph } from "../../../src/Graph";
-import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 import { createXRInputDriver, type XRInputDriver } from "../helpers/xr-input-driver";
 
 /**
@@ -37,20 +35,17 @@ function getPivotEuler(pivot: PivotController): { x: number; y: number; z: numbe
 }
 
 describe("XR Hand Tracking", () => {
-    let graph: Graph;
     let pivotController: PivotController;
     let driver: XRInputDriver;
 
     beforeEach(async () => {
-        graph = await createTestGraph();
-        driver = createXRInputDriver(graph.scene);
+        driver = await createXRInputDriver("hand");
         pivotController = driver.pivot;
     });
 
-    afterEach(() => {
-        driver.dispose();
+    afterEach(async () => {
+        await driver.dispose();
         vi.restoreAllMocks();
-        cleanupTestGraph(graph);
     });
 
     describe("Pinch Gesture Detection", () => {
@@ -84,19 +79,19 @@ describe("XR Hand Tracking", () => {
             assert.isTrue(isPinching(0.05, true), "A pinching hand at 5cm stays pinching");
         });
 
-        test("hysteresis state is independent per hand", () => {
+        test("hysteresis state is independent per hand", async () => {
             // Left pinches firmly, then relaxes to 5cm: still pinching. Right opens at 5cm: not.
             driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), 0.02);
-            driver.frame();
+            await driver.frame();
             driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), 0.05);
             driver.setHand("right", new Vector3(0.2, 1.0, -0.5), 0.05);
-            driver.frame();
+            await driver.frame();
 
             const initialScale = getPivotScale(pivotController);
 
             driver.setHand("left", new Vector3(-0.4, 1.0, -0.5), 0.05);
             driver.setHand("right", new Vector3(0.4, 1.0, -0.5), 0.05);
-            driver.frame();
+            await driver.frame();
             assert.closeTo(
                 getPivotScale(pivotController),
                 initialScale,
@@ -106,22 +101,22 @@ describe("XR Hand Tracking", () => {
 
             // Right pinches firmly and relaxes to 5cm: now both hands pinch and spreading them zooms.
             driver.setHand("right", new Vector3(0.4, 1.0, -0.5), 0.02);
-            driver.frame();
+            await driver.frame();
             driver.setHand("left", new Vector3(-0.5, 1.0, -0.5), 0.05);
             driver.setHand("right", new Vector3(0.5, 1.0, -0.5), 0.05);
-            driver.frame();
+            await driver.frame();
             assert.notEqual(getPivotScale(pivotController), initialScale, "Both hands at 5cm should still be pinching");
         });
     });
 
     describe("Two-Hand Gestures with Hand Tracking", () => {
-        test("two-hand pinch zooms scene", () => {
+        test("two-hand pinch zooms scene", async () => {
             // Both hands pinching
             driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), 0.02);
             driver.setHand("right", new Vector3(0.2, 1.0, -0.5), 0.02);
 
             // Initialize gesture
-            driver.frame();
+            await driver.frame();
 
             const initialScale = getPivotScale(pivotController);
 
@@ -129,20 +124,20 @@ describe("XR Hand Tracking", () => {
             driver.setHand("left", new Vector3(-0.4, 1.0, -0.5), 0.02);
             driver.setHand("right", new Vector3(0.4, 1.0, -0.5), 0.02);
 
-            driver.frame();
+            await driver.frame();
 
             const finalScale = getPivotScale(pivotController);
 
             assert.notEqual(finalScale, initialScale, "Two-hand spread should zoom");
         });
 
-        test("two-hand rotation rotates scene with hands", () => {
+        test("two-hand rotation rotates scene with hands", async () => {
             // Both hands pinching, aligned horizontally
             driver.setHand("left", new Vector3(-0.3, 1.0, -0.5), 0.02);
             driver.setHand("right", new Vector3(0.3, 1.0, -0.5), 0.02);
 
             // Initialize
-            driver.frame();
+            await driver.frame();
 
             const initialEuler = getPivotEuler(pivotController);
 
@@ -150,7 +145,7 @@ describe("XR Hand Tracking", () => {
             driver.setHand("left", new Vector3(-0.2, 1.2, -0.5), 0.02);
             driver.setHand("right", new Vector3(0.2, 0.8, -0.5), 0.02);
 
-            driver.frame();
+            await driver.frame();
 
             const finalEuler = getPivotEuler(pivotController);
 
@@ -162,12 +157,12 @@ describe("XR Hand Tracking", () => {
             assert.isAbove(totalChange, 0.0001, "Two-hand rotation should rotate scene");
         });
 
-        test("releasing pinch on one hand stops gesture", () => {
+        test("releasing pinch on one hand stops gesture", async () => {
             // Both hands pinching
             driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), 0.02);
             driver.setHand("right", new Vector3(0.2, 1.0, -0.5), 0.02);
 
-            driver.frame();
+            await driver.frame();
 
             // Release right hand pinch
             driver.setHand("right", new Vector3(0.3, 1.0, -0.5), 0.08);
@@ -177,18 +172,18 @@ describe("XR Hand Tracking", () => {
             // Move left hand (should not cause gesture)
             driver.setHand("left", new Vector3(-0.4, 1.0, -0.5), 0.02);
 
-            driver.frame();
+            await driver.frame();
 
             const finalScale = getPivotScale(pivotController);
 
             assert.closeTo(finalScale, initialScale, 0.0001, "Single hand should not zoom");
         });
 
-        test("gesture continues through hand movement while pinching", () => {
+        test("gesture continues through hand movement while pinching", async () => {
             // Initialize gesture
             driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), 0.02);
             driver.setHand("right", new Vector3(0.2, 1.0, -0.5), 0.02);
-            driver.frame();
+            await driver.frame();
 
             const initialScale = getPivotScale(pivotController);
 
@@ -198,7 +193,7 @@ describe("XR Hand Tracking", () => {
                 const offset = i * 0.05;
                 driver.setHand("left", new Vector3(-0.2 - offset, 1.0, -0.5), 0.02);
                 driver.setHand("right", new Vector3(0.2 + offset, 1.0, -0.5), 0.02);
-                driver.frame();
+                await driver.frame();
             }
 
             const finalScale = getPivotScale(pivotController);
@@ -209,7 +204,7 @@ describe("XR Hand Tracking", () => {
     });
 
     describe("Hand Tracking Edge Cases", () => {
-        test("rapid pinch toggle does not cause erratic behavior", () => {
+        test("rapid pinch toggle does not cause erratic behavior", async () => {
             const scales: number[] = [];
 
             // Rapidly toggle pinch state
@@ -219,7 +214,7 @@ describe("XR Hand Tracking", () => {
                 driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), distance);
                 driver.setHand("right", new Vector3(0.2, 1.0, -0.5), distance);
 
-                driver.frame();
+                await driver.frame();
                 scales.push(getPivotScale(pivotController));
             }
 
@@ -232,21 +227,21 @@ describe("XR Hand Tracking", () => {
             assert.isBelow(range, 1.0, "Rapid toggle should not cause extreme scale changes");
         });
 
-        test("transitioning between hands maintains stability", () => {
+        test("transitioning between hands maintains stability", async () => {
             // Start with both hands pinching
             driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), 0.02);
             driver.setHand("right", new Vector3(0.2, 1.0, -0.5), 0.02);
-            driver.frame();
+            await driver.frame();
 
             const scaleWithBoth = getPivotScale(pivotController);
 
             // Release left hand
             driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), 0.08);
-            driver.frame();
+            await driver.frame();
 
             // Re-engage left hand at different position
             driver.setHand("left", new Vector3(-0.4, 1.0, -0.5), 0.02);
-            driver.frame();
+            await driver.frame();
 
             const scaleAfterReengage = getPivotScale(pivotController);
 

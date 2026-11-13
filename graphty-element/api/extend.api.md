@@ -641,13 +641,6 @@ export abstract class DataSource {
     edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
-    protected get errorMessages(): {
-        missingInput: () => string;
-        fetchFailed: (url: string, attempts: number, error: string) => string;
-        parseFailed: (error: string) => string;
-        invalidFormat: (reason: string) => string;
-        extractionFailed: (path: string, error: string) => string;
-    };
     protected fetchWithRetry(url: string, retries?: number, timeout?: number): Promise<Response>;
     // @internal
     fileStyles(options?: {
@@ -931,21 +924,19 @@ export class ErrorAggregator {
     constructor(maxErrors?: number);
     addError(error: DataLoadingError): boolean;
     clear(): void;
-    getDetailedReport(): string;
     getErrorCount(): number;
     getErrorLimit(): number;
     getErrors(): DataLoadingError[];
     getSummary(): ErrorSummary;
-    getUserFriendlyMessage(): string;
     hasReachedLimit(): boolean;
 }
 
 // @public
 export interface ErrorSummary {
+    byCategory: Record<string, number>;
     categories: Map<string, DataLoadingError[]>;
-    message: string;
+    fields: string[];
     primaryCategory?: string;
-    suggestion?: string;
     totalErrors: number;
 }
 

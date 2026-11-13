@@ -27,7 +27,7 @@ import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import { type ExporterStyleInput, replacedLabelNote } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
@@ -2206,6 +2206,10 @@ export function pajekStyledExport(
         },
     );
     const notes = approximated.notes("Pajek");
+    const replaced = replacedLabelNote(snapshot, LABEL_COLUMN, input.picture("node", "label"), "the vertex label");
+    if (replaced !== null) {
+        notes.push(replaced);
+    }
     const block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     notes.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
     return { snapshot: out, comment: PAJEK_STYLE_COMMENT + block, notes };

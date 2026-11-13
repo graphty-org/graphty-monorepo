@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 import { createGraphSession, type DataIssue, type GraphSession } from "../../session";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 import { accountsCsv, transfersCsv } from "../helpers/fraud-fixture";
+import { withConsumerStrictState } from "./helpers";
 
 /**
  * A session holding the fraud fixture, loaded the way a reader drops both files.
@@ -322,19 +323,14 @@ describe("the issue verbs do work in proportion to the graph", () => {
      * @param size - The node count.
      * @returns The session.
      */
-    async function padded(size: number): Promise<GraphSession> {
-        const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
-        const strict = scope.__GRAPHTY_STRICT_STATE__;
-        scope.__GRAPHTY_STRICT_STATE__ = false;
-        try {
+    function padded(size: number): Promise<GraphSession> {
+        return withConsumerStrictState(async () => {
             const session = createGraphSession();
             await session.data.addNodes(
                 Array.from({ length: size }, (_, at) => ({ id: `n${String(at)}`, name: ` n${String(at)} ` })),
             );
             return session;
-        } finally {
-            scope.__GRAPHTY_STRICT_STATE__ = strict;
-        }
+        });
     }
 
     for (const verb of ["fix", "ignoreIssue"] as const) {

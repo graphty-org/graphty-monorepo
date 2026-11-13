@@ -7,6 +7,7 @@
 import { aiProviderDescriptor } from "../../catalog/ai";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { toolJsonSchema } from "../engine/jsonSchema";
+import { uniqueId } from "../uniqueId";
 import type {
     LlmProvider,
     LlmResponse,
@@ -169,7 +170,8 @@ function emitToolCalls(
     for (const tc of toolCallsArray) {
         if (tc.function?.name) {
             const toolCall: ToolCall = {
-                id: tc.id ?? `call_${Date.now()}`,
+                // WebLLM numbers calls per response ("0" every turn) and gives streamed calls none: mint one.
+                id: uniqueId("call_"),
                 name: tc.function.name,
                 arguments:
                     typeof tc.function.arguments === "string"
@@ -721,7 +723,8 @@ export class WebLlmProvider implements LlmProvider {
         if (responseToolCalls) {
             for (const tc of responseToolCalls) {
                 toolCalls.push({
-                    id: tc.id ?? `call_${Date.now()}`,
+                    // WebLLM numbers calls per response ("0" every turn) and gives streamed calls none: mint one.
+                    id: uniqueId("call_"),
                     name: tc.function?.name ?? "",
                     arguments:
                         typeof tc.function?.arguments === "string"

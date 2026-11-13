@@ -2,7 +2,8 @@
  * The exact-vs-grid comparison of the Fruchterman-Reingold and spring-electrical models (P4-T13; PD-22): the
  * construction of test/helpers/grid-parity.ts exactVsGrid (the grid tier after G7 against the EXACT GPU tier after
  * K3 from the same start on the same adapter, PD-19), run through the two models' own factories with their own laws
- * (`LAW` 1 / 2 on K3 and on G6 / G7) and held to the FA2 caps of T11 (grid-exact.rms, grid-exact.p99), on the
+ * (`LAW` 1 / 2 on K3 and on G6 / G7) and held to the FA2 caps of T11 over the spring models' own floor (grid-law.rms,
+ * grid-law.p99), on the
  * REPULSION alone: each tier's `force` after its repulsion stage minus its `force` after K2. K2 is the same kernel
  * over the same positions on both tiers, so the difference is the far and near field (G6 + G7) against K3's pair
  * sum; measured on the whole force the FR comparison would say nothing about the law, because at the default `k`
@@ -511,8 +512,8 @@ export async function lawExactVsGrid(
 }
 
 /**
- * The check a `LAW` sabotage row is measured by: the worst of rms / grid-exact.rms and p99 / grid-exact.p99 of the
- * whole repulsion and of the far field's whole-field error / grid-exact.rms, over LAW_FIXTURES and both dimensions
+ * The check a `LAW` sabotage row is measured by: the worst of rms / grid-law.rms and p99 / grid-law.p99 of the
+ * whole repulsion and of the far field's whole-field error / grid-law.rms, over LAW_FIXTURES and both dimensions
  * on one model. The pristine kernels pass it (test/layouts/grid-law.test.ts item 1 is the same measurement,
  * asserted per case).
  * @param ctx - the context (a fresh one per mutant: the pipeline key does not include the body)
@@ -520,8 +521,8 @@ export async function lawExactVsGrid(
  * @returns the merged report
  */
 export async function lawCheck(ctx: GpuContext, model: LawModel): Promise<CheckReport> {
-    const rms = gridTolerance("grid-exact.rms").value;
-    const p99 = gridTolerance("grid-exact.p99").value;
+    const rms = gridTolerance("grid-law.rms").value;
+    const p99 = gridTolerance("grid-law.p99").value;
     const reports: CheckReport[] = [];
     for (const name of LAW_FIXTURES) {
         const { snapshot: s, start } = lawFixture(name);

@@ -14,6 +14,10 @@ const { compile } = jmespath as unknown as { compile: (expression: string) => un
  * @returns True when it parses.
  */
 function compiles(expression: string): boolean {
+    // an empty path names no path, as it always did
+    if (expression === "") {
+        return true;
+    }
     try {
         compile(expression);
         return true;

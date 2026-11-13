@@ -13,6 +13,7 @@ describe("a label's textPath", () => {
             assert.isFalse(RichTextStyle.safeParse({ textPath: bad }).success, bad);
         }
         assert.isTrue(RichTextStyle.safeParse({ textPath: "data.name" }).success);
+        assert.isTrue(RichTextStyle.safeParse({ textPath: "" }).success, "an empty path names none");
     });
 
     it("reads the words from the element's data, or names none", () => {

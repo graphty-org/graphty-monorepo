@@ -20,6 +20,7 @@ import { BLOOM_LAYER } from "../../../src/meshes/BloomPass";
 import { OUTLINE_LAYER } from "../../../src/meshes/GroupOutlinePass";
 import type { GroupOutlineClick } from "../../../src/session/types";
 import { defineShader } from "../../../src/simple/defineShader";
+import { leads, pixelAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import { click, type Point } from "../../helpers/real-input";
 
@@ -121,35 +122,6 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
     }
 
     assert.isTrue(holds(), what);
-}
-
-/**
- * The canvas pixel at a point, after the next frames.
- * @param element - The element.
- * @param point - CSS pixels from the element's top-left corner.
- * @returns r, g, b, a.
- */
-async function pixelAt(element: Graphty, point: Point): Promise<number[]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 2);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const read = (await engine.readPixels(
-        Math.round(point.x * scale),
-        engine.getRenderHeight() - Math.round(point.y * scale) - 1,
-        1,
-        1,
-    )) as unknown as Uint8Array;
-    return [read[0], read[1], read[2], read[3]];
-}
-
-/**
- * Whether a color is mostly one channel.
- * @param pixel - The pixel.
- * @param channel - 0 red, 1 green, 2 blue.
- * @returns True when that channel leads the others by a margin.
- */
-function leads(pixel: readonly number[], channel: number): boolean {
-    return [0, 1, 2].every((other) => other === channel || pixel[channel] > pixel[other] + 60);
 }
 
 /**

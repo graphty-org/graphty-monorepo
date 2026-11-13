@@ -89,18 +89,42 @@ const list = (value) =>
         .map((s) => s.trim())
         .filter(Boolean);
 
-// GitHub's OIDC signing keys by kid, for the isolate's life; an unknown kid refetches the set once.
-const signingKeys = new Map();
-async function signingKey(kid, doFetch) {
-    if (!signingKeys.has(kid)) {
-        const res = await doFetch(`${ISSUER}/.well-known/jwks`);
-        if (!res.ok) refuse(503, `GitHub's OIDC key set answered HTTP ${res.status}`);
-        for (const jwk of (await res.json()).keys) {
-            const algorithm = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" };
-            signingKeys.set(jwk.kid, await crypto.subtle.importKey("jwk", jwk, algorithm, false, ["verify"]));
-        }
+// GitHub's OIDC signing keys by kid. A token reaches the key lookup before its signature is checked, so a bogus kid
+// must not buy a fetch: the set is fetched at most once a minute, and in between an unknown kid is refused with 401
+// (or the last fetch's 503, so a real token's job spools its record and re-posts it). Keys are trusted for an hour
+// after the fetch that read them, so a key GitHub rotated out stops verifying.
+const KEYS_TTL_MS = 60 * 60 * 1000;
+const REFETCH_MS = 60 * 1000;
+/**
+ * An empty signing key cache: the isolate has one, and a test makes its own.
+ * @returns the cache
+ */
+export const keyCache = () => ({ load: null, triedAt: -Infinity });
+const isolateKeys = keyCache();
+async function fetchKeys(doFetch, nowMs) {
+    const res = await doFetch(`${ISSUER}/.well-known/jwks`);
+    if (!res.ok) refuse(503, `GitHub's OIDC key set answered HTTP ${res.status}`);
+    const keys = new Map();
+    for (const jwk of (await res.json()).keys) {
+        const algorithm = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" };
+        keys.set(jwk.kid, await crypto.subtle.importKey("jwk", jwk, algorithm, false, ["verify"]));
     }
-    return signingKeys.get(kid) ?? refuse(401, `unknown OIDC signing key ${kid}`);
+    return { keys, at: nowMs };
+}
+async function signingKey(kid, doFetch, nowMs, cache) {
+    const settled = async () => cache.load?.catch((e) => e);
+    const usable = (set) => set?.keys?.has(kid) && nowMs - set.at < KEYS_TTL_MS;
+    let set = await settled();
+    if (!usable(set)) {
+        // a request that finds a fetch under way (or one in the last minute) waits for that one instead
+        if (nowMs - cache.triedAt >= REFETCH_MS) {
+            cache.triedAt = nowMs;
+            cache.load = fetchKeys(doFetch, nowMs);
+        }
+        set = await settled();
+    }
+    if (set instanceof Error) throw set;
+    return usable(set) ? set.keys.get(kid) : refuse(401, `unknown OIDC signing key ${kid}`);
 }
 
 // A JWT's parts, or a 401 (not a 500) when they are not base64url JSON objects.
@@ -121,12 +145,13 @@ function decodeJwt(token) {
  * @param token the JWT
  * @param doFetch the fetch that reads GitHub's key set
  * @param nowMs the current time in milliseconds
+ * @param cache the signing keys, from keyCache()
  * @returns its claims
  */
-async function verifyOidc(token, doFetch, nowMs) {
+async function verifyOidc(token, doFetch, nowMs, cache) {
     const { alg, kid, claims, signature, signed } = decodeJwt(token);
     if (alg !== "RS256") refuse(401, `OIDC token signed with ${alg}, not RS256`);
-    const key = await signingKey(kid, doFetch);
+    const key = await signingKey(kid, doFetch, nowMs, cache);
     if (!(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, new TextEncoder().encode(signed)))) {
         refuse(401, "OIDC token signature does not verify");
     }
@@ -164,14 +189,14 @@ function kindOf(claims, env) {
     );
 }
 
-async function authenticate(request, env, doFetch, nowMs) {
+async function authenticate(request, env, doFetch, nowMs, cache) {
     const token =
         /^Bearer (\S+)$/.exec(request.headers.get("Authorization") ?? "")?.[1] ?? refuse(401, "no credential");
     if (token.split(".").length !== 3) {
         if (!list(env.LOCAL_TOKEN_HASHES).includes(await sha256(token))) refuse(401, "unknown local token");
         return { kind: "local" };
     }
-    const claims = await verifyOidc(token, doFetch, nowMs);
+    const claims = await verifyOidc(token, doFetch, nowMs, cache);
     return { kind: kindOf(claims, env), claims };
 }
 
@@ -303,8 +328,12 @@ async function postInvocation(body, who, db, nowMs) {
     const judged = MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
     if (!judged) return { stored, kind: who.kind, flaky: [] };
     const flaky = await concludeFlakySafely(db, body.id, nowMs);
-    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch(() => []);
-    return { stored, kind: who.kind, flaky, tracked };
+    // a failed lookup leaves `tracked` out, so the client reads "unknown", not "none"; the next judged run retries it
+    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch((e) => {
+        console.log(`trackedIssues ${body.id}: ${e.message}`);
+        return undefined;
+    });
+    return { stored, kind: who.kind, flaky, ...(tracked && { tracked }) };
 }
 
 // The record is stored by now: a verdict that cannot be computed costs the verdict, never the answer (a 5xx would
@@ -860,9 +889,10 @@ function routeOf(method, pathname) {
  * @param [deps] what tests inject
  * @param [deps.fetch] the fetch that reads GitHub's OIDC key set
  * @param [deps.now] the current time in milliseconds
+ * @param [deps.keys] the OIDC signing key cache (keyCache()); the isolate's own by default
  * @returns the response
  */
-export async function handle(request, env, { fetch: doFetch = fetch, now = Date.now() } = {}) {
+export async function handle(request, env, { fetch: doFetch = fetch, now = Date.now(), keys = isolateKeys } = {}) {
     const { pathname, searchParams } = new URL(request.url);
     try {
         if (request.method === "GET" && pathname === "/v1/health") {
@@ -871,7 +901,7 @@ export async function handle(request, env, { fetch: doFetch = fetch, now = Date.
         }
         const [key, name] = routeOf(request.method, pathname);
         const route = ROUTES[key] ?? refuse(404, `no ${request.method} ${pathname}`);
-        const who = await authenticate(request, env, doFetch, now);
+        const who = await authenticate(request, env, doFetch, now, keys);
         const body =
             request.method === "GET"
                 ? searchParams

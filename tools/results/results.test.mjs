@@ -122,9 +122,21 @@ describe("config", () => {
 });
 
 describe("client", () => {
-    it("uses 5 s for records and 2 s for failure events", () => {
-        assert.equal(RECORD_MS, 5000);
-        assert.equal(EVENT_MS, 2000);
+    it("uses 5 s for records and 2 s for failure events", async (t) => {
+        // every deadline expires at once, so the test reads which deadline each request was given without waiting
+        const deadlines = [];
+        t.mock.method(AbortSignal, "timeout", (ms) => {
+            deadlines.push(ms);
+            return AbortSignal.abort(new DOMException("deadline", "TimeoutError"));
+        });
+        const s = await serve();
+        const cfg = { ...config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [] };
+        const f = { file: "a", name: "n", status: "fail", message: "m" };
+        assert.equal((await postInvocation(cfg, { id: "r1.1" })).why, "no answer in 5 s");
+        assert.equal((await postFailures(cfg, "inv", [f])).why, "no answer in 2 s");
+        assert.deepEqual(deadlines, [RECORD_MS, EVENT_MS]);
+        assert.deepEqual([RECORD_MS, EVENT_MS], [5000, 2000]);
+        assert.equal(s.seen.length, 0, "no request outlived its deadline");
     });
     it("sends the token and the schema version", async () => {
         const s = await serve();

@@ -12,7 +12,7 @@ import { describe, it } from "node:test";
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
 import { failureHashes, issueKey } from "../src/signature.js";
 import { HISTORY_INVOCATIONS } from "../src/queries.js";
-import { AUDIENCE, handle } from "../src/service.js";
+import { AUDIENCE, handle, keyCache } from "../src/service.js";
 import { d1 } from "./d1-shim.mjs";
 
 const NOW = Date.UTC(2026, 9, 24, 12);
@@ -20,10 +20,8 @@ const REPO = "graphty-org/graphty-monorepo";
 const LOCAL_TOKEN = "local-test-token-0123456789";
 const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const jwks = { keys: [{ ...publicKey.export({ format: "jwk" }), kid: "test-kid", alg: "RS256", use: "sig" }] };
-let keyFetches = 0;
 const fetch = async (url) => {
     assert.equal(url, "https://token.actions.githubusercontent.com/.well-known/jwks");
-    keyFetches++;
     return Response.json(jwks);
 };
 
@@ -59,8 +57,10 @@ const pr = (claims = {}) =>
         ...claims,
     });
 
-function service() {
+// A store with its own key cache, so no test depends on which tokens an earlier test sent.
+function service({ fetch: doFetch = fetch } = {}) {
     const DB = d1();
+    const keys = keyCache();
     const env = {
         DB,
         REPOSITORY_ID: "1122477634",
@@ -74,7 +74,7 @@ function service() {
             headers,
             body: body && JSON.stringify(body),
         });
-        const res = await handle(request, env, { fetch, now });
+        const res = await handle(request, env, { fetch: doFetch, now, keys });
         return { status: res.status, body: await res.json() };
     };
     const rows = (sql) =>
@@ -808,6 +808,25 @@ describe("flaky tests from master's records", () => {
             [["camera > zooms", 78]],
         );
         assert.equal(rows("SELECT * FROM quarantine WHERE left_at IS NULL").length, 1);
+    });
+
+    it("leaves tracked out of the answer, and logs why, when the tracked-issue lookup fails", async (t) => {
+        const { call, env } = service();
+        const prepare = env.DB.prepare.bind(env.DB);
+        env.DB.prepare = (sql) => {
+            if (sql.startsWith("SELECT DISTINCT issue FROM quarantine")) throw new Error("D1 is down");
+            return prepare(sql);
+        };
+        const log = t.mock.method(console, "log", () => {});
+        const res = await call("POST", "/v1/invocations", {
+            token: master("base-check.yml"),
+            body: passing("4010.1.base.t1.1"),
+        });
+        assert.deepEqual(res.body, { stored: true, kind: "base", flaky: [] });
+        assert.deepEqual(
+            log.mock.calls.map((c) => c.arguments[0]),
+            ["trackedIssues 4010.1.base.t1.1: D1 is down"],
+        );
     });
 
     it("names a test again when it flips after 20 passes took it out of the quarantine", async () => {
@@ -1926,7 +1945,68 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
 });
 
 describe("GitHub's key set", () => {
-    it("is fetched once and reused for every token signed with a known key", () => {
-        assert.equal(keyFetches, 2, "once for the first token, once for the unknown kid");
+    // the key set GitHub serves, and how many times the store asked for it
+    const github = () => {
+        const state = { fetches: 0, answer: () => Response.json(jwks) };
+        state.fetch = async () => {
+            state.fetches++;
+            return state.answer();
+        };
+        return state;
+    };
+    const status = async (call, token, now) => (await call("GET", "/v1/quarantine", { token, now })).status;
+
+    it("is fetched once and reused for every token signed with a known key", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        assert.equal(await status(call, pr()), 200);
+        assert.equal(await status(call, pr()), 200);
+        assert.equal(gh.fetches, 1);
+    });
+
+    it("fetches the set at most once a minute however many unknown kids arrive", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        const bogus = oidc({}, { kid: "nope" });
+        assert.equal(await status(call, bogus), 401);
+        assert.equal(await status(call, bogus), 401);
+        assert.equal(await status(call, oidc({}, { kid: "other" }), NOW + 59_000), 401);
+        assert.equal(await status(call, pr(), NOW + 59_000), 200, "a known kid still verifies");
+        assert.equal(gh.fetches, 1);
+        assert.equal(await status(call, bogus, NOW + 60_000), 401);
+        assert.equal(gh.fetches, 2, "a minute later an unknown kid may fetch again");
+    });
+
+    it("shares one fetch among concurrent tokens", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        const statuses = await Promise.all([1, 2, 3].map(() => status(call, pr())));
+        assert.deepEqual(statuses, [200, 200, 200]);
+        assert.equal(gh.fetches, 1);
+    });
+
+    it("stops trusting a key an hour after the fetch that read it", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        assert.equal(await status(call, pr()), 200);
+        gh.answer = () => Response.json({ keys: [] }); // GitHub rotated the key out
+        const later = NOW + 3_600_000;
+        const token = oidc({ event_name: "pull_request", exp: later / 1000 + 300 });
+        assert.equal(await status(call, token, later - 1), 200);
+        assert.equal(gh.fetches, 1);
+        assert.equal(await status(call, token, later), 401);
+        assert.equal(gh.fetches, 2);
+    });
+
+    it("answers 503 while GitHub fails, without asking again within the minute", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        gh.answer = () => new Response("down", { status: 502 });
+        assert.equal(await status(call, pr()), 503);
+        assert.equal(await status(call, pr(), NOW + 59_000), 503);
+        assert.equal(gh.fetches, 1);
+        gh.answer = () => Response.json(jwks);
+        assert.equal(await status(call, pr(), NOW + 60_000), 200);
+        assert.equal(gh.fetches, 2);
     });
 });

@@ -1651,6 +1651,62 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
+     * 1 for a row every filter keeps that the window leaves out, else 0.
+     * @param kept - The filter's bytes for the kind, null when it keeps every row.
+     * @param shown - The kind's visible mask.
+     * @param row - The row.
+     * @returns The byte.
+     */
+    const outsideAt = (kept: Uint8Array | null, shown: ElementMask<unknown>, row: number): number =>
+        (kept === null || kept[row] === 1) && !shown.has(row) ? 1 : 0;
+
+    /**
+     * Every row's {@link outsideAt}.
+     * @param count - How many rows.
+     * @param kept - The filter's bytes for the kind.
+     * @param shown - The kind's visible mask.
+     * @returns The bytes.
+     */
+    const outsideRows = (count: number, kept: Uint8Array | null, shown: ElementMask<unknown>): Uint8Array => {
+        const out = new Uint8Array(count);
+        for (let row = 0; row < count; row++) {
+            out[row] = outsideAt(kept, shown, row);
+        }
+
+        return out;
+    };
+
+    /**
+     * The kept bytes brought forward, in place, by the rows the masks moved since: with the filter
+     * unmoved, those are the only rows that can have entered or left the state.
+     * @param passing - What every filter keeps.
+     * @param graph - The snapshot.
+     * @returns The bytes, or null when more than that moved.
+     */
+    const outsideAfterSlide = (passing: FilterBytes, graph: GraphSnapshot): ElementBytes | null => {
+        if (outsideCache?.key[2] !== filterCache) {
+            return null;
+        }
+
+        const nodeRows = nodeMaskValue.changedSince(outsideCache.key[0] as number);
+        const edgeRows = edgeMaskValue.changedSince(outsideCache.key[1] as number);
+        const { node, edge } = outsideCache.bytes;
+        if (nodeRows === null || edgeRows === null || node.length !== graph.nodeCount) {
+            return null;
+        }
+
+        for (const row of nodeRows) {
+            node[row] = outsideAt(passing.nodes, nodeMaskValue, row);
+        }
+
+        for (const row of edgeRows) {
+            edge[row] = outsideAt(passing.edges, edgeMaskValue, row);
+        }
+
+        return { node, edge };
+    };
+
+    /**
      * One byte per element, 1 for what every filter keeps but the time window does not, or null
      * while no window is in force. A slide brings the kept bytes forward by the rows it moved, in
      * place, so a play step costs those rows and not the graph.
@@ -1669,38 +1725,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         }
 
         const passing = passingOf(active.graph);
-        const keeps = (bytes: Uint8Array | null, row: number): boolean => bytes === null || bytes[row] === 1;
-        if (outsideCache?.key[2] === filterCache) {
-            const nodeRows = nodeMaskValue.changedSince(outsideCache.key[0] as number);
-            const edgeRows = edgeMaskValue.changedSince(outsideCache.key[1] as number);
-            const { node, edge } = outsideCache.bytes;
-            if (nodeRows !== null && edgeRows !== null && node.length === active.graph.nodeCount) {
-                for (const row of nodeRows) {
-                    node[row] = keeps(passing.nodes, row) && !nodeMaskValue.has(row) ? 1 : 0;
-                }
+        const bytes = outsideAfterSlide(passing, active.graph) ?? {
+            node: outsideRows(active.graph.nodeCount, passing.nodes, nodeMaskValue),
+            edge: outsideRows(active.graph.edgeCount, passing.edges, edgeMaskValue),
+        };
+        outsideCache = { key, bytes };
 
-                for (const row of edgeRows) {
-                    edge[row] = keeps(passing.edges, row) && !edgeMaskValue.has(row) ? 1 : 0;
-                }
-
-                outsideCache = { key, bytes: { node, edge } };
-                return outsideCache.bytes;
-            }
-        }
-
-        const node = new Uint8Array(active.graph.nodeCount);
-        const edge = new Uint8Array(active.graph.edgeCount);
-        for (let row = 0; row < node.length; row++) {
-            node[row] = keeps(passing.nodes, row) && !nodeMaskValue.has(row) ? 1 : 0;
-        }
-
-        for (let row = 0; row < edge.length; row++) {
-            edge[row] = keeps(passing.edges, row) && !edgeMaskValue.has(row) ? 1 : 0;
-        }
-
-        outsideCache = { key, bytes: { node, edge } };
-
-        return outsideCache.bytes;
+        return bytes;
     };
 
     /**

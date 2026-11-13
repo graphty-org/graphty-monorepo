@@ -145,6 +145,54 @@ interface Test {
 }
 
 /**
+ * Test every value of one column in every group.
+ * @param column - the column
+ * @param groups - each element's group, undefined when it has none
+ * @param lnF - log factorials up to at least the element count
+ * @returns one test per group and value a member carries
+ */
+function testColumn(column: OverRepresentedColumn, groups: readonly (Scalar | undefined)[], lnF: Float64Array): Test[] {
+    // The population is the grouped elements that carry the column; a missing value is no draw.
+    let carriers = 0;
+    const carriersIn = new Map<Scalar, number>();
+    const withValue = new Map<Scalar, number>();
+    const inGroup = new Map<Scalar, Map<Scalar, number>>();
+    groups.forEach((group, index) => {
+        const values = group === undefined ? [] : scalarsOf(column.valueAt(index));
+        if (group === undefined || values.length === 0) {
+            return;
+        }
+
+        carriers++;
+        carriersIn.set(group, (carriersIn.get(group) ?? 0) + 1);
+        const tally = inGroup.get(group) ?? new Map<Scalar, number>();
+        inGroup.set(group, tally);
+        for (const value of values) {
+            withValue.set(value, (withValue.get(value) ?? 0) + 1);
+            tally.set(value, (tally.get(value) ?? 0) + 1);
+        }
+    });
+
+    const tests: Test[] = [];
+    for (const [group, tally] of inGroup) {
+        const n = carriersIn.get(group) ?? 0;
+        for (const [value, k] of tally) {
+            const K = withValue.get(value) ?? 0;
+            tests.push({
+                group,
+                path: column.path,
+                value,
+                count: k,
+                expected: (n * K) / carriers,
+                p: hypergeometricUpperTail(lnF, carriers, K, n, k),
+            });
+        }
+    }
+
+    return tests;
+}
+
+/**
  * Test every value of every column in every group, and correct over all of the tests.
  * @param groupBy - the path holding each element's group
  * @param groupAt - the group of an element, by index
@@ -171,53 +219,7 @@ export function overRepresentedValues(
     }
 
     const lnF = logFactorials(count);
-    const tests: Test[] = [];
-    for (const column of columns) {
-        // The population is the grouped elements that carry the column; a missing value is no draw.
-        let carriers = 0;
-        const carriersIn = new Map<Scalar, number>();
-        const withValue = new Map<Scalar, number>();
-        const inGroup = new Map<Scalar, Map<Scalar, number>>();
-        for (let index = 0; index < count; index++) {
-            const group = groups[index];
-            if (group === undefined) {
-                continue;
-            }
-
-            const values = scalarsOf(column.valueAt(index));
-            if (values.length === 0) {
-                continue;
-            }
-
-            carriers++;
-            carriersIn.set(group, (carriersIn.get(group) ?? 0) + 1);
-            let tally = inGroup.get(group);
-            if (tally === undefined) {
-                tally = new Map();
-                inGroup.set(group, tally);
-            }
-
-            for (const value of values) {
-                withValue.set(value, (withValue.get(value) ?? 0) + 1);
-                tally.set(value, (tally.get(value) ?? 0) + 1);
-            }
-        }
-
-        for (const [group, tally] of inGroup) {
-            const n = carriersIn.get(group) ?? 0;
-            for (const [value, k] of tally) {
-                const K = withValue.get(value) ?? 0;
-                tests.push({
-                    group,
-                    path: column.path,
-                    value,
-                    count: k,
-                    expected: (n * K) / carriers,
-                    p: hypergeometricUpperTail(lnF, carriers, K, n, k),
-                });
-            }
-        }
-    }
+    const tests = columns.flatMap((column) => testColumn(column, groups, lnF));
 
     const adjusted = benjaminiHochberg(tests.map((test) => test.p));
     const byGroup = new Map<Scalar, OverRepresentedValue[]>();

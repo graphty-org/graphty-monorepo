@@ -7,7 +7,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { checkWeights, withCode } from "../errors.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 import { IntUnionFind } from "./structures/union-find.js";
 
@@ -31,12 +31,19 @@ export interface MstResult {
  * The sort is a comparator over an f64 key array, tie-broken by edge index, rather than the
  * design's radix sort on the f32 bit pattern (plan departure DEP-8A-D): the tie-break makes it
  * stable by construction and it has to serve both the f32 arc array and an f64 override.
- * @param s - The snapshot
+ *
+ * Unlike {@link primMST}, a directed snapshot is accepted and spanned as if undirected: arc
+ * direction is ignored, so the result is the minimum spanning forest of the underlying undirected
+ * graph, not a minimum arborescence.
+ * @param s - The snapshot, directed or undirected
  * @param o - The optional per-arc weight override
  * @returns The accepted edge indices and their total weight
+ * @throws RangeError (code `E_BAD_OPTION`) for an override that is not arcCount long, or (code
+ *   `E_BAD_WEIGHT`) for a NaN or infinite weight; negative weights are allowed
  * @public
  */
 export function kruskalMST(s: GraphSnapshot, o: MstOptions = {}): MstResult {
+    checkMstWeights(s, o);
     const el = s.edgeList();
     const m = s.edgeCount;
     const keys = new Float64Array(m);
@@ -70,6 +77,22 @@ export function kruskalMST(s: GraphSnapshot, o: MstOptions = {}): MstResult {
     return { edges: accepted.subarray(0, taken), totalWeight };
 }
 
+/**
+ * Refuse a weight override that is not arcCount long (`E_BAD_OPTION`), and a NaN or infinite weight in it or in the
+ * snapshot (`E_BAD_WEIGHT`). A negative weight is fine for a spanning tree.
+ * @param s - The snapshot
+ * @param o - The optional per-arc weight override
+ * @internal
+ */
+export function checkMstWeights(s: GraphSnapshot, o: MstOptions | undefined): void {
+    checkWeights(
+        "minimumSpanningTree",
+        o?.weights ?? s.weights,
+        o?.weights === undefined ? undefined : s.arcCount,
+        true,
+    );
+}
+
 /** Options of the index-based Prim. @public */
 export interface PrimOptions extends MstOptions {
     /** The node the (first) tree grows from: its index, or `{ id }`; default 0. */
@@ -96,13 +119,15 @@ export interface PrimResult extends MstResult {
  * @param s - An undirected snapshot
  * @param o - Per-arc weight override, start node and the spanning-forest switch
  * @returns The accepted edges, their total weight and the discovery arc per node
- * @throws Error on a directed snapshot, and on a disconnected one unless `forest` is set
+ * @throws Error on a directed snapshot, and on a disconnected one unless `forest` is set; RangeError
+ *   for a weight override of the wrong length or a NaN or infinite weight, as {@link kruskalMST}
  * @public
  */
 export function primMST(s: GraphSnapshot, o: PrimOptions = {}): PrimResult {
     if (s.directed) {
         throw withCode(new Error("Prim's algorithm requires an undirected graph"), "E_NEEDS_UNDIRECTED");
     }
+    checkMstWeights(s, o);
     const { nodeCount: n, rowPtr, colIdx } = s;
     const weights: NumericVector | null = o.weights ?? s.weights;
     const key = new Float64Array(n).fill(Infinity);

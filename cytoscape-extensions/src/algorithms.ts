@@ -1263,7 +1263,7 @@ const IMPLS = {
              * Process the largest pending delta first (`PriorityDeltaPageRank`, which ignores `personalization`); its
              * ranks match `graphtyPageRank({ directed: true })`. Without it the ranks can differ from PageRank's (by up
              * to 0.07 on the karate club), the run usually goes on until `maxIterations`, and a `maxIterations` in the
-             * thousands overflows and throws.
+             * thousands overflows the ranks, which throws a RangeError with code `E_BAD_OPTION`.
              */
             readonly priority?: boolean;
             /** The teleport set: a selection (uniform over it) or a weight per node. */
@@ -1281,14 +1281,6 @@ const IMPLS = {
             o.priority === true
                 ? new PriorityDeltaPageRank(c.s).computeWithPriority(opts)
                 : new DeltaPageRank(c.s).compute(opts);
-        // ponytail: @graphty/algorithms' DeltaPageRank overflows to NaN at a large maxIterations; refuse it here
-        // until that engine converges (then this check never fires)
-        if (v.some((x) => !Number.isFinite(x))) {
-            throw new RangeError(
-                `${c.name}: the ranks overflowed (maxIterations ${String(c.rest.maxIterations)} is too high for this graph); ` +
-                    "lower maxIterations, or pass priority: true",
-            );
-        }
         return scored(c, v, { rank: accessor(c, v) });
     },
     eigenvectorCentrality: (

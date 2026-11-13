@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { LAUNCH, openWork, workUnread } from "./measure.mjs";
+import { axeViolations, layerMembers, LAUNCH, openWork, styleTree, workUnread } from "./measure.mjs";
 
 test("the open work keeps a step's whole rule and names a run by its algorithm", () => {
     const rule = { kind: "range", attribute: "data.weight", min: 5, nodes: "endpoints", edges: "keep" };
@@ -45,4 +45,29 @@ test("every browser the tools launch draws scrollbars, and reports quote names a
     }
     const real = readFileSync(new URL("real.mjs", import.meta.url), "utf8");
     assert.equal(real.match(/slice\(0, (40|50)\)/g), null, "real.mjs cuts a name at its own length");
+});
+
+test("an element that throws where its API says it cannot is reported, never read as no edges or no counts", async () => {
+    const boom = () => {
+        throw new Error("element defect");
+    };
+    const session = {
+        styles: {
+            list: () => [{ id: "a" }],
+            tree: () => [],
+            counts: boom,
+            explain: () => ({ contributions: [], channels: [] }),
+        },
+        data: { nodes: () => [], edges: boom },
+    };
+    globalThis.document = { querySelector: () => ({ session }), querySelectorAll: () => [] };
+    try {
+        assert.throws(() => styleTree(), /element defect/);
+        assert.throws(() => layerMembers(), /element defect/);
+    } finally {
+        delete globalThis.document;
+    }
+    // axe-core resolves where it is declared, and a failed load is not swallowed
+    const page = { addScriptTag: async () => boom(), evaluate: async () => assert.fail("axe ran without loading") };
+    await assert.rejects(axeViolations(page), /element defect/);
 });

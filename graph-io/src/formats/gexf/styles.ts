@@ -18,7 +18,7 @@ import { canonText } from "../../styles/canon/text.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { type ElementValues, takeFromBlock } from "../../styles/io/round-trip.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import { type ExporterStyleInput, replacedLabelNote } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
@@ -1564,10 +1564,11 @@ export function gexfStyledExport(
     const nodeShapes = p("node", "shape").map((s, i) => gexfShapeOf(s, typeof image[i] === "string", approximated));
     const nodeSizes = p("node", "width").map((w, i) => gexfSizeOf(w, height[i], approximated));
     const edgeShapes = p("edge", "lineStyle").map((s) => gexfLineOf(s, approximated));
+    const replaced = replacedLabelNote(snapshot, LABEL_COLUMN, p("node", "label"), "the node label attribute");
     return {
         snapshot: withTagColumns(snapshot, input),
         blockElement: `<graphty:styles xmlns:graphty="${GRAPHTY_XML_NAMESPACE}" name="${STYLE_BLOCK_NAME}">${escapeXmlText(input.block)}</graphty:styles>`,
-        notes: approximated.notes("GEXF"),
+        notes: replaced === null ? approximated.notes("GEXF") : [...approximated.notes("GEXF"), replaced],
         node(i, indent) {
             const size = nodeSizes[i];
             const s = nodeShapes[i];

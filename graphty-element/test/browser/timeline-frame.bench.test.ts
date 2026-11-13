@@ -7,3 +7,4 @@ import { describeFrames } from "./timeline-frame-bench";
 
 describeFrames(100_000);
 describeFrames(10_000);
+describeFrames(100_000, "batched");

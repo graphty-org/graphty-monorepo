@@ -3158,16 +3158,27 @@ function importGraphologyNodes(ctx: ImportContext, nodes: readonly unknown[], ge
             continue;
         }
         const xy = position === INVALID_INDEX ? null : planarXY(placeOf(record));
-        let rest = record;
-        if (xy !== null) {
-            rest = gephi ? withoutXY(record) : { ...record, attributes: withoutXY(record.attributes as JsonRecord) };
-        }
         const keys = gephi ? GEPHI_NODE_KEYS : GRAPHOLOGY_NODE_KEYS;
-        const index = pushNestedNode(ctx, id, rest, "attributes", keys, element, gephi);
+        const index = pushNestedNode(ctx, id, placedRest(record, xy, gephi), "attributes", keys, element, gephi);
         if (xy !== null && index >= 0) {
             ctx.nodes.set(position, index, [xy[0], xy[1], 0]);
         }
     }
+}
+
+/**
+ * A graphology node record without the x / y that became its position: Gephi's beside the attributes, sigma.js's
+ * inside them.
+ * @param record - the node record
+ * @param xy - the position, or null when it has none
+ * @param gephi - whether Gephi wrote the record
+ * @returns the record whose keys are still read as attributes
+ */
+function placedRest(record: JsonRecord, xy: readonly [number, number] | null, gephi: boolean): JsonRecord {
+    if (xy === null) {
+        return record;
+    }
+    return gephi ? withoutXY(record) : { ...record, attributes: withoutXY(record.attributes as JsonRecord) };
 }
 
 /** How the role-`position` column of a vis or graphology file's `x` / `y` is spelled (see jsonPositions()). */
@@ -3264,7 +3275,7 @@ function importGraphologyEdges(
     declared: GraphologyEdgeOptions,
 ): GraphologyViolations {
     const { gephi } = declared;
-    const ids = ctx.declareEdgeIds(edges, (edge) => (gephi && !hasKey(edge, "key") ? edge.id : edge.key), "key", true);
+    const ids = ctx.declareEdgeIds(edges, (edge) => graphologyEdgeKey(edge, gephi), "key", true);
     const violations: GraphologyViolations = { selfLoops: 0, parallels: 0, flags: 0 };
     const pairs = declared.multi === false ? new Set<string>() : null;
     for (let i = 0; i < edges.length; i++) {
@@ -3284,6 +3295,16 @@ function importGraphologyEdges(
         }
     }
     return violations;
+}
+
+/**
+ * A graphology edge's key; Gephi names its edges by `id`.
+ * @param record - the edge record
+ * @param gephi - whether Gephi wrote it
+ * @returns the raw key
+ */
+function graphologyEdgeKey(record: JsonRecord, gephi: boolean): unknown {
+    return gephi && !hasKey(record, "key") ? record.id : record.key;
 }
 
 /**
@@ -3350,8 +3371,7 @@ function pushGraphologyEdge(
         );
     }
     const attributes = isJsonObject(rawAttributes) ? rawAttributes : {};
-    // Gephi names its edges by `id`, as declareEdgeIds() read them
-    const idValue = ctx.edgeIdValue(ids, gephi && !hasKey(record, "key") ? record.id : record.key);
+    const idValue = ctx.edgeIdValue(ids, graphologyEdgeKey(record, gephi));
     const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(attributes), element);
     ctx.setEdgeId(ids, edge, idValue);
     ctx.writeNested(ctx.edges, edge, record, attributes, gephi ? GEPHI_EDGE_KEYS : GRAPHOLOGY_EDGE_KEYS, element, {

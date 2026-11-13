@@ -95,9 +95,18 @@ overrides:
     "axios@<1.20.0": ^1.20.0
     # commitizen pins lodash 4.17.21 (4.17.23 in a fresh resolution).
     "lodash@<4.18.0": ^4.18.0
-    # compact-mantine's vite-plugin-dts -> @microsoft/api-extractor pins minimatch 10.0.3 and,
-    # through @microsoft/tsdoc-config, ajv 8.13.
-    "minimatch@>=10.0.0 <10.2.3": ^10.2.3
+    # compact-mantine's vite-plugin-dts -> @microsoft/api-extractor pins minimatch 10 and, through
+    # @microsoft/tsdoc-config, ajv 8.13; nx, @nx/devkit and typedoc pin minimatch 10, and Storybook's
+    # docgen plugin (@joshwooding/vite-plugin-react-docgen-typescript) pins glob 10 -> minimatch 9.
+    # GHSA-g3hv-75wg-m249 (minimatch >=7.0.0 <11.0.1) is patched only in 11.0.1, with no 9.x or 10.x
+    # backport, so the floor moves those majors to 11 (same exports; drops Node 18). glob 10 cannot
+    # run on minimatch 11 (it finds no files), and glob >=9.0.0 <=14.0.1 has GHSA-3g3m-2fjr-6pw4, so
+    # glob moves to 14 too (the docgen plugin calls only globSync, unchanged in 14).
+    # typedoc 0.28.20 (the newest) calls Minimatch#matchOne, which minimatch 11 removed, so typedoc
+    # keeps minimatch 10 until it moves; it only matches this repository's own entry-point globs.
+    "minimatch@>=7.0.0 <11.0.1": ^11.0.1
+    "typedoc>minimatch": ^10.2.6
+    "glob@>=9.0.0 <14.0.2": ^14.0.2
     "ajv@>=7.0.0-alpha.0 <8.18.0": ^8.18.0
     # graphty-element's @jsonhero/schema-infer -> @jsonhero/json-infer-types pins ip-address 8 and
     # uuid 8. Floor 10.7.4 covers GHSA-j6r3-76f7-8jcv, GHSA-h3mg-xc3c-68pw and GHSA-rxp7-6hxx-x8q5; uuid 11.1.1 covers
@@ -125,6 +134,11 @@ overrides:
     "fast-uri@>=3.0.0 <3.1.9": ^3.1.9
     # @nx/react -> express locked qs 6.16.0 (GHSA-6pq8-jhm2-2vcw).
     "qs@>=6.7.0 <6.16.1": ^6.16.1
+    # remote-logger's @modelcontextprotocol/sdk locked hono 4.13.13 and @hono/node-server 2.1.3
+    # (GHSA-4h7h-rv7c-7m2v, GHSA-3gg2-335m-rxc6 and the other fixes of hono 4.13.16 and
+    # @hono/node-server 2.1.6). The pipeline health dashboard's own workspace carries the same floors.
+    "hono@<4.13.16": ^4.13.16
+    "@hono/node-server@>=2.0.0 <2.1.6": ^2.1.6
     # knip locked zod 4.6.5 (GHSA-mrhx-c7xc-m3w5).
     "zod@>=4.0.0 <4.6.6": ^4.6.6
     # @sonar/scan 5.0.1 locked node-forge 1.4.0 (GHSA-86w9-cpqp-85rv and the other fixes of the 1.4.1

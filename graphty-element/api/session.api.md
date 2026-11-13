@@ -3702,6 +3702,9 @@ export interface ModelSummary {
 }
 
 // @public
+export type MultipleTestingCorrection = "benjamini-hochberg";
+
+// @public
 export interface NamedBlob {
     // (undocumented)
     arrayBuffer(): Promise<ArrayBuffer>;
@@ -3999,6 +4002,31 @@ export const OVERFLOW_PATTERNS: readonly EdgeLineValue[];
 
 // @public
 export const OVERFLOW_SHAPES: readonly NodeShapeValue[];
+
+// @public
+export interface OverRepresentedGroup {
+    readonly group: string | number | boolean;
+    readonly size: number;
+    readonly values: readonly OverRepresentedValue[];
+}
+
+// @public
+export interface OverRepresentedValue {
+    readonly adjustedP: number;
+    readonly count: number;
+    readonly expected: number;
+    readonly p: number;
+    readonly path: Path;
+    readonly value: string | number | boolean;
+}
+
+// @public
+export interface OverRepresentedValues {
+    readonly correction: MultipleTestingCorrection;
+    readonly groupBy: Path;
+    readonly groups: readonly OverRepresentedGroup[];
+    readonly testCount: number;
+}
 
 // @public
 export interface PageColumn {
@@ -5868,6 +5896,9 @@ export interface SessionDataApi {
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     nodes(): readonly NodeRecord[];
     nodeSource(id: NodeId_2): NodeSource | null;
+    overRepresented(groupBy: Path, options?: {
+        readonly columns?: readonly Path[];
+    }): OverRepresentedValues;
     pendingSourceLoads(): readonly PendingSourceLoad[];
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;

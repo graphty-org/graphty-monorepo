@@ -1,7 +1,7 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { AiCommandOptions, ExecutionResult } from "@graphty/graphty-element/ai";
+import { type AiCommandOptions, AiConfigError, type ExecutionResult } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { type GraphSession, type GraphtyErrorCode, isGraphtyError } from "@graphty/graphty-element/session";
 
 import { goToComposer } from "../assistant-door/commands";
 import { type AssistantChoice, effortConfig } from "../assistant-door/provider";
@@ -20,7 +20,7 @@ const links = new WeakMap<GraphtyElement, Promise<void>>();
 const saving = new WeakSet<GraphtyElement>();
 
 /** Results that end a message for now and wait on the reader. */
-const WAITING = new Set<AiResultCode>(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
+const WAITING = new Set<Failure["code"]>(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
 
 /** What a message is about. */
 export type ScopeKind = NonNullable<AiCommandOptions["scope"]>;
@@ -98,6 +98,32 @@ export function link(
         }
     });
     return ready;
+}
+
+/** How a setup or a message failed, as the element coded it. */
+export interface Failure {
+    readonly code: AiResultCode | GraphtyErrorCode;
+    readonly params: AiResultParams;
+}
+
+/**
+ * What the element threw, as its code and facts: a `GraphtyError` or an `AiConfigError` keeps its
+ * own; anything else is `fallback`.
+ * @param error - what was thrown.
+ * @param fallback - the code for a throw the element did not code.
+ * @returns the code and its facts.
+ */
+export function failureOf(error: unknown, fallback: AiResultCode): Failure {
+    if (isGraphtyError(error)) {
+        const params = Object.entries(error.details).filter(
+            (entry): entry is [string, string | number] => typeof entry[1] === "string" || typeof entry[1] === "number",
+        );
+        return { code: error.code, params: Object.fromEntries(params) };
+    }
+    if (error instanceof AiConfigError) {
+        return { code: error.code, params: error.params };
+    }
+    return { code: fallback, params: {} };
 }
 
 /**
@@ -201,13 +227,16 @@ async function follow(
             store.set({ announcement: WORDS["assistant.status.working"] });
         }
     }, WORKING_AFTER_MS);
-    let ended: { code: AiResultCode; params: AiResultParams; success: boolean };
+    let ended: Failure & { success: boolean };
+    // A throw while setting up is "not connected" unless the element coded it; one while running is a failure.
+    let stage: AiResultCode = "AI_NOT_ENABLED";
     try {
         await linked(element, store, choice);
+        stage = "AI_FAILED";
         const result = await running();
         ended = { code: result.code ?? "AI_FAILED", params: result.params ?? {}, success: result.success };
-    } catch {
-        ended = { code: "AI_NOT_ENABLED", params: {}, success: false };
+    } catch (error) {
+        ended = { ...failureOf(error, stage), success: false };
     }
     clearTimeout(working);
     if (!here() || WAITING.has(ended.code)) {
@@ -232,6 +261,9 @@ async function follow(
     }));
     if (isAway(store)) {
         noticeAway(element, store, lines, provenance, words?.line);
+    } else if (words?.failed === true && (element.getAiConversation()?.messages.length ?? 0) === 0) {
+        // No turn to draw the ending row under (a setup that failed before any chat): a notice says it.
+        store.set({ notice: { message: words.line, error: true } });
     }
 }
 

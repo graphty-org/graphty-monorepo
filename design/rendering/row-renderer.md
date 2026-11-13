@@ -1302,6 +1302,16 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   passed on the map too: this is a store swap with no count to change). Profiled, one load each: `unpaintRow` 203 ms
   before, absent after; `paintRow` 549 ms inclusive before, 450 ms after. Left in the edge paint:
   `PulledLineBatch.grow`'s one index buffer of 1M pieces (0.16-0.23 s) and `unbuiltEdgeEnds` (a map read per row).
+- **Every feeder through the column door (cosmos-gap.md G8), ninth pull request: edges stored with no `Edge` held by
+  row.** Correction to the eighth's note: the time under `unbuiltEdgeEnds` was not its two end-id lookups (12 ms of
+  its 145-230 ms profiled) but `DataManager.unbuiltEdges`, a `Map<number, StoredEdge>` of 1M entries read once per
+  painted row and written once per stored edge (`storeUnbuiltEdge`, 160-290 ms self). It is now a `RowMap`
+  (`src/data/RowMap.ts`, an array by row with a count), which walks in row order instead of the order rows were set;
+  and `unbuiltEdgeEnds` reads the store's `edgeEndpoints(row)`, keeping the id lookup only for a row the store has let
+  go and not yet reconciled. Only `"batched"` stores an edge with no `Edge`. Proof:
+  `test/managers/DataManager.test.ts` ("reads each row's end rows from the store's edge, looking up no end id": 4
+  id lookups before, 0 after) and `test/data/RowMap.test.ts`. Profiled, one 100k + 1M typed load each, load average
+  21-25: `unbuiltEdgeEnds` 228-255 ms and `storeUnbuiltEdge` 233-293 ms self before, neither in the top 25 after.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

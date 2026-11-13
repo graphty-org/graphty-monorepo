@@ -825,7 +825,9 @@ export interface StylesApi {
     /**
      * What the element draws for a channel when no layer writes it, on the graph as it is now:
      * the channel's catalog default (`ChannelDescriptor.default`), else its off value
-     * (`ChannelDescriptor.off`: a label background with no color draws none, `"none"`), except
+     * (`ChannelDescriptor.off`: a label background with no color draws none, `"none"`), else the
+     * default of the channel it follows (`ChannelDescriptor.follows`: an unset gradient color is
+     * the node's color), except
      * where the graph decides it. An edge's head is the one such channel today: a directed graph
      * draws the catalog's default head, an undirected graph draws none (`"none"`).
      *
@@ -836,7 +838,8 @@ export interface StylesApi {
      * session.styles.defaultValue("edge.arrowHead"); // "none" on an undirected graph
      * ```
      * @param channel - The channel.
-     * @returns The value, or undefined for a channel with neither a default nor an off value.
+     * @returns The value, or undefined for a channel with no default, no off value and nothing it
+     *     follows.
      */
     defaultValue(channel: Channel): ChannelValue | undefined;
     /**
@@ -5505,8 +5508,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return "none";
             }
             const descriptor = channelDescriptor(channel);
-            // A channel with no default draws its off value, if it has one (an unset text background).
-            return descriptor?.default ?? descriptor?.off;
+            // A channel with no default draws its off value, if it has one (an unset text background),
+            // else the value of the channel it follows (an unset gradient color is the node's color).
+            const follows = descriptor?.follows;
+            return (
+                descriptor?.default ??
+                descriptor?.off ??
+                (follows === undefined ? undefined : channelDescriptor(follows)?.default)
+            );
         },
 
         highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {

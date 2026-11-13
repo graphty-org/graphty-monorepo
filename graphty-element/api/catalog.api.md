@@ -606,6 +606,7 @@ export interface ChannelDescriptor {
     readonly feature?: "file-styles";
     readonly follows?: Channel;
     readonly group: ChannelGroup;
+    readonly labelField?: keyof LabelStyle;
     readonly max?: number;
     readonly min?: number;
     readonly modifies?: Channel;

@@ -4,10 +4,22 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { CHANNEL_HOMES } from "../coverage";
 import { addLabelLine, EVERYTHING_LAYER, labelRow, propose, startingValue, textBinding, writeLine } from "../row";
+import { sectionsFor } from "../words";
+
+/** Every channel a section of the Style tab draws as a line, the experiments' included. */
+const LINES = new Set<string>(
+    (["node", "edge"] as const).flatMap((kind) =>
+        sectionsFor(kind, { cosmograph: true, nodeModels: true }).flatMap((section) => [
+            ...section.channels,
+            ...(section.inner ?? []),
+        ]),
+    ),
+);
 
 /**
  * Every channel a "+" can add: drawn, offered somewhere on the Style tab, and not a whole label
- * style or a channel that takes nothing.
+ * style or a channel that takes nothing. A channel set only from a field of Label settings is left
+ * out: no "+" adds it, and unset its label style's field (which a layer may set) decides it.
  * @returns the descriptors.
  */
 function addable(): ChannelDescriptor[] {
@@ -15,6 +27,7 @@ function addable(): ChannelDescriptor[] {
         (descriptor) =>
             descriptor.renderable &&
             "place" in CHANNEL_HOMES[descriptor.channel] &&
+            (descriptor.labelField === undefined || LINES.has(descriptor.channel)) &&
             descriptor.accepts !== "labelStyle" &&
             descriptor.accepts !== "nothing" &&
             // A shader is added from the gallery, never as a line at a starting value.
@@ -29,15 +42,27 @@ describe("the value a line starts with", () => {
         session = null;
     });
 
-    it("is the element's own value for every channel a line can add, but a pattern count", () => {
+    it("is the element's own value for every channel a line can add, but a pattern count, a chart's range and a halo's Shown", () => {
+        // Unset, a pattern count follows the element's spacing rule edge by edge; its floor (2)
+        // draws a mark at each end only, so the app starts it at 10 marks. A chart's range unset
+        // follows each node's values, so the app starts it at 0 to 1.
+        // A halo's Shown unset depends on the node (selected, or a halo color set), so it starts On.
+        const appStarts: Partial<Record<string, number | boolean>> = {
+            "edge.patternCount": 10,
+            "node.chartMin": 0,
+            "node.chartMax": 1,
+            "node.halo": true,
+        };
         for (const descriptor of addable()) {
             const value = startingValue(descriptor);
-            // Unset, a pattern count follows the element's spacing rule edge by edge; its floor (2)
-            // draws a mark at each end only, so the app starts it at 10 marks.
             const own =
-                descriptor.channel === "edge.patternCount"
-                    ? 10
-                    : (descriptor.default ?? descriptor.off ?? descriptor.min ?? descriptor.values?.[0] ?? "");
+                appStarts[descriptor.channel] ??
+                descriptor.default ??
+                descriptor.off ??
+                (descriptor.follows === undefined ? undefined : CHANNEL_DESCRIPTORS[descriptor.follows].default) ??
+                descriptor.min ??
+                descriptor.values?.[0] ??
+                "";
             assert.deepEqual(value, own, descriptor.channel);
         }
     });

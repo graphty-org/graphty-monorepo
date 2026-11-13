@@ -654,7 +654,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelTable",
         "edge.labelTable",
         "node.shapeLineWidth",
-        "node.shapeLineHaloColor",
         "node.shapeLineHaloWidth",
         "node.gradientColors",
         "node.gradientStops",
@@ -711,7 +710,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.chartMin",
         "node.chartMax",
         "node.chartLineWidth",
-        "node.chartBorderColor",
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",
@@ -755,8 +753,6 @@ describe("what a style editor needs to draw a row", () => {
         "edge.bends",
         // Unset, a bundle's curved edges are two node radii apart.
         "edge.fanSpacing",
-        // Unset, a bundle's curved edges fan apart.
-        "edge.fanned",
         // Unset, a curved edge keeps the element's own bow.
         "edge.arcRadius",
         // Unset, a curved edge has no support point, and the support's numbers have nothing to place.
@@ -1210,5 +1206,28 @@ describe("which drawn part a channel adjusts", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].modifies, "an end label is a part of its own");
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
+    });
+});
+
+describe("labelField", () => {
+    it("names the label style field each channel sets on its own, and only on such a channel", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelLetterSize"].labelField, "letterSize");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.labelWrapWidth"].labelField, "wrapWidth");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].labelField, "sizePx");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelTextAlign"].labelField, "textAlign");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltipBackground"].labelField, "background");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadTextSize"].labelField, "sizePx");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailTextRotation"].labelField, "rotation");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.xlabelLocation"].labelField, "location");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.xlabelOffsetY"].labelField, "offsetY");
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.xlabelStyle"].labelField);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.labelStyle"].labelField);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadTextDistance"].labelField);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.color"].labelField);
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            if (descriptor.labelField !== undefined) {
+                assert.include(LABEL_STYLE_FIELDS, descriptor.labelField, descriptor.channel);
+            }
+        }
     });
 });

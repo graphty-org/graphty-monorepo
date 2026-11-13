@@ -948,6 +948,15 @@ export interface ChannelDescriptor {
      * @experimental file-styles
      */
     readonly feature?: "file-styles";
+    /**
+     * The label style field this channel sets on its own, on a channel that sets one field of a
+     * block of words' style (a label, a tooltip, an arrow caption, an external label): `"letterSize"` on
+     * `node.labelLetterSize`, `"sizePx"` on `edge.arrowHeadTextSize`. A style editor that draws a
+     * label style's fields finds here the channel that varies one of them per node or edge. Absent
+     * on every other channel.
+     * @since 3.51.0
+     */
+    readonly labelField?: keyof LabelStyle;
 }
 
 /**
@@ -1456,6 +1465,9 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             shortName: `${end} caption distance`,
             group: "arrows",
             accepts: "number",
+            // A distance along the line from its node: below 0 is inside the node. The floor is
+            // also where a style editor starts a newly added distance.
+            min: 0,
             stylePath: `arrow${end}.textDistance`,
             renderable: true,
             caveat:
@@ -3572,6 +3584,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Chart Border Color",
         shortName: "Chart border color",
         group: "shape",
+        // The color a bar's or a box's outline is drawn in once node.chartBorderWidth is above 0.
+        default: "#000000",
         accepts: "color",
         stylePath: "chart.borderColor",
         renderable: true,
@@ -3886,12 +3900,14 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Shape Line Halo Color",
         shortName: "Line halo color",
         group: "shape",
+        default: "#000000",
         accepts: "color",
         stylePath: "shape.lineHaloColor",
         renderable: true,
         caveat:
             "The color of a wider line drawn under each of `node.shapeLines`, down the same path, " +
-            "`node.shapeLineHaloWidth` wide: a line of 1 over a lighter one of 2 is a yFiles bevel's line.",
+            "`node.shapeLineHaloWidth` wide: a line of 1 over a lighter one of 2 is a yFiles bevel's line. " +
+            "Unset, black; drawn only with a `node.shapeLineHaloWidth` above 0.",
     },
     "node.shapeLineHaloWidth": {
         channel: "node.shapeLineHaloWidth",
@@ -3997,6 +4013,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         shortName: "Gradient color",
         group: "color",
         accepts: "color",
+        // Unset, the fill runs from `node.color` into `node.color`: flat.
+        follows: "node.color",
         stylePath: "texture.color.colors",
         renderable: true,
         caveat:
@@ -4565,6 +4583,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Fanned",
         shortName: "Fanned",
         group: "line",
+        // Unset, a curved edge fans apart from its bundle, so that is what it draws unset.
+        default: true,
         accepts: "boolean",
         stylePath: "line.fanned",
         renderable: true,
@@ -5123,6 +5143,40 @@ function stepOf(descriptor: ChannelDescriptor): number | undefined {
     return descriptor.perWorldUnit !== undefined || descriptor.channel === "edge.patternCount" ? 1 : 0.1;
 }
 
+/** The label style field each caption, tooltip or external label channel sets, by the suffix after its block's name. */
+const CAPTION_FIELD_OF_SUFFIX = {
+    Size: "sizePx",
+    Color: "color",
+    Background: "background",
+    LetterSize: "letterSize",
+    Font: "font",
+    Weight: "weight",
+    Opacity: "opacity",
+    Rotation: "rotation",
+    OffsetX: "offsetX",
+    OffsetY: "offsetY",
+    Location: "location",
+} as const satisfies Record<string, keyof LabelStyle>;
+
+/**
+ * The label style field a channel sets on its own: see {@link ChannelDescriptor.labelField}.
+ * @param channel - The channel.
+ * @returns The field, or undefined for a channel that sets no one field.
+ */
+function labelFieldOfChannel(channel: Channel): keyof LabelStyle | undefined {
+    const field = labelFieldOf(channel)?.field;
+    if (field !== undefined) {
+        return field;
+    }
+
+    const match =
+        /^(?:node\.tooltip|edge\.arrow(?:Head|Tail)Text|(?:node|edge)\.xlabel)(Size|Color|Background|LetterSize|Font|Weight|Opacity|Rotation|OffsetX|OffsetY|Location)$/.exec(
+            channel,
+        );
+
+    return match === null ? undefined : CAPTION_FIELD_OF_SUFFIX[match[1] as keyof typeof CAPTION_FIELD_OF_SUFFIX];
+}
+
 /**
  * Every channel, with what the element actually does with it and what a style editor needs to
  * draw a row for it: a short name, a group, the default it opens on, and why it cannot be set.
@@ -5134,6 +5188,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const value = shippedDefault(descriptor) ?? descriptor.default;
         const step = descriptor.step ?? stepOf(descriptor);
         const modifies = MODIFIES.get(descriptor.channel);
+        const labelField = labelFieldOfChannel(descriptor.channel);
 
         return [
             descriptor.channel,
@@ -5142,6 +5197,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(value === undefined ? {} : { default: value }),
                 ...(step === undefined ? {} : { step }),
                 ...(modifies === undefined ? {} : { modifies }),
+                ...(labelField === undefined ? {} : { labelField }),
                 // @experimental file-styles
                 ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },

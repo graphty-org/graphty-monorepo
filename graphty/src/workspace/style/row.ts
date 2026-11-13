@@ -9,7 +9,7 @@
  * marked in the layer's `userData` so the row keeps finding it.
  */
 
-import type { ChannelDescriptor, ShaderUse } from "@graphty/graphty-element/catalog";
+import { CHANNEL_DESCRIPTORS, type ChannelDescriptor, type ShaderUse } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
 import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
 
@@ -618,6 +618,8 @@ export function startingValue(
         session?.styles.defaultValue(descriptor.channel) ??
         descriptor.default ??
         descriptor.off ??
+        // With no session, the default of the channel it follows (an unset gradient color is the node's color).
+        (descriptor.follows === undefined ? undefined : CHANNEL_DESCRIPTORS[descriptor.follows].default) ??
         (descriptor.accepts === "number" ? descriptor.min : undefined) ??
         (descriptor.accepts === "enum" ? descriptor.values?.[0] : undefined) ??
         (descriptor.accepts === "text" ? "" : undefined);
@@ -630,9 +632,17 @@ export function startingValue(
 /**
  * Starting values the app chooses where the element has no value that draws what is there now.
  * A pattern count left unset follows the element's spacing rule, which differs edge by edge, and
- * the channel's floor (2) draws only a mark at each end, so the line seems to vanish.
+ * the channel's floor (2) draws only a mark at each end, so the line seems to vanish. A chart's
+ * range left unset follows each node's own values, so no one number draws what is there now. A
+ * halo's Shown left unset is on for a selected node or one a halo color, size or opacity switches
+ * on, and off otherwise, so it starts On: it is added under a Halo row, and Off is one pick away.
  */
-const APP_STARTS: Readonly<Partial<Record<Channel, ChannelValue>>> = { "edge.patternCount": 10 };
+const APP_STARTS: Readonly<Partial<Record<Channel, ChannelValue>>> = {
+    "edge.patternCount": 10,
+    "node.chartMin": 0,
+    "node.chartMax": 1,
+    "node.halo": true,
+};
 
 /**
  * What `encode()` would store for a choice on a channel, from the element.

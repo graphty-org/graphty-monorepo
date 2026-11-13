@@ -141,7 +141,7 @@ const ArrowStyle = z.strictObject({
      * centered on the line this far from where the line leaves this end's node, in scene units
      * (Cytoscape.js `source-text-offset`, `target-text-offset`).
      */
-    textDistance: z.number().optional(),
+    textDistance: z.number().min(0).optional(),
 });
 
 /** A cap drawn part-way along the line: an end cap's settings, with no caption. */

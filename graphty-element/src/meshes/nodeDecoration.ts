@@ -511,7 +511,8 @@ export function shapeLinePieces(
     scale = 1,
 ): ColorPiece[] {
     const strokes = [
-        { color: paint(shape?.lineHaloColor), line: (shape?.lineHaloWidth ?? 0) * scale },
+        // Black unset, as the channel's default says; drawn only with a width.
+        { color: paint(shape?.lineHaloColor ?? "#000000"), line: (shape?.lineHaloWidth ?? 0) * scale },
         { color: paint(border?.color, border?.opacity), line: (shape?.lineWidth ?? border?.width ?? 0) * scale },
     ].filter((s) => s.color !== null && isPositive(s.line));
     return pointLists(shape?.lines).flatMap((list) => {
@@ -658,7 +659,7 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
     const color = (i: number): Pick<ColorPiece, "rgb" | "opacity"> | null =>
         paint(colors[Math.min(i, colors.length - 1)]);
     const lineWidth = chart.lineWidth === undefined ? CHART_LINE_SHARE * Math.min(w, h) : chart.lineWidth * scale;
-    const border = paint(chart.borderColor);
+    const border = paint(chart.borderColor ?? "#000000");
     const borderWidth = (chart.borderWidth ?? 0) * scale;
     const filled = (outline: Point2[], c: Pick<ColorPiece, "rgb" | "opacity"> | null): ChartPiece[] => [
         // a bar of no length has no face to fill

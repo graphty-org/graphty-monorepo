@@ -7,27 +7,17 @@ import {
     PanelField,
     ResetButton,
 } from "@graphty/compact-mantine";
-import { channelsFor, LABEL_STYLE_DEFAULTS, labelLook } from "@graphty/graphty-element/catalog";
+import {
+    channelsFor,
+    LABEL_STYLE_DEFAULTS,
+    LABEL_STYLE_DESCRIPTORS,
+    labelLook,
+} from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
 import { Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
 import React, { useId } from "react";
 
-/** A field of the label style as the popover draws it. */
-type Field =
-    | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "color" }
-    | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "number"; readonly step?: number }
-    | {
-          readonly key: keyof LabelStyle;
-          readonly word: string;
-          readonly kind: "select";
-          readonly options: readonly (readonly [string, string])[];
-      }
-    | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "switch" }
-    | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "text" }
-    | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "colors" };
-
-/** One line of a group: a field, or a pair of related values side by side (margins, an offset). */
-type FieldLine = Field | readonly [Field, Field];
+import { type Field, LABEL_SETTINGS } from "./labelFields";
 
 /**
  * What a field reads while this layer sets nothing: the value it shows is the one in force by
@@ -37,161 +27,10 @@ const DEFAULT_WORDS = {
     fieldNotSet: (beneath: string): string => (beneath === "" ? "not set" : `default ${beneath}`),
 };
 
-/** A captioned group of fields; the first group has no caption. */
-interface FieldGroup {
-    readonly caption?: string;
-    readonly fields: readonly FieldLine[];
-}
-
-const color = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "color" });
-const number = (key: keyof LabelStyle, word: string, step?: number): Field => ({ key, word, kind: "number", step });
-const choice = (key: keyof LabelStyle, word: string, options: readonly (readonly [string, string])[]): Field => ({
-    key,
-    word,
-    kind: "select",
-    options,
-});
-const toggle = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "switch" });
-const words = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "text" });
-const colors = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "colors" });
-
-/** The font families offered: the browser's generic families, which every platform has. */
-const FONTS = [
-    ["sans-serif", "Sans serif"],
-    ["serif", "Serif"],
-    ["monospace", "Monospace"],
-] as const;
-
-const SIDES = [
-    ["top", "Top"],
-    ["bottom", "Bottom"],
-    ["left", "Left"],
-    ["right", "Right"],
-    ["auto", "Automatic"],
-] as const;
-
-const BADGES = [
-    ["notification", "Notification"],
-    ["label", "Label"],
-    ["label-success", "Success"],
-    ["label-warning", "Warning"],
-    ["label-danger", "Danger"],
-    ["count", "Count"],
-    ["icon", "Icon"],
-    ["progress", "Progress"],
-    ["dot", "Dot"],
-] as const;
-
-/**
- * Every field the popover shows, in its groups (design 2.3): text color and background first,
- * then Type (with the text's size beside the unit it is in), Box, Letters, Placement, Motion and
- * distance, Badge. The position is on the entry itself.
- */
-const LABEL_SETTINGS: readonly FieldGroup[] = [
-    { fields: [color("color", "Text color"), color("background", "Background")] },
-    {
-        caption: "Type",
-        fields: [
-            choice("font", "Font", FONTS),
-            [
-                choice("weight", "Weight", [
-                    ["normal", "Regular"],
-                    ["bold", "Bold"],
-                ]),
-                choice("textAlign", "Alignment", [
-                    ["left", "Left"],
-                    ["center", "Center"],
-                    ["right", "Right"],
-                ]),
-            ],
-            // The size beside the unit it is measured in: a unit with no number beside it names nothing.
-            [
-                number("sizePx", "Size"),
-                choice("sizeMode", "Size in", [
-                    ["screen", "Screen pixels"],
-                    ["world", "Scene units"],
-                ]),
-            ],
-            number("lineHeight", "Line height", 0.1),
-        ],
-    },
-    {
-        caption: "Box",
-        fields: [
-            [number("padding", "Padding"), number("cornerRadius", "Corners")],
-            [number("borderWidth", "Border width"), color("borderColor", "Border color")],
-            [toggle("panelShadow", "Panel shadow"), toggle("closeButton", "Close button")],
-            [number("marginTop", "Margin above"), number("marginBottom", "Margin below")],
-            [number("marginLeft", "Margin left"), number("marginRight", "Margin right")],
-            toggle("gradient", "Gradient"),
-            [
-                choice("gradientType", "Gradient shape", [
-                    ["linear", "Linear"],
-                    ["radial", "Radial"],
-                ]),
-                choice("gradientDirection", "Gradient direction", [
-                    ["vertical", "Vertical"],
-                    ["horizontal", "Horizontal"],
-                    ["diagonal", "Diagonal"],
-                ]),
-            ],
-            colors("gradientColors", "Gradient colors"),
-        ],
-    },
-    {
-        caption: "Letters",
-        fields: [
-            [color("outline", "Outline"), number("outlineWidth", "Outline width")],
-            [toggle("shadow", "Shadow"), color("shadowColor", "Shadow color")],
-            number("shadowBlur", "Shadow blur"),
-            [number("shadowOffsetX", "Shadow right"), number("shadowOffsetY", "Shadow down")],
-        ],
-    },
-    {
-        caption: "Placement",
-        fields: [
-            number("attachOffset", "Offset", 0.1),
-            [toggle("pointer", "Pointer"), choice("pointerDirection", "Pointer side", SIDES)],
-            [number("pointerWidth", "Pointer width"), number("pointerHeight", "Pointer length")],
-            [number("pointerOffset", "Pointer offset"), toggle("pointerCurve", "Curved pointer")],
-            toggle("onTop", "Draw over the graph"),
-            toggle("keepInView", "Keep in view"),
-            toggle("pickable", "Clicking picks the node"),
-        ],
-    },
-    {
-        caption: "Motion and distance",
-        fields: [
-            choice("animation", "Animation", [
-                ["none", "None"],
-                ["pulse", "Pulse"],
-                ["bounce", "Bounce"],
-                ["shake", "Shake"],
-                ["glow", "Glow"],
-                ["fill", "Fill"],
-            ]),
-            number("animationSpeed", "Animation speed", 0.1),
-            toggle("depthFade", "Fade with distance"),
-            [number("depthFadeNear", "Full strength within"), number("depthFadeFar", "Gone beyond")],
-        ],
-    },
-    {
-        caption: "Badge",
-        fields: [
-            choice("badge", "Badge", BADGES),
-            [
-                words("icon", "Icon"),
-                choice("iconPosition", "Icon side", [
-                    ["left", "Left"],
-                    ["right", "Right"],
-                ]),
-            ],
-            number("progress", "Progress", 0.05),
-            toggle("smartOverflow", "Shorten large numbers"),
-            [number("maxNumber", "Largest number shown"), words("overflowSuffix", "After a shortened number")],
-        ],
-    },
-];
+/** The smallest number each field takes, as graphty-element describes it. */
+const MINIMUM: Readonly<Partial<Record<keyof LabelStyle, number>>> = Object.fromEntries(
+    LABEL_STYLE_DESCRIPTORS.flatMap((d) => (d.min === undefined ? [] : [[d.field, d.min]])),
+);
 
 /** The text color nothing above sets: the element's own label text color, else the label default. */
 const labelColor = channelsFor("node").find((d) => d.channel === "node.labelColor")?.default;
@@ -231,8 +70,33 @@ function wordOf(value: unknown): string | undefined {
         : undefined;
 }
 
+/** The gradient's own fields, drawn once a gradient is on: an unset gradient draws none. */
+const GRADIENT_FIELDS: ReadonlySet<keyof LabelStyle> = new Set(["gradientType", "gradientDirection", "gradientColors"]);
+
+/** The panel shadow's own fields, drawn once the panel casts a shadow. */
+const PANEL_SHADOW_FIELDS: ReadonlySet<keyof LabelStyle> = new Set([
+    "panelShadowColor",
+    "panelShadowBlur",
+    "panelShadowOffsetX",
+    "panelShadowOffsetY",
+]);
+
+/** The fields graphty-element reads on node labels only. */
+const NODE_ONLY_FIELDS: ReadonlySet<keyof LabelStyle> = new Set(["declutter", "minNodeScreenSize"]);
+
+/**
+ * A fraction as the percent a field shows, to two places.
+ * @param value - the value, if any.
+ * @returns the percent, or the value as it was when it is not a number.
+ */
+function asPercent(value: unknown): unknown {
+    return typeof value === "number" ? Math.round(value * 10000) / 100 : value;
+}
+
 /** Props for LabelSettings. */
 interface LabelSettingsProps {
+    /** Whether the label is on nodes or edges: an edge label draws no node-only fields. */
+    target?: "node" | "edge";
     /** What the entry's layer writes for the label's style. */
     style: LabelStyle;
     /** Called with the fields to change; a field given as undefined is cleared back to the look. */
@@ -241,8 +105,8 @@ interface LabelSettingsProps {
     beneath?: LabelStyle;
     /**
      * A field that can also vary by a value through a channel of its own (the text color, the
-     * background): the channel's own field in its place while the channel is written, else the
-     * vary glyph beside the style's field.
+     * background, the letter size): the channel's own field in its place while the channel is
+     * written, else the vary glyph beside the style's field.
      */
     vary?: (key: keyof LabelStyle) => VaryField | undefined;
 }
@@ -262,8 +126,9 @@ export interface VaryField {
  * @param props - Component props
  * @param props.style - the label style the layer writes
  * @param props.onChange - called with the fields to change
- * @param props.vary - how the text color and background vary by a value
+ * @param props.vary - how a field varies by a value through a channel of its own
  * @param props.beneath - what the layers beneath write for the label's style
+ * @param props.target - nodes or edges
  * @returns The groups
  */
 export function LabelSettings({
@@ -271,13 +136,14 @@ export function LabelSettings({
     onChange,
     vary,
     beneath = {},
+    target = "node",
 }: Readonly<LabelSettingsProps>): React.JSX.Element {
     const look: Readonly<Partial<Record<keyof LabelStyle, unknown>>> = labelLook(style.look ?? "default")?.style ?? {};
-    // The gradient's shape and colors show once a gradient is on: an unset gradient draws none.
-    const gradientOn = (style.gradient ?? underneath("gradient", look, beneath)) === true;
+    const on = (key: "gradient" | "panelShadow"): boolean => (style[key] ?? underneath(key, look, beneath)) === true;
     const hidden = (field: Field): boolean =>
-        !gradientOn &&
-        (field.key === "gradientType" || field.key === "gradientDirection" || field.key === "gradientColors");
+        (GRADIENT_FIELDS.has(field.key) && !on("gradient")) ||
+        (PANEL_SHADOW_FIELDS.has(field.key) && !on("panelShadow")) ||
+        (NODE_ONLY_FIELDS.has(field.key) && target === "edge");
     const draw = (field: Field): React.ReactNode => {
         const varied = vary?.(field.key);
         if (varied?.field !== undefined) {
@@ -409,10 +275,25 @@ function FieldControl({
         case "color":
             return <ColorFieldControl word={field.word} value={value} fallback={fallback} onChange={onChange} />;
         case "number":
-            return (
+            // A fraction is shown and typed as a percent, and written back as the fraction.
+            return field.percent === true ? (
+                <NumberFieldControl
+                    word={field.word}
+                    step={1}
+                    min={0}
+                    max={100}
+                    value={asPercent(value)}
+                    fallback={asPercent(fallback)}
+                    suffix=" %"
+                    onChange={(next) => {
+                        onChange(typeof next === "number" ? next / 100 : next);
+                    }}
+                />
+            ) : (
                 <NumberFieldControl
                     word={field.word}
                     step={field.step}
+                    min={MINIMUM[field.key]}
                     value={value}
                     fallback={fallback}
                     suffix={suffix}
@@ -505,6 +386,8 @@ function ColorFieldControl({
  * @param props - Component props
  * @param props.word - the field's name
  * @param props.step - the field's step
+ * @param props.min - the smallest number it takes, if it has one
+ * @param props.max - the largest number it takes, if it has one
  * @param props.value - what the layer writes, if anything
  * @param props.fallback - what lies beneath, if anything draws it
  * @param props.suffix - its unit, written after it
@@ -514,11 +397,15 @@ function ColorFieldControl({
 function NumberFieldControl({
     word,
     step,
+    min,
+    max,
     value,
     fallback,
     suffix,
     onChange,
-}: Readonly<FieldControlProps & { word: string; step: number | undefined }>): React.JSX.Element {
+}: Readonly<
+    FieldControlProps & { word: string; step: number | undefined; min: number | undefined; max?: number }
+>): React.JSX.Element {
     const numberBeneath = typeof fallback === "number" ? fallback : null;
     const written = typeof value === "number";
     const shownNumber = written ? value : numberBeneath;
@@ -548,6 +435,8 @@ function NumberFieldControl({
                 }
                 unit={suffix?.trim()}
                 step={step}
+                min={min}
+                max={max}
                 onChange={(next) => {
                     onChange(Number(next));
                 }}

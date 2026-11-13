@@ -1,7 +1,8 @@
 /**
  * Graph settings (the right panel with no row selected) on the REAL graphty-element, driven by
  * real input: each control is clicked or typed into, and the assertion reads the element back --
- * its lighting, its label behavior, its background and the color a highlight paints.
+ * its lighting, its label behavior, its background (color and shader) and the color a highlight
+ * paints.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -10,6 +11,7 @@ import "@graphty/graphty-element";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { APP_HIGHLIGHT_COLOR } from "../../../constants/highlight";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
@@ -89,8 +91,22 @@ describe("Graph settings", () => {
         await waitFor(() => {
             assert.strictEqual(backgroundNow(), backgroundDefault);
         });
-        // No Highlight color row: it changed nothing already drawn and was not saved.
-        assert.isNull(screen.queryByRole("textbox", { name: /^Highlight color/ }));
+    });
+
+    it("writes the highlight color the reader types, and Reset returns it to the app's starting color", async () => {
+        const element = await openGraphSettings();
+        const highlightNow = (): unknown => element.session.styles.highlightStyle("node")["node.color"];
+        assert.strictEqual(highlightNow(), APP_HIGHLIGHT_COLOR, "the app's color is the starting value");
+        const highlight = screen.getByRole("textbox", { name: /^Highlight color(,|$)/ });
+        await userEvent.clear(highlight);
+        await userEvent.type(highlight, "aa2200{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(String(highlightNow()).toLowerCase(), "#aa2200");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Reset Highlight color to default" }));
+        await waitFor(() => {
+            assert.strictEqual(highlightNow(), APP_HIGHLIGHT_COLOR);
+        });
     });
 
     it("Background + adds a Shader over the Color, offers each kind once, and removing Color draws the default", async () => {

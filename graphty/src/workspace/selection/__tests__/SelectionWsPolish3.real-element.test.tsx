@@ -101,7 +101,7 @@ async function opened(): Promise<HTMLElement> {
 
 /** Opens the layer's workspace with the sidebar's Edit. */
 async function edit(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
     return opened();
 }
 

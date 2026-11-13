@@ -6,13 +6,16 @@ import {
     COLOR_BRANCHES,
     DESIGN_PLACED,
     GRAPH_SETTING_HOMES,
+    type Home,
     homeless,
     LABEL_FIELD_HOMES,
-    NO_VARY,
+    noVaryReason,
     PER_VALUE_CONTROLS,
     publishedGraphSettings,
 } from "../coverage";
-import { isPercent, sectionsFor, takesBinding, valueFieldKind } from "../words";
+import { LABEL_SETTINGS_FIELDS } from "../labelFields";
+import { fieldChannelOf } from "../offered";
+import { isPercent, sectionsFor, takesBinding, TEXT_KINDS, valueFieldKind } from "../words";
 
 /**
  * A path the glob gives relative to this folder, as a path under `src/`.
@@ -60,10 +63,63 @@ const ALL_SECTIONS = [
 /** Every channel a section of the Style tab draws as a line, the experiments' included. */
 const DRAWN = new Set<string>(ALL_SECTIONS.flatMap((section) => section.channels));
 
-/** Every channel the Style tab sets: its lines, and what a line sets from inside (Model settings). */
-const PLACED = new Set<string>([...DRAWN, ...ALL_SECTIONS.flatMap((section) => section.inner ?? [])]);
+/**
+ * Every channel a text entry varies beside a field of its Label settings (the letter size, the font),
+ * or beside its own Position line.
+ */
+const VARIED = (["node", "edge"] as const).flatMap((side) =>
+    TEXT_KINDS[side].flatMap((kind) =>
+        [...LABEL_SETTINGS_FIELDS, "location" as const].flatMap(
+            (field) => fieldChannelOf(side, kind.words, field) ?? [],
+        ),
+    ),
+);
+
+/**
+ * Every channel the Style tab sets: its lines, what a line sets from inside (Model settings), and
+ * what a text entry varies through its Label settings.
+ */
+const PLACED = new Set<string>([...DRAWN, ...ALL_SECTIONS.flatMap((section) => section.inner ?? []), ...VARIED]);
+
+/**
+ * The only styles the panel may leave without a control, each for a reason no control could fix.
+ * Every other channel, label style field and graph setting has an `at(...)` home, so a channel
+ * graphty-element adds later fails here until the panel draws a control for it.
+ */
+const NOT_OFFERED = [
+    "node.marker",
+    "label field size",
+    "viewMode",
+    "twoD",
+    "addDefaultStyle",
+    "startingRows",
+    "startingCameraDistance",
+    "layout",
+    "layoutOptions",
+];
+
+/**
+ * The names a home map marks "not offered".
+ * @param homes - the map.
+ * @param prefix - put before each name, to tell label fields from channels.
+ * @returns the names, in the map's order.
+ */
+function notOfferedIn(homes: Readonly<Record<string, Home>>, prefix = ""): string[] {
+    return Object.entries(homes).flatMap(([name, home]) => ("notOffered" in home ? [prefix + name] : []));
+}
 
 describe("every style has a home", () => {
+    it("gives every style a control except the few no control could set", () => {
+        assert.deepEqual(
+            [
+                ...notOfferedIn(CHANNEL_HOMES),
+                ...notOfferedIn(LABEL_FIELD_HOMES, "label field "),
+                ...notOfferedIn(GRAPH_SETTING_HOMES),
+            ],
+            NOT_OFFERED,
+        );
+    });
+
     it("gives every channel graphty-element publishes a control or a reason", () => {
         assert.deepEqual(homeless(CHANNELS, CHANNEL_HOMES), []);
     });
@@ -113,14 +169,14 @@ describe("every style has a home", () => {
 
     it("records why a drawn property has no vary glyph: yes-or-no properties and label looks, by decision", () => {
         const descriptors = [...channelsFor("node"), ...channelsFor("edge")].filter((d) => DRAWN.has(d.channel));
-        const neither = descriptors.filter((d) => !takesBinding(d) && NO_VARY[d.channel] === undefined);
+        const neither = descriptors.filter((d) => !takesBinding(d) && noVaryReason(d) === undefined);
         assert.deepEqual(
             neither.map((d) => d.channel),
             [],
         );
         // A reason is never given for a property that does vary.
         assert.deepEqual(
-            descriptors.filter((d) => takesBinding(d) && NO_VARY[d.channel] !== undefined).map((d) => d.channel),
+            descriptors.filter((d) => takesBinding(d) && noVaryReason(d) !== undefined).map((d) => d.channel),
             [],
         );
         for (const d of descriptors.filter((x) => x.accepts === "boolean")) {
@@ -133,9 +189,12 @@ describe("every style has a home", () => {
         assert.isAbove(opacities.length, 0);
         for (const d of opacities) {
             // a channel the panel does not offer yet says why in CHANNEL_HOMES (checked above); every
-            // one it places is drawn in a section
+            // one it places is drawn in a section, or varied from a text entry's Label settings
             if ("place" in CHANNEL_HOMES[d.channel]) {
-                assert.isTrue(DRAWN.has(d.channel), `${d.channel} is in a section`);
+                assert.isTrue(
+                    DRAWN.has(d.channel) || VARIED.includes(d.channel),
+                    `${d.channel} is in a section or Label settings`,
+                );
             }
             assert.isTrue(takesBinding(d), `${d.channel} varies by a value`);
             assert.isTrue(isPercent(d), `${d.channel} reads as a percent`);

@@ -813,7 +813,6 @@ export interface DataLoadingErrorSummaryEvent {
 
 // @public (undocumented)
 export interface DataLoadingProgressEvent {
-    // (undocumented)
     bytesProcessed: number;
     // (undocumented)
     chunksProcessed: number;
@@ -822,9 +821,7 @@ export interface DataLoadingProgressEvent {
     format: string;
     loadId?: number;
     nodeRecordsLoaded: number;
-    // (undocumented)
     percentage?: number;
-    // (undocumented)
     totalBytes?: number;
     // (undocumented)
     type: "data-loading-progress";
@@ -840,6 +837,7 @@ export class DataManager implements Manager {
         generation?: number;
         coalesce?: string;
         setup?: boolean;
+        signal?: AbortSignal;
     }): Promise<void>;
     addEdge(edge: AdHocData, options?: AddEdgesOptions): void;
     addEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void;
@@ -937,6 +935,7 @@ export class DataManager implements Manager {
 // @public
 export abstract class DataSource {
     constructor(errorLimit?: number, chunkSize?: number);
+    bytesRead: number | undefined;
     protected chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown>;
     // (undocumented)
     protected chunkSize: number;
@@ -2760,6 +2759,7 @@ export class Graph implements GraphContext {
     readonly acceleration: AccelerationController;
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -2931,6 +2931,7 @@ export class Graph implements GraphContext {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -2945,6 +2946,7 @@ export class Graph implements GraphContext {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3281,6 +3283,7 @@ export class Graphty extends LitElement {
     set accelerationMinNodes(value: number);
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3487,6 +3490,7 @@ export class Graphty extends LitElement {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3504,6 +3508,7 @@ export class Graphty extends LitElement {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;

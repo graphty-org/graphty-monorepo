@@ -584,6 +584,7 @@ export type {
     TimeCounts,
     TimeExtent,
     TimeField,
+    TimeFieldOptions,
     TimeFieldResult,
     TimeIds,
     TimeMeasure,

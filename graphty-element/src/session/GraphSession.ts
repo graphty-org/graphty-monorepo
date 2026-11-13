@@ -3421,6 +3421,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, event, detail);
         },
         ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
+        asDates: (kind, name) => {
+            const column = data.attributes().find((each) => each.kind === kind && each.name === name);
+            if (column?.type !== "string" || data.previewType({ kind, name }, "date").fails > 0) {
+                return undefined;
+            }
+
+            return data.setType({ kind, name }, "date");
+        },
     });
     timeInternals = time.internals;
     dispatcher.services.timeFieldChanged = () => {

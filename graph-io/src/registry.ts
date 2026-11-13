@@ -660,7 +660,7 @@ export class FormatRegistry {
         const { request, ...rest } = opts;
         const signal = request?.signal ?? rest.signal ?? null;
         const method = request?.method ?? "GET";
-        const where = `${method} ${String(url)}`;
+        const where = `${method} ${shownUrl(url)}`;
         let response: Response;
         try {
             response = await fetch(url, { signal: rest.signal, ...request });
@@ -1488,7 +1488,11 @@ function fetchFailed(
     cause: unknown,
 ): never {
     const format = options.format === undefined || options.format === "auto" ? "unknown" : options.format;
-    return new ImportReportBuilder(format, 0).fail(FETCH_CODE, message, undefined, { url: String(url), status, cause });
+    return new ImportReportBuilder(format, 0).fail(FETCH_CODE, message, undefined, {
+        url: shownUrl(url),
+        status,
+        cause,
+    });
 }
 
 /**
@@ -1537,6 +1541,23 @@ function fetchErrorText(url: string | URL, err: unknown): string {
     const cause = (err as { cause?: { message?: unknown } } | null)?.cause?.message;
     const detail = typeof cause === "string" && cause !== "" ? ` (${cause})` : "";
     return `the server could not be reached, or (in a browser) it does not allow this page to read the file (CORS)${detail}`;
+}
+
+/**
+ * A URL as errors show it: origin and path, never the query string, fragment or user info, which
+ * can hold a signature or a key.
+ * @param url - the URL, absolute or relative
+ * @returns the URL without its secrets
+ */
+function shownUrl(url: string | URL): string {
+    try {
+        const absolute = new URL(url);
+        return `${absolute.protocol}//${absolute.host}${absolute.pathname}`;
+    } catch {
+        const text = String(url);
+        const cut = text.search(/[?#]/);
+        return cut === -1 ? text : text.slice(0, cut);
+    }
 }
 
 /**

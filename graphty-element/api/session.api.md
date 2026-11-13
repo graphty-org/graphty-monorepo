@@ -7118,7 +7118,7 @@ export interface TimeApi {
         readonly commit?: boolean;
     }): Promise<TimeStepEvent>;
     series(options?: TimeSeriesOptions): Run<TimeSeries>;
-    setField(field: TimeField | null): Promise<TimeFieldResult>;
+    setField(field: TimeField | null, options?: TimeFieldOptions): Promise<TimeFieldResult>;
     setSettings(settings: Partial<TimeSettings>): Promise<void>;
     readonly settings: TimeSettings;
     spanOf(of: {
@@ -7213,6 +7213,11 @@ export interface TimeField {
     readonly edges?: TimeSource;
     // (undocumented)
     readonly nodes?: TimeSource;
+}
+
+// @beta
+export interface TimeFieldOptions {
+    readonly asDates?: boolean;
 }
 
 // @beta

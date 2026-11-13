@@ -451,8 +451,13 @@ describe("gateRun: the policy holds for every algorithm the element ships", () =
     });
 
     it("returns its refusals instead of throwing them, so a button can be drawn from one", () => {
+        let decision: CostGateDecision | undefined;
         assert.doesNotThrow(() => {
-            gateRun({ algorithm: "acme:nope", statistics: statistics({ nodeCount: Number.NaN }) });
+            decision = gateRun({ algorithm: "acme:nope", statistics: statistics({ nodeCount: Number.NaN }) });
         });
+        assert.isDefined(decision);
+        if (decision !== undefined) {
+            assert.equal(refusal(decision).code, "E_UNKNOWN_ALGORITHM");
+        }
     });
 });

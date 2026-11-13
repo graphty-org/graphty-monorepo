@@ -162,6 +162,24 @@ describe("loadFromUrl", () => {
         expect(importError.message).toContain("POST https://example.com/g.gml failed: the server could not be reached");
     });
 
+    it("never puts a URL's query string, fragment or user info in the error", async () => {
+        stubFetch(() => Promise.resolve(bytesResponse("no", { status: 403, statusText: "Forbidden" })));
+        const caught = async (url: string): Promise<ImportError> => (await rejection(loadFromUrl(url))) as ImportError;
+        const status = await caught("https://example.com/g.gml?token=secret&X-Amz-Signature=sig#k");
+        stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+        const network = await caught("https://user:pw@example.com/g.gml?api_key=secret");
+        const relative = await caught("g.gml?token=secret");
+        for (const err of [status, network, relative]) {
+            const shown = `${err.message} ${String(err.details.url)}`;
+            expect(shown).not.toMatch(/secret|sig|pw|user/);
+        }
+        expect([status.details.url, network.details.url, relative.details.url]).toEqual([
+            "https://example.com/g.gml",
+            "https://example.com/g.gml",
+            "g.gml",
+        ]);
+    });
+
     it("names the cause of a network failure when fetch gives one", async () => {
         stubFetch(() =>
             Promise.reject(Object.assign(new TypeError("fetch failed"), { cause: new Error("getaddrinfo ENOTFOUND") })),

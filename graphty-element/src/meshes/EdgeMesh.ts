@@ -1565,10 +1565,18 @@ void main() {
         arrowLength: number,
         geometry: ArrowGeometry,
     ): Vector3 {
+        return surfacePoint.subtract(direction.scale(this.lineStopOf(arrowLength, geometry)));
+    }
+
+    /**
+     * How far before the surface point a line stops for an arrow head ({@link EdgeMesh.calculateLineEndpoint}).
+     * @param arrowLength - The arrow's length.
+     * @param geometry - The arrow's geometry.
+     * @returns The distance.
+     */
+    static lineStopOf(arrowLength: number, geometry: ArrowGeometry): number {
         // Line gap equals actual arrow size (base size × scale factor)
-        const scaleFactor = geometry.scaleFactor ?? 1;
-        const actualSize = arrowLength * scaleFactor * (geometry.lineStop ?? 1);
-        return surfacePoint.subtract(direction.scale(actualSize));
+        return arrowLength * (geometry.scaleFactor ?? 1) * (geometry.lineStop ?? 1);
     }
 
     /**

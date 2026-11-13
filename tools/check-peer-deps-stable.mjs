@@ -158,6 +158,55 @@ function git(...args) {
 }
 
 /**
+ * Plants Peer-Change lines that declare a change and lines that do not, and counts the misjudged.
+ * @param base - the self-test's base manifest
+ * @param variant - makes a changed copy of it
+ * @returns the number of lines judged wrong
+ */
+function selfTestPeerChangeLines(base, variant) {
+    const scopes = ["graphty-element", "@graphty/graphty-element"];
+    let failed = 0;
+    const [narrowed] = peerChanges(
+        base,
+        variant((m) => (m.peerDependencies.lit = "^3.2.0")),
+    );
+    const [removed] = peerChanges(
+        base,
+        variant((m) => delete m.peerDependencies.lit),
+    );
+    const [added] = peerChanges(
+        base,
+        variant((m) => (m.peerDependencies.react = "*")),
+    );
+    const declared = [
+        ["fix(graphty-element): x\nPeer-Change: graphty-element lit ^3.0.0 -> ^3.2.0", narrowed],
+        ["fix: x\n\nPeer-Change: @graphty/graphty-element lit ^3.0.0 -> ^3.2.0\n", narrowed],
+        ["fix: x\nPeer-Change: graphty-element lit ^3.0.0 -> removed", removed],
+    ];
+    const undeclared = [
+        ["fix(graphty-element): x", narrowed],
+        ["fix: x\nPeer-Change: layout lit ^3.0.0 -> ^3.2.0", narrowed],
+        ["fix: x\nPeer-Change: graphty-element ai ^3.0.0 -> ^3.2.0", narrowed],
+        ["fix: x\nPeer-Change: graphty-element lit ^3.0.0 -> ^3.3.0", narrowed],
+        ["fix: x\nPeer-Change: graphty-element lit ^3.0.0 -> ^3.2.0", removed],
+        ["fix: x\nPeer-Change: graphty-element react * -> *", added],
+    ];
+    for (const [message, problem] of declared) {
+        if (!declaresPeerChange(message, scopes, problem)) {
+            console.error(`self-test: a declared change was refused: ${JSON.stringify(message)}`);
+            failed++;
+        }
+    }
+    for (const [message, problem] of undeclared) {
+        if (declaresPeerChange(message, scopes, problem)) {
+            console.error(`self-test: an undeclared change was accepted: ${JSON.stringify(message)}`);
+            failed++;
+        }
+    }
+    return failed;
+}
+
+/**
  * Plants each kind of breaking peer change, and a change that is allowed, and fails unless each
  * is judged right.
  */
@@ -220,50 +269,14 @@ function selfTest() {
     ];
     for (const [subject, body] of breaking) if (!breaksScope(subject, body, scopes)) failed++;
     for (const [subject, body] of notBreaking) if (breaksScope(subject, body, scopes)) failed++;
-    const [narrowed] = peerChanges(
-        base,
-        variant((m) => (m.peerDependencies.lit = "^3.2.0")),
-    );
-    const [removed] = peerChanges(
-        base,
-        variant((m) => delete m.peerDependencies.lit),
-    );
-    const [added] = peerChanges(
-        base,
-        variant((m) => (m.peerDependencies.react = "*")),
-    );
-    const declared = [
-        ["fix(graphty-element): x\nPeer-Change: graphty-element lit ^3.0.0 -> ^3.2.0", narrowed],
-        ["fix: x\n\nPeer-Change: @graphty/graphty-element lit ^3.0.0 -> ^3.2.0\n", narrowed],
-        ["fix: x\nPeer-Change: graphty-element lit ^3.0.0 -> removed", removed],
-    ];
-    const undeclared = [
-        ["fix(graphty-element): x", narrowed],
-        ["fix: x\nPeer-Change: layout lit ^3.0.0 -> ^3.2.0", narrowed],
-        ["fix: x\nPeer-Change: graphty-element ai ^3.0.0 -> ^3.2.0", narrowed],
-        ["fix: x\nPeer-Change: graphty-element lit ^3.0.0 -> ^3.3.0", narrowed],
-        ["fix: x\nPeer-Change: graphty-element lit ^3.0.0 -> ^3.2.0", removed],
-        ["fix: x\nPeer-Change: graphty-element react * -> *", added],
-    ];
-    for (const [message, problem] of declared) {
-        if (!declaresPeerChange(message, [...scopes, "@graphty/graphty-element"], problem)) {
-            console.error(`self-test: a declared change was refused: ${JSON.stringify(message)}`);
-            failed++;
-        }
-    }
-    for (const [message, problem] of undeclared) {
-        if (declaresPeerChange(message, [...scopes, "@graphty/graphty-element"], problem)) {
-            console.error(`self-test: an undeclared change was accepted: ${JSON.stringify(message)}`);
-            failed++;
-        }
-    }
+    failed += selfTestPeerChangeLines(base, variant);
     if (failed > 0) {
         console.error(`check-peer-deps-stable self-test FAILED (${failed})`);
         process.exit(1);
     }
     console.log(
         `check-peer-deps-stable self-test: ${cases.length} planted changes failed, the allowed ones passed, ` +
-            `${declared.length} Peer-Change lines accepted and ${undeclared.length} wrong ones refused`,
+            "Peer-Change lines judged right",
     );
 }
 

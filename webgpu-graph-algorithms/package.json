@@ -94,7 +94,7 @@
     "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/webgpu-graph-algorithms#readme",
     "dependencies": {
         "@graphty/graph-format": "workspace:^",
-        "@webgpu/types": "^0.1.72"
+        "@webgpu/types": "^0.1.74"
     },
     "peerDependencies": {
         "@graphty/algorithms": "^1.0.0 || ^2.0.0 || ^3.0.0",
@@ -119,15 +119,15 @@
         "@vitest/browser-playwright": "catalog:",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
-        "eslint": "^9.29.0",
-        "fast-check": "^4.2.0",
+        "eslint": "^9.39.5",
+        "fast-check": "^4.10.2",
         "ngraph.forcelayout": "^3.3.1",
-        "ngraph.graph": "^20.0.1",
-        "playwright": "^1.54.1",
-        "tsx": "^4.20.3",
+        "ngraph.graph": "^20.1.2",
+        "playwright": "1.57.0",
+        "tsx": "^4.23.15",
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.72.2",
-        "vite": "^8.1.6",
+        "vite": "^8.3.8",
         "vitest": "catalog:",
         "webgpu": "0.6.1"
     }

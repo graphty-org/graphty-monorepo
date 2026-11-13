@@ -186,6 +186,23 @@ describe("the legend card's words", () => {
         assert.equal(sectionTitle(halo, "Key people"), "Halo: Key people");
     });
 
+    it("keys no edge line shape: a route, bends or curve is drawn, not read", () => {
+        const color = block({ layerId: "color", channel: "edge.color", kind: "literal" });
+        const blocks = [
+            block({
+                layerId: "graphml",
+                channel: "edge.bends",
+                kind: "categorical",
+                swatches: [swatch({ label: "0 0 10 10", value: "0 0 10 10" }), swatch({ label: "5 5", value: "5 5" })],
+            }),
+            block({ layerId: "graphml", channel: "edge.curvature", kind: "literal" }),
+            block({ layerId: "graphml", channel: "edge.sourcePort", kind: "literal" }),
+            color,
+        ];
+        assert.deepEqual(keyBlocks(blocks), [color]);
+        assert.deepEqual(keyBlocks(blocks.slice(0, 3)), []);
+    });
+
     it("keys no layer whose every element a filter step hides, and keeps one that still reaches some", () => {
         const hidden = block({ layerId: "hidden", kind: "literal", scope: { count: 0, of: 24 } });
         const some = block({ layerId: "some", kind: "literal", scope: { count: 4, of: 24 } });

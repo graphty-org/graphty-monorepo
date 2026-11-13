@@ -18,6 +18,7 @@ import {
     PRECISION_CODE,
     ROLE_DROPPED_CODE,
     SINK_OPTION_CODE,
+    SYNTAX_CODE,
     UNKNOWN_ATTR_TYPE_CODE,
     UNKNOWN_ENCODING_CODE,
     WEIGHT_KEY_CLASH_CODE,
@@ -98,8 +99,13 @@ export const NEO4J_ISSUE = Object.freeze({
      * import stops.
      */
     CSV_QUOTE: BAD_QUOTE_CODE,
-    /** The file has no header, or a header neo4j-admin would refuse. The import stops. */
+    /**
+     * The file has no header, a header neo4j-admin would refuse, or JSON that is not an apoc.export.json export. The
+     * import stops.
+     */
     HEADER: HEADER_CODE,
+    /** A line of an apoc.export.json file is not JSON. The import stops. */
+    SYNTAX: SYNTAX_CODE,
     /** A row with a different field count than the header. */
     COLUMN_COUNT: COLUMN_COUNT_CODE,
     /** A node row without an id. */

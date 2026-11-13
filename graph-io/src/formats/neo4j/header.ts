@@ -228,3 +228,51 @@ export function formatHeaderField(name: string, type: string, space: string | nu
     const base = `${name}:${type}`;
     return space === null ? base : `${base}(${space})`;
 }
+
+/**
+ * Whether a header row is the `apoc.export.csv` layout: it has `_id` and `_labels` columns (nodes) or
+ * `_start` and `_end` columns (relationships). `_id` alone is not enough: other tools (mongoexport)
+ * write an `_id` column into ordinary edge lists.
+ * @param names - the header cells, unquoted and trimmed
+ * @returns true for an APOC CSV header
+ * @category Plugin helpers
+ */
+export function isApocCsvHeader(names: readonly string[]): boolean {
+    return (names.includes("_id") && names.includes("_labels")) || (names.includes("_start") && names.includes("_end"));
+}
+
+/**
+ * Whether a text starts (after a byte order mark and white space) with `{` or `[`: JSON rather
+ * than a CSV table.
+ * @param text - the head of the input
+ * @returns true for JSON
+ * @category Plugin helpers
+ */
+export function startsAsJson(text: string): boolean {
+    return /^\uFEFF?\s*[[{]/.test(text);
+}
+
+const APOC_NODE = /"type"\s*:\s*"node"/;
+const APOC_NODE_PART = /"(?:labels"\s*:\s*\[|properties"\s*:\s*\{)/;
+const APOC_RELATIONSHIP = /"type"\s*:\s*"relationship"/;
+const APOC_RELATIONSHIP_PART = /"start"\s*:\s*\{/;
+/** The edge containers of the JSON graph dialects (node-link, d3, vis, Cytoscape.js), which an APOC export never has. */
+const OTHER_JSON_GRAPH = /"(?:links|edges|elements)"\s*:/;
+
+/**
+ * Whether a head of text is an `apoc.export.json` export: it starts with `{` or `[` and holds a
+ * node record (`"type": "node"` with labels or properties) or a relationship record
+ * (`"type": "relationship"` with a start node), and none of the keys of the other JSON graph dialects.
+ * @param text - the head of the input
+ * @returns true for an APOC JSON export
+ * @category Plugin helpers
+ */
+export function looksLikeApocJson(text: string): boolean {
+    if (!startsAsJson(text) || OTHER_JSON_GRAPH.test(text)) {
+        return false;
+    }
+    return (
+        (APOC_NODE.test(text) && APOC_NODE_PART.test(text)) ||
+        (APOC_RELATIONSHIP.test(text) && APOC_RELATIONSHIP_PART.test(text))
+    );
+}

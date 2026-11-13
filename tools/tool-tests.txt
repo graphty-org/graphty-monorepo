@@ -68,6 +68,7 @@ tools/require-built.test.mjs
 tools/restricted-cpu-stress.test.mjs
 tools/results-service/test/index.test.mjs
 tools/results/results.test.mjs
+tools/scan-secrets.test.mjs
 tools/scratch-ruleset-cases.test.mjs
 tools/shard-verdict.test.mjs
 tools/ship-risks.test.mjs

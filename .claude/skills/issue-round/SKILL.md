@@ -31,24 +31,24 @@ First tidy this session's own jobs: release its stale ones (see "Stale" in the s
 `in-progress` in the same step), or restart a subagent
 on one whose branch has commits but no `ready` marker, writing a `restarted <branch>` marker on every issue of its
 group. A job that already has a `restarted` marker since its newest `taken` marker is not restarted again: release it
-with `released -- subagent died twice, branch <b> kept`. Release a job (`released -- no work 60 min after taken`)
-when no running subagent of this session names it and, 60 minutes after its `taken` marker, its worktree has no
-commit and no changed file: the median job finishes in 11 minutes, and an idle claim keeps its issues out of every
-queue. A job whose newest marker is `ready` or `opened` is done here: its pull request (or pipeline-round, when it has
+with `released -- subagent died twice, branch <b> kept`. A job whose subagent is still running but whose worktree
+has no commit and no changed file 60 minutes after its `taken` marker is stuck: stop that subagent and release the
+job (`released -- no work 60 min after taken`); the median job finishes in 11 minutes. A job whose newest marker is `ready` or `opened` is done here: its pull request (or pipeline-round, when it has
 none) takes it from there.
 
 **While master is red, jobs still start** (see "While master is red" in the shared file): they commit, push and
 write their `ready` marker, and open their pull requests in a later round once master is green. CI's runners are not
 checked for them, since they open nothing.
 
+**Whose jobs count.** The limits below are machine-wide: test slots, load, memory and disk are shared by every
+session. Count every running fix subagent on this machine against them, issue-round's and pipeline-round's alike, not
+only this session's.
+
 Then start no new fix job, and do the no-PR work below instead, when:
 
 - **a fix job for a red master or a red full run waits for a test slot** (it goes first);
-- **the test slots are booked ahead.** `node tools/test-slots.mjs status` prints the slot count and each run that
-  `holds` or `waits` for a slot. A job reaches its tests 10 to 20 minutes after it starts, so a wait shows up too late
-  to gate on alone: count this session's running jobs that hold no slot yet (no `ready`, `opened` or `released`
-  marker) plus the `waits` lines, and stop when that reaches twice the slot count (8 with 4 slots; it grows with
-  `GRAPHTY_TEST_SLOTS`). Also stop when a run has waited more than 10 minutes for a slot;
+- **a run has waited more than 10 minutes for a test slot.** `node tools/test-slots.mjs status` prints the slot
+  count and each run that `holds` or `waits` for a slot, with how long;
 - **the machine is really out of room:** the 1-minute load average is above the core count (`nproc`), `free -g`
   shows under 10 GB available, or `df -BG /home/apowers/Projects/graphty-monorepo` shows under 100 GB free (every job
   adds a worktree with its own dependencies and build output);
@@ -57,16 +57,20 @@ Then start no new fix job, and do the no-PR work below instead, when:
   `ci.not_assigned` and `ci.longest_queued` alone do not stop a round: they follow GitHub outages and the full run's
   bursts, which pass. When the tool errors or is stale, judge from the running and queued counts in `gh run list`.
 
-Otherwise start a job for every free issue or cluster that passes step 4, with no fixed number. The only limits are
-the conditions above, checked again before each start. A rule like "about 6 to 8 jobs" or "up to the free slots" is
+Otherwise start jobs for the free issues or clusters that pass step 4, with no fixed total. The only limits are the
+conditions above, checked again before each start, and a start rate: in one round start at most as many new fix jobs
+as there are free test slots now plus the jobs (of any session) that finished since the last round. A job reaches its
+tests 10 to 20 minutes after it starts, so a slot wait shows up too late to stop a round from starting dozens at
+once; the rate follows what the machine measurably drained, and grows with `GRAPHTY_TEST_SLOTS`. A rule like "about 6 to 8 jobs" or "up to the free slots" is
 the kind of fixed cap the owner rejected on 2026-10-30 ("three jobs is an arbitrary limit, we should push fixes
 through at the rate that the system allows"). Measured on 2026-11-13: all 4 slots were full only 14% of the time,
 while 1.5 jobs ran on average.
 
 **No-PR work when blocked.** Instead of fix jobs, start read-only background subagents: one per free bug with no
 diagnosis yet, and one per old issue to verify. They hold no test slot, edit and commit nothing and open no pull
-request, so neither the queue nor the slots limit them; the GitHub budget does. Check
-`gh api rate_limit --jq .resources.core.remaining` first and start more only while at least 2,000 requests remain:
+request, so neither the queue nor the slots limit them; the GitHub budget does. Re-check
+`gh api rate_limit --jq .resources.core.remaining` before each start, keep 2,000 requests in reserve, and start at
+most (remaining - 2,000) / 5 of them this round, since each makes about 5 calls:
 
 - **Verify and close** an old issue a later commit already fixed, by the method in "An old issue already fixed by a
   commit that did not name it" below: the subagent confirms it and closes it with the evidence (the commit, and for
@@ -191,7 +195,8 @@ past its size test, or drop or duplicate an export.
 
 **Pull requests that do not count**, because nobody is working on them:
 
-- a pull request red or conflicting (broker file) for 6 hours with no commit, no live `taken` marker and no
+- a pull request red or conflicting (broker file) whose head commit's `committedDate` (in the query below) is more
+  than 6 hours old, with no live `taken` marker and no
   `fix attempt` marker in the last 6 hours, and whose `Fixes`/`Refs` lines and branch issue do not name this job's
   issues (an issue it names is in flight: step 2 skips it). Pipeline-round's step 8 fixes these first; once it writes a
   `fix attempt` marker the pull request counts again;
@@ -207,12 +212,16 @@ Compare the job's files (the cluster's `files`, or step 3's) with:
 - **open pull requests' files.** From the broker file when its pull requests carry `files`; otherwise ONE query per
   round for all of them, its answer kept for every job of the round:
   `gh api graphql -f query='{ repository(owner: "graphty-org", name: "graphty-monorepo") { pullRequests(states: OPEN, first: 100) { nodes { number headRefName isDraft createdAt author { login } labels(first: 20) { nodes { name } } commits(last: 1) { nodes { commit { committedDate } } } files(first: 100) { nodes { path } } } } } }' > tmp/issue-round/pr-files.json`
-  (reused while under 15 minutes old). A pull request with more than 100 files is matched only on those listed.
+  (reused while under 15 minutes old). When more than 100 pull requests are open, page: add
+  `pageInfo { hasNextPage endCursor }` beside `nodes` and query again with `after: "<endCursor>"` until
+  `hasNextPage` is false. `files(first: 100)` truncates: a pull request with 100 listed files counts as also touching
+  the whole top-level package directories of those files (or page its files the same way).
 - **this session's running jobs**, those started earlier this round included: the `files` in their `taken` markers,
   plus `git diff --name-only origin/master...origin/<branch>` for each such branch.
 
-Two paths overlap only when they are the same file. A directory in an older cluster plan blocks only against a file
-the issue itself names. On an overlap with this session's own
+Two paths overlap only when they are the same file. A directory in a running job's `taken` marker or an older cluster
+plan blocks only the files the job's issues name inside it; refine it to the files that job has changed (its branch
+diff) once it has any. On an overlap with this session's own
 unmerged pull request (usually the previous job of the same cluster), the job waits for it: leave the cluster, and a
 later round starts the job once that pull request has merged. On any other overlap, defer the job. Either way the round
 goes on to the next cluster (or the next issue).

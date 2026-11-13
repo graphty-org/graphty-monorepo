@@ -110,8 +110,11 @@ a job CronList no longer shows, or is 6 days old or more: CronCreate a new recur
 CronDelete the old one if it is still listed, and rewrite the file.
 
 **A lapsed issue loop.** issue-round writes `tmp/issue-round/last-round` every round (an ISO time and its session).
-Every pipeline-round reads it. When it is more than 75 minutes old, send one `SendMessage` to that session if
-`ListAgents` finds it, saying its loop lapsed and to run "Renewing the loop". When no such session is found, put
+Every pipeline-round reads it. When it is more than 75 minutes old and the owner did not stop that loop on purpose
+(a loop the owner stopped is a pause, not a lapse), send one `SendMessage` to that session if `ListAgents` finds it,
+saying its loop lapsed and to run "Renewing the loop", and write `tmp/pipeline-round/lapse-messaged` (the
+`last-round` line it answered): message once per lapse, never again while `last-round` is unchanged. When no such
+session is found, put
 `issue loop lapsed <N> h, no session` in the round's last line; pipeline-round never starts issue work itself. The
 2026-11-12 lapse went unnoticed for 10 hours.
 

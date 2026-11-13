@@ -292,10 +292,10 @@ starts: issue-round counts the pull request's files again from then on.
 - Otherwise classify the failure from the failed job (see "Failure classes"): outside, re-run the failed jobs once;
   code or a conflict, mark the issue and start a fix subagent on the existing branch (fix prompt above), which merges
   `origin/master` (never rebase), fixes and pushes. Already on master: wait.
-- **Split or close** a pull request with 150 or more changed files, or 2 failed fix attempts: the fix subagent lands
-  the green part as its own pull request. When no split works, close it with
-  `pipeline-round: closed -- <reason>; branch kept` (a closed pull request can be reopened) and give its issues a
-  `released` marker with the evidence.
+- **Close** a pull request that cannot go green after 2 fix attempts (or has 150 or more changed files): close it
+  with `pipeline-round: closed -- <reason>; branch kept` (a closed pull request can be reopened) and give its issues
+  a `released` marker with the evidence. Never split it into a new pull request: that copies commits ("Never copy,
+  always merge"). Instead, pipeline-round may revert the red part on the same branch by an ordinary commit.
 
 **Dependabot pull requests** (author `dependabot[bot]`): `dependabot-automerge.yml` arms their auto-merge; one with
 auto-merge off gets it turned on as graphty-agent (`gh pr merge <n> --auto --merge`), except Actions updates, which

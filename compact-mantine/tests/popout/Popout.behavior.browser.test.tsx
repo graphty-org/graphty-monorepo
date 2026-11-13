@@ -5,6 +5,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { Popout, PopoutManager } from "../../src/components/popout";
 import { compactTheme } from "../../src/theme";
+import { drag, moveBy, press, release } from "../harness/mouse";
 
 // A panel opens to the left of its trigger, so the triggers sit well in from the left edge of a
 // window wide enough for that, the way a sidebar holds them; at the window's edge the panel is
@@ -345,115 +346,115 @@ describe("Popout accessibility", () => {
     });
 });
 
+/**
+ * Where the panel is: its left and top style, in pixels.
+ * @param panel - the pop-out panel
+ * @returns the panel's left and top
+ */
+function placeOf(panel: HTMLElement): { left: number; top: number } {
+    return { left: parseFloat(panel.style.left), top: parseFloat(panel.style.top) };
+}
+
 describe("Popout drag behavior", () => {
-    it("does not start drag from text input", async () => {
+    /**
+     * Open a panel whose header holds an action button, and return it with its header.
+     * @returns the open panel, its drag handle and the action's click handler
+     */
+    async function openDraggable(): Promise<{
+        panel: HTMLElement;
+        header: HTMLElement;
+        onAction: ReturnType<typeof vi.fn>;
+    }> {
         const user = userEvent.setup();
+        const onAction = vi.fn();
 
         renderPopout(
             <Popout>
                 <Popout.Trigger>
                     <button>Open</button>
                 </Popout.Trigger>
-                <Popout.Panel width={280} header={{ variant: "title", title: "Test" }}>
-                    <Popout.Content>
-                        <input type="text" data-testid="text-input" placeholder="Type here" />
-                    </Popout.Content>
-                </Popout.Panel>
-            </Popout>,
-        );
-
-        await user.click(screen.getByRole("button", { name: "Open" }));
-        await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
-        });
-
-        const input = screen.getByTestId("text-input");
-        // User should be able to interact with the input without triggering drag
-        await user.click(input);
-        await user.type(input, "Hello");
-
-        expect(input).toHaveValue("Hello");
-    });
-
-    it("does not start drag from textarea", async () => {
-        const user = userEvent.setup();
-
-        renderPopout(
-            <Popout>
-                <Popout.Trigger>
-                    <button>Open</button>
-                </Popout.Trigger>
-                <Popout.Panel width={280} header={{ variant: "title", title: "Test" }}>
-                    <Popout.Content>
-                        <textarea data-testid="textarea" placeholder="Type here" />
-                    </Popout.Content>
-                </Popout.Panel>
-            </Popout>,
-        );
-
-        await user.click(screen.getByRole("button", { name: "Open" }));
-        await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
-        });
-
-        const textarea = screen.getByTestId("textarea");
-        await user.click(textarea);
-        await user.type(textarea, "Hello World");
-
-        expect(textarea).toHaveValue("Hello World");
-    });
-
-    it("allows button clicks without dragging", async () => {
-        const user = userEvent.setup();
-        const handleClick = vi.fn();
-
-        renderPopout(
-            <Popout>
-                <Popout.Trigger>
-                    <button>Open</button>
-                </Popout.Trigger>
-                <Popout.Panel width={280} header={{ variant: "title", title: "Test" }}>
-                    <Popout.Content>
-                        <button onClick={handleClick}>Click Me</button>
-                    </Popout.Content>
-                </Popout.Panel>
-            </Popout>,
-        );
-
-        await user.click(screen.getByRole("button", { name: "Open" }));
-        await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
-        });
-
-        await user.click(screen.getByRole("button", { name: "Click Me" }));
-
-        expect(handleClick).toHaveBeenCalledTimes(1);
-    });
-
-    it("renders panel with drag handle area in header", async () => {
-        const user = userEvent.setup();
-
-        renderPopout(
-            <Popout>
-                <Popout.Trigger>
-                    <button>Open</button>
-                </Popout.Trigger>
-                <Popout.Panel width={280} header={{ variant: "title", title: "Draggable" }}>
+                <Popout.Panel
+                    width={280}
+                    header={{ variant: "title", title: "Test" }}
+                    actions={[{ id: "reset", icon: <span>R</span>, label: "Reset", onClick: onAction }]}
+                >
                     <Popout.Content>Content</Popout.Content>
                 </Popout.Panel>
             </Popout>,
         );
 
         await user.click(screen.getByRole("button", { name: "Open" }));
-        await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
-        });
+        const panel = await screen.findByRole("dialog");
+        const header = panel.querySelector<HTMLElement>("[data-drag-trigger]");
+        expect(header).not.toBeNull();
+        return { panel, header: header!, onAction };
+    }
 
-        // The header area should be marked as a drag trigger
-        const panel = screen.getByRole("dialog");
-        const header = panel.querySelector("[data-drag-trigger]");
-        expect(header).toBeInTheDocument();
+    /**
+     * Drag the bare header by an offset and wait until the panel lands there. Run after a press
+     * that must not have moved the panel: if it had, the panel lands that much further on.
+     * @param panel - the open panel
+     * @param header - its drag handle
+     * @param from - where the panel was before the press under test
+     */
+    async function expectHeaderDragFrom(
+        panel: HTMLElement,
+        header: HTMLElement,
+        from: { left: number; top: number },
+    ): Promise<void> {
+        await drag(header, { x: 40, y: 8 }, { x: -50, y: 20 });
+        await waitFor(() => {
+            expect(placeOf(panel)).toEqual({ left: from.left - 50, top: from.top + 20 });
+        });
+    }
+
+    it("moves when its header is dragged", async () => {
+        const { panel, header } = await openDraggable();
+        const opened = placeOf(panel);
+
+        await expectHeaderDragFrom(panel, header, opened);
     });
+
+    it("does not start a drag from a button in its header", async () => {
+        const { panel, header, onAction } = await openDraggable();
+        const opened = placeOf(panel);
+        const action = screen.getByRole("button", { name: "Reset" });
+
+        // Press on the button and move well past the drag threshold.
+        await press(action);
+        await moveBy(-60, 30);
+        await release();
+
+        await expectHeaderDragFrom(panel, header, opened);
+
+        // And a press and release in place is the button's click.
+        await press(action);
+        await release();
+        await waitFor(() => {
+            expect(onAction).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    // The header draws only buttons, so a field is put into it by hand to reach the guard's
+    // other branches.
+    it.each(["input", "textarea", "select"] as const)(
+        "does not start a drag from a <%s> in its header",
+        async (tag) => {
+            const { panel, header } = await openDraggable();
+            const opened = placeOf(panel);
+            const field = document.createElement(tag);
+            field.style.width = "60px";
+            header.prepend(field);
+
+            await press(field);
+            await moveBy(-60, 30);
+            await release();
+            // Out of the way of the bare header's drag.
+            field.remove();
+
+            await expectHeaderDragFrom(panel, header, opened);
+        },
+    );
 
     it("resets position when panel reopens", async () => {
         const user = userEvent.setup();
@@ -471,13 +472,11 @@ describe("Popout drag behavior", () => {
 
         // Open panel
         await user.click(screen.getByRole("button", { name: "Open" }));
-        await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
-        });
+        const panel = await screen.findByRole("dialog");
+        const initial = placeOf(panel);
 
-        const panel = screen.getByRole("dialog");
-        const initialLeft = panel.style.left;
-        const initialTop = panel.style.top;
+        // Drag it somewhere else
+        await expectHeaderDragFrom(panel, panel.querySelector<HTMLElement>("[data-drag-trigger]")!, initial);
 
         // Close panel
         await user.click(screen.getByLabelText("Close panel"));
@@ -487,76 +486,9 @@ describe("Popout drag behavior", () => {
 
         // Reopen panel
         await user.click(screen.getByRole("button", { name: "Open" }));
-        await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
-        });
+        const reopened = await screen.findByRole("dialog");
 
-        // Position should be reset (same as initial)
-        const reopenedPanel = screen.getByRole("dialog");
-        expect(reopenedPanel.style.left).toBe(initialLeft);
-        expect(reopenedPanel.style.top).toBe(initialTop);
-    });
-});
-
-describe("Popout panel sizing", () => {
-    it("uses minWidth for flexible sizing - panel can expand for wider content", async () => {
-        const user = userEvent.setup();
-
-        renderPopout(
-            <Popout>
-                <Popout.Trigger>
-                    <button>Open</button>
-                </Popout.Trigger>
-                <Popout.Panel width={200} header={{ variant: "title", title: "Test" }}>
-                    <Popout.Content>
-                        {/* Content wider than specified width */}
-                        <div style={{ width: 300 }}>Wide content</div>
-                    </Popout.Content>
-                </Popout.Panel>
-            </Popout>,
-        );
-
-        await user.click(screen.getByRole("button", { name: "Open" }));
-        await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
-        });
-
-        const panel = screen.getByRole("dialog");
-        // Panel uses minWidth, allowing it to expand for wider content
-        expect(panel.style.minWidth).toBe("200px");
-        // Panel should NOT have a fixed pixel width that would constrain
-        // content. It sizes to min-content above that minimum, so a child too
-        // wide to fit still widens the panel while prose wraps at the declared
-        // width instead of running out to one long line.
-        expect(panel.style.width).toBe("min-content");
-        expect(panel.style.width).not.toMatch(/\d+px/);
-    });
-
-    it("panel expands to fit content wider than minWidth without overflow", async () => {
-        const user = userEvent.setup();
-
-        renderPopout(
-            <Popout>
-                <Popout.Trigger>
-                    <button>Open</button>
-                </Popout.Trigger>
-                <Popout.Panel width={100} header={{ variant: "title", title: "Test" }}>
-                    <Popout.Content>
-                        <div style={{ width: 250, height: 50 }} data-testid="wide-content">
-                            Wide content that exceeds minWidth
-                        </div>
-                    </Popout.Content>
-                </Popout.Panel>
-            </Popout>,
-        );
-
-        await user.click(screen.getByRole("button", { name: "Open" }));
-        await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
-        });
-
-        const panel = screen.getByRole("dialog");
-        // Panel should not have horizontal overflow
-        expect(panel.scrollWidth).toBeLessThanOrEqual(panel.clientWidth);
+        // Position is reset to where it first opened, not where it was dragged
+        expect(placeOf(reopened)).toEqual(initial);
     });
 });

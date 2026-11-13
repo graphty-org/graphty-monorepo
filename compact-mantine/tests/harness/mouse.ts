@@ -8,7 +8,7 @@
 import { cdp } from "vitest/browser";
 
 /** A point in CSS pixels, from an element's top-left corner or the test frame's viewport. */
-interface Offset {
+export interface Offset {
     x: number;
     y: number;
 }
@@ -21,24 +21,43 @@ let pointer: Offset = { x: 0, y: 0 };
 let held = false;
 
 /**
+ * Map a point of the test frame's viewport into the top page, where the protocol's input lands.
+ * @param at - the point, in the test frame's CSS pixels
+ * @returns the same point in the top page's CSS pixels
+ */
+export function toPage(at: Offset): Offset {
+    const frame = window.frameElement;
+    if (frame === null) {
+        return at;
+    }
+    const box = frame.getBoundingClientRect();
+    const scale = box.width / window.innerWidth;
+    return {
+        x: box.left + frame.clientLeft * scale + at.x * scale,
+        y: box.top + frame.clientTop * scale + at.y * scale,
+    };
+}
+
+/**
+ * Send one protocol command to the browser.
+ * @param method - the command, such as Input.dispatchMouseEvent
+ * @param params - its parameters
+ */
+export async function send(method: string, params?: Record<string, unknown>): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    await session.send(method, params);
+}
+
+/**
  * One mouse event at a point of the test frame's viewport.
  * @param type - mouseMoved, mousePressed or mouseReleased
  * @param at - where, in the test frame's CSS pixels
  */
 async function mouse(type: "mouseMoved" | "mousePressed" | "mouseReleased", at: Offset): Promise<void> {
-    const frame = window.frameElement;
-    let { x } = at;
-    let { y } = at;
-    if (frame !== null) {
-        const box = frame.getBoundingClientRect();
-        const scale = box.width / window.innerWidth;
-        x = box.left + frame.clientLeft * scale + at.x * scale;
-        y = box.top + frame.clientTop * scale + at.y * scale;
-    }
+    const { x, y } = toPage(at);
     held = type === "mousePressed" || (held && type !== "mouseReleased");
     pointer = at;
-    const session = cdp() as unknown as { send: Send };
-    await session.send("Input.dispatchMouseEvent", {
+    await send("Input.dispatchMouseEvent", {
         type,
         x,
         y,
@@ -70,6 +89,14 @@ export async function press(element: Element, at?: Offset): Promise<void> {
  */
 export async function moveBy(dx: number, dy = 0): Promise<void> {
     await mouse("mouseMoved", { x: pointer.x + dx, y: pointer.y + dy });
+}
+
+/**
+ * Move the pointer to a point of the test frame's viewport, in one move.
+ * @param at - where, in the test frame's CSS pixels
+ */
+export async function moveTo(at: Offset): Promise<void> {
+    await mouse("mouseMoved", at);
 }
 
 /** Release the left button where the pointer is, if it is held. */

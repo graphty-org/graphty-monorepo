@@ -1,65 +1,237 @@
 /**
- * ContextMenu opened by a touch held still, in a real browser: lifting the finger that opened
- * the menu must not choose the row it lifts over.
+ * ContextMenu opened by a touch held still, driven by a real finger and a real mouse through the
+ * DevTools protocol: the browser makes the pointer and touch events, the implicit capture and the
+ * click after a lift, as a touch screen does.
  */
 import { MantineProvider, Menu } from "@mantine/core";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
 import { ContextMenu } from "../../../src/components/overlays/ContextMenu";
+import { press, release } from "../../harness/mouse";
+import { tap, touchEnd, touchMoveBy, touchStart } from "../../harness/touch";
 
 /**
- * Send one touch pointer event to an element at its center.
- * @param element - the element
- * @param type - pointerdown, pointerup
+ * A target with a context menu, inside the compact theme.
+ * @param onClick - Called when the target is clicked
+ * @param onRename - Called when the menu's row is chosen
+ * @returns The target element
  */
-function touch(element: Element, type: string): void {
-    const r = element.getBoundingClientRect();
-    element.dispatchEvent(
-        new PointerEvent(type, {
-            bubbles: true,
-            cancelable: true,
-            pointerType: "touch",
-            pointerId: 3,
-            isPrimary: true,
-            clientX: r.left + r.width / 2,
-            clientY: r.top + r.height / 2,
-        }),
+function renderMenu(onClick = vi.fn(), onRename = vi.fn()): HTMLElement {
+    render(
+        <MantineProvider theme={compactTheme}>
+            <ContextMenu
+                target={
+                    <button type="button" data-testid="target" onClick={onClick} style={{ width: 200, height: 100 }}>
+                        Target
+                    </button>
+                }
+            >
+                <Menu.Item onClick={onRename}>Rename</Menu.Item>
+            </ContextMenu>
+        </MantineProvider>,
     );
+    return screen.getByTestId("target");
 }
 
-afterEach(cleanup);
+/**
+ * A target holding a canvas that prevents the pointerdown's and contextmenu's defaults for its own
+ * reasons, as a 3D engine does so a drag selects no page text.
+ * @returns The canvas
+ */
+function renderCanvasMenu(): HTMLElement {
+    render(
+        <MantineProvider theme={compactTheme}>
+            <ContextMenu
+                target={
+                    <div data-testid="target">
+                        <canvas data-testid="canvas" width={200} height={100} />
+                    </div>
+                }
+            >
+                <Menu.Item>Fit</Menu.Item>
+            </ContextMenu>
+        </MantineProvider>,
+    );
+    const canvas = screen.getByTestId("canvas");
+    canvas.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+    });
+    canvas.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+    });
+    return canvas;
+}
 
-describe("ContextMenu touch hold", () => {
-    it("opens on a held touch, and the lift that ends the press chooses nothing", async () => {
-        const onRename = vi.fn();
+/** Every open context menu. */
+function menus(): HTMLElement[] {
+    return Array.from(document.querySelectorAll<HTMLElement>(".mantine-Menu-dropdown"));
+}
+
+/**
+ * Step the fake clock, rendering what the timers it fires changed.
+ * @param ms - how far
+ */
+function advance(ms: number): void {
+    act(() => {
+        vi.advanceTimersByTime(ms);
+    });
+}
+
+/**
+ * Send real input and render everything it changed before going on, so a check that something
+ * did not happen sees the page after the input.
+ * @param input - the input to send
+ */
+async function settled(input: () => Promise<void>): Promise<void> {
+    await act(input);
+}
+
+describe("ContextMenu touch-and-hold", () => {
+    // The hold runs on setTimeout. A fake one that keeps pace with the real clock leaves every other
+    // timer (the menu's transitions) running as usual and steps the hold exactly.
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    });
+
+    afterEach(async () => {
+        await touchEnd();
+        await release();
+        cleanup();
+        vi.useRealTimers();
+    });
+
+    it("opens the menu when a touch is held for 500 ms", async () => {
+        const target = renderMenu();
+        await touchStart(target);
+        expect(target.style.getPropertyValue("user-select")).toBe("none");
+        advance(499);
+        expect(menus()).toHaveLength(0);
+        advance(1);
+        expect(menus()).toHaveLength(1);
+        // The press styles come off once the hold is decided.
+        expect(target.style.getPropertyValue("user-select")).toBe("");
+    });
+
+    it("opens over a child that prevents the pointerdown's default for its own reasons", async () => {
+        const canvas = renderCanvasMenu();
+        await touchStart(canvas);
+        advance(500);
+        expect(menus()).toHaveLength(1);
+    });
+
+    it("does not open when the target's own handler claims the press", async () => {
         render(
             <MantineProvider theme={compactTheme}>
                 <ContextMenu
                     target={
-                        <button type="button" data-testid="target" style={{ width: 200, height: 100 }}>
-                            Target
-                        </button>
+                        <div
+                            data-testid="target"
+                            style={{ width: 200, height: 100 }}
+                            onPointerDown={(event) => {
+                                event.preventDefault();
+                            }}
+                        />
                     }
                 >
-                    <Menu.Item onClick={onRename}>Rename</Menu.Item>
+                    <Menu.Item>Fit</Menu.Item>
                 </ContextMenu>
             </MantineProvider>,
         );
-        touch(screen.getByTestId("target"), "pointerdown");
-        const item = await waitFor(() => screen.getByRole("menuitem", { name: "Rename" }));
+        await touchStart(screen.getByTestId("target"));
+        advance(600);
+        expect(menus()).toHaveLength(0);
+    });
 
-        // The finger lifts over the row: its pointerup and the click after it are the press's.
-        touch(item, "pointerup");
-        item.click();
+    it("opens on a right-click over a child that prevents the browser's own menu", async () => {
+        const canvas = renderCanvasMenu();
+        await settled(() => userEvent.click(canvas, { button: "right" }));
+        expect(menus()).toHaveLength(1);
+    });
+
+    it("does not open when the finger moves more than 8 px first", async () => {
+        const target = renderMenu();
+        await touchStart(target);
+        await settled(() => touchMoveBy(20, 0));
+        advance(600);
+        expect(menus()).toHaveLength(0);
+    });
+
+    it("does not open for a mouse held down", async () => {
+        const target = renderMenu();
+        await press(target);
+        advance(600);
+        expect(menus()).toHaveLength(0);
+    });
+
+    it("still opens on a right-click", async () => {
+        const target = renderMenu();
+        await settled(() => userEvent.click(target, { button: "right" }));
+        expect(menus()).toHaveLength(1);
+    });
+
+    it("ignores the browser's own long-press contextmenu event after the hold opened the menu", async () => {
+        const target = renderMenu();
+        await touchStart(target);
+        advance(500);
+        expect(menus()).toHaveLength(1);
+        // A browser on a phone (Android Chrome) fires its own contextmenu for the same long press.
+        // Desktop Chromium makes none from a touch, so this one event stands in for it.
+        const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 100, clientY: 100 });
+        act(() => {
+            target.dispatchEvent(event);
+        });
+        expect(event.defaultPrevented).toBe(true);
+        expect(menus()).toHaveLength(1);
+    });
+
+    it("swallows the click that ends the hold", async () => {
+        const onClick = vi.fn();
+        const target = renderMenu(onClick);
+        await touchStart(target);
+        advance(500);
+        expect(menus()).toHaveLength(1);
+        // Lifting the finger sends no click, and none of the compatibility mouse events that
+        // would close the menu as a press outside it.
+        await settled(touchEnd);
+        expect(onClick).not.toHaveBeenCalled();
+        expect(menus()).toHaveLength(1);
+        // A later tap is a click again.
+        await settled(() => tap(target));
+        expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("the lift that ends the press chooses nothing, and a fresh tap on the row chooses it", async () => {
+        const onRename = vi.fn();
+        const target = renderMenu(vi.fn(), onRename);
+        await touchStart(target);
+        advance(500);
+        const item = screen.getByRole("menuitem", { name: "Rename" });
+
+        // The menu opens just right of and above the finger. Once it has settled there, the finger
+        // slides onto its row, less than the 8px that would make the hold a drag, and lifts there.
+        const [x, y] = center(target);
+        await vi.waitFor(() => {
+            expect(item.contains(document.elementFromPoint(x + 5, y + 5))).toBe(true);
+        });
+        await settled(() => touchMoveBy(5, 5));
+        await settled(touchEnd);
         expect(onRename).not.toHaveBeenCalled();
-        expect(screen.getByRole("menu")).toBeTruthy();
+        expect(menus()).toHaveLength(1);
 
-        // A fresh tap on the row chooses it.
-        touch(item, "pointerdown");
-        touch(item, "pointerup");
-        item.click();
+        await settled(() => tap(item));
         expect(onRename).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * The center of an element.
+ * @param element - the element
+ * @returns the point's x and y
+ */
+function center(element: Element): [number, number] {
+    const box = element.getBoundingClientRect();
+    return [box.left + box.width / 2, box.top + box.height / 2];
+}

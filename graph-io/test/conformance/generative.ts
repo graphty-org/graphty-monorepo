@@ -26,7 +26,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { GraphBuilder, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
+import { GraphBuilder, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
 import fc from "fast-check";
 
 import { collectBytes } from "../../src/common/writer.js";
@@ -701,6 +701,31 @@ const codeOf = (err: unknown): string => {
     return "";
 };
 
+/** The codes a refused save throws (refusedSave() in src/common/export.ts): a note code is not one. */
+const REFUSAL_ERROR_CODES: ReadonlySet<string> = new Set([
+    "E_INVALID_ID",
+    "E_DIRECTED",
+    "E_COLUMN_TYPE",
+    "E_UNSUPPORTED",
+]);
+
+/**
+ * Whether an export's throw is a refusal check() announced: check() returned an E_ note, and the
+ * throw is a GraphFormatError with a refusal code that names one of those notes in
+ * `details.code` when it names one at all. A TypeError, another error code, or a refusal of a note
+ * check() did not return is an exporter bug.
+ * @param err - what the export threw
+ * @param refusals - check()'s E_ note codes
+ * @returns true when the throw is an announced refusal
+ */
+export function isAnnouncedRefusal(err: unknown, refusals: readonly string[]): err is GraphFormatError {
+    if (refusals.length === 0 || !(err instanceof GraphFormatError) || !REFUSAL_ERROR_CODES.has(err.code)) {
+        return false;
+    }
+    const note = err.details.code;
+    return note === undefined || (typeof note === "string" && refusals.includes(note));
+}
+
 const describeError = (err: unknown): string =>
     (err instanceof Error ? `${err.name} ${codeOf(err)}: ${err.message}` : String(err)).slice(0, 300);
 
@@ -720,7 +745,8 @@ export async function roundTrip(target: Target, g: GenGraph): Promise<TripOutcom
     if (target.format === "csv") {
         notes.push(...exporter.check(snapshot, { ...target.exportOptions, table: "nodes" }).map((n) => n.code));
     }
-    const refusal = notes.find((code) => code.startsWith("E_"));
+    const refusals = notes.filter((code) => code.startsWith("E_"));
+    const refusal = refusals.at(0);
     let text: string;
     let bytes: Uint8Array;
     let importOptions: Record<string, unknown> = { format: target.format };
@@ -739,10 +765,11 @@ export async function roundTrip(target: Target, g: GenGraph): Promise<TripOutcom
             importOptions = { ...importOptions, nodes };
         }
     } catch (err) {
-        if (refusal !== undefined) {
-            return { kind: "refused", code: refusal };
+        if (isAnnouncedRefusal(err, refusals)) {
+            return { kind: "refused", code: refusal ?? err.code };
         }
-        return { kind: "different", problems: [`export threw without an E_ note: ${describeError(err)}`], text: null };
+        const why = refusal === undefined ? "without an E_ note" : `but check() announced ${refusals.join(", ")}`;
+        return { kind: "different", problems: [`export threw ${why}: ${describeError(err)}`], text: null };
     }
     if (refusal !== undefined) {
         return { kind: "different", problems: [`check() announced ${refusal} but export() wrote the file`], text };

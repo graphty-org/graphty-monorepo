@@ -59,6 +59,26 @@ function accepts(before, after) {
 }
 
 /**
+ * The breaking change to one peer the base declared, if any.
+ * @param before - the package.json on the base
+ * @param after - the package.json being checked
+ * @param name - the peer
+ * @param range - its range on the base
+ * @returns the message, or undefined when the change is allowed
+ */
+function existingPeerChange(before, after, name, range) {
+    const now = after.peerDependencies ?? {};
+    const inDeps = name in (after.dependencies ?? {});
+    if (!(name in now)) {
+        if (inDeps) return `peer dependency "${name}" moved into dependencies`;
+        return optional(before, name) ? undefined : `peer dependency "${name}" removed`;
+    }
+    if (!accepts(range, now[name])) return `peer dependency "${name}" narrowed from "${range}" to "${now[name]}"`;
+    if (optional(before, name) && !optional(after, name)) return `peer dependency "${name}" is now required`;
+    return undefined;
+}
+
+/**
  * The peer dependency changes between two manifests that only a major may make.
  * @param before - the package.json on the base
  * @param after - the package.json being checked
@@ -70,18 +90,8 @@ export function peerChanges(before, after) {
     const problems = [];
     for (const [name, range] of Object.entries(old)) {
         if (range.startsWith("workspace:")) continue;
-        if (!(name in now)) {
-            if (optional(before, name) && !(name in (after.dependencies ?? {}))) continue;
-            problems.push(
-                name in (after.dependencies ?? {})
-                    ? `peer dependency "${name}" moved into dependencies`
-                    : `peer dependency "${name}" removed`,
-            );
-        } else if (!accepts(range, now[name])) {
-            problems.push(`peer dependency "${name}" narrowed from "${range}" to "${now[name]}"`);
-        } else if (optional(before, name) && !optional(after, name)) {
-            problems.push(`peer dependency "${name}" is now required`);
-        }
+        const problem = existingPeerChange(before, after, name, range);
+        if (problem) problems.push(problem);
     }
     for (const name of Object.keys(now)) {
         if (!(name in old) && !now[name].startsWith("workspace:")) {

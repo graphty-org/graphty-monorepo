@@ -2871,6 +2871,20 @@ export interface HopsLeaf {
 }
 
 // @public
+export interface ImportColumnsInput {
+    readonly attributes?: {
+        readonly nodes?: Readonly<Record<string, ArrayLike<unknown>>>;
+        readonly edges?: Readonly<Record<string, ArrayLike<unknown>>>;
+    };
+    readonly ids?: ArrayLike<string | number>;
+    readonly nodeCount: number;
+    readonly positions?: ArrayLike<number>;
+    readonly sources: ArrayLike<number>;
+    readonly targets: ArrayLike<number>;
+    readonly weights?: ArrayLike<number>;
+}
+
+// @public
 export interface ImportOptions {
     readonly history?: "step" | "start";
     readonly layout?: "recommended" | "keep";
@@ -5827,6 +5841,7 @@ export interface SessionDataApi {
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
+    importColumns(columns: ImportColumnsInput): Promise<void>;
     issues(options?: {
         readonly includeIgnored?: boolean;
         readonly includeFixed?: boolean;
@@ -5879,6 +5894,7 @@ export interface SessionDataApi {
     setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
+    sourceInput(key: SourceKey): DataSourceInput | undefined;
     sources(): readonly LoadedSource[];
     sourceSettings(key: SourceKey): SourceSettings | undefined;
     sourcesOf(id: NodeId_2 | EdgeId, options?: {

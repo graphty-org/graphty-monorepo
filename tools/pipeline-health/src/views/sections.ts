@@ -654,15 +654,13 @@ export async function holders(reads: Reads): Promise<Section> {
     const groups = [group("running", "runners.running_now"), group("queued", "runners.queued_now")].filter(
         (g) => g.items.length,
     );
-    const notes = Object.entries(snap.noJobs).map(([key, q]) => {
-        const at = key.lastIndexOf(", ");
-        return f("runners.queued_runs", {
-            runs: q.runs,
-            workflow: key.slice(0, at),
-            event: key.slice(at + 2),
-            since: iso(q.since),
+    const note = (code: string, runs: HoldersSnapshot["noJobs"]): Fact[] =>
+        Object.entries(runs).map(([key, q]) => {
+            const at = key.lastIndexOf(", ");
+            return f(code, { runs: q.runs, workflow: key.slice(0, at), event: key.slice(at + 2), since: iso(q.since) });
         });
-    });
+    // Runs stuck at GitHub on a pull request no longer open count nowhere above, so they get their own note (#7358).
+    const notes = [...note("runners.queued_runs", snap.noJobs), ...note("runners.stuck_runs", snap.stuck ?? {})];
     if (!groups.length && !notes.length) {
         return { kind: "empty", id: "holders", fact: f("runners.no_holders") };
     }
@@ -883,11 +881,12 @@ export async function byWorkflow(reads: Reads): Promise<Section> {
  */
 export async function stressTable(reads: Reads): Promise<Section> {
     let runs: StressCursorRun[] = [];
+    // A failed store read throws (the page shows no data); only a corrupt cursor reads as no runs (#7275).
+    const raw = await getCursor(reads.store, "stress");
     try {
-        const raw = await getCursor(reads.store, "stress");
         runs = Object.values(raw ? (JSON.parse(raw) as Record<string, StressCursorRun>) : {});
     } catch {
-        // an unreadable cursor is no runs, never a guess
+        // a corrupt cursor is no runs, never a guess
     }
     const sub = f("data.stress.sub", { workflow: "restricted-cpu-stress.yml" });
     runs = runs.filter((r) => r.at !== undefined).sort((a, b) => b.at - a.at);

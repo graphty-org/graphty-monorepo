@@ -371,7 +371,21 @@ describe("referenceGate", () => {
 describe("run", () => {
     it("kills the command's whole process group on timeout", async () => {
         const pidFile = join(repo.tmp, "child.pid");
-        const r = await run("sh", ["-c", `sleep 30 & echo $! > ${pidFile}; wait`], { cwd: repo.tmp, timeoutMs: 300 });
+        // The test fires the timeout itself, once sh has started its child, so the kill never
+        // depends on how fast a process starts.
+        /** @type {(() => void)[]} */
+        const timers = [];
+        const ran = run("sh", ["-c", `sleep 30 & echo $! > ${pidFile}; wait`], {
+            cwd: repo.tmp,
+            startTimer: (fire) => {
+                timers.push(fire);
+                return () => {};
+            },
+        });
+        await vi.waitFor(() => expect(readFileSync(pidFile, "utf8")).toMatch(/^\d+\n$/));
+        expect(timers).toHaveLength(1);
+        timers[0]();
+        const r = await ran;
         expect(r.timedOut).toBe(true);
         const pid = Number(readFileSync(pidFile, "utf8"));
         const alive = () => {

@@ -259,6 +259,35 @@ describe("autosave and the source records", () => {
         saver.stop();
     });
 
+    it("a replacing network load starts a new entry and keeps the work it replaced in the old one", async () => {
+        const store = recorded();
+        const { session, saver } = page(store);
+        await session.data.addNodes([{ id: "earlier" }]);
+        await saver.flush();
+        const old = saver.status.entry;
+        const before = await entryText(store, saver);
+
+        await loadPeople(session);
+        await saver.flush();
+
+        assert.notStrictEqual(saver.status.entry, old, "the load writes to a new entry");
+        const entries = await store.list(KEY);
+        assert.deepStrictEqual(
+            entries.map((meta) => [meta.id, meta.ended]).filter(([id]) => id === old),
+            [[old, "replaced"]],
+            "the old entry is ended as replaced",
+        );
+        const kept = await store.read(old ?? "");
+        assert.isDefined(kept, "the old entry is still in the store");
+        assert.strictEqual(
+            JSON.stringify(reassemble(kept?.meta ?? { id: "" }, kept?.parts ?? {})),
+            before,
+            "the old entry keeps the work it replaced",
+        );
+        assert.strictEqual(await entryText(store, saver), await saveText(session));
+        saver.stop();
+    });
+
     it("an undone network load leaves no record of it in the recovered session", async () => {
         const store = recorded();
         const before = page(store);

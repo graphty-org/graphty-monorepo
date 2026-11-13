@@ -134,7 +134,12 @@ export interface ParsedLoggingParams {
 }
 
 // @public
-export function parseLoggingURLParams(): ParsedLoggingParams | null;
+export function parseLoggingURLParams(options?: ParseLoggingURLParamsOptions): ParsedLoggingParams | null;
+
+// @public
+export interface ParseLoggingURLParamsOptions {
+    allowedRemoteLogOrigins?: readonly string[];
+}
 
 // @public
 export function parseLogLevel(level: string): LogLevel | undefined;

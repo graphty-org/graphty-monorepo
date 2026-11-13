@@ -10,7 +10,7 @@ import { algorithmByLegacyKey } from "../../catalog/algorithms";
 import { registeredAlgorithmByKey } from "../../catalog/registry";
 import type { Graph } from "../../Graph";
 import { englishReading } from "../../session/results/reading";
-import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
+import { causeOf, type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
 
 /**
  * Schema for runAlgorithm parameters.
@@ -154,6 +154,7 @@ export const runAlgorithm: GraphCommand = {
             return {
                 success: false,
                 message: `Failed to run algorithm ${namespace}:${type}: ${error instanceof Error ? error.message : String(error)}`,
+                ...causeOf(error),
             };
         }
     },

@@ -172,6 +172,31 @@ export const loadTexture: TextureLoader = (url, scene) =>
     });
 
 /**
+ * The gray pictures made in this page, by the URL of their picture. Making one takes seconds on a
+ * slow machine (a full-size read and re-encode), and a flat map that continues past the
+ * antimeridian draws the same picture once per world copy, so each is made once and shared. Only
+ * a picture source has a tone, so this holds one entry per gray picture used, never per tile.
+ */
+const grayPictures = new Map<string, Promise<string>>();
+
+/**
+ * {@link grayPicture}, made once per picture; a failure is not kept, so a retry makes it again.
+ * @param url - The picture's URL.
+ * @returns A data URL of the gray picture, or `url`.
+ */
+function sharedGrayPicture(url: string): Promise<string> {
+    let picture = grayPictures.get(url);
+    if (picture === undefined) {
+        picture = grayPicture(url);
+        grayPictures.set(url, picture);
+        picture.catch(() => {
+            grayPictures.delete(url);
+        });
+    }
+    return picture;
+}
+
+/**
  * A picture as a light gray backdrop: each pixel's luminance, compressed into the light end, so
  * the land and water still read and anything drawn over it stands out. Needs a DOM canvas; without
  * one (Node) the picture is returned as it is.
@@ -196,7 +221,8 @@ async function grayPicture(url: string): Promise<string> {
     const canvas = document.createElement("canvas");
     canvas.width = image.naturalWidth;
     canvas.height = image.naturalHeight;
-    const context = canvas.getContext("2d");
+    // Read back once in full: a canvas kept on the CPU reads its pixels without a GPU round trip.
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     if (context === null) {
         return url;
     }
@@ -788,7 +814,8 @@ export abstract class MapSurface {
         if (entry.state === "failed" && now >= entry.retryAt) {
             entry.state = "queued";
         }
-        if (entry.state === "queued") {
+        // A tile asked for twice in one update (a globe's root, by its pole caps and its picks) loads once.
+        if (entry.state === "queued" && !this.queue.includes(entry)) {
             this.queue.push(entry);
         }
         return entry;
@@ -843,7 +870,7 @@ export abstract class MapSurface {
             const url = entry.layer.resolved.url(entry.tile);
             const load =
                 entry.layer.resolved.tone === "gray"
-                    ? grayPicture(url).then((source) => this.options.loadTexture(source, this.scene))
+                    ? sharedGrayPicture(url).then((source) => this.options.loadTexture(source, this.scene))
                     : this.options.loadTexture(url, this.scene);
             load.then(
                 (texture) => {

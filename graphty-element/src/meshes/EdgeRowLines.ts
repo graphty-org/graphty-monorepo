@@ -47,6 +47,16 @@ interface RowLine {
     readonly target: number;
 }
 
+/** What a style draws a row line with ({@link EdgeRowLines.paintRow}); `setLook` copies `rgb`, so it is shared. */
+interface RowLook {
+    readonly style: EdgeStyleConfig;
+    readonly draws: boolean;
+    readonly width: number;
+    readonly color: string;
+    readonly rgb: Color3;
+    readonly opacity: number;
+}
+
 /** What {@link EdgeRowLines} reads from the graph. */
 export interface EdgeRowLinesHost {
     readonly scene: Scene;
@@ -65,7 +75,13 @@ export interface EdgeRowLinesHost {
  * a self-loop, a route the layout's map arcs, and an end drawn behind edges are the caller's to rule out.
  */
 export class EdgeRowLines {
-    private readonly lines = new Map<number, RowLine>();
+    /**
+     * Each drawn row's line, at its row: a million-row load spent about 0.3 s of CPU in a map keyed by row
+     * (design/rendering/cosmos-gap.md G8). Rows are dense, so the array stays packed when a load paints in order.
+     */
+    private lines: (RowLine | undefined)[] = [];
+    private drawn = 0;
+    private lastLook: RowLook | null = null;
 
     /**
      * Start with no edge row drawn.
@@ -78,7 +94,7 @@ export class EdgeRowLines {
      * @returns The count.
      */
     get count(): number {
-        return this.lines.size;
+        return this.drawn;
     }
 
     /**
@@ -87,7 +103,7 @@ export class EdgeRowLines {
      * @returns True when it is.
      */
     has(row: number): boolean {
-        return this.lines.has(row);
+        return this.lines[row] !== undefined;
     }
 
     /**
@@ -95,7 +111,7 @@ export class EdgeRowLines {
      * @returns Them, a copy.
      */
     rows(): number[] {
-        return [...this.lines.keys()];
+        return this.drawnRows();
     }
 
     /**
@@ -105,7 +121,7 @@ export class EdgeRowLines {
      * @internal
      */
     endsOf(row: number): [number, number] | undefined {
-        const line = this.lines.get(row);
+        const line = this.lines[row];
         return line === undefined ? undefined : [line.source, line.target];
     }
 
@@ -116,6 +132,15 @@ export class EdgeRowLines {
      * @returns True when no `Edge` is needed.
      */
     draws(style: EdgeStyleConfig): boolean {
+        return this.drawsStyle(style) && !batchUploadFrames.edgeAges(this.host.scene).on;
+    }
+
+    /**
+     * Whether a style alone is one a row line draws ({@link EdgeRowLines.draws} but for the scene's fading by age).
+     * @param style - The resolved style.
+     * @returns True when it is.
+     */
+    private drawsStyle(style: EdgeStyleConfig): boolean {
         const line = style.line ?? {};
         return (
             style.visible !== false &&
@@ -128,9 +153,30 @@ export class EdgeRowLines {
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
             noCap(style.arrowTail) &&
-            style.band?.color === undefined &&
-            !batchUploadFrames.edgeAges(this.host.scene).on
+            style.band?.color === undefined
         );
+    }
+
+    /**
+     * What a style draws a row line with, decided once for every row painted with that style in a row: a load paints
+     * a million rows with one style object (`StylePainter.edgePaint` reuses it).
+     * @param style - The resolved style.
+     * @returns Its look.
+     */
+    private lookOf(style: EdgeStyleConfig): RowLook {
+        if (this.lastLook?.style !== style) {
+            const color = style.line?.color ?? "#FFFFFF";
+            this.lastLook = {
+                style,
+                draws: this.drawsStyle(style),
+                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                color,
+                rgb: Color3.FromHexString(color),
+                opacity: EdgeMesh.opacityOf(style),
+            };
+        }
+
+        return this.lastLook;
     }
 
     /**
@@ -144,13 +190,13 @@ export class EdgeRowLines {
     paintRow(row: number, source: number, target: number, paint: EdgePaint): boolean {
         this.unpaintRow(row);
         const { style, meshKey } = paint;
-        if (!this.draws(style)) {
+        const look = this.lookOf(style);
+        const { scene, cache, rows } = this.host;
+        if (!look.draws || batchUploadFrames.edgeAges(scene).on) {
             return false;
         }
 
-        const { scene, cache, rows } = this.host;
-        const width = style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
-        const color = style.line?.color ?? "#FFFFFF";
+        const { width, color } = look;
         const batch = EdgeMesh.pulledBatch(
             cache,
             { styleId: meshKey, width, color },
@@ -161,14 +207,10 @@ export class EdgeRowLines {
         );
         const piece = batch.acquire();
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
-        batch.setLook(
-            piece,
-            Color3.FromHexString(color),
-            EdgeMesh.opacityOf(style),
-            EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20,
-        );
+        batch.setLook(piece, look.rgb, look.opacity, EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20);
         batch.setRows(piece, source, target);
-        this.lines.set(row, { batch, piece, source, target });
+        this.lines[row] = { batch, piece, source, target };
+        this.drawn++;
         this.host.requestFrame();
         return true;
     }
@@ -178,10 +220,11 @@ export class EdgeRowLines {
      * @param row - The edge row.
      */
     unpaintRow(row: number): void {
-        const line = this.lines.get(row);
+        const line = this.lines[row];
         if (line !== undefined) {
             line.batch.release(line.piece);
-            this.lines.delete(row);
+            this.lines[row] = undefined;
+            this.drawn--;
             this.host.requestFrame();
         }
     }
@@ -193,15 +236,17 @@ export class EdgeRowLines {
      * @param edgeRemap - The freeze's edge remap, the same way.
      */
     rowsMoved(nodeRemap: ArrayLike<number> | null, edgeRemap: ArrayLike<number> | null): void {
-        if ((nodeRemap === null && edgeRemap === null) || this.lines.size === 0) {
+        if ((nodeRemap === null && edgeRemap === null) || this.drawn === 0) {
             return;
         }
 
         const moved = (remap: ArrayLike<number> | null, row: number): number =>
             remap === null ? row : (remap[row] ?? INVALID_INDEX);
-        const lines = [...this.lines];
-        this.lines.clear();
-        for (const [row, line] of lines) {
+        const { lines } = this;
+        this.lines = [];
+        this.drawn = 0;
+        for (const row of this.drawnRows(lines)) {
+            const line = lines[row] as RowLine;
             const edge = moved(edgeRemap, row);
             const source = moved(nodeRemap, line.source);
             const target = moved(nodeRemap, line.target);
@@ -211,7 +256,8 @@ export class EdgeRowLines {
             }
 
             line.batch.setRows(line.piece, source, target);
-            this.lines.set(edge, { ...line, source, target });
+            this.lines[edge] = { ...line, source, target };
+            this.drawn++;
         }
 
         this.host.requestFrame();
@@ -219,8 +265,25 @@ export class EdgeRowLines {
 
     /** Stop drawing every edge row here. */
     clear(): void {
-        for (const row of [...this.lines.keys()]) {
+        for (const row of this.drawnRows()) {
             this.unpaintRow(row);
         }
+
+        this.lines = [];
+    }
+
+    /**
+     * The rows a line list draws, in row order.
+     * @param lines - The list, by row.
+     * @returns Them.
+     */
+    private drawnRows(lines = this.lines): number[] {
+        const rows: number[] = [];
+        lines.forEach((line, row) => {
+            if (line !== undefined) {
+                rows.push(row);
+            }
+        });
+        return rows;
     }
 }

@@ -236,10 +236,16 @@ export const COMMUNITY_TASKS = [
                 JSON.stringify(layer.encode?.["node.color"] ?? {}).includes("conference"),
             );
             assert.isTrue(byConference, "no layer colors the teams by conference");
-            const shaped = layers.some((layer) =>
-                JSON.stringify(layer.encode?.["node.shape"] ?? {}).includes(`results.${run.id}.`),
-            );
-            assert.isTrue(shaped, "no layer gives each community a shape");
+            // Judged on the shapes the nodes get, not on how: one encode on the run, or one layer
+            // per community selecting it, are both right answers (#7186).
+            const shapeOf = new Map<string, string>();
+            for (const [id, group] of nodeValues(s, run.id, "group")) {
+                const shape = JSON.stringify(styleOf(s, id, "node.shape") ?? null);
+                const key = String(group);
+                assert.strictEqual(shapeOf.get(key) ?? shape, shape, `community ${key} has more than one shape`);
+                shapeOf.set(key, shape);
+            }
+            assert.isAbove(new Set(shapeOf.values()).size, 1, "no layer gives each community a shape");
         },
     }),
     defineTask({

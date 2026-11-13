@@ -488,6 +488,91 @@ describe("FlatMap tile recovery and edges", () => {
         // Without a DOM canvas the picture is loaded as it is.
         expect(tiles.requests.map((r) => r.url)).toEqual([expect.stringMatching(/natural-earth\.jpg$/)]);
     });
+
+    /**
+     * A DOM just big enough for the gray picture: a picture that loads (or fails) as soon as its
+     * `src` is set, and a canvas that turns it into a data URL.
+     * @param fails - Whether a picture fails to load.
+     * @returns How many pictures were loaded.
+     */
+    function grayDom(fails: () => boolean): { pictures: string[] } {
+        const pictures: string[] = [];
+        vi.stubGlobal(
+            "Image",
+            class {
+                naturalWidth = 2;
+                naturalHeight = 1;
+                onload: () => void = () => undefined;
+                onerror: () => void = () => undefined;
+                set src(url: string) {
+                    pictures.push(url);
+                    queueMicrotask(() => {
+                        if (fails()) {
+                            this.onerror();
+                        } else {
+                            this.onload();
+                        }
+                    });
+                }
+            },
+        );
+        vi.stubGlobal("document", {
+            createElement: () => ({
+                getContext: () => ({
+                    drawImage: () => undefined,
+                    getImageData: () => ({ data: new Uint8ClampedArray(8) }),
+                    putImageData: () => undefined,
+                }),
+                toDataURL: () => "data:image/jpeg;base64,gray",
+            }),
+        });
+        return { pictures };
+    }
+
+    it("makes a gray picture once however many copies of the world draw it", async () => {
+        const dom = grayDom(() => false);
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, {
+            sources: [{ image: "https://example.com/once.jpg", tone: "gray" }],
+            loadTexture: tiles.load,
+            // A box off the antimeridian: the one world drawn around it spans two copies.
+            frame: {
+                bounds: [
+                    [-125, 25],
+                    [-70, 50],
+                ],
+            },
+            beyond: "continue",
+        });
+        view(400);
+        map.update();
+        await settle();
+        expect(tiles.requests.length, "the world is drawn more than once").toBeGreaterThan(1);
+        expect(tiles.requests.map((r) => r.url)).toEqual(tiles.requests.map(() => "data:image/jpeg;base64,gray"));
+        expect(dom.pictures).toEqual(["https://example.com/once.jpg"]);
+    });
+
+    it("makes a gray picture again after it failed", async () => {
+        vi.useFakeTimers();
+        let failing = true;
+        const dom = grayDom(() => failing);
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, {
+            sources: [{ image: "https://example.com/again.jpg", tone: "gray" }],
+            loadTexture: tiles.load,
+        });
+        view(50);
+        map.update();
+        await settle();
+        expect(tiles.requests).toEqual([]);
+        failing = false;
+        // The failed picture's backoff, then the update its retry asks for.
+        await vi.runAllTimersAsync();
+        map.update();
+        await settle();
+        expect(dom.pictures).toEqual(["https://example.com/again.jpg", "https://example.com/again.jpg"]);
+        expect(tiles.requests.map((r) => r.url)).toEqual(["data:image/jpeg;base64,gray"]);
+    });
 });
 
 describe("Globe", () => {
@@ -651,6 +736,25 @@ describe("Globe", () => {
         expect(Math.max(...ys.map((b) => b.maximum.y))).toBeCloseTo(100);
         expect(Math.min(...ys.map((b) => b.minimum.y))).toBeCloseTo(-100);
         expect(globe.attribution).toEqual(["(c) OpenStreetMap contributors"]);
+        scene.getEngine().dispose();
+    });
+
+    it("fetches the root tile of a small globe once and keeps no second texture", async () => {
+        // A globe this far away wants only the root tile, which the pole caps also ask for: both
+        // asks once queued it twice, so it was fetched twice and the first picture never disposed.
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 5000, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const disposed = vi.spyOn(BaseTexture.prototype, "dispose");
+        const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load });
+        globe.update();
+        expect(tiles.requests.map((r) => r.url)).toEqual(["https://tile.openstreetmap.org/0/0/0.png"]);
+        await tiles.answerAll();
+        globe.update();
+        expect(tiles.requests).toHaveLength(0);
+        expect(disposed).not.toHaveBeenCalled();
+        globe.dispose();
+        expect(disposed).toHaveBeenCalledTimes(1);
         scene.getEngine().dispose();
     });
 

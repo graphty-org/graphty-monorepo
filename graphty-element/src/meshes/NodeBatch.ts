@@ -69,7 +69,8 @@ export class NodeBatch {
     /** Each slot's draw key, kept through a hole so a returning row keeps its place. */
     private keys = new Float64Array(FIRST_CAPACITY);
     private colors = new Float32Array(FIRST_CAPACITY * COLOR_FLOATS);
-    private matrices = identities(FIRST_CAPACITY);
+    /** Each slot's matrix, or none while every row is unscaled: 20 bytes a row instead of 84. */
+    private matrices: Float32Array<ArrayBuffer> | undefined;
     private unsorted = false;
     private rowsDirty = false;
     private colorsDirty = false;
@@ -88,7 +89,7 @@ export class NodeBatch {
         source.geometry?.copy(`${source.name}-batch-geometry-${String(this.mesh.uniqueId)}`).applyToMesh(this.mesh);
         this.mesh.material = source.material;
         this.mesh.parent = root;
-        this.mesh.metadata = { rowPlaces: places };
+        this.mesh.metadata = { rowPlaces: places, rowUnscaled: true };
         this.mesh.alwaysSelectAsActiveMesh = true;
         this.mesh.doNotSyncBoundingInfo = true;
         this.mesh.isPickable = false;
@@ -155,8 +156,9 @@ export class NodeBatch {
         }
 
         const m = slot * MATRIX_FLOATS;
-        if (this.matrices[m] !== Math.fround(scale)) {
-            this.matrices[m] = this.matrices[m + 5] = this.matrices[m + 10] = scale;
+        const matrices = this.matrices ?? (Math.fround(scale) === 1 ? undefined : this.scaleRows());
+        if (matrices !== undefined && matrices[m] !== Math.fround(scale)) {
+            matrices[m] = matrices[m + 5] = matrices[m + 10] = scale;
             this.matricesDirty = true;
         }
     }
@@ -195,14 +197,14 @@ export class NodeBatch {
 
         if (this.rowsDirty || whole) {
             this.mesh.thinInstanceBufferUpdated("graphtyRow");
-            this.mesh.thinInstanceCount = this.slots;
+            this.setCount();
         }
 
         if (this.colorsDirty || whole) {
             this.mesh.thinInstanceBufferUpdated("color");
         }
 
-        if (this.matricesDirty || whole) {
+        if (this.matrices !== undefined && (this.matricesDirty || whole)) {
             this.mesh.thinInstanceBufferUpdated("matrix");
         }
 
@@ -236,14 +238,14 @@ export class NodeBatch {
         live.sort((a, b) => a.key - b.key);
         const { colors, matrices } = this;
         this.colors = new Float32Array(colors.length);
-        this.matrices = identities(this.rows.length);
+        this.matrices = matrices === undefined ? undefined : identities(this.rows.length);
         this.slotOf.clear();
         live.forEach(({ row, key, from }, slot) => {
             this.rows[slot] = row;
             this.keys[slot] = key;
             this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
-            this.matrices.set(
-                matrices.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS),
+            this.matrices?.set(
+                matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
                 slot * MATRIX_FLOATS,
             );
             this.slotOf.set(row, slot);
@@ -274,17 +276,55 @@ export class NodeBatch {
         this.colors = new Float32Array(next * COLOR_FLOATS);
         this.colors.set(colors);
         const { matrices } = this;
-        this.matrices = identities(next);
-        this.matrices.set(matrices);
+        if (matrices !== undefined) {
+            this.matrices = identities(next);
+            this.matrices.set(matrices);
+        }
+
         this.setBuffers();
     }
 
-    /** Hand the arrays to Babylon, which draws `thinInstanceCount` of them. */
+    /** Hand the arrays to Babylon. */
     private setBuffers(): void {
-        this.mesh.thinInstanceSetBuffer("matrix", this.matrices, MATRIX_FLOATS, false);
+        if (this.matrices !== undefined) {
+            this.mesh.thinInstanceSetBuffer("matrix", this.matrices, MATRIX_FLOATS, false);
+        }
+
         this.mesh.thinInstanceSetBuffer("color", this.colors, COLOR_FLOATS, false);
         this.mesh.thinInstanceSetBuffer("graphtyRow", this.rows, 1, false);
-        this.mesh.thinInstanceCount = this.slots;
+        this.setCount();
+    }
+
+    /**
+     * Draw the slots: Babylon counts thin instances by their matrices, so a batch with none
+     * forces the count.
+     */
+    private setCount(): void {
+        if (this.matrices === undefined) {
+            this.mesh.forcedInstanceCount = this.slots;
+        } else {
+            this.mesh.thinInstanceCount = this.slots;
+        }
+    }
+
+    /**
+     * A row is scaled: give every slot a matrix, for good, and have the material read them again
+     * (it is frozen, so it would not look at this mesh's defines on its own).
+     * @returns The matrices.
+     */
+    private scaleRows(): Float32Array<ArrayBuffer> {
+        const matrices = identities(this.rows.length);
+        this.matrices = matrices;
+        this.mesh.metadata = { ...(this.mesh.metadata as object), rowUnscaled: false };
+        this.mesh.forcedInstanceCount = 0;
+        for (const subMesh of this.mesh.subMeshes ?? []) {
+            subMesh.materialDefines?.markAllAsDirty();
+            subMesh.resetDrawCache();
+        }
+
+        this.setBuffers();
+        this.matricesDirty = true;
+        return matrices;
     }
 }
 
@@ -643,6 +683,12 @@ export class NodeBatches {
     private readonly objectRows = new Set<BatchRow>();
     /** The rows drawn with no `Node`, by row. */
     private readonly columnRows = new Map<number, ColumnRow>();
+
+    /**
+     * Whether any row drawn with no `Node` has been painted below z-index 0, which a 2D view draws behind edges.
+     * It stays set once set: while it is unset, an edge's paint reads no end's look (`UpdateManager.endBehindEdges`).
+     */
+    paintedBehindEdges = false;
     /** The look a row stored with no `Node` has until its first paint, and its source. */
     private storedLook: RowLook | null = null;
     /** The nodes a frame's walk still visits: every member a batch does not draw, and any with an overlay. */
@@ -890,6 +936,7 @@ export class NodeBatches {
         );
         const row = new ColumnRow(index, paint, source, sourcePaint);
         this.columnRows.set(index, row);
+        this.paintedBehindEdges ||= (paint.style.shape?.zIndex ?? 0) < 0;
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);
         if (had === undefined || !sameSize(had, row)) {

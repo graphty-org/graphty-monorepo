@@ -244,6 +244,8 @@ Each: signal, meaning, action. Add to this list (see the next section).
   file finds these every round.
 - **An issue or comment from an untrusted account** (the tool drops or withholds it). No agent reads it, by any
   route. The owner decides whether to adopt it; he can re-file it.
+- **The loop stopped running.** CronCreate jobs expire 7 days after they are created (the 2026-10-31 loop ran its last
+  round 2026-11-07 and nobody noticed for four days). Start it again and follow "Renewing the loop" in the shared file.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, `ci-budget`, the Release
   status issue, `Release held:`, `Nightly held on` and `Nightly missed slot` issues and `lane red on master` issues
   (pipeline-round's alarms; the tool drops them). An issue waiting on owner-only code carries `hold` or `blocked`
@@ -253,12 +255,13 @@ Each: signal, meaning, action. Add to this list (see the next section).
 
 When a round meets something this file or `shared.md` does not cover, or a step turns out wrong: handle it, then fix
 the file -- a new "Known situations" entry or a corrected step -- on a branch
-(`./tools/worktree-new.sh docs/issue-round-<topic> --issue <N>`), and open its pull request with `tools/pr-open.sh`. A rule both skills need goes in `shared.md`. Never work around the skill in
+(`./tools/worktree-new.sh chore/issue-round-<topic> --issue <N>`), and open its pull request with `tools/pr-open.sh`. A rule both skills need goes in `shared.md`. Never work around the skill in
 the session or in memory only. Keep it a checklist: no daemons, no scripts of its own, and no state files beyond the cluster cache.
 
 ## Running it
 
-One session runs this skill at a time; a /loop expires after seven days, and stopping the loop pauses it.
+One session runs this skill at a time; a /loop expires after seven days unless each round renews it (shared file,
+"Renewing the loop"), and stopping the loop pauses it.
 
 - **Normal:** with pipeline-round. Two clients, `/loop 30m /issue-round` here and `/loop 30m /pipeline-round` in the
   other; or one client, `/loop 30m run /pipeline-round, then /issue-round` (this skill always second).

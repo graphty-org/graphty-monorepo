@@ -244,7 +244,7 @@ master:
   integrity and the breaking-change rule.
 - **What its runs get.** A `pull_request` run that Dependabot triggers has a read-only `GITHUB_TOKEN`,
   only Dependabot secrets, and no OIDC token. So it reads no remote cache (builds without it), and
-  posts no store record (spooled; the backfill job, which runs on master's ref, posts it as kind `pr`).
+  posts no store record.
   Both fail open: longer, never looser. A read-only cache token may be added as a Dependabot secret
   later if those runs are too slow.
 - **GitHub Actions updates** touch `.github/workflows/`, so each waits for the owner's review, by

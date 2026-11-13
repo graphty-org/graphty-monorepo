@@ -1506,6 +1506,14 @@ object per element. Stages 26 to 28 remove that reason.
   raised, 1M + 10k and 1M + 1M load in about 5.4 s and 11-12.5 s, holding 753-776 MB and 1,296-1,308 MB of heap after a
   forced collection (cosmos-gap.md G9, `benchmarks/results/cosmos-gap/`). G11 still has a target to meet (800 MB at
   1M + 1M); what it no longer has to do is make the load possible.
+- **G11, first pull request** (corrections from the 2026-11-11 heap snapshots, `tmp/cosmos-profile-4/runs/`). The
+  pulled-line batch now keeps its index list on the GPU only (120 B an edge; a restored context indexes it again).
+  The caller's `nodeData` and `edgeData` arrays (72 B a node, 24 B an edge) are not kept by the add mutation's own
+  code: they are kept by the session journal, whose entry holds "the command, exactly as it ran" (`JournalEntry.command`,
+  public, at least the newest entry since `journal.cap` is at least 1), and were also kept by an abort listener the
+  dispatcher left on a long-lived caller signal (fixed, both render paths). Releasing them means the journal entry of
+  an add stops holding its records, a change to what a public API returns, so it waits for that decision. `groupOf`
+  is keyed by the node object, not by id; the row-indexed typed arrays for it and `slotOf` are the next pull request.
 - With `"batched"`, that option loads a million nodes. `"objects"` with a higher limit refuses with `E_TOO_LARGE`: its heap reason stands.
   **The default stays 100,000** (section 10).
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or

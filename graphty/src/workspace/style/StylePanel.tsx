@@ -18,6 +18,7 @@ import { type CardField, isBlankRow, selectionName, writeKind } from "./cards";
 import { GroupDetail } from "./Groups";
 import { LabelSection } from "./LabelSection";
 import { PartsPanel } from "./parts/PartsPanel";
+import { ruleLine } from "./parts/ruleLine";
 import type { RowContext } from "./PropertyRow";
 import {
     beneathOf,
@@ -180,6 +181,7 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
                 rows={[rowId]}
                 side={side}
                 autoOpen={justOn || isBlankRow(session, rowId)}
+                {...(side === "node" && fileStylesOn(session) ? { summary: ruleLine } : {})}
                 {...elsewhere}
             />
         ),

@@ -251,6 +251,30 @@ describe("the node tab by part of the drawing", () => {
         });
     });
 
+    it("the rule line reads class is Tool or Input", async () => {
+        const kinds = (name: string, color: string): LayerSpec => ({
+            name,
+            target: "node",
+            selector: {
+                match: "rule",
+                where: { kind: "categories", attribute: "data.class", values: ["Tool", "Input"] },
+            },
+            set: { "node.color": color },
+        });
+        const session = await openProject([kinds("One", "#ff0000"), kinds("Two", "#0000ff")]);
+        const folder = await session.styles.addFolder("Kinds");
+        for (const layer of session.styles.list().filter((each) => ["One", "Two"].includes(each.name ?? ""))) {
+            await session.styles.moveRow(layer.row ?? layer.id, { parent: folder.id });
+        }
+        await session.styles.settled();
+        const tab = await openStyle("Kinds");
+        const row = await within(tab).findByRole("button", { name: /^Which nodes, / });
+        await waitFor(() => {
+            assert.include(row.textContent, "class is Tool or Input");
+        });
+        assert.match(row.getAttribute("aria-label") ?? "", /class is Tool or Input$/);
+    });
+
     it("Hide in Visibility hides the layer's nodes", async () => {
         const session = await openProject([everyNode("Key", { "node.shape": "box" })]);
         const tab = await openStyle("Key");

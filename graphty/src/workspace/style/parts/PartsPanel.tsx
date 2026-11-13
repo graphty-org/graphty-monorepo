@@ -10,6 +10,7 @@ import type { Channel } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React from "react";
 
+import { findTreeRow } from "../../graph-place/rows";
 import { LabelSection } from "../LabelSection";
 import type { RowContext } from "../PropertyRow";
 import { Section } from "../Section";
@@ -23,7 +24,11 @@ import { itemChannels, PART_WORDS, PARTS, type PartSpec } from "./parts";
  * @returns the channels.
  */
 function writesOf(session: GraphSession, ctx: RowContext): ReadonlySet<Channel> {
-    const rows = [...new Set(ctx.layers.map((layer) => layer.row ?? layer.id))];
+    // The element's own base layers are no row of the tree: they write nothing a reader set.
+    const tree = session.styles.tree();
+    const rows = [...new Set(ctx.layers.map((layer) => layer.row ?? layer.id))].filter(
+        (id) => findTreeRow(tree, id) !== undefined,
+    );
     return new Set(rows.length === 0 ? [] : session.styles.layersUnder(rows).flatMap((reach) => reach.writes));
 }
 

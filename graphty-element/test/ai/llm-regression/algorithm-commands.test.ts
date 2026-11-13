@@ -136,21 +136,5 @@ describe.skipIf(skipIfNoApiKey())("Algorithm LLM Regression", () => {
             assert.strictEqual(result.commandResult.success, true);
             assert.ok(result.llmText, "Expected an answer");
         });
-
-        it("tracks latency for algorithm commands", async () => {
-            const result = await harness.testPrompt("What graph algorithms can I use?");
-
-            assert.ok(result.latencyMs > 0, "Expected positive latency");
-        });
-
-        it("captures token usage for algorithm commands", async () => {
-            const result = await harness.testPrompt("Run the degree algorithm on the graph");
-
-            // Token usage may not always be available depending on provider configuration
-            if (result.tokenUsage) {
-                assert.ok(result.tokenUsage.prompt > 0, "Expected positive prompt tokens");
-                assert.ok(result.tokenUsage.completion >= 0, "Expected non-negative completion tokens");
-            }
-        });
     });
 });

@@ -25,14 +25,12 @@ import { PatternedLineRenderer } from "../src/meshes/PatternedLineRenderer";
  *
  * WHO FIXES IT. A renderer-imposed ceiling was tried and removed: it bought frame rate by
  * silently drawing something other than what the caller asked for, which is the renderer making
- * a visual decision that belongs to the caller. The count is the caller's, through
- * `line.patternCount`. Unset, the spacing rule applies: one and a half element widths, but no
- * closer than a default-width line's spacing (0.3 world units), so a line thinner than the
- * default draws smaller elements, not more of them (issue #7404: a width-0.5 diamond line drew
- * about 1,000 pieces per edge and took seconds per frame).
+ * a visual decision that belongs to the caller. The count is now the caller's, through
+ * `line.patternCount`. Unset, the spacing rule applies exactly as it always has, so existing
+ * graphs and stories render unchanged.
  *
- * These tests pin both halves: the spacing rule grows with length but not as the width shrinks,
- * and an explicit count overrides it for every discrete pattern type and spaces evenly. Connected
+ * These tests pin both halves: the spacing rule is the historical one and stays unbounded, and
+ * an explicit count overrides it for every discrete pattern type and spaces evenly. Connected
  * patterns (zigzag, sinewave) ignore it and always tile the whole line.
  */
 
@@ -43,8 +41,8 @@ function patternWidthForStyleWidth(styleWidth: number): number {
 
 describe("patterned line element count", () => {
     describe("the spacing rule (line.patternCount unset)", () => {
-        test("is one and a half element widths at or above the default width", () => {
-            for (const meshWidth of [0.2, 0.5, 1]) {
+        test("is the historical period: one and a half element widths", () => {
+            for (const meshWidth of [0.025, 0.1, 0.2, 1]) {
                 assert.closeTo(
                     patternElementPeriod(meshWidth),
                     meshWidth * 1.5,
@@ -54,26 +52,7 @@ describe("patterned line element count", () => {
             }
         });
 
-        test("is never closer than a default-width line's spacing", () => {
-            for (const meshWidth of [0, 0.0125, 0.025, 0.1]) {
-                assert.closeTo(patternElementPeriod(meshWidth), 0.3, 1e-12, `period at element width ${meshWidth}`);
-            }
-        });
-
-        test("does not multiply the elements as the width shrinks", () => {
-            for (const length of [5, 20, 80]) {
-                const atDefault = discreteMeshCount(length, patternWidthForStyleWidth(8));
-                for (const styleWidth of [0.5, 1, 4]) {
-                    assert.isAtMost(
-                        discreteMeshCount(length, patternWidthForStyleWidth(styleWidth)),
-                        atDefault + 1,
-                        `length ${length}, style width ${styleWidth}`,
-                    );
-                }
-            }
-        });
-
-        test("grows with the line length", () => {
+        test("grows with the line length, with no ceiling", () => {
             const meshWidth = patternWidthForStyleWidth(1);
             const short = discreteMeshCount(5, meshWidth);
             const long = discreteMeshCount(20, meshWidth);
@@ -81,9 +60,9 @@ describe("patterned line element count", () => {
 
             assert.isAbove(long, short, "a longer line must take more elements");
             assert.isAbove(longer, long, "and longer still, more again");
-            // 0.3 apart, not the 0.0375 of one and a half width-1 elements (133 and 533 before issue #7404)
-            assert.equal(short, 17);
-            assert.equal(long, 67);
+            // the historical numbers, which are what makes the stories render as they did
+            assert.equal(short, 133);
+            assert.equal(long, 533);
         });
 
         test("puts the first and last elements on the line's ends, evenly spaced between", () => {

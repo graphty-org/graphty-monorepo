@@ -1052,36 +1052,45 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
         const rejected = (fact: CodedFact): AssetRecord =>
             record({ id, digest: "", byteLength: 0, format: "", state: "rejected", problems: [fact] });
-        const entry: Entry = {
-            record: record({ id, digest: "", byteLength: 0, format: "", state: "pending", problems: [] }),
-            settled: Promise.resolve(undefined as unknown as AssetRecord),
-        };
-        samples.set(id, entry);
-        entry.settled = (async () => {
-            const name = id.slice(SAMPLE_PREFIX.length);
-            const table = (await loadSamples()).SAMPLE_MODEL_URLS;
-            const url = Object.hasOwn(table, name) ? table[name] : undefined;
-            if (url === undefined) {
-                samples.delete(id);
-                return rejected({ code: "E_MODEL_UNKNOWN_ASSET", params: { id } });
-            }
-
+        const name = id.slice(SAMPLE_PREFIX.length);
+        // Any failure forgets the entry, so a later call tries again instead of reading a cached failure.
+        const settled = (async (): Promise<AssetRecord> => {
+            let status: number | null = null;
             let bytes: Uint8Array;
             try {
+                const table = (await loadSamples()).SAMPLE_MODEL_URLS;
+                const url = Object.hasOwn(table, name) ? table[name] : undefined;
+                if (url === undefined) {
+                    samples.delete(id);
+                    return rejected({ code: "E_MODEL_UNKNOWN_ASSET", params: { id } });
+                }
+
                 const response = await fetch(url);
                 if (!response.ok) {
-                    throw new Error(String(response.status));
+                    ({ status } = response);
+                    throw new Error(String(status));
                 }
 
                 bytes = new Uint8Array(await response.arrayBuffer());
             } catch {
-                samples.delete(id); // A later call tries again.
-                return rejected({ code: "E_MODEL_FETCH", params: { url: id, status: null, offline: false } });
+                samples.delete(id);
+                const offline =
+                    status === null && (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
+                return rejected({ code: "E_MODEL_FETCH", params: { url: id, status, offline } });
             }
 
-            return intake(new Map([[`${name}.glb`, bytes]]), { name: id }, undefined, true);
+            try {
+                return await intake(new Map([[`${name}.glb`, bytes]]), { name: id }, undefined, true);
+            } catch (error) {
+                samples.delete(id);
+                throw error;
+            }
         })();
-        return entry.settled;
+        samples.set(id, {
+            record: record({ id, digest: "", byteLength: 0, format: "", state: "pending", problems: [] }),
+            settled,
+        });
+        return settled;
     };
 
     /**

@@ -471,14 +471,14 @@ function sniffXgmml(head: Uint8Array): number {
     if (XGMML_DOCTYPE.test(text)) {
         return 0.95;
     }
-    const root = /<(?![?!])([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(
-        text.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""),
-    );
+    // search and slice the same comment-free text, so the root's offset stays valid
+    const body = text.replaceAll(/<!--[\s\S]*?(-->|$)/g, "");
+    const root = /<(?![?!])([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(body);
     if (root?.[2] !== "graph") {
         return 0;
     }
-    const tagEnd = text.indexOf(">", root.index);
-    const tag = text.slice(root.index, tagEnd < 0 ? undefined : tagEnd);
+    const tagEnd = body.indexOf(">", root.index);
+    const tag = body.slice(root.index, tagEnd < 0 ? undefined : tagEnd);
     // the XGMML namespace declared on the root, as a whole attribute value
     const namespaces = [...tag.matchAll(/\bxmlns(?::[\w.-]+)?\s*=\s*(["'])([^"']*)\1/g)].map((m) => m[2]);
     return namespaces.includes(XGMML_NAMESPACE) ? 0.95 : 0.5;

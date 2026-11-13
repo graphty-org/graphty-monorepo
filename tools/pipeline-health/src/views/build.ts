@@ -3,24 +3,26 @@
 // 28 d, and Issues at 28 d and all (from the stored issues themselves). States, setters and episodes are the
 // engine's; this only lays them out and reads values for each range.
 
-import type {
-    CategoryStatus,
-    Episode,
-    Fact,
-    IssueRange,
-    Member,
-    MemberId,
-    MemberRef,
-    OverviewResponse,
-    PageId,
-    PageResponse,
-    Range,
-    Section,
-    SectionResponse,
-    SlowRange,
-    SourceAge,
-    SourceId,
-    StatusResponse,
+import {
+    type CategoryStatus,
+    type Episode,
+    type Fact,
+    ISSUE_RANGES,
+    type Member,
+    type MemberId,
+    type MemberRef,
+    type OverviewResponse,
+    type PageId,
+    type PageResponse,
+    type Range,
+    RANGES,
+    type Section,
+    type SectionResponse,
+    SLOW_RANGES,
+    type SlowRange,
+    type SourceAge,
+    type SourceId,
+    type StatusResponse,
 } from "../../web/src/contract.js";
 import type { Store } from "../model/store.js";
 import { type SlaConfig, SLAS } from "../sla/config.js";
@@ -66,12 +68,9 @@ export interface View {
     body: ViewBody;
 }
 
-export const RANGES: Range[] = ["1h", "6h", "24h"];
-export const SLOW_RANGES: SlowRange[] = ["7d", "28d"];
 type CategoryPage = (typeof CATEGORY)[string];
 /** The pages built from members and their sections at 1 h, 6 h and 24 h (not Costs, not Issues). */
 type JudgedPage = Exclude<PageId, "overview" | "costs" | "issues">;
-export const ISSUE_RANGES: IssueRange[] = ["28d", "1h", "6h", "1d", "7d", "all"];
 
 /** The members of Runners (section 2.6): the runner rows of CI. */
 /**

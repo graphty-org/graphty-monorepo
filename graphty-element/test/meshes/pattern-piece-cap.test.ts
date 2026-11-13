@@ -21,14 +21,11 @@ describe("the piece count of a discrete pattern", () => {
         }
     });
 
-    test("stops at the cap for a huge length or a huge pattern count", () => {
+    test("stops at the cap for a huge length, a zero element width or a huge pattern count", () => {
         assert.strictEqual(discreteMeshCount(1e12, 0.5), CAP);
+        assert.strictEqual(discreteMeshCount(10, 0), CAP);
         assert.strictEqual(discreteMeshCount(10, 0.5, Number.POSITIVE_INFINITY), CAP);
         assert.strictEqual(discreteMeshCount(10, 0.5, 1e9), CAP);
-    });
-
-    test("is a few dozen for a zero element width, spaced as a default-width line (issue #7404)", () => {
-        assert.strictEqual(discreteMeshCount(10, 0), 34);
     });
 
     test("is unchanged for realistic lengths", () => {
@@ -36,7 +33,7 @@ describe("the piece count of a discrete pattern", () => {
         for (const [length, width] of [
             [10, 0.2],
             [300, 0.2],
-            [2000, 0.5],
+            [2000, 0.025],
             [19000, 0.2],
         ] as const) {
             const expected = 2 + Math.max(0, Math.floor((length - 2 * width - 0.5 * width) / (1.5 * width)));

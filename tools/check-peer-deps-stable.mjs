@@ -136,10 +136,14 @@ export function breaksScope(subject, body, scopes) {
  */
 export function declaresPeerChange(message, scopes, problem) {
     if (!problem.peer) return false;
-    for (const [, pkg, peer, from, to] of message.matchAll(
-        /^Peer-Change:\s*(\S+)\s+(\S+)\s+(.+?)\s+->\s+(.+?)\s*$/gm,
-    )) {
-        if (scopes.includes(pkg) && peer === problem.peer && from === problem.from && to === problem.to) return true;
+    const prefix = "Peer-Change:";
+    for (const line of message.split("\n")) {
+        if (!line.startsWith(prefix)) continue;
+        const [left, to, extra] = line.slice(prefix.length).split(" -> ");
+        if (to === undefined || extra !== undefined) continue;
+        const [pkg, peer, ...from] = left.trim().split(" ");
+        if (!scopes.includes(pkg) || peer !== problem.peer) continue;
+        if (from.join(" ") === problem.from && to.trim() === problem.to) return true;
     }
     return false;
 }

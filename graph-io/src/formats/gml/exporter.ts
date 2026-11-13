@@ -23,6 +23,7 @@ import {
     type ColumnMeta,
     GraphFormatError,
     type GraphSnapshot,
+    INVALID_INDEX,
     type JsonColumn,
     type NodeId,
 } from "@graphty/graph-format";
@@ -71,7 +72,7 @@ export interface GmlExportOptions extends CommonExportOptions {
     weightKey?: string | undefined;
     /**
      * What to do with an attribute name or record key that GML cannot write: one that is not a GML
-     * key (letters, digits and `_`, starting with a letter, so `Edge Label` is not one), or one that
+     * key (letters, digits and `_`, starting with a letter or `_`, so `Edge Label` is not one), or one that
      * GML uses itself in that record: `id` for a node attribute; `source`, `target` and `directed`
      * for an edge attribute; `node`, `edge`, `directed` and `multigraph` for a graph attribute. A node
      * attribute named `source` is fine. "error" makes the save fail, "mangle" rewrites the name (`.`
@@ -1577,10 +1578,9 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
      */
     check(snapshot: GraphSnapshot, options?: GmlWriteOptions): readonly LossNote[] {
         const styled = gmlStyledExport(snapshot, options?.styles);
-        if (styled === null) {
-            return check(snapshot, options);
-        }
-        return Object.freeze([...check(styled.snapshot, options), ...styled.notes]);
+        const graph = styled?.snapshot ?? snapshot;
+        const notes = check(ogdfClusters(graph)?.rest ?? graph, options);
+        return styled === null ? notes : Object.freeze([...notes, ...styled.notes]);
     },
     /**
      * Write the snapshot as UTF-8 chunks; the context is resolved on the first pull, so the
@@ -1611,5 +1611,157 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
  * @returns nothing
  */
 function* lazyParts(snapshot: GraphSnapshot, options: GmlWriteOptions | undefined): Generator<string, void, undefined> {
-    yield* gmlParts(contextOf(gmlStyledExport(snapshot, options?.styles)?.snapshot ?? snapshot, options));
+    const graph = gmlStyledExport(snapshot, options?.styles)?.snapshot ?? snapshot;
+    const clusters = ogdfClusters(graph);
+    const context = contextOf(clusters?.rest ?? graph, options);
+    yield* gmlParts(context);
+    if (clusters !== null) {
+        yield rootClusterText(clusters, context);
+    }
+}
+
+// ============================================================ OGDF clusters
+
+/** OGDF's clusters the importer read as group nodes, and the graph without them. */
+interface OgdfClusters {
+    /** The graph the clusters were read into. */
+    readonly full: GraphSnapshot;
+    /** The graph without the cluster nodes: the `graph [ ... ]` block is written from it. */
+    readonly rest: GraphSnapshot;
+    /** A node of `full` -> its node in `rest`, INVALID_INDEX for a cluster. */
+    readonly remap: Uint32Array;
+    /** The parent column of `full`. */
+    readonly parent: Column;
+    /** The cluster nodes of `full`. */
+    readonly rows: ReadonlySet<number>;
+}
+
+/**
+ * The group nodes the GML importer read from OGDF's `rootcluster` (ids `cluster<id>`, a parent column from
+ * `rootcluster`), which the exporter writes back as a `rootcluster` record rather than as nodes. Null when there are
+ * none, or when a group is not one the importer can have made (another id, or an edge of its own), so it is written
+ * as a node like any other.
+ * @param snapshot - the graph
+ * @returns the clusters, or null
+ */
+function ogdfClusters(snapshot: GraphSnapshot): OgdfClusters | null {
+    const parent = snapshot.nodes.byRole("parent");
+    if (parent?.meta.origin?.type !== "rootcluster") {
+        return null;
+    }
+    const rows = new Set<number>();
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        if (parent.isSet(i)) {
+            rows.add(parent.value(i) as number);
+        }
+    }
+    const el = snapshot.edgeList();
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (rows.has(el.src[e]) || rows.has(el.dst[e])) {
+            return null;
+        }
+    }
+    const keep: number[] = [];
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        if (!rows.has(i)) {
+            keep.push(i);
+            continue;
+        }
+        const id = snapshot.ids.idOf(i);
+        if (typeof id !== "string" || !id.startsWith(CLUSTER_ID_PREFIX)) {
+            return null;
+        }
+    }
+    // the rootcluster record holds the nesting, so the graph block is written without the parent column
+    const rest = snapshot.inducedSubgraph(Uint32Array.from(keep)).snapshot.withColumns();
+    rest.nodes.remove(parent.meta.name);
+    const remap = new Uint32Array(snapshot.nodeCount).fill(INVALID_INDEX);
+    keep.forEach((row, k) => (remap[row] = k));
+    return { full: snapshot, rest, remap, parent, rows };
+}
+
+/** The id prefix the GML importer gives an OGDF cluster's group node. */
+const CLUSTER_ID_PREFIX = "cluster";
+
+/**
+ * Write OGDF's cluster tree as the importer reads it: each cluster with its id, label, box (x, y its top-left corner,
+ * width and height) and graphics (`outline` as `color`, the shape `type` as `style`, `clusterStipple` as `stipple`),
+ * its `vertex` nodes by their written ids and its child clusters.
+ * @param clusters - the clusters
+ * @param context - the context the graph block was written with
+ * @returns the `rootcluster [ ... ]` text
+ */
+function rootClusterText(clusters: OgdfClusters, context: WriteContext): string {
+    const { full, parent, rows, remap } = clusters;
+    const children = new Map<number, number[]>();
+    const top: number[] = [];
+    for (let i = 0; i < full.nodeCount; i++) {
+        const into = parent.isSet(i) ? (parent.value(i) as number) : INVALID_INDEX;
+        if (into !== INVALID_INDEX) {
+            const list = children.get(into) ?? [];
+            list.push(i);
+            children.set(into, list);
+        } else if (rows.has(i)) {
+            top.push(i);
+        }
+    }
+    const w = new GmlWriter(context.plan.mangle);
+    const label = full.nodes.byRole("label");
+    const position = positionColumn(full);
+    const graphics = graphicsColumn(full);
+    const write = (row: number, indent: string): void => {
+        w.raw(`${indent}cluster [`);
+        const inner = `${indent}  `;
+        const own = String(full.ids.idOf(row)).slice(CLUSTER_ID_PREFIX.length);
+        w.line(inner, "id", /^-?\d+$/.test(own) ? own : quoteGmlString(own));
+        if (label?.isSet(row) === true) {
+            w.line(inner, "label", quoteGmlString(String(label.value(row))));
+        }
+        const box = clusterGraphics(graphics?.isSet(row) ? graphics.values[row] : undefined, position, row);
+        if (box !== null) {
+            w.record(inner, "graphics", box, "graphics");
+        }
+        for (const child of children.get(row) ?? []) {
+            if (rows.has(child)) {
+                write(child, inner);
+            } else {
+                w.line(inner, "vertex", quoteGmlString(String(context.ids.idAt(remap[child]))));
+            }
+        }
+        w.raw(`${indent}]`);
+    };
+    w.raw("rootcluster [");
+    for (const row of top) {
+        write(row, "  ");
+    }
+    w.raw("]");
+    return w.take();
+}
+
+/**
+ * A cluster's graphics record as OGDF writes it, from the node's graphics json and position (its center).
+ * @param value - the graphics json value, if set
+ * @param position - the position column
+ * @param row - the cluster's node
+ * @returns the record, or null when there is nothing to write
+ */
+function clusterGraphics(value: unknown, position: Column | null, row: number): Record<string, unknown> | null {
+    const g =
+        typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const { w, h, outline, type, clusterStipple, ...rest } = g;
+    const out: Record<string, unknown> = {};
+    const center = position?.isSet(row) === true ? (position.value(row) as ArrayLike<number>) : null;
+    if (center !== null && typeof w === "number" && typeof h === "number") {
+        Object.assign(out, { x: center[0] - w / 2, y: center[1] - h / 2, width: w, height: h });
+    } else {
+        Object.assign(out, w === undefined ? {} : { w }, h === undefined ? {} : { h });
+    }
+    Object.assign(
+        out,
+        rest,
+        outline === undefined ? {} : { color: outline },
+        type === undefined ? {} : { style: type },
+        clusterStipple === undefined ? {} : { stipple: clusterStipple },
+    );
+    return Object.keys(out).length === 0 ? null : out;
 }

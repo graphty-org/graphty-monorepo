@@ -74,7 +74,8 @@ export const ORIGINAL_ID_KEY = "graphty_originalId";
 
 /**
  * The text breaks the format's syntax: a word that is not a key or a number, an unclosed string or `[`, a `]` with no
- * open `[`, or a key without a value. The message says where. The import stops.
+ * open `[`, a key without a value, or records nested more than `MAX_GML_DEPTH` levels deep. The message says where.
+ * The import stops.
  * @category Issue and loss codes
  */
 export const SYNTAX_STRUCTURE_CODE = SYNTAX_CODE;
@@ -93,13 +94,21 @@ export const SYNTAX_STRING_CODE = SYNTAX_CODE;
  * @category Issue and loss codes
  */
 export const SYNTAX_BRACKET_CODE = SYNTAX_CODE;
+/**
+ * The code of records nested deeper than `MAX_GML_DEPTH` levels (E_SYNTAX).
+ * @category Issue and loss codes
+ */
+export const SYNTAX_DEPTH_CODE = SYNTAX_CODE;
+/** The deepest nesting of `[ ... ]` records graph-io reads (the same limit as DOT's subgraphs). */
+const MAX_GML_DEPTH = 1024;
 
 const KEY_TEXT = /^[A-Za-z_]\w*$/;
-const STRICT_KEY_TEXT = /^[A-Za-z]\w*$/;
 const INT_TEXT = /^[+-]?\d+$/;
 const REAL_TEXT = /^[+-]?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)$/;
 const NON_FINITE_TEXT = /^[+-]?(?:inf|infinity|nan)$/i;
 const NON_FINITE_WORD = /^(?:inf|infinity|nan)$/i;
+/** The keys whose bare-word value is read as text: Gephi's unquoted `Creator`, and the bare-word ids Gephi and OGDF files hold. */
+const BARE_WORD_KEYS: ReadonlySet<string> = new Set(["Creator", "id", "source", "target"]);
 
 /**
  * A lexical or structural error of a GML text, with the 1-based line it was found on. The importer
@@ -534,6 +543,13 @@ function validateStructure(tokens: GmlTokens): void {
             );
         }
         if (checkValue(tokens, i) === TOKEN_OPEN) {
+            if (stack.length >= MAX_GML_DEPTH) {
+                throw new GmlSyntaxError(
+                    SYNTAX_DEPTH_CODE,
+                    `records nested more than ${String(MAX_GML_DEPTH)} levels deep at line ${tokens.line[value]}`,
+                    tokens.line[value],
+                );
+            }
             stack.push(value);
         }
         i = value + 1;
@@ -551,7 +567,8 @@ function validateStructure(tokens: GmlTokens): void {
 
 /**
  * Checks the value of a key: a number, a string, `INF` / `NAN` or an opening bracket. Gephi writes its name
- * unquoted (`Creator Gephi`): the word is read as the string it means.
+ * unquoted (`Creator Gephi`), and Gephi and OGDF files hold bare-word ids (`id A`, `source fooBar`): the word is read
+ * as the string it means.
  * @param tokens - the lexed tokens
  * @param key - the key's token index (its value follows it)
  * @returns the value's kind
@@ -560,7 +577,7 @@ function checkValue(tokens: GmlTokens, key: number): TokenKind {
     const { kind } = tokens;
     const value = key + 1;
     const word = kind[value] === TOKEN_WORD && !NON_FINITE_WORD.test(tokens.textOf(value));
-    if (word && tokens.textOf(key) === "Creator") {
+    if (word && BARE_WORD_KEYS.has(tokens.textOf(key))) {
         kind[value] = TOKEN_STRING;
         return TOKEN_STRING;
     }
@@ -622,14 +639,14 @@ export function isNonFiniteWord(tokens: GmlTokens, i: number): boolean {
 }
 
 /**
- * Whether a text is a GML key the strict grammar accepts (`[A-Za-z][0-9A-Za-z_]*`, what NetworkX
- * writes and reads).
+ * Whether a text is a GML key graph-io writes and reads back (`[A-Za-z_][0-9A-Za-z_]*`): the spec's letters and
+ * digits, and graph-tool's keys that start with `_` (`_pos`), which NetworkX's reader refuses.
  * @param text - the candidate key
  * @returns true when it can be written as a key
  * @category Plugin helpers
  */
 export function isGmlKey(text: string): boolean {
-    return STRICT_KEY_TEXT.test(text);
+    return KEY_TEXT.test(text);
 }
 
 /**

@@ -7,7 +7,7 @@ import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-elemen
 import { Box, Button, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { cosmographOn, nodeModelsOn, selectionWorkspaceOn } from "../features";
+import { cosmographOn, fileStylesOn, nodeModelsOn, selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, isHidden, isLocked, paintedTarget, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { isPanelEscape } from "../keys/keys";
@@ -17,6 +17,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, isBlankRow, selectionName, writeKind } from "./cards";
 import { GroupDetail } from "./Groups";
 import { LabelSection } from "./LabelSection";
+import { PartsPanel } from "./parts/PartsPanel";
 import type { RowContext } from "./PropertyRow";
 import {
     beneathOf,
@@ -488,6 +489,10 @@ export function RowStyle({
             documentColors: colors,
             ...many?.(side),
         };
+        // The file-styles experiment draws the node tab by part of the drawing.
+        if (side === "node" && fileStylesOn(session)) {
+            return <PartsPanel ctx={ctx} />;
+        }
         return (
             <section className="ws-style-group" data-group={side}>
                 {sectionsFor(side, { cosmograph: cosmographOn(session), nodeModels: nodeModelsOn(session) }).map(

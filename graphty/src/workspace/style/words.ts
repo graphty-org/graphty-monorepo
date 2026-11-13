@@ -61,6 +61,19 @@ export interface SectionSpec {
      * settings), never a "+" item of their own.
      */
     readonly inner?: readonly Channel[];
+    /** The properties its "+" offers; absent, every property it lists. */
+    readonly offer?: readonly Channel[];
+    /** Properties never drawn as a line of the section, even when set (reached from elsewhere). */
+    readonly quiet?: readonly Channel[];
+    /** Whether the row writes something in the section, drawn as a dot after its title. */
+    readonly configured?: boolean;
+    /** Row words that replace a property's own, by property. */
+    readonly words?: Readonly<Partial<Record<Channel, string>>>;
+    /**
+     * The things a list section holds (a fill's paints, the effects): one heading line per item the
+     * row sets, with a minus that takes every property of the item away, then its lines.
+     */
+    readonly items?: readonly { readonly id: string; readonly name: string; readonly channels: readonly Channel[] }[];
 }
 
 /** A model's channels: what the Shape field names, and what Model settings sets. */

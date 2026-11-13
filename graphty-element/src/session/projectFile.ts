@@ -863,15 +863,6 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
                       renamed: columnSettings.renamed,
                   },
               }),
-        // Written only when a value is named, so a project without names saves as before.
-        ...(dispatcher.state.valueLabels.size === 0
-            ? {}
-            : {
-                  valueLabels: [...dispatcher.state.valueLabels].map(([key, label]) => ({
-                      ...valueLabelOf(key),
-                      label,
-                  })),
-              }),
         // The data issues: what the loads saw, the ignored issues and the kept repeats, when any.
         ...(issueState === undefined ? {} : { issues: { version: ISSUES_VERSION, ...issueState } }),
     };

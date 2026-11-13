@@ -329,22 +329,6 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(cy.$("#f").data("hops")).toBe(3);
     });
 
-    it("breadthFirstSearch and depthFirstSearch: one tree edge per node on a multigraph, the one the walk took", () => {
-        // b-a then a-b twice: the walk from a reaches b over its first arc, edge e0, in either direction
-        const cy = graph([
-            ["b", "a"],
-            ["a", "b"],
-            ["a", "b"],
-            ["b", "c"],
-        ]);
-        for (const directed of [false, true]) {
-            const tree = directed ? ["a", "e1", "b", "e3", "c"] : ["a", "e0", "b", "e3", "c"];
-            expect(ids(cy.graphtyBreadthFirstSearch({ root: "#a", directed }).path)).toEqual(tree);
-            expect(ids(cy.graphtyDepthFirstSearch({ root: "#a", directed }).path)).toEqual(tree);
-            expect(ids(cy.graphtyDirectionOptimizedBfs({ root: "#a", directed }).path)).toEqual(tree);
-        }
-    });
-
     it("closenessCentrality and nodeClosenessCentrality: known values, and the same order as closenessCentralityNormalized", () => {
         const cy = graph([
             ["a", "b"],

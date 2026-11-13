@@ -87,7 +87,7 @@ import {
     workflowFile,
     workflowState,
 } from "./parse.js";
-import { markPrCaused } from "./pr-caused.js";
+import { addUnmarked, markPrCaused } from "./pr-caused.js";
 import {
     ANNOTATIONS_QUERY,
     CHANNEL_REFS_QUERY,
@@ -545,7 +545,7 @@ async function writeRuns(
             c.items.push(...jobItems(c, { run, repo, workflow, hung: cancel?.hung.has(j.name) ?? false }, j));
         }
     }
-    await markPrCaused(c.d.store, gh, c.d.repo, runItems, c.now);
+    addUnmarked(c.items, await markPrCaused(c.d.store, gh, c.d.repo, runItems, c.now));
 }
 
 /**

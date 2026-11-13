@@ -20,6 +20,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
+import { logsReceiveInputSchema } from "../mcp/tools/logs-receive.js";
 import { JsonlWriter } from "./jsonl-writer.js";
 import { type LogEntry, LogStorage } from "./log-storage.js";
 import { parseIntegerSetting } from "./parse-integer.js";
@@ -154,13 +155,8 @@ export interface LogServerOptions {
 // Re-export LogEntry from log-storage for backward compatibility
 export type { LogEntry } from "./log-storage.js";
 
-interface LogBatch {
-    sessionId: string;
-    logs: LogEntry[];
-    projectMarker?: string;
-    worktreePath?: string;
-    pageUrl?: string;
-}
+/** Largest POST /log body accepted, in bytes; a larger one is answered 413. */
+const MAX_LOG_BODY_BYTES = 5 * 1024 * 1024;
 
 // File stream for log file
 let logFileStream: fs.WriteStream | null = null;
@@ -238,14 +234,51 @@ function displayLog(sessionId: string, log: LogEntry, quiet: boolean): void {
  * @param quiet - If true, suppress terminal output
  */
 function receiveLogBatch(req: http.IncomingMessage, res: http.ServerResponse, quiet: boolean): void {
-    let body = "";
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let tooLarge = false;
     req.on("data", (chunk: Buffer) => {
-        body += chunk.toString();
+        if (tooLarge) {
+            return;
+        }
+        size += chunk.length;
+        if (size > MAX_LOG_BODY_BYTES) {
+            tooLarge = true;
+            chunks.length = 0;
+            res.writeHead(413, { "Content-Type": "application/json", Connection: "close" });
+            res.end(JSON.stringify({ error: `Log batch larger than ${MAX_LOG_BODY_BYTES} bytes` }));
+            return;
+        }
+        chunks.push(chunk);
     });
     req.on("end", () => {
+        if (tooLarge) {
+            return;
+        }
+        let json: unknown;
         try {
-            const data = JSON.parse(body) as LogBatch;
-            const { sessionId, logs, projectMarker, worktreePath, pageUrl } = data;
+            json = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        } catch (error) {
+            if (!quiet) {
+                console.error("Error parsing log data:", error);
+            }
+            sendBadRequest(res, { error: "Invalid JSON" });
+            return;
+        }
+        // Validate the whole batch before storage sees any of it, so a bad batch stores nothing
+        const parsed = logsReceiveInputSchema.safeParse(json);
+        if (!parsed.success) {
+            if (!quiet) {
+                console.error("Invalid log batch:", parsed.error.issues);
+            }
+            sendBadRequest(res, {
+                error: "Invalid log batch",
+                issues: parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
+            });
+            return;
+        }
+        try {
+            const { sessionId, logs, projectMarker, worktreePath, pageUrl } = parsed.data;
 
             const storage = getLogStorage();
             const isNewSession = !storage.hasSession(sessionId);
@@ -276,14 +309,21 @@ function receiveLogBatch(req: http.IncomingMessage, res: http.ServerResponse, qu
             res.end(JSON.stringify({ success: true }));
         } catch (error) {
             if (!quiet) {
-                console.error("Error parsing log data:", error);
+                console.error("Error storing log batch:", error);
             }
-            res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(
-                JSON.stringify({ error: error instanceof SyntaxError ? "Invalid JSON" : (error as Error).message }),
-            );
+            sendBadRequest(res, { error: (error as Error).message });
         }
     });
+}
+
+/**
+ * Answer a request with a 400 and a JSON body.
+ * @param res - The HTTP response object
+ * @param body - The JSON body to send
+ */
+function sendBadRequest(res: http.ServerResponse, body: Record<string, unknown>): void {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(body));
 }
 
 /**

@@ -21,7 +21,7 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import type { ShaderParams } from "../../src/catalog/shaders";
+import type { ShaderDescriptor, ShaderParams } from "../../src/catalog/shaders";
 import type { LayerSpec } from "../../src/catalog/types";
 import type { Graphty } from "../../src/graphty-element";
 import { everyFrameAnimationsOn } from "../../src/managers/everyFrameAnimations";
@@ -29,6 +29,7 @@ import { EdgeShaderDrawing } from "../../src/meshes/EdgeShaderDrawing";
 import { assertGraphLoaded, type Drawn, drawn } from "../assertions";
 import { eventWaitingDecorator, isVisualCapture, untilFrames, waitForGraphSettled } from "../helpers";
 import { EDGE_PRESETS, presetId } from "./edgePresets";
+import { presetControls, presetParams } from "./presetControls";
 
 /** Eight nodes on a ring in two groups. */
 const NODES = Array.from({ length: 8 }, (_, i) => ({
@@ -112,61 +113,44 @@ function slotsOf(scene: Drawn): { live: number; exiting: number } {
 }
 
 /**
- * The preset's parameters as Storybook controls, at their defaults.
+ * The presets' parameters as Storybook controls, at their defaults.
  * @param ids - The presets.
  * @returns The args and their controls, each named `<preset>.<parameter>` when there are two.
  */
-function controlsOf(ids: readonly string[]): {
-    args: Record<string, number | string | boolean>;
-    argTypes: NonNullable<Story["argTypes"]>;
-} {
-    const args: Record<string, number | string | boolean> = {};
-    const argTypes: Record<string, NonNullable<Story["argTypes"]>[string]> = {};
+function controlsOf(ids: readonly string[]): ReturnType<typeof presetControls> {
+    const all: ReturnType<typeof presetControls> = { args: {}, argTypes: {} };
     for (const id of ids) {
-        const preset = EDGE_PRESETS.find((candidate) => candidate.descriptor.id === id);
-        for (const param of preset?.descriptor.params ?? []) {
-            const key = ids.length > 1 ? `${id}.${param.name}` : param.name;
-            args[key] = param.default as number | string | boolean;
-            if (param.type === "color") {
-                argTypes[key] = { name: param.plainName, control: "color" };
-            } else if (param.type === "boolean") {
-                argTypes[key] = { name: param.plainName, control: "boolean" };
-            } else {
-                argTypes[key] = {
-                    name: param.plainName,
-                    control: {
-                        type: "range",
-                        min: param.min,
-                        max: param.max,
-                        step: param.type === "integer" ? 1 : 0.01,
-                    },
-                };
-            }
-        }
+        const { args, argTypes } = presetControls(descriptorOf(id), { prefix: ids.length > 1 ? `${id}.` : "" });
+        Object.assign(all.args, args);
+        Object.assign(all.argTypes, argTypes);
     }
 
-    return { args, argTypes };
+    return all;
 }
 
 /**
- * One preset's parameters out of a story's args, which Storybook also fills with the element's
- * event handlers.
+ * An edge preset's catalog entry.
+ * @param id - The preset.
+ * @returns Its descriptor.
+ */
+function descriptorOf(id: string): ShaderDescriptor {
+    const preset = EDGE_PRESETS.find((candidate) => candidate.descriptor.id === id);
+    if (preset === undefined) {
+        throw new Error(`"${id}" is not an edge preset`);
+    }
+
+    return preset.descriptor;
+}
+
+/**
+ * One preset's parameters out of a story's args.
  * @param id - The preset.
  * @param storyArgs - The args.
  * @param prefixed - Whether the args are named `<preset>.<parameter>`.
  * @returns The parameters.
  */
 function paramsOf(id: string, storyArgs: ShaderParams, prefixed = false): ShaderParams {
-    const names = EDGE_PRESETS.find((each) => each.descriptor.id === id)?.descriptor.params.map((p) => p.name) ?? [];
-    const out: Record<string, number | string | boolean> = {};
-    for (const name of names) {
-        const value = storyArgs[prefixed ? `${id}.${name}` : name];
-        if (value !== undefined) {
-            out[name] = value;
-        }
-    }
-
-    return out;
+    return presetParams(descriptorOf(id), storyArgs, prefixed ? `${id}.` : "");
 }
 
 /**

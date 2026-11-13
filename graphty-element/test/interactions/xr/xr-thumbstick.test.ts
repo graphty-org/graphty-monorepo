@@ -1,8 +1,8 @@
 /**
  * XR Thumbstick Integration Tests
  *
- * These tests verify that XR thumbstick inputs produce the expected scene transformations
- * using IWER (Immersive Web Emulation Runtime) for WebXR emulation.
+ * These tests move the thumbsticks of an emulated Meta Quest 3 (IWER) in a real immersive
+ * session, and verify the scene transformations the element's XR input handler makes from them.
  *
  * Tests are designed to catch direction-related regressions:
  * - Left stick X+ should rotate scene RIGHT
@@ -18,8 +18,6 @@ import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { applyDeadzone, thumbstickDeltas, XR_THUMBSTICK_DEADZONE } from "../../../src/cameras/InputUtils";
 import type { PivotController } from "../../../src/cameras/PivotController";
-import type { Graph } from "../../../src/Graph";
-import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 import { createXRInputDriver, type XRInputDriver } from "../helpers/xr-input-driver";
 
 /**
@@ -46,28 +44,21 @@ function getPivotPosition(pivot: PivotController): Vector3 {
 }
 
 describe("XR Thumbstick Controls", () => {
-    let graph: Graph;
     let pivotController: PivotController;
     let driver: XRInputDriver;
 
     beforeEach(async () => {
-        // Create a test graph to get a valid scene
-        graph = await createTestGraph();
-
-        // Drive the real XRInputHandler
-
-        driver = createXRInputDriver(graph.scene);
+        driver = await createXRInputDriver("controller");
 
         pivotController = driver.pivot;
     });
 
-    afterEach(() => {
-        driver.dispose();
+    afterEach(async () => {
+        await driver.dispose();
         vi.restoreAllMocks();
-        cleanupTestGraph(graph);
     });
 
-    test("left stick X+ rotates scene RIGHT", () => {
+    test("left stick X+ rotates scene RIGHT", async () => {
         // Record initial rotation
         const initialEuler = getPivotEuler(pivotController);
 
@@ -76,7 +67,7 @@ describe("XR Thumbstick Controls", () => {
 
         // Process several frames of input
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final rotation
@@ -86,7 +77,7 @@ describe("XR Thumbstick Controls", () => {
         assert.isAbove(finalEuler.y, initialEuler.y, "Left stick X+ should rotate scene RIGHT (positive yaw)");
     });
 
-    test("left stick Y+ pitches scene UP", () => {
+    test("left stick Y+ pitches scene UP", async () => {
         // Record initial rotation
         const initialEuler = getPivotEuler(pivotController);
 
@@ -97,7 +88,7 @@ describe("XR Thumbstick Controls", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final rotation
@@ -107,7 +98,7 @@ describe("XR Thumbstick Controls", () => {
         assert.isAbove(finalEuler.x, initialEuler.x, "Left stick Y+ (forward) should pitch scene UP (positive pitch)");
     });
 
-    test("right stick X+ pans scene RIGHT", () => {
+    test("right stick X+ pans scene RIGHT", async () => {
         // Record initial position
         const initialPos = getPivotPosition(pivotController);
 
@@ -116,7 +107,7 @@ describe("XR Thumbstick Controls", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final position
@@ -126,7 +117,7 @@ describe("XR Thumbstick Controls", () => {
         assert.isAbove(finalPos.x, initialPos.x, "Right stick X+ should pan scene RIGHT (positive X)");
     });
 
-    test("right stick Y+ zooms IN", () => {
+    test("right stick Y+ zooms IN", async () => {
         // Record initial scale
         const initialScale = getPivotScale(pivotController);
 
@@ -135,7 +126,7 @@ describe("XR Thumbstick Controls", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final scale
@@ -146,7 +137,7 @@ describe("XR Thumbstick Controls", () => {
         assert.isAbove(finalScale, initialScale, "Right stick Y+ (forward) should zoom IN (larger scale)");
     });
 
-    test("deadzone filtering works in XR", () => {
+    test("deadzone filtering works in XR", async () => {
         // Record initial state
         const initialEuler = getPivotEuler(pivotController);
         const initialScale = getPivotScale(pivotController);
@@ -158,7 +149,7 @@ describe("XR Thumbstick Controls", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final state
@@ -174,13 +165,13 @@ describe("XR Thumbstick Controls", () => {
     });
 
     // Additional direction verification tests
-    test("left stick X- rotates scene LEFT", () => {
+    test("left stick X- rotates scene LEFT", async () => {
         const initialEuler = getPivotEuler(pivotController);
 
         driver.setStick("left", -0.8, 0);
 
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         const finalEuler = getPivotEuler(pivotController);
@@ -188,14 +179,14 @@ describe("XR Thumbstick Controls", () => {
         assert.isBelow(finalEuler.y, initialEuler.y, "Left stick X- should rotate scene LEFT (negative yaw)");
     });
 
-    test("left stick Y- pitches scene DOWN", () => {
+    test("left stick Y- pitches scene DOWN", async () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Y- = pulling stick toward yourself
         driver.setStick("left", 0, -0.8);
 
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         const finalEuler = getPivotEuler(pivotController);
@@ -204,13 +195,13 @@ describe("XR Thumbstick Controls", () => {
         assert.isBelow(finalEuler.x, initialEuler.x, "Left stick Y- should pitch scene DOWN (negative pitch)");
     });
 
-    test("right stick X- pans scene LEFT", () => {
+    test("right stick X- pans scene LEFT", async () => {
         const initialPos = getPivotPosition(pivotController);
 
         driver.setStick("right", -0.8, 0);
 
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         const finalPos = getPivotPosition(pivotController);
@@ -218,13 +209,13 @@ describe("XR Thumbstick Controls", () => {
         assert.isBelow(finalPos.x, initialPos.x, "Right stick X- should pan scene LEFT (negative X)");
     });
 
-    test("right stick Y- zooms OUT", () => {
+    test("right stick Y- zooms OUT", async () => {
         const initialScale = getPivotScale(pivotController);
 
         driver.setStick("right", 0, -0.8);
 
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         const finalScale = getPivotScale(pivotController);
@@ -232,7 +223,7 @@ describe("XR Thumbstick Controls", () => {
         assert.isBelow(finalScale, initialScale, "Right stick Y- should zoom OUT (smaller scale)");
     });
 
-    test("both thumbsticks can be used simultaneously", () => {
+    test("both thumbsticks can be used simultaneously", async () => {
         const initialEuler = getPivotEuler(pivotController);
         const initialScale = getPivotScale(pivotController);
 
@@ -241,7 +232,7 @@ describe("XR Thumbstick Controls", () => {
         driver.setStick("right", 0, 0.5); // Zoom
 
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         const finalEuler = getPivotEuler(pivotController);
@@ -255,13 +246,13 @@ describe("XR Thumbstick Controls", () => {
         assert.isAbove(scaleDiff, 0.0001, "Simultaneous input: scale should change");
     });
 
-    test("diagonal left stick input produces combined yaw and pitch", () => {
+    test("diagonal left stick input produces combined yaw and pitch", async () => {
         const initialEuler = getPivotEuler(pivotController);
 
         driver.setStick("left", 0.5, 0.5);
 
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         const finalEuler = getPivotEuler(pivotController);
@@ -273,14 +264,14 @@ describe("XR Thumbstick Controls", () => {
         assert.isAbove(pitchDiff, 0.0001, "Diagonal input should change pitch");
     });
 
-    test("diagonal right stick input produces combined pan and zoom", () => {
+    test("diagonal right stick input produces combined pan and zoom", async () => {
         const initialPos = getPivotPosition(pivotController);
         const initialScale = getPivotScale(pivotController);
 
         driver.setStick("right", 0.5, 0.5);
 
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         const finalPos = getPivotPosition(pivotController);

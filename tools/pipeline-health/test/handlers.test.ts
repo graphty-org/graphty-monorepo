@@ -826,6 +826,9 @@ describe("drill-down routes", () => {
         });
         expect((await get("/v1/test-history", {})).statusCode).toBe(400);
         expect((await get("/v1/test-history", { file: "a.test.ts", range: "1h" })).statusCode).toBe(400);
+        const long = await get("/v1/test-history", { file: "a.test.ts", test: "x".repeat(513) });
+        expect([long.statusCode, JSON.parse(long.body as string)]).toEqual([400, { code: "bad_field", field: "test" }]);
+        expect((await get("/v1/test-history", { file: "x".repeat(513) })).statusCode).toBe(400);
         // An unknown test answers an empty history, never no_data or unknown_section.
         const none = await get("/v1/test-history", { file: "none.test.ts" });
         expect(none.statusCode).toBe(200);

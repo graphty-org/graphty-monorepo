@@ -41981,7 +41981,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.943,
+            "node.shape": 0.971,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -41989,14 +41989,15 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 0.25,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.95,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "stray.extra": 1
         },
         "yed-live-graphml-specimen-node-shapes-p3@matched": {
             "node.present": 1,
@@ -42006,7 +42007,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.943,
+            "node.shape": 0.971,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -42014,11 +42015,12 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 0.25,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.extra": 1
         },
         "yed-live-graphml-specimen-node-shapes-p4": {
             "node.present": 1,

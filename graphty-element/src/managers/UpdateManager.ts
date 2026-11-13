@@ -1735,11 +1735,13 @@ export class UpdateManager implements Manager {
             return node.isDrawnBehindEdges;
         }
 
-        if (!this.graphContext.is2D()) {
+        // No row painted behind edges, the common case, reads no look: 2M map reads at 100k + 1M.
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        if (batches?.paintedBehindEdges !== true || !this.graphContext.is2D()) {
             return false;
         }
 
-        const look = this.graphContext.getNodeBatches?.()?.lookOf(row) ?? null;
+        const look = batches.lookOf(row);
         return (look?.paint.style.shape?.zIndex ?? 0) < 0;
     }
 

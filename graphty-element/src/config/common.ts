@@ -19,17 +19,33 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
  * @returns Hexadecimal color string or undefined if invalid
  */
 export function colorToHex(s: string): string | undefined {
-    const color = new Color(s);
-    let hex = color.to("srgb").toString({ format: "hex" }).toUpperCase();
-    if (hex.length === 4) {
-        // XXX: BabylonJS only likes the long format of hex strings
-        hex = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+    let hex: string;
+    try {
+        hex = new Color(s).to("srgb").toString({ format: "hex" }).toUpperCase();
+    } catch {
+        // colorjs.io throws on a string it cannot parse.
+        return undefined;
+    }
+
+    // BabylonJS only reads the long forms, so a collapsed #RGB or #RGBA is expanded.
+    if (hex.length === 4 || hex.length === 5) {
+        hex = hex.replace(/[0-9A-F]/g, "$&$&");
     }
 
     return hex;
 }
 
-export const ColorStyle = z.string().transform(colorToHex);
+// The output type stays `string | undefined`, as published: narrowing it would break code that
+// builds a parsed style by hand with a colour it has not got yet.
+export const ColorStyle = z.string().transform((s, ctx): string | undefined => {
+    const hex = colorToHex(s);
+    if (hex === undefined) {
+        ctx.addIssue({ code: "custom", message: `not a color: ${JSON.stringify(s)}` });
+        return z.NEVER;
+    }
+
+    return hex;
+});
 export const AdvancedColorStyle = z.discriminatedUnion("colorType", [
     z.strictObject({
         colorType: z.literal("solid"),

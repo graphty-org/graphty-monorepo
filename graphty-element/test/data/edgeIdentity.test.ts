@@ -11,7 +11,7 @@
 import { type DuplicatePolicy, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, expect, it, vi } from "vitest";
 
-import { hashEdgeMember, hashNodeId } from "../../src/catalog/sets/hash";
+import { hashCounters, hashEdgeMember, hashNodeId } from "../../src/catalog/sets/hash";
 import {
     completeLoad,
     createEdgeCounter,
@@ -523,6 +523,40 @@ describe("the identity columns", () => {
         assert.strictEqual(mixedCells.mock.calls.length, 3 * records.length);
         assert.deepEqual(ordinals(after).slice(0, 3), ["0/3", "1/3", "2/3"]);
         assertHashesMatchIdentity(after);
+    });
+
+    it("hashes each node id once, not twice per session edge, when it writes session edges' columns whole", () => {
+        // At 1M edges, hashing both endpoint ids again per edge was about 0.2 s of the first freeze.
+        const records: Rec[] = [];
+        for (let i = 0; i < 200; i++) {
+            records.push({ s: `n${i % 37}`, t: `n${(i * 11) % 41}` });
+        }
+
+        for (const directed of [true, false, "auto"] as const) {
+            const store = newStore(directed);
+            load(store, records, { asLoad: false });
+            const before = hashCounters.nodeIdHashes;
+            const snapshot = store.getSnapshot();
+            assert.strictEqual(hashCounters.nodeIdHashes - before, snapshot.nodeCount, `directed ${directed}`);
+            assertHashesMatchIdentity(snapshot);
+
+            // Nodes frozen first and edges in a later freeze, as a load adds nodes then edges.
+            const later = newStore(directed);
+            for (let i = 0; i < 41; i++) {
+                ingestNode(later, `n${i}`, {});
+            }
+
+            later.getSnapshot();
+            load(later, records, { asLoad: false });
+            const beforeEdges = hashCounters.nodeIdHashes;
+            const withEdges = later.getSnapshot();
+            assert.isAtMost(
+                hashCounters.nodeIdHashes - beforeEdges,
+                withEdges.nodeCount,
+                `later, directed ${directed}`,
+            );
+            assertHashesMatchIdentity(withEdges);
+        }
     });
 
     it("never changes an ordinal when another edge is deleted", () => {

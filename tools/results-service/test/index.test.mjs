@@ -272,6 +272,20 @@ describe("POST /v1/invocations", () => {
             400,
         );
     });
+
+    it("refuses wrong column types and oversized lists and strings with 400, never a 500 from D1 (#7270)", async () => {
+        const { call, rows } = service();
+        const post = async (o) => (await call("POST", "/v1/invocations", { token: pr(), body: record(o) })).status;
+        assert.equal(await post({ files: [["a", { n: 1 }, 0, 0, 1]] }), 400);
+        assert.equal(await post({ files: [[7, 1, 0, 0, 1]] }), 400);
+        assert.equal(await post({ baseSha: { sha: "x" } }), 400);
+        assert.equal(await post({ pr: "12" }), 400);
+        assert.equal(await post({ note: "n".repeat(2001) }), 400);
+        assert.equal(await post({ variant: "v".repeat(2001) }), 400);
+        const failures = Array.from({ length: 5001 }, (_, i) => ({ file: "a", name: `t${i}`, message: "Error" }));
+        assert.equal(await post({ failures }), 400);
+        assert.equal(rows("SELECT count(*) AS n FROM invocation")[0].n, 0);
+    });
 });
 
 describe("POST /v1/failures", () => {
@@ -349,6 +363,8 @@ describe("POST /v1/durations", () => {
             ms: 61000,
             conclusion: "success",
         };
+        const wrong = { rows: [{ ...row, startedAt: "2026-11-13T00:00:00Z" }] };
+        assert.equal((await call("POST", "/v1/durations", { token: master("ci.yml"), body: wrong })).status, 400);
         assert.deepEqual(
             (await call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [row] } })).body,
             { stored: 1, kind: "full", trend: [], lastSeen: {} },
@@ -481,6 +497,15 @@ describe("GET /v1/plan", () => {
         const { call } = service();
         assert.equal((await call("GET", "/v1/plan")).status, 401);
         assert.equal((await plan(call, { variants: `${BROWSER},b`, inputs: "k1" })).status, 400);
+    });
+
+    it("refuses more than 100 variants or 5,000 files with 400 (#7270)", async () => {
+        const { call } = service();
+        const variants = Array.from({ length: 101 }, (_, i) => `family-${i}|off`);
+        const many = { variants: variants.join(","), inputs: variants.map(() => "-").join(",") };
+        assert.equal((await plan(call, many)).status, 400);
+        const files = Array.from({ length: 5001 }, (_, i) => `f${i}`).join(",");
+        assert.equal((await plan(call, { files })).status, 400);
     });
 
     it("answers an everything run's ~55 variants within D1's 100 bound parameters", async () => {
@@ -763,6 +788,7 @@ describe("flaky tests from master's records", () => {
             name: "camera > zooms",
         };
         assert.equal((await call("POST", "/v1/issues", { token: pr(), body: back })).status, 403);
+        assert.equal((await call("POST", "/v1/issues", { token, body: { ...back, number: 77.5 } })).status, 400);
         assert.equal((await call("POST", "/v1/issues", { token, body: back })).status, 200);
         assert.deepEqual(rows("SELECT issue FROM quarantine"), [{ issue: 77 }]);
         assert.deepEqual(rows("SELECT number, kind FROM tracked_issue"), [{ number: 77, kind: "flaky" }]);

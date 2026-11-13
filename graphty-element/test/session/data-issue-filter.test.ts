@@ -11,6 +11,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { createGraphSession, type GraphSession } from "../../session";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 import { accountsCsv, transfersCsv } from "../helpers/fraud-fixture";
+import { withConsumerStrictState } from "./helpers";
 
 /** OpenFlights from graph-samples' build output, never the network. */
 const OPENFLIGHTS = readFileSync(new URL("../../../graph-samples/dist/data/v1/openflights.gsnp.gz", import.meta.url));
@@ -134,11 +135,8 @@ describe("data.ignoreIssues does work in proportion to the graph", () => {
      * @param size - The node count.
      * @returns The session.
      */
-    async function padded(size: number): Promise<GraphSession> {
-        const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
-        const strict = scope.__GRAPHTY_STRICT_STATE__;
-        scope.__GRAPHTY_STRICT_STATE__ = false;
-        try {
+    function padded(size: number): Promise<GraphSession> {
+        return withConsumerStrictState(async () => {
             const session = createGraphSession();
             await session.data.addNodes(
                 Array.from({ length: size }, (_, at) => ({
@@ -148,9 +146,7 @@ describe("data.ignoreIssues does work in proportion to the graph", () => {
                 })),
             );
             return session;
-        } finally {
-            scope.__GRAPHTY_STRICT_STATE__ = strict;
-        }
+        });
     }
 
     it("SessionDataApi.ignoreIssues: no more than linear in the graph", async () => {

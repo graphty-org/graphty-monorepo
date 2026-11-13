@@ -59,7 +59,8 @@ describe("pipeline-round skill", () => {
         assert.ok(red >= 0 && prs >= 0 && branches >= 0);
         assert.ok(red < prs);
         assert.ok(prs < branches);
-        assert.match(flat, /at most 10 open at once/);
+        assert.match(flat, /oldest first, as many as CI's runners allow/);
+        assert.doesNotMatch(flat, /at most 10 open at once/);
         assert.match(flat, /While master's build is red:\*\* no other pull request is opened/);
     });
 

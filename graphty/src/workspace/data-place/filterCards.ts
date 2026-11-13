@@ -21,7 +21,7 @@ import type { WorkspaceStore } from "../state/store";
 import { type Card, cardFields, cardOf, type Side } from "../style/cards";
 import { panelsInView } from "../time/timeActions";
 import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
-import { sourceName } from "./words";
+import { filterFailureWords, sourceName } from "./words";
 
 /**
  * Reads attribute and node names from the session, as the card words show them.
@@ -121,8 +121,8 @@ export async function writeCondition(store: WorkspaceStore, change: () => Promis
     try {
         await change();
         return true;
-    } catch {
-        store.set({ notice: { message: "The filter could not be changed.", error: true } });
+    } catch (error) {
+        store.set({ notice: { message: filterFailureWords(error), error: true } });
         return false;
     }
 }

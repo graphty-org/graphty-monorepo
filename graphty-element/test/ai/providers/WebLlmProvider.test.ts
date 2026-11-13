@@ -75,15 +75,13 @@ describe("WebLlmProvider", () => {
 
     describe("progress reporting", () => {
         it("reports initialization progress via callback", () => {
-            const progress: { progress: number; text: string }[] = [];
-            provider.onProgress((p, text) => progress.push({ progress: p, text }));
+            const progress: { progress: number; stage: string; detail?: string }[] = [];
+            provider.onProgress((p, stage, detail) => progress.push({ progress: p, stage, detail }));
 
             // Simulate progress
-            provider.simulateProgress(0.5, "Loading model...");
+            provider.simulateProgress(0.5, "engine", "Fetching param cache");
 
-            assert.strictEqual(progress.length, 1);
-            assert.strictEqual(progress[0].progress, 0.5);
-            assert.strictEqual(progress[0].text, "Loading model...");
+            assert.deepStrictEqual(progress, [{ progress: 0.5, stage: "engine", detail: "Fetching param cache" }]);
         });
 
         it("supports multiple progress listeners", () => {
@@ -93,8 +91,8 @@ describe("WebLlmProvider", () => {
             provider.onProgress((p) => calls1.push(p));
             provider.onProgress((p) => calls2.push(p));
 
-            provider.simulateProgress(0.25, "Step 1");
-            provider.simulateProgress(0.75, "Step 2");
+            provider.simulateProgress(0.25, "module");
+            provider.simulateProgress(0.75, "engine");
 
             assert.strictEqual(calls1.length, 2);
             assert.strictEqual(calls2.length, 2);
@@ -107,11 +105,11 @@ describe("WebLlmProvider", () => {
             };
 
             provider.onProgress(callback);
-            provider.simulateProgress(0.5, "Test");
+            provider.simulateProgress(0.5, "engine");
             assert.strictEqual(calls.length, 1);
 
             provider.offProgress(callback);
-            provider.simulateProgress(0.75, "Test2");
+            provider.simulateProgress(0.75, "ready");
             assert.strictEqual(calls.length, 1); // Should not have been called again
         });
     });

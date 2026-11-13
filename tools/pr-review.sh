@@ -55,6 +55,13 @@ die() {
     exit 1
 }
 
+# An older branch copy launches this one from a temporary directory holding only pr-review.sh and
+# branch-note.mjs (#6901), so fetch the helpers it lacks from master; neither imports another local module.
+for helper in branch-note.mjs issue-queue.mjs; do
+    [ -s "$here/$helper" ] || git show "origin/master:tools/$helper" >"$here/$helper" 2>/dev/null || true
+    [ -s "$here/$helper" ] || die "tools/$helper is not beside $here/pr-review.sh and could not be read from origin/master"
+done
+
 proof="" issue="" base="origin/master" reuse=0 dry=0 again=0
 while [ $# -gt 0 ]; do
     case "$1" in

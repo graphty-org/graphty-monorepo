@@ -65,6 +65,11 @@ const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
 const ISSUE_KINDS = new Set(["flaky", "failing-on-master"]);
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const MAX_PARAMS = 100; // D1 binds at most 100 parameters per statement
+// What one write may hold, checked where every batch write binds (inserts()), so a malformed or oversized body is a
+// 400 before D1 sees it, never a bind error answered 500. ponytail: one cap per insert, not per request; a record's
+// files and failures at the cap stay under D1's 1,000 statements a Worker invocation.
+export const ROWS_MAX = 5000;
+const VALUE_MAX = 2000; // characters one stored string holds: a failure message's cut
 
 class Refused extends Error {
     constructor(status, message) {
@@ -212,8 +217,21 @@ function need(body, fields) {
     }
 }
 
+// Fields that may be left out, or null, but are of their type when given.
+function mayHave(body, fields) {
+    for (const [name, type] of Object.entries(fields)) {
+        if (body?.[name] != null && typeof body[name] !== type) refuse(400, `${name} must be a ${type} when given`);
+    }
+}
+
+const bindable = (v) =>
+    v == null || (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && v.length <= VALUE_MAX);
+
 // INSERT OR IGNORE of many rows, as few statements as D1's parameter limit allows.
 function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
+    if (rows.length > ROWS_MAX) refuse(400, `a write holds at most ${ROWS_MAX} ${table} rows`);
+    if (!rows.every((r) => r.every(bindable)))
+        refuse(400, `${table} values must be numbers, or strings of at most ${VALUE_MAX} characters`);
     const per = Math.floor(MAX_PARAMS / columns.length);
     const one = `(${columns.map(() => "?").join(",")})`;
     const out = [];
@@ -226,12 +244,15 @@ function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
 }
 
 function failureRows(invocation, failures, root, nowMs) {
-    if (!Array.isArray(failures)) refuse(400, "failures must be a list");
+    if (!Array.isArray(failures) || failures.length > ROWS_MAX)
+        refuse(400, `failures must be a list of at most ${ROWS_MAX}`);
     if (root !== undefined && typeof root !== "string") refuse(400, "root must be a string");
     return failures.map((f) => {
         need(f, { file: "string", name: "string", message: "string" });
-        const { line, key, signature, status } = failureHashes(f.message, f.file, root);
-        return [invocation, f.file, f.name, status, signature, key, line, f.message.slice(0, 2000), nowMs];
+        // cut before hashing, as the clients cut what they send, so a longer message costs no CPU and signs the same
+        const message = f.message.slice(0, VALUE_MAX);
+        const { line, key, signature, status } = failureHashes(message, f.file, root);
+        return [invocation, f.file, f.name, status, signature, key, line, message, nowMs];
     });
 }
 const FAILURE_COLUMNS = [
@@ -251,11 +272,16 @@ async function postInvocation(body, who, db, nowMs) {
     ownId(body?.id, who);
     need(body, { sha: "string", tree: "string", variant: "string", inputs: "string", env: "string" });
     need(body, { try: "number", startedAt: "number", secs: "number" });
+    mayHave(body, { baseSha: "string", pr: "number", reusedFrom: "string", note: "string", runUrl: "string" });
     if (!OUTCOMES.has(body.outcome)) refuse(400, `outcome must be one of ${[...OUTCOMES].join(", ")}`);
     if (who.kind === "pr" && body.sha !== who.claims.sha)
         refuse(403, "a pull request writes only its own merge commit");
     const files = body.files ?? [];
-    if (!Array.isArray(files) || !files.every((f) => Array.isArray(f) && f.length === 5)) {
+    const counts = (f) => f.slice(1).every((n) => n == null || typeof n === "number");
+    if (
+        !Array.isArray(files) ||
+        !files.every((f) => Array.isArray(f) && f.length === 5 && typeof f[0] === "string" && counts(f))
+    ) {
         refuse(400, "files must be [file, passed, failed, skipped, ms] rows");
     }
     const [first] = await db.batch([
@@ -352,8 +378,10 @@ async function concludeFlakySafely(db, id, nowMs) {
 // kind's marker). ponytail: one row per signature, key tracked_issue on (signature, kind) if both must be read.
 async function postIssue(body, who, db, nowMs) {
     if (!MASTER_EVIDENCE.has(who.kind)) refuse(403, "only master's full, bisect and base runs file issues");
-    if (body.state === "closed") return closeIssue(body, db, nowMs);
-    need(body, { signature: "string", number: "number" });
+    if (body?.state === "closed") return closeIssue(body, db, nowMs);
+    need(body, { signature: "string" });
+    if (!Number.isInteger(body.number)) refuse(400, "number must be an issue number");
+    mayHave(body, { family: "string", file: "string", name: "string" });
     if (!ISSUE_KINDS.has(body.kind)) refuse(400, `kind must be one of ${[...ISSUE_KINDS].join(", ")}`);
     await db.batch([
         db
@@ -376,7 +404,7 @@ async function postIssue(body, who, db, nowMs) {
 // test enters it again and files or reopens an issue. ponytail: a proof stored in the same record as the close is
 // not re-judged; the next flip is. Re-run concludeFlaky over the entry's last proof if that gap matters.
 async function closeIssue(body, db, nowMs) {
-    need(body, { number: "number" });
+    if (!Number.isInteger(body.number)) refuse(400, "number must be an issue number");
     await db.batch([
         db
             .prepare("UPDATE tracked_issue SET state = 'closed', last_seen = ? WHERE number = ?")
@@ -404,6 +432,7 @@ async function postDurations(body, who, db, nowMs) {
     if (!Array.isArray(rows)) refuse(400, "rows must be a list");
     for (const r of rows) {
         need(r, { workflow: "string", job: "string", ms: "number" });
+        mayHave(r, { step: "string", task: "string", sha: "string", startedAt: "number", conclusion: "string" });
         if (String(r.runId) !== who.claims.run_id || String(r.attempt) !== who.claims.run_attempt) {
             refuse(403, "a run writes only its own durations");
         }

@@ -25,7 +25,7 @@ import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { codeWords, failureOf, kindName } from "./words";
 
-/** The `dialog` value that opens Open network data, the chooser of servers, a web address and a file. */
+/** The `dialog` value that opens Open network data, the chooser of servers and a web address. */
 export const NETWORK_DIALOG = "network";
 
 /** The `dialog` value that opens the server form beside the Sources section. */

@@ -7,6 +7,7 @@
 
 import "../../src/graphty-element";
 
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -165,6 +166,35 @@ describe("an edge row with no Edge", () => {
         assert.equal(lines.count, 1);
         lines.unpaintRow(0);
         assert.equal(lines.count, 0);
+    });
+
+    // A million-row load spent about 0.3 s of CPU looking each row up in a map keyed by row (cosmos-gap.md G8):
+    // the lines are held by row, and keep what the map kept for rows painted out of order, far apart and twice.
+    it("keeps each row's line by its row, painted out of order, far apart, repainted and unpainted", async () => {
+        const element = await loaded("batched", [{ src: 0, dst: 1 }]);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        lines.clear();
+        const paint = { meshKey: "plain", style: { line: { color: "#ff0000" } } };
+        const [a, b, c] = [rowOf(element, 0), rowOf(element, 1), rowOf(element, 2)];
+        assert.isTrue(lines.paintRow(5000, a, b, paint));
+        assert.isTrue(lines.paintRow(3, b, c, paint));
+        assert.isTrue(lines.paintRow(3, a, c, paint), "a repaint replaces the row's line");
+        lines.unpaintRow(42);
+        assert.equal(lines.count, 2, "a repaint and an unpaint of a row not drawn change no count");
+        assert.isFalse(lines.has(42));
+        assert.isFalse(lines.has(4999));
+        assert.sameMembers(lines.rows(), [3, 5000]);
+        assert.deepEqual(lines.endsOf(3), [a, c]);
+        assert.deepEqual(lines.endsOf(5000), [a, b]);
+        assert.isUndefined(lines.endsOf(7));
+
+        lines.rowsMoved(null, Object.assign(new Array<number>(5001).fill(INVALID_INDEX), { 3: 0 }));
+        assert.deepEqual(lines.rows(), [0], "a freeze moves the kept row and drops the other");
+        assert.deepEqual(lines.endsOf(0), [a, c]);
+        lines.clear();
+        assert.equal(lines.count, 0);
+        assert.deepEqual(lines.rows(), []);
     });
 
     it("has no row lines on the objects path", async () => {

@@ -56,9 +56,8 @@ import {
     decide,
     examineRed,
     fileIssue,
-    FREEZE_PREFIX,
-    frozenSha,
     mergedPrs,
+    RED_PREFIX,
     revertBody,
     revertTitle,
     superseded,
@@ -3388,6 +3387,11 @@ describe("Mergify is retired", () => {
             assert.doesNotMatch(workflow(name), /gha-mergify-ci|Mergify Test Insights/, name);
         }
     });
+    it("has master-guard stop no merges: no Mergify freeze, no Mergify key (#7261)", () => {
+        const guard = readFileSync(new URL("./master-guard.mjs", import.meta.url), "utf8");
+        assert.doesNotMatch(guard, /mergify|freeze/i);
+        assert.doesNotMatch(workflow("master-guard.yml"), /mergify|freeze/i);
+    });
 });
 
 describe("gpu.yml", () => {
@@ -3809,7 +3813,7 @@ describe("hosts.yml", () => {
 describe("master-guard", () => {
     const run = (name, conclusion, event = "push") => ({ name, conclusion, event });
 
-    it("freezes on a red master CI, lifts on a green one, and leaves the hardware lanes to the release train", () => {
+    it("acts on a red or green master CI, and leaves the hardware lanes to the release train", () => {
         assert.equal(decide(run("CI", "failure")), "red");
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "success")), "green");
@@ -3828,7 +3832,7 @@ describe("master-guard", () => {
         assert.equal(decide(run("CI", "cancelled")), "stopped");
         assert.equal(decide(run("CI", "startup_failure")), "stopped");
         assert.equal(decide(run("CI", "cancelled", "pull_request")), "none");
-        // timed_out and failure stay red: freeze, revert and issue as before
+        // timed_out and failure stay red: revert and issue as before
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "failure")), "red");
 
@@ -3885,14 +3889,9 @@ describe("master-guard", () => {
         assert.match(workflow("deploy-pages.yml"), /^name: Deploy to GitHub Pages$/m);
     });
 
-    it("finds the commit in its own freezes and the pull request in a merge commit", () => {
-        const sha = "a".repeat(40);
-        assert.equal(frozenSha(`${FREEZE_PREFIX}${sha} (url)`), sha);
-        assert.equal(frozenSha("release freeze"), null);
+    it("finds the pull request in a merge commit", () => {
         assert.deepEqual(mergedPrs("Merge pull request #1011 from graphty-org/x\n\nbody"), [1011]);
-        assert.deepEqual(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue"), [42, 43, 44]);
-        assert.deepEqual(mergedPrs("Merged #42\n\nMerged by Mergify Merge Queue"), [42]);
-        // the merges inside a batch branch are not landings of their own
+        assert.deepEqual(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue"), []);
         assert.deepEqual(mergedPrs("Merge of #42"), []);
         assert.deepEqual(mergedPrs("chore(release): publish"), []);
     });
@@ -3926,8 +3925,8 @@ describe("master-guard", () => {
         return { gh, writes };
     };
     const red = (sha) => ({
-        prefix: FREEZE_PREFIX,
-        title: `${FREEZE_PREFIX}${sha}`,
+        prefix: RED_PREFIX,
+        title: `${RED_PREFIX}${sha}`,
         labels: ["bug"],
         body: `body ${sha}`,
         comment: `also ${sha}`,
@@ -3937,7 +3936,7 @@ describe("master-guard", () => {
         const { gh, writes } = repo([
             { number: 7, title: "Something else" },
             { number: 9, title: "Fix the thing", pull_request: {} },
-            { number: 1124, title: `${FREEZE_PREFIX}7edecd1` },
+            { number: 1124, title: `${RED_PREFIX}7edecd1` },
         ]);
         assert.equal(await fileIssue(gh, red("056ee80")), 1124);
         assert.deepEqual(writes, [["POST", "/issues/1124/comments", { body: "also 056ee80" }]]);
@@ -3947,12 +3946,12 @@ describe("master-guard", () => {
         const { gh, writes } = repo([{ number: 7, title: "GPU lane red on master" }]);
         assert.equal(await fileIssue(gh, red("7edecd1")), 2000);
         assert.deepEqual(writes, [
-            ["POST", "/issues", { title: `${FREEZE_PREFIX}7edecd1`, labels: ["bug"], body: "body 7edecd1" }],
+            ["POST", "/issues", { title: `${RED_PREFIX}7edecd1`, labels: ["bug"], body: "body 7edecd1" }],
         ]);
     });
 
     it("closes its own issue as a duplicate when a racing run opened one first", async () => {
-        const { gh, writes } = repo([], { number: 1128, title: `${FREEZE_PREFIX}056ee80` });
+        const { gh, writes } = repo([], { number: 1128, title: `${RED_PREFIX}056ee80` });
         assert.equal(await fileIssue(gh, red("df92205")), 1128);
         assert.deepEqual(writes.slice(1), [
             ["POST", "/issues/2000/comments", { body: "Duplicate of #1128." }],
@@ -3962,7 +3961,7 @@ describe("master-guard", () => {
     });
 
     it("keeps its issue when the racing run's issue is the newer one", async () => {
-        const { gh, writes } = repo([], { number: 3000, title: `${FREEZE_PREFIX}056ee80` });
+        const { gh, writes } = repo([], { number: 3000, title: `${RED_PREFIX}056ee80` });
         assert.equal(await fileIssue(gh, red("df92205")), 2000);
         assert.equal(writes.length, 1);
     });
@@ -3977,24 +3976,16 @@ describe("master-guard", () => {
         const sha = "0123456789abcdef0123456789abcdef01234567";
         assert.equal(lint(revertTitle(sha, [1011])), 0);
         assert.equal(lint(revertTitle(sha, [])), 0);
-        assert.equal(lint(revertTitle(sha, [42, 43, 44])), 0);
-    });
-
-    it("names every pull request of a reverted batch", () => {
-        const sha = "0123456789abcdef0123456789abcdef01234567";
-        assert.equal(revertTitle(sha, [42, 43, 44]), "revert: batch #42, #43, #44, master CI red at 0123456");
         assert.equal(revertTitle(sha, [1011]), "revert: pull request #1011, master CI red at 0123456");
     });
 
     it("tells authors to revert the revert, never to re-queue a merged pull request", () => {
         const sha = "0123456789abcdef0123456789abcdef01234567";
-        for (const prs of [[], [1011], [42, 43, 44]]) {
+        for (const prs of [[], [1011]]) {
             const body = revertBody(sha, "https://run", prs);
             assert.match(body, /reverts this revert/);
-            assert.doesNotMatch(body, /re-enter/);
+            assert.doesNotMatch(body, /re-enter|queue/);
         }
-        // a batch went red on the tree the queue passed: point at master-only jobs and flakes first
-        assert.match(revertBody(sha, "https://run", [42, 43, 44]), /#42, #43, #44.*jobs that run only on master/s);
     });
 
     // A red CI run on master as the jobs API and the logs show it. `logs` maps a failed job's name to the lines

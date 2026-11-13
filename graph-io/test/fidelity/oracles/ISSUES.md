@@ -999,7 +999,7 @@ v2.6 demos' `FlowchartStyle.ts`):
   a ShinyPlate sets `stroke` (the bevel's light band and the plate's gloss are not drawn).
 - `demostyle:FlowchartNodeStyle` draws its `type`'s outline, the one yEd's flowchart palette draws for the same type
   (`configurationOutline`), with the demo's default fill rgb(183, 201, 227) and black stroke; `annotation` is an
-  unoutlined box (its bracket is not drawn), and a style with no `type` an outlined box.
+  unoutlined box (its bracket is not drawn), and a style with no `type` a data parallelogram (its default type).
 - The 2.6 shapes `SHEARED_RECTANGLE`, `SHEARED_RECTANGLE2` (parallelogram), `TRAPEZ`, `TRAPEZ2` (trapezoid),
   `STAR5_UP` (star), `TRIANGLE2`, `FAT_ARROW2` and `PILL` (a box with half-circle ends); `ROUND_RECTANGLE` has its
   documented corner of 10.

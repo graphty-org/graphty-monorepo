@@ -932,6 +932,30 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(styles.size, 2);
     });
 
+    it("keep no Map entry per row for a batched graph with no Node, through a repaint and a removal", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d");
+        const batches = graph.getNodeBatches();
+        assert.isNotNull(batches);
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        // A row's group and slot are read from its row, not from a Map entry each (89 B a row at 1M).
+        assert.equal(batches?.rowMapEntries, 0);
+
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(paint);
+        if (batches === null || paint === null) {
+            return;
+        }
+
+        batches.unpaintRow(4);
+        assert.equal(batches.batchedNodes, NODES.length - 1);
+        assert.isTrue(batches.paintRow(4, paint));
+        assert.equal(batches.batchedNodes, NODES.length);
+        assert.equal(batches.rowMapEntries, 0);
+    });
+
     it("draw a row with no Node from its paint, the picture its Node drew, and build no Node", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");

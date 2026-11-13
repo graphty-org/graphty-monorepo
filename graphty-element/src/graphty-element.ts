@@ -3850,7 +3850,8 @@ export class Graphty extends LitElement {
      *   ui: {
      *     enabled: true,
      *     position: 'bottom-right',
-     *     showAvailabilityWarning: true  // Show warning if XR unavailable
+     *     showAvailabilityWarning: true,  // Show warning if XR unavailable
+     *     unavailableLabel: 'VR / AR NICHT VERFUEGBAR'  // Its text
      *   },
      *   input: {
      *     handTracking: true,

@@ -30,11 +30,30 @@ export interface XRUIConfig {
     unavailableMessageDuration: number;
 
     /**
-     * Show "VR / AR NOT AVAILABLE" warning when XR is not available
+     * Show the `unavailableLabel` message when XR is not available
      * When false, no message is displayed if AR/VR aren't available
      * @default false
      */
     showAvailabilityWarning: boolean;
+
+    /**
+     * Text of the button that enters VR
+     * @default "VR"
+     */
+    vrLabel: string;
+
+    /**
+     * Text of the button that enters AR
+     * @default "AR"
+     */
+    arLabel: string;
+
+    /**
+     * Text of the message shown when `showAvailabilityWarning` is on and neither VR nor AR is
+     * available
+     * @default "VR / AR NOT AVAILABLE"
+     */
+    unavailableLabel: string;
 }
 
 /**
@@ -185,6 +204,9 @@ export const defaultXRConfig: XRConfig = {
         position: "bottom-right",
         unavailableMessageDuration: 5000,
         showAvailabilityWarning: false,
+        vrLabel: "VR",
+        arLabel: "AR",
+        unavailableLabel: "VR / AR NOT AVAILABLE",
     },
     vr: {
         enabled: true,

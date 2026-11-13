@@ -8363,10 +8363,13 @@ export interface XRSessionStartedEvent {
 
 // @public
 export interface XRUIConfig {
+    arLabel: string;
     enabled: boolean;
     position: "bottom-left" | "bottom-right" | "top-left" | "top-right";
     showAvailabilityWarning: boolean;
+    unavailableLabel: string;
     unavailableMessageDuration: number;
+    vrLabel: string;
 }
 
 // @public

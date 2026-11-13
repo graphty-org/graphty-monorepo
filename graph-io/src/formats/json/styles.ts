@@ -3161,6 +3161,36 @@ function visShape(shape: string): readonly [string, boolean] {
 }
 
 /**
+ * The vis-network shape a node is written as: an ellipse fitted to its label (`labelFit` "bounds"), or with no size
+ * of its own, is vis-network's label-sized `ellipse` (its `circle` when the fit is square), whose label vis-network
+ * draws inside it; any other node its shape's (visShape).
+ * @param shape - the neutral shape
+ * @param fitted - whether the node is fitted to its label or has no size of its own
+ * @param square - whether its fit is square (`labelFitSquare`)
+ * @returns the vis-network shape and whether it is exact
+ */
+function visNodeShape(shape: string, fitted: boolean, square: boolean): readonly [string, boolean] {
+    if (shape === "ellipse" && fitted) {
+        return [square ? "circle" : "ellipse", true];
+    }
+    return visShape(shape);
+}
+
+/**
+ * The vis-network shape a written node is read back as, from the block's values of the element (visNodeShape).
+ * @param want - the block's values of the element
+ * @returns the shape, vis-network's default `ellipse` for a node with none
+ */
+const visShapeBack = (want: (p: string) => StyleValue | null): string => {
+    const s = want("shape");
+    if (typeof s !== "string") {
+        return "ellipse";
+    }
+    const fitted = want("labelFit") === "bounds" || oneSize(want) === null;
+    return visNodeShape(s, fitted, want("labelFitSquare") === true)[0];
+};
+
+/**
  * A neutral arrow as vis-network's arrow type: the type (null for none), and whether it is exact.
  * @param arrow - the neutral arrow
  * @returns the type and whether it is exact
@@ -3183,38 +3213,18 @@ function visArrowType(arrow: string): readonly [string | null, boolean] {
  * @param want - the block's values of the element
  * @returns the size read back
  */
-const visSize = (want: (p: string) => StyleValue | null): StyleValue | null => {
-    const s = want("shape");
-    const shape = typeof s === "string" ? visShape(s)[0] : "ellipse";
-    return VIS_SIZED.has(shape) ? oneSize(want) : null;
-};
+const visSize = (want: (p: string) => StyleValue | null): StyleValue | null =>
+    VIS_SIZED.has(visShapeBack(want)) ? oneSize(want) : null;
 
 /**
- * The vis.js shape a written node is read back as.
+ * The height a written vis.js hexagon reads back as (visSizedShape): its size is its width, not its height.
  * @param want - the block's values of the element
- * @returns the shape
+ * @returns the height read back, null for any other shape
  */
-const visShapeBack = (want: (p: string) => StyleValue | null): string => {
-    const s = want("shape");
-    return typeof s === "string" ? visShape(s)[0] : "ellipse";
+const visHexagonHeightBack = (want: (p: string) => StyleValue | null): StyleValue | null => {
+    const size = visSize(want);
+    return visShapeBack(want) === "hexagon" && typeof size === "number" ? (Math.sqrt(3) * size) / 2 : null;
 };
-
-/**
- * What a written vis.js node of a shape that changes what its size gives back reads as (visSizedShape, visFitShape):
- * a hexagon's height and how far below its square its label hangs, a database's label at its top.
- * @param property - the fact
- * @returns the reading back of the element's values, null where the shape changes nothing
- */
-const visShapeFactBack =
-    (property: "height" | "labelOffsetY") =>
-    (want: (p: string) => StyleValue | null): StyleValue | null => {
-        const shape = visShapeBack(want);
-        const size = visSize(want);
-        if (shape === "hexagon" && typeof size === "number") {
-            return property === "height" ? (Math.sqrt(3) * size) / 2 : ((2 - Math.sqrt(3)) * size) / 4;
-        }
-        return null;
-    };
 
 /**
  * What the reader reads back for a fact of a node the writer wrote in a shape vis-network sizes by its label: the
@@ -3225,10 +3235,26 @@ const visShapeFactBack =
 const visFitBack =
     (property: string) =>
     (want: (p: string) => StyleValue | null): StyleValue | null => {
-        const s = want("shape");
-        const shape = typeof s === "string" ? visShape(s)[0] : "ellipse";
-        return visLabelFit({ fontSize: want("labelSize"), label: want("label") }, shape)[property] ?? null;
+        return visLabelFit({ fontSize: want("labelSize"), label: want("label") }, visShapeBack(want))[property] ?? null;
     };
+
+/**
+ * How far down a written vis.js node's label is read back: the reader's own reading (visNodeRow) of what the writer
+ * writes, its shape, size, font size and label, so a label vis-network hangs below a sized node reads back as the
+ * block's offset.
+ * @param want - the block's values of the element
+ * @returns the offset read back
+ */
+const visOffsetBack = (want: (p: string) => StyleValue | null): StyleValue | null => {
+    const size = visSize(want);
+    const layer: VisLayer = {
+        label: want("label") ?? undefined,
+        fontSize: want("labelSize") ?? undefined,
+        size: typeof size === "number" ? size / 2 : undefined,
+    };
+    const site = (property: string): CanonSite => ({ notes: new StyleNotes(), target: "node", property });
+    return visNodeRow(layer, visShapeBack(want), null, site).labelOffsetY ?? null;
+};
 
 /**
  * What reading a file graphty wrote in vis.js gives back: VIS_WRITTEN, and for a self-loop the route the reader draws
@@ -3272,8 +3298,8 @@ function visWritten(snapshot: GraphSnapshot, edgeValues: Values): Written {
 const VIS_WRITTEN: Written = {
     node: {
         width: (want) => visSize(want) ?? visFitBack("width")(want),
-        height: (want) => visShapeFactBack("height")(want) ?? visSize(want) ?? visFitBack("height")(want),
-        labelOffsetY: visShapeFactBack("labelOffsetY"),
+        height: (want) => visHexagonHeightBack(want) ?? visSize(want) ?? visFitBack("height")(want),
+        labelOffsetY: visOffsetBack,
         labelFit: visFitBack("labelFit"),
         labelPaddingX: visFitBack("labelPaddingX"),
         labelPaddingY: visFitBack("labelPaddingY"),
@@ -3289,14 +3315,13 @@ const VIS_WRITTEN: Written = {
                 return null;
             }
             const site = { notes: new StyleNotes(), target: "node" as const, property: "shape" };
-            return canonEnum("shape", visShape(s)[0], "vis", site);
+            return canonEnum("shape", visShapeBack(want), "vis", site);
         },
         labelPosition: (want) => {
-            const s = want("shape");
-            if (typeof s !== "string") {
+            if (typeof want("shape") !== "string") {
                 return null;
             }
-            const shape = visShape(s)[0];
+            const shape = visShapeBack(want);
             if (shape === "database") {
                 return "inside-top";
             }
@@ -4035,10 +4060,11 @@ function writeVis(
         replaced,
     );
     const sizes = nodeSizes(p("node", "width"), p("node", "height"), approximated);
+    const fits = p("node", "labelFit");
+    const squares = p("node", "labelFitSquare");
     const shapes = p("node", "shape").map((s, i) => {
-        const [written, exact] = typeof s === "string" ? visShape(s) : [null, true];
-        // an ellipse with no size of its own is vis-network's label-sized `ellipse`, one with a size its `dot`
-        const shape = written === "dot" && s === "ellipse" && sizes[i] === null ? "ellipse" : written;
+        const fitted = fits[i] === "bounds" || sizes[i] === null;
+        const [shape, exact] = typeof s === "string" ? visNodeShape(s, fitted, squares[i] === true) : [null, true];
         if (!exact) {
             approximated.add("node", "shape", s);
         }

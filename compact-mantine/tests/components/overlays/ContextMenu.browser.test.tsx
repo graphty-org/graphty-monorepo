@@ -90,10 +90,11 @@ async function settled(input: () => Promise<void>): Promise<void> {
 }
 
 describe("ContextMenu touch-and-hold", () => {
-    // The hold runs on setTimeout. A fake one that keeps pace with the real clock leaves every other
-    // timer (the menu's transitions) running as usual and steps the hold exactly.
+    // The hold runs on setTimeout, which only the test moves, so a hold is stepped to the
+    // millisecond however long the input takes to arrive. The menu's other timers are steps of
+    // the same clock; nothing here waits on them.
     beforeEach(() => {
-        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     });
 
     afterEach(async () => {

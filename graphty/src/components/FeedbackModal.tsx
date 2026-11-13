@@ -46,6 +46,16 @@ export function FeedbackModal({
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<FeedbackResult | null>(null);
 
+    const handleClose = (): void => {
+        // Reset form on close
+        setName("");
+        setEmail("");
+        setMessage("");
+        setFiles([]);
+        setResult(null);
+        onClose();
+    };
+
     const handleSubmit = (): void => {
         setLoading(true);
         setResult(null);
@@ -59,17 +69,14 @@ export function FeedbackModal({
                     message,
                     attachments: attachments.length > 0 ? attachments : undefined,
                 });
-                setResult(feedbackResult);
-
                 if (feedbackResult.success) {
-                    // Reset form and close modal on success
-                    setName("");
-                    setEmail("");
-                    setMessage("");
-                    setFiles([]);
-                    onClose();
+                    // Reset everything, the result included: the modal stays mounted, so a
+                    // kept result would greet the next open with a stale alert.
+                    handleClose();
+                } else {
+                    // Keep the modal open so the user sees the error
+                    setResult(feedbackResult);
                 }
-                // On failure, keep the modal open so user sees the error
             })
             .catch((error: unknown) => {
                 console.error("[FeedbackModal] Error during submission:", error);
@@ -81,16 +88,6 @@ export function FeedbackModal({
             .finally(() => {
                 setLoading(false);
             });
-    };
-
-    const handleClose = (): void => {
-        // Reset form on close
-        setName("");
-        setEmail("");
-        setMessage("");
-        setFiles([]);
-        setResult(null);
-        onClose();
     };
 
     return (

@@ -449,14 +449,15 @@ export function ratchetDrops(
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
  * @param add.properties - only these properties (all when omitted)
- * @param prune - also take off the not-measurable ones whose element neither drawing has any more (`KeyGate.gone`)
+ * @param prune - also take off the not-measurable ones whose element neither drawing has any more (`KeyGate.gone`):
+ * `true` for every key, or a list of keys for only those
  * @returns the new known failures and what changed
  */
 export function ratchetKnown(
     records: KnownRecords,
     gates: readonly KeyGate[],
     add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
-    prune = false,
+    prune: boolean | readonly string[] = false,
 ): { records: KnownRecords; removed: number; added: number; unlisted: number } {
     if (add !== undefined && add.reason.trim().length < 10) {
         throw new Error("adding to the known failures needs a reason of 10 or more characters");
@@ -468,7 +469,8 @@ export function ratchetKnown(
     const record: KnownReason = { date: add?.date ?? "", reason: add?.reason ?? "", added: {}, sources: {} };
     for (const gate of gates) {
         const now = known[gate.key] ?? {};
-        const takeOff = Object.entries(gate.nowPassing).concat(prune ? Object.entries(gate.gone ?? {}) : []);
+        const pruning = prune === true || (prune !== false && prune.includes(gate.key));
+        const takeOff = Object.entries(gate.nowPassing).concat(pruning ? Object.entries(gate.gone ?? {}) : []);
         for (const [p, ids] of takeOff) {
             const off = new Set(ids);
             const before = now[p] ?? [];

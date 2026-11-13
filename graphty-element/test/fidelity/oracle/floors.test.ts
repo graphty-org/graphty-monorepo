@@ -260,6 +260,9 @@ describe("style fidelity gate", () => {
         const pruned = ratchetKnown(records(known), [gate], undefined, true);
         assert.deepEqual(pruned.records.known.s, { "stray.present": ["x"], "node.fill": ["d"], "stray.extra": [] });
         assert.strictEqual(pruned.removed, 2);
+        // a list of keys prunes only those keys
+        assert.deepEqual(ratchetKnown(records(known), [gate], undefined, ["other"]).records.known.s, known.s);
+        assert.strictEqual(ratchetKnown(records(known), [gate], undefined, ["s"]).removed, 2);
         assert.include(gateReportText([gate], "none", null), "s stray.present: rect@1");
         // a run that judged no element (a sample that drew nothing) prunes nothing
         const blank = judgeKey("s", run({}, {}, {}), known.s, undefined);

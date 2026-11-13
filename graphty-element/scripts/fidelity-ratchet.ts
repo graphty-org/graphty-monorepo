@@ -22,7 +22,9 @@
  *     npm run fidelity:ratchet
  *     npm run fidelity:ratchet -- --add "why these elements fail now" [--keys <key>,<key>] [--properties <p>,<p>]
  *         [--suite oracle|drawn]
- *     npm run fidelity:ratchet -- --prune
+ *     npm run fidelity:ratchet -- --prune [--keys <key>,<key>]
+ *
+ * `--keys` limits `--prune` to those keys too.
  */
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -51,10 +53,12 @@ const { values } = parseArgs({
 });
 
 const today = new Date().toISOString().slice(0, 10);
+const keys = values.keys?.split(",");
+const prune = values.prune === true && (keys ?? true);
 const add =
     values.add === undefined
         ? undefined
-        : { reason: values.add, date: today, keys: values.keys?.split(","), properties: values.properties?.split(",") };
+        : { reason: values.add, date: today, keys, properties: values.properties?.split(",") };
 
 /** A run's verdicts, as the tests write them. */
 interface GateFile {
@@ -118,7 +122,7 @@ if (suite === "all" || suite === "oracle") {
             FloorSection,
             Floors
         >;
-        const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add, values.prune);
+        const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add, prune);
         const drops = ratchetDrops(floors.drops ?? {}, gate.keys, add);
         let raised = 0;
         const sectionOf = new Map(gate.keys.map((g) => [g.key, g.section]));
@@ -176,7 +180,7 @@ if (suite === "all" || suite === "drawn") {
             { about: file.about, known: file.known, reasons: file.reasons },
             gate.keys,
             add,
-            values.prune,
+            prune,
         );
         let raised = 0;
         for (const g of gate.keys) {

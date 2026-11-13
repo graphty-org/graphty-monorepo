@@ -80,8 +80,11 @@ export const PAGE_IDS = [
     "issues",
 ] as const satisfies readonly PageId[];
 
+/** Any page's range. */
+export type PageRange = Range | SlowRange | IssueRange;
+
 /** Each page's ranges, as the read API takes them; the first is the default. */
-export const PAGE_RANGES: Record<PageId, readonly (Range | SlowRange | IssueRange)[]> = {
+export const PAGE_RANGES: Record<PageId, readonly PageRange[]> = {
     ...(Object.fromEntries(PAGE_IDS.map((id) => [id, RANGES])) as Record<PageId, readonly Range[]>),
     costs: SLOW_RANGES,
     issues: ISSUE_RANGES,

@@ -104,6 +104,7 @@ export class PulledLineBatch {
     private dirtyLast = -1;
 
     private readonly stopFlush: () => void;
+    private readonly stopRestore: () => void;
 
     /** The route table's CPU copy, a curve batch's only: cut paths' points, one to a texel. */
     private routes: Float32Array<ArrayBuffer> | null = null;
@@ -165,6 +166,13 @@ export class PulledLineBatch {
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
+        const engine = scene.getEngine();
+        const restored = engine.onContextRestoredObservable.add(() => {
+            this.index();
+        });
+        this.stopRestore = () => {
+            engine.onContextRestoredObservable.remove(restored);
+        };
     }
 
     /**
@@ -415,6 +423,7 @@ export class PulledLineBatch {
     /** Stop following the frames and free the mesh and the table. */
     dispose(): void {
         this.stopFlush();
+        this.stopRestore();
         this.table.dispose();
         this.routeTable?.dispose();
         // Not its textures: `rowPosition` is the row table's, which outlives this batch.
@@ -483,6 +492,14 @@ export class PulledLineBatch {
         }
 
         this.mesh.setIndices(indices, capacity * vertices);
+        // Keep the list on the GPU only: Babylon's CPU copy is 4 bytes an index (120 B an edge) that nothing reads.
+        // A lost context is rebuilt from that copy, so a restored one indexes again (`restoreIndices`).
+        const { geometry } = this.mesh;
+        const buffer = geometry?.getIndexBuffer();
+        if (geometry && buffer) {
+            geometry.setIndexBuffer(buffer, capacity * vertices, indices.length, true);
+        }
+
         this.setCount();
     }
 

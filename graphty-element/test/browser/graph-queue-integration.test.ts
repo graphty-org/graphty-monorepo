@@ -19,6 +19,14 @@ describe("Graph Queue Integration", () => {
         container.remove();
     });
 
+    /**
+     * What the newest history step records, as the coded fact a reader's words are made from.
+     * @returns Its code and parameters.
+     */
+    function lastFact(): unknown {
+        return graph.getSession().history.steps.at(-1)?.fact;
+    }
+
     it("should queue addNodes operations", async () => {
         const nodes = [
             { id: "1", label: "Node 1" },
@@ -30,29 +38,22 @@ describe("Graph Queue Integration", () => {
 
         await graph.addNodes(nodes);
 
-        expect(queueSpy).toHaveBeenCalledWith(
-            "data-add",
-            expect.any(Function),
-            expect.objectContaining({
-                description: "Added 2 nodes",
-            }),
-        );
+        expect(queueSpy).toHaveBeenCalledWith("data-add", expect.any(Function), expect.anything());
+        assert.deepEqual(lastFact(), { code: "data.add-nodes", params: { count: 2 } });
+        assert.strictEqual(graph.getNodeCount(), 2, "the queued add ran");
 
         queueSpy.mockRestore();
     });
 
     it("should queue setLayout operations", async () => {
+        // A graph with a node, so the layout change is a step of its history.
+        await graph.addNodes([{ id: "1" }]);
         const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         await graph.setLayout("ngraph");
 
-        expect(queueSpy).toHaveBeenCalledWith(
-            "layout-set",
-            expect.any(Function),
-            expect.objectContaining({
-                description: "Changed the layout to force",
-            }),
-        );
+        expect(queueSpy).toHaveBeenCalledWith("layout-set", expect.any(Function), expect.anything());
+        assert.deepEqual(lastFact(), { code: "layout.set", params: { layout: "force" } });
 
         queueSpy.mockRestore();
     });
@@ -215,13 +216,9 @@ describe("Graph Queue Integration", () => {
 
         // Should have queued data-add operations and their triggers
         // Verify the edge data-add operation was queued
-        expect(queueSpy).toHaveBeenCalledWith(
-            "data-add",
-            expect.any(Function),
-            expect.objectContaining({
-                description: expect.stringContaining("edge"),
-            }),
-        );
+        expect(queueSpy).toHaveBeenCalledWith("data-add", expect.any(Function), expect.anything());
+        assert.deepEqual(lastFact(), { code: "data.add-edges", params: { count: 1 } });
+        assert.strictEqual(graph.getEdgeCount(), 1, "the queued add ran");
 
         // Verify at least the expected operations were queued
         expect(queueSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -242,13 +239,9 @@ describe("Graph Queue Integration", () => {
         await graph.removeNodes(["1"]);
 
         // Should have queued data-remove operation
-        expect(queueSpy).toHaveBeenCalledWith(
-            "data-remove",
-            expect.any(Function),
-            expect.objectContaining({
-                description: "Removed a node",
-            }),
-        );
+        expect(queueSpy).toHaveBeenCalledWith("data-remove", expect.any(Function), expect.anything());
+        assert.deepEqual(lastFact(), { code: "data.remove-nodes", params: { count: 1 } });
+        assert.strictEqual(graph.getNodeCount(), 1, "the queued removal ran");
 
         queueSpy.mockRestore();
     });
@@ -263,13 +256,9 @@ describe("Graph Queue Integration", () => {
         await graph.updateNodes([{ id: "1", label: "Updated Node 1" }]);
 
         // Should have queued data-update operation
-        expect(queueSpy).toHaveBeenCalledWith(
-            "data-update",
-            expect.any(Function),
-            expect.objectContaining({
-                description: "Edited 1 node",
-            }),
-        );
+        expect(queueSpy).toHaveBeenCalledWith("data-update", expect.any(Function), expect.anything());
+        assert.deepEqual(lastFact(), { code: "data.edit", params: { target: "node", count: 1 } });
+        assert.strictEqual(graph.getNode("1")?.data.label, "Updated Node 1", "the queued edit ran");
 
         queueSpy.mockRestore();
     });

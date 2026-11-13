@@ -20,6 +20,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, FILE_STYLE_ISSUE, fileStyleOf, type GraphSession, type LayerSpec } from "../../session";
 import { type ExportResult, exportSession } from "../../src/data/export";
+import { GraphtyError } from "../../src/errors";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import type { ExplainTarget } from "../../src/session/styles/explain";
@@ -578,6 +579,23 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
     );
 }
 
+/** The writer codes the export options `sanitizeIds` and `onMixedDirection` set aside. */
+const ID_OR_DIRECTION: ReadonlySet<string> = new Set(["E_INVALID_ID", "E_DIRECTED"]);
+
+/**
+ * Whether an export rejected with the writer's coded refusal, rather than failing.
+ * @param error - What the export rejected with.
+ * @param codes - The writer codes that count, or any coded refusal when absent.
+ * @returns True for an `E_UNSUPPORTED` refusal, with one of `codes` when given.
+ */
+function refusedOver(error: unknown, codes?: ReadonlySet<string>): boolean {
+    return (
+        error instanceof GraphtyError &&
+        error.code === "E_UNSUPPORTED" &&
+        (codes === undefined || codes.has(String(error.details.sourceCode)))
+    );
+}
+
 /**
  * Write a session's graph with its styles, setting aside a refusal over ids or direction by the
  * options that rewrite them.
@@ -595,7 +613,11 @@ async function write(
     const first = exportSession(session, format, { ...options, styles });
     try {
         return { result: first, text: await first.text() };
-    } catch {
+    } catch (error) {
+        if (!refusedOver(error, ID_OR_DIRECTION)) {
+            throw error;
+        }
+
         const again = exportSession(session, format, {
             ...options,
             styles,
@@ -624,7 +646,7 @@ async function loadBack(text: string, format: string): Promise<GraphSession> {
  * Whether a graph's data alone, written without styles, reads back and writes the same bytes.
  * @param source - The session.
  * @param writer - The format.
- * @returns True when it does.
+ * @returns True when it does, false when the writer refuses the data alone.
  */
 async function dataIsStable(source: GraphSession, writer: (typeof WRITERS)[number]): Promise<boolean> {
     const plain = async (session: GraphSession): Promise<string> =>
@@ -636,8 +658,14 @@ async function dataIsStable(source: GraphSession, writer: (typeof WRITERS)[numbe
         const once = await plain(first);
         await second.data.import({ type: writer.format, config: { data: once } });
         return (await plain(second)) === once;
-    } catch {
-        return false;
+    } catch (error) {
+        // The format cannot write this graph's data alone (Pajek refuses a label holding a quote
+        // that the styled file writes as a style): no bytes to compare. Anything else is a defect.
+        if (refusedOver(error)) {
+            return false;
+        }
+
+        throw error;
     } finally {
         first.dispose();
         second.dispose();
@@ -657,10 +685,21 @@ async function roundTrip(source: GraphSession, writer: (typeof WRITERS)[number],
         written = await write(source, writer.format, writer.options);
     } catch (error) {
         // The format cannot hold this graph's data at all, styles or not (Pajek refuses a label
-        // holding a quote): nothing here is about styles.
+        // holding a quote): nothing here is about styles. A failure that is not the writer's
+        // coded refusal is a defect, with styles or without.
+        if (!refusedOver(error)) {
+            throw error;
+        }
+
         const refused = await write(source, writer.format, writer.options, false).then(
             () => false,
-            () => true,
+            (plainError: unknown) => {
+                if (!refusedOver(plainError)) {
+                    throw plainError;
+                }
+
+                return true;
+            },
         );
         if (refused) {
             return;

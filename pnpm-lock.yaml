@@ -1237,6 +1237,9 @@ importers:
       '@graphty/layout':
         specifier: workspace:^
         version: link:../layout
+      '@graphty/remote-logger':
+        specifier: workspace:^
+        version: link:../remote-logger
       '@vitest/browser-playwright':
         specifier: 'catalog:'
         version: 4.1.12(patch_hash=e6c96dc4be5951351fc1f4b3a542978682e6379298b2e0035c9657bfff61fdf6)(playwright@1.57.0)(vite@8.3.5(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.12)

@@ -545,7 +545,7 @@ async function writeRuns(
             c.items.push(...jobItems(c, { run, repo, workflow, hung: cancel?.hung.has(j.name) ?? false }, j));
         }
     }
-    await markPrCaused(c.d.store, gh, c.d.repo, runItems, c.now);
+    c.items.push(...(await markPrCaused(c.d.store, gh, c.d.repo, runItems, c.now)));
 }
 
 /**

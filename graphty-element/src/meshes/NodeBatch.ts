@@ -683,6 +683,12 @@ export class NodeBatches {
     private readonly objectRows = new Set<BatchRow>();
     /** The rows drawn with no `Node`, by row. */
     private readonly columnRows = new Map<number, ColumnRow>();
+
+    /**
+     * Whether any row drawn with no `Node` has been painted below z-index 0, which a 2D view draws behind edges.
+     * It stays set once set: while it is unset, an edge's paint reads no end's look (`UpdateManager.endBehindEdges`).
+     */
+    paintedBehindEdges = false;
     /** The look a row stored with no `Node` has until its first paint, and its source. */
     private storedLook: RowLook | null = null;
     /** The nodes a frame's walk still visits: every member a batch does not draw, and any with an overlay. */
@@ -930,6 +936,7 @@ export class NodeBatches {
         );
         const row = new ColumnRow(index, paint, source, sourcePaint);
         this.columnRows.set(index, row);
+        this.paintedBehindEdges ||= (paint.style.shape?.zIndex ?? 0) < 0;
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);
         if (had === undefined || !sameSize(had, row)) {

@@ -570,3 +570,11 @@ body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface::after {
 .sel-card .mantine-Input-input {
     --input-bd-focus: var(--sel-card-color);
 }
+
+/* A style layer's Which nodes / Which edges at rest: one line, "Style Nodes..." and its
+   open-in-new-window icon, with a waiting step's Run at its end (issue #6810). */
+.sel-open-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}

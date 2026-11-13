@@ -204,6 +204,53 @@ describe("the node tab by part of the drawing", () => {
         });
     });
 
+    it("the shape list is named Search 53 shapes and lists the graph's shapes first with counts", async () => {
+        const session = await openProject([
+            everyNode("Key", { "node.shape": "box" }),
+            {
+                name: "Round",
+                target: "node",
+                selector: { match: "ids", nodes: ["c"] },
+                set: { "node.shape": "sphere" },
+            },
+        ]);
+        const tab = await openStyle("Key");
+        const shapes = session.catalog.channelValues("node.shape");
+        assert.strictEqual(shapes.length, 53, "the element offers 53 shapes with file styles on");
+        await userEvent.click(await within(section(tab, "shape")).findByRole("button", { name: /^Node shape, Box/ }));
+        const search = await screen.findByPlaceholderText("Search 53 shapes");
+        const list = await screen.findByRole("group", { name: /values$/ });
+        const options = within(list).getAllByRole("option");
+        assert.deepEqual(
+            options.slice(0, 3).map((option) => option.textContent),
+            ["Box2 nodes", "Sphere1 node", "Cylinder"],
+            "the graph's shapes first, with how many nodes each, then the rest",
+        );
+        assert.strictEqual(document.activeElement, search);
+    });
+
+    it("typing in the shape list filters it and Enter picks the shape", async () => {
+        const session = await openProject([everyNode("Key", { "node.shape": "box" })]);
+        const tab = await openStyle("Key");
+        await userEvent.click(await within(section(tab, "shape")).findByRole("button", { name: /^Node shape, Box/ }));
+        await screen.findByPlaceholderText("Search 53 shapes");
+        await userEvent.keyboard("torus k");
+        const list = await screen.findByRole("group", { name: /values$/ });
+        await waitFor(() => {
+            const names = within(list)
+                .getAllByRole("option")
+                .map((option) => option.textContent);
+            assert.isTrue(names.length > 0 && names.every((name) => /torus/i.test(name ?? "")), names.join(", "));
+        });
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(
+                session.styles.list().find((each) => each.name === "Key")?.set?.["node.shape"],
+                "torus-knot",
+            );
+        });
+    });
+
     it("Hide in Visibility hides the layer's nodes", async () => {
         const session = await openProject([everyNode("Key", { "node.shape": "box" })]);
         const tab = await openStyle("Key");

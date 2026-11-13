@@ -62,7 +62,8 @@ function sectionOf(part: PartSpec, writes: (channel: Channel) => boolean): Secti
  * @param props.ctx - the row and kind
  * @returns The sections
  */
-export function PartsPanel({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
+export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
+    const ctx: RowContext = { ...row, pickers: "listbox" };
     const writes = writesOf(ctx.session, ctx);
     const written = (channel: Channel): boolean => writes.has(channel) || (ctx.many?.count(channel) ?? 0) > 0;
     return (

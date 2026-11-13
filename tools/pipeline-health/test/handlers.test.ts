@@ -176,14 +176,41 @@ describe("ingest: who may write", () => {
         expect(ssmSend).toHaveBeenCalledTimes(1);
     });
 
-    it("refuses local writes when the parameter is missing, and retries the lookup", async () => {
+    it("refuses local writes when the parameter is missing or blank, and retries the lookup", async () => {
+        const hash = { Parameter: { Value: createHash("sha256").update(TOKEN).digest("hex") } };
         ssmSend.mockReset();
-        ssmSend.mockRejectedValueOnce(new Error("ParameterNotFound"));
+        ssmSend.mockRejectedValueOnce(Object.assign(new Error("gone"), { name: "ParameterNotFound" }));
+        ssmSend.mockResolvedValueOnce({ Parameter: { Value: "  " } });
+        ssmSend.mockResolvedValueOnce(hash);
         const h = await ingest();
         const body = { rows: [] };
         expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(401);
-        ssmSend.mockResolvedValueOnce({ Parameter: { Value: createHash("sha256").update(TOKEN).digest("hex") } });
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(401);
         expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+        expect(ssmSend).toHaveBeenCalledTimes(3);
+    });
+
+    it("answers 500, not 401, when SSM fails, and reads SSM again next time", async () => {
+        ssmSend.mockRejectedValueOnce(Object.assign(new Error("slow down"), { name: "ThrottlingException" }));
+        const h = await ingest();
+        const body = { rows: [] };
+        const res = await h(event("/v1/local/waits", body, { auth: TOKEN }));
+        expect(res.statusCode).toBe(500);
+        expect(JSON.parse(String(res.body))).toEqual({ code: "internal" });
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+    });
+
+    it("re-reads the hash after five minutes, so a rotated token reaches a warm container", async () => {
+        const h = await ingest();
+        const body = { rows: [] };
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+        ssmSend.mockResolvedValue({ Parameter: { Value: createHash("sha256").update("rotated").digest("hex") } });
+        vi.setSystemTime(NOW + 5 * 60_000 - 1);
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+        vi.setSystemTime(NOW + 5 * 60_000);
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(401);
+        expect((await h(event("/v1/local/waits", body, { auth: "rotated" }))).statusCode).toBe(200);
+        expect(ssmSend).toHaveBeenCalledTimes(2);
     });
 
     it("refuses a local row whose id is not local", async () => {
@@ -690,6 +717,8 @@ describe("recompute and read", () => {
         expect(routeOf("/v1/page/issues", { range: "24h" })).toEqual({ status: 400, code: "bad_range" });
         expect(routeOf("/v1/page/costs", {})).toEqual({ kind: "page", page: "costs", range: "7d" });
         expect(routeOf("/v1/page/master", { range: "all" })).toEqual({ status: 400, code: "bad_range" });
+        expect(routeOf("/v1/page/overview", {})).toEqual({ kind: "page", page: "overview", range: "1h" });
+        expect(routeOf("/v1/page/overview/x", {})).toEqual({ status: 404, code: "unknown_section" });
     });
 
     it("answers no_data before the first recompute, and 4xx for unknown routes", async () => {

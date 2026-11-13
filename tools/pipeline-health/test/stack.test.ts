@@ -80,10 +80,10 @@ describe("health stack", () => {
         });
     });
 
-    it("allows GET from the page and the dev origin only", () => {
+    it("allows GET from the page and the devOrigin context origin only", () => {
         t.hasResourceProperties("AWS::ApiGatewayV2::Api", {
             CorsConfiguration: Match.objectLike({
-                AllowOrigins: ["https://health.graphty.app", "http://localhost:5173", "https://dev.example:9123"],
+                AllowOrigins: ["https://health.graphty.app", "https://dev.example:9123"],
                 AllowMethods: ["GET"],
             }),
         });

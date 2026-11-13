@@ -257,7 +257,7 @@ export interface CatalogQuerySource {
  * @param candidates - `session.time.candidates()`: the columns that read as time, best first.
  * @returns The time attributes.
  */
-export function timeAttributesOf(
+function timeAttributesOf(
     attributes: readonly AttributeDescriptor[],
     candidates: readonly { readonly kind: "node" | "edge"; readonly column: string }[],
 ): readonly AttributeDescriptor[] {
@@ -278,7 +278,7 @@ export function timeAttributesOf(
  * @param kind - Which kind of expression it is.
  * @returns The check.
  */
-export function validateQuery(
+function validateQuery(
     source: CatalogQuerySource | undefined,
     query: Query,
     kind: "selector" | "filter" | "formula" = "selector",

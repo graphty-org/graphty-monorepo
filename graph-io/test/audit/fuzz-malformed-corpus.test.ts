@@ -184,8 +184,8 @@ describe("fuzz audit: report.counts.nodes versus the sink when edges create node
             const report = await registry.importer(format).import(text, sink, { addMissingNodes: true });
             expect(sink.nodeCount).toBe(4);
             expect(report.counts.edges).toBe(2);
-            // FAILS for json, graphml and gml: they report 2 (declared nodes only); csv and dot
-            // report 4. A consumer reading the report cannot tell what the sink holds.
+            // counting only the declared nodes (2) would leave a consumer reading the report unable
+            // to tell what the sink holds
             expect(report.counts.nodes, `${format} report ${report.counts.nodes} vs sink ${sink.nodeCount}`).toBe(4);
         });
     }

@@ -9,7 +9,7 @@ import { byteChunks, byteStream, textChunksOf } from "../helpers/corpus.js";
 
 const encoder = new TextEncoder();
 const SLICE = 256 * 1024;
-const BOM = "﻿";
+const BOM = "\uFEFF";
 const EMOJI = String.fromCodePoint(0x1f600);
 const E_ACUTE = String.fromCharCode(0xe9);
 

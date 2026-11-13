@@ -27,7 +27,7 @@ import type { Graphty } from "../../src/graphty-element";
 import { everyFrameAnimationsOn } from "../../src/managers/everyFrameAnimations";
 import { EdgeShaderDrawing } from "../../src/meshes/EdgeShaderDrawing";
 import { assertGraphLoaded, type Drawn, drawn } from "../assertions";
-import { eventWaitingDecorator, isVisualCapture, waitForGraphSettled } from "../helpers";
+import { eventWaitingDecorator, isVisualCapture, untilFrames, waitForGraphSettled } from "../helpers";
 import { EDGE_PRESETS, presetId } from "./edgePresets";
 
 /** Eight nodes on a ring in two groups. */
@@ -98,21 +98,6 @@ function render(layer: LayerSpec, width = 8): Element {
         await element.session.styles.add(layer);
     })();
     return element;
-}
-
-/**
- * Wait, counting animation frames, until a condition holds; fail after a bound.
- * @param what - What is awaited, for the failure.
- * @param holds - The condition.
- */
-async function untilFrames(what: string, holds: () => boolean): Promise<void> {
-    for (let frame = 0; frame < 900 && !holds(); frame++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
-
-    if (!holds()) {
-        throw new Error(what);
-    }
 }
 
 /**

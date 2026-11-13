@@ -220,30 +220,6 @@
             "issue": "#5905"
         },
         {
-            "file": "graphty-element/src/session/styles/Layer.ts",
-            "rule": "source-by",
-            "detail": "template",
-            "count": 1,
-            "reason": "treats a layer differently because its source is \"template\"",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/Layer.ts",
-            "rule": "template-id",
-            "detail": "templateId",
-            "count": 1,
-            "reason": "singles out a starting row by its template id",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/Layer.ts",
-            "rule": "template-id",
-            "detail": "graphty:starting-",
-            "count": 1,
-            "reason": "singles out a starting row by its template id",
-            "issue": "#5905"
-        },
-        {
             "file": "graphty-element/src/session/styles/StylesApi.ts",
             "rule": "named",
             "detail": "restoreStartingRows",

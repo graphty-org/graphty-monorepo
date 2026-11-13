@@ -1,6 +1,7 @@
 import { Engine, NullEngine, Scene } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
+import { GraphtyError } from "../../src/errors/GraphtyError";
 import { MouseButton } from "../../src/input/types";
 import { EventManager } from "../../src/managers/EventManager";
 import { InputManager } from "../../src/managers/InputManager";
@@ -266,5 +267,74 @@ describe("InputManager", () => {
         }
 
         assert.isTrue(errorEmitted, "Should emit error event");
+    });
+
+    describe("playback file", () => {
+        const json = (body: unknown): string => `data:application/json,${encodeURIComponent(JSON.stringify(body))}`;
+
+        async function initWith(
+            playbackFile: string,
+        ): Promise<{ thrown: unknown; errors: Error[]; initialized: boolean }> {
+            const manager = new InputManager(
+                { scene, engine, canvas, eventManager },
+                { useMockInput: true, playbackFile },
+            );
+            const errors: Error[] = [];
+            let initialized = false;
+            // "input-initialized" is an undeclared legacy name, so only the raw channel carries it.
+            eventManager.onGraphEvent.add((event) => {
+                initialized ||= (event.type as string) === "input-initialized";
+            });
+            eventManager.onGraphError.add((event) => errors.push(event.error));
+            let thrown: unknown;
+            try {
+                await manager.init();
+            } catch (error) {
+                thrown = error;
+            }
+            manager.dispose();
+            return { thrown, errors, initialized };
+        }
+
+        test("loads the events of a valid recording", async () => {
+            const events = [{ timestamp: 0, type: "input:key-down", data: { key: "a" } }];
+            const manager = new InputManager(
+                { scene, engine, canvas, eventManager },
+                { useMockInput: true, playbackFile: json({ events }) },
+            );
+            await manager.init();
+            assert.deepEqual(manager.stopRecording(), events);
+            manager.dispose();
+        });
+
+        test("an HTTP failure is E_FETCH_FAILED, emitted and thrown, and init does not report success", async () => {
+            vi.stubGlobal("fetch", () => Promise.resolve(new Response("missing", { status: 404 })));
+            try {
+                const { thrown, errors, initialized } = await initWith("missing.json");
+                assert.instanceOf(thrown, GraphtyError);
+                assert.equal(thrown.code, "E_FETCH_FAILED");
+                assert.equal(thrown.details.status, 404);
+                assert.isFalse(thrown.recoverable);
+                assert.strictEqual(errors[0], thrown);
+                assert.isFalse(initialized);
+            } finally {
+                vi.unstubAllGlobals();
+            }
+        });
+
+        test("a file that is not JSON is E_PARSE_FAILED", async () => {
+            const { thrown } = await initWith("data:text/plain,not%20json");
+            assert.instanceOf(thrown, GraphtyError);
+            assert.equal(thrown.code, "E_PARSE_FAILED");
+        });
+
+        test("events of the wrong shape are E_PARSE_FAILED", async () => {
+            for (const body of [{}, { events: "x" }, { events: [{ timestamp: "0", type: "t", data: {} }] }]) {
+                const { thrown } = await initWith(json(body));
+                assert.instanceOf(thrown, GraphtyError);
+                assert.equal(thrown.code, "E_PARSE_FAILED");
+                assert.equal(thrown.details.reason, "bad-events");
+            }
+        });
     });
 });

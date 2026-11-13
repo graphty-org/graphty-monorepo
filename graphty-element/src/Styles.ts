@@ -1,4 +1,5 @@
 import { StyleSchemaV1, StyleTemplate } from "./config";
+import { fetchJson } from "./data/source-bytes";
 
 /**
  * The element's configuration document: everything about a graph that is not a style layer.
@@ -67,14 +68,7 @@ export class Styles {
      * @returns Promise resolving to new Styles instance
      */
     static async fromUrl(url: string): Promise<Styles> {
-        const response = await fetch(url);
-        if (!response.body) {
-            throw new Error("JSON response had no body");
-        }
-
-        const data = await response.json();
-
-        return Styles.fromObject(data);
+        return Styles.fromObject((await fetchJson(url)) as object);
     }
 
     /**

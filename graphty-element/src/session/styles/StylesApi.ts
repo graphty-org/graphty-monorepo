@@ -2584,6 +2584,29 @@ function layerIn(state: ProjectState, id: LayerId): Layer | undefined {
 }
 
 /**
+ * The faint layers a branches view draws a ghost with, a member keeping its branch's color.
+ * @param state - The state the ghosts are in.
+ * @param show - Whether the layers also draw the ghosts, which other layers hide.
+ * @returns The node layer and the edge layer.
+ */
+function heldLayers(state: "ghosted" | "outsideWindow", show: boolean): LayerSpec[] {
+    return [
+        {
+            name: "Held",
+            target: "node",
+            selector: { match: "state", state },
+            set: show ? { "node.visible": true, "node.opacity": 0.2 } : { "node.opacity": 0.2 },
+        },
+        {
+            name: "Held",
+            target: "edge",
+            selector: { match: "state", state },
+            set: show ? { "edge.visible": true, "edge.opacity": 0.15 } : { "edge.opacity": 0.15 },
+        },
+    ];
+}
+
+/**
  * Build the style stack one session holds.
  * @param sources - What a selector compiles against, the element's own layers, the scales, the
  *     repaint seam, the dispatcher and the change hook.
@@ -2868,23 +2891,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         // drawn over the ghosts.
         const restLayers = view.rest === "faint" ? 2 : 0;
         const ghostAt = view.base === "full" ? restLayers : specs.length;
-        const held = (state: "ghosted" | "outsideWindow", show: boolean): LayerSpec[] => [
-            {
-                name: "Held",
-                target: "node",
-                selector: { match: "state", state },
-                set: { ...(show ? { "node.visible": true } : {}), "node.opacity": 0.2 },
-            },
-            {
-                name: "Held",
-                target: "edge",
-                selector: { match: "state", state },
-                set: { ...(show ? { "edge.visible": true } : {}), "edge.opacity": 0.15 },
-            },
-        ];
         // What lies outside the window stays drawn: the view suspends the layers that draw it.
-        const outside = drawsOutsideWindow(current()) ? held("outsideWindow", true) : [];
-        specs.splice(ghostAt, 0, ...held("ghosted", false), ...outside);
+        const outside = drawsOutsideWindow(current()) ? heldLayers("outsideWindow", true) : [];
+        specs.splice(ghostAt, 0, ...heldLayers("ghosted", false), ...outside);
 
         const layers = specs.map((spec, at) => {
             const checked = check(spec, `graphty-branches-${String(at)}`);

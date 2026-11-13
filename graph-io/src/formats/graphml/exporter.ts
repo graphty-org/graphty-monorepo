@@ -293,8 +293,7 @@ function resolveFormatOptions(options: GraphmlExportOptions | undefined): Format
 }
 
 /**
- * The importer's `meta.extra.graphml`, when the snapshot has one of the expected shape. A namespace prefix that is
- * not an XML NCName, or is `xml` or `xmlns`, cannot be declared on the root tag: it is skipped with a loss note.
+ * The importer's `meta.extra.graphml`, when the snapshot has one of the expected shape.
  * @param snapshot - the snapshot
  * @param note - records a loss note
  * @returns the meta, or null
@@ -308,18 +307,30 @@ function graphmlMetaOf(snapshot: GraphSnapshot, note: NoteFn): GraphmlMeta | nul
     const graphId = typeof record.graphId === "string" ? record.graphId : null;
     const edgedefault =
         record.edgedefault === "directed" || record.edgedefault === "undirected" ? record.edgedefault : null;
+    return { graphId, edgedefault, namespaces: keptNamespaces(record.namespaces, note) };
+}
+
+/**
+ * The kept namespace declarations a root tag can carry. A prefix that is not an XML NCName, or is `xml` or `xmlns`,
+ * cannot be declared: it is skipped with a loss note.
+ * @param raw - the kept `namespaces` value
+ * @param note - records a loss note
+ * @returns prefix to namespace URI
+ */
+function keptNamespaces(raw: unknown, note: NoteFn): Record<string, string> {
     const namespaces: Record<string, string> = {};
+    if (typeof raw !== "object" || raw === null) {
+        return namespaces;
+    }
     const dropped: string[] = [];
-    if (typeof record.namespaces === "object" && record.namespaces !== null) {
-        for (const [prefix, uri] of Object.entries(record.namespaces as Record<string, unknown>)) {
-            if (typeof uri !== "string") {
-                continue;
-            }
-            if (isXmlName(prefix) && !prefix.includes(":") && prefix !== "xml" && prefix !== "xmlns") {
-                setOwn(namespaces, prefix, uri);
-            } else {
-                dropped.push(prefix);
-            }
+    for (const [prefix, uri] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof uri !== "string") {
+            continue;
+        }
+        if (isXmlName(prefix) && !prefix.includes(":") && prefix !== "xml" && prefix !== "xmlns") {
+            setOwn(namespaces, prefix, uri);
+        } else {
+            dropped.push(prefix);
         }
     }
     if (dropped.length > 0) {
@@ -330,7 +341,7 @@ function graphmlMetaOf(snapshot: GraphSnapshot, note: NoteFn): GraphmlMeta | nul
             dropped.length,
         );
     }
-    return { graphId, edgedefault, namespaces };
+    return namespaces;
 }
 
 /**

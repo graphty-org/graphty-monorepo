@@ -505,7 +505,7 @@ class GraphmlReader implements XmlHandler {
 
     private edgedefault: "directed" | "undirected" | null = null;
 
-    private namespaces: Record<string, string> = {};
+    private readonly namespaces: Record<string, string> = {};
 
     private weightOrigin: { id: string; title: string | null; type: string | null } | null = null;
 

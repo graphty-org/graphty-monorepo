@@ -29,6 +29,7 @@ import { agree, elementCount } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import {
     isWhitespace,
+    sniffXmlText,
     tokenizeXml,
     xmlDeclaredEncoding,
     XmlNestingError,
@@ -458,13 +459,7 @@ function graphName(graph: GraphRec, doc: XgmmlDocument): string | null {
  * @returns the confidence
  */
 function sniffXgmml(head: Uint8Array): number {
-    let encoding = "utf-8";
-    if ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0x3c && head[1] === 0 && head[2] === 0x3f)) {
-        encoding = "utf-16le";
-    } else if ((head[0] === 0xfe && head[1] === 0xff) || (head[0] === 0 && head[1] === 0x3c && head[2] === 0)) {
-        encoding = "utf-16be";
-    }
-    const text = new TextDecoder(encoding, { fatal: false }).decode(head);
+    const text = sniffXmlText(head);
     if (!/^\uFEFF?\s*</.test(text)) {
         return 0;
     }

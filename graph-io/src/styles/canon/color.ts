@@ -47,6 +47,16 @@ function hex2(v: number): string {
 }
 
 /**
+ * The red, green and blue of a `#rrggbb` color; a channel that is not two hex digits is NaN.
+ * @param hex - the color
+ * @returns the three channels, 0..255
+ */
+export function hexChannels(hex: string): [number, number, number] {
+    const at = (k: number): number => Number.parseInt(hex.slice(k, k + 2), 16);
+    return [at(1), at(3), at(5)];
+}
+
+/**
  * `#rrggbb` from channels 0..255.
  * @param r - red
  * @param g - green

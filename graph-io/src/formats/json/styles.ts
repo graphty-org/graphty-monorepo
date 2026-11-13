@@ -23,7 +23,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { itemAt } from "../../common/text.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
-import { canonBoolean, canonNumber, canonOpacity } from "../../styles/canon/number.js";
+import { canonBoolean, canonNumber, canonOpacity, num6 } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
@@ -1940,6 +1940,29 @@ function visMergedNode(nodeDefaults: VisLayer, group: VisLayer, own: VisLayer, o
 }
 
 /**
+ * vis.js: a node's label offsets, the shape's own label place with font.vadjust below it, merged into its row. A
+ * derived offset is canonical (6 significant digits) like every value read from a file, so a file graphty writes
+ * holds the same number in its native slot and its block.
+ * @param row - the node's values, offsets included
+ * @param shaped - its shape's own values
+ */
+function addShapeOffsets(row: Row, shaped: Row): void {
+    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
+        const [a, b] = [row[p], shaped[p]];
+        if (typeof a === "number" && typeof b === "number") {
+            shaped[p] = a + b;
+        }
+    }
+    Object.assign(row, shaped);
+    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
+        const v = row[p];
+        if (typeof v === "number") {
+            row[p] = num6(v);
+        }
+    }
+}
+
+/**
  * vis.js: the values one node draws, from its merged layer: its colors and label, then its shape's own.
  * @param merged - the node's merged layer
  * @param shape - its vis-network shape
@@ -1966,14 +1989,7 @@ function visNodeRow(
         const below = typeof row.labelOffsetY === "number" ? row.labelOffsetY : 0;
         row.labelOffsetY = below + drop + visBelowGap(size);
     }
-    // the shape's own label place, then font.vadjust below it
-    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
-        const [a, b] = [row[p], shaped[p]];
-        if (typeof a === "number" && typeof b === "number") {
-            shaped[p] = a + b;
-        }
-    }
-    Object.assign(row, shaped);
+    addShapeOffsets(row, shaped);
     const labelSize = visLabelScaled(merged, range);
     if (labelSize !== null) {
         row.labelSize = labelSize;

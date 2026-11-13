@@ -220,7 +220,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             phase: "iterating",
             completed: 0,
             total: nodeIds.length,
-            message: `Attenuated path sums, up to ${String(maxIterations)} passes.`,
+            params: { maxIterations },
         });
         let outcome;
         try {
@@ -237,7 +237,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
 
         const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+        await walkInChunks(nodeIds, context, "reading-scores", (nodeId) => {
             const index = ids.indexOf(nodeId);
             nodes.push({ id: nodeId, values: index === INVALID_INDEX ? {} : { value: result.scores[index] } });
         });

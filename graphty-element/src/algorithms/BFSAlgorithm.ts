@@ -144,7 +144,7 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
         const targetIndex = targetNode === undefined ? undefined : this.nodeIndex(snapshot, "targetNode", targetNode);
 
-        context.report({ phase: "Walking outwards", total: null });
+        context.report({ phase: "walking-outwards", total: null });
         const { value, precision } = await run((dispatch, s) =>
             dispatch.breadthFirstSearch(
                 s,
@@ -164,7 +164,7 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
         expanded.forEach((index, position) => orderOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Recording levels", nodeIds, (nodeId) => {
+        await forEachChunked(context, "recording-levels", nodeIds, (nodeId) => {
             const index = snapshot.ids.indexOf(nodeId);
             const order = index === INVALID_INDEX ? undefined : orderOf.get(index);
 

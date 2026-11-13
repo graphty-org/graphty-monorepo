@@ -1502,6 +1502,10 @@ object per element. Stages 26 to 28 remove that reason.
   renderer process within about 20 s: its memory climbs past 4 GB, V8's pointer-compression heap cage, which
   `--max-old-space-size` does not lift. That is about 8 KB of heap per node on the records path, roughly ten times the
   estimate. The heap measurement and its fix stay with G9 and G11; a million rows cannot load before them.
+- **G9 measured** (correction to the line above): a million rows load before G11. On the batched path with `limits`
+  raised, 1M + 10k and 1M + 1M load in about 5.4 s and 11-12.5 s, holding 753-776 MB and 1,296-1,308 MB of heap after a
+  forced collection (cosmos-gap.md G9, `benchmarks/results/cosmos-gap/`). G11 still has a target to meet (800 MB at
+  1M + 1M); what it no longer has to do is make the load possible.
 - With `"batched"`, that option loads a million nodes. `"objects"` with a higher limit refuses with `E_TOO_LARGE`: its heap reason stands.
   **The default stays 100,000** (section 10).
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or

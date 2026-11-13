@@ -5197,9 +5197,9 @@ export class Graph implements GraphContext {
         const scan = rowScanOf(this.scene);
         if (scan !== undefined) {
             for (const row of scan.rowsInRegion(polygon)) {
-                const node = this.dataManager.nodeAtRow(row);
-                if (node !== undefined) {
-                    ids.push(node.id);
+                const id = this.dataManager.nodeIdAtRow(row);
+                if (id !== undefined) {
+                    ids.push(id);
                 }
             }
 

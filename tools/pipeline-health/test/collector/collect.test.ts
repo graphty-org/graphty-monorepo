@@ -5,6 +5,7 @@ import { collect, type Deps } from "../../src/collector/collect.js";
 import { type Fetch, GitHub } from "../../src/collector/github.js";
 import type { GhJob, GhRun, Rates } from "../../src/collector/parse.js";
 import { quarantineReader, SLICE_STORE_PARAMS } from "../../src/collector/slices.js";
+import { type HoldersSnapshot, SNAPSHOT } from "../../src/collector/snapshots.js";
 import { MIN, type ObservationItem, sourceKey } from "../../src/model/items.js";
 import { getCursor } from "../../src/model/raw.js";
 import { readSnapshot } from "../../src/model/snapshots.js";
@@ -370,7 +371,7 @@ function withOpenBranches(fake: Fake, branches: string[]): Fake {
 /** Adds the recorded ghost: "Lint PR Title" queued since 02:58Z on #3940, which merged at 03:29Z. */
 function withGhost(fake: Fake, event = "pull_request"): Fake {
     const recorded = fake.fetch;
-    const ghost = { ...(fixture("run-ghost-40441556963.json") as GhRun), event };
+    const ghost = { ...(fixture("run-ghost-40441556963.json") as GhRun), name: "Lint PR Title", event };
     fake.fetch = async (url, init) => {
         const u = new URL(url);
         if (/\/actions\/runs\/40441556963\/jobs$/.test(u.pathname)) {
@@ -422,23 +423,28 @@ describe("runner job counts", () => {
             const store = new MemoryStore();
             const fake = withOpenBranches(fakeGitHub(), open);
             await collect(deps(store, ghost ? withGhost(fake, event) : fake, now));
+            const holders = JSON.parse((await getCursor(store, SNAPSHOT.holders)) ?? "{}") as HoldersSnapshot;
             return {
                 queued: observed(store, "ci.jobs_queued", now),
                 longest: observed(store, "ci.longest_queued_ms", now),
+                stuck: holders.stuck?.[`Lint PR Title, ${event}`],
             };
         };
         // No pull request of the recorded runs is open: none of them waits on a runner.
         const without = await run([], false);
-        expect(without).toEqual({ queued: 0, longest: 0 });
-        // #3940 merged: its branch heads no open pull request, so the ghost changes nothing.
-        expect(await run([])).toEqual(without);
+        expect(without).toEqual({ queued: 0, longest: 0, stuck: undefined });
+        // #3940 merged: its branch heads no open pull request, so the ghost counts nowhere but "stuck at GitHub".
+        // Its age runs from the run's creation, a second before its job's.
+        const stuck = { ...without, stuck: { runs: 1, since: Date.parse("2026-10-27T02:58:54Z") } };
+        expect(await run([])).toEqual(stuck);
         // Nor does a run of another pull request event: #6729's pull_request_target and pull_request_review runs (#7358).
-        expect(await run([], true, "pull_request_target")).toEqual(without);
-        expect(await run([], true, "pull_request_review")).toEqual(without);
+        expect(await run([], true, "pull_request_target")).toEqual(stuck);
+        expect(await run([], true, "pull_request_review")).toEqual(stuck);
         // While #3940 was open, the same job was a real wait.
         expect(await run(["fix/3938-master-builds-finish"])).toEqual({
             queued: without.queued! + 1,
             longest: now - ghostAt,
+            stuck: undefined,
         });
     });
 });

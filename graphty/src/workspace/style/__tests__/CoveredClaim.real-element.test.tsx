@@ -69,7 +69,7 @@ describe("a layer's Fill after an Or group is added to its Which nodes", () => {
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Busy, / }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
         const ws = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the workspace is open");
@@ -94,7 +94,7 @@ describe("a layer's Fill after an Or group is added to its Which nodes", () => {
             .channels.find((each) => each.channel === "node.color");
         assert.strictEqual(entry?.state === "agree" ? entry.layerId : undefined, layer.id);
         // ...and the Fill row says nothing covers it.
-        await screen.findByRole("button", { name: /^Edit Which nodes/ });
+        await screen.findByRole("button", { name: /^Style Nodes\.\.\./ });
         assert.isNull(document.querySelector("[data-covered-caption]"), "no covered caption under Fill");
     });
 });

@@ -72,7 +72,7 @@ async function newLayer(u) {
  * @param u the user's hands (README.md)
  */
 async function openWhich(u) {
-    const edit = u.page.getByRole("button", { name: /^Edit Which (nodes|edges)/ });
+    const edit = u.page.getByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ });
     const line = u.page.getByRole("button", { name: /^Which (nodes|edges),/ });
     await edit.or(line).first().waitFor();
     if (await edit.isVisible()) {

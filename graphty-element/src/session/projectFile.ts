@@ -936,6 +936,8 @@ export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Rec
         graph: result.graph,
         caveats: entry.record.caveats,
         durationMs: entry.record.durationMs ?? 0,
+        // The reader's own name (`runs.rename`); a run without one writes no key.
+        ...(entry.name === undefined ? {} : { name: entry.name }),
         nodes: { ids: nodeColumn, columns: columns(nodeValues) },
         edges: { columns: columns(ids.edges.map((edge) => result.edge(edge))) },
     };
@@ -1987,6 +1989,11 @@ async function readProject(
                 } finally {
                     canned.delete(run.id);
                 }
+
+                // A file written before runs carried the reader's name has none to give back.
+                if (typeof run.name === "string") {
+                    await tx.runs.rename(run.id, run.name);
+                }
             },
             run.id,
         );
@@ -2249,6 +2256,8 @@ interface SavedRun {
     readonly graph: Readonly<Record<string, unknown>>;
     readonly caveats: Caveats | Omit<Caveats, "facts">;
     readonly durationMs: number;
+    /** The reader's own name for the run (`runs.rename`); absent in older files and unnamed runs. */
+    readonly name?: string;
     readonly nodes: { readonly ids: readonly NodeId[]; readonly columns: Readonly<Record<string, unknown>> };
     readonly edges: { readonly columns: Readonly<Record<string, unknown>> };
 }

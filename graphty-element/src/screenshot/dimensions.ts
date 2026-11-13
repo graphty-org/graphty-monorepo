@@ -1,5 +1,8 @@
+import { GraphtyLogger, type Logger } from "../logging/index.js";
 import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import type { ScreenshotOptions } from "./types.js";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "screenshot"]);
 
 export const BROWSER_LIMITS = {
     MAX_DIMENSION: 16384,
@@ -129,8 +132,6 @@ function validateDimensions(width: number, height: number): void {
 
     // Warning for large screenshots (non-fatal)
     if (totalPixels > BROWSER_LIMITS.WARN_PIXELS) {
-        console.warn(
-            `Large screenshot ${width}x${height} (${(totalPixels / 1e6).toFixed(1)}MP) may fail on devices with limited memory`,
-        );
+        logger.warn("Large screenshot may fail on devices with limited memory", { width, height, totalPixels });
     }
 }

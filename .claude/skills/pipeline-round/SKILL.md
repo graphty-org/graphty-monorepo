@@ -387,7 +387,7 @@ Each: signal, meaning, action. Add to this list (see the next section).
 - **A full run cancelled with every lane green.** An advisory `continue-on-error` job that hits its timeout (ci.yml's
   Performance Benchmarks, #7507) leaves a full run's GitHub conclusion `cancelled` (or `failure`) although every lane
   passed and the Verdict job recorded `green-clean` or `green-images` (runs 43389691481 and 43421576817 on
-  2026-11-13). Judge master by that verdict (the `release.yml verdict` line of `shared.md`'s state block), never by
+  2026-11-13). Judge master by that verdict (the `release.yml` line of `shared.md`'s state block), never by
   the conclusion: such a run is green, master is not red, and nothing is bisected or reverted for it. Reading the
   conclusion and skipping cancelled runs kept master red for hours on an older failure.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the

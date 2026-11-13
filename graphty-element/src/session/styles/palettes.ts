@@ -42,6 +42,7 @@ import { knownPaletteIds, paletteDescriptor, palettesOfKind } from "../../catalo
 import type { BindingOverflow, PaletteDescriptor, PaletteId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { interpolatePalette } from "../../utils/styleHelpers/color/interpolation";
+import { resolvePalette } from "./carried";
 import { type ColorValue, toColorValue } from "./channels";
 import { groupCount, isScaleMiss, type ScaleContext, type ScaleRegistry } from "./scales";
 
@@ -121,10 +122,11 @@ export interface RampSpec extends Omit<ScaleContext, "palette" | "range"> {
  * because a binding with an overflow policy is painted through that palette rather than a larger
  * one. A continuous palette has no capacity and folds nothing.
  * @param named - The palette the binding names, if any.
+ * @param registry - The session's registry, for a palette an opened file carried.
  * @returns The palette's capacity, or null when nothing folds.
  */
-export function overflowCapacity(named: PaletteId | undefined): number | null {
-    return paletteDescriptor(named ?? DEFAULT_CATEGORICAL_PALETTE)?.capacity ?? null;
+export function overflowCapacity(named: PaletteId | undefined, registry: ScaleRegistry): number | null {
+    return resolvePalette(registry.carried, named ?? DEFAULT_CATEGORICAL_PALETTE)?.capacity ?? null;
 }
 
 /** The id a binding's own stops are reported under, in a legend and a prepared binding. */
@@ -218,12 +220,13 @@ export function paletteCapacity(
  * of code that tells them to register it or pick another, and `details.candidates` is what a
  * settings panel shows them.
  * @param id - The palette name.
+ * @param registry - The session's registry, for a palette an opened file carried.
  * @returns The descriptor.
  * @throws `E_UNKNOWN_PALETTE` naming every palette that can be painted with here, because a
  *   misspelled palette must not quietly become the default one.
  */
-function requirePalette(id: PaletteId): PaletteDescriptor {
-    const found = paletteDescriptor(id);
+function requirePalette(id: PaletteId, registry: ScaleRegistry): PaletteDescriptor {
+    const found = resolvePalette(registry.carried, id);
     if (found === undefined) {
         const available = knownPaletteIds();
 
@@ -429,7 +432,7 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
     const wanted = folds ? 0 : declared;
     const palette =
         stops === undefined
-            ? requirePalette(named ?? defaultPaletteFor(registry, scale, wanted))
+            ? requirePalette(named ?? defaultPaletteFor(registry, scale, wanted), registry)
             : inlinePalette(
                   stops,
                   registry.describe(scale)?.domainKind === "categorical",

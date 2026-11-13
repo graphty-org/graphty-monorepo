@@ -3676,9 +3676,9 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
 export interface StyleDocument {
+    labelLooks?: readonly LabelLookDescriptor[];
     // (undocumented)
     layers: readonly LayerSpec[];
-    // (undocumented)
     palettes?: readonly PaletteDescriptor[];
     problems?: readonly ShaderProblem[];
     shaders?: readonly {

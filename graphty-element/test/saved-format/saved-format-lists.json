@@ -1,26 +1,12 @@
 {
-    "selfContained": ["shaders"],
+    "selfContained": ["shaders", "palettes", "labelLooks"],
     "exceptions": [
-        {
-            "kind": "palette",
-            "paths": ["graphty-style.layers[].encode.node.color.palette"],
-            "catalogs": ["palettes"],
-            "issue": 6500,
-            "finding": "A binding names a built-in palette by bare id; only registered palettes are carried, so removing a built-in palette changes the colors of every file that named it."
-        },
         {
             "kind": "scale",
             "paths": [],
             "catalogs": ["scales"],
             "issue": 6501,
             "finding": "A binding names its scale (Binding.scale) by id, plugin scales included; the reading build must still have that scale."
-        },
-        {
-            "kind": "label-look",
-            "paths": [],
-            "catalogs": ["labelLooks"],
-            "issue": 6502,
-            "finding": "A label style names its look (LabelStyle.look: card, pill, ...) by id; removing a look changes old files' labels."
         },
         {
             "kind": "node-shape",

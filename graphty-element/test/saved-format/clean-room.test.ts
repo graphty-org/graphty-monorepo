@@ -10,8 +10,9 @@
  *
  * The saved-name scan: every string a save holds, and every segment of a dotted key, is compared
  * with every built-in id this build ships. A save that names a built-in fails unless the name is a
- * shader the same file carries, or it sits at a path `saved-format-lists.json` lists as a known
- * exception with a tracking issue. Changing that list needs the owner's approval.
+ * shader, palette or label look the same file carries, or it sits at a path
+ * `saved-format-lists.json` lists as a known exception with a tracking issue. Changing that list
+ * needs the owner's approval.
  */
 
 import { assert, describe, it, vi } from "vitest";
@@ -29,6 +30,19 @@ const SESSION_SHAPE = NODE_SHAPE_DESCRIPTORS[1].id;
 
 /** A saved file, parsed. */
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+
+/** A list of definitions a style document carries besides its shaders. */
+type CarriedList = "shaders" | "palettes" | "labelLooks";
+
+/** Where a layer names an entry of each carried list other than shaders. */
+const CARRIED_PATHS: readonly {
+    readonly list: Exclude<CarriedList, "shaders">;
+    readonly at: RegExp;
+    readonly def: RegExp;
+}[] = [
+    { list: "palettes", at: /\.encode\.[^.]+\.[^.]+\.palette$/, def: /(^|\.)palettes\[\]\.id$/ },
+    { list: "labelLooks", at: /\.set\.[^.]+\.[^.]*Style\.look$/, def: /(^|\.)labelLooks\[\]\.id$/ },
+];
 
 /** One built-in name found in a save. */
 interface Hit {
@@ -66,17 +80,25 @@ function member(file: Json, kind: string): Record<string, Json> {
 }
 
 /**
- * What a save holds of the shaders: the carried texts, every layer's uses and the background.
+ * What a save holds of what it carries: the shader texts, palettes and label looks, every layer's
+ * values and bindings, and the background.
  * @param text - A project file.
  * @returns The parts to compare.
  */
-function shaderParts(text: string): unknown {
+function carriedParts(text: string): unknown {
     const file = JSON.parse(text) as Json;
-    const style = member(file, "graphty-style") as { shaders?: Json; layers?: { set?: Record<string, Json> }[] };
+    const style = member(file, "graphty-style") as {
+        shaders?: Json;
+        palettes?: Json;
+        labelLooks?: Json;
+        layers?: { set?: Json; encode?: Json }[];
+    };
     const config = JSON.stringify(file).includes('"background"') ? findKey(file, "background") : undefined;
     return {
         shaders: style.shaders,
-        uses: (style.layers ?? []).map((layer) => [layer.set?.["node.shaders"], layer.set?.["edge.shaders"]]),
+        palettes: style.palettes,
+        labelLooks: style.labelLooks,
+        layers: (style.layers ?? []).map((layer) => [layer.set, layer.encode]),
         background: config,
     };
 }
@@ -154,14 +176,20 @@ async function builtInIds(): Promise<Map<string, string[]>> {
 }
 
 /**
- * Every built-in id a save names, apart from the shaders it carries and uses.
+ * Every built-in id a save names, apart from the shaders, palettes and label looks it carries and uses.
  * @param text - A project file or a style file.
  * @param ids - The built-in ids, by id.
  * @returns The hits.
  */
 function scan(text: string, ids: Map<string, string[]>): Hit[] {
     const file = JSON.parse(text) as Json;
-    const carried = new Set<string>();
+    // What the file carries, by list: a definition there, or a reference to one, names nothing of the build.
+    const carriedIn: Record<CarriedList, Set<string>> = {
+        shaders: new Set(),
+        palettes: new Set(),
+        labelLooks: new Set(),
+    };
+    const carried = carriedIn.shaders;
     const hits: Hit[] = [];
     const note = (id: string, path: string, reference: boolean): void => {
         if (reference && carried.has(id)) {
@@ -177,7 +205,10 @@ function scan(text: string, ids: Map<string, string[]>): Hit[] {
             const definition = /(^|\.)shaders\[\]\.id$/.test(path) && carried.has(value);
             const reference =
                 /\.set\.(node|edge)\.shaders\[\]\.shader$/.test(path) || /(^|\.)background\.shader\.id$/.test(path);
-            if (!definition) {
+            const other = CARRIED_PATHS.some(
+                ({ list, at, def }) => carriedIn[list].has(value) && (at.test(path) || def.test(path)),
+            );
+            if (!definition && !other) {
                 note(value, path, reference);
             }
 
@@ -207,17 +238,19 @@ function scan(text: string, ids: Map<string, string[]>): Hit[] {
         }
     };
     const root = file as Record<string, Json>;
-    for (const each of (root.members as Record<string, Json>[] | undefined) ?? []) {
+    for (const each of [...((root.members as Record<string, Json>[] | undefined) ?? []), root]) {
         for (const shader of (each.shaders as { id?: string; text?: string }[] | undefined) ?? []) {
             if (typeof shader.id === "string" && typeof shader.text === "string") {
                 carried.add(shader.id);
             }
         }
-    }
 
-    for (const shader of (root.shaders as { id?: string; text?: string }[] | undefined) ?? []) {
-        if (typeof shader.id === "string" && typeof shader.text === "string") {
-            carried.add(shader.id);
+        for (const { list } of CARRIED_PATHS) {
+            for (const entry of (each[list] as { id?: unknown }[] | undefined) ?? []) {
+                if (typeof entry.id === "string") {
+                    carriedIn[list].add(entry.id);
+                }
+            }
         }
     }
 
@@ -284,7 +317,11 @@ describe("save files are self-contained", () => {
                         withoutVolatile(JSON.parse(cSave) as Json),
                         withoutVolatile(JSON.parse(bSave) as Json),
                     );
-                    assert.deepEqual(shaderParts(bSave), shaderParts(text), "A's and B's shaders, uses and background");
+                    assert.deepEqual(
+                        carriedParts(bSave),
+                        carriedParts(text),
+                        "A's and B's carried parts, layers and background",
+                    );
                     b.dispose();
                     c.dispose();
                 }

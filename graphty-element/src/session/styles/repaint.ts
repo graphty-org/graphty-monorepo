@@ -55,11 +55,11 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { withLabelLook } from "../../catalog/label-looks";
 import type { ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
+import { withLabelLook } from "./carried";
 import {
     asColorValue,
     type ChannelDescriptor,
@@ -713,6 +713,22 @@ function readColumn(column: ChannelColumn, index: number): unknown {
 }
 
 /**
+ * For a label style channel, the step that paints a named look as if the layer wrote its fields,
+ * beneath the layer's own, resolving the look against what an opened file carried first.
+ * @param channel - The channel.
+ * @param scales - The session's registry.
+ * @returns The step, or null for any other channel.
+ */
+function lookFiller(channel: string, scales: ScaleRegistry): ((painted: unknown) => unknown) | null {
+    if (!channel.endsWith("Style")) {
+        return null;
+    }
+
+    return (painted) =>
+        typeof painted === "object" && painted !== null ? withLabelLook(painted, scales.carried) : painted;
+}
+
+/**
  * Paint one element in one column.
  * @param column - The column.
  * @param index - The element's dense index.
@@ -736,7 +752,7 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
     // wrote it; a shader parameter map and an effects map merge by id and then by field the same
     // way. `mergeChannelValue` is the one rule, shared with `explain()`. A label field channel
     // (`node.labelSize`) arrives here as a one-field label style in this same column. A named look
-    // is painted as if the layer wrote its fields, beneath the layer's own.
+    // was filled in beneath the layer's own fields before it got here (`lookFiller`).
     if (column.kind === "merge") {
         if (typeof value !== "object" || value === null) {
             column.values[index] = value;
@@ -744,8 +760,7 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
             return;
         }
 
-        const over = column.channel.endsWith("Style") ? withLabelLook(value) : value;
-        column.values[index] = mergeChannelValue(column.channel, column.values[index], over);
+        column.values[index] = mergeChannelValue(column.channel, column.values[index], value);
 
         return;
     }
@@ -1470,7 +1485,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 // A label field writes into its label style's column, so the two merge field by
                 // field in layer order however the stack mixes them.
                 column: columnFor(store, labelField?.into ?? channel),
-                toColumn: labelField === undefined ? null : labelPatcher(labelField.field),
+                toColumn: labelField === undefined ? lookFiller(channel, scales) : labelPatcher(labelField.field),
                 path,
                 plainText: path !== null && isNotePath(path),
                 combine: combineOf(descriptor, binding),

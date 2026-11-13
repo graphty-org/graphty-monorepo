@@ -45,8 +45,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { LABEL_LOOKS, labelLook } from "../../catalog/label-looks";
-import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
+import { LABEL_LOOKS } from "../../catalog/label-looks";
+import { knownPaletteIds } from "../../catalog/palettes";
 import { projectShaderDescriptor, shaderIdsFor } from "../../catalog/shaderRegistry";
 import {
     isClockBinding,
@@ -84,6 +84,7 @@ import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
+import { type CarriedLooks, resolveLabelLook, resolvePalette } from "./carried";
 import {
     type ChannelDescriptor,
     channelDescriptor,
@@ -731,9 +732,15 @@ function problemFrom(error: unknown, path: string): LayerProblem {
  * @param descriptor - The channel, as the renderer describes it.
  * @param value - The value the specification carried.
  * @param path - Where in the specification the value sits.
+ * @param carried - What an opened file carried, for a label look this build lacks.
  * @returns The problem, or null when the value is one the channel takes.
  */
-function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
+function checkStaticValue(
+    descriptor: ChannelDescriptor,
+    value: ChannelValue,
+    path: string,
+    carried: CarriedLooks,
+): LayerProblem | null {
     // An effect's off value is a value of the channel, whatever kind it otherwise takes.
     if (descriptor.off !== undefined && value === descriptor.off) {
         return null;
@@ -761,7 +768,7 @@ function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, pa
         case "enum":
             return checkEnum(descriptor, value, path);
         case "labelStyle":
-            return checkLabelStyle(descriptor, value, path);
+            return checkLabelStyle(descriptor, value, path, carried);
         default:
             return {
                 code: "E_UNSUPPORTED",
@@ -772,13 +779,19 @@ function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, pa
 }
 
 /**
- * Check a label style: an object, naming no look the catalog lacks.
+ * Check a label style: an object, naming no look the session lacks (carried or in the catalog).
  * @param descriptor - The channel.
  * @param value - The value.
  * @param path - Where it sits in the specification.
+ * @param carried - What an opened file carried.
  * @returns The problem, or null.
  */
-function checkLabelStyle(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
+function checkLabelStyle(
+    descriptor: ChannelDescriptor,
+    value: ChannelValue,
+    path: string,
+    carried: CarriedLooks,
+): LayerProblem | null {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return {
             code: "E_BAD_LAYER",
@@ -789,11 +802,11 @@ function checkLabelStyle(descriptor: ChannelDescriptor, value: ChannelValue, pat
 
     const { look } = value as LabelStyle;
 
-    if (look === undefined || labelLook(look) !== undefined) {
+    if (look === undefined || resolveLabelLook(carried, look) !== undefined) {
         return null;
     }
 
-    const candidates = LABEL_LOOKS.map((entry) => entry.id);
+    const candidates = [...new Set([...carried.labelLooks.keys(), ...LABEL_LOOKS.map((entry) => entry.id)])];
 
     return {
         code: "E_OPTION_RANGE",
@@ -1072,7 +1085,7 @@ function checkBinding(
             return;
         }
 
-        const problem = checkStaticValue(descriptor, binding.value, `${path}.value`);
+        const problem = checkStaticValue(descriptor, binding.value, `${path}.value`, options.scales.carried);
 
         if (problem !== null) {
             report(log, problem);
@@ -1164,12 +1177,13 @@ function checkBindingOptions(
        arriving somewhere a settings form is not listening. The list of candidates is read from
        the catalogue, so a reader who registered their own palette and mistyped it is shown their
        own palette among the near misses rather than only the element's seventeen. */
-    if (binding.palette !== undefined && paletteDescriptor(binding.palette) === undefined) {
+    const { carried } = options.scales;
+    if (binding.palette !== undefined && resolvePalette(carried, binding.palette) === undefined) {
         report(log, {
             code: "E_UNKNOWN_PALETTE",
             message: `There is no palette called "${binding.palette}".`,
             path: `${path}.palette`,
-            candidates: knownPaletteIds(),
+            candidates: [...new Set([...carried.palettes.keys(), ...knownPaletteIds()])],
         });
     }
 
@@ -1352,6 +1366,7 @@ function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: Pr
  * @param value - The value it is set to.
  * @param target - The layer's target, or null when it could not be settled.
  * @param catalog - Whether shader ids are checked against the catalog.
+ * @param carried - What an opened file carried, for a label look this build lacks.
  * @param log - Where problems and paths are collected.
  */
 function checkSetChannel(
@@ -1359,6 +1374,7 @@ function checkSetChannel(
     value: ChannelValue | undefined,
     target: SelectorTarget | null,
     catalog: boolean,
+    carried: CarriedLooks,
     log: ProblemLog,
 ): void {
     const path = `set.${channel}`;
@@ -1367,7 +1383,7 @@ function checkSetChannel(
     if (descriptor?.shaderTarget !== undefined && value !== undefined) {
         checkShaderValue(descriptor, value, path, catalog, log);
     } else if (descriptor !== null && value !== undefined) {
-        const problem = checkStaticValue(descriptor, value, path);
+        const problem = checkStaticValue(descriptor, value, path, carried);
 
         if (problem !== null) {
             report(log, problem);
@@ -1410,7 +1426,7 @@ function checkChannels(
 ): void {
     const catalog = options.shaders !== "report";
     for (const [channel, value] of Object.entries(spec.set ?? {})) {
-        checkSetChannel(channel, value, target, catalog, log);
+        checkSetChannel(channel, value, target, catalog, options.scales.carried, log);
     }
 
     for (const [channel, binding] of Object.entries(spec.encode ?? {})) {

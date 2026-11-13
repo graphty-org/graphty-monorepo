@@ -26,6 +26,7 @@ import type { GraphtyErrorCode } from "../errors/codes";
 import type { ChannelDescriptor } from "../session/styles/channels";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
+import type { LabelLookDescriptor } from "./label-looks";
 import type { LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
@@ -1431,7 +1432,19 @@ export interface LayerUnmatchedGroup {
 export interface StyleDocument {
     version: 1;
     layers: readonly LayerSpec[];
+    /**
+     * Every palette a layer names, built-ins included, as the writing build painted it. A layer's
+     * palette name resolves here before the reader's own catalog, so a file opens with the same
+     * colors on a build that no longer ships a palette, or ships it changed. A document written
+     * before 3.40 carries only registered palettes, and its other names resolve in the catalog.
+     */
     palettes?: readonly PaletteDescriptor[];
+    /**
+     * Every label look a layer names (`LabelStyle.look`), with the fields it set, resolved here
+     * before the reader's catalog in the same way as `palettes`. Absent when no layer names one.
+     * @since 3.40.0
+     */
+    labelLooks?: readonly LabelLookDescriptor[];
     /**
      * The style tree: folders, pins, the reader's locks and hidden rows, bottom first. A layer row
      * names its layer by its place in `layers`. Absent when the tree is one plain row per layer.

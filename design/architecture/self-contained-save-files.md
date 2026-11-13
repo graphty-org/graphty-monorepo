@@ -229,6 +229,26 @@ Delete its folder under `src/shaders/presets/` and keep its hash and archived te
 it carries the text, resolves and trusts it, and draws its thumbnail from it; only the gallery
 stops listing it. The clean-room test proves this by opening every preset with the catalog emptied.
 
+### 1.12 Palettes and label looks are carried as data
+
+Palettes and label looks (issues #6500, #6502) follow the shader rule with less machinery, because
+they are plain data. `toDocument()` writes every palette a layer names into `palettes` and every
+label look a layer's label style names into `labelLooks` (`{ id, plainName, style }`), built-ins
+included, as the session resolves them (`src/session/styles/carried.ts`). The id stays the key a
+layer uses.
+
+Reading resolves a name against what the document carried before the catalog: a palette the build
+no longer ships, or ships with other colors, paints the file's colors. The session holds the
+carried entries on its scale registry, the one object the layer check and the repaint share. Before
+a document's entries are held, entries no layer in the stack names are let go, so a project opened
+after another reads its own entries or the catalog's; an id already held keeps its entry. A
+carried entry is checked for shape (`E_BAD_COMMAND`), never refused for being unknown, which
+replaces the old `E_UNKNOWN_PALETTE` refusal of a document carrying an unregistered palette. A file
+written before this carries only registered palettes and no `labelLooks`, and its names resolve in
+the catalog as before. Known limit: a style file applied onto a project that names the same id
+through the catalog repaints those layers with the file's entry; renaming on collision, as shaders
+do, is the upgrade.
+
 ## Part 2: the regression checks
 
 ### 2.1 Clean-room round trip (runtime, the main check)
@@ -316,8 +336,8 @@ list. Shaders are not listed, because Part 1 fixes them in the same change.
 
 Named by id, so the scan sees them (each entry lists its paths):
 
-- palette: built-in palettes by bare id (only registered ones are carried); scale: `Binding.scale`,
-  plugin scales included; label-look: `LabelStyle.look` (`card`, `pill`...).
+- scale: `Binding.scale`, plugin scales included. A scale is code, so the file cannot carry it;
+  issue #6501 asks the owner whether the built-in scale names become part of the format.
 - node-shape: `node.shape`, `underlayShape`, `overlayShape` and encode choices; edge-arrow-and-line:
   arrowheads, `edge.style`, `edge.outlineStyle`; overflow-lists: overflow `shape` and `pattern` step
   through fixed lists in `encoding.ts`; closed-look-lists: border styles, chart kinds, stripe

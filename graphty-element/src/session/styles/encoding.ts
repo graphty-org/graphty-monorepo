@@ -1714,7 +1714,7 @@ function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: 
  * @returns The painter.
  */
 function cyclePainter(binding: RuleBinding, parts: AssemblyParts, list: readonly string[]): Painter {
-    const cycle = paletteCapacityOf(binding) ?? Number.POSITIVE_INFINITY;
+    const cycle = paletteCapacityOf(binding, parts.scales) ?? Number.POSITIVE_INFINITY;
     const values = new Map<string, EncodedValue>(
         parts.categories.categories.map((name, index) => [
             name,
@@ -1774,10 +1774,11 @@ export function overflowHalf(channel: Channel, binding: Binding): readonly [Chan
 /**
  * How many groups the binding's colours can name: its own stops, else its palette's capacity.
  * @param binding - The rule binding.
+ * @param scales - The session's registry, for a palette an opened file carried.
  * @returns The capacity, or null when nothing folds.
  */
-function paletteCapacityOf(binding: RuleBinding): number | null {
-    return binding.colors === undefined ? overflowCapacity(binding.palette) : binding.colors.length;
+function paletteCapacityOf(binding: RuleBinding, scales: ScaleRegistry): number | null {
+    return binding.colors === undefined ? overflowCapacity(binding.palette, scales) : binding.colors.length;
 }
 
 /**
@@ -1785,10 +1786,16 @@ function paletteCapacityOf(binding: RuleBinding): number | null {
  * @param descriptor - The channel, refused for "shape" when it paints edges.
  * @param binding - The rule binding.
  * @param numeric - Whether the scale reads numbers, which have no groups to fold.
+ * @param scales - The session's registry, for a palette an opened file carried.
  * @returns The count, or infinity when nothing folds.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` for "shape" on an edge channel.
  */
-function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numeric: boolean): number {
+function overflowKeep(
+    descriptor: ChannelDescriptor,
+    binding: RuleBinding,
+    numeric: boolean,
+    scales: ScaleRegistry,
+): number {
     const { overflow } = binding;
 
     if (overflow === "shape" && descriptor.target === "edge") {
@@ -1808,7 +1815,7 @@ function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numer
     const capacity =
         overflow === "other" && descriptor.accepts === "enum"
             ? (descriptor.values?.length ?? null)
-            : paletteCapacityOf(binding);
+            : paletteCapacityOf(binding, scales);
 
     if (numeric || capacity === null || (overflow !== "other" && overflow !== "shape" && overflow !== "pattern")) {
         return Number.POSITIVE_INFINITY;
@@ -1991,7 +1998,7 @@ function prepareRule(
 
     const facts = walkColumn(options.column, numeric);
     const slots = options.fileStyles === false ? withoutFileStyleValues(descriptor) : descriptor;
-    const categories = settleCategories(facts, binding.other, overflowKeep(slots, binding, numeric));
+    const categories = settleCategories(facts, binding.other, overflowKeep(slots, binding, numeric, options.scales));
     const order = scale === "index" ? (options.order ?? new Map<string, number>()) : undefined;
     if (order !== undefined) {
         // First seen in element order, before any element is painted, so which value gets which

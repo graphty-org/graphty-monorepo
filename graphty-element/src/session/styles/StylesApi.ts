@@ -80,7 +80,7 @@
 
 import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 
-import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
+import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
 import { isShaderId, type ShaderProblem, type ShaderUse } from "../../catalog/shaders";
 import type {
     AttributeDescriptor,
@@ -95,7 +95,6 @@ import type {
     LayerSpec,
     MeasurementDeclaration,
     NodeId,
-    PaletteDescriptor,
     Path,
     RunId,
     Scope,
@@ -107,7 +106,6 @@ import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
-import { quoteEach } from "../../utils/quote-each";
 import { resolveColumn } from "../columns";
 import {
     dropUnusedShaderCopies,
@@ -152,6 +150,7 @@ import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { inertReason } from "../visibility/union";
 import { beneathAuthored, placementLayers } from "./autoApply";
+import { carriedFor, checkCarried, holdCarried } from "./carried";
 import {
     channelDescriptor,
     isChannel,
@@ -2133,14 +2132,12 @@ function checkDocumentShaders(shaders: StyleDocument["shaders"]): void {
 /**
  * Check a style document is one this element can read at all.
  *
- * A DOCUMENT MAY CARRY PALETTES AND THEY ARE NOT AN ERROR. The refusal here used to say that
- * "palettes travel with the element, not with a document", which stopped being true the moment a
- * palette could be registered: a document naming a registered palette is applied, and only one
- * naming a palette nothing registered is refused -- with the code that tells a consumer to
- * register it first rather than one that says the element does not support the idea.
+ * A document carries every palette and label look its layers name, built-ins included, and its
+ * layers resolve them there before this build's catalog (`carried.ts`), so a carried entry is
+ * checked for its shape and never refused for being unknown here.
  * @param document - The document.
- * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a version this element does not read,
- *   and `E_UNKNOWN_PALETTE` for a palette nothing on this page has registered.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a version this element does not read, or a
+ *   carried palette or label look that is not well formed.
  */
 function checkDocument(document: StyleDocument): void {
     // Read as a number rather than as the literal the type declares: a document is data off a
@@ -2156,65 +2153,7 @@ function checkDocument(document: StyleDocument): void {
     }
 
     checkDocumentShaders(document.shaders);
-
-    const missing = (document.palettes ?? [])
-        .filter((palette) => paletteDescriptor(palette.id) === undefined)
-        .map((palette) => palette.id);
-
-    if (missing.length > 0) {
-        const available = knownPaletteIds();
-
-        throw new GraphtyError({
-            code: "E_UNKNOWN_PALETTE",
-            message:
-                `Nothing has registered the palette ${quoteEach(missing, ", ")}. ` +
-                "Register it with `registerPalette` before applying this document; applying it now would " +
-                "paint colours nobody chose.",
-            source: "style",
-            details: { palettes: missing, available, candidates: available },
-        });
-    }
-}
-
-/**
- * The descriptors of every palette these layers name that the element does not itself ship.
- *
- * WHY A SAVED LOOK CARRIES THEM. A document records the palette a layer paints through by NAME,
- * and a name is only meaningful on a page that registered it. Writing the descriptor beside the
- * name makes the document self-describing: the consumer opening it can see exactly which palettes
- * it needs, show them, and register them -- rather than getting a refusal naming a palette they
- * have no way to reconstruct. The element's own palettes are left out on purpose, because they
- * are the same everywhere and copying eighteen descriptors into every saved file would make a
- * document larger than the look it records.
- * @param specs - The layers being written out.
- * @returns The descriptors, in the order the palettes were first named.
- */
-function carriedPalettes(specs: readonly LayerSpec[]): readonly PaletteDescriptor[] {
-    const named = new Set<string>();
-
-    for (const spec of specs) {
-        for (const binding of Object.values(spec.encode ?? {})) {
-            if (binding !== undefined && "by" in binding && binding.palette !== undefined) {
-                named.add(String(binding.palette));
-            }
-        }
-    }
-
-    const carried: PaletteDescriptor[] = [];
-
-    for (const id of named) {
-        if (PALETTE_DESCRIPTORS.some((descriptor) => descriptor.id === id)) {
-            continue;
-        }
-
-        const descriptor = paletteDescriptor(id);
-
-        if (descriptor !== undefined) {
-            carried.push(descriptor);
-        }
-    }
-
-    return carried;
+    checkCarried(document);
 }
 
 /**
@@ -4712,6 +4651,33 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * {@link planTemplate}, with the document's palettes and label looks held before its layers are
+     * checked, and let go again when the apply is refused.
+     * @param document - The document.
+     * @param templateId - What to record as the template.
+     * @param at - Where the layers go.
+     * @returns The plan.
+     */
+    const planCarrying = (
+        document: StyleDocument,
+        templateId: string | undefined,
+        at: TemplatePosition | undefined,
+    ): EditPlan<TemplateReport> => {
+        checkCarried(document);
+        const restore = holdCarried(
+            scales.carried,
+            document,
+            current().map((entry) => specOf(entry.layer)),
+        );
+        try {
+            return planTemplate(document, templateId, at);
+        } catch (error) {
+            restore();
+            throw error;
+        }
+    };
+
+    /**
      * The plan a style command asks for, against the stack as it stands now.
      * @param command - The command.
      * @returns The plan. Throws a `GraphtyError` to refuse it.
@@ -4743,7 +4709,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
             document = layers.every((spec, at) => spec === document.layers[at]) ? document : { ...document, layers };
 
-            const plan = planTemplate(document, command.templateId, command.at);
+            const plan = planCarrying(document, command.templateId, command.at);
             const unknown = dropped.flatMap((uses, at) =>
                 uses.map((use): CodedFact<"shader.unknown"> => ({
                     code: "shader.unknown",
@@ -5955,7 +5921,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         toDocument(): StyleDocument {
             const mine = current().filter((entry) => !entry.layer.locked);
             const layers = mine.map((entry) => specOf(entry.layer));
-            const carried = carriedPalettes(layers);
+            const carried = carriedFor(layers, scales.carried);
             // The project's shaders travel with its look, verbatim, beside the palettes. A write
             // that names a catalog shader copies it into the project, so this is every shader used.
             const shaders = [...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text }));
@@ -5976,9 +5942,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return Object.freeze({
                 version: DOCUMENT_VERSION,
                 layers: Object.freeze(layers),
-                // Written only when there is something to write, so a look that uses nothing but
-                // the element's own palettes saves byte for byte what it saved before.
-                ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
+                // Every palette and label look a layer names, built-ins included, so a later build
+                // that no longer ships one, or ships it changed, paints what this one did.
+                ...(carried.palettes.length === 0 ? {} : { palettes: Object.freeze(carried.palettes) }),
+                ...(carried.labelLooks.length === 0 ? {} : { labelLooks: Object.freeze(carried.labelLooks) }),
                 ...(shaders.length === 0 ? {} : { shaders: Object.freeze(shaders) }),
                 ...(tree === undefined ? {} : { tree }),
                 ...(problems.length === 0 ? {} : { problems: Object.freeze(problems) }),

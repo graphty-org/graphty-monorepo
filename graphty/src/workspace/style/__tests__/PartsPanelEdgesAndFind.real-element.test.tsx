@@ -105,6 +105,14 @@ const lines = (within_: HTMLElement): string[] =>
     [...within_.querySelectorAll<HTMLElement>(".ws-row[data-line]")].map((row) => row.dataset.line ?? "");
 
 /**
+ * The settings Find a setting lists, set or not.
+ * @param results - its results.
+ * @returns their properties, in order.
+ */
+const found = (results: HTMLElement): string[] =>
+    [...results.querySelectorAll<HTMLElement>("[data-result]")].map((row) => row.dataset.result ?? "");
+
+/**
  * Types into Find a setting.
  * @param tab - the Style tab.
  * @param words - what to type.
@@ -209,7 +217,7 @@ describe("each part's settings page", () => {
             assert.isNull(screen.queryByRole("dialog", { name: "Node shape" }));
         });
         const results = await find(tab, "size mode");
-        assert.include(lines(results), "node.sizeMode");
+        assert.include(found(results), "node.sizeMode");
     });
 
     it("the label's sliders page has Type, Box, Place, Wrap and View pages", async () => {
@@ -223,9 +231,9 @@ describe("each part's settings page", () => {
         }
         await userEvent.click(within(pages).getByText("Place"));
         await waitFor(() => {
-            assert.isNotNull(page.querySelector('.ws-row[data-line="node.labelOffsetX"]'));
+            assert.isNotNull(page.querySelector('[data-unset-line="node.labelOffsetX"]'));
         });
-        assert.isNull(page.querySelector('.ws-row[data-line="node.labelWeight"]'), "Type's settings are on Type");
+        assert.isNull(page.querySelector('[data-unset-line="node.labelWeight"]'), "Type's settings are on Type");
     });
 });
 
@@ -257,7 +265,7 @@ describe("Find a setting", () => {
         await openProject([every("Key", "node", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
         const results = await find(tab, "stroke");
-        assert.include(lines(results), "node.borderColor");
+        assert.include(found(results), "node.borderColor");
         assert.isNull(tab.querySelector('[data-section="node-shape"]'), "the parts give way to the results");
         within(results).getByText("Border", { selector: "[data-find-group] > *" });
     });

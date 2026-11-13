@@ -696,10 +696,11 @@ describe("the Overview and the import of time", () => {
         const graph = session.data.snapshot();
         const ghostLayer = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
         assert.isDefined(ghostLayer);
-        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").matched;
-        // Hidden by default, by the element's own layer: the Ghost layer still selects and counts them.
+        // What the Ghost layer paints among what the drawing shows.
+        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").visible?.matched ?? -1;
+        // Hidden by default: the drawing shows none of them, so the Ghost layer paints none.
         assert.equal(session.time.settings.outside, "hide");
-        assert.equal(ghosts(), graph.nodeCount - session.visibility.summary.visibleNodes);
+        assert.equal(ghosts(), 0, "hidden, not ghosted, by default");
 
         await userEvent.click(within(outside).getByText("Ghost"));
         await waitFor(() => {
@@ -722,6 +723,7 @@ describe("the Overview and the import of time", () => {
         await userEvent.click(within(outside).getByText("Hide"));
         await waitFor(() => {
             assert.equal(session.time.settings.outside, "hide");
+            assert.equal(ghosts(), 0);
         });
     });
 

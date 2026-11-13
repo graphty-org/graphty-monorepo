@@ -329,7 +329,14 @@ describe("a file's styles drawn by the load", () => {
             assert.notProperty(session.data.lastImport() ?? {}, "styles");
             assert.deepEqual(
                 session.styles.list().map((layer) => layer.name),
-                ["Node defaults", "Edge defaults", "Nodes outside the time window", "Edges outside the time window"],
+                session.features.enabled.includes("timeline")
+                    ? [
+                          "Node defaults",
+                          "Edge defaults",
+                          "Nodes outside the time window",
+                          "Edges outside the time window",
+                      ]
+                    : ["Node defaults", "Edge defaults"],
             );
         }
 

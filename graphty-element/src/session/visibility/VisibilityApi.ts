@@ -552,9 +552,10 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     passingBytes(): FilterBytes;
     /**
-     * What every filter leaves showing, the window aside, as ids: what a layout over the shown
-     * graph lays out, so a window step never moves it. The same object until the filter or the
-     * data changes.
+     * What every filter leaves showing, as ids: what a layout over the shown graph lays out. A
+     * timeline window is left aside, as it hides by style, so a window step never moves the
+     * layout; a plain window (the timeline off) narrows it as a filter does. The same object until
+     * what it reads changes.
      * @returns Each kind's ids, null when nothing narrows that kind.
      */
     keptIds(): KeptIds;
@@ -1041,8 +1042,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         passing: FilterBytes | null;
     } | null = null;
 
-    /** The ids {@link SessionVisibilityApi.keptIds} answered, and the filter bytes they were read from. */
-    let keptCache: { readonly of: FilterBytes; readonly kept: KeptIds } | null = null;
+    /** The ids {@link SessionVisibilityApi.keptIds} answered, and what they were read from. */
+    let keptCache: { readonly of: readonly unknown[]; readonly kept: KeptIds } | null = null;
 
     /**
      * The frame to answer from, rebuilt when the snapshot moves.
@@ -2786,9 +2787,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         keptIds(): KeptIds {
             const active = upToDate();
-            const of = filterBytesOf(active.graph);
-            if (keptCache?.of !== of) {
-                const { nodes, edges } = passingOf(active.graph);
+            // A plain window (the timeline off) still takes elements out of what is visible, so
+            // the layout follows it as it follows a filter; only a timeline window hides by style.
+            const plainWindow = !windowInForce() && dispatcher.state.visibility.window !== null;
+            const of: readonly unknown[] = plainWindow
+                ? [nodeMaskValue.version, edgeMaskValue.version, active.graph]
+                : [filterBytesOf(active.graph)];
+            if (keptCache === null || !sameInputs(keptCache.of, of)) {
+                const { nodes, edges } = plainWindow
+                    ? { nodes: nodeMaskValue.bytes(), edges: edgeMaskValue.bytes() }
+                    : passingOf(active.graph);
                 const idsOf = <T>(bytes: Uint8Array | null, space: MaskIdSpace<T>): ReadonlySet<T> | null => {
                     if (bytes === null) {
                         return null;

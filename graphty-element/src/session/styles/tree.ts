@@ -596,21 +596,29 @@ export function folderIdsOf(rows: Rows): StyleRowId[] {
  */
 export function drawsOutsideWindow(stack: readonly CompiledLayer[]): boolean {
     const painted = paintedStack(stack);
-    return (["node", "edge"] as const).every((target) => {
-        for (let at = painted.length - 1; at >= 0; at--) {
-            const { layer } = painted[at];
-            const visible = layer.set?.[`${target}.visible`];
-            if (
-                layer.enabled &&
-                layer.target === target &&
-                layer.selector.match === "state" &&
-                layer.selector.state === "outsideWindow" &&
-                visible !== undefined
-            ) {
-                return visible !== false;
-            }
-        }
+    return drawsOutsideWindowOf(painted, "node") && drawsOutsideWindowOf(painted, "edge");
+}
 
-        return false;
-    });
+/**
+ * Whether the stack draws one kind outside the time window: see {@link drawsOutsideWindow}.
+ * @param painted - The stack as it paints ({@link paintedStack}).
+ * @param target - Nodes or edges.
+ * @returns True when that kind is drawn.
+ */
+export function drawsOutsideWindowOf(painted: readonly CompiledLayer[], target: "node" | "edge"): boolean {
+    for (let at = painted.length - 1; at >= 0; at--) {
+        const { layer } = painted[at];
+        const visible = layer.set?.[`${target}.visible`];
+        if (
+            layer.enabled &&
+            layer.target === target &&
+            layer.selector.match === "state" &&
+            layer.selector.state === "outsideWindow" &&
+            visible !== undefined
+        ) {
+            return visible !== false;
+        }
+    }
+
+    return false;
 }

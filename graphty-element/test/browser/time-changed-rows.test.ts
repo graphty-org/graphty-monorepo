@@ -190,7 +190,10 @@ function assertSupportPointsMatchStyle(element: Graphty, when: string): void {
 describe("changed rows on real nodes and edges", () => {
     it("draws seeded steps, three between frames, as the masks say, and writes only what moved", async () => {
         const element = await slidingElement();
-        const write = vi.spyOn(Edge.prototype, "setRenderVisible");
+        // Under Outside: Hide a step hides by style: an edge that moved is painted again, and no
+        // step walks every edge.
+        const paint = vi.spyOn(Edge.prototype, "applySessionPaint");
+        const walk = vi.spyOn(element.graph.getUpdateManager(), "forceEdgeWalk");
         let state = 11;
         const next = (): number => {
             state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296;
@@ -199,7 +202,8 @@ describe("changed rows on real nodes and edges", () => {
 
         let from = 5;
         for (let frame = 0; frame < 12; frame++) {
-            write.mockClear();
+            paint.mockClear();
+            walk.mockClear();
             let moved = 0;
             for (let slide = 0; slide < 3; slide++) {
                 from += Math.floor(next() * 20);
@@ -210,7 +214,8 @@ describe("changed rows on real nodes and edges", () => {
             await drawn(element);
             assertDrawnAsVisible(element, `frame ${String(frame)}`);
             assertEdgesOnNodes(element, `frame ${String(frame)}`);
-            assert.isAtMost(write.mock.calls.length, moved, `frame ${String(frame)} wrote only moved rows`);
+            assert.isAtMost(paint.mock.calls.length, moved, `frame ${String(frame)} painted only moved rows`);
+            assert.strictEqual(walk.mock.calls.length, 0, `frame ${String(frame)} walked no edge`);
         }
     });
 

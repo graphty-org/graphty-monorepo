@@ -592,8 +592,8 @@ interface LayoutScopeSource {
      */
     nodeValues?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
     /**
-     * What every filter keeps now, the time window aside: a window hides by style and never moves
-     * the layout. The same object until the filter or the data changes.
+     * What every filter keeps now, a timeline window aside: it hides by style and never moves the
+     * layout. The same object until what it reads changes.
      * @returns The node and edge ids, null for a kind nothing narrows.
      */
     kept?(): { readonly nodes: ReadonlySet<NodeIdType> | null; readonly edges: ReadonlySet<string> | null };

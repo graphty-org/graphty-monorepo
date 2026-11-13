@@ -194,6 +194,7 @@ import {
     STRUCTURE_PATHS,
 } from "./styles/sources";
 import { paintingOf } from "./styles/StylesApi";
+import { drawsOutsideWindow } from "./styles/tree";
 import type { EdgeAgeFade } from "./time/ageFade";
 import { numericBound } from "./time/parse";
 import { createTimeApi, gatedTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
@@ -3839,25 +3840,33 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         notifier.dispose();
         selection?.endPeek();
     });
-    // What the renderer draws, by row, for a layer's count under a time window: each kind read
-    // only when asked, and again only when its drawn mask moves, which a window step never does.
+    // What the renderer draws, by row, for a layer's count while the stack draws what lies outside
+    // a time window: what every filter keeps, a held condition's ghosts left out. Each kind read
+    // only when asked, and again only when its drawn mask or the ghosts move, which a window step
+    // never does.
     const drawnRowsOf = (
+        target: "node" | "edge",
         mask: () => { readonly version: number; forEachMember(visit: (index: number) => void): void },
     ) => {
-        let kept: { of: unknown; version: number; rows: number[] } | null = null;
+        let kept: { of: unknown; version: number; ghosts: unknown; rows: number[] } | null = null;
         return (): number[] => {
             const now = mask();
-            if (kept?.of !== now || kept.version !== now.version) {
+            const ghosts = visibility.ghosts()?.[target] ?? null;
+            if (kept?.of !== now || kept.version !== now.version || kept.ghosts !== ghosts) {
                 const rows: number[] = [];
-                now.forEachMember((index) => rows.push(index));
-                kept = { of: now, version: now.version, rows };
+                now.forEachMember((index) => {
+                    if (ghosts?.[index] !== 1) {
+                        rows.push(index);
+                    }
+                });
+                kept = { of: now, version: now.version, ghosts, rows };
             }
 
             return kept.rows;
         };
     };
-    const drawnNodeRows = drawnRowsOf(() => visibility.drawnMasks.nodes());
-    const drawnEdgeRows = drawnRowsOf(() => visibility.drawnMasks.edges());
+    const drawnNodeRows = drawnRowsOf("node", () => visibility.drawnMasks.nodes());
+    const drawnEdgeRows = drawnRowsOf("edge", () => visibility.drawnMasks.edges());
     const drawnRows = {
         get nodes(): number[] {
             return drawnNodeRows();
@@ -3950,7 +3959,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // beside a load would paint half a graph and then be handed the other half.
         queue,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
-        drawn: () => (visibility.ghosting ? drawnRows : null),
+        // Counted over what the drawing shows: what lies outside a time window only while the
+        // stack draws it (Outside: Ghost), never a held condition's ghosts.
+        drawn: () =>
+            visibility.outsideWindowBytes() !== null && drawsOutsideWindow(dispatcher.state.styles) ? drawnRows : null,
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         inputRevision: () => inputs.tick.value,
         stateRevision: () => stateRevision,

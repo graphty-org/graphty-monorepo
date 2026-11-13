@@ -321,6 +321,29 @@ describe("timeline ghosts", () => {
         session.dispose();
     });
 
+    it("hides again what a reader's node-only layer draws when Hide is asked, though Outside already read Hide", async () => {
+        const session = await trace(false);
+        await session.time.window({ from: 3, to: 6 });
+        const added = await session.styles.add({
+            name: "Outside the window",
+            target: "node",
+            selector: { match: "state", state: "outsideWindow" },
+            set: { "node.visible": true },
+        });
+        assert.isTrue(drawn(session, { node: "s0" }), "the reader's layer draws the nodes");
+        assert.strictEqual(session.time.settings.outside, "hide", "the edges are still hidden");
+
+        await session.time.setSettings({ outside: "hide" });
+        assert.strictEqual(session.styles.get(added.id)?.set?.["node.visible"], false);
+        assert.isFalse(drawn(session, { node: "s0" }));
+
+        // Asked again, nothing is left to write.
+        const stack = session.styles.list();
+        await session.time.setSettings({ outside: "hide" });
+        assert.strictEqual(session.styles.list(), stack, "no layer was written");
+        session.dispose();
+    });
+
     it("keeps what lies outside drawn faint while a branches view is open under Outside: Ghost", async () => {
         const session = await trace();
         await session.time.window({ from: 3, to: 6 });

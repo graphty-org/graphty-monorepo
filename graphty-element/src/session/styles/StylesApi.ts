@@ -534,6 +534,10 @@ export interface StylesApi {
      *
      * The index a layer happens to sit at is NOT its identity. Read {@link Layer.id} for that,
      * and pass the id to every other verb.
+     *
+     * With the timeline experiment on, the list holds two more of the element's own layers,
+     * `source: { by: "element", reason: "time" }`, which hide what lies outside a time window; with
+     * it off they are left out.
      * @returns The layers, bottom first.
      */
     list(): readonly Layer[];
@@ -1624,9 +1628,9 @@ export interface StylesSources {
      */
     readonly resolveScope?: (spec: Scope) => ResolvedScope;
     /**
-     * What the renderer draws, when it draws more than is visible: under a time window, what
-     * every filter keeps, so a layer styling what lies outside the window counts it. Absent or
-     * null, the visible elements.
+     * What the drawing shows, when it shows more than is visible: under a time window whose
+     * outside the stack draws (Outside: Ghost), what every filter keeps, so a layer styling what
+     * lies outside the window counts it. Absent or null, the visible elements.
      * @returns The rows, or null.
      */
     readonly drawn?: () => AgreementElements | null;
@@ -2975,6 +2979,32 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return listCache;
     };
     const listLayers = (): readonly Layer[] => listed().layers;
+
+    /** The list with the timeline off, by the list it was read from: see {@link StylesApi.list}. */
+    let untimedList: { readonly of: readonly Layer[]; readonly layers: readonly Layer[] } | null = null;
+    /**
+     * The list a consumer reads: with the timeline off, the element's own layers hiding what lies
+     * outside a time window stay in the stack, matching nothing, and are left out, as the tree
+     * leaves out a saved Ghost row.
+     * @returns The layers, bottom first.
+     */
+    const publicList = (): readonly Layer[] => {
+        const layers = listLayers();
+        if (dispatcher.services.timeline?.() !== false) {
+            return layers;
+        }
+
+        if (untimedList?.of !== layers) {
+            untimedList = {
+                of: layers,
+                layers: Object.freeze(
+                    layers.filter(({ source }) => !(source.by === "element" && source.reason === "time")),
+                ),
+            };
+        }
+
+        return untimedList.layers;
+    };
 
     /**
      * The first version of each edited layer, by every later version of it. An edit compiles a new
@@ -5128,7 +5158,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     const api: SessionStylesApi = {
         list(): readonly Layer[] {
-            return listLayers();
+            return publicList();
         },
 
         showBranches(view: BranchesView): { end(): void } {

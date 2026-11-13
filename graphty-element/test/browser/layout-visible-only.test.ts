@@ -161,6 +161,42 @@ describe("a layout over only what the filter shows", () => {
         assert.isAbove(layoutsRun, runs);
     });
 
+    it("with the timeline off, lays out only what a plain window keeps, and again when it moves", async () => {
+        // Off for the whole case: a graph reads the page default until its features settle.
+        setDefaultFeatures([]);
+        const plain = await pathGraph();
+        try {
+            const plainSession = plain.graph.getSession() as ElementSession;
+            assert.notInclude(plainSession.features.enabled, "timeline");
+            let runs = 0;
+            plain.graph.addListener("layout-changed", () => {
+                runs++;
+            });
+            await plainSession.data.updateNodes(IDS.map((id, index) => ({ id, values: { step: index } })));
+            await plain.graph.setLayout("circular", { dim: 2 });
+            plain.graph.setLayoutBehavior({ layout: { visibleOnly: true } });
+            await plain.graph.waitForSettled();
+
+            // Five nodes inside the window: five slots on the circle, 72 degrees apart.
+            await plainSession.visibility.setWindow({ attribute: "data.step", from: 0, to: 5 });
+            await plain.graph.waitForSettled();
+            const five = IDS.slice(0, 5);
+            assert.strictEqual(plainSession.visibility.summary.visibleNodes, 5);
+            assert.closeTo(smallestGap(anglesOf(positionsOf(plain.graph), five)), 72, 0.5);
+
+            // Moving the window lays the circle out again: four nodes, 90 degrees apart.
+            const before = runs;
+            await plainSession.visibility.setWindow({ attribute: "data.step", from: 10, to: 14 });
+            await plain.graph.waitForSettled();
+            assert.isAbove(runs, before, "the layout ran again");
+            assert.closeTo(smallestGap(anglesOf(positionsOf(plain.graph), IDS.slice(10, 14))), 90, 0.5);
+        } finally {
+            setDefaultFeatures(["timeline"]);
+            plain.graph.dispose();
+            plain.container.remove();
+        }
+    });
+
     it("runs the whole graph by default, hidden nodes keeping their slots", async () => {
         await graph.setLayout("circular", { dim: 2 });
         const five = ["n0", "n1", "n2", "n3", "n4"];

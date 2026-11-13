@@ -231,9 +231,12 @@ await time.setSettings({ step: "week", mode: "cumulative", results: "rerun", mis
 ## What lies outside the window
 
 The window never takes anything out of the graph. An element outside it is in the
-`"outsideWindow"` element state, and style layers decide how it is drawn: the element's own layers
-hide it, and a layer above them that selects the state can draw it any way, as it would draw a
-selected or a pinned node.
+`"outsideWindow"` element state, and style layers decide how it is drawn. The element's own two
+layers hide it: "Nodes outside the time window" and "Edges outside the time window", with
+`source: { by: "element", reason: "time" }`, which select the state, set `visible: false` and are
+locked. A layer above them that selects the state can draw it any way, as it would draw a selected
+or a pinned node. This one draws the nodes; add one with `target: "edge"` and `"edge.visible": true`
+to draw the edges too.
 
 ```js
 await g.session.styles.add({
@@ -246,9 +249,11 @@ await g.session.styles.add({
 
 `time.setSettings({ outside: "ghost" })` does the same for you: it sets `visible: true` on every
 layer that selects the state, or adds one for nodes and one for edges when none does, and
-`outside: "hide"` sets `visible: false` on them again. `time.settings.outside` reads the layers, so
-it always says what is drawn. A layer selecting the state counts what lies outside the window
-whether it is hidden or drawn.
+`outside: "hide"` sets `visible: false` on them again. `time.settings.outside` reads the layers: it
+says `"ghost"` only while both nodes and edges outside the window are drawn, and `"hide"` otherwise,
+so a layer drawing one kind alone reads `"hide"`, and asking for `"hide"` hides that kind again.
+While both are drawn, a layer selecting the state counts what lies outside the window; while it is
+hidden, a layer counts only what is visible.
 
 What lies outside the window is still not visible: no count, algorithm run or export includes it.
 It keeps its place in every layout: a play, a step or a jump moves no node and no camera, even with

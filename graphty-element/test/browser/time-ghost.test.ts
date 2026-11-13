@@ -7,6 +7,7 @@
 
 import "../../src/graphty-element";
 
+import type { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -91,6 +92,19 @@ function fills(element: Graphty): Map<string, { shown: boolean; fill: string; op
     );
 }
 
+/**
+ * Whether a node draws its halo ring now (the mesh one, which a node not drawn by a shader batch uses).
+ * @param element - The element.
+ * @param id - The node.
+ * @returns True while the ring is on.
+ */
+function haloOn(element: Graphty, id: string): boolean {
+    const node = element.graph.getDataManager().nodes.get(id);
+    assert.isDefined(node, `node ${id}`);
+    const { halo } = node as unknown as { halo: AbstractMesh | null };
+    return halo?.isEnabled() === true;
+}
+
 describe("timeline ghosts on the canvas", () => {
     it("draws out-of-window nodes and edges in the Ghost row's look, and only them", async () => {
         const element = await trace();
@@ -154,6 +168,44 @@ describe("timeline ghosts on the canvas", () => {
         await time.setSettings({ outside: "hide" });
         await settle(element);
         assert.isFalse(fills(element).get("s0")?.shown);
+    });
+
+    it("takes a selected node's halo away with it outside the window, and draws it again as a ghost", async () => {
+        // No starting rows: the selection draws a halo.
+        const element = await trace(false);
+        const { time } = element.session;
+        await element.session.selection.apply({ nodes: ["s0"] });
+        await settle(element);
+        assert.isTrue(haloOn(element, "s0"), "the selection rings s0");
+
+        await time.window({ from: 1, to: 3 });
+        await settle(element);
+        assert.isFalse(fills(element).get("s0")?.shown);
+        assert.isFalse(haloOn(element, "s0"), "a hidden node draws no halo");
+
+        await time.setSettings({ outside: "ghost" });
+        await settle(element);
+        assert.isTrue(fills(element).get("s0")?.shown);
+        assert.isTrue(haloOn(element, "s0"), "a ghost keeps its halo");
+    });
+
+    it("takes a pinned node's halo away with it outside the window, and draws it again as a ghost", async () => {
+        const element = await trace();
+        const { time } = element.session;
+        await element.session.config.set({ pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } });
+        await element.session.positions.pin(["s4"]);
+        await settle(element);
+        assert.isTrue(haloOn(element, "s4"), "the Pinned row rings s4");
+
+        await time.window({ from: 1, to: 3 });
+        await settle(element);
+        assert.isFalse(fills(element).get("s4")?.shown);
+        assert.isFalse(haloOn(element, "s4"), "a hidden node draws no halo");
+
+        await time.setSettings({ outside: "ghost" });
+        await settle(element);
+        assert.isTrue(fills(element).get("s4")?.shown);
+        assert.isTrue(haloOn(element, "s4"), "a ghost keeps its halo");
     });
 
     it("hides what lies outside the window with no starting rows, and ghosts it when asked", async () => {

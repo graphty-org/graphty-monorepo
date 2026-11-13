@@ -27,7 +27,7 @@ import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
 import type { CompiledLayer } from "../styles/Layer";
 import type { Selector } from "../styles/selector";
-import { drawsOutsideWindow, paintedStack } from "../styles/tree";
+import { drawsOutsideWindow, drawsOutsideWindowOf, paintedStack } from "../styles/tree";
 import type { HistoryStepId, SessionEventMap } from "../types";
 import type {
     FilterResult,
@@ -1697,10 +1697,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      */
     const outsideWrites = (outside: "hide" | "ghost"): StylePatchCommand[] => {
         const drawn = outside === "ghost";
+        const painted = paintedStack(dispatcher.state.styles);
         return (["node", "edge"] as const).flatMap((target): StylePatchCommand[] => {
             const own = outsideLayers(target).filter(({ layer }) => layer.source.by !== "element");
             if (own.length === 0) {
-                return drawn
+                // A kind already drawn the way asked needs no layer of its own.
+                return drawn && !drawsOutsideWindowOf(painted, target)
                     ? [
                           {
                               op: "style.patch",
@@ -1716,12 +1718,15 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     : [];
             }
 
-            return own.map(({ layer }) => ({
-                op: "style.patch",
-                action: "update",
-                id: layer.id,
-                patch: { set: { ...layer.set, [`${target}.visible`]: drawn } },
-            }));
+            // A layer already set the way asked is left alone, so asking again writes nothing.
+            return own
+                .filter(({ layer }) => layer.set?.[`${target}.visible`] !== drawn)
+                .map(({ layer }) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id: layer.id,
+                    patch: { set: { ...layer.set, [`${target}.visible`]: drawn } },
+                }));
         });
     };
 
@@ -2869,8 +2874,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     ),
                 ),
             );
-            const styleWrites =
-                patch.outside === undefined || patch.outside === was.outside ? [] : outsideWrites(patch.outside);
+            // Written whatever `outside` reads now: it reads "ghost" only while both kinds are drawn,
+            // so a layer drawing one kind alone still reads "hide" and is set back by asking for it.
+            const styleWrites = patch.outside === undefined ? [] : outsideWrites(patch.outside);
             await dispatcher.transaction(
                 "time.settings",
                 async (tx) => {

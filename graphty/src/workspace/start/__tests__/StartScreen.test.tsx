@@ -249,6 +249,7 @@ describe("the start screen", () => {
     it("opens a graph from a typed web address, and nothing for words that are not one", async () => {
         const store = renderStart();
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Web address/ }));
         const field = await screen.findByRole("textbox", { name: /Web address/ });
         await userEvent.type(field, "trade routes{Enter}");
         assert.isNull(store.get().project);
@@ -263,6 +264,7 @@ describe("the start screen", () => {
     it("opens a typed web address from the Open button beside the box", async () => {
         const store = renderStart();
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Web address/ }));
         const field = await screen.findByRole("textbox", { name: /Web address/ });
         await userEvent.type(field, "https://example.com/data/sites.csv");
         await userEvent.click(screen.getByRole("button", { name: "Open" }));

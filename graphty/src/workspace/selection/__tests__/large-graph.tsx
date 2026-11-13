@@ -110,6 +110,10 @@ export const oneStep = (id: string, stepRule: UnionLeaf["branches"][number]["ste
  * @param id - the step's id.
  */
 export async function selectStep(id: string): Promise<void> {
+    // At rest a style layer's selection is its Style Nodes... line alone; it opens the rows (issue #6810).
+    if (document.querySelector(`[data-row="${id}"]`) === null) {
+        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+    }
     const row = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(`[data-row="${id}"]`);
         assert.isNotNull(found);

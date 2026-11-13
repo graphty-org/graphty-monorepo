@@ -3,8 +3,7 @@
  * JSON.parse of the raw text and hand-written counting, never through the importer) and against the
  * quirks graphty-element's JsonDataSource and research note 07 sections 2.7-2.9 describe: the
  * dialect detection order, the id / endpoint key fallbacks, d3 index links, Cytoscape parents and
- * classes, JGF keyed nodes and hyperedges, graphology options, vis from / to. Tests named
- * "DEFECT:" pin a defect and fail until the importer is fixed.
+ * classes, JGF keyed nodes and hyperedges, graphology options, vis from / to.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -320,10 +319,9 @@ describe("JSON quirks from JsonDataSource and research note 07", () => {
         expect(Object.is(negativeZero.snapshot.ids.idOf(0), 0)).toBe(true);
     });
 
-    it("DEFECT: an out-of-range d3 index link must be an error, not silently become new numeric nodes", async () => {
+    it("an out-of-range d3 index link is an E_BAD_INDEX error, never new numeric nodes", async () => {
         // With name-only nodes an integer endpoint can only be an array index (note 07: d3 links
-        // reference nodes by ARRAY INDEX and must not be coerced). indexLinks "auto" flips to false
-        // when one index is out of range, and the integers are then added as nodes 5 and 0.
+        // reference nodes by ARRAY INDEX and must not be coerced), so 5 must not become a node.
         const { snapshot, report } = await parse({
             nodes: [{ name: "A" }, { name: "B" }],
             links: [{ source: 5, target: 0 }],

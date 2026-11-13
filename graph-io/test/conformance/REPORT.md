@@ -16,7 +16,7 @@ the expectation today; the reference points into
 | cx2 | 57 | 57 | 0 | 53 | 0 |
 | cys | 53 | 53 | 0 | 40 | 0 |
 | dot | 196 | 191 | 5 | 173 | 1 |
-| gexf | 110 | 107 | 3 | 104 | 1 |
+| gexf | 110 | 110 | 0 | 107 | 0 |
 | gml | 109 | 98 | 11 | 88 | 3 |
 | graphml | 148 | 145 | 3 | 131 | 0 |
 | json | 427 | 420 | 7 | 102 | 0 |
@@ -215,22 +215,7 @@ No known failures.
 
 ## gexf
 
-### 1.1 <slices> skipped instead of read as spells (sources.md 1.4 Graph element) (#7643) (1)
-
-- `authored/slices-1.1.gexf`: issue W_UNKNOWN_ELEMENT present
-
-### 1.3 list with an escaped quote misparsed (sources.md 1.4 Attributes) (#7642) (1)
-
-- `graphology/v1_3.gexf`: node "Suzy" single: expected ["a","'b'","c"], got ["a","\\b\\''","c"]
-
-### round trip: dynamic attribute values shift by one element on GEXF re-export (#7644) (1)
-
-- `gephi-datasets/photoviz-dynamic.gexf`: extensions.temporal:node:codelines.element[308]: expected 121, got 120; extensions.temporal:node:codelines.element[309]: expected 122, got 121
-
-### undeclared attvalue dropped instead of kept with a warning (sources.md 1.4 Attributes) (#7641) (1)
-
-- `graphology/undeclared_attribute.gexf`: node 0 url: no such column
-
+No known failures.
 
 ## gml
 

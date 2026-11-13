@@ -170,7 +170,7 @@ export async function importDocument<Opts>(
     try {
         report = await importer.import(text, builder, { ids: "string", ...options });
     } catch (error) {
-        throw error instanceof ImportError ? parseFailed(importer, error) : error;
+        throw error instanceof ImportError ? parseFailed(importer.format, error) : error;
     }
 
     return { snapshot: builder.freeze(), report, importer, declared: builder.declared };
@@ -201,12 +201,12 @@ export function emptyLoad(error: unknown, format: string): GraphtyError | null {
 
 /**
  * The error a load fails with when the importer could not read the file.
- * @param importer - the graph-io importer for the format
+ * @param format - the format the file was read as
  * @param error - the importer's error
  * @returns a `GraphtyError` with `E_PARSE_FAILED` naming the format and the last error line
  */
-function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError {
-    const empty = emptyLoad(error, importer.format);
+export function parseFailed(format: string, error: ImportError): GraphtyError {
+    const empty = emptyLoad(error, format);
     if (empty !== null) {
         return empty;
     }
@@ -216,8 +216,8 @@ function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError 
     return GraphtyError.wrap(error, {
         code: "E_PARSE_FAILED",
         source: "data",
-        message: `Failed to read the ${importer.format} file${where}: ${error.message}`,
-        details: { format: importer.format, line, errors: error.report.errorCount },
+        message: `Failed to read the ${format} file${where}: ${error.message}`,
+        details: { format, line, errors: error.report.errorCount },
     });
 }
 

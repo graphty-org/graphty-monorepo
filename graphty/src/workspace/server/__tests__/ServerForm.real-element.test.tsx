@@ -612,6 +612,34 @@ describe("server sources on the real element", () => {
         }
     });
 
+    it("words a file at an address it could not read, naming the format and the line", async () => {
+        const realFetch = globalThis.fetch;
+        const address = "https://files.example/friends.csv";
+        // An edge list headed by two id columns naming the same ids: not a table graph-io can read.
+        const files = vi
+            .spyOn(globalThis, "fetch")
+            .mockImplementation((input, init) =>
+                new URL(input instanceof Request ? input.url : input, location.href).href === address
+                    ? Promise.resolve(new Response("user_id,friend_id\nu1,u2\nu2,u3\n", { status: 200 }))
+                    : realFetch(input, init),
+            );
+        try {
+            await openDataPlace();
+            const form = await openForm();
+            await pick(form, "Kind", "Load from URL");
+            await userEvent.type(within(form).getByRole("textbox", { name: "URL" }), address);
+            await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+            const chip = await waitFor(() => {
+                const found = form.querySelector('[data-code="E_PARSE_FAILED"]');
+                assert.isNotNull(found);
+                return found;
+            });
+            assert.strictEqual(chip?.textContent, "unreadable file: CSV, line 1");
+        } finally {
+            files.mockRestore();
+        }
+    });
+
     it("lists every kind of network this browser can reach, and Load from URL", async () => {
         await openDataPlace();
         const form = await openForm();
@@ -650,17 +678,20 @@ describe("server sources on the real element", () => {
         assert.isAbove(session.data.nodes().length, 0);
     });
 
-    it("adds a second file by address beside the first, with no join step", async () => {
+    it("takes a second file by address into a graph that holds data to the join screen, as Paste does", async () => {
         const { session } = await openDataPlace();
         await loadFromUrl(fixtureUrl("suppliers.csv"));
-        await loadFromUrl(fixtureUrl("ships-to-2024-09.csv"));
         await waitFor(() => {
             assert.deepEqual(
                 session.data.sources().map((source) => source.name),
-                ["suppliers.csv", "ships-to-2024-09.csv"],
+                ["suppliers.csv"],
             );
         });
-        assert.isNull(screen.queryByRole("region", { name: /^Join / }));
+        const nodes = session.data.nodes().length;
+        await loadFromUrl(fixtureUrl("ships-to-2024-09.csv"));
+        await screen.findByRole("region", { name: /^Join / });
+        assert.lengthOf(session.data.sources(), 1, "nothing added before the reader chooses");
+        assert.strictEqual(session.data.nodes().length, nodes);
     });
 
     it("keeps focus on Test while it reads", async () => {

@@ -1015,7 +1015,7 @@ class TableReader {
             csv.sourceColumn === null &&
             csv.targetColumn === null &&
             csv.nodes === null &&
-            findColumn(names, ID_NAMES) >= 0 &&
+            idCandidates(names).length > 0 &&
             findColumn(names, SOURCE_NAMES) < 0 &&
             findColumn(names, TARGET_NAMES) < 0
         );
@@ -1294,9 +1294,11 @@ class TableReader {
                 { columns: [...names] },
             );
         }
-        // only an id, node, name or key column makes a table without endpoints a node table: an
-        // edge list headed user_id,friend_id must fail, not lose its edges as a node table
-        const idResolves = header ? findColumn(names, ID_NAMES) >= 0 : names.length >= 1;
+        // an id, node, name or key column makes a table without endpoints a node table, and so does
+        // a column ending in id that keys the rows with values no other column holds: an edge list
+        // headed user_id,friend_id names the same ids in both columns, and must fail rather than
+        // lose its edges as a node table
+        const idResolves = header ? findColumn(names, ID_NAMES) >= 0 || this.ownKey(names) : names.length >= 1;
         if (this.kind === "auto" && csv.idColumn === null && !idResolves && !this.rowNumbers) {
             report.fail(
                 NO_ENDPOINT_COLUMNS_CODE,
@@ -1305,6 +1307,26 @@ class TableReader {
                 { columns: [...names] },
             );
         }
+    }
+
+    /**
+     * Whether the rows read ahead have an id-like column that keys them with values no other
+     * column holds (door_entries.csv's entry_id), rather than ids an edge list names in two columns.
+     * @param names - the column names
+     * @returns true when such a column exists
+     */
+    private ownKey(names: readonly string[]): boolean {
+        const rows = this.drained;
+        if (rows === null) {
+            return false;
+        }
+        return idCandidates(names).some((column) => {
+            if (!isKey(rows, column)) {
+                return false;
+            }
+            const own = new Set(rows.map(({ row }) => row[column]));
+            return rows.every(({ row }) => row.every((cell, i) => i === column || !own.has(cell)));
+        });
     }
 
     /**

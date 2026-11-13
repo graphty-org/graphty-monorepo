@@ -42,6 +42,8 @@ const CODE_WORDS: Readonly<Record<string, string>> = {
     E_SOURCE_LIMIT: "over the limit",
     E_SOURCE_UNSUPPORTED: "not supported",
     E_TOO_LARGE: "too large to draw",
+    E_PARSE_FAILED: "unreadable file",
+    E_EMPTY_LOAD: "empty file",
     W_SOURCE_LIMIT: "capped",
     W_SOURCE_AUTH: "sign-in needed for more",
     W_SOURCE_RETRIED: "retried",
@@ -69,6 +71,10 @@ export function codeWords(fact: CodedFact): string {
     }
     if (typeof name === "string") {
         return `${words}: ${name}`;
+    }
+    if (fact.code === "E_PARSE_FAILED" && typeof fact.params.format === "string") {
+        const line = typeof fact.params.line === "number" ? `, line ${String(fact.params.line)}` : "";
+        return `${words}: ${fact.params.format.toUpperCase()}${line}`;
     }
     const host = typeof origin === "string" && URL.canParse(origin) ? new URL(origin).host : null;
     return host === null ? words : `${words}: ${host}`;

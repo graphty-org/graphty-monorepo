@@ -6,6 +6,7 @@
 
 import { ImportError } from "@graphty/graph-io";
 
+import { parseFailed } from "../../data/graph-io-import";
 import { type GraphtyErrorCode, isGraphtyErrorCode } from "../../errors/codes";
 import { GraphtyError } from "../../errors/GraphtyError";
 
@@ -22,7 +23,8 @@ const RECOVERABLE: ReadonlySet<string> = new Set([
 
 /**
  * The element's error for what a source call threw: an ImportError with a source code becomes a
- * `GraphtyError` with that code and its params as details; anything else passes unchanged.
+ * `GraphtyError` with that code and its params as details, one an importer stopped on becomes
+ * `E_PARSE_FAILED` (or `E_EMPTY_LOAD`); anything else passes unchanged.
  * @param error - what graph-io threw
  * @param extra - details to add (`E_SOURCE_AUTH` gains `stored`)
  * @returns the error to throw
@@ -34,7 +36,8 @@ export function toGraphtyError(error: unknown, extra: Readonly<Record<string, un
     const raw = String(error.issue.code);
     const code = RENAMED[raw] ?? (isGraphtyErrorCode(raw) ? raw : null);
     if (code === null) {
-        return error;
+        // A file a source fetched that its format's importer could not read fails as a file does.
+        return parseFailed(error.report.format, error);
     }
     return new GraphtyError({
         code,

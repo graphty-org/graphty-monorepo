@@ -21,6 +21,7 @@ import type {
     EdgeReading,
     FieldDescriptor,
     LayerId,
+    OptionDescriptor,
     PaletteId,
     ResultShape,
     RunId,
@@ -686,20 +687,12 @@ export interface SweepRow {
 }
 
 /**
- * An algorithm option's name, as the algorithm's catalog `options` spell it (Louvain's
- * `resolution`, PageRank's `dampingFactor`). Whoever registers an algorithm names its options, so
- * any name is allowed.
- * @since 3.51.0
- */
-export type AlgorithmOptionName = string;
-
-/**
  * What a sweep produced: the batch it ran, and one row per value in the order given.
  * @since 3.51.0
  */
 export interface SweepResult extends BatchResult {
     /** The option the sweep varied. */
-    readonly option: AlgorithmOptionName;
+    readonly option: OptionDescriptor["name"];
     /** One row per value, in the order the values were given. */
     readonly rows: readonly SweepRow[];
 }
@@ -1121,7 +1114,7 @@ export interface RunsApi {
      */
     sweep(
         algorithm: AlgorithmKey,
-        option: AlgorithmOptionName,
+        option: OptionDescriptor["name"],
         values: readonly unknown[],
         options?: SweepOptions,
     ): Run<SweepResult>;

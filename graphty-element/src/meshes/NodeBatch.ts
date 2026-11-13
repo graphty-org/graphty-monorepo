@@ -736,12 +736,29 @@ export class NodeBatches {
     }
 
     /**
-     * The Map entries kept per row: a group for each row that has a `Node`, and none for a row
-     * without one, whose group and slot are read from the row itself.
+     * The Map entries the batches hold beyond their row store and their per-look groups: every
+     * entry of every other Map on the batches and on each look's batch, so a Map that grows with
+     * the rows (a group or a slot per row) shows up here however it is named.
      * @returns How many.
      */
     get rowMapEntries(): number {
-        return this.nodeGroups.size;
+        const perLook = new Set<unknown>([this.groups, this.families, this.columnRows]);
+        const entries = (owner: object): number => {
+            let count = 0;
+            for (const value of Object.values(owner)) {
+                if (value instanceof Map && !perLook.has(value)) {
+                    count += value.size;
+                }
+            }
+
+            return count;
+        };
+        let total = entries(this);
+        for (const family of this.families.values()) {
+            total += family.batch === null ? 0 : entries(family.batch);
+        }
+
+        return total;
     }
 
     /**

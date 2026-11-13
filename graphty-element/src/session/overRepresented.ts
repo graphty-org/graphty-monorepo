@@ -66,7 +66,7 @@ function logFactorials(n: number): Float64Array {
  * @param k - the marked count observed in the draw
  * @returns the upper-tail p, from 0 to 1
  */
-export function hypergeometricUpperTail(lnF: Float64Array, N: number, K: number, n: number, k: number): number {
+function hypergeometricUpperTail(lnF: Float64Array, N: number, K: number, n: number, k: number): number {
     const low = Math.max(0, n - (N - K));
     const high = Math.min(K, n);
     if (k <= low) {

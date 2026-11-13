@@ -536,13 +536,13 @@ Influence counted over walks of every length, the shorter walks counting more.
 
 Returns `ScoreResult & { iterations: number; converged: boolean; }`. Reads edge weights from `weight`. Async twin, which can run on the GPU: `graphtyKatzCentralityAsync`.
 
-| Option          | Type      | Default    | Meaning                                                  |
-| --------------- | --------- | ---------- | -------------------------------------------------------- |
-| `maxIterations` | `number`  | `100`      | Iteration cap.                                           |
-| `tolerance`     | `number`  | `0.000001` | Convergence tolerance on the largest single-node change. |
-| `normalized`    | `boolean` | `true`     | Rescale the scores to [0, 1] by min-max.                 |
-| `alpha`         | `number`  | `0.1`      | Attenuation factor applied to a neighbor's score.        |
-| `beta`          | `number`  | `1`        | Base score every node starts with and keeps.             |
+| Option          | Type      | Default    | Meaning                                                                                                                                                                                                                                                                                                         |
+| --------------- | --------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxIterations` | `number`  | `100`      | Iteration cap.                                                                                                                                                                                                                                                                                                  |
+| `tolerance`     | `number`  | `0.000001` | Convergence tolerance on the largest single-node change.                                                                                                                                                                                                                                                        |
+| `normalized`    | `boolean` | `true`     | Rescale the scores to [0, 1] by min-max.                                                                                                                                                                                                                                                                        |
+| `alpha`         | `number`  | `0.1`      | Attenuation factor applied to a neighbor's score. Must be at least 0 and below 1 / lambda_max, the reciprocal of the graph's largest adjacency eigenvalue, or the series diverges and the call throws `ConvergenceError`: a complete graph on 11 nodes, or a star with 100 leaves, already needs less than 0.1. |
+| `beta`          | `number`  | `1`        | Base score every node starts with and keeps.                                                                                                                                                                                                                                                                    |
 
 ### `graphtyKruskalMST`
 

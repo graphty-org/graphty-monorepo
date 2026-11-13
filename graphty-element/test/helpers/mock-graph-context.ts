@@ -210,9 +210,22 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         }
     }
 
+    const removers = new Map<symbol, () => void>();
     const mockEventManager = {
-        addListener(type: string, listener: (event: { type: string }) => void): void {
+        addListener(type: string, listener: (event: { type: string }) => void): symbol {
             listeners.set(type, [...(listeners.get(type) ?? []), listener]);
+            const id = Symbol(type);
+            removers.set(id, () => {
+                listeners.set(
+                    type,
+                    (listeners.get(type) ?? []).filter((l) => l !== listener),
+                );
+            });
+            return id;
+        },
+        removeListener(id: symbol): boolean {
+            removers.get(id)?.();
+            return removers.delete(id);
         },
         emit(type: string): void {
             announce(type);

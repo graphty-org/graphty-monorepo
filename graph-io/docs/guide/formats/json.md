@@ -99,8 +99,10 @@ edge as 1.
   dotted paths (`{ nodesPath: "data.nodes", edgesPath: "data.relationships" }`), for the node-link,
   d3, vis and graphology dialects.
 - Python writes `NaN`, `Infinity` and `-Infinity`, which strict JSON does not allow; graph-io reads
-  them as numbers with a warning (`W_JSON_NONSTANDARD_NUMBER`). An integer beyond 2^53 keeps its
-  exact digits as text (`W_JSON_BIG_INTEGER`), so two large ids never round to the same number.
+  them as numbers with a warning (`W_JSON_NONSTANDARD_NUMBER`). An edge whose weight is `NaN` is
+  kept without a weight (`W_JSON_NAN_WEIGHT`). An integer beyond 2^53 keeps its exact digits as text
+  (`W_JSON_BIG_INTEGER`), so two large ids never round to the same number. A node id that is an
+  array (a NetworkX tuple) is read as its JSON text, `[0,1]` (`W_JSON_ARRAY_ID`).
 - A repeated node id is merged (`W_DUPLICATE_NODE`); a repeated edge id is an error and that edge is
   skipped (`E_DUPLICATE_EDGE_ID`).
 
@@ -109,7 +111,7 @@ edge as 1.
 ### node-link and d3
 
 NetworkX's node-link shape: a `nodes` array and an `edges` (or older `links`) array, with
-`directed`, `multigraph` and `graph` at the top. d3's examples use the same shape with `links`,
+`directed`, `multigraph` and `graph` at the top. A file with both arrays has the edges of both. d3's examples use the same shape with `links`,
 `name` as the node id, and edges that point at nodes by their position in the array.
 `indexLinks` says whether edge ends are positions; by default graph-io decides from the data.
 
@@ -123,20 +125,24 @@ and each edge made this way carries the hyperedge's id, label, relation and meta
 
 ### Cytoscape.js (cytoscape)
 
-An `elements` object, or array, of `{ data, position, classes }`. `data.parent` becomes the parent
-column and `position` the position. Cytoscape's y axis points down; graph-io stores y pointing up,
+An `elements` object, or array, of `{ data, position, classes }`, or top-level `nodes` and `edges`
+arrays of them (Cytoscape desktop's export). `data.parent` becomes the parent column and `position`
+the position. NetworkX's `cytoscape_data` also writes `directed`, which sets the direction. Cytoscape's y axis points down; graph-io stores y pointing up,
 so it negates y when it reads and again when it writes. The dialect has no undirected edges:
 every edge is written directed.
 
 ### graphology
 
 `nodes` of `{ key, attributes }`, `edges` that can each be `undirected`, and an `options` object.
-A file written back keeps only the options it declared.
+A file written back keeps only the options it declared. Gephi's JSON export for sigma.js (`id`,
+with `label`, `x`, `y`, `size` and `color` beside `attributes`) is read as graphology. A node's `x`
+and `y` become its position, and are written back as `x` and `y`.
 
 ### vis.js (vis)
 
 `nodes` and `edges` arrays whose edges use `from` and `to`. Like Cytoscape.js, it has no undirected
-edges. Attributes are written under their own names, and vis-network shows a node's `label`. When
+edges. A node's `x` and `y` become its position (vis-network's y axis points down, in pixels), and
+are written back as `x` and `y`. Attributes are written under their own names, and vis-network shows a node's `label`. When
 the label attribute has another name, rename it before you save, as
 [Reading the graph](../reading.md#what-can-change) shows.
 
@@ -178,7 +184,8 @@ dialect. In every dialect:
   `checkExport()` names each such column.
 - `NaN` and the infinities are written as `null` and reported.
 - An integer beyond 2^53 is written in exponent form (`1e+20`) so it reads back as a number.
-- Edge ids exist in JGF, Cytoscape.js, graphology and vis only; positions in Cytoscape.js only;
+- Edge ids exist in JGF, Cytoscape.js, graphology and vis only; positions in Cytoscape.js,
+  graphology and vis only;
   graph attributes in node-link, JGF, Cytoscape.js and graphology.
 - Columns that a dialect has no slot for are written as plain attributes under their names, and a
   column with a role the dialect cannot express (for example, a position in node-link) loses the role
@@ -204,7 +211,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`hierarchy`](./index.md#hierarchy)             | no                     | no                     | no                     | yes                       | no                       | no                        | no             |
 | [`temporal`](./index.md#temporal)               | none                   | none                   | none                   | none                      | none                     | none                      | none           |
 | [`graphAttributes`](./index.md#graphattributes) | yes                    | no                     | yes                    | yes                       | yes                      | no                        | no             |
-| [`positions`](./index.md#positions)             | no                     | no                     | no                     | yes                       | no                       | no                        | no             |
+| [`positions`](./index.md#positions)             | no                     | no                     | no                     | yes                       | yes                      | yes                       | no             |
 | [`viz`](./index.md#viz)                         | no                     | no                     | no                     | no                        | no                       | no                        | no             |
 | [`styles`](./index.md#styles)                   | rules kept             | rules kept             | rules kept             | 81 properties, rules kept | 9 properties, rules kept | 26 properties, rules kept | rules not kept |
 
@@ -343,7 +350,9 @@ The codes this format's import report can hold. They are also exported as `JSON_
 - `W_HYPEREDGES_SKIPPED` (warning): JGF hyperedges were skipped, because `hyperedges` is "skip" (the default). Pass "star" or "clique" to keep them.
 - `E_HYPEREDGE_SHAPE` (error): A JGF hyperedge with neither a nodes array nor source / target arrays.
 - `W_POSITIONAL_NODES` (warning): The nodes have no id key at all; array positions became the ids.
-- `W_JSON_UNREAD_KEY` (warning): A node-link / d3 top-level key the importer does not read (the other of edges / links, an unknown key); it is dropped.
+- `W_JSON_UNREAD_KEY` (warning): A node-link / d3 top-level key the importer does not read (an unknown key, or `links` beside `edges` when the `edgesKey` option names one of them); it is dropped.
+- `W_JSON_NAN_WEIGHT` (warning): An edge's weight is the `NaN` literal (NetworkX writes one for a NaN weight), which is not a weight; the edge is kept without one.
+- `W_JSON_ARRAY_ID` (warning): A node id or endpoint is a JSON array (NetworkX writes a tuple id as one); it is read as its JSON text, `[0,1]`.
 - `W_SINK_OPTION` (warning): You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
 - `W_OPTION_IGNORED` (warning): You set an option this format does not use; it had no effect. The message names the option.
 - `E_INVALID_UTF8` (error): The input is not valid UTF-8. The import stops.
@@ -376,8 +385,8 @@ The codes `checkExport(snapshot, "json", options)` can return before a save, als
 - `W_NODE_ORDER` (warning): The nodes read back in a different order.
 - `W_RESERVED_KEY` (warning): A column named like a reserved key of the dialect (id, source, target, ...) is skipped.
 - `W_WEIGHT_KEY_CLASH` (warning): An attribute without the weight role is named like the key weights are written under; it reads back as the edge weight, or is not written when the graph has weights of its own.
-- `W_POSITIONS_DROPPED` (warning): A position column without a slot (every dialect but Cytoscape) is a plain array attribute; the role is lost.
-- `W_POSITION_Z_DROPPED` (warning): Cytoscape positions are 2D; non-zero z values are dropped.
+- `W_POSITIONS_DROPPED` (warning): A position column without a slot (node-link, d3, JGF) is a plain array attribute; the role is lost.
+- `W_POSITION_Z_DROPPED` (warning): Cytoscape, vis and graphology positions are 2D; non-zero z values are dropped.
 - `W_PARENTS_DROPPED` (warning): Cytoscape has a single parent; a `parents` list column cannot be written.
 - `W_EDGE_IDS_DROPPED` (warning): Node-link / d3 have no edge id slot; the id column is written as a plain attribute.
 - `W_INTEGRAL_F64_AS_I32` (warning): A number attribute whose values are all whole numbers reads back as integers, because the format does not record the type.

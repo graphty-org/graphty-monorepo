@@ -1,6 +1,7 @@
 /**
  * How a JSON file's positions are spelled, for `extractPositions()`. A Cytoscape `elements`
- * document has a role-`position` column the importer already flipped to y up. A plain
+ * document has a role-`position` column the importer already flipped to y up; a vis or graphology
+ * file's `x` / `y` are a role-`position` column as written, its `meta.extra` saying how. A plain
  * `{ nodes: [{ x, y }] }` file is read as graphty-element's own convention (center, y up, file
  * units) and never flipped, unless it carries a positive marker of a y-down tool: d3-force's
  * simulation keys (`vx`, `vy`, `fx`, `fy`, `index`) or vis's `physics`. A vis-network document
@@ -20,7 +21,7 @@ import { visCenterOffset } from "./styles.js";
  * from each side, with node sizes in the positions' unit and label sizes in the canvas's px
  * (sigma 4.0.1 settings: `stagePadding: 30`, `itemSizesReference: "positions"`, `autoRescale: true`).
  */
-const SIGMA_FIT: ViewerFit = { padding: 30 };
+export const SIGMA_FIT: ViewerFit = { padding: 30 };
 
 /** Node keys that mark a y-down drawing. */
 const Y_DOWN_MARKERS = ["vx", "vy", "fx", "fy", "index", "physics"] as const;
@@ -32,8 +33,16 @@ const Y_DOWN_MARKERS = ["vx", "vy", "fx", "fy", "index", "physics"] as const;
  */
 export function jsonPositions(snapshot: GraphSnapshot): ImporterPositions | null {
     if (snapshot.nodes.byRole("position") !== null) {
-        // cy.json() saves a compound node's position too, but Cytoscape.js draws the compound around its children
-        return jsonShapeOf(snapshot)?.dialect === "cytoscape" ? { containersFollowChildren: true } : null;
+        // the column's extra spells it; cy.json() saves a compound node's position too, but Cytoscape.js draws the
+        // compound around its children, and vis-network draws a top-left circularImage from its corner
+        switch (jsonShapeOf(snapshot)?.dialect) {
+            case "cytoscape":
+                return { containersFollowChildren: true };
+            case "vis":
+                return { centerOffset: visCenterOffset(snapshot) };
+            default:
+                return null;
+        }
     }
     const x = numeric(snapshot.nodes.get("x"));
     const y = numeric(snapshot.nodes.get("y"));

@@ -583,6 +583,19 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
 const ID_OR_DIRECTION: ReadonlySet<string> = new Set(["E_INVALID_ID", "E_DIRECTED"]);
 
 /**
+ * Whether a refusal is one the retry's options rewrite away: an id or a direction, or a GML
+ * column name that is not a GML key (`sanitizeKeys`).
+ * @param error - What the export rejected with.
+ * @returns True when the retry's options set it aside.
+ */
+function rewritable(error: unknown): boolean {
+    return (
+        refusedOver(error, ID_OR_DIRECTION) ||
+        (refusedOver(error) && (error as GraphtyError).details.reason === "gml key")
+    );
+}
+
+/**
  * Whether an export rejected with the writer's coded refusal, rather than failing.
  * @param error - What the export rejected with.
  * @param codes - The writer codes that count, or any coded refusal when absent.
@@ -597,8 +610,8 @@ function refusedOver(error: unknown, codes?: ReadonlySet<string>): boolean {
 }
 
 /**
- * Write a session's graph with its styles, setting aside a refusal over ids or direction by the
- * options that rewrite them.
+ * Write a session's graph with its styles, setting aside a refusal over ids, direction or GML
+ * keys by the options that rewrite them.
  * @param session - The session.
  * @param format - The format.
  * @param options - Its options.
@@ -614,7 +627,7 @@ async function write(
     try {
         return { result: first, text: await first.text() };
     } catch (error) {
-        if (!refusedOver(error, ID_OR_DIRECTION)) {
+        if (!rewritable(error)) {
             throw error;
         }
 

@@ -99,7 +99,7 @@ async function opened(): Promise<HTMLElement> {
  * @returns the open workspace.
  */
 async function edit(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
     return opened();
 }
 
@@ -153,16 +153,16 @@ describe("the preview is the canvas", () => {
 });
 
 describe("one place for the rule while it is edited", () => {
-    it("the sidebar keeps only its title row, marked as being edited, with no outline and no count", async () => {
+    it("the sidebar keeps only its Style Nodes... line, at rest and while edited, with no outline and no count", async () => {
         const { session } = await openSample();
         await openLayer(session, "Once", TWO);
         const rest = document.querySelector<HTMLElement>(".sel-rest");
-        assert.isAbove(rest?.querySelectorAll(".sel-step-row").length ?? 0, 0, "at rest the outline is drawn");
+        assert.lengthOf(rest?.querySelectorAll(".sel-step-row, .sel-group-row") ?? [], 0, "no outline at rest");
         await edit();
         await waitFor(() => {
             assert.lengthOf(rest?.querySelectorAll(".sel-step-row, .sel-group-row") ?? [], 0, "no outline");
             assert.isNull(rest?.querySelector(".sel-count") ?? null, "no count");
-            assert.strictEqual(rest?.querySelector("[data-editing]")?.textContent, "Editing");
+            assert.strictEqual(rest?.querySelector("[data-edit]")?.textContent, "Style Nodes...");
         });
     });
 });
@@ -254,22 +254,17 @@ describe("reopening", () => {
     });
 });
 
-describe("the sidebar's title row", () => {
-    it("draws no count at rest in a style layer, and Edit shows on hover inside the row", async () => {
+describe("the sidebar's Style Nodes... line", () => {
+    it("draws no count at rest in a style layer, and its open-in-new-window icon inside the line", async () => {
         const { session } = await openSample();
         await openLayer(session, "Hover", TWO);
-        const row = document.querySelector<HTMLElement>(".sel-rest .sel-title-row");
-        assert.isNotNull(row);
-        // The layer row and the canvas key say the layer's count; its outline does not (tier5 decided.md).
-        assert.isNull(row?.querySelector(".sel-count") ?? null, "no count at rest");
-        await userEvent.hover(row ?? document.body);
-        const button = row?.querySelector<HTMLElement>("[data-edit]") ?? document.body;
-        await waitFor(() => {
-            assert.strictEqual(getComputedStyle(button).opacity, "1");
-        });
-        const inner = button.getBoundingClientRect();
-        const outer = row?.getBoundingClientRect();
-        assert.isAtMost(inner.right, outer?.right ?? 0, "Edit is drawn inside the row");
+        const line = await screen.findByRole("button", { name: "Style Nodes..." });
+        // The layer row and the canvas key say the layer's count; the line does not (tier5 decided.md).
+        assert.isNull(document.querySelector(".sel-rest .sel-count"), "no count at rest");
+        assert.strictEqual(getComputedStyle(line).opacity, "1", "drawn with no hover");
+        const icon = line.querySelector("svg");
+        assert.isNotNull(icon, "the open-in-new-window icon");
+        assert.isAtMost(icon?.getBoundingClientRect().right ?? Infinity, line.getBoundingClientRect().right);
     });
 });
 

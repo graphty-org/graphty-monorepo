@@ -3731,6 +3731,13 @@ export interface Neighbor {
 }
 
 // @public
+export interface NeighborhoodWindow {
+    readonly from: number | string;
+    readonly path: Path;
+    readonly to: number | string;
+}
+
+// @public
 export interface NeighborOptions {
     readonly direction?: SelectionDirection;
     readonly limit?: number;
@@ -5594,6 +5601,11 @@ export interface SelectionStatistics {
     readonly edges: number;
     readonly inducedEdges: number;
     readonly nodes: number;
+}
+
+// @public
+export interface SelectionStatisticsOptions {
+    readonly scope?: ScopeInput;
 }
 
 // @public

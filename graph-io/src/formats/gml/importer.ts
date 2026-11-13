@@ -2276,10 +2276,8 @@ const SNIFF_KEY_START = /^(?:\s|#[^\n]*\n)*[A-Za-z_]\w*\s+(?:"|[+-]?[0-9.]|\[)/;
  * @returns 0.95 for a leading `graph [`, 0.85 for key-value text containing one, 0.4 for key-value text, 0 otherwise
  */
 function sniffGml(head: Uint8Array): number {
-    let text = new TextDecoder("utf-8", { fatal: false }).decode(head);
-    if (text.charCodeAt(0) === 0xfeff) {
-        text = text.slice(1);
-    }
+    // the decoder removes a leading byte order mark
+    const text = new TextDecoder("utf-8", { fatal: false }).decode(head);
     if (SNIFF_GRAPH_START.test(text)) {
         return 0.95;
     }

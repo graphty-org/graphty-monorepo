@@ -561,3 +561,84 @@ describe("the configured VR reference space", () => {
         });
     });
 });
+
+describe("the session options", () => {
+    /**
+     * Mount the element with XR on and the given configuration, and enter a session.
+     * @param viewMode - the session to enter
+     * @param xr - the XR configuration beside `enabled`
+     * @returns the element's graph and the session's record
+     */
+    async function enter(
+        viewMode: "vr" | "ar",
+        xr: Omit<NonNullable<HTMLElementTagNameMap["graphty-element"]["xr"]>, "enabled">,
+    ): Promise<{ graph: Graph; record: (typeof iwer.sessions)[number] }> {
+        const created = document.createElement("graphty-element");
+        created.xr = { ...XR_ON, ...xr };
+        const graph = await mountDefaultGraph(created);
+        await element.session.execute({ op: "view.immersive", mode: viewMode });
+        assert.lengthOf(iwer.sessions, 1);
+
+        return { graph, record: iwer.sessions[0] };
+    }
+
+    test.each(["vr", "ar"] as const)(
+        "%s.optionalFeatures are asked of the session, and none by default",
+        async (mode) => {
+            const { record } = await enter(mode, { [mode]: { optionalFeatures: ["anchors", "plane-detection"] } });
+
+            assert.includeMembers(record.init?.optionalFeatures ?? [], ["anchors", "plane-detection"]);
+            await element.setViewMode("3d");
+            element.remove();
+            iwer.uninstall();
+            iwer = installIWER();
+
+            const { record: plain } = await enter(mode, {});
+            assert.notInclude(plain.init?.optionalFeatures ?? [], "anchors", "a feature was asked for unconfigured");
+            assert.notInclude(
+                plain.init?.optionalFeatures ?? [],
+                "plane-detection",
+                "a feature was asked for unconfigured",
+            );
+            await element.setViewMode("3d");
+        },
+    );
+
+    /**
+     * The touch orbs near interaction draws, one per tracked input, once both controllers track.
+     * @param graph - the element's graph
+     * @returns how many there are
+     */
+    async function touchOrbs(graph: Graph): Promise<number> {
+        await vi.waitFor(() => {
+            const controllers = graph.getXRSessionManager()?.getXRHelper()?.input.controllers ?? [];
+            assert.lengthOf(controllers, 2, "the emulated controllers are not tracked");
+        });
+        await vi.waitFor(() => {
+            for (const controller of graph.getXRSessionManager()?.getXRHelper()?.input.controllers ?? []) {
+                assert.exists(controller.motionController, "a controller has no motion controller");
+            }
+        });
+
+        return UtilityLayerRenderer.DefaultUtilityLayer.utilityLayerScene.meshes.filter(
+            (mesh) => mesh.name === "PickSphere" && !mesh.isDisposed(),
+        ).length;
+    }
+
+    test("input.nearInteraction draws touch orbs by default, and none when false", async () => {
+        const { graph } = await enter("vr", {});
+        await vi.waitFor(async () => {
+            assert.isAbove(await touchOrbs(graph), 0, "near interaction is on by default, yet no touch orbs");
+        });
+        await element.setViewMode("3d");
+        element.remove();
+        iwer.uninstall();
+        iwer = installIWER();
+
+        const { graph: off } = await enter("vr", { input: { nearInteraction: false } });
+        const features = off.getXRSessionManager()?.getXRHelper()?.baseExperience.featuresManager;
+        assert.notInclude(features?.getEnabledFeatures() ?? [], "xr-near-interaction");
+        assert.strictEqual(await touchOrbs(off), 0, "near interaction is off, yet touch orbs were drawn");
+        await element.setViewMode("3d");
+    });
+});

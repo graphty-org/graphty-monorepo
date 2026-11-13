@@ -197,6 +197,23 @@ describe("an edge row with no Edge", () => {
         assert.deepEqual(lines.rows(), []);
     });
 
+    it("keeps no object per row line, through a repaint and a freeze", async () => {
+        const element = await loaded("batched", []);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        const paint = { meshKey: "plain", style: { line: { color: "#ff0000" } } };
+        const [a, b, c] = [rowOf(element, 0), rowOf(element, 1), rowOf(element, 2)];
+        assert.isTrue(lines.paintRow(0, a, b, paint));
+        assert.isTrue(lines.paintRow(7, b, c, paint));
+        assert.isTrue(lines.paintRow(7, a, b, paint), "a repaint replaces the row's line");
+        assert.equal(lines.count, 2);
+        // A row line is kept in columns by row, not as an object each (43 B an edge at 1M).
+        assert.equal(lines.rowObjects, 0);
+        lines.rowsMoved(null, Object.assign(new Array<number>(8).fill(INVALID_INDEX), { 7: 1 }));
+        assert.deepEqual(lines.rows(), [1]);
+        assert.equal(lines.rowObjects, 0);
+    });
+
     it("has no row lines on the objects path", async () => {
         const element = await loaded("objects", [{ src: 0, dst: 1 }]);
         assert.isNull(element.graph.getEdgeRowLines());

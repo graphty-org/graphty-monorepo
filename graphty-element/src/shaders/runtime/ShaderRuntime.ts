@@ -48,11 +48,14 @@ import {
 
 import { drawingOf, type ShaderParamDescriptor, type ShaderParams, type ShaderProblem } from "../../catalog/shaders";
 import type { GraphtyError } from "../../errors/GraphtyError";
+import { GraphtyLogger, type Logger } from "../../logging";
 import { type HostShader, SHADER_THUMBNAIL_SIZE } from "../../session/shaders";
 import { disposedError } from "../chunk";
 import { clearCrash, markCrash } from "../crashMarker";
 import { SceneUniforms } from "./sceneUniforms";
 import { compileProblem, sampleProgram, uniformValueOf } from "./wrap";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "shaders", "runtime"]);
 
 /** The longest one frame of a shader may be estimated at before the test frame refuses it. */
 const FRAME_LIMIT_MS = 250;
@@ -244,18 +247,34 @@ export class ShaderRuntime {
         this.releaseMarks([...this.marked]);
         this.lostListeners.clear();
         // The engine may already be gone (a graph that switched renderers disposes the old one
-        // first), and a GPU object released after its engine has nothing left to release.
-        try {
+        // first), and a GPU object released after its engine has nothing left to release. While it
+        // is alive, each object is released on its own, so one that throws does not leak the rest.
+        if (!this.engine.isDisposed) {
+            const release = (what: string, run: () => void): void => {
+                try {
+                    run();
+                } catch (error) {
+                    logger.error(
+                        "Shader runtime release failed",
+                        error instanceof Error ? error : new Error(String(error)),
+                        { what },
+                    );
+                }
+            };
             for (const hash of [...this.effects.keys()]) {
-                this.forget(hash);
+                release("effect", () => {
+                    this.forget(hash);
+                });
             }
 
-            this.target?.dispose();
-            this.renderer?.dispose();
-            this.uniforms.dispose();
-        } catch {
-            // Released with the engine.
+            release("target", () => this.target?.dispose());
+            release("renderer", () => this.renderer?.dispose());
+            release("uniforms", () => {
+                this.uniforms.dispose();
+            });
         }
+
+        this.effects.clear();
 
         this.target = null;
         this.renderer = null;

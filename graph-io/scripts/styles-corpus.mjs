@@ -23,14 +23,26 @@ const ISOLATED = join(PACKAGE, "test/styles/isolated.ts");
 const args = process.argv.slice(2);
 const opt = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
 const flag = (name) => args.includes(name);
+/** A whole-number flag of at least 1; anything else ends the run with its usage, before any work. */
+const count = (name, fallback) => {
+    const value = Number(opt(name, fallback));
+    if (!Number.isInteger(value) || value < 1) {
+        console.error(`${name} takes a whole number of at least 1, got ${String(opt(name, fallback))}`);
+        console.error(
+            "usage: node scripts/styles-corpus.mjs [--root <dir>] [--out <dir>] [--timeout <s>] [--jobs <n>] ...",
+        );
+        process.exit(2);
+    }
+    return value;
+};
 
 const commonDir = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: PACKAGE })
     .toString()
     .trim();
 const ROOT = resolve(opt("--root", join(dirname(commonDir), "tmp/style-import")));
 const OUT = resolve(opt("--out", join(ROOT, "corpus-run")));
-const TIMEOUT_S = Number(opt("--timeout", "300"));
-const JOBS = Number(opt("--jobs", "4"));
+const TIMEOUT_S = count("--timeout", "300");
+const JOBS = count("--jobs", "4");
 const ONLY = opt("--only", null);
 
 /** File extension to the harness's format name. */
@@ -64,6 +76,9 @@ function walk(dir) {
 
 /** Every file under the subfolders of `parent` whose names match `pattern`. */
 function walkSets(parent, pattern) {
+    if (!existsSync(parent)) {
+        return [];
+    }
     return readdirSync(parent)
         .filter((d) => pattern.test(d))
         .flatMap((d) => walk(join(parent, d)));

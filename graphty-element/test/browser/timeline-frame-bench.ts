@@ -14,6 +14,10 @@
  * - `jump`: that window jumping to a seeded place each frame, as a brush drag or a scrub does.
  * - `ghost`: the sliding window under `outside: "ghost"`.
  * - `step-edges-only`: the step with `nodes: "all"`, so only edges are shown and hidden.
+ * - `step-batched`, `jump-batched`: the step and the jump after a switch to `render-path="batched"`,
+ *   which keeps the `Edge` objects the load built.
+ * - `lazy-*`: an undirected graph loaded on `render-path="batched"`, whose edges are drawn as
+ *   pulled lines from the row tables: `all`, `still`, `step` and `jump` only.
  *
  * The render loop is stopped and each frame is pumped by hand -- the move, `styles.settled()` (the
  * repaint a Ghost move starts), `graph.update()`, `scene.render()`, then the read back -- so a frame
@@ -342,12 +346,35 @@ function assertEdgesMatchWindow(
 }
 
 /**
+ * Check a graph whose edges have no `Edge` objects against a brute-force test of each row's `t`:
+ * no edge became an object, and the visible count is the count inside the window.
+ * @param element - The element.
+ * @param times - Each edge's `t`, by row.
+ * @param window - The window the last move reported.
+ */
+function assertRowsMatchWindow(element: Graphty, times: Float64Array, window: TimeStepEvent): void {
+    const inside = times.filter((t) => t >= window.from && t < window.to).length;
+    assert.strictEqual(element.graph.rowCounts.objectEdges, 0, "every edge is drawn as a pulled line");
+    assert.strictEqual(
+        element.session.visibility.summary.visibleEdges,
+        inside,
+        "the visible count is the brute-force count",
+    );
+}
+
+/**
  * The cases on one graph of 1,000,000 edges.
  * @param nodes - How many nodes the edges join.
+ * @param load - The render path the graph is loaded on. `"batched"` from the start leaves every
+ *     edge without an `Edge` object, drawn as a pulled line, and runs only the `lazy-` cases.
  */
-export function describeFrames(nodes: number): void {
-    describe.skipIf(!GPU)(`a 2% window over ${String(EDGES)} edges on ${String(nodes)} nodes`, () => {
+export function describeFrames(nodes: number, load: "objects" | "batched" = "objects"): void {
+    const lazy = load === "batched";
+    const title = `a 2% window over ${String(EDGES)} edges on ${String(nodes)} nodes loaded on ${load}`;
+    describe.skipIf(!GPU)(title, () => {
         let mounted: Mounted | null = null;
+        /** Each edge's `t`, by row, for the brute-force check of a graph with no `Edge` objects. */
+        const times = new Float64Array(EDGES);
 
         /**
          * What the case runs on.
@@ -375,15 +402,22 @@ export function describeFrames(nodes: number): void {
             });
             // The style rows a new project starts with, among them the Ghost row a Ghost move repaints by.
             await created.session.config.set({ startingRows: true });
+            if (lazy) {
+                // Undirected, so a line has no arrow cap and is pulled from the row tables.
+                created.graph.setRenderPath("batched");
+                created.directed = false;
+            }
+
             await created.graph.setLayout("random");
             const next = mulberry32(nodes);
             await created.graph.addNodes(Array.from({ length: nodes }, (_, at) => ({ id: `n${String(at)}` })));
             await created.graph.addEdges(
-                Array.from({ length: EDGES }, () => ({
-                    source: `n${String(Math.floor(next() * nodes))}`,
-                    target: `n${String(Math.floor(next() * nodes))}`,
-                    t: START + Math.floor(next() * SPAN),
-                })),
+                Array.from({ length: EDGES }, (_, at) => {
+                    const source = `n${String(Math.floor(next() * nodes))}`;
+                    const target = `n${String(Math.floor(next() * nodes))}`;
+                    times[at] = START + Math.floor(next() * SPAN);
+                    return { source, target, t: times[at] };
+                }),
             );
             await created.waitForSettled();
             await created.session.time.setField({ edges: { start: "t" } });
@@ -471,7 +505,7 @@ export function describeFrames(nodes: number): void {
                 frames.push(await frame(move && (() => move(at))));
             }
 
-            report(nodes, name, frames);
+            report(nodes, lazy ? `lazy-${name}` : name, frames);
         }
 
         const time = (): Graphty["session"]["time"] => on().element.session.time;
@@ -491,27 +525,40 @@ export function describeFrames(nodes: number): void {
             await run("step", slide);
         });
 
-        it("a 2% window stepping with nodes drawn from batches", async () => {
+        /**
+         * Run frames until the picture is final, then stop the loop again. Each frame runs the
+         * element's pass as well as the draw: a loop of draws alone never finishes a pass, so
+         * `waitForStableFrame()` would wait out the hang guard.
+         */
+        async function untilStable(): Promise<void> {
+            const { element } = on();
+            element.graph.engine.runRenderLoop(() => {
+                element.graph.update();
+                element.graph.scene.render();
+            });
+            await element.waitForSettled();
+            await element.waitForStableFrame();
+            element.graph.engine.stopRenderLoop();
+        }
+
+        it.skipIf(lazy)("a 2% window stepping with nodes drawn from batches", async () => {
             // Under render-path="batched" a node shown or hidden writes its row's hidden flag, so
             // the frozen list of what is drawn holds through the step.
             const { element } = on();
             element.graph.setRenderPath("batched");
-            element.graph.engine.runRenderLoop(() => {
-                element.graph.scene.render();
-            });
-            await element.waitForSettled();
-            await element.waitForStableFrame();
-            element.graph.engine.stopRenderLoop();
+            await untilStable();
             assert.strictEqual(element.graph.rowCounts.objectNodes, 0, "every node is drawn by a batch");
             await run("step-batched", slide);
             await check(slideOnce, false);
+            // A jump on the batched path: rows with no Edge object are drawn as pulled lines, so a
+            // jump visits no Edge and thaws no draw list (#6025, #6040).
+            const place = mulberry32(7);
+            const jump = (): Promise<TimeStepEvent | undefined> =>
+                time().seek(START + Math.floor(place() * (SPAN - WIDTH)), { commit: false });
+            await run("jump-batched", jump);
+            await check(jump, false);
             element.graph.setRenderPath("objects");
-            element.graph.engine.runRenderLoop(() => {
-                element.graph.scene.render();
-            });
-            await element.waitForSettled();
-            await element.waitForStableFrame();
-            element.graph.engine.stopRenderLoop();
+            await untilStable();
         });
 
         /**
@@ -523,7 +570,11 @@ export function describeFrames(nodes: number): void {
             const step = await move();
             assert.isDefined(step, "the move reported its window");
             await frame();
-            assertEdgesMatchWindow(on().element, on().gl, step, ghosting);
+            if (lazy) {
+                assertRowsMatchWindow(on().element, times, step);
+            } else {
+                assertEdgesMatchWindow(on().element, on().gl, step, ghosting);
+            }
         }
 
         it("a 2% window jumping", async () => {
@@ -536,7 +587,7 @@ export function describeFrames(nodes: number): void {
 
         const slideOnce = (): Promise<TimeStepEvent | undefined> => slide(WARM_FRAMES + TIMED_FRAMES);
 
-        it("a 2% window stepping under Outside: Ghost", async () => {
+        it.skipIf(lazy)("a 2% window stepping under Outside: Ghost", async () => {
             await time().setSettings({ outside: "ghost" });
             await run("ghost", slide);
             await check(slideOnce, true);
@@ -545,7 +596,7 @@ export function describeFrames(nodes: number): void {
             await check(slideOnce, false);
         });
 
-        it("a 2% window stepping with every node drawn", async () => {
+        it.skipIf(lazy)("a 2% window stepping with every node drawn", async () => {
             // Nodes follow their edges by default; with every node drawn a step shows and hides
             // only edges, which write batch slots and leave the frozen list of what is drawn alone.
             await time().window({ from: OPENING, to: OPENING + WIDTH, step: DAY, nodes: "all" });

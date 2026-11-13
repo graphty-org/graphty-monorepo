@@ -1015,8 +1015,21 @@ export class DataManager implements Manager {
      * @internal
      */
     nodeAtRow(row: number): Node | undefined {
+        const id = this.nodeIdAtRow(row);
+        return id === undefined ? undefined : this.nodes.get(id);
+    }
+
+    /**
+     * The id of the node on a row of the snapshot, without building a `Node` for a row that has none
+     * yet: a region over a million batched rows built one per row and ran out of heap.
+     * @param row - The row.
+     * @returns The id, or undefined when the row holds no node.
+     * @internal
+     */
+    nodeIdAtRow(row: number): NodeIdType | undefined {
         try {
-            return this.nodes.get(this.store.builder.idOf(row));
+            const id = this.store.builder.idOf(row);
+            return this.nodeMap.has(id) ? id : undefined;
         } catch (error) {
             // A row past the end or removed holds no node: a hover read of the node ID target can
             // name one, and a pointer observer that throws stops delivering every later event.

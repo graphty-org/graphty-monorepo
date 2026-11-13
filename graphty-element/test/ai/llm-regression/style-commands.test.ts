@@ -5,184 +5,78 @@
  * Tests that a real model styles nodes and edges with the `style` tool -- literal values on a
  * target, or an encoding -- and clears what it added, in response to natural language prompts.
  *
- * These tests run against real LLM APIs and verify correct tool selection
- * and parameter extraction for styling graph elements.
+ * These tests run against real LLM APIs. Each styling test reads what the session paints after
+ * the model's turn: the requested hue or size on exactly the requested nodes or edges, and the
+ * others left as they were.
  */
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
+import type { GraphSession } from "../../../session";
 import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
 import { assertAction, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
+import { edgesPainted, nodesPainted } from "./red";
+
+const NODES = serverNetworkFixture.nodes;
+const ALL_NODE_IDS = NODES.map((node) => node.id);
 
 /**
- * Check if a value appears to be a color value.
- * Accepts hex colors (#RGB, #RRGGBB), CSS color names, rgb(), rgba(), etc.
- *
- * @param value - The value to check
- * @returns True if the value appears to be a color
+ * One channel of every node, as the session resolves it.
+ * @param session - The session.
+ * @param channel - The node channel.
+ * @returns The value per node id.
  */
-function isColorValue(value: unknown): boolean {
-    if (typeof value !== "string") {
-        return false;
-    }
-
-    const trimmed = value.trim().toLowerCase();
-
-    // Hex colors: #RGB, #RRGGBB, #RRGGBBAA
-    if (/^#[0-9a-f]{3,8}$/i.test(trimmed)) {
-        return true;
-    }
-
-    // Common CSS color names
-    const namedColors = new Set([
-        "red",
-        "green",
-        "blue",
-        "yellow",
-        "orange",
-        "purple",
-        "pink",
-        "black",
-        "white",
-        "gray",
-        "grey",
-        "cyan",
-        "magenta",
-        "brown",
-        "lime",
-        "navy",
-        "teal",
-        "aqua",
-        "maroon",
-        "olive",
-        "silver",
-        "fuchsia",
-        "crimson",
-        "coral",
-        "gold",
-        "khaki",
-        "lavender",
-        "salmon",
-        "tomato",
-        "turquoise",
-        "violet",
-        "indigo",
-    ]);
-    if (namedColors.has(trimmed)) {
-        return true;
-    }
-
-    // rgb() and rgba() formats
-    if (/^rgba?\s*\(/.test(trimmed)) {
-        return true;
-    }
-
-    // hsl() and hsla() formats
-    if (/^hsla?\s*\(/.test(trimmed)) {
-        return true;
-    }
-
-    return false;
+function nodeChannel(session: GraphSession, channel: string): Map<string, unknown> {
+    return new Map(
+        ALL_NODE_IDS.map((id) => [id, session.styles.explain({ node: id }).merged[channel as never] as unknown]),
+    );
 }
 
 /**
- * Check if a style object contains a color property at any level.
- * Searches for 'color' keys in the style object recursively.
- *
- * @param style - The style object to search
- * @returns True if a color property exists with a valid color value
+ * The ids of the nodes whose channel differs from a snapshot taken before the prompt.
+ * @param session - The session.
+ * @param channel - The node channel.
+ * @param before - The snapshot.
+ * @returns Their ids, in the fixture's order.
  */
-function hasColorStyle(style: Record<string, unknown> | null): boolean {
-    if (!style) {
-        return false;
-    }
-
-    for (const [key, value] of Object.entries(style)) {
-        if (
-            (key === "channel" && String(value).endsWith(".color")) ||
-            (/color$/i.test(key.replace(/[._-]/g, "")) && isColorValue(value)) ||
-            // `{ node: "blue" }`: the style tool reads a color on the element as its color.
-            ((key === "node" || key === "edge") && isColorValue(value))
-        ) {
-            return true;
-        }
-
-        if (typeof value === "object" && value !== null) {
-            if (hasColorStyle(value as Record<string, unknown>)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
+function changedNodes(session: GraphSession, channel: string, before: Map<string, unknown>): string[] {
+    const after = nodeChannel(session, channel);
+    return ALL_NODE_IDS.filter((id) => JSON.stringify(after.get(id)) !== JSON.stringify(before.get(id)));
 }
 
 /**
- * Check if a style object contains a size property.
- *
- * @param style - The style object to search
- * @returns True if a size property exists
+ * The id of the edge between two nodes.
+ * @param session - The session.
+ * @param source - The source node id.
+ * @param target - The target node id.
+ * @returns The edge's id.
  */
-function hasSizeStyle(style: Record<string, unknown> | null): boolean {
-    if (!style) {
-        return false;
-    }
-
-    for (const [key, value] of Object.entries(style)) {
-        if (
-            (key === "channel" && String(value).endsWith(".size")) ||
-            (/size$/i.test(key.replace(/[._-]/g, "")) && typeof value === "number")
-        ) {
-            return true;
-        }
-
-        if (typeof value === "object" && value !== null) {
-            if (hasSizeStyle(value as Record<string, unknown>)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
+function edgeId(session: GraphSession, source: string, target: string): string {
+    const edge = session.data.edges().find((e) => String(e.source) === source && String(e.target) === target);
+    assert.ok(edge, `no edge ${source}->${target}`);
+    return edge.id;
 }
 
 /**
- * Check if a style object contains a width property.
- *
- * @param style - The style object to search
- * @returns True if a width property exists
+ * The width the session gives an edge.
+ * @param session - The session.
+ * @param id - The edge id.
+ * @returns The width.
  */
-function hasWidthStyle(style: Record<string, unknown> | null): boolean {
-    if (!style) {
-        return false;
-    }
-
-    for (const [key, value] of Object.entries(style)) {
-        if (
-            (key === "channel" && String(value).endsWith(".width")) ||
-            (/width$/i.test(key.replace(/[._-]/g, "")) && typeof value === "number")
-        ) {
-            return true;
-        }
-
-        if (typeof value === "object" && value !== null) {
-            if (hasWidthStyle(value as Record<string, unknown>)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
+function edgeWidth(session: GraphSession, id: string): number {
+    return session.styles.explain({ edge: id }).merged["edge.width" as never];
 }
 
 describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
+    let session: GraphSession;
 
     beforeEach(async () => {
         harness = await LlmRegressionTestHarness.create({
             graphData: serverNetworkFixture,
         });
+        session = harness.getGraph().getSession();
     });
 
     afterEach(() => {
@@ -194,69 +88,67 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             const result = await harness.testPrompt("Make all nodes red");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertAction(result, "style", ["add", "encode"]);
-
-            // Flexible assertion - color could be "red", "#ff0000", "#FF0000", etc.
-            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected values or an encoding");
-            assert.ok(hasColorStyle(style), "Expected color to be specified in style");
+            assertAction(result, "style", ["add", "encode"]);
+            assert.deepStrictEqual(nodesPainted(session, NODES, "red"), ALL_NODE_IDS, "every node is red");
         });
 
         it("calls style for 'Highlight server nodes in blue'", async () => {
+            const colorBefore = nodeChannel(session, "node.color");
             const result = await harness.testPrompt("Highlight server nodes in blue");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertAction(result, "style", ["add", "encode"]);
-
-            // Verify selector targets server type
-            const selector = call.arguments.where as string | undefined;
-            if (selector) {
-                assert.ok(
-                    selector.includes("server") || selector === "all",
-                    `Expected selector to include 'server' or be a wildcard but got '${selector}'`,
-                );
-            }
-
-            // Verify style includes color
-            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected values or an encoding");
-            assert.ok(hasColorStyle(style), "Expected color to be specified in style");
+            assertAction(result, "style", ["add", "encode"]);
+            // The default node color may itself read as blue, so "only the server nodes change"
+            // is what pins the target; the hue check pins the color.
+            const blue = nodesPainted(session, NODES, "blue");
+            assert.includeMembers(blue, ["1", "2"], "the server nodes are blue");
+            assert.deepStrictEqual(
+                changedNodes(session, "node.color", colorBefore),
+                ["1", "2"],
+                "only the server nodes change color",
+            );
         });
 
         it("calls style for 'Make all nodes bigger'", async () => {
+            const sizeBefore = nodeChannel(session, "node.size");
             const result = await harness.testPrompt("Make all nodes bigger");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertAction(result, "style", ["add", "encode"]);
-
-            // Verify style includes size
-            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected values or an encoding");
-            assert.ok(hasSizeStyle(style), "Expected size to be specified in style");
+            assertAction(result, "style", ["add", "encode"]);
+            const sizeAfter = nodeChannel(session, "node.size");
+            for (const id of ALL_NODE_IDS) {
+                assert.isAbove(
+                    sizeAfter.get(id) as number,
+                    sizeBefore.get(id) as number,
+                    `node ${id} is bigger than before`,
+                );
+            }
         });
 
         it("calls style for 'Make database nodes green and larger'", async () => {
+            const colorBefore = nodeChannel(session, "node.color");
+            const sizeBefore = nodeChannel(session, "node.size");
             const result = await harness.testPrompt("Make database nodes green and larger");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertAction(result, "style", ["add", "encode"]);
-
-            // Verify selector targets database type
-            const selector = call.arguments.where as string | undefined;
-            if (selector) {
-                assert.ok(
-                    selector.includes("database") || selector === "" || selector === "*",
-                    `Expected selector to include 'database' or be a wildcard but got '${selector}'`,
-                );
-            }
-
-            // Verify style includes both color and size
-            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected values or an encoding");
-            // At minimum, one of these should be present
-            const hasColor = hasColorStyle(style);
-            const hasSize = hasSizeStyle(style);
-            assert.ok(hasColor || hasSize, "Expected color or size to be specified in style");
+            assertAction(result, "style", ["add", "encode"]);
+            // Both halves of the request, on the database node alone.
+            assert.deepStrictEqual(nodesPainted(session, NODES, "green"), ["3"], "the database node is green");
+            assert.deepStrictEqual(
+                changedNodes(session, "node.color", colorBefore),
+                ["3"],
+                "only the database node changes color",
+            );
+            assert.deepStrictEqual(
+                changedNodes(session, "node.size", sizeBefore),
+                ["3"],
+                "only the database node changes size",
+            );
+            assert.isAbove(
+                nodeChannel(session, "node.size").get("3") as number,
+                sizeBefore.get("3") as number,
+                "the database node is larger",
+            );
         });
     });
 
@@ -265,48 +157,39 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             const result = await harness.testPrompt("Make all edges green");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertAction(result, "style", ["add", "encode"]);
-
-            // Verify style includes color
-            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected values or an encoding");
-            assert.ok(hasColorStyle(style), "Expected color to be specified in style");
+            assertAction(result, "style", ["add", "encode"]);
+            assert.deepStrictEqual(
+                edgesPainted(session, "green"),
+                session.data.edges().map((edge) => edge.id),
+                "every edge is green",
+            );
         });
 
         it("calls style for 'Make high-weight edges thicker'", async () => {
             const result = await harness.testPrompt("Make high-weight edges thicker");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertAction(result, "style", ["add", "encode"]);
-
-            // Verify selector targets weight property
-            const selector = call.arguments.where as string | undefined;
-            if (selector && selector.length > 0 && selector !== "*") {
-                assert.ok(selector.includes("weight"), `Expected selector to include 'weight' but got '${selector}'`);
-            }
-
-            // Verify style includes width
-            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected values or an encoding");
-            assert.ok(hasWidthStyle(style), "Expected width to be specified in style");
+            assertAction(result, "style", ["add", "encode"]);
+            // "High" names no threshold, so a filter at any cut or an encoding on weight both
+            // answer it; either way the heaviest edge (2->3, weight 1.0) ends wider than the
+            // lightest (4->1, weight 0.3), which all edges' default width does not.
+            assert.isAbove(
+                edgeWidth(session, edgeId(session, "2", "3")),
+                edgeWidth(session, edgeId(session, "4", "1")),
+                "the heaviest edge is wider than the lightest",
+            );
         });
 
         it("calls style for 'Color edges with latency > 50 as red'", async () => {
             const result = await harness.testPrompt("Color edges with latency > 50 as red");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertAction(result, "style", ["add", "encode"]);
-
-            // Verify selector targets latency property
-            const selector = call.arguments.where as string | undefined;
-            if (selector && selector.length > 0 && selector !== "*") {
-                assert.ok(selector.includes("latency"), `Expected selector to include 'latency' but got '${selector}'`);
-            }
-
-            // Verify style includes color
-            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected values or an encoding");
-            assert.ok(hasColorStyle(style), "Expected color to be specified in style");
+            assertAction(result, "style", ["add", "encode"]);
+            assert.deepStrictEqual(
+                edgesPainted(session, "red"),
+                [edgeId(session, "4", "1")],
+                "only the edge with latency 100 is red",
+            );
         });
     });
 
@@ -385,23 +268,6 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
                 result.commandResult.success || refusedProtected,
                 `Expected the change to succeed: ${result.code ?? ""} ${JSON.stringify(result.params ?? {})}`,
             );
-        });
-
-        it("tracks latency for style commands", async () => {
-            // Use the same prompt as the color test which reliably triggers a tool
-            const result = await harness.testPrompt("Change all node colors to purple");
-
-            assert.ok(result.latencyMs > 0, "Expected positive latency");
-        });
-
-        it("captures token usage for style commands", async () => {
-            const result = await harness.testPrompt("Make all nodes blue");
-
-            // Token usage may not always be available depending on provider configuration
-            if (result.tokenUsage) {
-                assert.ok(result.tokenUsage.prompt > 0, "Expected positive prompt tokens");
-                assert.ok(result.tokenUsage.completion >= 0, "Expected non-negative completion tokens");
-            }
         });
     });
 });

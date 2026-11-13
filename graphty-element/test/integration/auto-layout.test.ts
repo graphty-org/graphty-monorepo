@@ -1,7 +1,6 @@
 import { assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { StyleSchemaV1 } from "../../src/config/StyleTemplate";
-import type { Edge } from "../../src/Edge";
 import type { LayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
@@ -11,15 +10,8 @@ import {
     type OperationContext,
     OperationQueueManager,
 } from "../../src/managers/OperationQueueManager";
-import type { Node } from "../../src/Node";
 import { Styles } from "../../src/Styles";
 import type { OperationMetadata } from "../../src/types/operations";
-
-/** The mock engine: the public face of an engine, with the membership methods it spies on. */
-interface MockLayoutEngine extends Omit<LayoutEngine, never> {
-    addNode(n: Node): void;
-    addEdge(e: Edge): void;
-}
 
 describe("Automatic Layout Updates", () => {
     let operationQueue: OperationQueueManager;
@@ -27,9 +19,10 @@ describe("Automatic Layout Updates", () => {
     let dataManager: DataManager;
     let eventManager: EventManager;
     let styles: Styles;
-    // The membership methods are the element's to call, protected on LayoutEngine; the mock spies on
-    // them, so its type names them in the open.
-    let mockLayoutEngine: MockLayoutEngine;
+    // A stand-in engine: these tests check only that the queue triggers a layout-update while one
+    // is installed. That the nodes reach a real engine is LayoutManager.test.ts's ("should get nodes
+    // from layout engine").
+    let mockLayoutEngine: LayoutEngine;
 
     beforeEach(() => {
         eventManager = new EventManager();
@@ -124,14 +117,14 @@ describe("Automatic Layout Updates", () => {
             addEdge: vi.fn(),
             removeEdge: vi.fn(),
             updateNodePosition: vi.fn(),
-        } as unknown as MockLayoutEngine;
+        } as unknown as LayoutEngine;
     });
 
     it("should update layout when nodes added to existing layout", async () => {
         const operations: string[] = [];
 
         // Set up layout engine
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine as unknown as LayoutEngine);
+        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine);
         layoutManager.running = true;
 
         // Track when layout update is triggered
@@ -155,9 +148,6 @@ describe("Automatic Layout Updates", () => {
             "data-add",
             () => {
                 operations.push("data-add");
-                // Simulate nodes being added
-                const mockNode = { id: "node1", getData: () => ({ id: "node1" }) } as unknown as Node;
-                mockLayoutEngine.addNode(mockNode);
             },
             {
                 description: "Adding nodes",
@@ -214,12 +204,12 @@ describe("Automatic Layout Updates", () => {
         assert.notInclude(operations, "layout-update-queued", "layout-update should not have been queued");
     });
 
-    it("should batch layout updates for multiple data operations", async () => {
+    it("does not coalesce layout updates in batch mode: one per data operation", async () => {
         const operations: string[] = [];
         let layoutUpdateCount = 0;
 
         // Set up layout engine
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine as unknown as LayoutEngine);
+        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine);
         layoutManager.running = true;
 
         // Track layout updates
@@ -272,91 +262,19 @@ describe("Automatic Layout Updates", () => {
         await Promise.all(promises);
         await operationQueue.waitForCompletion();
 
-        // Each data operation triggers a layout-update, so we expect 3
-        // (one for each data-add and one for data-update)
+        // Batch mode defers execution, not triggers: each data operation still queues its own
+        // layout-update (one for each data-add and one for data-update)
         assert.equal(layoutUpdateCount, 3, "triggers one layout-update per data operation");
         assert.include(operations, "data-add-1", "first data-add should have executed");
         assert.include(operations, "data-add-2", "second data-add should have executed");
         assert.include(operations, "data-update", "data-update should have executed");
     });
 
-    it("should update layout positions incrementally", async () => {
-        const operations: string[] = [];
-
-        // Track layout operations - use existing methods
-        const originalAddNode = mockLayoutEngine.addNode;
-        mockLayoutEngine.addNode = vi.fn((node: Node) => {
-            operations.push("add-node");
-            originalAddNode.call(mockLayoutEngine, node);
-        });
-
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine as unknown as LayoutEngine);
-        layoutManager.running = true;
-
-        // Mock hasLayoutEngine on layoutManager
-        layoutManager.hasLayoutEngine = () => true;
-
-        // Track when layout is updated via existing methods
-        const originalStep = mockLayoutEngine.step;
-        mockLayoutEngine.step = vi.fn(() => {
-            operations.push("layout-step");
-            originalStep.call(mockLayoutEngine);
-        });
-
-        // Create mock nodes
-        const newNodes = [
-            { id: "node1", getData: () => ({ id: "node1" }) } as unknown as Node,
-            { id: "node2", getData: () => ({ id: "node2" }) } as unknown as Node,
-        ];
-
-        // Simulate adding nodes and triggering layout update
-        await operationQueue.queueOperationAsync(
-            "data-add",
-            () => {
-                operations.push("data-add");
-                // Add nodes to layout
-                newNodes.forEach((node) => {
-                    mockLayoutEngine.addNode(node);
-                });
-            },
-            {
-                description: "Adding nodes",
-            },
-        );
-
-        // Manually trigger layout update (simulating the trigger)
-        await operationQueue.queueOperationAsync(
-            "layout-update",
-            () => {
-                operations.push("layout-update");
-                // Simulate layout update by adding nodes
-                for (const node of newNodes) {
-                    mockLayoutEngine.addNode(node);
-                }
-            },
-            {
-                description: "Updating layout positions",
-            },
-        );
-
-        // Wait for operations, and the ones their triggers queue, to complete
-        await operationQueue.waitForCompletion();
-
-        assert.include(operations, "data-add", "data-add should have executed");
-        assert.include(operations, "layout-update", "layout-update should have executed");
-        assert.include(operations, "add-node", "should add nodes to layout");
-        assert.equal(
-            operations.filter((op) => op === "add-node").length,
-            4,
-            "should add all nodes (2 in each operation)",
-        );
-    });
-
     it("should handle edge additions with layout update", async () => {
         const operations: string[] = [];
 
         // Set up layout engine
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine as unknown as LayoutEngine);
+        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine);
         layoutManager.running = true;
 
         // Track layout updates
@@ -380,14 +298,6 @@ describe("Automatic Layout Updates", () => {
             "data-add",
             () => {
                 operations.push("edge-add");
-                // Simulate edge being added
-                const mockEdge = {
-                    id: "edge1",
-                    source: { id: "node1" } as unknown as Node,
-                    target: { id: "node2" } as unknown as Node,
-                    getData: () => ({ id: "edge1", source: "node1", target: "node2" }),
-                } as unknown as Edge;
-                mockLayoutEngine.addEdge(mockEdge);
             },
             {
                 description: "Adding edges",
@@ -406,7 +316,7 @@ describe("Automatic Layout Updates", () => {
         const operations: string[] = [];
 
         // Set up layout engine
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine as unknown as LayoutEngine);
+        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine);
         layoutManager.running = true;
 
         // Track layout updates

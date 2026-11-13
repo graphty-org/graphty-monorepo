@@ -30,6 +30,7 @@ import { assertDeviceComputes } from "../primitives/verify.js";
 import { type GpuPageRankResult, type PageRankOptions } from "../types/algorithms.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
+import { checkTolerance } from "./power-iteration.js";
 import { algorithmScope } from "./scope.js";
 
 /** Iterations per submit (spec 8.2: k = 8). */
@@ -111,6 +112,21 @@ function checkMaxIterations(maxIterations: number, algorithm: string): void {
             argument: "maxIterations",
             value: maxIterations,
             expected: "a positive integer",
+        });
+    }
+}
+
+/**
+ * Refuses a dampingFactor outside [0, 1] or not finite: such a value gives NaN or diverging scores.
+ * @param dampingFactor - the option
+ * @param algorithm - the caller's name
+ */
+function checkDampingFactor(dampingFactor: number, algorithm: string): void {
+    if (!Number.isFinite(dampingFactor) || dampingFactor < 0 || dampingFactor > 1) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${algorithm}: dampingFactor must be a number in [0, 1]`, {
+            argument: "dampingFactor",
+            value: dampingFactor,
+            expected: "a number in [0, 1]",
         });
     }
 }
@@ -239,6 +255,8 @@ async function run(
     const tolerance = options?.tolerance ?? 1e-6;
     const useWeights = options?.weighted !== false;
     checkMaxIterations(maxIterations, algorithm);
+    checkDampingFactor(alpha, algorithm);
+    checkTolerance(tolerance, algorithm);
     const dest = checkDest(options?.dest, n, algorithm);
     throwIfAborted(options, algorithm);
     if (n === 0) {

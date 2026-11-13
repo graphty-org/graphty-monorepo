@@ -1,6 +1,6 @@
 /**
- * Regression tests for the audit round 1 fixes that no pinned audit test covers on its own: the
- * uniform enum-option refusal (E_UNSUPPORTED, never a silent default), the freeze option checks,
+ * Regression tests for the audit fixes (design/graph-format/STATUS.md, "Audit round 1") that no
+ * other audit test covers on its own: the uniform enum-option refusal (E_UNSUPPORTED, never a silent default), the freeze option checks,
  * addGraph direction and option checks, the atomic expansion, the $esc wrapper of the wire's JSON
  * tags, the carried-view content checks at the structure level, fromCsr's presence-flag rule,
  * refusal of resizable-buffer views, the dict fill code, and the transferables() list recorded by
@@ -58,7 +58,7 @@ function small(): GraphSnapshot {
     });
 }
 
-describe("round 1: enum options are refused, never substituted (design 11.1)", () => {
+describe("enum options are refused, never substituted (design 11.1)", () => {
     it("every enum-valued option throws E_UNSUPPORTED with details.field", () => {
         const s = small();
         const cases: readonly [string, () => unknown][] = [
@@ -103,7 +103,7 @@ describe("round 1: enum options are refused, never substituted (design 11.1)", (
     });
 });
 
-describe("round 1: addGraph and setDirected expansion", () => {
+describe("addGraph and setDirected expansion", () => {
     it("addGraph refuses a snapshot of the other direction with E_DIRECTED and changes nothing", () => {
         const directed = small();
         const b = new GraphBuilder({ directed: false });
@@ -162,7 +162,7 @@ describe("round 1: addGraph and setDirected expansion", () => {
     });
 });
 
-describe("round 1: the wire's JSON tags", () => {
+describe("the wire's JSON tags", () => {
     it("user objects whose only key is $num or $esc round-trip through the wire and the container", () => {
         const b = new GraphBuilder({ directed: true });
         b.addAnonymousNodes(3);
@@ -192,7 +192,7 @@ describe("round 1: the wire's JSON tags", () => {
     });
 });
 
-describe("round 1: carried views are content-checked at the structure level", () => {
+describe("carried views are content-checked at the structure level", () => {
     const names: readonly ViewName[] = [
         "reverse",
         "coo",
@@ -315,7 +315,7 @@ describe("round 1: carried views are content-checked at the structure level", ()
     );
 });
 
-describe("round 1: fromCsr presence flags and buffer classes", () => {
+describe("fromCsr presence flags and buffer classes", () => {
     it("a claimed arcToEdgeIsIdentity never drops a supplied permutation, at any level", () => {
         const input = {
             directed: true,
@@ -440,7 +440,7 @@ describe("round 1: fromCsr presence flags and buffer classes", () => {
     });
 });
 
-describe("round 1: dictionary fill codes and unique-column codes", () => {
+describe("dictionary fill codes and unique-column codes", () => {
     it("a non-nullable dict column with no options holds a real member in its unwritten rows", () => {
         const b = new GraphBuilder({ directed: true });
         b.addAnonymousNodes(3);
@@ -484,7 +484,7 @@ describe("round 1: dictionary fill codes and unique-column codes", () => {
     });
 });
 
-describe("round 1: transferables() follows the transfer-mode wire", () => {
+describe("transferables() follows the transfer-mode wire", () => {
     it("lists exactly the buffers of the last toWire({ transfer: true }), copies included", () => {
         const s = richSnapshot();
         const plain = s.transferables();

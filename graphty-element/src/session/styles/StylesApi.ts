@@ -398,11 +398,8 @@ export type TemplatePosition = "top" | "aboveBase" | { readonly before: LayerId 
 export interface StyleUpdateOptions extends RunOptions {
     /**
      * Keep the layer when the patch takes its last value away: it stays in its place, painting
-     * nothing until something is written again, as a starting row that writes nothing does. A
-     * panel that removes properties one at a time sets it, so removing the last one does not
-     * remove the layer. Without it (the default), such an update is refused with `E_BAD_LAYER`,
-     * as `add` refuses a layer that writes nothing. A layer that already writes nothing (a row
-     * added with no look yet) may be renamed or given another selector without it.
+     * nothing until something is written again. Every layer may write nothing, so an update does
+     * this with or without the option, which is kept for callers that pass it.
      * @since 3.26.0
      */
     readonly keepEmpty?: boolean;
@@ -576,7 +573,8 @@ export interface StylesApi {
      * The patch is applied over the layer's current specification, one key deep. A key present
      * with `undefined` CLEARS it, so `{ set: undefined }` drops the literal values; a key absent
      * leaves what was there. The merged specification is checked exactly as a new one would be,
-     * so an update cannot leave a layer in a state `add` would have refused.
+     * so an update cannot leave a layer in a state `add` would have refused. A patch that takes
+     * the last value away leaves the layer in place, painting nothing.
      * @param id - The layer to change.
      * @param patch - What to change about it.
      * @param options - A signal to cancel with, a progress handler, and `keepEmpty`.

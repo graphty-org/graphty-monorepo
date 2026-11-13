@@ -216,6 +216,10 @@ aws ssm put-parameter --profile graphty-deploy --region us-east-2 --type SecureS
   --name /graphty-health/local-token-sha256 --value "$(printf %s "$HEALTH_LOCAL_TOKEN" | sha256sum | cut -d' ' -f1)"
 ```
 
+To rotate the token, store the new token's hash the same way. The API re-reads the hash at most five minutes
+after it last read it, so the old token stops working within five minutes. If SSM cannot be read, a local
+write gets 500 `internal`, not 401.
+
 It also needs `HEALTH_API_URL` (the API's base URL), from the environment or `.env`.
 
 ```bash
@@ -355,7 +359,8 @@ servherd_start({ name: "pipeline-health-web", cwd: "<repo>",
 
 `VITE_HEALTH_API_URL` sets the API it reads (unset: the live API). The dev server reads it through its own
 proxy at `/health-api`, so it works on any host and port without a CORS entry. `?fixtures` reads the
-sample data in `web/fixtures/` instead.
+sample data in `web/fixtures/` instead. `vite preview` has no proxy and calls the API across origins: to
+read live data from a preview, deploy with its origin as the cdk context `devOrigin` (in `cdk.json`).
 
 ### When the page cannot reach the API
 
@@ -365,7 +370,8 @@ its own, and shows the last data this browser loaded for the view, with its age,
 
 - **"failed with no answer (Failed to fetch)"**: the browser got no usable answer. Either the request was
   blocked by CORS, because the page's origin is not one the API allows (CORS allows only
-  https://health.graphty.app and `http://localhost:5173`; a dev server uses its proxy and needs neither),
+  https://health.graphty.app, plus the cdk context `devOrigin` when it is set for a `vite preview`; a dev server
+  uses its proxy and needs no entry),
   or the network or the API is down. The browser console names which.
 - **"answered HTTP 5xx"**: the API is up and the read Lambda failed; its CloudWatch log has the error.
 - **"answered HTTP 404"**: the page asked for a route the deployed API does not have, usually a page newer

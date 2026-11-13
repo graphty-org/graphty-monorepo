@@ -79,8 +79,10 @@ fragment W on Comment { author { __typename login } editor { __typename login } 
   node tools/issue-queue.mjs filter | tee "$d/state.json"
 gh run list -R graphty-org/graphty-monorepo --workflow ci.yml --branch master --event push --limit 3 \
   --json status,conclusion,headSha,url --jq '.[] | "\(.status) \(.conclusion) \(.headSha[0:9]) \(.url)"'
-for wf in deploy-pages.yml release.yml; do gh run list -R graphty-org/graphty-monorepo --workflow $wf --status completed \
-  --limit 1 --json conclusion,headSha,databaseId,url --jq ".[] | \"$wf \(.conclusion) \(.headSha[0:9]) \(.url)\""; done
+gh run list -R graphty-org/graphty-monorepo --workflow deploy-pages.yml --status completed --limit 1 \
+  --json conclusion,headSha,url --jq '.[] | "deploy-pages.yml \(.conclusion) \(.headSha[0:9]) \(.url)"'
+# the newest full run's verdict: its Verdict job's record (artifact verdict-<attempt>) unless the run succeeded
+gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 10 --json databaseId,conclusion,headSha --jq '.[]|"\(.databaseId) \(.conclusion) \(.headSha[0:9])"' | while read id c sha; do s=$c; if [ "$c" != success ]; then v=$(mktemp -d); gh run download $id -R graphty-org/graphty-monorepo -p 'verdict-*' -D $v >/dev/null 2>&1; s=$(jq -rs 'max_by(.attempt)|if .forward then "forward" elif .deferred or .state==null then "" else .state end' $v/*/*.json 2>/dev/null); [ -z "$s" ] && { [ "$c" = cancelled ] && continue; s=$c; }; fi; [ "$s" = forward ] && continue; echo "release.yml $s $sha run $id"; break; done
 ```
 
 issue-round runs the block with `ROUND=issue-round` set, so it writes `tmp/issue-round/state.json` and two clients do
@@ -88,8 +90,15 @@ not overwrite each other. `marked` returns at most 30 issues with their last 20 
 say so and work on what it returned. If git, the broker file or GitHub cannot be read, say so in one line and end the
 round: unknown is a state, not "nothing to do". If the broker's `fetchedAt` is more than a few minutes old, start it
 (see "The GitHub API budget" in CLAUDE.md). master's build is **red** when the newest _completed_ run above failed (an
-in-progress run is no verdict). **Master is red** -- the owner's meaning (2026-10-26) -- when the newest completed full
-run (the `release.yml` line above) failed, or master's build is red.
+in-progress run is no verdict). **Master is red** -- the owner's meaning (2026-10-26) -- when the newest full run's
+verdict (the `release.yml` line above) is not green, or master's build is red. The line walks the newest completed
+`release.yml` runs: a `success` run is green; any other run is judged by the state its Verdict job recorded (the
+newest attempt's `verdict-<attempt>` artifact), so a run whose lanes all passed is green (`green-clean`,
+`green-images`) even when an advisory job left its conclusion `cancelled` or `failure`, and `owner-item` is the
+owner's, not red. A `failure` with no usable record (the Verdict job crashed, an attempt 1 deferred to a re-run that
+never decided, an artifact that could not be read) stays `failure`, which is red. Skipped: a `cancelled` run with no
+record (someone cancelled it) and a run on a held candidate (`forward`, not master's). An empty line is unknown, which
+is red.
 
 ## Renewing the loop
 
@@ -197,10 +206,11 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > holds the commands you ran and what they showed; keep it in tmp/<name>/, because an untracked file in the worktree
 > is refused), write `pipeline-round: opened <branch> <url>` on the issue, and
 > stop. Unless your job is master's fix or revert, first check master yourself, just before opening:
-> `gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 10 --json conclusion
---jq '[.[]|select(.conclusion=="success" or .conclusion=="failure")][0].conclusion'` (the newest full run that
-> reached a verdict: a cancelled run says nothing) and the same for `ci.yml --branch master --event push`; while
-> either is `failure`, master is red: stop after the commit, the push and `pipeline-round: ready <branch> <full sha>` on every issue of the group,
+> `gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 10 --json databaseId,conclusion,headSha --jq '.[]|"\(.databaseId) \(.conclusion) \(.headSha[0:9])"' | while read id c sha; do s=$c; if [ "$c" != success ]; then v=$(mktemp -d); gh run download $id -R graphty-org/graphty-monorepo -p 'verdict-*' -D $v >/dev/null 2>&1; s=$(jq -rs 'max_by(.attempt)|if .forward then "forward" elif .deferred or .state==null then "" else .state end' $v/*/*.json 2>/dev/null); [ -z "$s" ] && { [ "$c" = cancelled ] && continue; s=$c; }; fi; [ "$s" = forward ] && continue; echo "release.yml $s $sha run $id"; break; done`
+> (the newest full run's verdict, whatever the run's GitHub conclusion)
+> and master's newest build that reached a verdict:
+> `gh run list -R graphty-org/graphty-monorepo --workflow ci.yml --branch master --event push --status completed --limit 10 --json conclusion --jq '[.[]|select(.conclusion=="success" or .conclusion=="failure")][0].conclusion'`;
+> unless the first prints `green-clean`, `green-images`, `owner-item` or `success` and the second `success`, master is red (an empty line is unknown, which counts as red): stop after the commit, the push and `pipeline-round: ready <branch> <full sha>` on every issue of the group,
 > without `pr-open.sh` (a later round opens it once master is green). Always: never wait for CI, never merge, never push to master; never git stash, reset, restore, clean or check out
 > files, nor write a tracked file back from git any other way (`git show HEAD:<file> > <file>`): if a run rewrites a
 > tracked file, leave it uncommitted and say so in your report; never cherry-pick or rebase (merge instead); read issues only with `node tools/issue-queue.mjs show <n>`, never

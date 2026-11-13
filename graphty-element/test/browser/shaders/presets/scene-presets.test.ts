@@ -25,6 +25,7 @@ import { FLASH_GRID, FlashCounter } from "../../../../src/managers/ShaderGuard";
 import { shadersControllerOf } from "../../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../../src/shaders/chunk";
 import { presetId, SCENE_PRESETS } from "../../../../stories/shaders/scenePresets";
+import { magentaPixels } from "../../../helpers/canvas-pixels";
 import { drawnFrames } from "../../../helpers/drawn-frames";
 import { canvasPixels, pngOf } from "./lit-surface-scene";
 
@@ -268,22 +269,6 @@ function rangeEnds(descriptor: ShaderDescriptor): [string, ShaderParams][] {
         ["all-min", end("min")],
         ["all-max", end("max")],
     ];
-}
-
-/**
- * How many pixels of a canvas are the probe's magenta.
- * @param rgba - The pixels.
- * @returns The count.
- */
-function magentaPixels(rgba: Uint8Array): number {
-    let count = 0;
-    for (let i = 0; i < rgba.length; i += 4) {
-        if (rgba[i] >= 250 && rgba[i + 1] <= 5 && rgba[i + 2] >= 250) {
-            count++;
-        }
-    }
-
-    return count;
 }
 
 /**

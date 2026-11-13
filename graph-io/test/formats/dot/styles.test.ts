@@ -1056,6 +1056,9 @@ function hasGraphviz(): boolean {
 
 const GRAPHVIZ = hasGraphviz();
 
+/** The graphty.styles attribute, removed to read a file as a plain Graphviz reader would. */
+const WITHOUT_BLOCK = /"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/;
+
 /**
  * Compares what graphty draws for a DOT file with what Graphviz draws, two-sided: a value the reader missed fails as
  * surely as a wrong one. Labels drawn from HTML or records, and nodes with an external label, are skipped (their
@@ -1386,12 +1389,12 @@ describe("DOT styles: writing", () => {
         }
     });
 
-    it("writes styles a plain Graphviz reader draws the same, without the block (dot -Tplain where available)", async () => {
+    it("writes styles a plain Graphviz reader reads back the same, without the block", async () => {
         const source = new Uint8Array(readFileSync(join(CORPUS, "graphviz-gallery-directed-sdh.gv")));
         const { snapshot, styles } = await load(source);
         const written = await registry.exportGraphToBytes(snapshot, "dot", { styles });
         // read as any program would: the block ignored, Graphviz's attributes alone
-        const text = new TextDecoder().decode(written).replace(/"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/, "");
+        const text = new TextDecoder().decode(written).replace(WITHOUT_BLOCK, "");
         const again = await load(text);
         expect(again.styles.styles.source.tool).toBe("graphviz");
         for (const property of ["fill", "fillOpacity", "borderColor", "shape", "label"]) {
@@ -1404,24 +1407,28 @@ describe("DOT styles: writing", () => {
                 drawn(styles, snapshot, "edge", property),
             );
         }
-        if (GRAPHVIZ) {
-            const before = await graphvizDraws(source);
-            const after = await graphvizDraws(new TextEncoder().encode(text));
-            // graphty reads both shapes into the same neutral shape (an inverted triangle is a triangle)
-            const keep = (n: GoldenNode): unknown => [n.fill, n.outline, n.label, registryShape(n.shape) ?? n.shape];
-            for (const [id, node] of Object.entries(before.nodes)) {
-                expect([id, keep(after.nodes[id])]).toEqual([id, keep(node)]);
-            }
-            // Graphviz writes edges in its own order, which depends on the file's statement order; a bold line is
-            // written as its pen width, 2
-            const edges = (list: readonly GoldenEdge[]): string[] =>
-                list
-                    .map((e) =>
-                        JSON.stringify([e.key, e.color, e.style === "bold" ? "solid" : e.style, e.head, e.tail]),
-                    )
-                    .sort();
-            expect(edges(after.edges)).toEqual(edges(before.edges));
+    });
+
+    // reported as skipped, not passed, where Graphviz is not installed
+    it.runIf(GRAPHVIZ)("writes styles Graphviz itself draws the same, without the block (dot -Tplain)", async () => {
+        const source = new Uint8Array(readFileSync(join(CORPUS, "graphviz-gallery-directed-sdh.gv")));
+        const { snapshot, styles } = await load(source);
+        const written = await registry.exportGraphToBytes(snapshot, "dot", { styles });
+        const text = new TextDecoder().decode(written).replace(WITHOUT_BLOCK, "");
+        const before = await graphvizDraws(source);
+        const after = await graphvizDraws(new TextEncoder().encode(text));
+        // graphty reads both shapes into the same neutral shape (an inverted triangle is a triangle)
+        const keep = (n: GoldenNode): unknown => [n.fill, n.outline, n.label, registryShape(n.shape) ?? n.shape];
+        for (const [id, node] of Object.entries(before.nodes)) {
+            expect([id, keep(after.nodes[id])]).toEqual([id, keep(node)]);
         }
+        // Graphviz writes edges in its own order, which depends on the file's statement order; a bold line is
+        // written as its pen width, 2
+        const edges = (list: readonly GoldenEdge[]): string[] =>
+            list
+                .map((e) => JSON.stringify([e.key, e.color, e.style === "bold" ? "solid" : e.style, e.head, e.tail]))
+                .sort();
+        expect(edges(after.edges)).toEqual(edges(before.edges));
     });
 
     it("reports a missing label a rule reads from the label column, which reads back as the empty label", async () => {

@@ -23,7 +23,15 @@ import {
 } from "../types/algorithms.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
-import { aborted, checkDest, coreOf, type PowerIterationRun, reverseOf, runPowerIteration } from "./power-iteration.js";
+import {
+    aborted,
+    checkDest,
+    checkTolerance,
+    coreOf,
+    type PowerIterationRun,
+    reverseOf,
+    runPowerIteration,
+} from "./power-iteration.js";
 
 /** The three options every entry point shares, resolved. */
 interface Resolved {
@@ -59,6 +67,7 @@ function resolve(
             expected: "a positive integer",
         });
     }
+    checkTolerance(tolerance, algorithm);
     const dest = checkDest(options?.dest, n, algorithm);
     if (options?.signal?.aborted) {
         throw aborted(algorithm);

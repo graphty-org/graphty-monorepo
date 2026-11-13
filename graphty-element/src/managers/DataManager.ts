@@ -16,6 +16,7 @@ import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport, LoadReport } from "../data/report";
+import { RowMap } from "../data/RowMap";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
@@ -642,7 +643,7 @@ export class DataManager implements Manager {
      * Edges stored with no `Edge`, by row: what each `Edge` is built from when one is asked for.
      * Only while {@link storesWithoutEdge} says so.
      */
-    private readonly unbuiltEdges = new Map<number, StoredEdge>();
+    private readonly unbuiltEdges = new RowMap<StoredEdge>();
     /** The rows of {@link unbuiltEdges} by edge id. */
     private readonly unbuiltEdgeIds = new Map<EdgeId, number>();
     /**

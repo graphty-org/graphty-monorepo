@@ -26,6 +26,7 @@ import {
     type ResultShape,
     type RuleTree,
     type RunId,
+    type Selector,
     type SetDefinitionInput,
     type StyleDocument,
 } from "../catalog/types";
@@ -2106,6 +2107,24 @@ function ghostedLeavesOutside(rule: RuleTree): RuleTree {
 }
 
 /**
+ * A layer's selector with what it read as `"ghosted"` reading `"outsideWindow"`.
+ * @param selector - The selector.
+ * @returns It rewritten, or the same object when it reads no `"ghosted"`.
+ */
+function outsideSelector(selector: Selector): Selector {
+    if (selector.match === "state" && selector.state === "ghosted") {
+        return { match: "state", state: "outsideWindow" };
+    }
+
+    if (selector.match === "rule") {
+        const where = ghostedLeavesOutside(selector.where);
+        return where === selector.where ? selector : { ...selector, where };
+    }
+
+    return selector;
+}
+
+/**
  * Bring a timed project saved before what lies outside the time window had a state of its own up
  * to date. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant what
  * lay outside the window, so they read `"outsideWindow"` now, and a saved `outside: "ghost"` is
@@ -2121,18 +2140,9 @@ async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Pro
     }
 
     for (const layer of tx.styles.list()) {
-        const { selector, source } = layer;
-        if (source.by === "element") {
-            continue;
-        }
-
-        if (selector.match === "state" && selector.state === "ghosted") {
-            await tx.styles.update(layer.id, { selector: { match: "state", state: "outsideWindow" } });
-        } else if (selector.match === "rule") {
-            const where = ghostedLeavesOutside(selector.where);
-            if (where !== selector.where) {
-                await tx.styles.update(layer.id, { selector: { ...selector, where } });
-            }
+        const selector = layer.source.by === "element" ? layer.selector : outsideSelector(layer.selector);
+        if (selector !== layer.selector) {
+            await tx.styles.update(layer.id, { selector });
         }
     }
 

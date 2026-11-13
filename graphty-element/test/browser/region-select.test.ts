@@ -13,6 +13,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import { regionWork } from "../../src/render/PickService";
 import { createGraphSession } from "../../src/session";
 import { drag, moveHeld, nextFrame, press, release } from "../helpers/real-input";
@@ -219,6 +220,22 @@ describe("rectangle and lasso selection", () => {
             codeOf(() => session.selection.apply({ region: { polygon } })),
             "E_UNSUPPORTED",
         );
+    });
+
+    it("a region over batched rows builds no Node for the rows it covers", async () => {
+        // A Node per covered row ran a page of a million batched rows out of heap.
+        const element = await grid("batched");
+        const manager = element.graph.getDataManager();
+        const built = dataManagerInternals.nodesBuilt(manager);
+        const polygon = [
+            { x: -1, y: -1 },
+            { x: 600, y: -1 },
+            { x: 600, y: 500 },
+            { x: -1, y: 500 },
+        ];
+        const delta = await element.session.selection.apply({ region: { polygon } });
+        assert.strictEqual(delta.nodes, SIDE * SIDE + 1);
+        assert.strictEqual(dataManagerInternals.nodesBuilt(manager), built);
     });
 
     it("past the selection's cap a region is truncated", async () => {

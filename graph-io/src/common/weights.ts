@@ -13,7 +13,7 @@
 import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
 import { PRECISION_CODE } from "./codes.js";
-import { parseDecimalText } from "./declared-types.js";
+import { overflowsToInfinity, parseDecimalText } from "./declared-types.js";
 import { formatF32, formatF64, formatInteger } from "./format.js";
 import { type ImportReportBuilder } from "./report.js";
 
@@ -64,13 +64,25 @@ export function parseWeightText(text: string, report?: ImportReportBuilder): num
 }
 
 /**
- * Report once (W_PRECISION) an integer weight beyond 2^53 that the nearest double changes, which
- * the weights and the exact `graphty.weight` column would otherwise hold silently.
+ * Report once (W_PRECISION) an integer weight beyond 2^53 that the nearest double changes, and a
+ * finite weight text beyond the double range that is stored as Infinity (`INF` itself is a legal
+ * weight and is not reported), which the weights and the exact `graphty.weight` column would
+ * otherwise hold silently.
  * @param text - the weight as written in the file
  * @param value - the number it was read as
  * @param report - the import report
  */
 export function reportWeightPrecision(text: string, value: number, report: ImportReportBuilder): void {
+    if (overflowsToInfinity(text)) {
+        report.warnOnce(
+            "precision",
+            PRECISION_CODE,
+            `weight ${text.trim()} is beyond the double range and is stored as Infinity`,
+            undefined,
+            `${PRECISION_CODE}:weight`,
+        );
+        return;
+    }
     if (
         !Number.isSafeInteger(value) &&
         Number.isFinite(value) &&

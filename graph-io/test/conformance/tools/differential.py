@@ -218,9 +218,8 @@ def v_graphml(g, path, infer=False):
             "expectation: graph-io reports E_DUPLICATE_EDGE_ID for each repeat"
         )
     if any(" " in str(n) for n in g.nodes):
-        extra["roundTripFailure"] = (
-            'a node id with spaces is not an NMTOKEN, so export refuses it without sanitizeIds "mangle" (sources.md 2.1)'
-        )
+        # a node id with spaces is not an NMTOKEN, so export refuses it without sanitizeIds "mangle" (sources.md 2.1)
+        extra["roundTripRefusal"] = "E_ID_CHARSET"
     return exp, extra
 
 

@@ -645,6 +645,14 @@ export class Ingest<K extends KnownEdge> {
         return result;
     }
 
+    /**
+     * How many source nodes the duplicate-pair index holds now, for tests.
+     * @returns The count, 0 when none is kept.
+     */
+    get pairIndexSources(): number {
+        return this.storedPairs?.bySource.size ?? 0;
+    }
+
     /** Forget everything about the graph that was: called when the host discards its store. */
     reset(): void {
         this.edgesByRecordId.clear();
@@ -1275,6 +1283,9 @@ export class Ingest<K extends KnownEdge> {
             // slice builds them, or the store holds them and nothing draws them.
             this.recordMadeEndpoints(writer);
             this.loadMadeEndpoints.clear();
+            // Only a load's next chunk reuses the pair index (`pairsFor`); outside one it is
+            // garbage that would hold one Set per source node until the next batch.
+            this.storedPairs = null;
             // A push of records rather than a file, so there is no enclosing load to seal the
             // report. Seal one here, or `session.data.lastImport()` would answer about the last
             // FILE for a graph whose edges came from a consumer's own array.

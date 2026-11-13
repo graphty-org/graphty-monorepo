@@ -85,7 +85,12 @@ export const FIRST_LOOK_TASKS = [
             );
             assert.isDefined(page, "no tool result holds five records");
             for (const record of page.body.data as Record<string, unknown>[]) {
-                assert.containsAllKeys(record, ["conference"], "a sample record lacks the team's conference");
+                // query's fields come back under the name asked by, so a model that asks for
+                // data.conference (the facts block's spelling) gets that key (#7186).
+                assert.isTrue(
+                    "conference" in record || "data.conference" in record,
+                    `a sample record lacks the team's conference: ${JSON.stringify(record)}`,
+                );
             }
         },
     }),

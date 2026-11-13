@@ -11,7 +11,7 @@ import { assert, describe, it } from "vitest";
 import type { Scope } from "../../../src/catalog/types";
 import { inputCountersOf, writeUpdates } from "../../../src/session/attributes";
 import { scopeResolverOfSession, setsNotifierOfSession } from "../../../src/session/GraphSession";
-import type { MovedInput, SetWatch } from "../../../src/session/sets/notify";
+import { type MovedInput, SetsNotifier, type SetWatch } from "../../../src/session/sets/notify";
 import { scopeSignature } from "../../../src/session/sets/signature";
 import { type Harness, makeSession } from "../helpers";
 import { finishAtOnce } from "../runs/harness";
@@ -205,5 +205,35 @@ describe("change notification", () => {
         assert.deepStrictEqual(watched.readies, [
             { count: 3, moved: [{ kind: "snapshot", serial }, { kind: "selection" }] },
         ]);
+    });
+
+    it("reports a watch that throws, keeps what it had, and retries it on the next input", () => {
+        const errors: unknown[] = [];
+        const notifier = new SetsNotifier({ onError: (error) => errors.push(error) });
+        const failure = new Error("a bug in the watch");
+        let fail = true;
+        let readies = 0;
+        notifier.subscribe({
+            signature: () => null,
+            resolve: () => {
+                if (fail) {
+                    throw failure;
+                }
+                return 1;
+            },
+            ready: () => {
+                readies++;
+            },
+            cost: () => 1,
+        });
+
+        notifier.notify({ kind: "selection" });
+        assert.deepStrictEqual(errors, [failure]);
+        assert.strictEqual(readies, 0);
+
+        fail = false;
+        notifier.notify({ kind: "selection" });
+        assert.strictEqual(readies, 1);
+        notifier.dispose();
     });
 });

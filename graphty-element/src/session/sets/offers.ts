@@ -27,7 +27,7 @@ import { parseSetDefinition } from "../../catalog/sets/parse";
 import type { EdgeId, NodeId, ResultItem, ResultShape, RuleTree, RunId, SetDefinition } from "../../catalog/types";
 import { edgeRowOf } from "../../data/edgeIdentity";
 import { otherIdSpelling, rowOfEitherSpelling } from "../../data/nodeIdSpelling";
-import { GraphtyError } from "../../errors/GraphtyError";
+import { GraphtyError, isGraphtyError } from "../../errors/GraphtyError";
 import type { RunResult } from "../results/types";
 import type { FilterRunResult } from "../visibility/filter";
 import { type OfferCounts, resolveSet } from "./cache";
@@ -709,8 +709,12 @@ function ruleHolds(
     let halves: ReturnType<typeof ruleHalves>;
     try {
         halves = ruleHalves(definition, context);
-    } catch {
-        return false;
+    } catch (error) {
+        // A refusal (a rule that cannot compile) holds nothing; anything else is a bug.
+        if (isGraphtyError(error)) {
+            return false;
+        }
+        throw error;
     }
 
     const { reading } = definition;

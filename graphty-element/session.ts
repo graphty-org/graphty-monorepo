@@ -310,6 +310,7 @@ export {
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    AlgorithmOptionName,
     BatchResult,
     BatchStep,
     BatchStepFailure,

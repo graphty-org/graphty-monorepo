@@ -141,6 +141,9 @@ export interface AgreementOptions {
 }
 
 // @public
+export type AlgorithmOptionName = string;
+
+// @public
 export interface AlgorithmRunCommand {
     readonly algorithm: AlgorithmKey;
     readonly applySuggestedStyles?: boolean;
@@ -5314,7 +5317,7 @@ export interface RunsApi {
     remove(id: RunId): RunRemoval;
     rename(id: RunId, name: string | null): Promise<void>;
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
-    sweep(algorithm: AlgorithmKey, option: string, values: readonly unknown[], options?: SweepOptions): Run<SweepResult>;
+    sweep(algorithm: AlgorithmKey, option: AlgorithmOptionName, values: readonly unknown[], options?: SweepOptions): Run<SweepResult>;
 }
 
 // @public
@@ -7059,7 +7062,7 @@ export interface SweepOptions extends RunOptions {
 
 // @public
 export interface SweepResult extends BatchResult {
-    readonly option: string;
+    readonly option: AlgorithmOptionName;
     readonly rows: readonly SweepRow[];
 }
 

@@ -35,6 +35,7 @@ export {
 export type { RunQueue, RunsApiOptions, SessionRunsApi } from "./RunsApi";
 export { createRunsApi } from "./RunsApi";
 export type {
+    AlgorithmOptionName,
     BatchResult,
     BatchStep,
     BatchStepFailure,

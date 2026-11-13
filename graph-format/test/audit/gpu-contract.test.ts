@@ -697,9 +697,9 @@ describe("audit: chunk windows (design section 10.6)", () => {
     });
 });
 
-// ============================================================ deliberately failing: I10 "plain ArrayBuffer" is not enforced
+// ============================================================ fixed finding: I10 "plain ArrayBuffer" is enforced
 
-describe("audit: I10 plain-ArrayBuffer enforcement (PINS DEFECT)", () => {
+describe("audit: I10 plain-ArrayBuffer enforcement", () => {
     it("set() must not adopt a SharedArrayBuffer-backed array: gpuView / transferables / validate all lie", () => {
         const s = smallGraph(true);
         const shared = new Uint32Array(new SharedArrayBuffer(16)) as unknown as U32;

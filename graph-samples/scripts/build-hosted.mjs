@@ -5,7 +5,7 @@
  * upstream sources; the small ones are copied from graph-samples' own build (dist/data/v1/, written
  * by scripts/pack-datasets.mjs from the repository's data/), so build graph-samples first.
  *
- *     node scripts/build-hosted.mjs [--cache <dir>] [--reuse-published] [--from-original-hosts]
+ *     node scripts/build-hosted.mjs [--cache <dir>] [--reuse-published] [--from-original-hosts] [--check]
  *
  * With --reuse-published (the canary deploy), a large dataset whose file canary.graphty.app already
  * (or else graphty.app) publishes with the SHA-256 recorded in src/datasets/hosted.ts is taken from there and its sources are never
@@ -32,7 +32,10 @@
  * public-data/ is build output and is not committed; .github/workflows/deploy-pages.yml runs this
  * script and publishes public-data/v1/ as /data/graph-samples/v1/. Needs `unzip` on the PATH, a
  * built graph-format (graph-format/dist) and a built graph-samples (graph-samples/dist/data/v1/).
- * Running it twice writes identical files.
+ * Running it twice writes identical files. With --check (the deploy) it fails, writing neither index.json nor
+ * hosted.ts, when any dataset's metadata, bytes or SHA-256 differ from the committed hosted.ts, so
+ * graphty.app never serves files the npm package does not record; --reuse-published without --check
+ * regenerates hosted.ts from the published files after a change to the metadata below.
  */
 
 import { execFileSync } from "node:child_process";
@@ -43,7 +46,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
 
 import { datasetOf, edgeArraysOf, importSource } from "./graph-io-source.mjs";
-import { fetchSource, publishedCopy, SOURCES } from "./hosted-sources.mjs";
+import { fetchSource, hostedDrift, publishedCopy, SOURCES } from "./hosted-sources.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cacheFlag = process.argv.indexOf("--cache");
@@ -57,6 +60,7 @@ const BASE_URL = "https://graphty.app/data/graph-samples/v1/";
 const REUSE_URL = "https://canary.graphty.app/data/graph-samples/v1/";
 const reusePublished = process.argv.includes("--reuse-published");
 const fromOriginalHosts = process.argv.includes("--from-original-hosts");
+const check = process.argv.includes("--check");
 
 // graph-format from its tsc output, so the script runs without a workspace install. Not its bundle: the
 // bundle stamps the commit it was built from into every file's manifest (`producer`), which would change
@@ -395,12 +399,15 @@ async function main() {
         copyFileSync(path.join(pictures, file), path.join(outDir, file));
     }
     // the checksums this commit records (graph-samples' tsc output of src/datasets/hosted.ts)
-    const recorded = reusePublished
-        ? (await import(pathToFileURL(path.join(packageRoot, "dist/src/datasets/hosted.js")).href)).HOSTED_DATASETS
-        : [];
+    const recorded =
+        reusePublished || check
+            ? (await import(pathToFileURL(path.join(packageRoot, "dist/src/datasets/hosted.js")).href)).HOSTED_DATASETS
+            : [];
     const metas = [];
     for (const dataset of DATASETS) {
-        const recordedSha = recorded.find((meta) => meta.name === dataset.meta.name)?.sha256;
+        const recordedSha = reusePublished
+            ? recorded.find((meta) => meta.name === dataset.meta.name)?.sha256
+            : undefined;
         // canary first, then graphty.app (before canary serves the data, or while it cannot be read); both are
         // checked against the recorded SHA-256
         let gz =
@@ -417,6 +424,11 @@ async function main() {
         } else {
             console.log(`${dataset.meta.name}: reusing the published file (sha256 ${recordedSha})`);
             snapshot = fromBytes(gunzipSync(gz));
+        }
+        for (const column of Object.keys(dataset.meta.attributes)) {
+            if (snapshot.nodes.get(column) === null) {
+                throw new Error(`${dataset.meta.name}: the snapshot has no node column "${column}"`);
+            }
         }
         writeFileSync(path.join(outDir, `${dataset.meta.name}.gsnp.gz`), gz);
         const {
@@ -450,6 +462,14 @@ async function main() {
             ...(existsSync(path.join(pictures, `${name}.webp`)) ? { thumbnail: `${name}.webp` } : {}),
         });
         console.log(`${name}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges, ${gz.length} bytes`);
+    }
+    // the deploy publishes only what this commit's hosted.ts records: a rebuilt file with other bytes, or
+    // metadata the script changed without regenerating hosted.ts, fails it instead of being published
+    const drift = check ? hostedDrift(metas, recorded) : [];
+    if (drift.length > 0) {
+        throw new Error(
+            `${drift.join(", ")}: the built files differ from src/datasets/hosted.ts; run node scripts/build-hosted.mjs --reuse-published and commit hosted.ts`,
+        );
     }
     writeFileSync(
         path.join(outDir, "index.json"),

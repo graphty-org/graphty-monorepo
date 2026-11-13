@@ -813,7 +813,6 @@ export interface DataLoadingErrorSummaryEvent {
 
 // @public (undocumented)
 export interface DataLoadingProgressEvent {
-    // (undocumented)
     bytesProcessed: number;
     // (undocumented)
     chunksProcessed: number;
@@ -822,9 +821,7 @@ export interface DataLoadingProgressEvent {
     format: string;
     loadId?: number;
     nodeRecordsLoaded: number;
-    // (undocumented)
     percentage?: number;
-    // (undocumented)
     totalBytes?: number;
     // (undocumented)
     type: "data-loading-progress";
@@ -840,6 +837,7 @@ export class DataManager implements Manager {
         generation?: number;
         coalesce?: string;
         setup?: boolean;
+        signal?: AbortSignal;
     }): Promise<void>;
     addEdge(edge: AdHocData, options?: AddEdgesOptions): void;
     addEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void;
@@ -937,6 +935,7 @@ export class DataManager implements Manager {
 // @public
 export abstract class DataSource {
     constructor(errorLimit?: number, chunkSize?: number);
+    bytesRead: number | undefined;
     protected chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown>;
     // (undocumented)
     protected chunkSize: number;
@@ -1095,6 +1094,7 @@ export class Edge {
         width: number;
         visibility: number;
         centre: Vector3;
+        pattern: JoinedPatternKind | null;
     } | null;
     get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
@@ -2760,6 +2760,7 @@ export class Graph implements GraphContext {
     readonly acceleration: AccelerationController;
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -2931,6 +2932,7 @@ export class Graph implements GraphContext {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -2945,6 +2947,7 @@ export class Graph implements GraphContext {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3281,6 +3284,7 @@ export class Graphty extends LitElement {
     set accelerationMinNodes(value: number);
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3487,6 +3491,7 @@ export class Graphty extends LitElement {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3504,6 +3509,7 @@ export class Graphty extends LitElement {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -7009,6 +7015,34 @@ export type PartialXRConfig = z.input<typeof xrConfigSchema>;
 
 // @public
 export const PASTEL_COLORS: readonly ["#FFD699", "#A8D8F0", "#66C9B2", "#FFF099", "#669DD6", "#FF9980", "#EBB8D2", "#CCCCCC"];
+
+// @public
+export class PatternedLineMesh {
+    constructor(pattern: PatternType, start: Vector3, end: Vector3, scene: Scene, options: PatternedLineOptions);
+    // @internal
+    dispose(): void;
+    // @internal
+    drawnEnds(): [Vector3, Vector3] | null;
+    // @internal
+    drawnRoute(): Vector3[] | null;
+    elements: ArrowCap[];
+    isDisposed(): boolean;
+    lineDirection: Vector3;
+    // @internal
+    park(): void;
+    pattern: PatternType;
+    // @internal
+    routeMiddle(): Vector3;
+    // @internal
+    setDrawn(drawn: boolean): void;
+    // @internal
+    unpark(): boolean;
+    // @internal
+    update(start: Vector3, end: Vector3): void;
+    // @internal
+    updatePath(route: readonly Vector3[]): void;
+    readonly wave: WaveShape | undefined;
+}
 
 // @public
 export interface PendingSourceLoad {

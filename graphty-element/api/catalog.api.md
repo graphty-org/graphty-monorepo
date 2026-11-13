@@ -571,10 +571,8 @@ export interface CatalogApi {
     shaders(): readonly ShaderDescriptor[];
     // @deprecated (undocumented)
     themes(): readonly ThemeDescriptor[];
-    // @deprecated (undocumented)
     timeAttributes(): readonly AttributeDescriptor[];
     transitions(): readonly TransitionDescriptor[];
-    // @deprecated (undocumented)
     validate(query: Query, o?: {
         kind?: "selector" | "filter" | "formula";
     }): QueryValidation;
@@ -697,7 +695,7 @@ export const DEPRECATED_LAYOUT_IDS: readonly ["force-2d"];
 export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 // @public
-export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
+export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
 
 // @public
 export function detectAssetKind(input: ModelDetectionInput): AssetKind | undefined;
@@ -2282,15 +2280,13 @@ export type Query = string;
 
 // @public
 export interface QueryValidation {
-    // (undocumented)
     error?: {
         code: GraphtyErrorCode;
-        message: string;
         position: number;
+        params: Readonly<Record<string, unknown>>;
     };
     // (undocumented)
     ok: boolean;
-    // (undocumented)
     unresolvedPaths: readonly {
         path: Path;
         reason: "unknown-run" | "unknown-attribute";

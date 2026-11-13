@@ -30,7 +30,9 @@ const IMPLEMENTED = [
     "scales",
     "screenshotPresets",
     "shaders",
+    "timeAttributes",
     "transitions",
+    "validate",
 ] as const satisfies readonly (keyof SessionCatalogApi)[];
 
 describe("session.catalog", () => {
@@ -38,6 +40,11 @@ describe("session.catalog", () => {
         expectTypeOf<GraphSession["catalog"]>().toEqualTypeOf<Omit<CatalogApi, DeprecatedCatalogMethod>>();
         expectTypeOf<keyof SessionCatalogApi>().toEqualTypeOf<Exclude<keyof CatalogApi, DeprecatedCatalogMethod>>();
         expectTypeOf<(typeof IMPLEMENTED)[number]>().toEqualTypeOf<keyof SessionCatalogApi>();
+    });
+
+    it("offers timeAttributes and validate exactly as the published catalogue type declares them", () => {
+        expectTypeOf<GraphSession["catalog"]["timeAttributes"]>().toEqualTypeOf<CatalogApi["timeAttributes"]>();
+        expectTypeOf<GraphSession["catalog"]["validate"]>().toEqualTypeOf<CatalogApi["validate"]>();
     });
 
     it("offers optionsFor exactly as the published catalogue type declares it", () => {

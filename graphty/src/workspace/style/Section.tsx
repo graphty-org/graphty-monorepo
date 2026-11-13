@@ -9,6 +9,7 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
 import { shownChannel } from "./offered";
+import { GradientRow } from "./parts/GradientRow";
 import { Field, type RowContext } from "./PropertyRow";
 import { carriedOpacity, lineIn, partlySet, removeLine, startingAdds, writeIn } from "./row";
 import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
@@ -319,9 +320,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
             >
                 {lines.map((d) => [
                     itemHead(d),
-                    d.channel === "node.wireframe" ? (
-                        <WireframeRow key={d.channel} ctx={ctx} />
-                    ) : (
+                    specialLine(ctx, spec, d) ?? (
                         <Field
                             key={d.channel}
                             ctx={ctx}
@@ -349,6 +348,31 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
             )}
         </div>
     );
+}
+
+/**
+ * A line drawn by its own control rather than a property field: Shape's Wireframe, and in a list
+ * section (the panel by part) the gradient's stops, which stand for its colors and their places.
+ * @param ctx - the row.
+ * @param spec - the section.
+ * @param d - the property.
+ * @returns the line; false to draw no line for it; undefined for an ordinary field.
+ */
+function specialLine(ctx: RowContext, spec: SectionSpec, d: ChannelDescriptor): React.ReactNode {
+    if (d.channel === "node.wireframe") {
+        return <WireframeRow key={d.channel} ctx={ctx} />;
+    }
+    if (spec.items !== undefined && d.channel === "node.gradientColors") {
+        return <GradientRow key={d.channel} ctx={ctx} />;
+    }
+    if (
+        spec.items !== undefined &&
+        d.channel === "node.gradientStops" &&
+        lineIn(ctx, "node.gradientColors") !== undefined
+    ) {
+        return false;
+    }
+    return undefined;
 }
 
 /**

@@ -183,6 +183,31 @@ describe("the node tab by part of the drawing", () => {
         });
     });
 
+    it("Fill lists one row per paint and the gradient row shows its stops", async () => {
+        await openProject([
+            everyNode("Key", {
+                "node.color": "#00ff00",
+                "node.gradientKind": "linear",
+                "node.gradientColors": "#ff0000 rgb(0, 0, 255) #ffff00",
+                "node.gradientStops": "0 0.25 1",
+            }),
+        ]);
+        const tab = await openStyle("Key");
+        const fill = section(tab, "fill");
+        await waitFor(() => {
+            assert.deepEqual(
+                [...fill.querySelectorAll<HTMLElement>("[data-item]")].map((each) => each.dataset.item),
+                ["solid", "gradient"],
+            );
+        });
+        const editor = within(fill).getByTestId("gradient-editor");
+        const hexes = within(editor)
+            .getAllByTestId("gradient-editor-stop-hex")
+            .map((box) => (box as HTMLInputElement).value.toUpperCase());
+        assert.deepEqual(hexes, ["FF0000", "0000FF", "FFFF00"]);
+        assert.isNull(fill.querySelector('.ws-row[data-line="node.gradientStops"]'), "the stops are on the editor");
+    });
+
     it("removing the drop shadow row removes all five shadow channels", async () => {
         const shadow = {
             "node.shadowColor": "#333333",

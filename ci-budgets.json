@@ -11,7 +11,7 @@
         "run:hosts.yml": { "minutes": 60 },
         "job:ci.yml:Run cap": {
             "minutes": 15,
-            "why": "a pull request waits here for a turn; tools/ci-run-cap.mjs gives up at 25 min"
+            "why": "a pull request waits here for a turn while earlier runs fill the job budget (tools/ci-run-cap.mjs)"
         },
         "job:ci.yml:Build": { "minutes": 6, "why": "4.2 min median before #3415's regression" },
         "job:ci.yml:Selector import graphs": {

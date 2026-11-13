@@ -420,7 +420,7 @@ export const dataManagerInternals = {} as {
      * The rows of the two ends of an edge stored with no `Edge`, or undefined when an `Edge` draws
      * the row or none is stored there.
      */
-    unbuiltEdgeEnds(manager: DataManager, row: number): [number, number] | undefined;
+    unbuiltEdgeEnds(manager: DataManager, row: number): readonly [number, number] | undefined;
     /**
      * Build the `Edge` of an edge row stored with no `Edge` yet, and hand it back; its paint is queued
      * unless the caller paints it now (`paintingNow`).
@@ -706,9 +706,15 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.unbuiltEdgeEnds = (manager, row) => {
             const stored = manager.unbuiltEdges.get(row);
+            if (stored === undefined) {
+                return undefined;
+            }
+
+            // The store's row holds this edge's end rows: two array reads, not two id lookups per painted row.
+            // A row the store has let go (undo of its add) and not yet reconciled is found by its ids.
             const { builder } = manager.store;
-            return stored === undefined
-                ? undefined
+            return builder.hasEdge(row)
+                ? builder.edgeEndpoints(row)
                 : [builder.indexOf(stored.sourceId), builder.indexOf(stored.targetId)];
         };
         dataManagerInternals.buildEdgeAt = (manager, row, paintingNow = false) =>

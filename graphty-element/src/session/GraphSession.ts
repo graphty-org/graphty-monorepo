@@ -1924,8 +1924,9 @@ function valueSourceOf(
 ): FilterValueSource {
     const keyOf = (path: Path): string =>
         path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
-    // A run's value and a node's value read at an edge's end are the style source's to read.
-    const isResult = (path: Path): boolean => path.startsWith("results.") || edgeEndPathOf(path) !== undefined;
+    // A run's value and every value under `graphty.` (an end's node value, a degree, a note value,
+    // a file's style value) are the style source's to read.
+    const isResult = (path: Path): boolean => path.startsWith("results.") || path.startsWith("graphty.");
 
     return {
         nodeValue: (index: number, path: Path): unknown =>
@@ -1946,9 +1947,10 @@ function valueSourceOf(
 }
 
 /**
- * Which halves carry a value path: a run field's declared kinds, or the kinds of the data
- * attribute at that path.
- * @param path - `results.<run>.<field>`, `data.<field>`, or either read at an edge's end.
+ * Which halves carry a value path: a run field's declared kinds, the kinds of the data attribute
+ * at that path, or for a value graphty-element provides, the kinds it is on.
+ * @param path - `results.<run>.<field>`, `data.<field>`, either read at an edge's end, a degree,
+ *     a note value or a file's style value.
  * @param data - The session's data surface.
  * @param fieldsOf - A run's published fields, or undefined when it has no result.
  * @returns The kinds, `"node"`, `"edge"` or both.
@@ -1962,6 +1964,20 @@ function fieldKindsOf(
     const end = edgeEndPathOf(path);
     if (end !== undefined) {
         return fieldKindsOf(end.node, data, fieldsOf).includes("node") ? ["edge"] : [];
+    }
+
+    // The values graphty-element provides: a file's style value is on the kind its path names.
+    const style = parseFileStylePath(path);
+    if (style !== undefined) {
+        return [style.kind];
+    }
+
+    if (noteFieldOf(path) !== undefined) {
+        return ["node", "edge"];
+    }
+
+    if ((STRUCTURE_PATHS as readonly string[]).includes(path)) {
+        return ["node"];
     }
 
     if (path.startsWith("results.")) {
@@ -2851,6 +2867,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeline: () => timelineOn(),
             fileStyles: () => fileStylesOn(),
+            batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
     );

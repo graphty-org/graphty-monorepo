@@ -34,7 +34,7 @@ import type { Graphty } from "../../src/graphty-element";
 import { everyFrameAnimationsOn } from "../../src/managers/everyFrameAnimations";
 import { NodeShaderDrawing } from "../../src/meshes/NodeShaderDrawing";
 import { assertGraphLoaded, assertNodesInFromEdges, type Drawn, drawn } from "../assertions";
-import { eventWaitingDecorator, isVisualCapture, realInput, waitForGraphSettled } from "../helpers";
+import { eventWaitingDecorator, isVisualCapture, realInput, untilFrames, waitForGraphSettled } from "../helpers";
 import { NODE_EFFECT_PRESETS, presetId } from "./nodeEffectPresets";
 
 /** A 3 x 3 grid in three groups, each node with an uncertainty and a degree to bind. */
@@ -151,21 +151,6 @@ function effectLayer(
  */
 function statsOf(scene: Drawn): ReturnType<NodeShaderDrawing["stats"]> | undefined {
     return NodeShaderDrawing.peek(scene.graph.getScene())?.stats();
-}
-
-/**
- * Wait, counting animation frames, until a condition holds; fail after a bound.
- * @param what - What is awaited, for the failure.
- * @param holds - The condition.
- */
-async function untilFrames(what: string, holds: () => boolean): Promise<void> {
-    for (let frame = 0; frame < 900 && !holds(); frame++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
-
-    if (!holds()) {
-        throw new Error(what);
-    }
 }
 
 /**

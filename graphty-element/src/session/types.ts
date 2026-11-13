@@ -1354,6 +1354,25 @@ export interface SessionDataApi {
      */
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
     /**
+     * What this session read a load from, as `import` and `prepare` took it (the file itself, or
+     * the text), so an application can read the load again into a draft, such as to show its rows
+     * and change its roles. Only a load this session read itself has one
+     * (`LoadedSource.reloadable`): what a file was is never saved in a project.
+     *
+     * ```ts
+     * const [first] = session.data.sources();
+     * const input = session.data.sourceInput(first.key);
+     * if (input !== undefined) {
+     *     const draft = await session.data.prepare(input);
+     *     draft.tables[0].columns; // the load's columns, as it read them
+     * }
+     * ```
+     * @param key - The load's key, from {@link SessionDataApi.sources}.
+     * @returns What the load was read from, or undefined for a load this session did not read.
+     * @since 3.47.0
+     */
+    sourceInput(key: SourceKey): DataSourceInput | undefined;
+    /**
      * The load whose rows carry the same columns as a file's header (in any order), newest
      * first: the load a dropped file is most likely a newer copy of. Reads the file; loads nothing.
      * @param source - The file, as `import` takes it.
@@ -1621,6 +1640,25 @@ export interface SessionDataApi {
      * @returns Settles once the edges are in the graph and drawn.
      */
     addEdges(records: readonly EdgeRecordInput[]): Promise<void>;
+    /**
+     * Load a graph from column arrays, as one undoable step: the advanced path beside `addNodes`
+     * and `addEdges`, for a graph already held as arrays. Nodes are rows `0` to `nodeCount - 1`;
+     * edge `i` runs from row `sources[i]` to row `targets[i]`. The graph made is the one the record
+     * doors make from the same rows, under the same ceilings, report and undo.
+     *
+     * ```ts
+     * await session.data.importColumns({
+     *     sources: [0, 1, 2],
+     *     targets: [1, 2, 0],
+     *     nodeCount: 3,
+     *     ids: ["a", "b", "c"],
+     * });
+     * ```
+     * @param columns - The columns; see {@link ImportColumnsInput}.
+     * @returns Settles once the rows are in the graph and drawn.
+     * @throws `E_BAD_COMMAND` when the columns do not line up; nothing is added.
+     */
+    importColumns(columns: ImportColumnsInput): Promise<void>;
     /**
      * Change some attributes of existing nodes, as one undoable step. Keys not named are kept; an
      * id the graph does not hold is skipped.
@@ -2971,6 +3009,33 @@ export type NodeRecordInput = Readonly<Record<string, unknown>>;
 
 /** An edge record to add: its endpoints are read through the edge id paths; its id is assigned. */
 export type EdgeRecordInput = Readonly<Record<string, unknown>>;
+
+/**
+ * A graph as column arrays, for `session.data.importColumns`. Every array may be a plain array or
+ * a typed array.
+ */
+export interface ImportColumnsInput {
+    /** Each edge's source, as a node row number from 0 to `nodeCount - 1`. */
+    readonly sources: ArrayLike<number>;
+    /** Each edge's target, as a node row number; as long as `sources`. */
+    readonly targets: ArrayLike<number>;
+    /** How many nodes there are. */
+    readonly nodeCount: number;
+    /** Each node's id, one per node. Default: the row number. */
+    readonly ids?: ArrayLike<string | number>;
+    /**
+     * Each edge's weight, one per edge, stored as the record's `weight`. Default: read from the edge
+     * attributes as `addEdges` reads it, else 1.
+     */
+    readonly weights?: ArrayLike<number>;
+    /** Each node's starting position as x, y, z, three numbers per node. Default: placed by the layout. */
+    readonly positions?: ArrayLike<number>;
+    /** Further values by column name: one per node, or one per edge. */
+    readonly attributes?: {
+        readonly nodes?: Readonly<Record<string, ArrayLike<unknown>>>;
+        readonly edges?: Readonly<Record<string, ArrayLike<unknown>>>;
+    };
+}
 
 /** New values for some attributes of one existing row; keys not named are left as they are. */
 export interface RowUpdate<Id> {

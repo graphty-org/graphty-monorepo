@@ -770,6 +770,7 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
     const ghost = (x: Collected): boolean =>
         !!prs && x.repo === c.d.repo && isGhostRun(x.run, prs, prs.length < OPEN_PAGE);
     const open = xs.filter((x) => x.run.status !== "completed" && !ghost(x));
+    const ghosts = xs.filter((x) => x.run.status !== "completed" && ghost(x));
     const jobs = open.flatMap((x) => x.jobs ?? []);
     const unfinished = (repo: string): GhRun[] => open.filter((x) => x.repo === repo).map((x) => x.run);
     const noJobs = open
@@ -806,7 +807,7 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
         c.o("slices.queue_wait_min", cost.queueWaitMin);
     }
     const prev = await c.json<HoldersSnapshot | undefined>(SNAPSHOT.holders, undefined);
-    await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now));
+    await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now, ghosts));
 }
 
 /**

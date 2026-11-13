@@ -45,6 +45,7 @@ import {
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
+import { yedNodePicture } from "./styles-yed-drawing.js";
 import {
     bpmnPicture,
     groupIconPicture,
@@ -646,6 +647,63 @@ function readShinyPlateStyle(refs: References, style: StyleObject, size: Size | 
 }
 
 /**
+ * Reads the demos' FlowchartNodeStyle: its `type`'s outline, drawn as yEd's flowchart palette draws the same type, kept
+ * to its own proportions in the middle of the box (yEd Live 8.5.16 draws start2 in a 56 x 36 box as a circle 36 across),
+ * and the lines yEd Live draws inside a predefined process and an internal storage, as the node's picture. A style with
+ * no `type` draws a data parallelogram, the style's default (yed-live-graphml-specimen-node-shapes-p3: `default` and
+ * `flowchart-data` are the same parallelogram).
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the node's size, where it has one
+ * @param fill - writes the fill and returns its `#rrggbb` color
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readFlowchartStyle(
+    refs: References,
+    style: StyleObject,
+    size: Size | null,
+    fill: (v: unknown) => string | null,
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const type = treeAttr(style.e, "type") ?? "data";
+    const outline = type === "annotation" ? null : configurationOutline(`flowchart.${type}`);
+    if (outline === null) {
+        if (type !== "annotation") {
+            noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, type.slice(0, MAX_STYLE_VALUE_LENGTH));
+        }
+        put("shape", "rectangle");
+    } else {
+        putOutline(outline, size?.width ?? null, size?.height ?? null, put);
+    }
+    fill(prop(style, "fill") ?? FLOWCHART_FILL);
+    // an annotation's box has no outline (its bracket is not drawn)
+    if (type === "annotation") {
+        put("borderWidth", 0);
+        return;
+    }
+    const stroke = strokeOf(refs, prop(style, "stroke") ?? BLACK);
+    putStroke(stroke, put, at);
+    const lined = stroke !== null && stroke !== NULL && stroke.color !== null && stroke.color !== NULL;
+    const picture =
+        size === null || !lined
+            ? null
+            : yedNodePicture({
+                  kind: `flowchart.${type}`,
+                  width: size.width,
+                  height: size.height,
+                  line: canonColor(stroke.color.raw, stroke.color.dialect, at("borderColor"))?.color ?? null,
+                  border: canonNumber(stroke.width, at("borderWidth")) ?? 1,
+              });
+    if (picture !== null) {
+        put("image", picture);
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/**
  * Reads the yFiles for HTML 2.6 node styles yEd Live wrote before yFiles 3, and the demos' FlowchartNodeStyle:
  * BevelNodeStyle and PanelNodeStyle (painted from their `color`), ShinyPlateNodeStyle (an outline only where `stroke`
  * is set) and FlowchartNodeStyle (its `type`'s outline, drawn as yEd's flowchart palette draws the same type).
@@ -678,29 +736,9 @@ function readStyle26(refs: References, style: StyleObject, size: Size | null, pu
             fill(prop(style, "fill") ?? BLACK);
             readShinyPlateStyle(refs, style, size, put, at);
             return true;
-        case "FlowchartNodeStyle": {
-            const type = treeAttr(style.e, "type") ?? "";
-            const outline = type === "" || type === "annotation" ? null : configurationOutline(`flowchart.${type}`);
-            if (outline === null && type !== "" && type !== "annotation") {
-                noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, type.slice(0, MAX_STYLE_VALUE_LENGTH));
-            }
-            // its outline as yEd draws the type, kept to its own proportions in the middle of the box (yEd Live
-            // 8.5.16 draws start2 in a 56 x 36 box as a circle 36 across: yed-live-graphml-specimen-node-shapes-p3)
-            if (outline === null) {
-                put("shape", "rectangle");
-            } else {
-                putOutline(outline, size?.width ?? null, size?.height ?? null, put);
-            }
-            fill(prop(style, "fill") ?? FLOWCHART_FILL);
-            // an annotation's box has no outline (its bracket is not drawn); a style without a type draws the same
-            // box, outlined
-            if (type === "annotation") {
-                put("borderWidth", 0);
-            } else {
-                putStroke(strokeOf(refs, prop(style, "stroke") ?? BLACK), put, at);
-            }
+        case "FlowchartNodeStyle":
+            readFlowchartStyle(refs, style, size, fill, put, at);
             return true;
-        }
         default:
             return false;
     }

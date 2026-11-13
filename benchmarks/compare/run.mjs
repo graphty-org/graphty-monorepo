@@ -35,6 +35,9 @@ const skip = flags.includes("skip-layout"),
     curves = flags.includes("curves"),
     // the lean mode's straight edges kept in 3D, where they are pulled under batched (cosmos-gap G12)
     threeD = flags.includes("3d"),
+    // graphty-element loads through session.data.importColumns with the typed arrays cosmos.gl gets,
+    // not nodeData/edgeData records (cosmos-gap G8)
+    columns = flags.includes("columns"),
     noStill = flags.includes("no-still"),
     noMove = flags.includes("no-move");
 const N = Number(n),
@@ -198,6 +201,7 @@ try {
                 glyphs,
                 curves,
                 threeD,
+                columns,
                 renderPath: RENDER_PATH,
                 renderer: RENDERER,
                 antialias: ANTIALIAS,

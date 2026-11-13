@@ -3,6 +3,7 @@
  * This approach prevents race conditions while maintaining backwards compatibility
  */
 
+import type { AbstractMesh } from "@babylonjs/core";
 import type { Meta } from "@storybook/web-components-vite";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
@@ -45,8 +46,8 @@ function setupEventListenersForElement(element: HTMLElement): void {
     const promises = new Map<string, Promise<void>>();
     const resolvers = new Map<string, () => void>();
 
-    // Note: skybox-loaded is optional and only fires if a skybox is configured, so it is waited
-    // for directly by the few stories that configure one.
+    // Note: skybox-loaded is optional and only fires if a skybox is configured; the few stories
+    // that configure one read the scene instead (waitForSkyboxLoaded).
     const events = ["data-loaded"];
     events.forEach((eventName) => {
         let resolver: (() => void) | undefined;
@@ -72,12 +73,19 @@ function setupEventListenersForElement(element: HTMLElement): void {
     eventWaitingState.set(element, { promises, resolvers });
 }
 
+/** The observer of the story rendered last, stopped when the next story renders. */
+let storyObserver: MutationObserver | undefined;
+
 /**
  * Enhanced decorator that sets up event listeners before elements are rendered
  * This decorator should be added to the meta configuration
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const eventWaitingDecorator = (story: any): any => {
+    // One observer at a time: the previous story's stops when the next one renders. It is not
+    // stopped on a timer, because an element added after that timer would have no listeners, and
+    // its play function would wait for an event that had already fired.
+    storyObserver?.disconnect();
     // Set up mutation observer to catch graphty-element creation
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
@@ -98,16 +106,9 @@ export const eventWaitingDecorator = (story: any): any => {
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
+    storyObserver = observer;
 
-    // Run the story
-    const result = story();
-
-    // Clean up observer after a short delay
-    setTimeout(() => {
-        observer.disconnect();
-    }, 100);
-
-    return result;
+    return story();
 };
 
 /**
@@ -179,47 +180,46 @@ export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<v
     await graphtyElement.waitForStableFrame();
 }
 
-// Helper to wait for skybox to load - only call this if your story actually uses a skybox
+/**
+ * Wait, a frame at a time, until a condition holds. It has no deadline of its own: the one hang
+ * guard (tools/test-wait-guard.mjs) ends a wait that never holds, so a busy machine that draws
+ * fewer frames per second only makes the story slower, never failed.
+ * @param _what - What is awaited, naming the wait where it is called.
+ * @param holds - The condition.
+ */
+export async function untilFrames(_what: string, holds: () => boolean): Promise<void> {
+    while (!holds()) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+}
+
+/**
+ * Wait until the story's skybox is drawn: its dome is in the scene and the dome's image has
+ * arrived. Only call this if your story uses a skybox.
+ *
+ * It reads the scene rather than listening for `skybox-loaded`, because a listener attached in
+ * `play` misses an event that fired while the story rendered. It has no deadline of its own: a
+ * skybox that never loads is ended by the one hang guard (tools/test-wait-guard.mjs) instead of
+ * being photographed without its image.
+ * @param canvasElement - The story's root element.
+ */
 export async function waitForSkyboxLoaded(canvasElement: HTMLElement): Promise<void> {
-    const graphtyElement = canvasElement.querySelector("graphty-element");
+    const graphtyElement = canvasElement.querySelector<Graphty>("graphty-element");
     if (!graphtyElement) {
-        // No element to wait for
         return;
     }
 
-    // Since skybox-loaded is not in the default decorator events, we always use direct listener
-    await new Promise<void>((resolve) => {
-        let resolved = false;
+    await untilFrames("the skybox image has arrived", () => skyboxReady(graphtyElement.graph.scene.meshes));
+}
 
-        // Short timeout - if skybox hasn't loaded quickly, it's probably not configured
-        const timeout = setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                // This is only called by stories that explicitly configure a skybox,
-                // so a timeout here might indicate a real issue
-                console.warn("[Warning] skybox-loaded event timeout (2s) - skybox may have failed to load");
-                resolve();
-            }
-        }, 2000);
-
-        const handleSkyboxLoaded = (): void => {
-            if (!resolved) {
-                resolved = true;
-                clearTimeout(timeout);
-                resolve();
-            }
-        };
-
-        graphtyElement.addEventListener("skybox-loaded", handleSkyboxLoaded, { once: true });
-
-        // Check if the skybox might have already loaded
-        // Give it a tiny delay to see if the event fires immediately
-        setTimeout(() => {
-            if (!resolved) {
-                // Still waiting - skybox is probably loading
-            }
-        }, 10);
-    });
+/**
+ * Whether a scene's meshes hold a skybox dome whose image has arrived.
+ * @param meshes - The scene's meshes.
+ * @returns True once at least one dome mesh is in the scene and every one is ready to draw.
+ */
+export function skyboxReady(meshes: readonly AbstractMesh[]): boolean {
+    const domes = meshes.filter((mesh) => mesh.name.toLowerCase().includes("dome"));
+    return domes.length > 0 && domes.every((mesh) => mesh.isReady(true));
 }
 
 /**
@@ -832,6 +832,12 @@ export interface RealInput {
     hover(element: Element, point: { x: number; y: number }): Promise<void>;
     /** Press and release the left button at a point in CSS pixels from the element's top-left corner. */
     click(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Click twice at a point, as one double-click, in CSS pixels from the element's top-left corner. */
+    doubleClick(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Move to a point and press the left button there, holding it, in CSS pixels from the element's top-left corner. */
+    press(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Release the left button at a point, as after `press`. */
+    release(element: Element, point: { x: number; y: number }): Promise<void>;
 }
 
 /**

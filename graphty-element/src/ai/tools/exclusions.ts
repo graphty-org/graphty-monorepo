@@ -273,7 +273,15 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionDataApi", members: ["ignoreIssue"], reason: "covered-by", by: "issues.ignore", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
-        members: ["editJoin", "editJoinReport", "matchesSource", "replaceSource", "reloadSource", "sourceSettings"],
+        members: [
+            "editJoin",
+            "editJoinReport",
+            "matchesSource",
+            "replaceSource",
+            "reloadSource",
+            "sourceSettings",
+            "sourceInput",
+        ],
         reason: "needs-host",
         kind: BY_DESIGN,
     },
@@ -553,7 +561,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionConfig", members: ["acceleration"], reason: "machine-preference", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
-        members: ["store", "snapshot", "undirected", "fingerprint"],
+        members: ["store", "snapshot", "undirected", "fingerprint", "importColumns"],
         reason: "raw-data",
         kind: BY_DESIGN,
     },

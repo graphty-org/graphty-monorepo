@@ -101,6 +101,7 @@ import {
     LOAD_ROLES,
     readSource,
 } from "./draft";
+import { columnMutations } from "./importColumns";
 import {
     type DataIssue,
     findIssues,
@@ -188,6 +189,7 @@ import type {
     FindOptions,
     FindResult,
     GraphStatistics,
+    ImportColumnsInput,
     ImportOptions,
     JoinChoices,
     JoinRecord,
@@ -349,6 +351,11 @@ interface PageSources {
      * @returns true when it is
      */
     fileStyles?(): boolean;
+    /**
+     * Whether the element draws on the `"batched"` render path; absent reads false.
+     * @returns true when it does
+     */
+    batched?(): boolean;
     /**
      * The visible masks, for statistics over the visible graph.
      * @returns The node and edge masks, 1 for visible.
@@ -906,6 +913,30 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Load a graph from column arrays, as one undoable step: the nodes, then the edges.
+     * @param columns - The columns.
+     * @returns Settles once the rows are in the graph and drawn.
+     */
+    async importColumns(columns: ImportColumnsInput): Promise<void> {
+        this.requireLive("importColumns");
+        const [nodes, edges] = columnMutations(columns);
+        const send = this.writes.importer();
+        await this.loadLine.edit(
+            () =>
+                send({
+                    op: "batch",
+                    label: "Set the graph data",
+                    fact: { code: "data.set", params: {} },
+                    steps: [
+                        { op: "data.apply", mutation: nodes },
+                        { op: "data.apply", mutation: edges },
+                    ],
+                }),
+            undefined,
+        );
+    }
+
+    /**
      * Change attributes of existing nodes, as one undoable step.
      * @param rows - the new values per node
      * @returns settles once the change is drawn
@@ -1080,15 +1111,11 @@ export class SessionData implements SessionDataApi {
         }
         const turn = this.loadLine.join();
         try {
-            await this.importVia(
-                send,
-                recordsSource(graph, name),
-                options,
-                turn,
-                "sample",
-                { generator: name, params: { ...params } },
-                sampleLabelOf(graph),
-            );
+            const load = this.sampleLoad(graph, name, options);
+            await this.importVia(send, load.source, options, turn, {
+                ...load,
+                facts: { generator: name, params: { ...params } },
+            });
         } finally {
             turn.leave();
         }
@@ -1130,18 +1157,49 @@ export class SessionData implements SessionDataApi {
                     cause: error,
                 });
             }
-            await this.importVia(
-                send,
-                recordsSource(snapshot, name),
-                load,
-                turn,
-                "sample",
-                { dataset: name, ...(baseUrl === undefined ? {} : { baseUrl }) },
-                sampleLabelOf(snapshot),
-            );
+            const sample = this.sampleLoad(snapshot, name, load);
+            await this.importVia(send, sample.source, load, turn, {
+                ...sample,
+                facts: { dataset: name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+            });
         } finally {
             turn.leave();
         }
+    }
+
+    /**
+     * What a generated graph or a dataset loads as: a JSON source of graph-samples' records for it.
+     * Under the "batched" render path the records are handed to the import as held rows instead,
+     * so no JSON text of the graph is written and read back (row-renderer.md 4.6, "The typed door"),
+     * unless a choice that reads the source through a draft is given.
+     * @param graph - The graph.
+     * @param name - What the source is called.
+     * @param options - The load's choices.
+     * @returns The source, the column that names its nodes, and the held rows when handed over.
+     */
+    private sampleLoad(graph: SampleGraph | GraphSnapshot, name: string, options: LoadChoices): SampleLoad {
+        const data = toElementData(graph) as {
+            nodes: readonly Record<string, unknown>[];
+            edges: readonly Record<string, unknown>[];
+        };
+        const label = LABEL_COLUMNS.find((column) => data.nodes.some((node) => typeof node[column] === "string"));
+        if (this.pages.batched?.() !== true || readsThroughDraft(options)) {
+            const json = JSON.stringify({ directed: graph.directed, ...data });
+            return { source: { type: "json", name, config: { data: json } }, label };
+        }
+
+        const held: HeldRows = {
+            ...data,
+            // What the JSON source declares for the `directed` key the records' document carries.
+            declaredDirection: {
+                directed: graph.directed,
+                statedBy: `"directed": ${String(graph.directed)}`,
+                conflictingEdges: 0,
+            },
+            errors: [],
+            errorLimit: SAMPLE_ERROR_LIMIT,
+        };
+        return { source: { type: "json", name, config: {} }, label, held };
     }
 
     /**
@@ -1151,9 +1209,8 @@ export class SessionData implements SessionDataApi {
      * @param options - What `import` takes.
      * @param turn - The load's place in line, taken when the verb was called: it dispatches only
      *   once every load asked for before it has.
-     * @param origin - What `data.sources()` says the load came from; read from the source's type when absent.
-     * @param sample - For a generated graph or a dataset: what it was, for the project file.
-     * @param sampleLabel - For a generated graph or a dataset: the column that names its nodes.
+     * @param sample - For a generated graph or a dataset: what it was, the column that names its
+     *   nodes, and its rows when they are handed over instead of read from the source.
      * @returns Settles once the last chunk is in the graph.
      */
     private async importVia(
@@ -1161,15 +1218,14 @@ export class SessionData implements SessionDataApi {
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing">,
         turn: LoadTurn,
-        origin?: LoadedSourceKind,
-        sample?: LoadFacts["sample"],
-        sampleLabel?: string,
+        sample?: SampleLoad & { readonly facts: LoadFacts["sample"] },
     ): Promise<void> {
         let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
+        const origin: LoadedSourceKind | undefined = sample === undefined ? undefined : "sample";
         const chosenOrigin = origin ?? options.origin;
         const noted = this.noting(
             dispatch,
-            () => (sample === undefined ? bytesFacts(resolvedConfig) : Promise.resolve({ sample })),
+            () => (sample === undefined ? bytesFacts(resolvedConfig) : Promise.resolve({ sample: sample.facts })),
             choiceOptions(options),
         );
         const mark = historyMark(options);
@@ -1181,12 +1237,7 @@ export class SessionData implements SessionDataApi {
             this.pendingLoads.clear();
         }
         this.draft?.dispose();
-        if (
-            options.mapping !== undefined ||
-            options.unmatched !== undefined ||
-            options.directed !== undefined ||
-            options.duplicateIds !== undefined
-        ) {
+        if (readsThroughDraft(options)) {
             const draft = await this.prepare(source);
             try {
                 await turn.wait();
@@ -1207,7 +1258,7 @@ export class SessionData implements SessionDataApi {
         // ahead of it dispatches before this call returns, as it did before the line existed.
         await turn.take(() => {
             const step: DataImportCommand = {
-                ...importCommand(resolved, options),
+                ...importCommand(resolved, options, sample?.held),
                 ...(chosenOrigin === undefined ? {} : { origin: chosenOrigin }),
             };
             // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
@@ -1220,7 +1271,7 @@ export class SessionData implements SessionDataApi {
             // keeps how the graph it joins names its nodes.
             const graphFile = step.source.type !== undefined && step.source.type !== "csv";
             const fileLabel = graphFile ? "label" : undefined;
-            const label = origin === "sample" ? sampleLabel : fileLabel;
+            const label = sample === undefined ? fileLabel : sample.label;
             const names = step.mode !== "merge" && knownFields.nodeLabelPath === null && label !== undefined;
             const before: BatchCommand["steps"] = [
                 ...(resets
@@ -3496,6 +3547,17 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * What this session read a load from, when it read it itself.
+     * @param key - The load's key.
+     * @returns What `import` or `prepare` was given, or undefined.
+     */
+    sourceInput(key: SourceKey): DataSourceInput | undefined {
+        const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
+            ?.input;
+        return token === undefined ? undefined : this.kept.get(token);
+    }
+
+    /**
      * reloadSource, once the loads asked for before it have landed.
      * @param key - as reloadSource takes it
      * @param choices - as reloadSource takes it
@@ -5625,27 +5687,30 @@ function overTables(a: LoadMapping, b: LoadMapping): LoadMapping {
     return "tables" in b ? { tables } : b;
 }
 
-/**
- * A generated graph or a downloaded dataset as the JSON source `import` reads: graph-samples' own
- * records for it, with its direction stated.
- * @param graph - The graph.
- * @param name - What the source is called.
- * @returns The source.
- */
-function recordsSource(graph: SampleGraph | GraphSnapshot, name: string): DataSourceInput {
-    const data = JSON.stringify({ directed: graph.directed, ...toElementData(graph) });
-    return { type: "json", name, config: { data } };
+/** The error limit the JSON source reads a sample's records with, by default. */
+const SAMPLE_ERROR_LIMIT = 100;
+
+/** What a generated graph or a dataset loads as; see `SessionData.sampleLoad`. */
+interface SampleLoad {
+    readonly source: DataSourceInput;
+    /** The first of {@link LABEL_COLUMNS} some node holds text in. */
+    readonly label: string | undefined;
+    /** The records, handed to the import instead of a JSON text of them. */
+    readonly held?: HeldRows;
 }
 
 /**
- * The column that names a generated graph's or a dataset's nodes: the first of
- * {@link LABEL_COLUMNS} some node holds text in.
- * @param graph - The graph.
- * @returns The column, or undefined when no node has one.
+ * Whether a load's choices read its source through a draft.
+ * @param options - The choices.
+ * @returns True when one of them does.
  */
-function sampleLabelOf(graph: SampleGraph | GraphSnapshot): string | undefined {
-    const { nodes } = toElementData(graph) as { nodes: readonly Readonly<Record<string, unknown>>[] };
-    return LABEL_COLUMNS.find((column) => nodes.some((node) => typeof node[column] === "string"));
+function readsThroughDraft(options: LoadChoices): boolean {
+    return (
+        options.mapping !== undefined ||
+        options.unmatched !== undefined ||
+        options.directed !== undefined ||
+        options.duplicateIds !== undefined
+    );
 }
 
 /**

@@ -91,6 +91,15 @@ round: unknown is a state, not "nothing to do". If the broker's `fetchedAt` is m
 in-progress run is no verdict). **Master is red** -- the owner's meaning (2026-10-26) -- when the newest completed full
 run (the `release.yml` line above) failed, or master's build is red.
 
+## Renewing the loop
+
+A /loop is a CronCreate recurring job, and those expire after 7 days: the job fires one last time and is deleted,
+with no warning, and CronList never shows when a job was created. So at the start of every round the session renews
+its own loop. It keeps `tmp/<round name>/loop-created` (one line: the job id and an ISO time, written when the job is
+created; a one-client loop running both skills keeps it under `tmp/pipeline-round/`). When the file is missing, names
+a job CronList no longer shows, or is 6 days old or more: CronCreate a new recurring job with the same cron and prompt,
+CronDelete the old one if it is still listed, and rewrite the file.
+
 ## While master is red
 
 Work continues; pull requests wait. A pull request opened onto a red master only queues behind its fix and lands on a

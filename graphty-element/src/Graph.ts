@@ -7509,6 +7509,9 @@ export class Graph implements GraphContext {
 
         // For immediate (non-animated) updates, skipQueue or a transition of no time, apply directly
         if (!options || !options.animate || options.skipQueue || options.duration === 0) {
+            // A placement made now is where the camera stays: an animation still running toward an
+            // earlier request would otherwise go on moving it and end at that request's target.
+            this.operationQueue.cancelByCategory("camera-update");
             this.applyCameraStateImmediate(resolvedState);
             // Emit event
             this.eventManager.emit("camera-state-changed", { state: resolvedState });

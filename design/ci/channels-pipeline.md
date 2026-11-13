@@ -361,7 +361,7 @@ tools/results/run-group.mjs <group>`: compute the inputs key, run, retry failed 
   failure, GPU tests and the screenshot gate still fail the pull request.
   `restricted-cpu-stress.yml` writes kind `stress`, never evidence.
 - **Fail open:** 5 s for plan and record, 2 s for a failure event. No plan means no reuse, no
-  quarantine, no excuse: longer and stricter, never looser. An unsent record is spooled and re-posted.
+  quarantine, no excuse: longer and stricter, never looser. An unsent record is lost.
 - **Credentials:** CI uses the job's OIDC token; local runs write only kind `local`; each site
   repository's `deploy.yml` writes only kind `deploy`. The scheduler App gains Contents: read for the
   ancestry check.

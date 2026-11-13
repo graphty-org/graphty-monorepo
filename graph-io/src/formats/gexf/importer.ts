@@ -2113,11 +2113,10 @@ class GexfReader implements XmlHandler {
      */
     private dropUndeclaredNodes(): void {
         const { sink, report } = this;
-        const removable = sink as GraphSink & { removeNodeByIndex?: (index: number) => ArrayLike<number> };
         for (const [index, id] of this.implicitNodes) {
             report.error("validation-error", "E_UNKNOWN_NODE", `edge references undeclared node "${String(id)}"`);
-            if (typeof removable.removeNodeByIndex === "function") {
-                const edges = removable.removeNodeByIndex(index);
+            if (sink.removeNodeByIndex !== undefined) {
+                const edges = sink.removeNodeByIndex(index);
                 report.counts.nodes--;
                 report.counts.edges -= edges.length;
                 report.counts.skippedEdges += edges.length;

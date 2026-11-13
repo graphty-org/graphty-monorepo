@@ -68,6 +68,7 @@ import {
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
+import { checkExpansion, ExpansionRefused } from "../../common/expansion.js";
 import { IdCoercer } from "../../common/ids.js";
 import { canonicalEncoding, readText, throwIfAborted } from "../../common/input.js";
 import {
@@ -795,6 +796,9 @@ class DotParser {
     private strict = false;
 
     private statements = 0;
+
+    /** The edges group-to-group edge statements expanded into so far, against MAX_HYPEREDGE_EXPANSION. */
+    private readonly expansion = { used: 0 };
 
     /** The id of every node mentioned so far, by index (the sink has no idOf). */
     private readonly idOf = new Map<number, NodeId>();
@@ -1566,13 +1570,45 @@ class DotParser {
             }
         }
         const attributes = this.attributeList();
+        if (!this.withinExpansion(groups, line)) {
+            return;
+        }
         for (let k = 0; k < kinds.length; k++) {
             const targets = groups[k + 1];
             for (const source of groups[k]) {
+                throwIfAborted(this.options.signal);
                 for (const target of targets) {
                     this.pushEdge(scope, source, target, kinds[k], attributes, line);
                 }
             }
+        }
+    }
+
+    /**
+     * Count an edge statement's group-to-group products (`{a b} -> {c d}`: every member joined to every member, so
+     * 2n names make n^2 edges) against the expansion budget; past it the statement is skipped with E_TOO_LARGE.
+     * @param groups - the statement's endpoint groups, in order
+     * @param line - the statement's line
+     * @returns whether its edges may be added
+     */
+    private withinExpansion(groups: readonly Endpoint[][], line: number): boolean {
+        let product = 0;
+        let edges = 0;
+        for (let k = 0; k + 1 < groups.length; k++) {
+            const n = groups[k].length * groups[k + 1].length;
+            edges += n;
+            product += groups[k].length > 1 && groups[k + 1].length > 1 ? n : 0;
+        }
+        try {
+            checkExpansion(product, this.expansion, "the edge statement");
+            return true;
+        } catch (err) {
+            if (!(err instanceof ExpansionRefused)) {
+                throw err;
+            }
+            this.report.error("unsupported", err.code, err.message, { line });
+            this.report.counts.skippedEdges += edges;
+            return false;
         }
     }
 

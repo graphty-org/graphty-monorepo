@@ -1,8 +1,7 @@
 import { afterEach, assert, test, vi } from "vitest";
 
-import type { CameraStateChangedEvent } from "../../../src/events.js";
 import { Graph } from "../../../src/Graph.js";
-import { ANIMATION_FRAME_MS, animationFramesOf } from "../../helpers/animation-clock.js";
+import { ANIMATION_FRAME_MS, animationFramesOf, cameraStateAtFrame } from "../../helpers/animation-clock.js";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
@@ -22,6 +21,23 @@ async function cameraLeft(from: { x: number; y: number; z: number } | undefined)
 }
 
 /**
+ * Assert a camera position is within 0.5 of an expected one on every axis.
+ * @param actual - The position the camera reports.
+ * @param expected - The position it should be at.
+ * @param what - What the position is, for the failure message.
+ */
+function assertNear(
+    actual: { x: number; y: number; z: number } | undefined,
+    expected: { x: number; y: number; z: number },
+    what: string,
+): void {
+    assert.isDefined(actual, `${what} is reported`);
+    assert.closeTo(actual.x, expected.x, 0.5, `${what} x`);
+    assert.closeTo(actual.y, expected.y, 0.5, `${what} y`);
+    assert.closeTo(actual.z, expected.z, 0.5, `${what} z`);
+}
+
+/**
  * Phase 2 Integration Tests
  * These tests verify:
  * 1. All easing modes work correctly and produce different results
@@ -33,52 +49,30 @@ async function cameraLeft(from: { x: number; y: number; z: number } | undefined)
 test("all easing modes produce different results", async () => {
     graph = await createTestGraph();
 
+    const start = { x: 0, y: 0, z: 50 };
     const targetPos = { x: 100, y: 100, z: 100 };
     const targetState = { position: targetPos, target: { x: 0, y: 0, z: 0 } };
 
-    // Collect intermediate positions for each easing mode
-    const easingResults: Record<string, { x: number; y: number; z: number }[]> = {
-        linear: [],
-        easeIn: [],
-        easeOut: [],
-        easeInOut: [],
-    };
-
-    // Test each easing mode
+    // How far along its distance the camera is a quarter of the way through a 25-frame (400 ms)
+    // animation, read on the constant animation clock so every easing is sampled at the same moment
+    const progress: Record<string, number> = {};
     for (const easing of ["linear", "easeIn", "easeOut", "easeInOut"] as const) {
-        // Reset to starting position
-        await graph.setCameraState(
-            { position: { x: 0, y: 0, z: 50 }, target: { x: 0, y: 0, z: 0 } },
-            { animate: false },
+        await graph.setCameraState({ position: start, target: { x: 0, y: 0, z: 0 } }, { animate: false });
+        const startDistance = graph.getCameraState().cameraDistance ?? Number.NaN;
+
+        const { atFrame, end } = await cameraStateAtFrame(graph, 6, () =>
+            graph.setCameraState(targetState, { animate: true, duration: 400, easing }),
         );
 
-        const positions: { x: number; y: number; z: number }[] = [];
-        const listenerId = graph.eventManager.addListener("camera-state-changed", (e) => {
-            const event = e as CameraStateChangedEvent;
-            if (event.state.position) {
-                positions.push({ ...event.state.position });
-            }
-        });
-
-        await graph.setCameraState(targetState, { animate: true, duration: 400, easing });
-
-        graph.eventManager.removeListener(listenerId);
-        easingResults[easing] = positions;
+        assertNear(end.position, targetPos, `${easing} final position`);
+        const endDistance = end.cameraDistance ?? Number.NaN;
+        progress[easing] = ((atFrame.cameraDistance ?? Number.NaN) - startDistance) / (endDistance - startDistance);
     }
 
-    // Verify each easing mode produced results
-    for (const easing of ["linear", "easeIn", "easeOut", "easeInOut"]) {
-        assert.ok(easingResults[easing].length > 0, `${easing} should produce animation frames`);
-    }
-
-    // Verify that different easing modes produce different middle positions
-    // (comparing the trajectory, not just start/end)
-    // Note: This is a qualitative test - we can't easily verify exact easing curves
-    // but we can verify that the animation system is applying easing
-    const allSame = Object.values(easingResults).every((positions) => positions.length === easingResults.linear.length);
-
-    // At minimum, verify animations completed (they all reached similar end positions)
-    assert.ok(allSame || !allSame, "Easing modes should execute animations");
+    const summary = JSON.stringify(progress);
+    assert.isBelow(progress.easeIn, progress.linear, `easeIn starts slower than linear: ${summary}`);
+    assert.isAbove(progress.easeOut, progress.linear, `easeOut starts faster than linear: ${summary}`);
+    assert.isBelow(progress.easeInOut, progress.linear, `easeInOut starts slower than linear: ${summary}`);
 });
 
 test("camera distance animation works correctly", async () => {
@@ -141,9 +135,8 @@ test("camera animation works during rendering activity", async () => {
     // Wait for original animation to try to complete
     await animationPromise;
 
-    // Animation should have completed or been interrupted gracefully
-    const state = graph.getCameraState();
-    assert.ok(state.position, "Position should be defined");
+    // The placement asked for last is where the camera stays
+    assertNear(graph.getCameraState().position, { x: 25, y: 25, z: 25 }, "final position");
 });
 
 test("animation completion event timing is accurate", async () => {
@@ -220,8 +213,7 @@ test("short animation durations complete correctly", async () => {
     // Should complete in approximately 100ms of animation time
     assert.ok(ms >= 80 && ms <= 160, `Short animation took ${ms}ms of animation time, expected ~100ms`);
 
-    const state = graph.getCameraState();
-    assert.ok(state.position, "Camera should reach final position");
+    assertNear(graph.getCameraState().position, { x: 30, y: 30, z: 30 }, "final position");
 });
 
 test("long animation durations complete correctly", async () => {
@@ -238,6 +230,5 @@ test("long animation durations complete correctly", async () => {
     // Should complete in approximately 1000ms of animation time
     assert.ok(ms >= 950 && ms <= 1100, `Long animation took ${ms}ms of animation time, expected ~1000ms`);
 
-    const state = graph.getCameraState();
-    assert.ok(state.position, "Camera should reach final position");
+    assertNear(graph.getCameraState().position, { x: 50, y: 50, z: 50 }, "final position");
 });

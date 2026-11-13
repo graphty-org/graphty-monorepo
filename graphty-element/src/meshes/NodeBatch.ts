@@ -43,6 +43,7 @@ export interface RowCounts {
 
 const FIRST_CAPACITY = 16;
 const HOLE = -1;
+const NO_SLOT = -1;
 const MATRIX_FLOATS = 16;
 const COLOR_FLOATS = 4;
 /** Rows a slot's draw key orders under one source rank: `graphtyRow` is exact to 2^24. */
@@ -63,8 +64,11 @@ export class NodeBatch {
     /** Slots left as holes. */
     holes = 0;
 
-    /** Slot of each row in a slot, and of each row that left its hole behind. */
-    private readonly slotOf = new Map<number, number>();
+    /**
+     * Slot of each row in a slot, and of each row that left its hole behind, by row: NO_SLOT for
+     * none. A typed column, not a Map: 4 bytes a row against about 45 for a Map entry.
+     */
+    private slotOf = new Int32Array(FIRST_CAPACITY).fill(NO_SLOT);
     private rows = new Float32Array(FIRST_CAPACITY);
     /** Each slot's draw key, kept through a hole so a returning row keeps its place. */
     private keys = new Float64Array(FIRST_CAPACITY);
@@ -122,15 +126,15 @@ export class NodeBatch {
      *   path draws one after another: a depth tie between two rows goes to the later draw.
      */
     put(row: number, color: Rgba | null, scale = 1, rank = 0): void {
-        let slot = this.slotOf.get(row);
-        if (slot === undefined) {
+        let slot = this.slotOfRow(row);
+        if (slot === NO_SLOT) {
             slot = this.slots;
             this.grow(slot + 1);
             const key = rank * ROWS_PER_RANK + row;
             this.unsorted ||= slot > 0 && key < (this.keys[slot - 1] ?? 0);
             this.keys[slot] = key;
             this.rows[slot] = row;
-            this.slotOf.set(row, slot);
+            this.setSlot(row, slot);
             this.slots++;
             this.rowsDirty = true;
         } else if (this.rows[slot] === HOLE) {
@@ -168,8 +172,8 @@ export class NodeBatch {
      * @param row - The row.
      */
     free(row: number): void {
-        const slot = this.slotOf.get(row);
-        if (slot !== undefined && this.rows[slot] !== HOLE) {
+        const slot = this.slotOfRow(row);
+        if (slot !== NO_SLOT && this.rows[slot] !== HOLE) {
             this.rows[slot] = HOLE;
             this.holes++;
             this.rowsDirty = true;
@@ -180,7 +184,7 @@ export class NodeBatch {
     clear(): void {
         this.slots = 0;
         this.holes = 0;
-        this.slotOf.clear();
+        this.slotOf.fill(NO_SLOT);
         this.unsorted = false;
         this.rowsDirty = true;
     }
@@ -225,6 +229,20 @@ export class NodeBatch {
         this.mesh.dispose(false, false);
     }
 
+    private slotOfRow(row: number): number {
+        return this.slotOf[row] ?? NO_SLOT;
+    }
+
+    private setSlot(row: number, slot: number): void {
+        if (row >= this.slotOf.length) {
+            const grown = new Int32Array(Math.max(row + 1, this.slotOf.length * 2)).fill(NO_SLOT);
+            grown.set(this.slotOf);
+            this.slotOf = grown;
+        }
+
+        this.slotOf[row] = slot;
+    }
+
     /** Take the holes out and put the rows in draw order, which keeps depth ties as they were. */
     private compact(): void {
         const live: { row: number; key: number; from: number }[] = [];
@@ -239,7 +257,7 @@ export class NodeBatch {
         const { colors, matrices } = this;
         this.colors = new Float32Array(colors.length);
         this.matrices = matrices === undefined ? undefined : identities(this.rows.length);
-        this.slotOf.clear();
+        this.slotOf.fill(NO_SLOT);
         live.forEach(({ row, key, from }, slot) => {
             this.rows[slot] = row;
             this.keys[slot] = key;
@@ -248,7 +266,7 @@ export class NodeBatch {
                 matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
                 slot * MATRIX_FLOATS,
             );
-            this.slotOf.set(row, slot);
+            this.setSlot(row, slot);
         });
         this.slots = live.length;
         this.holes = 0;
@@ -679,7 +697,11 @@ export class NodeBatches {
     private readonly families = new Map<string, RowFamily>();
     /** Families whose batch is rebuilt at this flush. */
     private readonly refills = new Set<RowFamily>();
-    private readonly groupOf = new Map<BatchRow, RowGroup>();
+    /**
+     * The group of each member with a `Node`. A {@link ColumnRow}'s group is its source's, read
+     * by {@link NodeBatches.groupOf}: no Map entry per row (about 45 bytes each at a million rows).
+     */
+    private readonly nodeGroups = new Map<Node, RowGroup>();
     private readonly objectRows = new Set<BatchRow>();
     /** The rows drawn with no `Node`, by row. */
     private readonly columnRows = new Map<number, ColumnRow>();
@@ -714,6 +736,43 @@ export class NodeBatches {
     }
 
     /**
+     * The Map entries kept per row: a group for each row that has a `Node`, and none for a row
+     * without one, whose group and slot are read from the row itself.
+     * @returns How many.
+     */
+    get rowMapEntries(): number {
+        return this.nodeGroups.size;
+    }
+
+    /**
+     * The group a row is a member of.
+     * @param row - The row.
+     * @returns The group, or undefined when it is in none.
+     */
+    private groupOf(row: BatchRow): RowGroup | undefined {
+        if (!(row instanceof ColumnRow)) {
+            return this.nodeGroups.get(row);
+        }
+
+        // A ColumnRow never changes source: a paint makes a new one.
+        const group = this.groups.get(row.paintedSourceMesh);
+        return group?.members.has(row) === true ? group : undefined;
+    }
+
+    /**
+     * How many rows are in a group.
+     * @returns The count.
+     */
+    private grouped(): number {
+        let rows = this.nodeGroups.size;
+        for (const group of this.groups.values()) {
+            rows += group.columns;
+        }
+
+        return rows;
+    }
+
+    /**
      * The rows the batches draw.
      * @returns How many.
      */
@@ -732,7 +791,7 @@ export class NodeBatches {
      * @returns True when it does.
      */
     draws(node: Node): boolean {
-        return this.groupOf.get(node)?.batched === true;
+        return this.nodeGroups.get(node)?.batched === true;
     }
 
     /**
@@ -744,7 +803,7 @@ export class NodeBatches {
      *     has to visit every node.
      */
     roster(nodes: number): ReadonlySet<Node> | null {
-        return this.groupOf.size === nodes ? this.walked : null;
+        return this.grouped() === nodes ? this.walked : null;
     }
 
     /**
@@ -757,7 +816,7 @@ export class NodeBatches {
             return;
         }
 
-        if (this.groupOf.has(node) && node.walksEachFrame) {
+        if (this.nodeGroups.has(node) && node.walksEachFrame) {
             this.walked.add(node);
         } else {
             this.walked.delete(node);
@@ -798,12 +857,12 @@ export class NodeBatches {
         // The paint may have moved the node to another source: ask its paint, not the batch, so a
         // batched row is not given its mesh back on every sync.
         const source = node.paintedSourceMesh as Mesh;
-        const had = this.groupOf.get(node);
+        const had = this.groupOf(node);
         if (had !== undefined && had.source !== source) {
             this.leave(node);
         }
 
-        const group = this.groupOf.get(node) ?? this.join(node, source);
+        const group = this.groupOf(node) ?? this.join(node, source);
         const object = !node.batchableIn(this.view);
         if (object !== this.objectRows.has(node)) {
             if (object) {
@@ -832,7 +891,7 @@ export class NodeBatches {
      * @param node - The node.
      */
     rescale(node: BatchRow): void {
-        const group = this.groupOf.get(node);
+        const group = this.groupOf(node);
         if (group?.batched === true && !this.objectRows.has(node)) {
             group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale, group.rank);
             this.dirty.add(group);
@@ -844,15 +903,16 @@ export class NodeBatches {
      * @param node - The node.
      */
     leave(node: BatchRow): void {
-        const group = this.groupOf.get(node);
+        const group = this.groupOf(node);
         if (group === undefined) {
             return;
         }
 
-        this.groupOf.delete(node);
         group.members.delete(node);
         if (node instanceof ColumnRow) {
             group.columns--;
+        } else {
+            this.nodeGroups.delete(node);
         }
 
         this.draw(node, null);
@@ -1152,10 +1212,11 @@ export class NodeBatches {
         if (node instanceof ColumnRow) {
             group.columns++;
             this.host.cache.batchedSources.add(source);
+        } else {
+            this.nodeGroups.set(node, group);
         }
 
         group.highest = Math.max(group.highest, node.index);
-        this.groupOf.set(node, group);
         this.dirty.add(group);
         return group;
     }
@@ -1350,12 +1411,13 @@ export class NodeBatches {
         this.groups.delete(group.source);
         this.host.cache.batchedSources.delete(group.source);
         for (const node of group.members) {
-            this.groupOf.delete(node);
             this.draw(node, null);
             this.objectRows.delete(node);
             if (node instanceof ColumnRow) {
                 // ponytail: its source is gone, so the row draws nothing until it is painted again.
                 this.columnRows.delete(node.index);
+            } else {
+                this.nodeGroups.delete(node);
             }
         }
 

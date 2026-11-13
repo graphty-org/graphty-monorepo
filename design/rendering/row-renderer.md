@@ -1514,6 +1514,11 @@ object per element. Stages 26 to 28 remove that reason.
   dispatcher left on a long-lived caller signal (fixed, both render paths). Releasing them means the journal entry of
   an add stops holding its records, a change to what a public API returns, so it waits for that decision. `groupOf`
   is keyed by the node object, not by id; the row-indexed typed arrays for it and `slotOf` are the next pull request.
+- **G11, second pull request** (correction to the bullet above). A batch's `slotOf` is now an `Int32Array` by row
+  (4 B a row against about 45 for a Map entry). `groupOf` needed no typed array: a row with no `Node` (`ColumnRow`)
+  never changes source mesh, since a new paint makes a new one, so its group is the group of its source while the
+  group still holds it, and the Map keeps an entry only for a row with a `Node`. A typed array by row would have had
+  to follow every row renumbering; reading the group from the source has nothing to keep in step.
 - With `"batched"`, that option loads a million nodes. `"objects"` with a higher limit refuses with `E_TOO_LARGE`: its heap reason stands.
   **The default stays 100,000** (section 10).
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or

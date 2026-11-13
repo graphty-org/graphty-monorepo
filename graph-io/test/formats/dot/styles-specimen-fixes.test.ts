@@ -48,7 +48,7 @@ async function edges(doc: string, property: string): Promise<readonly unknown[]>
 
 describe("DOT styles: labels", () => {
     it("decodes entities in a plain label, as Graphviz draws them", async () => {
-        expect((await nodes(`digraph { a [label="a&#946;&amp;"]; b [label="x & y"] }`, "label")).a).toBe("aβ&");
+        expect((await nodes(`digraph { a [label="a&#946;&amp;"]; b [label="x & y"] }`, "label")).a).toBe("a\u03B2&");
         expect((await nodes(`digraph { b [label="x & y"] }`, "label")).b).toBe("x & y");
     });
 

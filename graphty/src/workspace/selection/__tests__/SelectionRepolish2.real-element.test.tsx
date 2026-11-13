@@ -26,6 +26,21 @@ import { findNodes } from "../references";
 withFeatures([]);
 
 /**
+ * Opens the selection's workspace from the Style tab's Style Nodes... line (issue #6810): a style
+ * layer's selection is read and edited there, never in the sidebar.
+ * @returns the workspace.
+ */
+async function openWs(): Promise<HTMLElement> {
+    if (document.querySelector(".sel-ws") === null) {
+        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+    }
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(found, "the workspace is open");
+        return found;
+    });
+}
+/**
  * The workspace on a place, with a graph read in.
  * @param place - the place to open on.
  * @param load - reads the graph.
@@ -131,6 +146,7 @@ describe("the outline holds only recipe rows", () => {
     it("selecting the title, a group or a step moves no row; And... and Or... are in the pane", async () => {
         const session = await lesMis();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
         await userEvent.click(row("title").querySelector(".sel-title") ?? row("title"));
         await waitFor(() => {
             assert.isNotNull(document.querySelector(".sel-pane-box"));
@@ -153,6 +169,7 @@ describe("the outline holds only recipe rows", () => {
     it("the title pane has no bare Select: Select N is in its '...', with Group colors", async () => {
         const session = await lesMis();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
         await userEvent.click(row("title").querySelector(".sel-title") ?? row("title"));
         // The workspace opens on a step's pane (ws-polish 2); the title row selects the title pane.
         await userEvent.click(
@@ -188,6 +205,7 @@ describe("the outline holds only recipe rows", () => {
             ],
         };
         await openLayer(session, "Emptied", { match: "rule", where: emptied });
+        await openWs();
         await waitFor(() => {
             assert.match(row("b").getAttribute("aria-label") ?? "", /passes none/);
         });
@@ -199,6 +217,7 @@ describe("a condition is said once", () => {
     it("All nodes and Keep are not drawn for a group's first Keep; groups after the first read 'or'", async () => {
         const session = await lesMis();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
         assert.isNull(screen.queryByRole("treeitem", { name: "All nodes" }), "no All nodes row");
         assert.equal(row("deg").querySelector(".sel-verb")?.textContent, "", "no Keep on the first step");
         assert.equal(row("iso").querySelector(".sel-verb")?.textContent, "", "no Add on a None group's first");
@@ -217,6 +236,7 @@ describe("a condition is said once", () => {
                 branches: [{ id: "a", start: "all", steps: [{ id: "deg", op: "except", rule: DEGREE_6_TO_10 }] }],
             },
         });
+        await openWs();
         assert.isNotNull(screen.queryByRole("treeitem", { name: "All nodes" }));
         assert.equal(row("deg").querySelector(".sel-verb")?.textContent, "Except");
     });
@@ -224,6 +244,7 @@ describe("a condition is said once", () => {
     it("a lone verb is no segment, and the step pane draws its count so far", async () => {
         const session = await lesMis();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
         await userEvent.click(row("iso").querySelector(".sel-value") ?? row("iso"));
         const pane = await waitFor(() => {
             const found = document.querySelector<HTMLElement>('[data-step-pane="iso"]');
@@ -254,6 +275,7 @@ describe("a condition is said once", () => {
             },
         });
         // Untested, the step is its value alone: no state word (ws-polish 3).
+        await openWs();
         await waitFor(() => {
             assert.include(row("deg").textContent ?? "", "Degree");
             assert.isNull(row("deg").querySelector(".sel-state"));
@@ -287,6 +309,7 @@ describe("a relative condition is never cut", () => {
                 ],
             },
         });
+        await openWs();
         const whileValue = row("while").querySelector<HTMLElement>(".sel-value");
         assert.equal(whileValue?.textContent, "While ... has nodes");
         assert.isNull(row("while").querySelector(".sel-test"), "no test column");
@@ -405,7 +428,9 @@ describe("a narrowing step's checklist", () => {
         });
         const input = (await session.scope.count({ define: { kind: "rule", where: busy, reading: "clipped" } })).nodes;
         assert.isBelow(input, 40, "the first step keeps few nodes");
-        await userEvent.click(row("com").querySelector(".sel-value") ?? row("com"));
+        await openWs();
+        // The workspace's pane also names the column: the row is clicked by itself, not its value.
+        await userEvent.click(row("com"));
         const values = await screen.findByRole("group", { name: "community values" });
         await waitFor(() => {
             const counts = within(values)
@@ -448,6 +473,7 @@ describe("keys and boxes in the panes", () => {
     it("F2 on a step row never opens the project's rename", async () => {
         const session = await lesMis();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
         row("deg").focus();
         await userEvent.keyboard("{F2}");
         assert.notEqual(document.activeElement?.getAttribute("aria-label"), "Project name");
@@ -458,7 +484,7 @@ describe("keys and boxes in the panes", () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Named", { match: "everything" });
         // A layer of every node opens on its new step's pane: its value field opens the picker.
-        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
         await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("name{Enter}");
@@ -494,6 +520,7 @@ describe("keys and boxes in the panes", () => {
                 ],
             },
         });
+        await openWs();
         await userEvent.click(row("iso").querySelector(".sel-value") ?? row("iso"));
         // A narrowing step's one verb control is its Except switch (ws-polish 2).
         const label = (await screen.findByRole("switch", { name: /^Except/ })).closest("label") ?? document.body;

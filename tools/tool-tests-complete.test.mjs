@@ -33,6 +33,10 @@ const NEEDS_BROWSER = new Set([
     "design/ui/studio/tool/match.test.mjs",
 ]);
 
+// Studio tests that brief from persona files the roster names by an absolute path into a local worktree
+// (.worktrees/ux-storyboards-mocks-and-study), which no CI checkout has; the design studio's own runs exercise them.
+const NEEDS_LOCAL_PERSONAS = new Set(["design/ui/studio/tool/tier3.test.mjs"]);
+
 function testFiles(dir) {
     return readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) => {
         const p = `${dir}/${e.name}`;
@@ -55,7 +59,7 @@ it("runs every tool test in CI", () => {
 
 it("runs every browser-free design studio tool test in CI", () => {
     const studio = testFiles("design/ui/studio/tool");
-    const missing = studio.filter((f) => !listed.has(f) && !NEEDS_BROWSER.has(f));
+    const missing = studio.filter((f) => !listed.has(f) && !NEEDS_BROWSER.has(f) && !NEEDS_LOCAL_PERSONAS.has(f));
     assert.deepEqual(missing, [], "add these to tools/tool-tests.txt");
     const launches = (f) => /chromium\.launch\(/.test(read(f));
     // a test named as needing a browser really launches one, and a listed one never does
@@ -65,6 +69,10 @@ it("runs every browser-free design studio tool test in CI", () => {
     );
     assert.deepEqual(
         studio.filter((f) => listed.has(f) && launches(f)),
+        [],
+    );
+    assert.deepEqual(
+        [...NEEDS_LOCAL_PERSONAS].filter((f) => listed.has(f) || !existsSync(join(root, f))),
         [],
     );
 });

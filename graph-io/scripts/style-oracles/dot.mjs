@@ -25,12 +25,16 @@ const LOCAL_DIRS = [
 ].map((d) => join(LOCAL, d));
 
 let files;
+// manifest fixtures expected to pass with no known failure: an import failure there is a regression
+const mustImport = new Set();
 if (process.argv.length > 2) {
     files = inputs([], /\.(gv|dot)$/, 5e6);
 } else {
-    files = JSON.parse(readFileSync(join(FIXTURES, "manifest.json"), "utf8"))
-        .fixtures.filter((fx) => fx.expected.outcome === "pass")
-        .map((fx) => join(FIXTURES, fx.file));
+    const pass = JSON.parse(readFileSync(join(FIXTURES, "manifest.json"), "utf8")).fixtures.filter(
+        (fx) => fx.expected.outcome === "pass",
+    );
+    files = pass.map((fx) => join(FIXTURES, fx.file));
+    for (const fx of pass) if (!fx.knownFailure) mustImport.add(join(FIXTURES, fx.file));
     files.push(...inputs([join(REPO, "graph-io/test/corpus/styles/dot"), ...LOCAL_DIRS], /\.(gv|dot)$/, 5e6));
 }
 
@@ -189,8 +193,12 @@ const tally = new Tally("DOT against Graphviz", EXPLAINED);
 for (const file of files) {
     const { bytes, filename } = readInput(file);
     const g = await importStyled(bytes, "dot", filename);
-    if (g === null || !g.styled) {
-        tally.skip(file, g === null ? "graph-io does not import it" : "no styles");
+    if (g.error) {
+        tally.importFailed(file, g.error, mustImport.has(file));
+        continue;
+    }
+    if (!g.styled) {
+        tally.skip(file, "no styles");
         continue;
     }
     const run = (fmt) =>

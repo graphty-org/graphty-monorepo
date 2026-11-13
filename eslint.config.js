@@ -404,7 +404,7 @@ export default tseslint.config(
     // an idle machine and fails when several test runs share it. There is one hang guard, set in
     // tools/test-wait-guard.mjs; nothing else may end a test on the clock. The rule and its reasons:
     // tools/eslint-rules/no-test-timing.mjs. Story play functions, their helpers, setup files and
-    // the vitest configs (a per-project testTimeout) are covered too.
+    // the vitest configs (a per-project testTimeout) and the graphty app's acceptance harnesses are covered too.
     // Benchmarks are where a timing check that must exist belongs, so they are left out, and so are
     // the scripts that drive the source programs to draw the fidelity oracles and reference scenes: they
     // are no tests, and a desktop program that offers no event to wait on is polled.
@@ -418,6 +418,7 @@ export default tseslint.config(
             "**/stories/**/*.{ts,tsx}",
             "**/.storybook/**/*.{ts,tsx}",
             "**/vitest*.config.{ts,mts,mjs,js}",
+            "**/acceptance/**/*.mjs",
         ],
         ignores: [
             "**/*.bench.test.ts",

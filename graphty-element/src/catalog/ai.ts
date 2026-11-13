@@ -557,6 +557,7 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * Failed (`success: false`):
  * - `AI_NOT_ENABLED` -- the assistant is not switched on (`enableAiControl()` not called).
  * - `AI_DISPOSED` -- the assistant was shut down.
+ * - `AI_NO_PREVIOUS_COMMAND` -- `retryLastAiCommand()` was called before any command ran.
  * - `AI_KEY_MISSING` -- the provider needs an API key and has none. `{ provider }`.
  * - `AI_KEY_REJECTED` -- the provider refused the key (HTTP 401 or 403, or 400 from Google, which
  *   answers a wrong key that way). `{ provider, status }`.
@@ -649,6 +650,7 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_NO_RESPONSE",
     "AI_NOT_ENABLED",
     "AI_DISPOSED",
+    "AI_NO_PREVIOUS_COMMAND",
     "AI_KEY_MISSING",
     "AI_KEY_REJECTED",
     "AI_PROVIDER_ERROR",

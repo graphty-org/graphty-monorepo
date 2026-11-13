@@ -92,10 +92,12 @@ import { appendFile, cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/
 import { createServer } from "node:http";
 import { connect, createServer as netServer } from "node:net";
 import { homedir } from "node:os";
-import { basename, dirname, extname, join, normalize, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { PNG } from "pngjs";
+
+import { profileOf, sweepProfiles } from "./profiles.mjs";
 
 import {
     activeInView,
@@ -142,6 +144,7 @@ import {
 } from "./tier6.mjs";
 import { checkSession } from "./endstate.mjs";
 import { find, refusalFacts, refusedName, resolvedLine, ROLES, TIP } from "./match.mjs";
+import { serveDist } from "./serve-dist.mjs";
 import { CORE_BY_TIER, pathSteps } from "./steps.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -250,6 +253,8 @@ const briefed = (dir) => {
 // git ignores; only a walk's report.md belongs in the studio's files. On 2026-10-21 golden held
 // 83,000 walk screenshots (9.9 GB in Git LFS) because walks wrote them beside their reports.
 const WALKS = join(MAIN, "tmp/design-studio");
+// the browser profiles of sessions and warm browsers, under the repo tmp/ like every temporary file
+const PROFILES = join(WALKS, "profiles");
 // a studio folder under rounds/ as its place under WALKS (tier 1's rounds/ has no tier folder), or null
 const walksOf = (dir) => {
     const m = under(dir, STUDIO) && dir.slice(STUDIO.length + 1).match(/^(?:(tier\d+)\/)?rounds\/(.+)$/);
@@ -1289,22 +1294,6 @@ async function socketGone(dir) {
 }
 
 // ---------- the session process: one browser, one page, a socket ----------
-const TYPES = {
-    ".html": "text/html",
-    ".js": "text/javascript",
-    ".mjs": "text/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".svg": "image/svg+xml",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".wasm": "application/wasm",
-    ".woff": "font/woff",
-    ".woff2": "font/woff2",
-    ".map": "application/json",
-    ".gml": "text/plain",
-    ".txt": "text/plain",
-};
 async function serve(dir, sr) {
     const { chromium } = await import(join(repo, "node_modules/playwright/index.mjs"));
     if (!existsSync(join(dist, "index.html")))
@@ -1316,33 +1305,7 @@ async function serve(dir, sr) {
         if (!key) throw new Error(`a tier 6 session needs GOOGLE_API_KEY in ${ENV_FILE}`);
         delete process.env.GOOGLE_API_KEY; // the browser inherits this process's environment
     }
-    // the app at / (so /samples/*.gml resolve); any path that is not a file is the app's page
-    const http = createServer(async (req, res) => {
-        const site = siteFile(tier, new URL(req.url, "http://x").pathname);
-        if (site) return res.writeHead(200, { "content-type": "application/json" }).end(site);
-        const f = join(
-            dist,
-            normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^[/\\]+/, ""),
-        );
-        let body,
-            type = TYPES[extname(f)] ?? "application/octet-stream";
-        if (!f.startsWith(dist)) return res.writeHead(403).end();
-        try {
-            body = await readFile(f);
-        } catch {
-            // the deploy writes site.json beside the app (graphty/sites/<channel>.json); a local
-            // build has none, and the app's 404 for it ended every setup with SETUP FAILED (tier 4)
-            if (f === join(dist, "site.json"))
-                body = await readFile(join(repo, "graphty/sites/production.json")).catch(() => null);
-            if (body) return res.writeHead(200, { "content-type": "application/json" }).end(body);
-            if (extname(f)) return res.writeHead(404).end();
-            // a rebuild in progress removes the page for a moment; that must not kill the session
-            body = await readFile(join(dist, "index.html")).catch(() => null);
-            if (!body) return res.writeHead(503).end();
-            type = "text/html";
-        }
-        res.writeHead(200, { "content-type": type }).end(body);
-    });
+    const http = createServer(serveDist(dist, { repo, site: (pathname) => siteFile(tier, pathname) }));
     await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
     const origin = `http://127.0.0.1:${http.address().port}`;
     // A browser profile on disk, as a person's browser has, made empty for each session. A new
@@ -1350,12 +1313,10 @@ async function serve(dir, sr) {
     // memory, which the app reads as a private window, so every session showed a false "This looks
     // like a private window" notice (round 1's tool dry run 2). Outside the session folder, so the
     // profile is never copied to the round's folder.
-    // a warm browser (dir null) has no session folder yet: its profile is named by its process
-    const profile = join(
-        homedir(),
-        ".cache/graphty-real-profiles",
-        dir ? basename(sockOf(dir), ".sock") : `warm-${process.pid}`,
-    );
+    // a warm browser (dir null) has no session folder yet. Every profile ends in its owner's pid, so
+    // one left by a killed or crashed browser (no close ran) is removed by the next one to start.
+    sweepProfiles(PROFILES);
+    const profile = profileOf(PROFILES, dir ? basename(sockOf(dir), ".sock") : "warm");
     await rm(profile, { recursive: true, force: true });
     const context = await chromium.launchPersistentContext(profile, {
         ...LAUNCH,

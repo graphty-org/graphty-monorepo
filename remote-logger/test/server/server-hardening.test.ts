@@ -148,6 +148,48 @@ describe("remote-logger server hardening", () => {
         expect(fs.existsSync(path.join(logDir, "logs", "..", "..", "escaped"))).toBe(false);
         expect(fs.readdirSync(logDir)).toEqual([]);
     });
+
+    test.each([
+        ["logs that are not an array", { sessionId: "bad-1704067200000-a", logs: "nope" }],
+        [
+            "an entry without a level after a good one",
+            {
+                sessionId: "bad-1704067200000-b",
+                logs: [
+                    { time: "t", level: "INFO", message: "first" },
+                    { time: "t", message: "no level" },
+                ],
+            },
+        ],
+        ["a batch without a session id", { logs: [{ time: "t", level: "INFO", message: "m" }] }],
+        ["an entry without a message", { sessionId: "bad-1704067200000-c", logs: [{ time: "t", level: "INFO" }] }],
+    ])("POST /log refuses %s and stores nothing", async (_name, batch) => {
+        const res = await request(port, "POST", "/log", { "Content-Type": "application/json" }, JSON.stringify(batch));
+        expect(res.status).toBe(400);
+        expect(JSON.parse(res.body)).toMatchObject({ error: "Invalid log batch" });
+
+        expect(server.storage.getSessions()).toEqual([]);
+        await writer.flush();
+        expect(fs.readdirSync(logDir)).toEqual([]);
+    });
+
+    test("POST /log answers invalid JSON with its own error", async () => {
+        const res = await request(port, "POST", "/log", { "Content-Type": "application/json" }, "{not json");
+        expect(res.status).toBe(400);
+        expect(JSON.parse(res.body)).toEqual({ error: "Invalid JSON" });
+    });
+
+    test("POST /log answers a body over 5 MB with 413 and the server keeps running", async () => {
+        const huge = JSON.stringify({
+            sessionId: "big-1704067200000-a",
+            logs: [{ time: "t", level: "INFO", message: "x".repeat(5 * 1024 * 1024) }],
+        });
+        const res = await request(port, "POST", "/log", { "Content-Type": "application/json" }, huge);
+        expect(res.status).toBe(413);
+
+        expect((await request(port, "GET", "/health")).status).toBe(200);
+        expect(server.storage.getSessions()).toEqual([]);
+    });
 });
 
 describe("isPrivateAddress", () => {

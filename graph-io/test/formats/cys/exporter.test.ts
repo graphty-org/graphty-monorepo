@@ -187,11 +187,8 @@ describe("cysExporter: the archive Cytoscape reads", () => {
         expect(await sessionOf(graph())).toEqual(bytes);
     });
 
-    it("passes Python's zipfile check", async () => {
-        const python = spawnSync("python3", ["-c", "import zipfile"]);
-        if (python.status !== 0) {
-            return;
-        }
+    // reported as skipped, not passed, where python3 is not installed
+    it.runIf(spawnSync("python3", ["-c", "import zipfile"]).status === 0)("passes Python's zipfile check", async () => {
         const dir = mkdtempSync(join(tmpdir(), "cys-"));
         onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
         const path = join(dir, "out.cys");

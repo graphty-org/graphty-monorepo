@@ -149,42 +149,26 @@ describe("Graph Queue Integration", () => {
         expect(edgeCount).toBe(1);
     });
 
-    it("should handle multiple batches sequentially", async () => {
-        const completionOrder: string[] = [];
-
-        // Spy on operation complete events
-        graph.on("operation-complete", (event) => {
-            const category = (event as Record<string, unknown>).category as string;
-            if (category) {
-                completionOrder.push(category);
-            }
-        });
-
+    it("should finish each batch before the next one starts", async () => {
         // First batch
         await graph.batchOperations(async () => {
             await graph.addNodes([{ id: "1", label: "Node 1" }]);
         });
+        expect(graph.getNodes().map((node) => node.id)).toEqual(["1"]);
 
         // Second batch
         await graph.batchOperations(async () => {
             await graph.addNodes([{ id: "2", label: "Node 2" }]);
         });
+        expect(graph.getNodes().map((node) => node.id)).toEqual(["1", "2"]);
+        expect(graph.getEdgeCount()).toBe(0);
 
-        // Third batch
+        // Third batch: its edge joins the nodes the first two batches added
         await graph.batchOperations(async () => {
             await graph.addEdges([{ source: "1", target: "2" }], { source: "source", target: "target" });
         });
-
-        // All batches should complete in order
-        // TODO: With the new batch implementation, events might be processed
-        // differently. For now, we'll just verify the operations completed.
-        // expect(completionOrder.length).toBeGreaterThan(0);
-
-        // Verify the data was added correctly instead
-        const nodeCount = graph.getNodeCount();
-        const edgeCount = graph.getEdgeCount();
-        expect(nodeCount).toBe(2);
-        expect(edgeCount).toBe(1);
+        expect(graph.getNodeCount()).toBe(2);
+        expect(graph.getEdgeCount()).toBe(1);
     });
 
     it("should support skipQueue option for backwards compatibility", async () => {

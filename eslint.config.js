@@ -474,6 +474,21 @@ export default tseslint.config(
             camelcase: ["error", { properties: "never" }],
         },
     },
+    // graph-io's sources and tests are plain ASCII (graph-io/CLAUDE.md). A raw non-ASCII
+    // character in a literal can be changed silently by an editor -- a stripped BOM turns the
+    // BOM test into a no-BOM test with no visible diff -- so literals spell it as a \uXXXX escape.
+    {
+        files: ["graph-io/src/**/*.ts", "graph-io/test/**/*.ts"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector: "Literal[raw=/[^\\x00-\\x7F]/], TemplateElement[value.raw=/[^\\x00-\\x7F]/]",
+                    message: "Write non-ASCII characters as \\uXXXX escapes (graph-io/CLAUDE.md: plain ASCII).",
+                },
+            ],
+        },
+    },
     {
         files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
         rules: {

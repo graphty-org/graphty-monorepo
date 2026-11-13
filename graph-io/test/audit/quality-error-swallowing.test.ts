@@ -2,15 +2,10 @@
  * Code-quality audit of the per-element catch (design section 8.6: "the importer catches
  * GraphFormatError per element, records an ImportIssue, skips the element and continues").
  *
- * `ImportReportBuilder.recordError()` (src/common/report.ts) goes further: ANY thrown value that
- * is not a GraphFormatError, an ImportError or an AbortError is recorded as a "parse-error" issue
- * with code E_PARSE and the import continues. A TypeError or RangeError raised by a bug in the
- * importer or in the sink is therefore reported as a defect of the input file (with the file's
- * line number) and the import resolves successfully, so the bug never surfaces as an exception.
- * Every importer routes its per-element catch through recordError, so the behaviour is shared.
- *
- * The tests here fail deliberately: they pin the finding that a non-GraphFormatError must
- * propagate (or at least must not be attributed to the input as a parse error).
+ * `ImportReportBuilder.recordError()` (src/common/report.ts) records only a GraphFormatError as an
+ * issue and rethrows everything else. A TypeError or RangeError raised by a bug in the importer or
+ * in the sink must propagate out of import(), never be recorded as an E_PARSE defect of the input
+ * file. Every importer routes its per-element catch through recordError, so the behavior is shared.
  */
 
 import { GraphBuilder } from "@graphty/graph-format";
@@ -54,7 +49,7 @@ const INPUTS: readonly (readonly [string, GraphImporter, string])[] = [
 ];
 
 describe("audit: recordError converts programming errors into input issues", () => {
-    it("recordError() records a TypeError as an E_PARSE parse-error instead of rethrowing it", () => {
+    it("recordError() rethrows a TypeError instead of recording it as an E_PARSE parse-error", () => {
         const report = new ImportReportBuilder("test", 100);
         expect(() => report.recordError(new TypeError("bug"), { line: 7 })).toThrow(TypeError);
         expect(report.issues.map((i) => i.code)).not.toContain(PARSE_ERROR_CODE);
@@ -70,7 +65,7 @@ describe("audit: recordError converts programming errors into input issues", () 
             } catch (err) {
                 thrown = err;
             }
-            // what happens today: the import resolves and the TypeError is a parse-error of the file
+            // if the import resolved instead, say which E_PARSE issues swallowed the TypeError
             const parseErrors = report === null ? [] : report.issues.filter((i) => i.code === PARSE_ERROR_CODE);
             expect(
                 thrown,

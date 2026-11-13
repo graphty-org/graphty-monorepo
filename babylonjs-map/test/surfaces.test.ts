@@ -199,6 +199,46 @@ describe("FlatMap", () => {
         expect(changed).toHaveBeenCalledTimes(1);
     });
 
+    it("says why each failed tile failed", async () => {
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load });
+        map.update();
+        const { url } = tiles.requests[0];
+        tiles.requests[0].reject();
+        await settle();
+        expect(map.status.errors).toEqual([{ layer: 0, url, code: "load", cause: new Error("403") }]);
+    });
+
+    it("fails a tile whose loader throws, and keeps loading the others", async () => {
+        let calls = 0;
+        const map = new FlatMap(scene, {
+            sources: [OSM],
+            maxConcurrentLoads: 1,
+            loadTexture: () => {
+                calls++;
+                throw new Error("broken loader");
+            },
+        });
+        camera.radius = 20;
+        expect(() => scene.render()).not.toThrow();
+        while (map.status.loading > 0) {
+            await settle();
+        }
+        expect(calls, "every tile in view was asked for").toBeGreaterThan(1);
+        expect(map.status.failed).toBe(calls);
+        expect(map.status.errors[0]).toMatchObject({ code: "load", cause: new Error("broken loader") });
+    });
+
+    it("tells the host to render when the sources, frame or edge change", () => {
+        const map = new FlatMap(scene, { loadTexture: loader(scene).load });
+        const changed = vi.fn();
+        map.onChangedObservable.add(changed);
+        map.setSources([OSM]);
+        map.frame = { projection: "equirectangular", size: 10 };
+        map.beyond = "continue";
+        expect(changed).toHaveBeenCalledTimes(3);
+    });
+
     it("disposes the least recently drawn tiles beyond the cache cap", async () => {
         const tiles = loader(scene);
         const map = new FlatMap(scene, {
@@ -485,8 +525,12 @@ describe("FlatMap tile recovery and edges", () => {
         view(50);
         map.update();
         await settle();
-        // Without a DOM canvas the picture is loaded as it is.
-        expect(tiles.requests.map((r) => r.url)).toEqual([expect.stringMatching(/natural-earth\.jpg$/)]);
+        // Without a DOM canvas there is no gray picture: the tile fails, never drawn in color.
+        expect(tiles.requests).toEqual([]);
+        const { failed, errors } = map.status;
+        expect(failed).toBe(1);
+        expect(errors).toMatchObject([{ layer: 0, code: "no-canvas" }]);
+        expect(errors[0].url).toMatch(/natural-earth\.jpg$/);
     });
 
     /**
@@ -699,6 +743,16 @@ describe("Globe", () => {
         const material = mesh.material as StandardMaterial;
         expect(material.emissiveTexture).toBeInstanceOf(BaseTexture);
         expect(material.emissiveFresnelParameters.isEnabled, "darker toward the rim").toBe(true);
+        scene.getEngine().dispose();
+    });
+
+    it("tells the host to render when the radius changes", () => {
+        const scene = new Scene(new NullEngine());
+        const globe = new Globe(scene, { loadTexture: loader(scene).load });
+        const changed = vi.fn();
+        globe.onChangedObservable.add(changed);
+        globe.radius = 3;
+        expect(changed).toHaveBeenCalledTimes(1);
         scene.getEngine().dispose();
     });
 

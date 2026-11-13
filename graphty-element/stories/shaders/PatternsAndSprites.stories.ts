@@ -24,14 +24,14 @@
  */
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import type { InputType } from "storybook/internal/types";
 
-import type { ShaderParams } from "../../src/catalog/shaders";
+import type { ShaderDescriptor, ShaderParams } from "../../src/catalog/shaders";
 import type { LayerSpec } from "../../src/catalog/types";
 import type { Graphty } from "../../src/graphty-element";
 import { assertGraphLoaded, drawn, holds } from "../assertions";
 import { eventWaitingDecorator, isVisualCapture, waitForGraphSettled } from "../helpers";
 import { PATTERN_SPRITE_PRESETS, patternPresetId } from "./patternSpritePresets";
+import { presetControls, presetParams } from "./presetControls";
 
 /** The eight groups, in the order the palette and the index scale number them. */
 const GROUPS = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta"];
@@ -109,64 +109,17 @@ function render(layers: readonly LayerSpec[], pins: readonly string[] = []): Ele
 }
 
 /**
- * A preset's fixed parameters as Storybook controls, at their defaults.
+ * A pattern, state or sprite preset's catalog entry.
  * @param id - The preset.
- * @param skip - Parameters the story binds or sets itself.
- * @returns The args and their controls.
+ * @returns Its descriptor.
  */
-function controlsOf(
-    id: string,
-    skip: readonly string[] = [],
-): { args: Record<string, number | string>; argTypes: Record<string, InputType> } {
+function descriptorOf(id: string): ShaderDescriptor {
     const preset = PATTERN_SPRITE_PRESETS.find((candidate) => candidate.descriptor.id === id);
     if (preset === undefined) {
         throw new Error(`"${id}" is not a pattern, state or sprite preset`);
     }
 
-    const args: Record<string, number | string> = {};
-    const argTypes: Record<string, InputType> = {};
-    for (const param of preset.descriptor.params) {
-        if (skip.includes(param.name)) {
-            continue;
-        }
-
-        args[param.name] = param.default as number | string;
-        if (param.type === "color") {
-            argTypes[param.name] = { name: param.plainName, control: "color" };
-        } else if (param.type === "enum") {
-            argTypes[param.name] = {
-                name: param.plainName,
-                control: "select",
-                options: (param.values ?? []).map((choice) => choice.value),
-            };
-        } else {
-            argTypes[param.name] = {
-                name: param.plainName,
-                control: {
-                    type: "range",
-                    min: param.min as number,
-                    max: param.max as number,
-                    step: param.type === "integer" ? 1 : 0.01,
-                },
-            };
-        }
-    }
-
-    return { args, argTypes };
-}
-
-/**
- * Only the preset's own parameters out of a story's args: Storybook adds action handlers (the
- * element's `on...` events) beside them, which no shader takes.
- * @param id - The preset.
- * @param args - The story's args.
- * @returns The parameters.
- */
-function paramsOf(id: string, args: ShaderParams): ShaderParams {
-    const names = new Set(
-        PATTERN_SPRITE_PRESETS.find((p) => p.descriptor.id === id)?.descriptor.params.map((p) => p.name),
-    );
-    return Object.fromEntries(Object.entries(args).filter(([name]) => names.has(name)));
+    return preset.descriptor;
 }
 
 /**
@@ -198,10 +151,10 @@ type Story = StoryObj<ShaderParams>;
 
 /** Eight patterns over the palette, one per group, bound with the index scale. */
 export const Patterns: Story = {
-    ...controlsOf("colorblind-patterns", ["pattern"]),
+    ...presetControls(descriptorOf("colorblind-patterns"), { skip: ["pattern"] }),
     render: (args) => {
         const shader = patternPresetId("colorblind-patterns");
-        const params = paramsOf("colorblind-patterns", args);
+        const params = presetParams(descriptorOf("colorblind-patterns"), args);
         return render([
             {
                 name: "Patterns",
@@ -217,10 +170,10 @@ export const Patterns: Story = {
 
 /** Foil on three search hits; every other node stays as the palette painted it. */
 export const FoilShimmer: Story = {
-    ...controlsOf("foil-shimmer"),
+    ...presetControls(descriptorOf("foil-shimmer")),
     render: (args) => {
         const shader = patternPresetId("foil-shimmer");
-        const params = paramsOf("foil-shimmer", args);
+        const params = presetParams(descriptorOf("foil-shimmer"), args);
         return render([
             {
                 name: "Search hits",
@@ -235,10 +188,10 @@ export const FoilShimmer: Story = {
 
 /** Three holograms among the plain nodes. */
 export const Hologram: Story = {
-    ...controlsOf("hologram"),
+    ...presetControls(descriptorOf("hologram")),
     render: (args) => {
         const shader = patternPresetId("hologram");
-        const params = paramsOf("hologram", args);
+        const params = presetParams(descriptorOf("hologram"), args);
         return render([
             {
                 name: "Ghosts",
@@ -259,10 +212,10 @@ export const Hologram: Story = {
 
 /** Frost on a pinned-state layer: the three pinned nodes are frosted. */
 export const Frost: Story = {
-    ...controlsOf("frost"),
+    ...presetControls(descriptorOf("frost")),
     render: (args) => {
         const shader = patternPresetId("frost");
-        const params = paramsOf("frost", args);
+        const params = presetParams(descriptorOf("frost"), args);
         return render(
             [
                 {
@@ -280,10 +233,10 @@ export const Frost: Story = {
 
 /** Stickers whose icon follows the group, one row per finish. */
 export const Sticker: Story = {
-    ...controlsOf("icon-sticker", ["icon", "finish"]),
+    ...presetControls(descriptorOf("icon-sticker"), { skip: ["icon", "finish"] }),
     render: (args) => {
         const shader = patternPresetId("icon-sticker");
-        const params = paramsOf("icon-sticker", args);
+        const params = presetParams(descriptorOf("icon-sticker"), args);
         const rows = ["none", "shiny", "holographic"].map((finish, row): LayerSpec => ({
             name: `Stickers, ${finish}`,
             target: "node",
@@ -298,10 +251,10 @@ export const Sticker: Story = {
 
 /** Mandalas: folds from each node's rank, hue from its group's place. */
 export const Mandala: Story = {
-    ...controlsOf("mandala", ["folds", "hueShift"]),
+    ...presetControls(descriptorOf("mandala"), { skip: ["folds", "hueShift"] }),
     render: (args) => {
         const shader = patternPresetId("mandala");
-        const params = paramsOf("mandala", args);
+        const params = presetParams(descriptorOf("mandala"), args);
         return render([
             {
                 name: "Mandalas",

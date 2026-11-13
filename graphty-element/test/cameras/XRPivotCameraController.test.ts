@@ -12,11 +12,13 @@ describe("XRPivotCameraController", () => {
     // Mock XR experience
     interface MockStateObservable {
         add: ReturnType<typeof vi.fn>;
+        remove: ReturnType<typeof vi.fn>;
         handlers: ((state: WebXRState) => void)[];
     }
 
     interface MockInputObservable<T> {
         add: ReturnType<typeof vi.fn>;
+        remove: ReturnType<typeof vi.fn>;
         handlers: ((item: T) => void)[];
     }
 
@@ -53,12 +55,28 @@ describe("XRPivotCameraController", () => {
                 onControllerAddedObservable: {
                     add: vi.fn((handler) => {
                         mockXRExperience.input.onControllerAddedObservable.handlers.push(handler);
+                        return handler;
+                    }),
+                    remove: vi.fn((handler) => {
+                        const { handlers } = mockXRExperience.input.onControllerAddedObservable;
+                        const index = handlers.indexOf(handler);
+                        if (index >= 0) {
+                            handlers.splice(index, 1);
+                        }
                     }),
                     handlers: [],
                 },
                 onControllerRemovedObservable: {
                     add: vi.fn((handler) => {
                         mockXRExperience.input.onControllerRemovedObservable.handlers.push(handler);
+                        return handler;
+                    }),
+                    remove: vi.fn((handler) => {
+                        const { handlers } = mockXRExperience.input.onControllerRemovedObservable;
+                        const index = handlers.indexOf(handler);
+                        if (index >= 0) {
+                            handlers.splice(index, 1);
+                        }
                     }),
                     handlers: [],
                 },
@@ -68,12 +86,28 @@ describe("XRPivotCameraController", () => {
                 onStateChangedObservable: {
                     add: vi.fn((handler) => {
                         mockXRExperience.baseExperience.onStateChangedObservable.handlers.push(handler);
+                        return handler;
+                    }),
+                    remove: vi.fn((handler) => {
+                        const { handlers } = mockXRExperience.baseExperience.onStateChangedObservable;
+                        const index = handlers.indexOf(handler);
+                        if (index >= 0) {
+                            handlers.splice(index, 1);
+                        }
                     }),
                     handlers: [],
                 },
                 onInitialXRPoseSetObservable: {
                     add: vi.fn((handler) => {
                         mockXRExperience.baseExperience.onInitialXRPoseSetObservable.handlers.push(handler);
+                        return handler;
+                    }),
+                    remove: vi.fn((handler) => {
+                        const { handlers } = mockXRExperience.baseExperience.onInitialXRPoseSetObservable;
+                        const index = handlers.indexOf(handler);
+                        if (index >= 0) {
+                            handlers.splice(index, 1);
+                        }
                     }),
                     handlers: [],
                 },
@@ -297,6 +331,18 @@ describe("XRPivotCameraController", () => {
             controller.dispose();
 
             assert.isFalse(inputHandler.isEnabled());
+        });
+
+        test("should stop listening to XR state changes on dispose (#7239)", () => {
+            controller = new XRPivotCameraController(
+                scene,
+                mockXRExperience as unknown as import("@babylonjs/core").WebXRDefaultExperience,
+            );
+
+            controller.dispose();
+
+            assert.lengthOf(mockXRExperience.baseExperience.onStateChangedObservable.handlers, 0);
+            assert.lengthOf(mockXRExperience.baseExperience.onInitialXRPoseSetObservable.handlers, 0);
         });
 
         test("should dispose pivot", () => {

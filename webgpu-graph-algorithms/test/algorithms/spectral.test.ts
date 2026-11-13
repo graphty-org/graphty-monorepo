@@ -535,6 +535,14 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         await expect(katzCentrality(ctx, snapshot, { maxIterations: 0 })).rejects.toMatchObject({
             code: "E_INVALID_ARGUMENT",
         });
+        for (const tolerance of [Number.NaN, -1e-6]) {
+            for (const run of [hits, eigenvectorCentrality, katzCentrality]) {
+                await expect(run(ctx, snapshot, { tolerance })).rejects.toMatchObject({
+                    code: "E_INVALID_ARGUMENT",
+                    details: { argument: "tolerance" },
+                });
+            }
+        }
         const dest = new Float32Array(n);
         const seen: number[] = [];
         const result = await hits(ctx, snapshot, {

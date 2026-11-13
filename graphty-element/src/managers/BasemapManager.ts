@@ -419,6 +419,9 @@ export class BasemapManager {
     /** The map meshes drawn at least once, so a frame is asked for until each new one is. */
     readonly #drawnMeshes = new WeakSet<AbstractMesh>();
 
+    /** The map meshes already waiting for their first draw, so each gets one observer. */
+    readonly #awaitedMeshes = new WeakSet<AbstractMesh>();
+
     /** Whether frames are being asked for until every shown map mesh has been drawn. */
     #drawing = false;
 
@@ -435,7 +438,9 @@ export class BasemapManager {
         }
 
         for (const mesh of surface.root.getChildMeshes()) {
-            if (mesh instanceof Mesh && !this.#drawnMeshes.has(mesh)) {
+            // A cached tile not shown is disabled: it is awaited once it is shown again.
+            if (mesh instanceof Mesh && mesh.isEnabled() && !this.#awaitedMeshes.has(mesh)) {
+                this.#awaitedMeshes.add(mesh);
                 mesh.onAfterRenderObservable.addOnce(() => {
                     this.#drawnMeshes.add(mesh);
                 });

@@ -137,4 +137,25 @@ describe("dispatch", () => {
             ["Styled a", "Styled c"],
         );
     });
+
+    it("lets go of a finished command's signal, so a long-lived signal does not keep the command alive", async () => {
+        const { dispatcher } = setup();
+        const { signal } = new AbortController();
+        let listening = 0;
+        const add = signal.addEventListener.bind(signal);
+        const remove = signal.removeEventListener.bind(signal);
+        signal.addEventListener = (...args: Parameters<AbortSignal["addEventListener"]>): void => {
+            listening++;
+            add(...args);
+        };
+        signal.removeEventListener = (...args: Parameters<AbortSignal["removeEventListener"]>): void => {
+            listening--;
+            remove(...args);
+        };
+
+        await dispatcher.dispatch({ op: "fake.styles", name: "a" }, { signal });
+        await dispatcher.dispatch({ op: "fake.styles", name: "b" }, { signal });
+
+        assert.strictEqual(listening, 0);
+    });
 });

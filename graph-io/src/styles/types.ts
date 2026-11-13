@@ -645,6 +645,10 @@ export interface NodeStyleValues {
     readonly chartBorderColor: StyleColor;
     /** How wide a bar's and a box's outline is (a length); unset, none. */
     readonly chartBorderWidth: number;
+    /** The color filling the chart's plot box under its bars, cells or lines; unset, no fill. */
+    readonly chartBackgroundColor: StyleColor;
+    /** The opacity of `chartBackgroundColor`, 0 to 1; unset, 1. */
+    readonly chartBackgroundOpacity: number;
     /**
      * How far a group drawn round its members (a node other nodes name as their parent, with no box of its own) reaches
      * past their box on every side (a length; Cytoscape.js `padding` on a compound parent). Unset, the reader's own.

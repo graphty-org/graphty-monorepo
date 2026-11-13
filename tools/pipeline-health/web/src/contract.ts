@@ -66,6 +66,27 @@ export type CategoryId = (typeof CATEGORY_IDS)[number];
  */
 export type PageId = "overview" | CategoryId | "runners" | "local-runs" | "issues";
 
+/** The page ranges, the slow ranges and the Issues ranges; the first of each is its default. */
+export const RANGES: readonly Range[] = ["1h", "6h", "24h"];
+export const SLOW_RANGES: readonly SlowRange[] = ["7d", "28d"];
+export const ISSUE_RANGES: readonly IssueRange[] = ["28d", "1h", "6h", "1d", "7d", "all"];
+
+/** Every page the read API serves at `/v1/page/<id>`. */
+export const PAGE_IDS = [
+    "overview",
+    ...CATEGORY_IDS,
+    "runners",
+    "local-runs",
+    "issues",
+] as const satisfies readonly PageId[];
+
+/** Each page's ranges, as the read API takes them; the first is the default. */
+export const PAGE_RANGES: Record<PageId, readonly (Range | SlowRange | IssueRange)[]> = {
+    ...(Object.fromEntries(PAGE_IDS.map((id) => [id, RANGES])) as Record<PageId, readonly Range[]>),
+    costs: SLOW_RANGES,
+    issues: ISSUE_RANGES,
+};
+
 /** An SLA state. NO DATA (`nodata`) counts as yellow in a rollup but is drawn gray and hatched (3.1). */
 export type SlaState = "ok" | "warn" | "bad" | "nodata";
 

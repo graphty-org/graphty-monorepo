@@ -84,15 +84,16 @@ export function checkNumber(fn: string, name: string, value: number, rule: Numbe
 }
 
 /**
- * Refuse a weight vector of the wrong length (`E_BAD_OPTION`) or holding a NaN or infinite weight, or a negative one
- * unless `negative` allows it (`E_BAD_WEIGHT`).
+ * Refuse a weight vector of the wrong length (`E_BAD_OPTION`) or holding a NaN weight, or an infinite or negative one
+ * unless `ordered` allows it (`E_BAD_WEIGHT`).
  * @param fn - The algorithm's name, for the message
  * @param weights - The weights, or null for none (always accepted)
  * @param length - The length they must have, or undefined to skip that check
- * @param negative - Accept negative weights; default false
+ * @param ordered - Accept every weight that can be ordered: negative and infinite ones too, only NaN refused (a
+ *   spanning tree only compares weights); default false
  * @throws RangeError with code `E_BAD_OPTION` or `E_BAD_WEIGHT`
  */
-export function checkWeights(fn: string, weights: ArrayLike<number> | null, length?: number, negative = false): void {
+export function checkWeights(fn: string, weights: ArrayLike<number> | null, length?: number, ordered = false): void {
     if (weights === null) {
         return;
     }
@@ -106,10 +107,10 @@ export function checkWeights(fn: string, weights: ArrayLike<number> | null, leng
     }
     for (let i = 0; i < weights.length; i++) {
         const w = weights[i];
-        if (!Number.isFinite(w) || (!negative && w < 0)) {
+        if (Number.isNaN(w) || (!ordered && (!Number.isFinite(w) || w < 0))) {
             throw withCode(
                 new RangeError(
-                    `${fn}: weight ${String(i)} is ${String(w)}; it needs finite${negative ? "" : ", non-negative"} weights`,
+                    `${fn}: weight ${String(i)} is ${String(w)}; it needs ${ordered ? "numeric" : "finite, non-negative"} weights`,
                 ),
                 "E_BAD_WEIGHT",
             );

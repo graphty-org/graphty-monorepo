@@ -86,12 +86,17 @@ describe("numeric options and weights are refused with a code", () => {
         expect(() => louvain(triangle(false), { resolution: Number.NaN })).toThrow(badOption);
     });
 
-    it("kruskalMST and primMST: a NaN or infinite weight and an override of the wrong length; negatives are fine", () => {
+    it("kruskalMST and primMST: a NaN weight and an override of the wrong length; negative and infinite are fine", () => {
         const s = triangle(false);
         const nan = { weights: new Float64Array(s.arcCount).fill(Number.NaN) };
         expect(() => kruskalMST(s, nan)).toThrow(badWeight);
         expect(() => primMST(s, nan)).toThrow(badWeight);
-        expect(() => kruskalMST(triangle(false, Infinity))).toThrow(badWeight);
+        expect(kruskalMST(triangle(false, Infinity)).totalWeight).toBe(2);
+        // A node reached only over an infinite edge still joins the tree.
+        const bridge = new Graph({ directed: false });
+        bridge.addEdge("a", "b", Infinity);
+        expect(kruskalMST(toSnapshot(bridge)).totalWeight).toBe(Infinity);
+        expect(primMST(toSnapshot(bridge)).totalWeight).toBe(Infinity);
         expect(() => kruskalMST(s, { weights: new Float64Array(1) })).toThrow(badOption);
         expect(() => primMST(s, { weights: new Float64Array(1) })).toThrow(badOption);
         expect(kruskalMST(triangle(false, -2)).totalWeight).toBe(-1);

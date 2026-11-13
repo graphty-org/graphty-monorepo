@@ -39,7 +39,7 @@ export interface MstResult {
  * @param o - The optional per-arc weight override
  * @returns The accepted edge indices and their total weight
  * @throws RangeError (code `E_BAD_OPTION`) for an override that is not arcCount long, or (code
- *   `E_BAD_WEIGHT`) for a NaN or infinite weight; negative weights are allowed
+ *   `E_BAD_WEIGHT`) for a NaN weight; negative and infinite weights are allowed
  * @public
  */
 export function kruskalMST(s: GraphSnapshot, o: MstOptions = {}): MstResult {
@@ -78,8 +78,8 @@ export function kruskalMST(s: GraphSnapshot, o: MstOptions = {}): MstResult {
 }
 
 /**
- * Refuse a weight override that is not arcCount long (`E_BAD_OPTION`), and a NaN or infinite weight in it or in the
- * snapshot (`E_BAD_WEIGHT`). A negative weight is fine for a spanning tree.
+ * Refuse a weight override that is not arcCount long (`E_BAD_OPTION`), and a NaN weight in it or in the snapshot
+ * (`E_BAD_WEIGHT`). A negative or infinite weight is fine: a spanning tree only orders weights.
  * @param s - The snapshot
  * @param o - The optional per-arc weight override
  * @internal
@@ -120,7 +120,7 @@ export interface PrimResult extends MstResult {
  * @param o - Per-arc weight override, start node and the spanning-forest switch
  * @returns The accepted edges, their total weight and the discovery arc per node
  * @throws Error on a directed snapshot, and on a disconnected one unless `forest` is set; RangeError
- *   for a weight override of the wrong length or a NaN or infinite weight, as {@link kruskalMST}
+ *   for a weight override of the wrong length or a NaN weight, as {@link kruskalMST}
  * @public
  */
 export function primMST(s: GraphSnapshot, o: PrimOptions = {}): PrimResult {
@@ -149,7 +149,8 @@ export function primMST(s: GraphSnapshot, o: PrimOptions = {}): PrimResult {
             for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
                 const v = colIdx[a];
                 const w = weights === null ? 1 : weights[a];
-                if (inTree[v] === 0 && w < key[v]) {
+                // The first arc to reach v is taken whatever its weight, so an infinite one still joins it.
+                if (inTree[v] === 0 && (predArc[v] === INVALID_INDEX || w < key[v])) {
                     key[v] = w;
                     predArc[v] = a;
                     heap.pushOrDecrease(v, w);

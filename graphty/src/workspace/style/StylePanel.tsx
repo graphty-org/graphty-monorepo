@@ -181,7 +181,7 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
                 rows={[rowId]}
                 side={side}
                 autoOpen={justOn || isBlankRow(session, rowId)}
-                {...(side === "node" && fileStylesOn(session) ? { summary: ruleLine } : {})}
+                {...(fileStylesOn(session) ? { summary: ruleLine } : {})}
                 {...elsewhere}
             />
         ),
@@ -491,8 +491,8 @@ export function RowStyle({
             documentColors: colors,
             ...many?.(side),
         };
-        // The file-styles experiment draws the node tab by part of the drawing.
-        if (side === "node" && fileStylesOn(session)) {
+        // The file-styles experiment draws both tabs by part of the drawing.
+        if (fileStylesOn(session)) {
             return <PartsPanel ctx={ctx} />;
         }
         return (

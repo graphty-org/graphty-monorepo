@@ -127,9 +127,15 @@ function channelsOf(kind: TextKindSpec): Channel[] {
  * value. Nothing from the layers beneath is drawn.
  * @param props - Component props
  * @param props.ctx - the row and side
+ * @param props.configured - whether the row writes text, drawn as a dot after the title
+ * @param props.actions - more header buttons, before its "+"
  * @returns The section
  */
-export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
+export function LabelSection({
+    ctx,
+    configured,
+    actions,
+}: Readonly<{ ctx: RowContext; configured?: boolean; actions?: React.ReactNode }>): React.JSX.Element {
     const { store } = useWorkspace();
     // The kind picked from "+" whose source list is open, and the kind whose fixed words are being typed.
     const [picking, setPicking] = useState<string | null>(null);
@@ -269,8 +275,14 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                 label="Text"
                 headingLevel={3}
                 empty={shown.length === 0 && partial.length === 0}
+                hasConfiguredValues={configured}
                 collapsible={false}
-                actions={<AddButton kind={target} title="Text" options={options} onAdd={onAdd} />}
+                actions={
+                    <>
+                        {actions}
+                        <AddButton kind={target} title="Text" options={options} onAdd={onAdd} />
+                    </>
+                }
             >
                 {kinds.map((kind) => {
                     if (picking === kind.id) {

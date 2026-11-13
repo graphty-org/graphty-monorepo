@@ -143,10 +143,28 @@ function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDe
  * @param props - Component props
  * @param props.ctx - the row and kind
  * @param props.spec - the section
+ * @param props.actions - more header buttons, before its "+"
+ * @param props.itemActions - more buttons on a list section's item heading, by item id
  * @returns The section
  */
-export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: SectionSpec }>): React.JSX.Element | null {
-    return spec.shaders === true ? <ShadersSection ctx={ctx} spec={spec} /> : <PropertySection ctx={ctx} spec={spec} />;
+export function Section({ ctx, spec, actions, itemActions }: Readonly<SectionProps>): React.JSX.Element | null {
+    return spec.shaders === true ? (
+        <ShadersSection ctx={ctx} spec={spec} />
+    ) : (
+        <PropertySection ctx={ctx} spec={spec} actions={actions} itemActions={itemActions} />
+    );
+}
+
+/** What {@link Section} takes. */
+interface SectionProps {
+    /** The row and kind. */
+    readonly ctx: RowContext;
+    /** The section. */
+    readonly spec: SectionSpec;
+    /** More buttons on the header, before its "+" (a settings page's button). */
+    readonly actions?: React.ReactNode;
+    /** More buttons on a list section's item heading, by item id. */
+    readonly itemActions?: (item: string) => React.ReactNode;
 }
 
 /**
@@ -154,9 +172,11 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
  * @param props - Component props
  * @param props.ctx - the row and kind
  * @param props.spec - the section
+ * @param props.actions - more header buttons
+ * @param props.itemActions - more buttons on an item heading
  * @returns The section
  */
-function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: SectionSpec }>): React.JSX.Element | null {
+function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionProps>): React.JSX.Element | null {
     const { store } = useWorkspace();
     // The properties "+" added that the row does not set yet, waiting for a value, so adding one
     // writes nothing until the reader picks one.
@@ -170,7 +190,12 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     });
     const quiet = new Set(spec.quiet ?? []);
     const set = descriptors.filter((d) => !quiet.has(d.channel) && isSet(ctx, d));
-    const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
+    // Properties drawn together (both arrow ends): once one is set, the rest wait for a value.
+    const together = spec.together ?? [];
+    const joined = together.some((channel) => set.some((d) => d.channel === channel));
+    const pending = descriptors.filter(
+        (d) => !set.includes(d) && (waiting.includes(d.channel) || (joined && together.includes(d.channel))),
+    );
     const note = sectionNote(ctx, spec, set);
     // Opacity is set in the color's own box, so "+" never offers it, and a color line set to a
     // value carries it; a row that sets opacity alone, or varies it by data, keeps its own line.
@@ -193,7 +218,11 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     const flat = [
         ...set.filter((d) => !added.includes(d)),
         ...added.filter((d) => set.includes(d) || pending.includes(d)),
+        ...pending.filter((d) => !added.includes(d)),
     ].filter((d) => !folded.has(d.channel));
+    if (joined) {
+        flat.sort((a, b) => descriptors.indexOf(a) - descriptors.indexOf(b));
+    }
     // A style's settings (graphty-element's `modifies`: Halo's size and opacity, Glow's strength)
     // are added from the style's own row and drawn under it, never listed by the section's "+".
     const isSetting = (d: ChannelDescriptor): boolean =>
@@ -287,7 +316,15 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
             return null;
         }
         headed.add(item.id);
-        return <ItemHead key={`item-${item.id}`} ctx={ctx} item={item} onFail={fail("removed")} />;
+        return (
+            <ItemHead
+                key={`item-${item.id}`}
+                ctx={ctx}
+                item={item}
+                actions={itemActions?.(item.id)}
+                onFail={fail("removed")}
+            />
+        );
     };
     if (descriptors.length === 0) {
         return null;
@@ -303,19 +340,22 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                 hasConfiguredValues={spec.configured}
                 collapsible={false}
                 actions={
-                    <AddButton
-                        kind={ctx.side}
-                        title={spec.title}
-                        options={unset.filter((d) => !isSetting(d)).flatMap(optionsFor)}
-                        disabledReason={notAvailable(ctx, spec) ?? undefined}
-                        onAdd={(key) => {
-                            const [channel, pick] = key.split("=");
-                            const descriptor = unset.find((d) => d.channel === channel);
-                            if (descriptor !== undefined) {
-                                add(descriptor, ...(pick === undefined ? [] : [pick === "true"]));
-                            }
-                        }}
-                    />
+                    <>
+                        {actions}
+                        <AddButton
+                            kind={ctx.side}
+                            title={spec.title}
+                            options={unset.filter((d) => !isSetting(d)).flatMap(optionsFor)}
+                            disabledReason={notAvailable(ctx, spec) ?? undefined}
+                            onAdd={(key) => {
+                                const [channel, pick] = key.split("=");
+                                const descriptor = unset.find((d) => d.channel === channel);
+                                if (descriptor !== undefined) {
+                                    add(descriptor, ...(pick === undefined ? [] : [pick === "true"]));
+                                }
+                            }}
+                        />
+                    </>
                 }
             >
                 {lines.map((d) => [
@@ -381,16 +421,19 @@ function specialLine(ctx: RowContext, spec: SectionSpec, d: ChannelDescriptor): 
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.item - the item
+ * @param props.actions - more buttons before its minus
  * @param props.onFail - reports a failed removal
  * @returns The line
  */
 function ItemHead({
     ctx,
     item,
+    actions,
     onFail,
 }: Readonly<{
     ctx: RowContext;
     item: NonNullable<SectionSpec["items"]>[number];
+    actions?: React.ReactNode;
     onFail: (error: unknown) => void;
 }>): React.JSX.Element {
     const remove = async (): Promise<void> => {
@@ -422,7 +465,7 @@ function ItemHead({
                     </Text>
                 </span>
                 <div className="ws-field-control" />
-                <span className="ws-slot" />
+                <span className="ws-slot">{actions}</span>
                 <span className="ws-slot">
                     <Tooltip label={label} position="top">
                         <ActionIcon
@@ -450,7 +493,7 @@ function ItemHead({
  * @param props.ctx - the row
  * @returns The row
  */
-function WireframeRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
+export function WireframeRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
     const { store } = useWorkspace();
     const value = lineIn(ctx, "node.wireframe")?.value;
     const label = channelWord("node.wireframe");

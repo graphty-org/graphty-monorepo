@@ -43,6 +43,8 @@ export interface PartSpec {
     readonly list?: boolean;
     /** Its items, in order. */
     readonly items: readonly PartItem[];
+    /** Whether its items' main channels draw together: once one is set, the others show too. */
+    readonly together?: boolean;
 }
 
 /** The sections of each kind, in the order the panel draws them. */
@@ -401,6 +403,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
         {
             id: "ends",
             title: "Ends",
+            together: true,
             items: [
                 {
                     id: "target",
@@ -641,6 +644,10 @@ export const PART_WORDS: Readonly<Partial<Record<Channel, string>>> = {
     "node.cornerRadius": "Corner",
     "node.underlayCornerRadius": "Corner",
     "node.overlayCornerRadius": "Corner",
+    "edge.arrowHead": "Target",
+    "edge.arrowHeadSize": "Size",
+    "edge.arrowTail": "Source",
+    "edge.arrowTailSize": "Size",
 };
 
 /** Where one channel sits in the panel. */

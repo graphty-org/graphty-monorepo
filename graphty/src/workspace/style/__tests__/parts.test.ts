@@ -2,6 +2,7 @@ import { type Channel, CHANNELS, channelsFor } from "@graphty/graphty-element/ca
 import { assert, describe, it } from "vitest";
 
 import { SEARCH_ALIASES } from "../parts/aliases";
+import { findSettings, partWord } from "../parts/find";
 import { homeOf, NOT_OFFERED, PART_WORDS, partChannels, PARTS } from "../parts/parts";
 
 /** Every place a channel is listed in the map, as "side part item". */
@@ -81,5 +82,22 @@ describe("the Style panel's parts of the drawing", () => {
                 }
             }
         }
+    });
+
+    it("Find a setting finds every setting by its own name", () => {
+        for (const side of ["node", "edge"] as const) {
+            for (const part of PARTS[side].filter((each) => each.id !== "shaders")) {
+                for (const channel of partChannels(part)) {
+                    const found = findSettings(side, partWord(channel)).flatMap((group) => group.channels);
+                    assert.include(found, channel, partWord(channel));
+                }
+            }
+        }
+    });
+
+    it("Find a setting finds the border by the word stroke, headed by its part", () => {
+        const groups = findSettings("node", "stroke");
+        const border = groups.find((group) => group.heading === "Border");
+        assert.includeMembers([...(border?.channels ?? [])], ["node.borderColor", "node.borderWidth"]);
     });
 });

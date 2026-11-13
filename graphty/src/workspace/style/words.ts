@@ -74,6 +74,8 @@ export interface SectionSpec {
      * row sets, with a minus that takes every property of the item away, then its lines.
      */
     readonly items?: readonly { readonly id: string; readonly name: string; readonly channels: readonly Channel[] }[];
+    /** Properties drawn together: once the row sets one, the others show, waiting for a value. */
+    readonly together?: readonly Channel[];
 }
 
 /** A model's channels: what the Shape field names, and what Model settings sets. */

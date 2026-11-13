@@ -7,7 +7,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { PathWalkError } from "../errors.js";
+import { PathWalkError, withCode } from "../errors.js";
 import { arcSourceIn } from "./structures/arc-source.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
@@ -128,12 +128,16 @@ export function walkPredEdges(g: AdjacencyView, predArc: U32, source: number, ta
  * @param sourceNode - The node to start from: its index, or `{ id }`
  * @param options - Cutoff and per-arc weight override
  * @returns The distances, the predecessor arcs, and the two path accessors
+ * @throws Error with code `E_BAD_WEIGHT` when a selected weight is negative or NaN
  * @public
  */
 export function dijkstra(g: AdjacencyView, sourceNode: NodeRef, options: SsspOptions = {}): SsspResult {
     const source = resolveNode(g, sourceNode);
     const { nodeCount, rowPtr, colIdx } = g;
     const weights: NumericVector | null = options.weights ?? g.weights;
+    if (weights?.some((w) => w < 0 || Number.isNaN(w)) === true) {
+        throw withCode(new Error("Dijkstra does not support negative or NaN edge weights"), "E_BAD_WEIGHT");
+    }
     const dist = new Float64Array(nodeCount).fill(Infinity);
     const predArc = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const heap = new IndexedMinHeap(nodeCount);

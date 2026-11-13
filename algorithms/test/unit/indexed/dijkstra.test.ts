@@ -22,6 +22,52 @@ function diamond(directed: boolean, withIsolated = false): Graph {
 }
 
 describe("indexed.dijkstra", () => {
+    it("refuses a NaN weight override with E_BAD_WEIGHT", () => {
+        const s = checksummedSnapshot(diamond(true));
+        const weights = new Float64Array(s.arcCount).fill(1);
+        weights[weights.length - 1] = Number.NaN;
+        expect(() => dijkstra(s, 0, { weights })).toThrow(expect.objectContaining({ code: "E_BAD_WEIGHT" }));
+        s.validate({ checksum: true });
+    });
+
+    it("refuses a negative undirected edge with E_BAD_WEIGHT", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b", -1);
+        const s = b.freeze({ checksum: true });
+        expect(() => dijkstra(s, 0)).toThrow(expect.objectContaining({ code: "E_BAD_WEIGHT" }));
+        s.validate({ checksum: true });
+    });
+
+    it("refuses a directed negative cycle with E_BAD_WEIGHT", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("a", "b", -1);
+        b.addEdge("b", "a", -1);
+        const s = b.freeze({ checksum: true });
+        expect(() => dijkstra(s, 0)).toThrow(expect.objectContaining({ code: "E_BAD_WEIGHT" }));
+        s.validate({ checksum: true });
+    });
+
+    it("checks negative overrides even on unreachable arcs beyond the cutoff", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("a", "b", 1);
+        b.addEdge("x", "y", 1);
+        const s = b.freeze({ checksum: true });
+        expect(() => dijkstra(s, 0, { weights: Float64Array.of(1, -1), cutoff: 0 })).toThrow(
+            expect.objectContaining({ code: "E_BAD_WEIGHT" }),
+        );
+        s.validate({ checksum: true });
+    });
+
+    it("uses nonnegative overrides instead of negative snapshot weights", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b", -1);
+        const s = b.freeze({ checksum: true });
+        const weights = new Float64Array(s.arcCount).fill(0);
+        expect([...dijkstra(s, 0, { weights }).dist]).toEqual([0, 0]);
+        expect([...weights]).toEqual([0, 0]);
+        s.validate({ checksum: true });
+    });
+
     it("finds the cheap path through the diamond", () => {
         const s = checksummedSnapshot(diamond(false));
         const r = dijkstra(s, 0);

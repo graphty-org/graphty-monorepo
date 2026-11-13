@@ -7,58 +7,59 @@ import { Graphty } from "../src/graphty-element";
 import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn } from "./assertions";
 import { edgeData, eventWaitingDecorator, nodeData, setLayoutPreSteps } from "./helpers";
 
-// Track WebXR availability to avoid repeated checks
-let vrSupported: boolean | null = null;
-let arSupported: boolean | null = null;
+/**
+ * What a reader sees when the chosen XR mode is not available, so the fallback to 3D is not silent.
+ */
+const XR_UNAVAILABLE: Record<"vr" | "ar", string> = {
+    vr: "VR mode unavailable: this browser or device has no WebXR VR, so the view stays in 3D. VR needs a WebXR browser, a connected headset and HTTPS.",
+    ar: "AR mode unavailable: this browser or device has no WebXR AR, so the view stays in 3D. AR needs a WebXR browser, an ARCore or ARKit device and HTTPS.",
+};
 
 /**
- * Decorator that alerts when AR/VR mode is selected but WebXR isn't available
+ * Asks the story's own element whether the chosen XR mode is supported, and shows a banner over
+ * it when not. The element's methods are safe before it is ready, so nothing waits first; a probe
+ * that fails is shown and rethrown rather than read as "unsupported".
+ * @param graphEl - The story's element.
+ * @param mode - The XR mode the control chose.
+ * @param banner - The banner to fill and show.
+ */
+async function reportXrAvailability(graphEl: Graphty, mode: "vr" | "ar", banner: HTMLElement): Promise<void> {
+    try {
+        const supported = await (mode === "vr" ? graphEl.isVRSupported() : graphEl.isARSupported());
+        if (supported) {
+            return;
+        }
+
+        banner.textContent = XR_UNAVAILABLE[mode];
+    } catch (error) {
+        banner.textContent = `${mode.toUpperCase()} support check failed: ${String(error)}`;
+        throw error;
+    } finally {
+        banner.hidden = banner.textContent === "";
+    }
+}
+
+/**
+ * Decorator that says, in a banner over the graph, when AR or VR is chosen but WebXR cannot run it.
+ * Only those two modes get the banner's wrapper, so every other story renders as it always has.
  */
 const xrAvailabilityDecorator: Decorator = (story, context) => {
+    const rendered = story();
     const viewMode = context.args.viewMode as ViewMode;
+    if ((viewMode !== "vr" && viewMode !== "ar") || !(rendered instanceof Graphty)) {
+        return rendered;
+    }
 
-    // Check XR availability after a short delay to ensure component is ready
-    setTimeout(() => {
-        void (async () => {
-            const graphEl = document.querySelector("graphty-element");
-            if (!(graphEl instanceof Graphty)) {
-                return;
-            }
-
-            // Cache the WebXR support checks
-            if (vrSupported === null) {
-                try {
-                    vrSupported = await graphEl.isVRSupported();
-                } catch {
-                    vrSupported = false;
-                }
-            }
-
-            if (arSupported === null) {
-                try {
-                    arSupported = await graphEl.isARSupported();
-                } catch {
-                    arSupported = false;
-                }
-            }
-
-            // Alert if VR selected but not available
-            if (viewMode === "vr" && !vrSupported) {
-                alert(
-                    "VR Mode Unavailable\n\nWebXR VR is not supported on this device/browser. The view will fall back to 3D mode.\n\nTo use VR mode, you need:\n- A WebXR-compatible browser (Chrome, Edge, Firefox)\n- A VR headset connected\n- HTTPS connection",
-                );
-            }
-
-            // Alert if AR selected but not available
-            if (viewMode === "ar" && !arSupported) {
-                alert(
-                    "AR Mode Unavailable\n\nWebXR AR is not supported on this device/browser. The view will fall back to 3D mode.\n\nTo use AR mode, you need:\n- A WebXR-compatible browser\n- An AR-capable device (smartphone/tablet with ARCore/ARKit)\n- HTTPS connection",
-                );
-            }
-        })();
-    }, 500);
-
-    return story();
+    const banner = document.createElement("div");
+    banner.setAttribute("role", "status");
+    banner.hidden = true;
+    banner.style.cssText =
+        "position: absolute; top: 8px; left: 8px; right: 8px; padding: 8px 12px; background: #fff3cd; color: #664d03; border: 1px solid #ffecb5; border-radius: 4px; font: 13px sans-serif; z-index: 1;";
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "position: relative; width: 100%; height: 100%;";
+    wrapper.append(rendered, banner);
+    void reportXrAvailability(rendered, viewMode, banner);
+    return wrapper;
 };
 
 const meta: Meta = {

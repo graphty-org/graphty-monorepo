@@ -6065,6 +6065,8 @@ export const NodeStyle: z.ZodObject<{
         lineWidth: z.ZodOptional<z.ZodNumber>;
         borderColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         borderWidth: z.ZodOptional<z.ZodNumber>;
+        backgroundColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     glyph: z.ZodOptional<z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;

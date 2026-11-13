@@ -75,7 +75,12 @@ export interface EdgeRowLinesHost {
  * a self-loop, a route the layout's map arcs, and an end drawn behind edges are the caller's to rule out.
  */
 export class EdgeRowLines {
-    private readonly lines = new Map<number, RowLine>();
+    /**
+     * Each drawn row's line, at its row: a million-row load spent about 0.3 s of CPU in a map keyed by row
+     * (design/rendering/cosmos-gap.md G8). Rows are dense, so the array stays packed when a load paints in order.
+     */
+    private lines: (RowLine | undefined)[] = [];
+    private drawn = 0;
     private lastLook: RowLook | null = null;
 
     /**
@@ -89,7 +94,7 @@ export class EdgeRowLines {
      * @returns The count.
      */
     get count(): number {
-        return this.lines.size;
+        return this.drawn;
     }
 
     /**
@@ -98,7 +103,7 @@ export class EdgeRowLines {
      * @returns True when it is.
      */
     has(row: number): boolean {
-        return this.lines.has(row);
+        return this.lines[row] !== undefined;
     }
 
     /**
@@ -106,7 +111,7 @@ export class EdgeRowLines {
      * @returns Them, a copy.
      */
     rows(): number[] {
-        return [...this.lines.keys()];
+        return this.drawnRows();
     }
 
     /**
@@ -116,7 +121,7 @@ export class EdgeRowLines {
      * @internal
      */
     endsOf(row: number): [number, number] | undefined {
-        const line = this.lines.get(row);
+        const line = this.lines[row];
         return line === undefined ? undefined : [line.source, line.target];
     }
 
@@ -204,7 +209,8 @@ export class EdgeRowLines {
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
         batch.setLook(piece, look.rgb, look.opacity, EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20);
         batch.setRows(piece, source, target);
-        this.lines.set(row, { batch, piece, source, target });
+        this.lines[row] = { batch, piece, source, target };
+        this.drawn++;
         this.host.requestFrame();
         return true;
     }
@@ -214,10 +220,11 @@ export class EdgeRowLines {
      * @param row - The edge row.
      */
     unpaintRow(row: number): void {
-        const line = this.lines.get(row);
+        const line = this.lines[row];
         if (line !== undefined) {
             line.batch.release(line.piece);
-            this.lines.delete(row);
+            this.lines[row] = undefined;
+            this.drawn--;
             this.host.requestFrame();
         }
     }
@@ -229,15 +236,17 @@ export class EdgeRowLines {
      * @param edgeRemap - The freeze's edge remap, the same way.
      */
     rowsMoved(nodeRemap: ArrayLike<number> | null, edgeRemap: ArrayLike<number> | null): void {
-        if ((nodeRemap === null && edgeRemap === null) || this.lines.size === 0) {
+        if ((nodeRemap === null && edgeRemap === null) || this.drawn === 0) {
             return;
         }
 
         const moved = (remap: ArrayLike<number> | null, row: number): number =>
             remap === null ? row : (remap[row] ?? INVALID_INDEX);
-        const lines = [...this.lines];
-        this.lines.clear();
-        for (const [row, line] of lines) {
+        const lines = this.lines;
+        this.lines = [];
+        this.drawn = 0;
+        for (const row of this.drawnRows(lines)) {
+            const line = lines[row] as RowLine;
             const edge = moved(edgeRemap, row);
             const source = moved(nodeRemap, line.source);
             const target = moved(nodeRemap, line.target);
@@ -247,7 +256,8 @@ export class EdgeRowLines {
             }
 
             line.batch.setRows(line.piece, source, target);
-            this.lines.set(edge, { ...line, source, target });
+            this.lines[edge] = { ...line, source, target };
+            this.drawn++;
         }
 
         this.host.requestFrame();
@@ -255,8 +265,25 @@ export class EdgeRowLines {
 
     /** Stop drawing every edge row here. */
     clear(): void {
-        for (const row of [...this.lines.keys()]) {
+        for (const row of this.drawnRows()) {
             this.unpaintRow(row);
         }
+
+        this.lines = [];
+    }
+
+    /**
+     * The rows a line list draws, in row order.
+     * @param lines - The list, by row.
+     * @returns Them.
+     */
+    private drawnRows(lines = this.lines): number[] {
+        const rows: number[] = [];
+        lines.forEach((line, row) => {
+            if (line !== undefined) {
+                rows.push(row);
+            }
+        });
+        return rows;
     }
 }

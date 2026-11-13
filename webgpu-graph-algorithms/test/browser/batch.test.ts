@@ -147,12 +147,14 @@ describe("CommandBatch in the browser (spec 5.8, 5.7)", () => {
                     (error: unknown) => error,
                 );
                 await ctx.device.queue.onSubmittedWorkDone();
-                await new Promise<void>((resolve) => {
-                    setTimeout(resolve, 0);
-                });
                 let delivered: unknown = outcome;
                 let path = "readback";
-                if (delivered === null) {
+                // the readback landed: the error is an uncaptured-error event the browser delivers in a later task,
+                // so wait for that delivery (the condition), never a fixed number of ticks
+                while (delivered === null) {
+                    await new Promise<void>((resolve) => {
+                        setTimeout(resolve, 0);
+                    });
                     delivered = caught(() => ctx.assertReady());
                     path = "assertReady";
                 }

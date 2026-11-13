@@ -452,8 +452,10 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
 }
 
 /**
- * An unfinished pull_request run of the home repository whose pull request is no longer open (merged or closed):
- * GitHub can leave it queued for hours (run 40441556963, "Lint PR Title" queued 21 h after #3940 merged). It holds no
+ * An unfinished pull request run (any `pull_request*` event: pull_request, pull_request_target,
+ * pull_request_review, ...) of the home repository whose pull request is no longer open (merged or closed): GitHub can
+ * leave it queued for hours (run 40441556963, "Lint PR Title" queued 21 h after #3940 merged; #6729's six runs of
+ * three such events queued a day after it merged, issue #7358). It holds no
  * runner and nobody waits on it, so runner use leaves it out. GitHub empties a merged pull request's runs'
  * pull_requests, so a run is matched to an open pull request by number or head branch. `open` must be every open pull
  * request: with a truncated list nothing is called a ghost.
@@ -463,7 +465,7 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
  * @returns true when the run is a ghost
  */
 export function isGhostRun(run: GhRun, open: GqlPr[], complete: boolean): boolean {
-    if (!complete || run.event !== "pull_request" || run.status === "completed") {
+    if (!complete || !run.event.startsWith("pull_request") || run.status === "completed") {
         return false;
     }
     const listed = new Set((run.pull_requests ?? []).map((p) => p.number));

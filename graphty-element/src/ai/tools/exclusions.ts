@@ -273,7 +273,15 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionDataApi", members: ["ignoreIssue"], reason: "covered-by", by: "issues.ignore", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
-        members: ["editJoin", "editJoinReport", "matchesSource", "replaceSource", "reloadSource", "sourceSettings"],
+        members: [
+            "editJoin",
+            "editJoinReport",
+            "matchesSource",
+            "replaceSource",
+            "reloadSource",
+            "sourceSettings",
+            "sourceInput",
+        ],
         reason: "needs-host",
         kind: BY_DESIGN,
     },

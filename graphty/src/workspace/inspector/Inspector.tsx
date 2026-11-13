@@ -294,7 +294,7 @@ function dataActionsOf(
     );
     // A source's verbs are its Sources row's menu's, the same way.
     if (resolved.kind === "source") {
-        attributeActions.push(...sourceActionsOf());
+        attributeActions.push(...sourceActionsOf(sourceKeyOf(resolved.row)));
     }
     return attributeActions;
 }

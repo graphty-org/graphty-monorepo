@@ -3547,6 +3547,17 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * What this session read a load from, when it read it itself.
+     * @param key - The load's key.
+     * @returns What `import` or `prepare` was given, or undefined.
+     */
+    sourceInput(key: SourceKey): DataSourceInput | undefined {
+        const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
+            ?.input;
+        return token === undefined ? undefined : this.kept.get(token);
+    }
+
+    /**
      * reloadSource, once the loads asked for before it have landed.
      * @param key - as reloadSource takes it
      * @param choices - as reloadSource takes it

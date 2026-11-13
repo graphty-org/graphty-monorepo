@@ -15,6 +15,7 @@ import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import type { EdgePaint } from "../../src/managers/StylePainter";
 import { EdgeRowLines } from "../../src/meshes/EdgeRowLines";
+import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { edgeBetween } from "../helpers/testSetup";
 import { pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -675,9 +676,10 @@ describe("an edge stored with no Edge under a simulation layout", () => {
  * `edgeData`.
  * @param dim - The view: 2 or 3.
  * @param edgesFirst - Set `edgeData` before `nodeData`, so the edges wait for their ends.
+ * @param nodeStyle - More of the nodes' style, on every node.
  * @returns The element.
  */
-async function leanLoaded(dim: 2 | 3, edgesFirst: boolean): Promise<Graphty> {
+async function leanLoaded(dim: 2 | 3, edgesFirst: boolean, nodeStyle: Record<string, unknown> = {}): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = "webgl";
     element.renderPath = "batched";
@@ -693,7 +695,7 @@ async function leanLoaded(dim: 2 | 3, edgesFirst: boolean): Promise<Graphty> {
         name: "lean nodes",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shape": "box" },
+        set: { "node.shape": "box", ...nodeStyle },
     } as never);
     await element.session.styles.add({
         name: "lean edges",
@@ -743,6 +745,19 @@ describe("a lean load on the batched path", () => {
             });
         }
 
+        // A row line cannot end at a node drawn behind edges, so the paint loop asks of each end; with no row
+        // painted behind edges it asked each end's look anyway, a map read per end of 1M edges at 100k + 1M.
+        it(`reads no row's look for its lines in ${dim}D when no row is drawn behind edges`, async () => {
+            const lookOf = vi.spyOn(NodeBatches.prototype, "lookOf");
+            try {
+                const element = await leanLoaded(dim, false);
+                assert.equal(element.graph.getEdgeRowLines()?.count, LEAN_EDGES.length);
+                assert.equal(lookOf.mock.calls.length, 0);
+            } finally {
+                lookOf.mockRestore();
+            }
+        });
+
         it(`builds an Edge across undo and redo of the load in ${dim}D only for what redo selects`, async () => {
             const element = await leanLoaded(dim, false);
             const dm = element.graph.getDataManager();
@@ -770,4 +785,16 @@ describe("a lean load on the batched path", () => {
             assert.equal(dataManagerInternals.edgesBuilt(dm), selected, "no further Edge once the selection clears");
         });
     }
+});
+
+// A 2D row below z-index 0 is drawn behind edges (`Node.isDrawnBehindEdges`), and an edge ends at its outline, which a
+// row line does not draw: the edge gets its Edge, as on the objects path.
+describe("a lean load in 2D with its rows drawn behind edges", () => {
+    it("builds the Edge of every edge, and no row line", async () => {
+        const element = await leanLoaded(2, false, { "node.zIndex": -1 });
+        const dm = element.graph.getDataManager();
+        assert.equal(element.graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), LEAN_EDGES.length);
+        assert.equal(element.graph.getEdgeRowLines()?.count, 0);
+    });
 });

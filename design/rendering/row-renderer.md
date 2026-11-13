@@ -1271,6 +1271,28 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   Interleaved, same session: 100k + 1M first frame master 5.35 s and 5.15 s, branch 4.975 s and 5.003 s (load average
   3.6-3.9 in the first round, 1.8-2.0 in the second), so the typed 5 s target is met by one run and missed by 3 ms in the
   other; 100k + 1k is unchanged at about 0.90 s against its 0.8 s target.
+- **Every feeder through the column door (cosmos-gap.md G8), fifth pull request: a batched load's node paint.** A
+  frame's node batch is sized by the last batch's speed (`UpdateManager.nodeBatchSize`), and the speed counted only the
+  rows that came back with a `Node`. On `"batched"` a row the batches draw has none, so the speed was 0 and every batch
+  was the floor, a 32nd of the graph: a 100,000-node load painted over 32 frames, about 60% of them idle. Under
+  `"batched"` the speed now counts every row taken (`takeNodeBatch` returns `{ painted, taken }`); and while the draw
+  is held there (`DataManager.drawHeld`), no frame shows the paint, so a repaint gets 48 ms a frame rather than 16
+  (`styleBudgetFor(frameMs, heldBatched)`; on its own this did not move the measurement). The objects path counts and
+  budgets as before. Proof: `test/browser/held-load-paint-batches.test.ts` (the second batch of a 4,096-node batched
+  load is larger than the floor; it was the floor before). Interleaved, same session, against the fourth pull
+  request's build (same element source as master): 100k + 1k first frame master 1.03, 0.98, 1.26 and 1.06 s, branch
+  0.63, 0.68, 0.87 and 0.80 s (load average 20-22 in the first two rounds, 13-16 in the last two), so the 0.8 s target
+  is met in three runs of four; 100k + 1M typed master 5.93 and 6.07 s, branch 5.83 and 6.77 s (load average 7.6-13.8),
+  unchanged: its first frame waits on edge work, the duplicate-edge checks (stage 117) and `publishPositions`. Correction (sixth pull request): the duplicate-edge checks were already gone (stage 117, see the first pull request's note), and `publishPositions` costs a few ms; what is profiled under it (0.5-0.66 s) is the first snapshot freeze it asks for, mostly identity completion (`GraphStore.writeSessionColumnsWhole`). Session edges' hashes now read each node's hash once (`withNodeHashes` in `edgeIdentity.ts`) instead of hashing both end ids per edge: 450 to 355 ms of CPU at 100k + 1M, equal hashes on both render paths (`test/data/edgeIdentity.test.ts`, node id hashes counted).
+- **Every feeder through the column door (cosmos-gap.md G8), seventh pull request: an edge's ends asked once.** A row
+  line cannot end at a 2D node below z-index 0 (`Node.isDrawnBehindEdges`), so `UpdateManager.unbuiltEdgePainted` asks
+  each end, and for a row drawn with no `Node` that read the row's look from `NodeBatches.lookOf`, a map read per end:
+  2M at 100k + 1M, 0.44 s of CPU in one profiled load. `NodeBatches.paintedBehindEdges` is now set the first time any
+  row is painted below z-index 0 and never cleared; until then no look is read. Under `"objects"` there are no node
+  batches and the answer was already false. Proof: `test/browser/edge-row-lines.test.ts` (a 2D lean load reads no
+  look; it read 6 before), and a 2D lean load with every row at z-index -1 still builds each edge's `Edge`. The time
+  left in the edge paint is `EdgeRowLines.paintRow`: its `unpaintRow` reads the 1M-entry line map for a row it never
+  drew, and `PulledLineBatch.grow` rebuilds the index buffer at 1M pieces (0.2-0.3 s).
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

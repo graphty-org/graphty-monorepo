@@ -1,12 +1,12 @@
 // Tests of the results store's client, failure reporter and group runner (tools/results/): what they send,
 // that they batch past the 20th failure, and that a store that never answers costs only its timeout and
-// leaves the run's verdict alone, the record spooled.
+// leaves the run's verdict alone.
 //
 //   node --test tools/results/results.test.mjs
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
 import { cpus, tmpdir } from "node:os";
@@ -164,14 +164,12 @@ describe("client", () => {
         assert.deepEqual(await readPlan(cfg, { sha: "abc", files: ["x", "y"] }), { order: ["a"] });
         assert.equal(s.seen[0].url, "/v1/plan?sha=abc&files=x%2Cy");
     });
-    it("fails open against a store that never answers, and spools the record", async () => {
+    it("fails open against a store that never answers, and says it is down", async () => {
         const s = await serve(false);
         const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
-        const r = await postInvocation({ ...cfg, retryMs: [10, 10] }, { id: "r1.1" }, join(TMP, "spool"), 300);
-        assert.equal(r.ok, false);
-        assert.equal(r.why, "no answer in 0.3 s");
+        const r = await postInvocation({ ...cfg, retryMs: [10, 10] }, { id: "r1.1" }, 300);
+        assert.deepEqual(r, { ok: false, why: "no answer in 0.3 s", down: true });
         assert.equal(s.seen.length, 3, "sent once and retried twice");
-        assert.deepEqual(JSON.parse(readFileSync(r.spooled, "utf8")), { id: "r1.1" });
     });
     it("sends a request again when no answer or a 5xx came, and never one that got a 4xx", async () => {
         let calls = 0;
@@ -190,7 +188,7 @@ describe("client", () => {
             assert.equal(globalThis.fetch.mock.callCount(), 2);
             mock.restoreAll();
             answers(500, 500, 500);
-            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 500" });
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 500", down: true });
             assert.equal(globalThis.fetch.mock.callCount(), 3, "sent once and retried twice");
             mock.restoreAll();
             answers(404, 200);
@@ -228,6 +226,7 @@ describe("client", () => {
             assert.deepEqual(await fetchPlan(cfg, { sha: "a" }), {
                 ok: false,
                 why: "HTTP 500: D1_ERROR: query too expensive",
+                down: true,
             });
             mock.restoreAll();
             mock.method(globalThis, "fetch", () =>
@@ -238,6 +237,7 @@ describe("client", () => {
             assert.deepEqual(await fetchPlan(cfg, {}), {
                 ok: false,
                 why: "fetch failed (connect ECONNREFUSED 10.0.0.1:443)",
+                down: true,
             });
         } finally {
             mock.restoreAll();
@@ -250,7 +250,7 @@ describe("client", () => {
             undefined,
             200,
         );
-        assert.deepEqual(r, { ok: false, why: "no answer in 0.2 s" });
+        assert.deepEqual(r, { ok: false, why: "no answer in 0.2 s", down: true });
         const ok = await serve(() => ({ order: ["c"] }));
         assert.deepEqual(await fetchPlan(config({ RESULTS_URL: ok.url, GRAPHTY_RESULTS_TOKEN: "t" }), {}), {
             ok: true,
@@ -476,17 +476,36 @@ describe("runShape", () => {
 });
 
 describe("postRecords", () => {
-    it("asks a store that never answers once and spools every record", async () => {
+    it("asks a store that never answers once, and writes nothing to disk (#7266)", async () => {
         const s = await serve(false);
         const cfg = { ...config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
-        const spool = join(TMP, "spool-2");
-        const rs = await postRecords(cfg, [{ id: "g.1" }, { id: "g.2" }], spool, 300);
+        const rs = await postRecords(cfg, [{ id: "g.1" }, { id: "g.2" }], 300);
         assert.equal(s.seen.length, 3, "the first request and its two retries, and nothing after");
         assert.deepEqual(
             rs.map((r) => r.ok),
             [false, false],
         );
-        assert.deepEqual(readdirSync(spool).sort(), ["g.1.json", "g.2.json"]);
+    });
+    it("still asks a store that refused one record (4xx) for the next (#7266)", async () => {
+        const seen = [];
+        const server = createServer((req, res) => {
+            seen.push(req.url);
+            res.statusCode = seen.length === 1 ? 400 : 200;
+            res.end(seen.length === 1 ? '{"error":"bad record"}' : '{"stored":true}');
+        });
+        servers.push(server);
+        await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+        const url = `http://127.0.0.1:${server.address().port}`;
+        const cfg = { ...config({ RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
+        const rs = await postRecords(cfg, [{ id: "g.1" }, { id: "g.2" }], 300);
+        assert.deepEqual(
+            rs.map((r) => [r.ok, r.down]),
+            [
+                [false, undefined],
+                [true, undefined],
+            ],
+        );
+        assert.equal(seen.length, 2, "a refusal is an answer: never sent again, and the store is still asked");
     });
 });
 
@@ -494,7 +513,7 @@ describe("runGroup", () => {
     // the store below never answers: each record POST costs its deadline, not RECORD_MS and RETRY_MS (19 s)
     const NEVER_ANSWERS = { record: 300, retry: [10, 10] };
 
-    it("keeps the verdict and spools the record when the store never answers", async () => {
+    it("keeps the verdict and loses the record when the store never answers", async () => {
         const s = await serve(false);
         const root = join(TMP, "checkout");
         mkdirSync(join(root, "tools"), { recursive: true });
@@ -511,9 +530,13 @@ describe("runGroup", () => {
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "5" };
         const code = await runGroup("fake", undefined, { root, env, storeMs: NEVER_ANSWERS });
         assert.equal(code, 3);
-        const spooled = readdirSync(join(root, "test-results/results-spool"));
-        assert.deepEqual(spooled, ["5.1.job.fake.1.json"]);
-        const rec = JSON.parse(readFileSync(join(root, "test-results/results-spool", spooled[0]), "utf8"));
+        assert.equal(existsSync(join(root, "test-results/results-spool")), false, "no spool (#7266)");
+        const sent = s.seen.filter((r) => r.url === "/v1/invocations").map((r) => r.body);
+        assert.deepEqual(
+            sent.map((r) => r.id),
+            ["5.1.job.fake.1", "5.1.job.fake.1", "5.1.job.fake.1"],
+        );
+        const rec = sent[0];
         assert.equal(rec.variant, "fake|flags=off|whole");
         assert.equal(rec.outcome, "infra");
         assert.equal(rec.sha.length, 40);
@@ -532,12 +555,11 @@ describe("runGroup", () => {
         execFileSync("git", ["init", "-q"], { cwd: root });
         execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "7" };
-        const spool = join(root, "test-results/results-spool");
         await runGroup("plain", undefined, { root, env, storeMs: NEVER_ANSWERS });
         await runGroup("pkg-features-on-1", undefined, { root, env, storeMs: NEVER_ANSWERS });
-        const read = (f) => JSON.parse(readFileSync(join(spool, f), "utf8"));
-        assert.equal(read("7.1.job.plain.1.json").variant, "plain|flags=off|whole");
-        assert.equal(read("7.1.job.pkg-features-on-1.1.json").variant, "pkg-features-on|flags=on|whole");
+        const read = (id) => s.seen.find((r) => r.url === "/v1/invocations" && r.body.id === id).body;
+        assert.equal(read("7.1.job.plain.1").variant, "plain|flags=off|whole");
+        assert.equal(read("7.1.job.pkg-features-on-1.1").variant, "pkg-features-on|flags=on|whole");
 
         const e = { PATH: "x" };
         const on = { flags: "on", "test-command": "c" };
@@ -547,23 +569,6 @@ describe("runGroup", () => {
         assert.deepEqual(keys({ "test-command": "c" }), { variant: "f|flags=off|whole", inputs: key("off") });
         assert.equal(keys({ "test-command": "c" }, { ...e, GRAPHTY_FLAGS: "on" }).inputs, key("on"));
         assert.notEqual(key("on"), key("off"));
-    });
-
-    it("keeps a passing verdict when the record cannot even be spooled", async () => {
-        const s = await serve(false);
-        const root = join(TMP, "checkout-nospool");
-        mkdirSync(join(root, "tools"), { recursive: true });
-        writeFileSync(
-            join(root, "tools/ci-test-matrix.mjs"),
-            `export const SHARDS = [{ shard: "fake", package: "pkg", "test-command": "exit 0" }];\n`,
-        );
-        execFileSync("git", ["init", "-q"], { cwd: root });
-        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
-        // The spool directory is a file, so writing the unsent record throws.
-        mkdirSync(join(root, "test-results"), { recursive: true });
-        writeFileSync(join(root, "test-results/results-spool"), "");
-        const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "6" };
-        assert.equal(await runGroup("fake", undefined, { root, env, storeMs: NEVER_ANSWERS }), 0);
     });
 });
 
@@ -1114,6 +1119,19 @@ describe("the pull request rules", () => {
         assert.equal(await dispatchChecks([{ ...check, base: "def5678" }], gh, { claim: async () => undefined }), 1);
     });
 
+    it("#7265: gives the claim back when gh cannot dispatch the check", async () => {
+        const check = { base: "abc1234", file: "a.test.ts", variant: o.variant, repeat: 1 };
+        const released = [];
+        const refuse = () => {
+            throw new Error("HTTP 422: workflow not found");
+        };
+        const opts = { claim: async () => true, release: async (c) => released.push(c) };
+        assert.equal(await dispatchChecks([check], refuse, opts), 0);
+        assert.deepEqual(released, [check]);
+        assert.equal(await dispatchChecks([check], () => "", opts), 1);
+        assert.equal(released.length, 1, "a dispatched check keeps its claim");
+    });
+
     it("lets the store's quarantine through", () => {
         const plan = { quarantine: [{ family: FAMILY, file: "a.test.ts", name: "q", issue: 9 }], failingOnBase: [] };
         const d = judge(plan, report(fail("q")), report(fail("q")));
@@ -1364,7 +1382,7 @@ describe("fileIssues", () => {
         assert.match(titles[0], /broken 1/);
     });
 
-    it("knows a base run whose last answer was spooled, from its environment or any earlier answer", async () => {
+    it("knows a base run whose last answer was lost, from its environment or any earlier answer", async () => {
         const failures = [{ file: "a.test.ts", name: "one", message: "Error: broken 1" }];
         const failing = [{ file: "a.test.ts", name: "one" }];
         const recs = [rec("failed", failures), rec("failed", failures)];
@@ -1819,11 +1837,9 @@ describe("health API fan-out", () => {
         }
         const gone = config(healthEnv(s.url, "http://127.0.0.1:1"));
         assert.deepEqual(await call(gone, "POST", "/v1/sites", {}), { ok: true, data: {} });
-        const spool = join(TMP, "health-spool");
         const silent = await serveHealth(null);
         const down = await serve(false);
-        const r = await postInvocation(config(healthEnv(down.url, silent.url)), { id: "9.1.a" }, spool, 50);
-        assert.deepEqual(readdirSync(spool), ["9.1.a.json"]);
+        const r = await postInvocation(config(healthEnv(down.url, silent.url)), { id: "9.1.a" }, 50);
         assert.equal(r.ok, false);
     });
     it("delivers before process.exit() with flushHealth(), and gives up after its own 2 s", async () => {
@@ -1862,9 +1878,8 @@ describe("health API fan-out", () => {
     it("still sends a group's records to the health API when the store stops answering", async () => {
         const down = await serve(false);
         const h = await serveHealth();
-        const spool = join(TMP, "health-group-spool");
         const recs = [{ id: "7.1.a" }, { id: "7.1.b" }];
-        const out = await postRecords(config(healthEnv(down.url, h.url)), recs, spool, 50);
+        const out = await postRecords(config(healthEnv(down.url, h.url)), recs, 50);
         assert.deepEqual(
             out.map((r) => r.ok),
             [false, false],

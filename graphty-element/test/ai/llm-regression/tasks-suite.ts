@@ -50,9 +50,13 @@ export function describeTasks(part: number, parts: number): void {
             it(`${task.id} (${task.tier.join(", ")})`, async () => {
                 const session = await taskSession(task.dataset);
                 const harness = await LlmRegressionTestHarness.create({ session });
+                // Every call with its arguments, for the failure message: the names alone cannot say
+                // whether the model or the check was wrong.
+                const sent: string[] = [];
                 try {
                     const driver: Driver = async (prompt) => {
                         const result = await harness.testPrompt(prompt);
+                        sent.push(...result.toolCalls.map((call) => `${call.name} ${JSON.stringify(call.arguments)}`));
                         return {
                             prompt,
                             calls: result.toolCalls.map((call) => ({ tool: call.name, args: call.arguments })),
@@ -70,7 +74,7 @@ export function describeTasks(part: number, parts: number): void {
                     console.log(`[llm-regression] task ${JSON.stringify(metrics)}`);
                     assert.isTrue(
                         metrics.success,
-                        `${metrics.failure ?? ""}\ncalls: ${metrics.calls.join(", ") || "none"}\nrefused: ${metrics.refusals.join(", ") || "none"}`,
+                        `${metrics.failure ?? ""}\ncalls:\n${sent.join("\n") || "none"}\nrefused: ${metrics.refusals.join(", ") || "none"}`,
                     );
                 } finally {
                     harness.dispose();

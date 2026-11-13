@@ -13,6 +13,10 @@
  * - StatsManager.getBlockingReport() for bottleneck identification
  * - BabylonJS EngineInstrumentation for GPU metrics
  * - BabylonJS SceneInstrumentation for scene metrics
+ *
+ * The timings are logged, never asserted: a stopwatch on a busy machine measures the machine.
+ * What each test asserts is counted: every edge is in the graph and drawn in the style its
+ * style layer asked for -- the line pattern, and one cap of one shape at each end that has one.
  */
 
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
@@ -29,7 +33,62 @@ import {
     TEST_CONFIG,
     waitForLayoutSettle,
 } from "../helpers/performance-utils";
-import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
+import { cleanupTestGraph, createTestGraph, styleEveryEdge } from "../helpers/testSetup";
+
+/** What the graph drew for a measurement, counted off its edges. */
+interface DrawnEdges {
+    /** Edges in the data manager. */
+    edges: number;
+    /** Edges drawn as a patterned line (dots, dashes, diamonds, ...). */
+    patterned: number;
+    /** Edges drawn with a head cap, and with a tail cap. */
+    heads: number;
+    tails: number;
+    /** The distinct cap shapes drawn at the heads, and at the tails. */
+    headShapes: string[];
+    tailShapes: string[];
+}
+
+type Measurement = PerformanceMetrics & { arrowTailType?: string; drawn: DrawnEdges };
+
+/**
+ * Count what the graph drew for its edges.
+ * @param graph - The loaded graph
+ * @returns The counts
+ */
+function countDrawn(graph: Graph): DrawnEdges {
+    const edges = [...graph.getDataManager().edges.values()];
+    const capsAt = (end: string): string[][] =>
+        edges.map((edge) => edge.drawnCaps.filter((cap) => cap.end === end).map((cap) => cap.name));
+    const heads = capsAt("arrowHead");
+    const tails = capsAt("arrowTail");
+
+    return {
+        edges: edges.length,
+        patterned: edges.filter((edge) => edge.drawnPattern.length > 0).length,
+        heads: heads.filter((caps) => caps.length === 1).length,
+        tails: tails.filter((caps) => caps.length === 1).length,
+        headShapes: [...new Set(heads.flat())],
+        tailShapes: [...new Set(tails.flat())],
+    };
+}
+
+/**
+ * Assert that every edge was built and drawn in the style the measurement asked for: the line
+ * pattern, and one cap of one shape at each end that asked for one.
+ * @param result - The measurement
+ */
+function assertDrawnAsStyled(result: Measurement): void {
+    const { drawn, edgeCount } = result;
+    assert.strictEqual(drawn.edges, edgeCount, "every edge is in the graph");
+    assert.strictEqual(drawn.patterned, result.lineStyle === "solid" ? 0 : edgeCount, `${result.lineStyle} lines`);
+    const heads = result.arrowType === "none" ? 0 : edgeCount;
+    assert.strictEqual(drawn.heads, heads, `${result.arrowType} heads`);
+    assert.lengthOf(drawn.headShapes, heads > 0 ? 1 : 0, "every head is one shape");
+    const tails = result.arrowTailType ? edgeCount : 0;
+    assert.strictEqual(drawn.tails, tails, `${result.arrowTailType ?? "no"} tails`);
+    assert.lengthOf(drawn.tailShapes, tails > 0 ? 1 : 0, "every tail is one shape");
+}
 
 describe("Edge Performance Tests", () => {
     let graph: Graph | null = null;
@@ -70,7 +129,7 @@ describe("Edge Performance Tests", () => {
         lineStyle: string;
         arrowType: string;
         arrowTailType?: string;
-    }): Promise<PerformanceMetrics> {
+    }): Promise<Measurement> {
         const { edgeCount, layoutType, lineStyle, arrowType, arrowTailType } = options;
 
         // Capture memory before
@@ -88,30 +147,15 @@ describe("Edge Performance Tests", () => {
         const nodes = generateNodes(nodeCount, layoutType === "fixed");
         const edges = generateEdges(nodes, edgeCount);
 
-        // Configure edge style
-        const edgeStyle: Record<string, unknown> = {
-            line: {
-                type: lineStyle,
-                width: 0.5,
-                color: "#FFFFFF",
-            },
-        };
-
-        if (arrowType !== "none") {
-            edgeStyle.arrowHead = {
-                type: arrowType,
-                size: 1,
-                color: "#FF0000",
-            };
-        }
-
-        if (arrowTailType) {
-            edgeStyle.arrowTail = {
-                type: arrowTailType,
-                size: 1,
-                color: "#00FF00",
-            };
-        }
+        // Style every edge through a style layer: fields on an edge's data are data, not style
+        await styleEveryEdge(graph, {
+            "edge.style": lineStyle,
+            "edge.width": 0.5,
+            "edge.color": "#FFFFFF",
+            "edge.arrowHead": arrowType,
+            "edge.arrowHeadColor": "#FF0000",
+            ...(arrowTailType ? { "edge.arrowTail": arrowTailType, "edge.arrowTailColor": "#00FF00" } : {}),
+        });
 
         // Get StatsManager
         const statsManager = graph.getStatsManager();
@@ -123,40 +167,17 @@ describe("Edge Performance Tests", () => {
         // Start layout session tracking
         statsManager.startLayoutSession();
 
-        // Set data
-        const graphData = {
+        await graph.setLayout(layoutType);
+        graph.setData({
             nodes: nodes.map((n) => ({
                 id: n.id,
                 position: n.x !== undefined ? { x: n.x, y: n.y ?? 0, z: n.z ?? 0 } : undefined,
             })),
-            edges: edges.map((e, i) => ({
-                id: `edge-${i}`,
-                source: e.source,
-                target: e.target,
-                ...edgeStyle,
-            })),
-        };
+            edges: edges.map((e, i) => ({ id: `edge-${i}`, source: e.source, target: e.target })),
+        });
 
-        // Apply layout type
-        const graphWithLayout = graph as Graph & {
-            setLayout: (type: string) => Promise<void>;
-        };
-        if (typeof graphWithLayout.setLayout === "function") {
-            await graphWithLayout.setLayout(layoutType);
-        }
-
-        // Set the data
-        const graphWithData = graph as Graph & {
-            setData: (data: unknown) => void;
-        };
-        if (typeof graphWithData.setData === "function") {
-            graphWithData.setData(graphData);
-        }
-
-        // Wait for layout to settle (physics only)
-        if (layoutType === "ngraph") {
-            await waitForLayoutSettle(graph);
-        }
+        // Wait until every edge is built and drawn (a physics layout also settles first)
+        await waitForLayoutSettle(graph);
 
         // End layout session
         statsManager.endLayoutSession();
@@ -181,7 +202,7 @@ describe("Edge Performance Tests", () => {
         statsManager.disableProfiling();
         statsManager.disableFrameProfiling();
 
-        return result;
+        return { ...result, arrowTailType, drawn: countDrawn(graph) };
     }
 
     // =========================================================
@@ -200,8 +221,7 @@ describe("Edge Performance Tests", () => {
 
                 metrics.push(result);
 
-                // Small graphs should be fast
-                assert.isAtLeast(result.edgeCount, 10, "Should have at least 10 edges");
+                assertDrawnAsStyled(result);
             });
 
             test("100 edges with fixed layout", async () => {
@@ -214,8 +234,7 @@ describe("Edge Performance Tests", () => {
 
                 metrics.push(result);
 
-                // 100 edges should be reasonably fast
-                assert.isAtLeast(result.edgeCount, 100, "Should have at least 100 edges");
+                assertDrawnAsStyled(result);
             });
         });
 
@@ -230,8 +249,7 @@ describe("Edge Performance Tests", () => {
 
                 metrics.push(result);
 
-                // Physics layout should work
-                assert.isAtLeast(result.edgeCount, 10, "Should have at least 10 edges");
+                assertDrawnAsStyled(result);
             });
         });
     });
@@ -252,7 +270,7 @@ describe("Edge Performance Tests", () => {
                 });
 
                 metrics.push(result);
-                assert.strictEqual(result.lineStyle, "solid");
+                assertDrawnAsStyled(result);
             });
         });
 
@@ -269,7 +287,7 @@ describe("Edge Performance Tests", () => {
                     });
 
                     metrics.push(result);
-                    assert.strictEqual(result.lineStyle, pattern);
+                    assertDrawnAsStyled(result);
                 });
             });
         });
@@ -292,9 +310,8 @@ describe("Edge Performance Tests", () => {
 
                 metrics.push(solidResult, patternedResult);
 
-                // Both should complete successfully
-                assert.strictEqual(solidResult.lineStyle, "solid");
-                assert.strictEqual(patternedResult.lineStyle, "diamond");
+                assertDrawnAsStyled(solidResult);
+                assertDrawnAsStyled(patternedResult);
             });
         });
     });
@@ -315,7 +332,7 @@ describe("Edge Performance Tests", () => {
                 });
 
                 metrics.push(result);
-                assert.strictEqual(result.arrowType, "none");
+                assertDrawnAsStyled(result);
             });
         });
 
@@ -332,7 +349,7 @@ describe("Edge Performance Tests", () => {
                     });
 
                     metrics.push(result);
-                    assert.strictEqual(result.arrowType, arrowType);
+                    assertDrawnAsStyled(result);
                 });
             });
         });
@@ -350,7 +367,7 @@ describe("Edge Performance Tests", () => {
                     });
 
                     metrics.push(result);
-                    assert.strictEqual(result.arrowType, arrowType);
+                    assertDrawnAsStyled(result);
                 });
             });
         });
@@ -373,9 +390,8 @@ describe("Edge Performance Tests", () => {
 
                 metrics.push(noArrowResult, withArrowResult);
 
-                // Both should complete
-                assert.strictEqual(noArrowResult.arrowType, "none");
-                assert.strictEqual(withArrowResult.arrowType, "normal");
+                assertDrawnAsStyled(noArrowResult);
+                assertDrawnAsStyled(withArrowResult);
             });
         });
     });
@@ -396,7 +412,7 @@ describe("Edge Performance Tests", () => {
             });
 
             metrics.push(result);
-            assert.strictEqual(result.arrowType, "normal");
+            assertDrawnAsStyled(result);
         });
 
         test("mixed arrow types (normal head, tee tail)", async () => {
@@ -409,7 +425,12 @@ describe("Edge Performance Tests", () => {
             });
 
             metrics.push(result);
-            assert.strictEqual(result.arrowType, "normal");
+            assertDrawnAsStyled(result);
+            assert.notDeepEqual(
+                result.drawn.tailShapes,
+                result.drawn.headShapes,
+                "the tee tail is not the head's shape",
+            );
         });
     });
 
@@ -427,7 +448,7 @@ describe("Edge Performance Tests", () => {
                 });
 
                 metrics.push(result);
-                assert.isAtLeast(result.edgeCount, 50);
+                assertDrawnAsStyled(result);
             });
 
             test("100 edges: dash line + diamond arrows + fixed layout", async () => {
@@ -439,7 +460,7 @@ describe("Edge Performance Tests", () => {
                 });
 
                 metrics.push(result);
-                assert.isAtLeast(result.edgeCount, 100);
+                assertDrawnAsStyled(result);
             });
         });
     });
@@ -461,8 +482,7 @@ describe("Edge Performance Tests", () => {
 
                 metrics.push(result);
 
-                // Memory metrics may be 0 if memory API unavailable
-                assert.isAtLeast(result.edgeCount, edgeCount);
+                assertDrawnAsStyled(result);
             });
         });
 
@@ -483,9 +503,8 @@ describe("Edge Performance Tests", () => {
 
             metrics.push(solidResult, patternedResult);
 
-            // Both should complete
-            assert.strictEqual(solidResult.lineStyle, "solid");
-            assert.strictEqual(patternedResult.lineStyle, "diamond");
+            assertDrawnAsStyled(solidResult);
+            assertDrawnAsStyled(patternedResult);
         });
     });
 
@@ -501,6 +520,7 @@ describe("Edge Performance Tests", () => {
                 arrowType: "normal",
             });
 
+            assertDrawnAsStyled(result);
             const report = identifyBottlenecks(result);
 
             // Validate report structure
@@ -520,32 +540,11 @@ describe("Edge Performance Tests", () => {
                 arrowType: "none",
             });
 
+            assertDrawnAsStyled(result);
             const report = identifyBottlenecks(result);
 
             // Summary should contain edge count
             assert.include(report.summary, "50 edges");
-        });
-    });
-
-    // =========================================================
-    // SECTION 8: Performance Regression Tests
-    // =========================================================
-    describe("Performance Regression Tests", () => {
-        test("baseline test validates structure", async () => {
-            const result = await measureEdgePerformance({
-                edgeCount: 100,
-                layoutType: "fixed",
-                lineStyle: "solid",
-                arrowType: "none",
-            });
-
-            // Validate the metrics structure
-            assert.isNumber(result.edgeCount);
-            assert.isNumber(result.fps);
-            assert.isNumber(result.edgeCreationTime);
-            assert.isString(result.layoutType);
-            assert.isString(result.lineStyle);
-            assert.isString(result.arrowType);
         });
     });
 });

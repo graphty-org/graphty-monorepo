@@ -591,7 +591,10 @@ const ID_OR_DIRECTION: ReadonlySet<string> = new Set(["E_INVALID_ID", "E_DIRECTE
 function rewritable(error: unknown): boolean {
     return (
         refusedOver(error, ID_OR_DIRECTION) ||
-        (refusedOver(error) && (error as GraphtyError).details.reason === "gml key")
+        // The element's own `reason` replaces graph-io's in `details`; the writer's error is the cause.
+        (refusedOver(error) &&
+            ((error as GraphtyError).cause as { details?: { reason?: unknown } } | undefined)?.details?.reason ===
+                "gml key")
     );
 }
 

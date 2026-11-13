@@ -355,7 +355,76 @@ describe("simulations", () => {
         };
     }
 
+    it("an accelerator without the layout's simulation runs it on the CPU and says so", async () => {
+        const cy = makeCy();
+        const partial: LayoutAccelerator = { kind: "partial", forceAtlas2: asyncAccelerator().forceAtlas2 };
+        const layout = cy.layout({
+            name: "graphty-fruchterman-reingold",
+            boundingBox: BOX,
+            accelerator: partial,
+        } as unknown as LayoutOptions);
+        const stop = layout.promiseOn("layoutstop");
+        layout.run();
+        await stop;
+        expect((layout as unknown as { backend?: unknown }).backend).toEqual({
+            ran: "cpu",
+            reason: "the accelerator has no fruchtermanReingold simulation",
+            device: null,
+        });
+        expectPlaced(cy);
+    });
+
+    it("spring-electrical on an accelerator without springElectrical reports layouterror, never a throw", async () => {
+        const cy = makeCy();
+        const layout = cy.layout({
+            name: "graphty-spring-electrical",
+            boundingBox: BOX,
+            accelerator: asyncAccelerator(),
+        } as unknown as LayoutOptions);
+        const errors: unknown[] = [];
+        layout.on("layouterror", (_e: EventObject, error: unknown) => errors.push(error));
+        const stop = layout.promiseOn("layoutstop");
+        expect(() => layout.run()).not.toThrow();
+        await stop;
+        expect((errors[0] as Error).message).toMatch(/no CPU simulation.*no springElectrical simulation/);
+        expect((layout as unknown as { backend?: unknown }).backend).toBeUndefined();
+    });
+
     for (const animate of [false, true]) {
+        it(`a simulation whose load throws is disposed and reported, animate ${String(animate)}`, async () => {
+            const cy = makeCy();
+            let disposed = 0;
+            const accelerator: LayoutAccelerator = {
+                kind: "test-lost",
+                forceAtlas2: (options): LayoutSimulation => {
+                    const sim = asyncAccelerator().forceAtlas2?.(options) as LayoutSimulation;
+                    return {
+                        ...sim,
+                        load: () => {
+                            throw new Error("device lost");
+                        },
+                        dispose: () => {
+                            disposed++;
+                        },
+                    };
+                },
+            };
+            const layout = cy.layout({
+                name: "graphty-forceatlas2",
+                boundingBox: BOX,
+                accelerator,
+                animate,
+            } as unknown as LayoutOptions);
+            const seen: string[] = [];
+            layout.on("layouterror", () => seen.push("layouterror"));
+            const stop = layout.promiseOn("layoutstop").then(() => seen.push("layoutstop"));
+            expect(() => layout.run()).not.toThrow();
+            await stop;
+            expect(seen).toEqual(["layouterror", "layoutstop"]);
+            expect(disposed).toBe(1);
+            expect((layout as unknown as { backend?: unknown }).backend).toBeUndefined();
+        });
+
         it(`run an asynchronous (GPU-style) simulation, animate ${String(animate)}`, async () => {
             const cy = makeCy();
             const events = await run(cy, { name: "graphty-forceatlas2", accelerator: asyncAccelerator(), animate });

@@ -14,6 +14,7 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
     GraphSession,
+    GraphtyErrorCode,
     LoadDraft,
     NoteTargetInput,
     ScopeInput,
@@ -132,7 +133,8 @@ export interface WorkspaceState {
     readonly assistantRefused: boolean;
     /** How the last message ended, when the conversation cannot say: nothing reached it. */
     readonly assistantEnded: {
-        readonly code: AiResultCode;
+        /** An `AiResultCode`, or the element's `GraphtyError` code when setting up threw one. */
+        readonly code: AiResultCode | GraphtyErrorCode;
         readonly params: AiResultParams;
         /**
          * It failed while the panel was open: the newest turn's row is the alert until the reader

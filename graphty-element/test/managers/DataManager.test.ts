@@ -1,3 +1,4 @@
+import { GraphBuilder } from "@graphty/graph-format";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { AdHocData } from "../../src/config";
@@ -611,6 +612,21 @@ describe("DataManager", () => {
                 dataManagerInternals.unbuiltEdgeRows(dataManager).map((r) => r.key),
                 ["0", "1"],
             );
+        });
+
+        it("reads each row's end rows from the store's edge, looking up no end id", () => {
+            const lookups = vi.spyOn(GraphBuilder.prototype, "indexOf");
+            try {
+                assert.deepEqual(dataManagerInternals.unbuiltEdgeEnds(dataManager, 0), [0, 1]);
+                assert.deepEqual(dataManagerInternals.unbuiltEdgeEnds(dataManager, 1), [1, 2]);
+                assert.isUndefined(dataManagerInternals.unbuiltEdgeEnds(dataManager, 2));
+                assert.equal(lookups.mock.calls.length, 0, "no id lookup per painted row");
+            } finally {
+                lookups.mockRestore();
+            }
+
+            dataManager.removeEdge("0");
+            assert.isUndefined(dataManagerInternals.unbuiltEdgeEnds(dataManager, 0));
         });
 
         it("takes a row back when its edge is removed or cleared, and hands a built Edge the row's place", () => {

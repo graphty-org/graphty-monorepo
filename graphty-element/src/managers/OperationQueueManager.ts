@@ -1099,6 +1099,16 @@ export class OperationQueueManager implements Manager {
         if (controller && !controller.signal.aborted && this.rankOf(operationId) !== -1) {
             controller.abort();
 
+            // One that has not started never reaches `executeOperation`, the only other place that
+            // settles: drop it and answer whoever awaits it, as `obsolete` does, or they wait for ever.
+            const waiting = this.pendingOperations.get(operationId) ?? this.queuedOperations.get(operationId);
+            if (waiting !== undefined) {
+                this.pendingOperations.delete(operationId);
+                this.queuedOperations.delete(operationId);
+                this.currentBatch.delete(operationId);
+                this.settleResolved(waiting);
+            }
+
             // Emit cancellation event
             this.eventManager.emit("operation-cancelled", {
                 type: "operation-cancelled",
@@ -1134,21 +1144,20 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
-     * Cancel all operations of a specific category
+     * Cancel all operations of a specific category: pending, queued and running.
      * @param category - The operation category to cancel
      * @returns Number of operations cancelled
      */
     cancelByCategory(category: OperationCategory): number {
         let cancelledCount = 0;
 
-        // Cancel pending operations
-        this.pendingOperations.forEach((operation) => {
-            if (operation.category === category) {
-                if (this.cancelOperation(operation.id)) {
-                    cancelledCount++;
-                }
+        // Running ones too: only looking at the pending ones left a running camera animation going
+        // after the camera was placed elsewhere, and it then moved the camera off that placement.
+        for (const operation of this.liveOf(new Set([category]), false)) {
+            if (this.cancelOperation(operation.id)) {
+                cancelledCount++;
             }
-        });
+        }
 
         return cancelledCount;
     }

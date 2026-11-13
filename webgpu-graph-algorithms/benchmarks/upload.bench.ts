@@ -51,7 +51,7 @@ export async function runUploadBenchmarks(ctx: GpuContext): Promise<BenchResult[
                         ctx.release(s);
                     },
                 },
-                { device: ctx.device, runs: UPLOAD_RUNS, items: hotBytes, unit: "bytes" },
+                { device: ctx.device, runs: UPLOAD_RUNS, collectGarbage: true, items: hotBytes, unit: "bytes" },
             ),
         );
     }

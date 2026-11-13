@@ -136,16 +136,14 @@ Name controls the way a screen reader hears them: `page.getByRole("treeitem", { 
 /^Everything,/ })`, `page.getByRole("option", { name: /^hours(,|$)/ })`. `routes.mjs` has steps many
 routes share (`openSample`, `openFile`, `newLayer`, `addCondition`, `match`, `fill`, `analyze`,
 `line`); use them, and add one when a second route needs the same steps. A step waits for its
-control to appear, with no deadline of its own, so a walk never waits on a clock; only the
-repository's one hang guard (`tools/test-wait-guard.mjs`) ends a step that never can. `openSample` and `openFile`
+control to appear (up to 20 seconds), so a walk never waits on a clock. `openSample` and `openFile`
 wait until the Everything layer counts the graph's nodes: the layer shows "0 nodes" before the data
 arrives, and a walk that went on then acted on an empty graph.
 
 ### Reading the outcome: `g`
 
 A check is a function of `g` that throws (with `assert`) when the outcome is wrong. It is retried
-after each frame the page draws until it passes, because the app reaches its state on its own time; only
-the hang guard ends a check that never passes, with its last failure.
+every 250 ms until it passes or 15 seconds pass, because the app reaches its state on its own time.
 
 The looks the checks read are the style graphty-element resolved for each node and edge
 (`session.styles.explain()`), not the pixels on the canvas. A defect where the style resolves

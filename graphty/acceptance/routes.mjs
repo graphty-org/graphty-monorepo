@@ -11,9 +11,8 @@
  *  - `checks`: what the user would see when the walk is done, read through graphty-element's public
  *    API (`g`, README.md, "Reading the outcome") or the page's accessibility tree. A branch may not
  *    remove or change an existing check except on a branch of its own
- *    (tools/dry-run-check-guard.mjs). Each check is read again after each frame the page draws until
- *    it passes, so it waits on its condition, never on a clock; only the repository's one hang guard
- *    (tools/test-wait-guard.mjs) ends a check that never passes.
+ *    (tools/dry-run-check-guard.mjs). Each check is retried until it passes or 15 seconds pass, so it
+ *    waits on its condition, never on a clock.
  *
  * tools/dry-run-check-guard.mjs reads this file without running it: every route's `checks` and
  * other properties, every import, and every top-level declaration a check uses (directly or through

@@ -242,7 +242,7 @@ export class EdgeRowLines {
 
         const moved = (remap: ArrayLike<number> | null, row: number): number =>
             remap === null ? row : (remap[row] ?? INVALID_INDEX);
-        const lines = this.lines;
+        const { lines } = this;
         this.lines = [];
         this.drawn = 0;
         for (const row of this.drawnRows(lines)) {

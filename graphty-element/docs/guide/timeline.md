@@ -205,8 +205,8 @@ history step, so `time.committed` follows every step.
 
 A move of the window redraws only what entered and left it. The exception is an edge drawn through a
 support point (`edge.supportModel`): support points settle together, so a move that reveals, hides or
-repaints one visits every edge. Repainting includes `outside: "ghost"` turning such an edge into a
-ghost or back.
+repaints one visits every edge. Repainting includes `outside: "ghost"` drawing such an edge or
+hiding it again.
 
 ## Settings
 
@@ -225,10 +225,35 @@ await time.setSettings({ step: "week", mode: "cumulative", results: "rerun", mis
   them again over each new window, a play waiting for them at every step.
 - `missing`: `"inside"` (the default) keeps elements with no time in every window; `"outside"` hides
   them.
-- `outside`: `"hide"` (the default) or `"ghost"`, which keeps elements outside the window drawn in the
-  `"ghosted"` element state (`{ match: "state", state: "ghosted" }` in a style layer), never counted
-  as visible.
+- `outside`: `"hide"` (the default) or `"ghost"`. See [What lies outside the window](#what-lies-outside-the-window).
 - `timeZone` and `ageFade`: see [Time zones](#time-zones) and [Fading older edges](#fading-older-edges).
+
+## What lies outside the window
+
+The window never takes anything out of the graph. An element outside it is in the
+`"outsideWindow"` element state, and style layers decide how it is drawn: the element's own layers
+hide it, and a layer above them that selects the state can draw it any way, as it would draw a
+selected or a pinned node.
+
+```js
+await g.session.styles.add({
+    name: "Outside the window",
+    target: "node",
+    selector: { match: "state", state: "outsideWindow" },
+    set: { "node.visible": true, "node.color": "#9E9E9E", "node.opacity": 0.2 },
+});
+```
+
+`time.setSettings({ outside: "ghost" })` does the same for you: it sets `visible: true` on every
+layer that selects the state, or adds one for nodes and one for edges when none does, and
+`outside: "hide"` sets `visible: false` on them again. `time.settings.outside` reads the layers, so
+it always says what is drawn. A layer selecting the state counts what lies outside the window
+whether it is hidden or drawn.
+
+What lies outside the window is still not visible: no count, algorithm run or export includes it.
+It keeps its place in every layout: a play, a step or a jump moves no node and no camera, even with
+`layout.visibleOnly`, which lays out only what the filter keeps. Its halo, label and support point
+go with it while it is hidden.
 
 ## Fading older edges
 

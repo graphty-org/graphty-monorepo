@@ -801,7 +801,7 @@ function checkStepEnums(step: Loose): void {
 }
 
 /** The states a `state` leaf reads. */
-const ELEMENT_STATES: ReadonlySet<string> = new Set(["selected", "hovered", "ghosted", "pinned"]);
+const ELEMENT_STATES: ReadonlySet<string> = new Set(["selected", "hovered", "ghosted", "outsideWindow", "pinned"]);
 
 /**
  * Check one rule tree node, all the way down.

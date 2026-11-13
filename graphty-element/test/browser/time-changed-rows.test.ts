@@ -148,7 +148,7 @@ function nodeGhosts(element: Graphty): ReadonlyMap<Edge["srcNode"], boolean> {
     return new Map(
         [...element.graph.getDataManager().nodes.values()].map((node) => [
             node,
-            visibility.ghosted("node", node.index),
+            visibility.outsideWindow("node", node.index),
         ]),
     );
 }
@@ -322,7 +322,7 @@ describe("changed rows on real nodes and edges", () => {
 
         const painter = graph.getStylePainter();
         for (const edge of graph.getDataManager().edges.values()) {
-            const ghost = session.visibility.ghosted("edge", edge.index);
+            const ghost = session.visibility.outsideWindow("edge", edge.index);
             const { opacity } = painter.edgePaint(edge.index)?.style.line ?? {};
             assert.strictEqual(opacity === STARTING_GHOST_LOOK["edge.opacity"], ghost, `edge ${edge.id}`);
             assert.isTrue(edge.isRenderVisible(), "a ghost stays drawn");
@@ -446,7 +446,7 @@ describe("changed rows on real nodes and edges", () => {
             await mountedElement.session.styles.add({
                 name: "Small ghosts",
                 target: "node",
-                selector: { match: "state", state: "ghosted" },
+                selector: { match: "state", state: "outsideWindow" },
                 set: { "node.size": 0.25 },
             });
         }, LARGE);
@@ -457,8 +457,8 @@ describe("changed rows on real nodes and edges", () => {
 
         const edges = [...graph.getDataManager().edges.values()];
         const ghostEnds = (edge: Edge): number =>
-            Number(session.visibility.ghosted("node", edge.srcNode.index)) +
-            Number(session.visibility.ghosted("node", edge.dstNode.index));
+            Number(session.visibility.outsideWindow("node", edge.srcNode.index)) +
+            Number(session.visibility.outsideWindow("node", edge.dstNode.index));
         const before = edges.map((edge) => ({ ghosts: ghostEnds(edge), length: edge.drawnLine?.length ?? 0 }));
         const ghostsBefore = nodeGhosts(element);
 
@@ -573,7 +573,7 @@ describe("changed rows on real nodes and edges", () => {
             await mountedElement.session.styles.add({
                 name: "Straight ghosts",
                 target: "edge",
-                selector: { match: "state", state: "ghosted" },
+                selector: { match: "state", state: "outsideWindow" },
                 set: { "edge.curvature": false },
             });
         });
@@ -597,7 +597,7 @@ describe("changed rows on real nodes and edges", () => {
             await mountedElement.session.styles.add({
                 name: "Ghosts on support points",
                 target: "edge",
-                selector: { match: "state", state: "ghosted" },
+                selector: { match: "state", state: "outsideWindow" },
                 set: { "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 },
             });
         }, SUPPORT_GHOSTS);

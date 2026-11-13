@@ -3954,7 +3954,7 @@ export class Edge {
     supportEdge(centerOf: (node: Node) => Readonly<Vector3> = (node) => node.drawnPosition): SupportEdge | null {
         const line = this.drawnStyle?.line;
         const model = line?.supportModel;
-        if (model === undefined || !this.curved || this.isLoop || !this.renderVisible) {
+        if (model === undefined || !this.curved || this.isLoop || !this.isRenderVisible()) {
             return null;
         }
         return {

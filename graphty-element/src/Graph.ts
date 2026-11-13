@@ -1647,8 +1647,8 @@ export class Graph implements GraphContext {
                 nodes: () => this.session.selection.nodeMembers(),
             },
             showContext: () => this.session.visibility.showContext,
-            // What is drawn: the visible elements, plus the ghosts outside the time window when
-            // the timeline draws them. Visible stays the data scope everything else reads.
+            // What is drawn: the visible elements, plus what lies outside a time window, which the
+            // style layers hide or ghost. Visible stays the data scope everything else reads.
             visibility: this.session.visibility.drawnMasks,
             ghost: () => this.session.visibility.ghosting,
             timeline: () => this.session.features.enabled.includes("timeline"),
@@ -1692,7 +1692,7 @@ export class Graph implements GraphContext {
             nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
-            visibleEdges: () => this.session.visibility.edges,
+            kept: () => this.session.visibility.keptIds(),
             detached: (scope) => {
                 try {
                     const { freshness } = this.session.sets.status(scope);
@@ -1713,8 +1713,9 @@ export class Graph implements GraphContext {
             }
         });
 
-        // Under `layout.visibleOnly` the layout runs over what the filter shows, so it runs again
-        // when that changes. A restore or a rollback brings back an arrangement of its own.
+        // Under `layout.visibleOnly` the layout runs over what the filter keeps, so it runs again
+        // when that changes; a time window hides by style and moves no node. A restore or a
+        // rollback brings back an arrangement of its own.
         this.session.on("visibility:changed", ({ cause }) => {
             if (cause !== "restore" && cause !== "rollback") {
                 this.layoutManager.relayoutForVisibility();

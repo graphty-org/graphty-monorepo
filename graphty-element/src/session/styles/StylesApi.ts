@@ -1335,7 +1335,7 @@ export interface StylesApi {
      * the top, writing nothing). One undo step; nothing when all three are there. Setting the
      * project setting `startingRows` to true adds them the same way. While a time field is
      * designated (`session.time.setField`), the Ghost row comes too: nodes and edges in the state
-     * `"ghosted"`, grey at low opacity, pinned to the top directly below Selected; with
+     * `"outsideWindow"`, grey at low opacity, pinned to the top directly below Selected; with
      * `startingRows` on, designating a field adds it and clearing the field takes it away. While
      * the project setting `pinnedStyle` is set, the Pinned row comes too: nodes in the state
      * `"pinned"`, drawing that halo, pinned to the top directly below Selected (above Ghost); with
@@ -1622,6 +1622,13 @@ export interface StylesSources {
      * @returns What it resolves to now.
      */
     readonly resolveScope?: (spec: Scope) => ResolvedScope;
+    /**
+     * What the renderer draws, when it draws more than is visible: under a time window, what
+     * every filter keeps, so a layer styling what lies outside the window counts it. Absent or
+     * null, the visible elements.
+     * @returns The rows, or null.
+     */
+    readonly drawn?: () => AgreementElements | null;
     /** Which versions are doing the work. Defaults to the element's own. */
     readonly engine?: EngineVersions;
     /**
@@ -2625,6 +2632,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns True for a base layer.
      */
     const isBaseEntry = (entry: CompiledLayer): boolean => entry.layer.kind === "base";
+    /**
+     * Whether a stack entry is one of the element's base layers that give every element its look,
+     * which the Everything row holds while `editableBase` is on.
+     * @param entry - The entry.
+     * @returns True for one.
+     */
+    const isBaseLook = (entry: CompiledLayer): boolean =>
+        isBaseEntry(entry) && entry.layer.selector.match === "everything";
 
     /**
      * Everything a reading of the whole stack (`agreement`) depends on besides its own
@@ -2882,18 +2897,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /**
      * The stack as it paints without a branches view: a hidden row's layers read as disabled, and
-     * so do the element's own base layers while the Everything row holds the base look.
+     * so do the element's own base look layers while the Everything row holds the base look.
      * @param stack - The stack.
      * @returns The stack.
      */
     const basePainting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
         const painted = paintedStack(stack);
-        if (!editableBase() || !painted.some((entry) => isBaseEntry(entry) && entry.layer.enabled)) {
+        if (!editableBase() || !painted.some((entry) => isBaseLook(entry) && entry.layer.enabled)) {
             return painted;
         }
 
         return painted.map((entry) => {
-            if (!isBaseEntry(entry) || !entry.layer.enabled) {
+            if (!isBaseLook(entry) || !entry.layer.enabled) {
                 return entry;
             }
 
@@ -2914,7 +2929,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns The values, by channel.
      */
     const baseValues = (target: "node" | "edge"): StaticStyle =>
-        Object.assign({}, ...(sources.base ?? []).filter((spec) => spec.target === target).map((spec) => spec.set));
+        Object.assign(
+            {},
+            ...(sources.base ?? [])
+                .filter((spec) => spec.target === target && spec.selector.match === "everything")
+                .map((spec) => spec.set),
+        );
 
     /**
      * The layers of the stack by id, cached until the stack changes.
@@ -3060,7 +3080,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const amongDrawn = (id: LayerId): { readonly matched: number; readonly of: number } => {
         const compiled = byId().get(id);
         const edges = compiled?.layer.target === "edge";
-        const drawn = elementsOf(DRAWN);
+        const drawn = sources.drawn?.() ?? elementsOf(DRAWN);
         const test = compiled?.selector.test ?? null;
         let matched = 0;
         let of = 0;
@@ -3148,7 +3168,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
         const compiled = byId().get(id);
         const edges = compiled?.layer.target === "edge";
-        const drawn = elementsOf(DRAWN);
+        const drawn = sources.drawn?.() ?? elementsOf(DRAWN);
         const test = compiled?.selector.test ?? null;
         let count = 0;
         for (const index of edges ? drawn.edges : drawn.nodes) {
@@ -3589,11 +3609,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (at === "aboveBase") {
-            // Directly above the last of the element's own base layers, wherever it sits.
+            // Directly above the last of the element's own base layers (its look, and what hides
+            // what lies outside a time window), wherever it sits.
             let index = 0;
             stack.forEach((entry, position) => {
                 const { source } = entry.layer;
-                if (source.by === "element" && source.reason === "default") {
+                if (source.by === "element" && (source.reason === "default" || source.reason === "time")) {
                     index = position + 1;
                 }
             });

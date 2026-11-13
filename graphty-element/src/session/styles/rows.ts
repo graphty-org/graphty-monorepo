@@ -344,9 +344,10 @@ export const STARTING_GHOST_LOOK = {
 } as const;
 
 /**
- * The Ghost row: nodes and edges in the state `"ghosted"` (outside the time window while the
- * timeline draws ghosts), pinned to the top directly below Selected. A starting row that exists
- * while a time field is designated.
+ * The Ghost row: nodes and edges in the state `"outsideWindow"` (outside the time window), grey
+ * and faint, pinned to the top directly below Selected. It sets no `visible`, so the element's own
+ * layers keep what lies outside hidden until `session.time.setSettings({ outside: "ghost" })`
+ * sets `visible: true` on it. A starting row that exists while a time field is designated.
  * @returns The row.
  */
 export function ghostRow(): { readonly templateId: typeof GHOST_ROW_ID; readonly pin: "top"; readonly spec: RowSpec } {
@@ -356,7 +357,7 @@ export function ghostRow(): { readonly templateId: typeof GHOST_ROW_ID; readonly
         spec: {
             name: "Ghost",
             target: "both",
-            selector: { match: "state", state: "ghosted" },
+            selector: { match: "state", state: "outsideWindow" },
             set: { ...STARTING_GHOST_LOOK },
             source: { by: "template", templateId: GHOST_ROW_ID },
         },

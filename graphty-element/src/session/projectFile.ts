@@ -2032,7 +2032,13 @@ async function readProject(
         // Read on their own, so a filter that cannot be read never loses them.
         await attempt(opening, "visibility", async () => {
             if (typeof visibility.playback === "object" && visibility.playback !== null) {
-                await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
+                // How what lies outside the window draws lives in the style layers now (below); with
+                // the timeline off the playback stays whole, as saved.
+                const { outside: _outside, ...playback } = visibility.playback as Record<string, unknown>;
+                const kept = timelineOn(tx) ? playback : visibility.playback;
+                await (tx.visibility as SessionVisibilityApi).restorePlayback(
+                    Object.keys(kept).length === 0 ? null : kept,
+                );
             }
 
             tx.visibility.showContext = visibility.showContext === true;
@@ -2040,6 +2046,7 @@ async function readProject(
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
+    await attempt(opening, "styles", () => outsideWindowLayers(tx, visibility?.playback));
 
     for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
         await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
@@ -2050,6 +2057,44 @@ async function readProject(
     const views = (state.views ?? []) as never[];
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
+    }
+}
+
+/**
+ * Whether the timeline experiment is on: with it off, every `session.time` member refuses.
+ * @param tx - The transaction.
+ * @returns True when it is on.
+ */
+function timelineOn(tx: TransactionScope): boolean {
+    return tx.features.enabled.includes("timeline");
+}
+
+/**
+ * Bring a timed project saved before what lies outside the time window had a state of its own up
+ * to date. Its layers selecting `"ghosted"` drew what lay outside the window, so they select
+ * `"outsideWindow"` now, and a saved `outside: "ghost"` becomes `visible: true` on them. A project
+ * brought up to date selects no `"ghosted"` layer, so this finds nothing the second time.
+ * @param tx - The transaction.
+ * @param playback - The saved timeline settings.
+ */
+async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Promise<void> {
+    // With the timeline off its layers stay as saved.
+    if (!timelineOn(tx) || tx.time.field === null) {
+        return;
+    }
+
+    const drawn =
+        typeof playback === "object" && playback !== null && "outside" in playback && playback.outside === "ghost";
+    for (const layer of tx.styles.list()) {
+        const { selector, source, target } = layer;
+        if (source.by === "element" || selector.match !== "state" || selector.state !== "ghosted") {
+            continue;
+        }
+
+        await tx.styles.update(layer.id, {
+            selector: { match: "state", state: "outsideWindow" },
+            ...(drawn ? { set: { ...layer.set, [`${target}.visible`]: true } } : {}),
+        });
     }
 }
 

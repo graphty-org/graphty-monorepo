@@ -278,8 +278,9 @@ const GraphLayoutOpts = z.strictObject({
      * its edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot
      * -- and it stays where it was, so taking the filter away shows it where it was. The layout
      * runs again whenever what the filter shows changes, and when this is switched. Every layout
-     * honours it. Unset or false, the default, a layout runs over the whole graph, hidden nodes
-     * included.
+     * honours it. The time window is not a filter here: what lies outside it is hidden by style
+     * and still takes part, so playing the timeline moves no node. Unset or false, the default, a
+     * layout runs over the whole graph, hidden nodes included.
      */
     visibleOnly: z.boolean().optional(),
 });

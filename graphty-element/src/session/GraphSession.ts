@@ -2092,6 +2092,25 @@ function elementBaseLayers(): readonly ElementLayerSpec[] {
             selector: { match: "everything" },
             set: baseStyleOf(defaultEdgeStyle, "edge"),
         },
+        // What lies outside the time window is hidden by style, never taken out of the graph: a
+        // layer above that selects the same state and sets `visible: true` draws it (Outside:
+        // Ghost). With no window in force the state holds nothing.
+        {
+            name: "Nodes outside the time window",
+            kind: "base",
+            source: { by: "element", reason: "time" },
+            target: "node",
+            selector: { match: "state", state: "outsideWindow" },
+            set: { "node.visible": false },
+        },
+        {
+            name: "Edges outside the time window",
+            kind: "base",
+            source: { by: "element", reason: "time" },
+            target: "edge",
+            selector: { match: "state", state: "outsideWindow" },
+            set: { "edge.visible": false },
+        },
     ];
 }
 
@@ -3693,55 +3712,71 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         paintedSelection = now;
         repaintStates({ node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) });
     };
-    // The ghosts as last repainted: a window move, a slide or the ghost setting repaints the
-    // elements that became or stopped being ghosts.
-    let paintedGhosts: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
-    let seenGhosts: ReturnType<typeof visibility.ghosts> = null;
+    // The ghosts and what lies outside the time window, as last repainted: a window move, a slide
+    // or a held condition repaints the elements that entered or left either state.
+    type StateBytes = ReturnType<typeof visibility.ghosts>;
+    const painted: { ghosts: StateBytes; outside: StateBytes } = { ghosts: null, outside: null };
+    const seen: { ghosts: StateBytes; outside: StateBytes } = { ghosts: null, outside: null };
+    /**
+     * The rows of one state that moved since it was last repainted, and remember it repainted.
+     * @param which - The state.
+     * @param now - Its bytes now, or null when nothing is in it.
+     * @param moved - The rows a slide moved, which are all that can have moved when its bytes were brought forward.
+     * @returns The rows, by kind.
+     */
+    const movedRows = (which: "ghosts" | "outside", now: StateBytes, moved?: SlideCounts): ElementIndices => {
+        const before = painted[which];
+        painted[which] = now;
+        if (now === null && before === null) {
+            return { node: [], edge: [] };
+        }
+
+        // The same bytes, brought forward by the slide's rows: those rows are all that moved.
+        if (moved !== undefined && now !== null && now.node === before?.node) {
+            const { enteredNodes, leftNodes, enteredEdges, leftEdges } = moved.rows;
+            return {
+                node: [...Array.from(enteredNodes), ...Array.from(leftNodes)],
+                edge: [...Array.from(enteredEdges), ...Array.from(leftEdges)],
+            };
+        }
+
+        if (before === now) {
+            return { node: [], edge: [] };
+        }
+
+        const graph = snapshot();
+        const bytes = now ?? { node: new Uint8Array(graph.nodeCount), edge: new Uint8Array(graph.edgeCount) };
+        return { node: changedBytes(before?.node, bytes.node), edge: changedBytes(before?.edge, bytes.edge) };
+    };
     repaintGhosts = (moved?: SlideCounts): void => {
         const ghosts = visibility.ghosts();
+        const outside = visibility.outsideWindowBytes();
         // A slide can carry the same bytes forward with different rows in them.
-        if (ghosts !== seenGhosts || moved !== undefined) {
-            seenGhosts = ghosts;
+        if (ghosts !== seen.ghosts || outside !== seen.outside || moved !== undefined) {
+            seen.ghosts = ghosts;
+            seen.outside = outside;
             stateRevision++;
             notifier.notify({ kind: "state" });
         }
 
         if (!readsState()) {
-            paintedGhosts = null;
+            painted.ghosts = null;
+            painted.outside = null;
             return;
         }
 
-        if (ghosts === null && paintedGhosts === null) {
-            return;
-        }
-
-        // The same bytes, brought forward by the slide's rows: those rows are all that moved.
-        if (moved !== undefined && ghosts !== null && ghosts.node === paintedGhosts?.node) {
-            const { enteredNodes, leftNodes, enteredEdges, leftEdges } = moved.rows;
-            paintedGhosts = ghosts;
-            repaintStates(
-                {
-                    node: [...Array.from(enteredNodes), ...Array.from(leftNodes)],
-                    edge: [...Array.from(enteredEdges), ...Array.from(leftEdges)],
-                },
-                true,
-            );
-            return;
-        }
-
-        const graph = snapshot();
-        const now = ghosts ?? { node: new Uint8Array(graph.nodeCount), edge: new Uint8Array(graph.edgeCount) };
-        const before = paintedGhosts;
-        paintedGhosts = now;
-        if (before === now) {
-            return;
-        }
-
-        if (ghosts === null) {
-            paintedGhosts = null;
-        }
-
-        repaintStates({ node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) });
+        // Only a slide's rows, carried forward in place, are all that changed.
+        const carried = moved !== undefined && outside !== null && outside.node === painted.outside?.node;
+        const held = movedRows("ghosts", ghosts);
+        const window = movedRows("outside", outside, moved);
+        const rowsOnly = carried && held.node.length === 0 && held.edge.length === 0;
+        repaintStates(
+            {
+                node: [...Array.from(held.node), ...Array.from(window.node)],
+                edge: [...Array.from(held.edge), ...Array.from(window.edge)],
+            },
+            rowsOnly,
+        );
     };
     // A pin or an unpin, forward or on undo and redo, repaints the nodes whose pin moved, for a
     // `"pinned"` state layer. Registered after the arrangement's own hook, so the lane's pin bytes
@@ -3802,6 +3837,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     elementInState = (state, target, index) => {
         if (state === "ghosted") {
             return visibility.ghosted(target, index);
+        }
+
+        if (state === "outsideWindow") {
+            return visibility.outsideWindow(target, index);
         }
 
         if (state === "pinned") {
@@ -3868,6 +3907,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // beside a load would paint half a graph and then be handed the other half.
         queue,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
+        drawn: () => {
+            if (!visibility.ghosting) {
+                return null;
+            }
+
+            const rows = (mask: { forEachMember(visit: (index: number) => void): void }): number[] => {
+                const found: number[] = [];
+                mask.forEachMember((index) => found.push(index));
+                return found;
+            };
+            return { nodes: rows(visibility.drawnMasks.nodes()), edges: rows(visibility.drawnMasks.edges()) };
+        },
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         inputRevision: () => inputs.tick.value,
         stateRevision: () => stateRevision,

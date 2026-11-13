@@ -830,7 +830,7 @@ describe("with the timeline off", () => {
         await reopened.project.open(text.replaceAll(NEW_YORK, BAD_ZONE));
         const saved = await reopened.project.save();
         assert.include(saved.text, BAD_ZONE);
-        assert.include(saved.text, '"outside":"ghost"');
+        assert.include(saved.text, '"step":"day"');
         session.dispose();
         reopened.dispose();
     });

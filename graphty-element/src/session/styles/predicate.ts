@@ -42,7 +42,7 @@
 import { maskTest, type U32 } from "@graphty/graph-format";
 
 import type { AiRule, AiRuleTerm } from "../../catalog/ai";
-import type { EdgeId, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
+import type { EdgeId, ElementState, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 
@@ -176,11 +176,7 @@ export interface SelectorSource {
      * @param index - The dense index.
      * @returns True when the element is in that state.
      */
-    readonly inState?: (
-        state: "selected" | "hovered" | "ghosted" | "pinned",
-        target: SelectorTarget,
-        index: number,
-    ) => boolean;
+    readonly inState?: (state: ElementState, target: SelectorTarget, index: number) => boolean;
     /**
      * What the reader is pointing at, which a `{match:"hover"}` selector tests by index. Absent,
      * a `{match:"hover"}` selector is refused.

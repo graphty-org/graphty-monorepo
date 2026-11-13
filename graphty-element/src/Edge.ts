@@ -2822,7 +2822,6 @@ export class Edge {
             () => rows.positionTexture,
             { loop: this.isLoop, route: this.routeOf(style), lean: this.context.leansLines?.() ?? false },
         );
-        const piece = batch.acquire();
         // As `createStaticLine` hands the plain line's material its look.
         const opacity = EdgeMesh.opacityOf(style);
         const animationSpeed = style.line?.animationSpeed ?? 0;
@@ -2833,6 +2832,7 @@ export class Edge {
         if (animationSpeed) {
             look = { color: movingTexel(color), opacity, width: options.width / 40 };
         }
+        const piece = batch.acquire(look.width);
         batch.setLook(piece, look.color, look.opacity, look.width);
         if (animationSpeed) {
             batch.setSpeed(piece, animationSpeed);
@@ -2956,7 +2956,7 @@ export class Edge {
 
         const { batch, look } = pulled;
         while (run.length + 1 < (span?.pieces ?? 0)) {
-            const piece = batch.acquire();
+            const piece = batch.acquire(look.width);
             batch.setLook(piece, look.color, look.opacity, look.width);
             batch.setRows(piece, pulled.source, pulled.target);
             run.push(piece);
@@ -5322,13 +5322,12 @@ export class Edge {
             return null;
         }
 
-        const tip = new Vector3(1, 0, 0);
         const { src, dst, lineEnd } = trimEnds({
             src: table.centerOf(source.index),
             dst: table.centerOf(target.index),
             source: srcEnd,
             target: dstEnd,
-            capBack: 1 - this.lineEndBefore(Vector3.Zero(), tip).x,
+            ...(this.capBack() ?? { capGap: 0, capBack: 0 }),
         });
         const point = (at: Xyz | null): Vector3 | null => (at === null ? null : new Vector3(at.x, at.y, at.z));
         return { srcPoint: point(src), dstPoint: point(dst), newEndPoint: point(lineEnd) };
@@ -5401,14 +5400,12 @@ export class Edge {
                 group: node.isDrawnBehindEdges,
             };
         };
-        // a line a unit long loses what the arrow head takes from any line
-        const tip = new Vector3(1, 0, 0);
         return {
             src: this.srcNode.drawnPosition,
             dst: this.dstNode.drawnPosition,
             source: trimEnd(this.srcNode, this.gapAt("source"), this.dstNode),
             target: trimEnd(this.dstNode, this.gapAt("target"), this.srcNode),
-            capBack: 1 - this.lineEndBefore(Vector3.Zero(), tip).x,
+            ...(this.capBack() ?? { capGap: 0, capBack: 0 }),
         };
     }
 
@@ -5447,12 +5444,28 @@ export class Edge {
      * @returns The line's end.
      */
     private lineEndBefore(srcPoint: Vector3, dstPoint: Vector3): Vector3 {
+        const back = this.capBack();
+        if (back === null) {
+            return dstPoint;
+        }
+
+        // Direction points FROM source TO destination (forward direction)
+        const direction = dstPoint.subtract(srcPoint).normalize();
+        return dstPoint.subtract(direction.scale(back.capGap)).subtract(direction.scale(back.capBack));
+    }
+
+    /**
+     * How far short of the target's surface the line stops for its arrow head: the gap before the head, then
+     * the head itself, taken off one after the other as {@link Edge.lineEndBefore} does and as `trimEnds` must,
+     * so both give the same last bit.
+     * @returns The two distances, or null with no arrow head or one drawn part-way along, where the line goes all
+     *     the way to the node's surface.
+     */
+    private capBack(): { capGap: number; capBack: number } | null {
         const style = this.currentStyle;
         const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
-
-        // No arrow head, or one drawn part-way along: the line goes all the way to the node surface
         if (!hasArrowHead || (style.arrowHead?.position ?? 0) > 0) {
-            return dstPoint;
+            return null;
         }
 
         const arrowSize = style.arrowHead?.size ?? 1;
@@ -5465,11 +5478,7 @@ export class Edge {
             geometry.scaleFactor = 1;
         }
 
-        // Use common function to calculate line endpoint
-        // Direction points FROM source TO destination (forward direction)
-        const direction = dstPoint.subtract(srcPoint).normalize();
-        const capEnd = dstPoint.subtract(direction.scale(Edge.capGap(style.arrowHead)));
-        return EdgeMesh.calculateLineEndpoint(capEnd, direction, arrowLength, geometry);
+        return { capGap: Edge.capGap(style.arrowHead), capBack: EdgeMesh.lineStopOf(arrowLength, geometry) };
     }
 
     /**

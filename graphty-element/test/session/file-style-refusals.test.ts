@@ -24,7 +24,7 @@ describe("refusals while a file's styles are applied", () => {
         const { visibility } = dispatcherOf(session).services;
         assert.isDefined(visibility);
         vi.spyOn(visibility, "check").mockImplementation(() => {
-            throw new GraphtyError({ code: "E_BAD_COMMAND", message: "refused", source: "visibility" });
+            throw new GraphtyError({ code: "E_BAD_COMMAND", message: "refused", source: "data" });
         });
         let caught: unknown;
         try {

@@ -478,6 +478,8 @@ describe("the inspector", () => {
         const bar = await screen.findByText("The run failed: it did not settle on an answer");
         assert.equal(bar.getAttribute("role"), "status");
         assert.notInclude(bar.textContent, "E_");
+        assert.isNull(screen.queryByRole("tab", { name: "Style" }), "nothing to style, so no Style tab");
+        assert.strictEqual(screen.getByRole("tab", { name: "Values" }).getAttribute("aria-selected"), "true");
     });
 
     it("names the Everything row once in its header, not again as its kind", async () => {

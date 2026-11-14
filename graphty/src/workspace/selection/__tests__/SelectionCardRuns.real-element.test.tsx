@@ -163,6 +163,79 @@ describe("runs started from a selection card", () => {
     });
 });
 
+describe("a card step computed on So far (design: algo-options cardruns.md, rule 4)", () => {
+    it("keeps its result inside the step: no run listed, no column, no undo step, before or after Done", async () => {
+        const { session } = await openLayer();
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        const modal = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found, "the modal is open");
+            return found;
+        });
+        const pick = async (name: string): Promise<void> => {
+            await screen.findByRole("combobox", { name: "Find attributes, results" });
+            await userEvent.keyboard(name);
+            await userEvent.keyboard("{Enter}");
+        };
+        await userEvent.click(await within(modal).findByRole("button", { name: "Value" }));
+        await pick("Degree");
+        const card = await waitFor(() => {
+            const found = modal.querySelector<HTMLElement>(".sel-card");
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(within(card).getByRole("button", { name: /^Keep$/ }));
+        await pick("PageRank");
+        await waitFor(() => {
+            assert.isTrue(
+                session.runs.list().some((run) => run.algorithm === "pagerank" && run.status === "succeeded"),
+                "the step on the base reads an ordinary run",
+            );
+        });
+        const runSteps = (): number => session.history.steps.filter((step) => step.ops.includes("algo.run")).length;
+        const stepsBefore = runSteps();
+
+        await userEvent.click(within(modal).getByRole("button", { name: "Settings for PageRank" }));
+        const settings = await screen.findByRole("dialog", { name: "PageRank" });
+        const computedOn = await within(settings).findByRole("radiogroup", { name: "Computed on" });
+        await userEvent.click(within(computedOn).getByText("So far"));
+        await userEvent.keyboard("{Escape}");
+        // Its own values landed: the step draws its test from them.
+        const pane = await waitFor(() => {
+            const found = [...modal.querySelectorAll<HTMLElement>("[data-step-pane]")].at(-1);
+            assert.isDefined(found);
+            assert.isNotNull(within(found).queryByRole("textbox", { name: /from, number$/ }));
+            assert.notInclude(found.textContent, "Computing");
+            return found;
+        });
+        assert.include(pane.textContent, "So far", "the step says what it is computed on");
+
+        const columns = (): string[] =>
+            session.data
+                .attributes()
+                .map((attribute) => attribute.path)
+                .filter((path) => /pagerank/iu.test(path));
+        assert.deepEqual(columns(), [], "no column for the step's own values");
+        assert.strictEqual(runSteps(), stepsBefore, "its computation is no undo step");
+
+        await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
+            assert.strictEqual(pagerankRuns(session), 0, "the card reads no listed PageRank run");
+        });
+        assert.deepEqual(columns(), []);
+        assert.strictEqual(runSteps(), stepsBefore);
+
+        // The Data place's Calculated tab lists no PageRank.
+        await userEvent.click(screen.getByRole("button", { name: /^Data/ }));
+        await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+        const panel = await screen.findByRole("tabpanel");
+        await waitFor(() => {
+            assert.notInclude(panel.textContent, "PageRank");
+        });
+    });
+});
+
 /**
  * The first card's header count ("8 of 77"), from its accessible name.
  * @returns the count.

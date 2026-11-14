@@ -315,6 +315,16 @@ describe("gmlExporter: texts equal to NetworkX's list markers", () => {
         expect(rt.text).toContain('l "&#40;)"');
         expectSameSnapshot(snapshot, rt.snapshot, { allowExtraColumns: false });
     });
+
+    it("escapes a marker text inside a JSON record so it reads back as text (#7649)", async () => {
+        const builder = new GraphBuilder({ directed: false });
+        builder.declareNodeColumn({ name: "j", dtype: "json" });
+        builder.setNodeValue("j", builder.addNode(1), { a: "[]", b: "()", c: LIST_START_MARKER, d: "x" });
+        const snapshot = builder.freeze();
+        expect(gmlExporter.check(snapshot)).toEqual([]);
+        const rt = await roundTrip(snapshot, gmlExporter, gmlImporter);
+        expect(rt.snapshot.nodes.require("j").value(0)).toEqual({ a: "[]", b: "()", c: LIST_START_MARKER, d: "x" });
+    });
 });
 
 describe("gmlExporter: graphics and positions", () => {

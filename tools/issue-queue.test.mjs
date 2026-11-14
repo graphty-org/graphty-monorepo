@@ -115,6 +115,8 @@ describe("list", () => {
                 issue(8, "Nightly missed slot 2026-11-02 18:00 UTC: waiting", ["bug"]),
                 issue(11, "Full run red: lane-a on abc123", ["bug", "priority:critical"]),
                 issue(12, "Failing on master: lint", ["bug", "priority:critical"]),
+                issue(14, "Red master: CI failed on abc1234", ["bug", "priority:critical"]),
+                issue(15, "canary deploy failed on abc1234", ["bug", "priority:critical"]),
                 issue(13, "critical bug", ["bug", "priority:critical"]),
                 issue(6, "kept", ["bug"]),
                 issue(9, "ux-safe enhancement", ["enhancement", "ux-safe"]),

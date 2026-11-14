@@ -174,7 +174,7 @@ import {
 } from "./styles";
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
-import { isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
+import { fileStyleWords, isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
 import { asFileStyleStore, FILE_STYLES_VALUE, fileStyleColumn, type FileStyleStore } from "./styles/fileStyles/store";
 import { createHoverSource } from "./styles/hover";
 import { readsWholeColumn } from "./styles/labelTemplate";
@@ -195,6 +195,7 @@ import {
     edgeEndpointOf,
     type SessionSelectorSource,
     STRUCTURE_PATHS,
+    STRUCTURE_VALUES,
 } from "./styles/sources";
 import { paintingOf, repaintFailure } from "./styles/StylesApi";
 import type { EdgeAgeFade } from "./time/ageFade";
@@ -2376,7 +2377,13 @@ function fieldWordsOf(
             }
         }
 
-        return undefined;
+        // The values graphty-element keeps itself: a node's degrees and a file's style columns.
+        const structure = target === "node" ? STRUCTURE_VALUES.find((each) => each.path === path) : undefined;
+        if (structure !== undefined) {
+            return { plainName: structure.plainName, technicalName: structure.technicalName };
+        }
+
+        return parseFileStylePath(path)?.kind === target ? fileStyleWords(path) : undefined;
     };
 }
 

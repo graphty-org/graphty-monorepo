@@ -66,6 +66,7 @@ export type {
 } from "./styles/fileStyles/origin";
 export { FILE_STYLE_REASONS, fileStyleOf } from "./styles/fileStyles/origin";
 export type { FileStyleKind } from "./styles/fileStyles/path";
+export { fileStyleWords } from "./styles/fileStyles/path";
 export type { FileStyleShapeTable } from "./styles/fileStyles/shapes";
 export { FILE_STYLE_SHAPES } from "./styles/fileStyles/shapes";
 export type { FileStyleColumnValues, FileStyleLoadValues, FileStyleScalar } from "./styles/fileStyles/store";

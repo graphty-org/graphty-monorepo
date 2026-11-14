@@ -9,6 +9,7 @@ import {
     createGraphSession,
     type FileStyleLoadValues,
     fileStyleOf,
+    fileStyleWords,
     type GraphSession,
     type Layer,
     quotePath,
@@ -94,6 +95,34 @@ describe("the file-style paths", () => {
         assert.strictEqual(computedPath("degree"), "graphty.degree");
         assert.strictEqual(computedOf("graphty.inDegree"), "indegree");
         assert.isUndefined(computedOf("graphty.degrees"));
+    });
+
+    it("go by readable names in a legend, never by their paths", async () => {
+        assert.deepEqual(fileStyleWords(MEMBER), { plainName: "File style", technicalName: "member.3" });
+        assert.strictEqual(fileStyleWords(fileStylePath("gexf", "node", "class"))?.plainName, "Style class");
+        assert.isUndefined(fileStyleWords("data.weight"));
+
+        const session = await loaded();
+        await session.data.addEdges([{ source: "c", target: "a" }]);
+        const copied = await session.styles.add({
+            name: "Copied width",
+            target: "edge",
+            selector: { match: "has", path: fileStylePath("gexf", "edge", "width") },
+            encode: { "edge.width": { by: fileStylePath("gexf", "edge", "width"), scale: "passthrough" } },
+        });
+        const degree = await session.styles.add({
+            name: "By in-degree",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.size": { by: "graphty.inDegree", scale: "passthrough" } },
+        });
+        await session.styles.settled();
+        const fieldOf = (id: string): string | undefined =>
+            session.styles.legendOf(id).find((block) => block.field !== undefined)?.field?.plainName;
+
+        assert.strictEqual(fieldOf(copied.id), "File style");
+        assert.strictEqual(fieldOf(degree.id), "In-degree");
+        session.dispose();
     });
 
     it("give a second load of one format its own namespace", () => {

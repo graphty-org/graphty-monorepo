@@ -1437,6 +1437,9 @@ export type FileStyleTool = StyleTool;
 // @public
 export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[keyof typeof FILE_STYLE_TRANSLATION_ISSUE];
 
+// @public
+export function fileStyleWords(path: Path): FieldWords | undefined;
+
 // @public @deprecated
 export type Filter = RuleTree;
 

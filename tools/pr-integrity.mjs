@@ -234,7 +234,7 @@ export function revertedMerge(cwd, { base, mergeBase, head, text }) {
  * judge decides the exception lists, the shader-library snapshot and the tests under
  * test/saved-format/: adding or editing a test, adding a self-contained kind and removing an
  * exception are free, while widening an exception, deleting a test or changing the snapshot is not
- * (the test-integrity rule still reviews an edited test). Lines added to the kinds' rows are free
+ * (an edited test is left to the agent review, as the trailer check leaves it). Lines added to the kinds' rows are free
  * too. Anything else under the guard (the checks' own code, their lint rule, the shader hash lists)
  * always needs one.
  * @param cwd the repository

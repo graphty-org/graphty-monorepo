@@ -2800,8 +2800,8 @@ export class Graph implements GraphContext {
         y: number;
     }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
-    // (undocumented)
-    enableDetailedProfiling?: boolean;
+    get enableDetailedProfiling(): boolean | undefined;
+    set enableDetailedProfiling(value: boolean | undefined);
     endAiLive(): void;
     // (undocumented)
     engine: WebGPUEngine | Engine;

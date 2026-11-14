@@ -774,7 +774,34 @@ export class Graph implements GraphContext {
      * asked for replaces the default before it is built. See {@link Graph.openingSignalFor}.
      */
     #openingSignal: AbortSignal | undefined;
-    enableDetailedProfiling?: boolean;
+    #enableDetailedProfiling?: boolean;
+
+    /**
+     * Whether detailed profiling (hierarchical CPU timing in the stats manager) is on. Takes
+     * effect whenever it is set, before or after `init()`; setting it to `false` turns profiling
+     * off and clears what was measured.
+     * @returns Whether detailed profiling is on, or `undefined` when it was never set.
+     */
+    get enableDetailedProfiling(): boolean | undefined {
+        return this.#enableDetailedProfiling;
+    }
+
+    /**
+     * Turns detailed profiling on or off at once; `false` also clears what was measured.
+     * @param value - Whether detailed profiling is on.
+     */
+    set enableDetailedProfiling(value: boolean | undefined) {
+        if (value === this.#enableDetailedProfiling) {
+            return;
+        }
+
+        this.#enableDetailedProfiling = value;
+        if (value) {
+            this.statsManager.enableProfiling();
+        } else {
+            this.statsManager.disableProfiling();
+        }
+    }
     /** The view settings, as set; see {@link ViewSettings}. Written only through `writeViewSettings`. */
     private readonly viewSettings: ViewSettings = { graph: {}, behavior: {} };
     /** Moves on every write of the view settings, so the frozen configuration knows to rebuild. */

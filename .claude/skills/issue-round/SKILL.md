@@ -36,6 +36,12 @@ has no commit and no changed file 60 minutes after its `taken` marker is stuck: 
 job (`released -- no work 60 min after taken`); the median job finishes in 11 minutes. A job whose newest marker is `ready` or `opened` is done here: its pull request (or pipeline-round, when it has
 none) takes it from there.
 
+**This session's red pull requests come before new issues.** At the start of the round and whenever any subagent
+reports, check this session's open pull requests (the broker file `tmp/pr-status/status.json`, or ONE GraphQL query
+for all of them) and start a fix job at once for each red or conflicting one that has no fix job running, before any
+new issue: a red pull request keeps its files blocked for every other issue (step 4). Its prompt follows
+`tmp/issue-round/red-pr-prompt.md` (main checkout). It counts against the limits below like any fix job.
+
 **While master is red, jobs still start** (see "While master is red" in the shared file): they commit, push and
 write their `ready` marker, and open their pull requests in a later round once master is green. CI's runners are not
 checked for them, since they open nothing.
@@ -66,8 +72,13 @@ the kind of fixed cap the owner rejected on 2026-10-30 ("three jobs is an arbitr
 through at the rate that the system allows"). Measured on 2026-11-13: all 4 slots were full only 14% of the time,
 while 1.5 jobs ran on average.
 
+**Never leave a slot idle for want of a startable issue.** When free test slots exist but the free list (step 4)
+has nothing startable, start the read-only diagnosis jobs below at once, without waiting for a later round; one
+diagnosis subagent may take up to 4 free bugs. The round's last line names how many slots were idle at its end and
+why (for example `slots idle 2: free list empty, 6 diagnoses started`).
+
 **No-PR work when blocked.** Instead of fix jobs, start read-only background subagents: one per free bug with no
-diagnosis yet, and one per old issue to verify. They hold no test slot, edit and commit nothing and open no pull
+diagnosis yet (or up to 4 per subagent), and one per old issue to verify. They hold no test slot, edit and commit nothing and open no pull
 request, so neither the queue nor the slots limit them; the GitHub budget does. Re-check
 `gh api rate_limit --jq .resources.core.remaining` before each start, keep 2,000 requests in reserve, and start at
 most (remaining - 2,000) / 5 of them this round, since each makes about 5 calls:
@@ -93,7 +104,7 @@ the counts in the round's last line. Every free bug must have a reason, a job or
 **The round's last line reports the burn-down**, whatever ended the round, for example
 `issue-round: 24 h closed 9, opened 6; open bugs 41 (critical 3, in-progress 12, blocked 5, owner-only 2, free 19);
 claims without a pull request 8, longest idle #6123 31 h; ready queue 4; blocked by nothing; started 11 jobs, 3
-read-only; owner pull requests counted only on conflicting files: #1677`. Two GitHub calls give it, never one per issue:
+read-only, 2 red pull requests sent back; slots idle 0; owner pull requests counted only on conflicting files: #1677`. Two GitHub calls give it, never one per issue:
 `gh issue list -R graphty-org/graphty-monorepo --state all --search "updated:>=<24 h ago, ISO>" --limit 300 --json number,createdAt,closedAt`
 (count the `createdAt` and `closedAt` inside the last 24 hours) and the `gh issue list -l bug --json number,labels`
 above. Claims without a pull request, their idle times (see "Idle claims" in the shared file) and the ready queue come
@@ -174,7 +185,7 @@ the files the fix will touch, for step 4.
 
 ## 4. Check for collisions
 
-Never start a job on a file that a **live** change also touches. A job's files come from the code its fix will change, not only from
+Never start a job on a file that a **live** change also touches, unless the two merge cleanly (below). A job's files come from the code its fix will change, not only from
 the paths its issue names: on 2026-11-12 a check of named paths alone both missed real collisions (#2619, #5691,
 #1205) and passed over 144 free issues.
 
@@ -221,10 +232,29 @@ Compare the job's files (the cluster's `files`, or step 3's) with:
 
 Two paths overlap only when they are the same file. A directory in a running job's `taken` marker or an older cluster
 plan blocks only the files the job's issues name inside it; refine it to the files that job has changed (its branch
-diff) once it has any. On an overlap with this session's own
-unmerged pull request (usually the previous job of the same cluster), the job waits for it: leave the cluster, and a
-later round starts the job once that pull request has merged. On any other overlap, defer the job. Either way the round
-goes on to the next cluster (or the next issue).
+diff) once it has any. When the job's plan touches the same function or hunk as this session's own unmerged pull
+request (usually the previous job of the same cluster), the job waits for it: leave the cluster, and a later round
+starts the job once that pull request has merged.
+
+**An overlap that merges cleanly does not block.** A shared file with an open, still-counting pull request (this
+session's own included: on 2026-11-13 most of the issues still blocked were blocked by this session's own open pull
+requests, which spend hours in CI) lets the job start when both can merge: the open branch merges cleanly with master
+(`git merge-tree --write-tree --name-only origin/master origin/<that branch>` prints only its tree line, after
+`git fetch origin <that branch>`), and the job's planned change sits in other places of the shared file than that
+pull request's diff (`git diff origin/master...origin/<that branch> -- <file>`). Why: on 2026-11-13, 79 of 99 pairs of
+open pull requests that share files merged cleanly, and that evening about 45 of 110 workable issues sat blocked by
+file overlap while only 1 to 4 of the 4 test slots were busy. Still a hard block:
+
+- the open branch itself conflicts with master;
+- the same function or hunk named in both plans (or the job's plan touches lines that pull request changed);
+- a generated file that is not in the shared list above;
+- `CLAUDE.md` and `index.ts` export barrels.
+
+Such a job's `taken` marker names the pull request (`shares <file> with #<n>, merges cleanly`), and its prompt adds:
+"Touch <file> only in places #<n> does not change (see `git diff origin/master...origin/<branch> -- <file>`). Merge
+origin/master before opening; on a conflict, settle it, or release with `pipeline-round: released -- deferred:
+conflicts with #<n>` and remove `in-progress`." Any other overlap defers the job. Either way the round goes on to the
+next cluster (or the next issue). The free-queue scan applies the same rule.
 
 ## 5. Mark and start
 

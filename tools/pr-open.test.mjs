@@ -388,6 +388,30 @@ describe("pr-open.sh", () => {
         assert.equal(armed().length, 0);
     });
 
+    it("arms auto-merge for a save-file change that only narrows the checks, never for one that widens them", () => {
+        const lists = { "graphty-element/test/saved-format/saved-format-lists.json": "{}\n" };
+        branch("fix/7801-lists", lists, "fix(graphty-element): carry palettes");
+        let r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/12 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.doesNotMatch(r.out, /auto-merge is NOT on/);
+        assert.equal(armed().length, 1);
+        // each branch starts from the one before
+        const widened = '{"exceptions":[{"kind":"arrow","paths":["a"],"catalogs":["arrows"]}]}\n';
+        branch("fix/7803-widen", { [Object.keys(lists)[0]]: widened }, "fix(graphty-element): name arrows");
+        r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/14 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(
+            r.out,
+            /weakens the save-file checks: graphty-element\/test\/saved-format\/saved-format-lists\.json/,
+        );
+        assert.equal(armed().length, 1);
+        branch("fix/7802-allowlist", { "tools/check-saved-format-allowlist.mjs": "x\n" }, "fix(tools): widen it");
+        r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/13 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /guards the owner: tools\/check-saved-format-allowlist\.mjs/);
+        assert.equal(armed().length, 1);
+    });
+
     it("never arms auto-merge on a pull request someone else opened", () => {
         branch("fix/1245-owners");
         const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/9 apowers313" });

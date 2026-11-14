@@ -211,6 +211,86 @@ describe("prIntegrity", () => {
         assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: .*kinds\.ts/);
     });
 
+    describe("judges a change to the save-file checks like the allowlist check does", () => {
+        const DIR = "graphty-element/test/saved-format/";
+        const lists = `${DIR}saved-format-lists.json`;
+        const json = (o) => `${JSON.stringify(o)}\n`;
+        const exception = (kind, paths = [`a.${kind}`]) => ({ kind, paths, catalogs: [`${kind}s`] });
+        const BASE = {
+            selfContained: ["shaders"],
+            exceptions: [exception("palette"), exception("labelLook")],
+            notSaved: {},
+            volatile: [],
+        };
+        // a repository whose master holds the lists, the kinds' rows, a test and the shader library
+        const start = () => {
+            const r = repo();
+            r.commit("test: the save-file checks", {
+                [lists]: json(BASE),
+                [`${DIR}kinds.ts`]: "export const KINDS = [\n    shaders,\n];\n",
+                [`${DIR}clean-room.test.ts`]: TEST,
+                [`${DIR}shader-library.json`]: "{}\n",
+            });
+            r.git("switch", "-q", "-c", "b");
+            return r;
+        };
+
+        it("lets #7588's shape through: palettes and label looks carried, their exceptions removed, rows added", () => {
+            const r = start();
+            r.commit("fix: save files carry the palettes and label looks they use", {
+                [lists]: json({ ...BASE, selfContained: ["shaders", "palettes", "labelLooks"], exceptions: [] }),
+                [`${DIR}kinds.ts`]: "export const KINDS = [\n    shaders,\n    palettes,\n    labelLooks,\n];\n",
+                [`${DIR}clean-room.test.ts`]: `${TEST}it("c", () => { expect(3).toBe(3); });\n`,
+            });
+            assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
+        });
+
+        it("lets an added test and an added self-contained kind through", () => {
+            const r = start();
+            r.commit("test: a new save-file test", {
+                [`${DIR}palettes.test.ts`]: TEST,
+                [lists]: json({ ...BASE, selfContained: ["shaders", "palettes"] }),
+            });
+            assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
+        });
+
+        for (const [what, files] of [
+            ["adds an exception", { [lists]: json({ ...BASE, exceptions: [...BASE.exceptions, exception("arrow")] }) }],
+            [
+                "adds an exception path",
+                {
+                    [lists]: json({
+                        ...BASE,
+                        exceptions: [exception("palette", ["a.palette", "b"]), exception("labelLook")],
+                    }),
+                },
+            ],
+            ["adds a notSaved key", { [lists]: json({ ...BASE, notSaved: { palettes: "x" } }) }],
+            ["adds a volatile field", { [lists]: json({ ...BASE, volatile: ["savedAt"] }) }],
+            ["removes a self-contained kind", { [lists]: json({ ...BASE, selfContained: [] }) }],
+            ["deletes a test file", { [`${DIR}clean-room.test.ts`]: null }],
+            ["changes the shader-library snapshot", { [`${DIR}shader-library.json`]: '{"a":1}\n' }],
+            [
+                "removes an exception but also edits a helper",
+                { [lists]: json({ ...BASE, exceptions: [] }), [`${DIR}builtInIds.ts`]: "x\n" },
+            ],
+            [
+                "removes an exception but also changes the allowlist check",
+                { [lists]: json({ ...BASE, exceptions: [] }), "tools/check-saved-format-allowlist.mjs": "x\n" },
+            ],
+        ]) {
+            it(`needs a code owner when it ${what}`, () => {
+                const r = start();
+                const head = r.commit(`test: ${what}`, files);
+                assert.match(prIntegrity(r.dir, pr(r)).problems.join("\n"), /^Saved format: /m);
+                assert.deepEqual(
+                    prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems,
+                    [],
+                );
+            });
+        }
+    });
+
     it("lets a mechanical revert change the save-file checks", () => {
         const r = repo();
         r.git("switch", "-q", "-c", "feature");
@@ -223,7 +303,7 @@ describe("prIntegrity", () => {
         assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
         // anything else in a saved-format file still needs the owner
         r.git("switch", "-q", "-c", "other", m);
-        r.commit("test: unrelated", { "graphty-element/test/saved-format/x.test.ts": "x\n" });
+        r.commit("test: unrelated", { "graphty-element/test/saved-format/x.ts": "x\n" });
         assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: /);
     });
 

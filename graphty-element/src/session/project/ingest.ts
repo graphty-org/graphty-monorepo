@@ -26,6 +26,8 @@ import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import {
     type ImportReport,
     type ImportTally,
+    keepRejectedRow,
+    keepUnmatchedRow,
     loadErrorOf,
     type LoadReport,
     newImportTally,
@@ -52,6 +54,19 @@ import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/prov
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
 import type { DataSourceDescriptor, EdgeEnd, LeftOutEdge, LoadedSource, LoadedSourceKind } from "../types";
 import { frozenRecord } from "./draft";
+
+/** The two ends of an edge, in the order a record names them. */
+const EDGE_ENDS = ["source", "target"] as const;
+
+/**
+ * A row's line: the draft's, or its position among the load's records when the draft gave none.
+ * @param lines - The draft's lines, or null.
+ * @param ordinal - The row's position among the load's records of its kind, from 1.
+ * @returns The line.
+ */
+function lineOf(lines: readonly number[] | null, ordinal: number): number {
+    return lines?.[ordinal - 1] ?? ordinal;
+}
 
 /** How many left-out edge rows a load keeps with its source, so a reader can still see them. */
 const LEFT_OUT_KEPT = 100;
@@ -578,6 +593,9 @@ export class Ingest<K extends KnownEdge> {
     /** Each edge record's line in the draft the load in progress reads, or null when it reads no draft. */
     private loadEdgeLines: readonly number[] | null = null;
 
+    /** Each node record's line in the draft the load in progress reads, or null when it reads no draft. */
+    private loadNodeLines: readonly number[] | null = null;
+
     /** What the load in progress does with a node record repeating an id an earlier one gave. */
     private duplicateIds: NonNullable<DataImportCommand["duplicateIds"]> = "first";
     /** For a merge: whether a node already in the graph takes the incoming attributes. */
@@ -823,6 +841,7 @@ export class Ingest<K extends KnownEdge> {
             this.leftOutEdges = [];
             this.leftOutEnds = null;
             this.loadEdgeLines = null;
+            this.loadNodeLines = null;
             this.duplicateIds = "first";
             this.updateExisting = false;
             this.measure = null;
@@ -840,6 +859,7 @@ export class Ingest<K extends KnownEdge> {
         this.leftOutEdges = [];
         this.leftOutEnds = null;
         this.loadEdgeLines = command.held === undefined ? null : (command.held.edgeLines ?? []);
+        this.loadNodeLines = command.held === undefined ? null : (command.held.nodeLines ?? []);
         this.duplicateIds = command.duplicateIds ?? "first";
         this.updateExisting = command.mode === "merge" && command.existing === "update";
         // A replacing load is measured against an empty graph, which is what it leaves. Set before
@@ -1004,6 +1024,7 @@ export class Ingest<K extends KnownEdge> {
             leftOutEdges: this.leftOutEdges,
             leftOutEnds: this.leftOutEnds,
             loadEdgeLines: this.loadEdgeLines,
+            loadNodeLines: this.loadNodeLines,
             duplicateIds: this.duplicateIds,
             updateExisting: this.updateExisting,
             loadBeganWithNodes: this.loadBeganWithNodes,
@@ -1018,6 +1039,7 @@ export class Ingest<K extends KnownEdge> {
         this.leftOutEdges = [];
         this.leftOutEnds = null;
         this.loadEdgeLines = null;
+        this.loadNodeLines = null;
         this.duplicateIds = "first";
         this.updateExisting = false;
         this.loadBeganWithNodes = false;
@@ -1043,6 +1065,7 @@ export class Ingest<K extends KnownEdge> {
                 leftOutEdges: this.leftOutEdges,
                 leftOutEnds: this.leftOutEnds,
                 loadEdgeLines: this.loadEdgeLines,
+                loadNodeLines: this.loadNodeLines,
                 duplicateIds: this.duplicateIds,
                 updateExisting: this.updateExisting,
                 loadBeganWithNodes: this.loadBeganWithNodes,
@@ -1093,7 +1116,8 @@ export class Ingest<K extends KnownEdge> {
 
         for (const [i, node] of nodes.entries()) {
             const nodeId = ids[i];
-            if (this.loadTally !== null && this.loadRowSkipped(nodeId, node, writer, this.loadTally)) {
+            const ordinal = (this.loadTally?.nodeRecords ?? 0) - nodes.length + i + 1;
+            if (this.loadTally !== null && this.loadRowSkipped(nodeId, node, writer, this.loadTally, ordinal)) {
                 continue;
             }
 
@@ -1135,6 +1159,7 @@ export class Ingest<K extends KnownEdge> {
      * @param record - The record.
      * @param writer - The graph primitives to write through.
      * @param tally - The load's tally.
+     * @param ordinal - The record's position among the load's node records, from 1.
      * @returns True when the record adds no node.
      * @throws A `GraphtyError` with `E_DUPLICATE_ID` under `"refuse"`.
      */
@@ -1143,11 +1168,14 @@ export class Ingest<K extends KnownEdge> {
         record: Record<string | number, unknown>,
         writer: GraphWriter,
         tally: ImportTally,
+        ordinal: number,
     ): boolean {
         if (!isStorableId(id)) {
+            const frozen = frozenRecord(record);
             tally.rejected++;
             tally.errors.push({ code: "refused-row", params: { rowsAre: "nodes" } });
-            tally.refusedRows.push({ rowsAre: "nodes", record: frozenRecord(record) });
+            tally.refusedRows.push({ rowsAre: "nodes", record: frozen });
+            keepRejectedRow(tally, lineOf(this.loadNodeLines, ordinal), frozen, "nodes");
             return true;
         }
 
@@ -1322,7 +1350,7 @@ export class Ingest<K extends KnownEdge> {
         tally.edgeRecords++;
         const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
         const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
-        if (this.loadTally !== null && this.isUnmatched(srcNodeId, dstNodeId, this.loadTally)) {
+        if (this.loadTally !== null && this.isUnmatched(edge, srcNodeId, dstNodeId, this.loadTally)) {
             this.keepLeftOut(edge, srcNodeId, dstNodeId, endpoints, tally.edgeRecords);
             tally.edgeIds.push(null);
             return false;
@@ -1363,6 +1391,8 @@ export class Ingest<K extends KnownEdge> {
             tally.rejected++;
             tally.errors.push({ code: "refused-row", params: { rowsAre: "edges" } });
             tally.refusedRows.push({ rowsAre: "edges", record });
+            const unusable = EDGE_ENDS.filter((_, at) => !isStorableId(at === 0 ? srcNodeId : dstNodeId));
+            keepRejectedRow(tally, lineOf(this.loadEdgeLines, tally.edgeRecords), record, "edges", unusable);
             tally.edgeIds.push(null);
             return legacy;
         }
@@ -1444,28 +1474,36 @@ export class Ingest<K extends KnownEdge> {
     /**
      * Count an edge record of a load that names a node no node record holds (nor the graph, for a
      * merge), and say whether the load leaves it out. Checked before the edge is stored, because storing it makes the node.
+     * @param edge - The edge record, kept with its reason in the report's `rows`.
      * @param source - The source id.
      * @param target - The target id.
      * @param tally - The load's counters.
      * @returns True when the edge is to be left out.
      */
-    private isUnmatched(source: NodeIdType, target: NodeIdType, tally: ImportTally): boolean {
+    private isUnmatched(
+        edge: Readonly<Record<string | number, unknown>>,
+        source: NodeIdType,
+        target: NodeIdType,
+        tally: ImportTally,
+    ): boolean {
         // With no node records and no graph to name, every node comes from the edges: none is missing.
         if (tally.nodeRecords === 0 && !this.loadBeganWithNodes) {
             return false;
         }
 
-        const missing = [source, target].filter(
-            (id) => isStorableId(id) && (tally.unmatchedValues.has(id) || !this.hasNode(id)),
+        const missing = EDGE_ENDS.map((end, at) => ({ end, id: at === 0 ? source : target })).filter(
+            ({ id }) => isStorableId(id) && (tally.unmatchedValues.has(id) || !this.hasNode(id)),
         );
         if (missing.length === 0) {
             return false;
         }
 
         tally.unmatchedRows++;
-        for (const id of missing) {
+        for (const { id } of missing) {
             tally.unmatchedValues.add(id);
         }
+
+        keepUnmatchedRow(tally, lineOf(this.loadEdgeLines, tally.edgeRecords), frozenRecord(edge), missing);
 
         return this.leaveOutUnmatched;
     }

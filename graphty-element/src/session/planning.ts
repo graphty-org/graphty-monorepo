@@ -1004,6 +1004,7 @@ function locationRefusal(
     const read = (path: string): readonly unknown[] | null => context.nodeValues?.(path) ?? null;
     const option = (name: string): string | null =>
         typeof options[name] === "string" && options[name] !== "" ? options[name] : null;
+    const source = isGazetteerSource(options.gazetteer) ? options.gazetteer : true;
     const answer = resolveLocation(
         chosenLocation(
             { location: option("location"), latitude: option("latitude"), longitude: option("longitude") },
@@ -1011,9 +1012,7 @@ function locationRefusal(
         ),
         nodeColumns(context),
         read,
-        options.gazetteer === false
-            ? false
-            : cachedGazetteer(isGazetteerSource(options.gazetteer) ? options.gazetteer : true),
+        options.gazetteer === false ? false : cachedGazetteer(source),
     );
     return isLocationRefusal(answer)
         ? refused(`the layout "${id}" found no location to read`, "layout.needs-location", {

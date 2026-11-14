@@ -62,6 +62,13 @@ export interface JoinWorkspaceApi {
      * @param regions - the regions, or null for every one.
      */
     readonly setKeep: (step: string, regions: readonly JoinRegion[] | null) => void;
+    /** Steps copied from a reader's card: none of their choices is a suggestion. */
+    readonly copies: ReadonlySet<string>;
+    /**
+     * Marks a step as a copy of a reader's card.
+     * @param step - the step.
+     */
+    readonly markCopy: (step: string) => void;
 }
 
 /** The workspace's state, provided by the shell. */

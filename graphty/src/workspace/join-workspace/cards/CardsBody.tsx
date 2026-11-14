@@ -267,6 +267,7 @@ function stepCommands(api: JoinWorkspaceApi, step: JoinStepEntry, at: number): r
                 api.edit((each) => {
                     made = each.add({ from: step.from, choices: step.choices }, at + 1);
                 });
+                api.markCopy(made);
                 api.select(made);
             },
         },

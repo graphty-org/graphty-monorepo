@@ -3,7 +3,7 @@
  * tags, and a card's title and match line.
  */
 
-import type { JoinInput } from "@graphty/graphty-element/session";
+import type { JoinInput, JoinReduce } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import { cardTitle, countOf, guessOf, isNewKey, listOf, matchLine, outcomeOf, perPair } from "../outcomes";
@@ -32,13 +32,13 @@ describe("join card answers", () => {
 
     it("words Per pair, List and Count as the element's reductions", () => {
         assert.deepEqual(perPair([{ file: "person_id", graph: "id" }]), {
-            aggregate: { person_id: "count" },
+            aggregate: Object.fromEntries<JoinReduce>([["person_id", "count"]]),
             names: { "person_id (count)": "count" },
         });
         assert.deepEqual(perPair([]), {});
         assert.deepEqual(listOf(["phone", "email"]), { phone: "list", email: "list" });
         assert.deepEqual(countOf("account_id", "logins"), {
-            aggregate: { account_id: "count" },
+            aggregate: Object.fromEntries<JoinReduce>([["account_id", "count"]]),
             names: { "account_id (count)": "logins count" },
             columns: [],
         });

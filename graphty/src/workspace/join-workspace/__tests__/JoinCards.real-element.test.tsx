@@ -461,6 +461,27 @@ describe("the join cards", () => {
         });
     });
 
+    it("keeps a named column's load when its No match flips to Add", async () => {
+        const { dialog } = await openCards([{ name: "doors.csv", text: DOORS }]);
+        const card = await pickAnswer(dialog, await addCard(dialog), /^A node with edges/, "node");
+        const first = await waitFor(() => {
+            const found = card.querySelector<HTMLElement>(".jc-match");
+            assert.isNotNull(found);
+            return found;
+        });
+        await choose(first, "Named match", /^people\.person_id/);
+        await waitFor(() => {
+            assert.strictEqual(picker(first, "Named match")?.value, "people.person_id");
+        });
+        const column = picker(first, "Named column")?.value ?? "";
+        await segment(card, `No match ${column}`, "Add");
+        await waitFor(() => {
+            const control = card.querySelector(`[aria-label="No match ${column}"]`);
+            assert.strictEqual(control?.querySelector("[data-active]")?.textContent, "Add");
+        });
+        assert.strictEqual(picker(first, "Named match")?.value, "people.person_id");
+    });
+
     it("holds a table from a URL, and shows why a URL could not be read", async () => {
         const { dialog } = await openCards([]);
         await userEvent.click(within(dialog).getByRole("button", { name: "Table" }));

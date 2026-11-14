@@ -183,9 +183,9 @@ function Picked({
         () => ({ version, suggestion: draft.suggest(step.from, step.id, { shape: OUTCOME_BY_ID[answer].shape }) }),
         [draft, version, step, answer],
     );
-    // A join reopened after Done was the reader's own choice: nothing on it is a suggestion.
+    // A join reopened after Done, or a copy of a card, was the reader's own choice: nothing on it is a suggestion.
     const suggested = (at: number): boolean =>
-        step.joined === undefined && sameKey(choices.keys[at], suggestion.keys[at]);
+        step.joined === undefined && !api.copies.has(step.id) && sameKey(choices.keys[at], suggestion.keys[at]);
     const setKeys = (keys: readonly JoinKey[]): void => {
         changeStep(api, step, { keys });
     };
@@ -231,11 +231,8 @@ function Picked({
                                 ]}
                                 onChange={(value) => {
                                     const keys = [...choices.keys];
-                                    keys[at] = {
-                                        file: key.file,
-                                        graph: key.graph,
-                                        ...(value === "add" ? { unknown: "add" } : {}),
-                                    };
+                                    const { unknown: _unknown, ...rest } = key;
+                                    keys[at] = { ...rest, ...(value === "add" ? { unknown: "add" } : {}) };
                                     setKeys(keys);
                                 }}
                             />

@@ -75,6 +75,7 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
     const [closing, setClosing] = useState(false);
     const [fate, setFate] = useState<JoinRowFate | null>(null);
     const [keeps, setKeeps] = useState<ReadonlyMap<string, readonly JoinRegion[]>>(new Map());
+    const [copies, setCopies] = useState<ReadonlySet<string>>(new Set());
     const api: JoinWorkspaceApi = useMemo(
         () => ({
             session,
@@ -116,8 +117,12 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
                     return next;
                 });
             },
+            copies,
+            markCopy: (id) => {
+                setCopies((now) => new Set(now).add(id));
+            },
         }),
-        [session, draft, version, step, side, fate, keeps],
+        [session, draft, version, step, side, fate, keeps, copies],
     );
 
     const close = (how: "done" | "cancel"): void => {

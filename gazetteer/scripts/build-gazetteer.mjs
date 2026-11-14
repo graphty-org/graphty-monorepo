@@ -23,13 +23,14 @@
  * the GeoNames first-level key ("US.TX"); a Natural Earth region carries it when GeoNames names that
  * key the same, and the cities file adds `regions`, GeoNames' names of each key its cities carry
  * ({ "US.TX": ["Texas"] }), so a city is narrowed by a region name. GeoNames publishes cities15000
- * again every day and keeps no old copies, so its checksum is not pinned; the files record the date
- * they were built from. Needs `unzip` on the PATH.
+ * again every day and keeps no old copies, so its checksum is not pinned; the cities file records the
+ * date each GeoNames file was downloaded (the cached file's modification time, set when it is fetched).
+ * Needs `unzip` on the PATH.
  */
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -62,7 +63,7 @@ const NATURAL_EARTH_LICENSE = "Public domain (Natural Earth, https://www.natural
 /**
  * A source file, from the cache or fetched into it, checked against its recorded checksum.
  * @param source - The source.
- * @returns The bytes.
+ * @returns The bytes, the cached file and the date it was downloaded (YYYY-MM-DD, UTC).
  */
 async function sourceBytes(source) {
     const file = path.join(cacheDir, path.basename(new URL(source.url).pathname));
@@ -82,7 +83,7 @@ async function sourceBytes(source) {
         throw new Error(`${file}: SHA-256 ${sha}, expected ${source.sha256}`);
     }
 
-    return { bytes, file };
+    return { bytes, file, fetched: statSync(file).mtime.toISOString().slice(0, 10) };
 }
 
 /**
@@ -236,7 +237,8 @@ async function regions() {
  * @returns The file.
  */
 async function cities() {
-    const { file } = await sourceBytes(SOURCES.cities);
+    const { file, fetched } = await sourceBytes(SOURCES.cities);
+    const admin1Fetched = (await sourceBytes(SOURCES.admin1)).fetched;
     const text = execFileSync("unzip", ["-p", file, "cities15000.txt"], { maxBuffer: 1 << 30 }).toString("utf8");
     const places = [];
     for (const line of text.split("\n")) {
@@ -263,7 +265,7 @@ async function cities() {
 
     const layer = layerFile(
         "city",
-        `${SOURCES.cities.url}, ${SOURCES.admin1.url} (${new Date().toISOString().slice(0, 10)})`,
+        `${SOURCES.cities.url} (${fetched}), ${SOURCES.admin1.url} (${admin1Fetched})`,
         "CC BY 4.0 (GeoNames, https://www.geonames.org/)",
         { text: "GeoNames", url: "https://www.geonames.org/" },
         places,

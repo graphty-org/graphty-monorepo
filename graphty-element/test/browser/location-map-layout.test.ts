@@ -160,6 +160,8 @@ describe("the location map layout", () => {
         // Natural Earth is public domain: nothing to credit, so no strip over the canvas.
         assert.deepEqual(graph.basemapStatus.attribution, []);
         const strip = container.querySelector<HTMLElement>("[data-graphty-attribution]");
+        assert.isNotNull(strip);
+        assert.notInclude(strip?.textContent, "Natural Earth");
         assert.equal(strip?.style.display, "none");
 
         await graph.setLayout("circular");

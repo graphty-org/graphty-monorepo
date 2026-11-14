@@ -527,6 +527,8 @@ export class UpdateManager implements Manager {
     autoTurning = false;
     /** The longest frame the auto-rotation turns for, so a tab coming back does not jump. */
     private static readonly MAX_TURN_MS = 100;
+    /** `camera.autoRotate` and `camera.autoRotateResume` as the last pass read them; a change ends the reader's pause. */
+    private autoTurnSetting = "";
     private hasZoomedToFit = false;
 
     /**
@@ -2825,8 +2827,16 @@ export class UpdateManager implements Manager {
             this.forceZoomToFit = true;
             this.framingHasNothingToFrame = false;
         }
+        const autoTurnSetting = `${String(camera.autoRotate)}/${String(camera.autoRotateResume)}`;
+        if (autoTurnSetting !== this.autoTurnSetting) {
+            this.autoTurnSetting = autoTurnSetting;
+            this.camera.resumeAutoTurn();
+        }
+
         this.autoTurning = this.camera.autoTurn(
             (camera.autoRotate * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
+            frameMs,
+            camera.autoRotateResume,
         );
         this.pending.cameraTurnsByItself = this.autoTurning;
 

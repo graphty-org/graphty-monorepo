@@ -132,6 +132,17 @@ const CameraBehaviorOpts = z
          */
         autoRotate: z.number().min(0).default(0),
         /*
+         * How long `autoRotate` waits after the reader last moved the camera -- a drag, a pinch,
+         * a wheel, a key -- before it turns again, in milliseconds of frames drawn, or "never".
+         *
+         * 0 BY DEFAULT, so the turning carries on as soon as the reader lets go. A number waits
+         * that long once they stop, and every move of theirs starts the wait again. "never" stops
+         * the turning at the reader's first move until `autoRotate` or this setting is changed.
+         * Only read while `autoRotate` is above 0. The element's own framing (zoom-to-fit, a glide
+         * to the pivot) and `setCameraState` are not the reader's moves and never start a wait.
+         */
+        autoRotateResume: z.union([z.number().min(0), z.literal("never")]).default(0),
+        /*
          * Room, in CSS pixels, that framing the graph leaves clear at each edge of the canvas, for
          * a page that draws its own panels over the graph.
          *

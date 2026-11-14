@@ -168,6 +168,10 @@ const config: KnipConfig = {
         "babylonjs-map": {
             entry: ["src/index.ts!", "src/location/index.ts!", "src/projection/index.ts!", "test/**/*.test.ts"],
             project: ["src/**/*.ts!", "test/**/*.ts"],
+            // `@babylonjs/core` is an optional peer (and a devDependency): only the root entry imports it, and the
+            // two subpaths never load it. `lint:knip:prod` runs --strict and would report it as unlisted; the
+            // default run resolves it as a devDependency and hints an ignore as redundant.
+            ignoreDependencies: production ? ["@babylonjs/core"] : [],
         },
 
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test

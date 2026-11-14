@@ -403,6 +403,12 @@ describe("pajekImporter: vertex lines", () => {
         expect(snapshot.directed).toBe(true);
         expect(snapshot.edgeList().weights?.[0]).toBe(3);
     });
+
+    it("reads an infinite line value (as the exporter writes it) as the weight", async () => {
+        const { snapshot, report } = await load("*Vertices 2\n*Arcs\n1 2 Infinity\n2 1 -INF\n");
+        expect(report.issues).toEqual([]);
+        expect(Array.from(snapshot.edgeList().weights ?? [])).toEqual([Infinity, -Infinity]);
+    });
 });
 
 describe("pajekImporter: numbering and ids", () => {

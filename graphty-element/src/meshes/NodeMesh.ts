@@ -24,6 +24,7 @@ import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import type { ModelTemplate } from "../models/ModelCache";
+import { addGradientStops } from "./edgeGradient";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
@@ -1417,8 +1418,7 @@ export class NodeMesh {
         mat: StandardMaterial,
         scene?: Scene,
     ): DynamicTexture | undefined {
-        // One stop cannot make a ramp: the stop offsets below are `i / (colors.length - 1)`, which
-        // is NaN for a single stop and throws in `addColorStop`. The caller paints it flat.
+        // One stop is no ramp: the caller paints it flat, which needs no texture.
         if (!scene || gradient.colors.length < 2) {
             return undefined;
         }
@@ -1500,9 +1500,7 @@ export class NodeMesh {
                 : this.createLinearRamp(ctx, gradient.direction, size);
 
             const { colors, stops } = gradient;
-            for (let i = 0; i < colors.length; i++) {
-                ramp.addColorStop(stops?.[i] ?? i / (colors.length - 1), colors[i] ?? "transparent");
-            }
+            addGradientStops(ramp, colors, stops);
 
             ctx.fillStyle = ramp;
             ctx.fillRect(0, 0, size, size);

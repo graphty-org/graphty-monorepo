@@ -26,6 +26,7 @@ import { ENGINE_OVERRIDE, engineFor } from "../../src/ai/engine/load";
 import type { AiEngine, EngineCapabilities, EngineOutcome, TurnEvent, TurnRequest } from "../../src/ai/engine/types";
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
 import { installAssistantTools } from "../../src/ai/tools/install";
+import { isAssistantTool } from "../../src/ai/tools/toolset";
 import type { AiResultCode, AiResultParams } from "../../src/catalog/ai";
 import type { AiEvent, AiQuestionRequest } from "../../src/events";
 import type { Graph } from "../../src/Graph";
@@ -259,6 +260,11 @@ export interface LlmRegressionTestHarnessOptions {
 export interface CapturedToolCall {
     name: string;
     arguments: Record<string, unknown>;
+    /**
+     * The action the tool ran the call as, when the call named none: a tool takes a call without
+     * `action` when its fields fit one action only (`view {dimension}` is `view.dimension`).
+     */
+    resolvedAction?: string;
 }
 
 /** One model turn as the transcript records it: what the model wrote and called, and how it ended. */
@@ -422,7 +428,12 @@ export class LlmRegressionTestHarness {
     private graph: Graph;
     private disposed = false;
 
-    private constructor(controller: AiController, engine: RecordingEngine, graph: Graph) {
+    private constructor(
+        controller: AiController,
+        engine: RecordingEngine,
+        graph: Graph,
+        private readonly registry: CommandRegistry,
+    ) {
         this.controller = controller;
         this.engine = engine;
         this.graph = graph;
@@ -494,7 +505,7 @@ export class LlmRegressionTestHarness {
         const controller = new AiController(controllerOptions);
         await controller.ready();
 
-        return new LlmRegressionTestHarness(controller, engine, graph);
+        return new LlmRegressionTestHarness(controller, engine, graph, commandRegistry);
     }
 
     /**
@@ -597,7 +608,7 @@ export class LlmRegressionTestHarness {
                 });
             }
 
-            const toolCalls = [...this.engine.capturedToolCalls];
+            const toolCalls = this.engine.capturedToolCalls.map((call) => this.resolve(call));
             const lastToolCall = toolCalls.at(-1) ?? null;
             const result: LlmRegressionResult = {
                 prompt,
@@ -627,6 +638,25 @@ export class LlmRegressionTestHarness {
             }
 
             return result;
+        }
+    }
+
+    /**
+     * A call with the action its tool resolved it to, when the model named none.
+     * @param call - The call as the model sent it.
+     * @returns The call, with `resolvedAction` when the tool's own check settles one.
+     */
+    private resolve(call: CapturedToolCall): CapturedToolCall {
+        const tool = this.registry.get(call.name);
+        if (typeof call.arguments.action === "string" || !isAssistantTool(tool)) {
+            return call;
+        }
+
+        try {
+            return { ...call, resolvedAction: tool.check(call.arguments).action.name };
+        } catch {
+            // A call its tool refuses ran as no action.
+            return call;
         }
     }
 
@@ -779,12 +809,12 @@ export class LlmRegressionTestHarness {
  * @returns The first call to it.
  */
 /**
- * A call's action, or "" when it names none.
+ * A call's action: the one it named, or the one its tool ran it as; "" when neither.
  * @param call - The call.
  * @returns The action.
  */
 export function actionOf(call: CapturedToolCall): string {
-    return typeof call.arguments.action === "string" ? call.arguments.action : "";
+    return typeof call.arguments.action === "string" ? call.arguments.action : (call.resolvedAction ?? "");
 }
 
 /**
@@ -805,6 +835,7 @@ export function reachedCalls(result: LlmRegressionResult): CapturedToolCall[] {
         return {
             name: String(call.arguments.tool),
             arguments: { ...inner, ...(call.arguments.action === undefined ? {} : { action: call.arguments.action }) },
+            ...(call.resolvedAction === undefined ? {} : { resolvedAction: call.resolvedAction }),
         };
     });
 }

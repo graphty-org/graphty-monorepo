@@ -2,7 +2,6 @@ import { afterEach, assert, test, vi } from "vitest";
 
 import type { Graph } from "../../../src/Graph.js";
 import type { CapabilityCheck } from "../../../src/screenshot/capability-check.js";
-import { ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError.js";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -50,8 +49,8 @@ test("canCaptureScreenshot rejects excessive dimensions", async () => {
 
     assert.equal(check.supported, false, "Excessive dimensions should not be supported");
     assert.deepEqual(check.reason, {
-        code: ScreenshotErrorCode.DIMENSION_TOO_LARGE,
-        params: { width: 20000, height: 20000, maxDimension: 16384 },
+        code: "E_TOO_LARGE",
+        params: { of: "dimension", width: 20000, height: 20000, limit: 16384 },
     });
 });
 
@@ -109,8 +108,9 @@ test("canCaptureScreenshot refuses a multiplier past the pixel limit", async () 
     });
 
     assert.equal(check.supported, false);
-    assert.equal(check.reason?.code, ScreenshotErrorCode.RESOLUTION_TOO_HIGH);
-    assert.equal(check.reason?.params.maxPixels, 33_177_600);
+    assert.equal(check.reason?.code, "E_TOO_LARGE");
+    assert.equal(check.reason?.params.of, "pixels");
+    assert.equal(check.reason?.params.limit, 33_177_600);
 });
 
 test("canCaptureScreenshot works with default options", async () => {
@@ -141,7 +141,7 @@ test("canCaptureScreenshot refuses WebP where the browser cannot encode it", asy
     const check: CapabilityCheck = await graph.canCaptureScreenshot({ format: "webp" });
 
     assert.equal(check.supported, false);
-    assert.deepEqual(check.reason, { code: ScreenshotErrorCode.UNSUPPORTED_FORMAT, params: { format: "webp" } });
+    assert.deepEqual(check.reason, { code: "E_UNSUPPORTED", params: { reason: "format", format: "webp" } });
 });
 
 test("canCaptureScreenshot handles edge case: very small dimensions", async () => {

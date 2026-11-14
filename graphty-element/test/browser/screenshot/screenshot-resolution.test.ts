@@ -4,7 +4,6 @@ import type { Graph } from "../../../src/Graph";
 import { GraphtyLogger } from "../../../src/logging/GraphtyLogger.js";
 import { resetLoggingConfig } from "../../../src/logging/LoggerConfig.js";
 import { LogLevel, type LogRecord } from "../../../src/logging/types.js";
-import { ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError.js";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -72,8 +71,8 @@ test("strictAspectRatio throws when aspect mismatch", async () => {
             strictAspectRatio: true,
         }),
     ).rejects.toMatchObject({
-        name: "ScreenshotError",
-        code: ScreenshotErrorCode.ASPECT_RATIO_MISMATCH,
+        name: "GraphtyError",
+        code: "E_OPTION_RANGE",
     });
 });
 
@@ -86,8 +85,8 @@ test("dimensions exceeding browser limit throw error", async () => {
             height: 20000,
         }),
     ).rejects.toMatchObject({
-        name: "ScreenshotError",
-        code: ScreenshotErrorCode.DIMENSION_TOO_LARGE,
+        name: "GraphtyError",
+        code: "E_TOO_LARGE",
     });
 });
 
@@ -100,8 +99,8 @@ test("total pixels exceeding limit throw error", async () => {
             height: 10000,
         }),
     ).rejects.toMatchObject({
-        name: "ScreenshotError",
-        code: ScreenshotErrorCode.RESOLUTION_TOO_HIGH,
+        name: "GraphtyError",
+        code: "E_TOO_LARGE",
     });
 });
 

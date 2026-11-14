@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import type { PositionMap } from "../src/types/index.js";
 import { rescaleLayout } from "../src/utils/rescale";
@@ -16,14 +16,14 @@ describe("Bug Report #3: rescaleLayout returns all zeros when encountering NaN v
 
         // Fixed: When NaN is present, valid coordinates are preserved
         Object.values(scaled).forEach((pos) => {
-            expect(pos).toHaveLength(3);
+            assert.lengthOf(pos, 3);
             // X and Y should be rescaled properly
-            expect(typeof pos[0]).toBe("number");
-            expect(typeof pos[1]).toBe("number");
-            expect(isNaN(pos[0])).toBe(false);
-            expect(isNaN(pos[1])).toBe(false);
+            assert.isNumber(pos[0]);
+            assert.isNumber(pos[1]);
+            assert.isNotNaN(pos[0]);
+            assert.isNotNaN(pos[1]);
             // Z should remain NaN
-            expect(isNaN(pos[2])).toBe(true);
+            assert.isNaN(pos[2]);
         });
     });
 
@@ -42,10 +42,10 @@ describe("Bug Report #3: rescaleLayout returns all zeros when encountering NaN v
         // Fixed: Valid coordinates are preserved, NaN remains NaN
         Object.entries(result).forEach(([node, pos]) => {
             console.log(`${node}: [${pos[0]}, ${pos[1]}, ${pos[2]}]`);
-            expect(pos).toHaveLength(3); // Maintains 3D
-            expect(isNaN(pos[0])).toBe(false); // X is valid
-            expect(isNaN(pos[1])).toBe(false); // Y is valid
-            expect(isNaN(pos[2])).toBe(true); // Z remains NaN
+            assert.lengthOf(pos, 3); // Maintains 3D
+            assert.isNotNaN(pos[0]); // X is valid
+            assert.isNotNaN(pos[1]); // Y is valid
+            assert.isNaN(pos[2]); // Z remains NaN
         });
     });
 
@@ -62,9 +62,9 @@ describe("Bug Report #3: rescaleLayout returns all zeros when encountering NaN v
         const result = rescaleLayout(positions, 1, [0, 0, 0]) as PositionMap;
 
         // The function now properly handles NaN: X and Y are rescaled, Z remains NaN
-        expect(result.node1[0]).toBe(0); // X is rescaled to center
-        expect(result.node1[1]).toBe(0); // Y is rescaled to center
-        expect(isNaN(result.node1[2])).toBe(true); // Z remains NaN
+        assert.strictEqual(result.node1[0], 0); // X is rescaled to center
+        assert.strictEqual(result.node1[1], 0); // Y is rescaled to center
+        assert.isNaN(result.node1[2]); // Z remains NaN
     });
 
     it("should work correctly with valid 3D positions", () => {
@@ -78,9 +78,9 @@ describe("Bug Report #3: rescaleLayout returns all zeros when encountering NaN v
 
         // With valid positions, rescaling should work
         Object.values(scaled).forEach((pos) => {
-            expect(pos.every((v) => !isNaN(v))).toBe(true);
+            assert.isTrue(pos.every((v) => !isNaN(v)));
             // Not all values should be zero
-            expect(pos.some((v) => v !== 0)).toBe(true);
+            assert.isTrue(pos.some((v) => v !== 0));
         });
     });
 
@@ -99,12 +99,12 @@ describe("Bug Report #3: rescaleLayout returns all zeros when encountering NaN v
 
         // 3. With the fix, rescaleLayout now preserves dimensionality and handles NaN correctly
         Object.values(finalOutput).forEach((pos) => {
-            expect(pos).toHaveLength(3); // Maintains 3D dimension
-            expect(typeof pos[0]).toBe("number"); // X is a valid number
-            expect(typeof pos[1]).toBe("number"); // Y is a valid number
-            expect(isNaN(pos[0])).toBe(false); // X is not NaN
-            expect(isNaN(pos[1])).toBe(false); // Y is not NaN
-            expect(isNaN(pos[2])).toBe(true); // Z remains NaN
+            assert.lengthOf(pos, 3); // Maintains 3D dimension
+            assert.isNumber(pos[0]); // X is a valid number
+            assert.isNumber(pos[1]); // Y is a valid number
+            assert.isNotNaN(pos[0]); // X is not NaN
+            assert.isNotNaN(pos[1]); // Y is not NaN
+            assert.isNaN(pos[2]); // Z remains NaN
         });
 
         console.log("Pipeline with fixed rescale:");

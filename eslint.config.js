@@ -644,6 +644,25 @@ export default tseslint.config(
             },
         },
     })),
+    // layout's tests use `assert`, never `expect` (CLAUDE.md, "Testing"). The typed rule is used so
+    // this does not replace the plain no-restricted-imports patterns (zod, Babylon.js) set above.
+    {
+        files: ["layout/test/**/*.ts"],
+        rules: {
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                {
+                    paths: [
+                        {
+                            name: "vitest",
+                            importNames: ["expect"],
+                            message: "layout tests use assert from vitest, not expect.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // tools/pipeline-health's page tests are type-checked with the page (web/tsconfig.json, DOM lib),
     // not with the package's Node project, which excludes them.
     {

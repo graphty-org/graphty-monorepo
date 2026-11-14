@@ -92,7 +92,7 @@ import {
     type ResultIdentity,
     type RunIdentity,
 } from "./runId";
-import { type RunName, suggestRunName } from "./suggestedName";
+import { type RunName, suggestRunName, sweepRunId } from "./suggestedName";
 import {
     type BatchResult,
     type BatchStep,
@@ -110,6 +110,7 @@ import {
     type RunPainting,
     type RunPhase,
     type RunReader,
+    type RunRecord,
     type RunRemoval,
     type RunsApi,
     type RunScopeFacts,
@@ -118,6 +119,9 @@ import {
     type StaleNote,
     type StartOptions,
     type SuggestionOutcome,
+    type SweepOptions,
+    type SweepResult,
+    type SweepRow,
 } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -879,7 +883,7 @@ class Runs implements SessionRunsApi {
     private readonly dropped = new Set<RunId>();
 
     /** The batches, which are not algorithm runs and therefore not in `list()`. */
-    private readonly batches = new Set<ManagedRun<BatchResult>>();
+    private readonly batches = new Set<{ cancel(reason?: string): void }>();
 
     /** Where runs are dispatched and recorded. */
     private readonly dispatcher: Dispatcher;
@@ -993,6 +997,84 @@ class Runs implements SessionRunsApi {
      * @returns A run over the batch, resolving to how each member turned out.
      */
     batch(specs: readonly RunSpec[], options: RunOptions & { readonly label?: string } = {}): Run<BatchResult> {
+        return this.batchRun(specs, options, (result) => result);
+    }
+
+    /**
+     * Run one algorithm once per value of one of its options, as one batch, and report what each
+     * value found.
+     * @param algorithm - Which algorithm.
+     * @param option - The option to vary, as the algorithm's catalog `options` name it.
+     * @param values - The values to try, in order.
+     * @param options - The other parameters, the scope, the seed, the style, the label and the
+     *   ordinary run options.
+     * @returns A run over the batch, resolving to one row per value.
+     */
+    sweep(
+        algorithm: AlgorithmKey,
+        option: string,
+        values: readonly unknown[],
+        options: SweepOptions = {},
+    ): Run<SweepResult> {
+        const { params, scope, seed, style, ...batchOptions } = options;
+        const taken = new Set<string>();
+        const specs = values.map((value, index): RunSpec => {
+            const named = sweepRunId(algorithm, option, value);
+            // Two values that spell the same id (0.5 and "0.5") still get a run each.
+            const id = taken.has(named) ? `${named}_${String(index + 1)}` : named;
+            taken.add(id);
+
+            return {
+                algorithm,
+                params: { ...params, [option]: value },
+                as: assertRunId(id),
+                ...(scope === undefined ? {} : { scope }),
+                ...(seed === undefined ? {} : { seed }),
+                // Off unless asked: a sweep is read as a table, and its runs painting over each
+                // other would show only the last.
+                style: style ?? false,
+            };
+        });
+
+        return this.batchRun(specs, batchOptions, (result) =>
+            Object.freeze({
+                ...result,
+                option,
+                rows: Object.freeze(result.steps.map((step) => this.sweepRow(step, values[step.index]))),
+            }),
+        );
+    }
+
+    /**
+     * One row of a sweep: the value, how its member turned out and what it found.
+     * @param step - How the member turned out.
+     * @param value - The value it ran with.
+     * @returns The row.
+     */
+    private sweepRow(step: BatchStep, value: unknown): SweepRow {
+        const found = step.ok && step.runId !== undefined ? this.runs.get(step.runId)?.result : undefined;
+
+        return Object.freeze({
+            value,
+            ok: step.ok,
+            ...(step.runId === undefined ? {} : { runId: step.runId }),
+            ...(step.failure === undefined ? {} : { failure: step.failure }),
+            ...(found === undefined ? {} : { summary: found.summary(), graph: found.graph }),
+        });
+    }
+
+    /**
+     * Start a batch whose result is shaped by `finish`.
+     * @param specs - What to run.
+     * @param options - The batch's label, and the ordinary run options.
+     * @param finish - Turns what the batch produced into what the run resolves to.
+     * @returns A run over the batch.
+     */
+    private batchRun<T extends BatchResult>(
+        specs: readonly RunSpec[],
+        options: RunOptions & { readonly label?: string },
+        finish: (result: BatchResult) => T,
+    ): Run<T> {
         this.refuseWhenDisposed();
 
         // The record's deprecated label and the journal's history label still need a name; the
@@ -1007,8 +1089,15 @@ class Runs implements SessionRunsApi {
             exact: null,
         };
         const id = deriveRunId(identity);
-        let run: ManagedRun<BatchResult> | null = null;
-        const definition: RunDefinition<BatchResult> = {
+        let run: ManagedRun<T> | null = null;
+        const execute = this.batchExecutor(
+            specs,
+            label,
+            options.label ?? null,
+            { code: "algo.batch", params: { label: options.label ?? null, count: specs.length } },
+            () => run,
+        );
+        const definition: RunDefinition<T> = {
             id,
             algorithm: "batch",
             params: identity.params,
@@ -1021,13 +1110,10 @@ class Runs implements SessionRunsApi {
             fields: [],
             engine: this.options.engine,
             caveats: this.defaultCaveats,
-            execute: this.batchExecutor(
-                specs,
-                label,
-                options.label ?? null,
-                { code: "algo.batch", params: { label: options.label ?? null, count: specs.length } },
-                () => run,
-            ),
+            execute: async (context) => {
+                const outcome = await execute(context);
+                return { ...outcome, result: finish(outcome.result) };
+            },
             publishOnCancel: true,
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
@@ -1045,7 +1131,7 @@ class Runs implements SessionRunsApi {
                 }
             },
         };
-        run = new ManagedRun<BatchResult>(definition, surroundings);
+        run = new ManagedRun<T>(definition, surroundings);
         this.batches.add(run);
         run.start();
 
@@ -2857,7 +2943,7 @@ class Runs implements SessionRunsApi {
         label: string,
         callerLabel: string | null,
         fact: CodedFact<HistoryCode>,
-        handle: () => ManagedRun<BatchResult> | null,
+        handle: () => { cancel(reason?: string): void } | null,
     ): RunExecutor<BatchResult> {
         return async (context) => {
             const steps: BatchStep[] = [];
@@ -3042,12 +3128,14 @@ class Runs implements SessionRunsApi {
      *
      * A throwing observer is contained here rather than allowed to reach the run: a status bar
      * that fails to render must not turn a successful computation into a failed one.
-     * @param run - The run.
+     * @param run - The run, or the batch.
+     * @param run.record - Its record, which the observer is handed.
+     * @param run.generation - Which execution of it this is.
      * @param phase - Which moment it reached.
      * @param cause - What moved it.
      */
     private announce(
-        run: ManagedRun | ManagedRun<BatchResult>,
+        run: { readonly record: RunRecord; readonly generation: number },
         phase: RunPhase,
         cause: RunChange["cause"] = "command",
     ): void {

@@ -3180,6 +3180,17 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             start: calls(["degree"], [RUN_DEGREE]),
             answered: READ,
             batch: calls([[{ algorithm: "degree" }]], [RUN_DEGREE]),
+            sweep: calls(
+                ["pagerank", "dampingFactor", [0.9]],
+                [
+                    {
+                        op: "algo.run",
+                        algorithm: "pagerank",
+                        params: { dampingFactor: 0.9 },
+                        as: "pagerank_dampingfactor_0_9",
+                    },
+                ],
+            ),
             get: READ,
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),

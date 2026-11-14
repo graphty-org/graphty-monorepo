@@ -34,7 +34,7 @@ const dataUrl = await graph.captureScreenshot({
 Before capturing, a screenshot waits for queued operations and for a moving layout to come to
 rest. `timing` changes that: `{ waitForOperations: false }` or `{ waitForSettle: false }` skips a
 wait, and `{ settleTimeoutMs: 5000 }` sets how long to wait for the layout (default 30,000 ms)
-before the capture fails with the `LAYOUT_SETTLE_TIMEOUT` error code.
+before the capture fails with the `E_NOT_SETTLED` error code.
 
 ### Examples
 
@@ -66,7 +66,7 @@ Before capturing, verify support:
 ```typescript
 const check = await graph.canCaptureScreenshot({ width: 7680, height: 4320 });
 if (!check.supported) {
-    // A code and its values, such as { code: "RESOLUTION_TOO_HIGH", params: { maxPixels: 33177600, ... } }
+    // A code and its values, such as { code: "E_TOO_LARGE", params: { of: "pixels", limit: 33177600, ... } }
     console.log(check.reason?.code, check.reason?.params);
 }
 for (const warning of check.warnings ?? []) {
@@ -76,6 +76,22 @@ for (const warning of check.warnings ?? []) {
 ```
 
 The reason and the warnings are codes with their values, never sentences: your application words them.
+
+## Errors
+
+A screenshot, a video or a clipboard copy that fails throws (or, for a copy, reports as
+`clipboardError`) a `GraphtyError` like every other failure of the element. Switch on its `code`
+and read its `details`:
+
+| Code               | When                                                                                       | `details`                                                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_TOO_LARGE`      | The image is past the browser's limit on one side or on its pixel count                    | `of` (`"dimension"` or `"pixels"`), `width`, `height`, `limit`, `count`                                                                      |
+| `E_OPTION_RANGE`   | A size that is not a positive number, a `strictAspectRatio` mismatch, or an unknown preset | `option` (`"size"`, `"strictAspectRatio"` or `"preset"`) and the values                                                                      |
+| `E_BAD_COMMAND`    | `transparentBackground` with a format that cannot hold it (JPEG)                           | `fields`, `format`                                                                                                                           |
+| `E_UNSUPPORTED`    | The browser cannot do it                                                                   | `reason`: `"format"` (with `format`), `"preserve-drawing-buffer"`, `"clipboard"`, `"clipboard-insecure-context"` or `"clipboard-permission"` |
+| `E_OUT_OF_MEMORY`  | The browser would not give a canvas for the image                                          | `of: "canvas"`                                                                                                                               |
+| `E_NOT_SETTLED`    | The layout was still moving when the wait for it ran out                                   | `timeoutMs`                                                                                                                                  |
+| `E_CAPTURE_FAILED` | Rendering, encoding, recording or the clipboard write failed                               | `media` (`"image"` or `"video"`), `destination` for a copy; `cause`                                                                          |
 
 ## Downloading Screenshots
 

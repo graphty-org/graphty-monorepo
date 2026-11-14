@@ -743,6 +743,11 @@ describe("every generated action", () => {
         await assistant.say("find", [{ tool: "catalog", args: { text: "communities", kind: "algorithm" } }]);
         const [read] = assistant.lastResults();
         assert.strictEqual(read.code, "AI_OK", JSON.stringify(read));
+        // `view {dimension}` is how a model often asks for 2D (#7699).
+        await assistant.say("make it 2D", [{ tool: "view", args: { dimension: "2d" } }]);
+        const [switched] = assistant.lastResults();
+        assert.strictEqual(switched.code, "AI_OK", JSON.stringify(switched));
+        assert.strictEqual(session.layout.dimension, "2d");
         // Fields more than one action takes do not choose one.
         await assistant.say("which", [{ tool: "catalog", args: { kind: "algorithm" } }]);
         const [refused] = assistant.lastResults();

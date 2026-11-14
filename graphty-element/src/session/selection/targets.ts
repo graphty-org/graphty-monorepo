@@ -50,6 +50,7 @@ import type { RankingEntry, ResultsApi, RunRef, RunResult } from "../results/typ
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import type { ScopeResolver } from "../scope/ScopeApi";
 import type { ResultRef } from "../shared";
+import { readInstant } from "../time/parse";
 
 /** How far a neighbourhood target reaches when it does not say. */
 const DEFAULT_NEIGHBOR_DEPTH = 1;
@@ -111,6 +112,24 @@ export interface NeighborhoodTarget {
     readonly depth?: 1 | 2 | 3;
     /** Which way to follow an edge. Both ways when absent. */
     readonly direction?: SelectionDirection;
+    /** Follow only the edges whose time falls inside this window. Every edge when absent. */
+    readonly window?: NeighborhoodWindow;
+}
+
+/**
+ * A span of time an edge must fall inside to be followed by a neighbourhood walk.
+ *
+ * Each edge's time is read from `path` the way a time column reads it: a number as it is, a
+ * `Date` as its time, text as an ISO 8601 date-time (UTC when it names no zone). An edge with no
+ * readable time is outside every window.
+ */
+export interface NeighborhoodWindow {
+    /** The edge attribute holding each edge's time, such as `"data.date"`. */
+    readonly path: Path;
+    /** Where the window starts, inclusive: a number, or date-time text such as `"2024-01-01"`. */
+    readonly from: number | string;
+    /** Where the window ends, exclusive. */
+    readonly to: number | string;
 }
 
 /**
@@ -275,6 +294,13 @@ export interface TargetContext {
      * @returns Their ids.
      */
     readonly region?: (polygon: readonly RegionPoint[]) => Iterable<NodeId>;
+    /**
+     * The value an edge carries at a path. Absent refuses a neighbourhood `window`.
+     * @param edge - The edge's row.
+     * @param path - The path, such as `"data.date"`.
+     * @returns The value, or undefined when the edge carries none.
+     */
+    readonly edgeValue?: (edge: number, path: Path) => unknown;
 }
 
 /** The elements one target named. */
@@ -457,7 +483,7 @@ function emptyMasks(context: TargetContext): { nodes: ElementMask<NodeId>; edges
  * @returns True when it names a neighbourhood.
  */
 function isNeighborhood(target: SelectionTarget): target is NeighborhoodTarget {
-    return "neighborsOf" in target || "depth" in target || "direction" in target;
+    return "neighborsOf" in target || "depth" in target || "direction" in target || "window" in target;
 }
 
 /**
@@ -557,6 +583,7 @@ function neighborDepth(depth: number | undefined): number {
  * @param seeds - The seed indices, already in the mask.
  * @param depth - How many steps to take.
  * @param direction - Which way to follow an edge.
+ * @param follows - Whether an edge, by row, may be followed.
  */
 function walkNeighborhood(
     nodes: ElementMask<NodeId>,
@@ -564,6 +591,7 @@ function walkNeighborhood(
     seeds: readonly number[],
     depth: number,
     direction: SelectionDirection,
+    follows: (edge: number) => boolean,
 ): void {
     let frontier = seeds;
 
@@ -571,8 +599,8 @@ function walkNeighborhood(
         const next: number[] = [];
 
         for (const node of frontier) {
-            eachAdjacentArc(graph, node, direction, (other) => {
-                if (nodes.add(other)) {
+            eachAdjacentArc(graph, node, direction, (other, edge) => {
+                if (follows(edge) && nodes.add(other)) {
                     next.push(other);
                 }
             });
@@ -583,15 +611,66 @@ function walkNeighborhood(
 }
 
 /**
+ * One bound of a neighbourhood window as a number.
+ * @param name - `"from"` or `"to"`, for the refusal.
+ * @param bound - The bound as given.
+ * @returns The number.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when it names no instant.
+ */
+function windowBound(name: "from" | "to", bound: unknown): number {
+    const at = typeof bound === "number" || typeof bound === "string" ? readInstant(bound, "ms").at : Number.NaN;
+
+    if (Number.isNaN(at)) {
+        throw badOption(`window.${name}`, bound, "a number or date-time text");
+    }
+
+    return at;
+}
+
+/**
+ * Which edges a neighbourhood walk may follow.
+ * @param window - The target's window, if any.
+ * @param context - What the resolution reads.
+ * @returns A test by edge row.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bound that names no instant or a path
+ *   that is not text, `E_UNSUPPORTED` when the session reads no edge values.
+ */
+function edgeFilter(window: NeighborhoodWindow | undefined, context: TargetContext): (edge: number) => boolean {
+    if (window === undefined) {
+        return () => true;
+    }
+
+    if (typeof window.path !== "string" || window.path === "") {
+        throw badOption("window.path", window.path, 'an edge attribute path such as "data.date"');
+    }
+
+    const from = windowBound("from", window.from);
+    const to = windowBound("to", window.to);
+    const { edgeValue } = context;
+
+    if (edgeValue === undefined) {
+        throw unsupported("a time window", "an edge value reader");
+    }
+
+    return (edge) => {
+        const { at } = readInstant(edgeValue(edge, window.path), "ms");
+
+        return at >= from && at < to;
+    };
+}
+
+/**
  * The elements a neighbourhood target names.
  * @param target - The target.
  * @param context - What the resolution reads.
  * @returns The two masks.
- * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the depth is outside 1 to 3.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the depth is outside 1 to 3 or a window
+ *   bound names no instant.
  */
 function resolveNeighborhood(target: NeighborhoodTarget, context: TargetContext): TargetMembers {
     const { nodes, edges } = emptyMasks(context);
     const depth = neighborDepth(target.depth);
+    const follows = edgeFilter(target.window, context);
     const seeds: number[] = [];
 
     if (target.neighborsOf === undefined) {
@@ -610,7 +689,7 @@ function resolveNeighborhood(target: NeighborhoodTarget, context: TargetContext)
         }
     }
 
-    walkNeighborhood(nodes, context.graph, seeds, depth, target.direction ?? DEFAULT_DIRECTION);
+    walkNeighborhood(nodes, context.graph, seeds, depth, target.direction ?? DEFAULT_DIRECTION, follows);
 
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
 }

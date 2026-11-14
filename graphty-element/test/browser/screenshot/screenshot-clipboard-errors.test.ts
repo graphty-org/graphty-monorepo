@@ -1,7 +1,7 @@
 import { afterEach, assert, test, vi } from "vitest";
 
+import { GraphtyError } from "../../../src/errors";
 import type { Graph } from "../../../src/Graph.js";
-import { ScreenshotError, ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError.js";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -24,13 +24,14 @@ afterEach(() => {
 });
 
 /**
- * Asserts a clipboard error carries one code.
+ * Asserts a clipboard error is the browser refusing, for one reason.
  * @param error - The result's clipboardError.
- * @param code - The code it must carry.
+ * @param reason - The `details.reason` it must carry.
  */
-function assertCode(error: Error | undefined, code: ScreenshotErrorCode): void {
-    assert.ok(error instanceof ScreenshotError, "clipboardError should be a ScreenshotError");
-    assert.equal(error.code, code);
+function assertRefused(error: Error | undefined, reason: string): void {
+    assert.ok(error instanceof GraphtyError, "clipboardError should be a GraphtyError");
+    assert.equal(error.code, "E_UNSUPPORTED");
+    assert.equal(error.details.reason, reason);
 }
 
 test("a capture without the clipboard as a destination reports not-requested", async () => {
@@ -62,7 +63,7 @@ test("a browser without a clipboard reports not-supported and still returns the 
     const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
     assert.equal(result.clipboardStatus, "not-supported");
-    assertCode(result.clipboardError, ScreenshotErrorCode.CLIPBOARD_NOT_SUPPORTED);
+    assertRefused(result.clipboardError, "clipboard");
     assert.ok(result.blob instanceof Blob);
 });
 
@@ -73,7 +74,7 @@ test("an insecure page reports not-secure-context", async () => {
     const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
     assert.equal(result.clipboardStatus, "not-secure-context");
-    assertCode(result.clipboardError, ScreenshotErrorCode.CLIPBOARD_NOT_SECURE_CONTEXT);
+    assertRefused(result.clipboardError, "clipboard-insecure-context");
 });
 
 test("a write the browser refuses reports permission-denied", async () => {
@@ -83,7 +84,7 @@ test("a write the browser refuses reports permission-denied", async () => {
     const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
     assert.equal(result.clipboardStatus, "permission-denied");
-    assertCode(result.clipboardError, ScreenshotErrorCode.CLIPBOARD_PERMISSION_DENIED);
+    assertRefused(result.clipboardError, "clipboard-permission");
 });
 
 test("a denied clipboard-write permission reports permission-denied without writing", async () => {
@@ -95,7 +96,7 @@ test("a denied clipboard-write permission reports permission-denied without writ
     const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
     assert.equal(result.clipboardStatus, "permission-denied");
-    assertCode(result.clipboardError, ScreenshotErrorCode.CLIPBOARD_PERMISSION_DENIED);
+    assertRefused(result.clipboardError, "clipboard-permission");
     assert.equal(write.mock.calls.length, 0);
 });
 
@@ -106,6 +107,8 @@ test("a write that fails for another reason reports failed", async () => {
     const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
     assert.equal(result.clipboardStatus, "failed");
-    assertCode(result.clipboardError, ScreenshotErrorCode.CLIPBOARD_WRITE_FAILED);
+    assert.ok(result.clipboardError instanceof GraphtyError);
+    assert.equal(result.clipboardError.code, "E_CAPTURE_FAILED");
+    assert.deepEqual(result.clipboardError.details, { media: "image", destination: "clipboard" });
     assert.ok(result.blob instanceof Blob);
 });

@@ -349,6 +349,9 @@ export type {
     StaleReason,
     StartOptions,
     SuggestionOutcome,
+    SweepOptions,
+    SweepResult,
+    SweepRow,
     WeightMeaning,
     WeightSkip,
 } from "./src/session/runs";
@@ -511,6 +514,7 @@ export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    NeighborhoodWindow,
     RuleCheck,
     SelectionApi,
     SelectionApplyOptions,
@@ -520,6 +524,7 @@ export type {
     SelectionDirection,
     SelectionOp,
     SelectionStatistics,
+    SelectionStatisticsOptions,
     SelectionTarget,
     SelectionTextMode,
     UnknownRulePath,

@@ -302,7 +302,7 @@ export class PatternedLineMesh {
     private laid: { points: Vector3[]; along: number[] } | null = null;
     private static readonly SEGMENT_LENGTH = 0.75; // Fixed segment length for all edges (for instancing)
 
-    /** Whether {@link PatternedLineMesh.dispose} has given up its elements. */
+    /** Whether `dispose()` has given up its elements. */
     private disposed = false;
 
     /**
@@ -447,7 +447,7 @@ export class PatternedLineMesh {
 
     /**
      * Whether the line was disposed, as `AbstractMesh.isDisposed()` answers for a mesh (issue #7127).
-     * @returns True once {@link PatternedLineMesh.dispose} has run.
+     * @returns True once `dispose()` has run.
      */
     isDisposed(): boolean {
         return this.disposed;

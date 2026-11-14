@@ -675,6 +675,77 @@ describe("batches", () => {
     });
 });
 
+describe("sweeps", () => {
+    it("runs one algorithm once per value and returns one row per value", async () => {
+        const { runs } = harness((context) =>
+            Promise.resolve({
+                result: { ...stubResult(context.runId), graph: { k: context.params.k } },
+            }),
+        );
+
+        const sweep = await runs.sweep("k-core", "k", [1, 2, 3], { label: "Cores" });
+
+        assert.strictEqual(sweep.option, "k");
+        assert.strictEqual(sweep.label, "Cores");
+        assert.strictEqual(sweep.completed, 3);
+        assert.deepStrictEqual(
+            sweep.rows.map((row) => [row.value, row.ok, row.graph?.k]),
+            [
+                [1, true, 1],
+                [2, true, 2],
+                [3, true, 3],
+            ],
+        );
+        assert.isTrue(sweep.rows.every((row) => row.summary !== undefined));
+        assert.deepStrictEqual(
+            runs.list().map((run) => run.params.k),
+            [1, 2, 3],
+            "each value is its own listed run",
+        );
+    });
+
+    it("keeps a value that failed from taking the sweep down", async () => {
+        const { runs } = harness((context) => {
+            if (context.params.k === 2) {
+                throw new Error("this value failed");
+            }
+
+            return Promise.resolve({ result: stubResult(context.runId) });
+        });
+
+        const sweep = await runs.sweep("k-core", "k", [1, 2]);
+
+        assert.strictEqual(sweep.rows[1].ok, false);
+        assert.strictEqual(sweep.rows[1].failure?.code, "E_INTERNAL");
+        assert.isUndefined(sweep.rows[1].summary);
+        assert.isDefined(sweep.rows[0].summary);
+        assert.isNull(sweep.label);
+    });
+
+    it("is cancelled as one unit and keeps the values that finished", async () => {
+        const held = heldExecutor();
+        const { runs } = harness(held.execute);
+        const sweep = runs.sweep("k-core", "k", [1, 2, 3]);
+
+        await held.started(1);
+        held.release(0);
+        await held.started(2);
+        sweep.cancel("the reader pressed Cancel");
+
+        const result = await sweep;
+
+        assert.strictEqual(sweep.status, "canceled");
+        assert.deepStrictEqual(
+            result.rows.map((row) => [row.value, row.ok, row.failure?.code]),
+            [
+                [1, true, undefined],
+                [2, false, "canceled"],
+                [3, false, "not-started"],
+            ],
+        );
+    });
+});
+
 describe("disposal", () => {
     it("cancels what is still going and refuses new work", async () => {
         const held = heldExecutor();

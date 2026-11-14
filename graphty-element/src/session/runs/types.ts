@@ -21,6 +21,7 @@ import type {
     EdgeReading,
     FieldDescriptor,
     LayerId,
+    OptionDescriptor,
     PaletteId,
     ResultShape,
     RunId,
@@ -648,6 +649,54 @@ export interface BatchResult {
     readonly steps: readonly BatchStep[];
 }
 
+/**
+ * What a sweep takes besides the option it varies: the parameters held fixed, and the rest as
+ * {@link RunSpec} and `batch()` take them.
+ * @since 3.51.0
+ */
+export interface SweepOptions extends RunOptions {
+    /** The algorithm's other parameters, the same for every value. */
+    readonly params?: Readonly<Record<string, unknown>>;
+    /** What every run may look at, as {@link StartOptions.scope}. */
+    readonly scope?: ScopeInput;
+    /** The seed every run uses, so the values are compared on the same start. */
+    readonly seed?: number;
+    /** What each run paints on first completion; see {@link RunStyle}. Defaults to `false`. */
+    readonly style?: RunStyle;
+    /** The sweep's label, as `batch()` takes it. */
+    readonly label?: string;
+}
+
+/**
+ * One value of a sweep and what its run found.
+ * @since 3.51.0
+ */
+export interface SweepRow {
+    /** The value the option was set to. */
+    readonly value: unknown;
+    /** Whether its run succeeded. */
+    readonly ok: boolean;
+    /** The run it started, absent when it never started. */
+    readonly runId?: RunId;
+    /** Why it did not succeed; absent when it did. */
+    readonly failure?: BatchStepFailure;
+    /** The run's bounded result (its `groupCount`, its top elements, its statistics); absent unless it succeeded. */
+    readonly summary?: ResultSummary;
+    /** The run's graph-level values (a modularity, a component count); absent unless it succeeded. */
+    readonly graph?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * What a sweep produced: the batch it ran, and one row per value in the order given.
+ * @since 3.51.0
+ */
+export interface SweepResult extends BatchResult {
+    /** The option the sweep varied. */
+    readonly option: OptionDescriptor["name"];
+    /** One row per value, in the order the values were given. */
+    readonly rows: readonly SweepRow[];
+}
+
 // ---------------------------------------------------------------------------------------------
 // The run
 // ---------------------------------------------------------------------------------------------
@@ -1043,6 +1092,32 @@ export interface RunsApi {
      * @returns A run over the batch, resolving to how each member turned out.
      */
     batch(specs: readonly RunSpec[], options?: RunOptions & { readonly label?: string }): Run<BatchResult>;
+    /**
+     * Run one algorithm once per value of one of its options (a parameter sweep), as one batch
+     * with one progress stream and one cancel, and resolve to one row per value: what each run
+     * found, ready for a comparison table or a chart. Each value is its own listed run, and one
+     * undo takes them all away. A cancelled sweep keeps the values that finished.
+     * @example
+     * ```ts
+     * const sweep = await session.runs.sweep("louvain", "resolution", [0.5, 1, 2], { seed: 1 });
+     * for (const row of sweep.rows) {
+     *     console.log(row.value, row.summary?.groupCount, row.graph?.modularity);
+     * }
+     * ```
+     * @param algorithm - Which algorithm.
+     * @param option - The option to vary, as the algorithm's catalog `options` name it.
+     * @param values - The values to try, in order.
+     * @param options - The parameters held fixed, the scope, the seed, the style, the label and
+     *   the ordinary run options.
+     * @returns A run over the sweep, resolving to its rows.
+     * @since 3.51.0
+     */
+    sweep(
+        algorithm: AlgorithmKey,
+        option: OptionDescriptor["name"],
+        values: readonly unknown[],
+        options?: SweepOptions,
+    ): Run<SweepResult>;
     /**
      * One run, by id.
      * @param id - The run id.

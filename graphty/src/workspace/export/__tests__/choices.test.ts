@@ -8,11 +8,13 @@ import {
     dataExportOptions,
     DEFAULT_IMAGE,
     exportScope,
+    failureWords,
     fileName,
     formatRows,
     presetChoices,
     presetOf,
     previewOf,
+    refusalWords,
     screenshotOptions,
     slug,
     writerOptions,
@@ -180,5 +182,30 @@ describe("the Export dialog's choices", () => {
         assert.equal(still.cameraMode, "stationary");
         assert.isUndefined(still.tour);
         assert.isUndefined(still.download);
+    });
+
+    it("words a capture's codes as being about the image, and the same codes elsewhere as before", () => {
+        assert.equal(failureWords({ code: "E_TOO_LARGE" }, true), "The image is too large for this browser.");
+        assert.equal(failureWords({ code: "E_TOO_LARGE" }), "The graph is too large for this format.");
+        assert.equal(
+            failureWords({ code: "E_UNSUPPORTED", details: { reason: "format", format: "mp4" } }),
+            "This browser cannot write this image format.",
+        );
+        assert.equal(
+            failureWords({ code: "E_UNSUPPORTED", details: { reason: "other" } }),
+            "This browser cannot do this.",
+        );
+        assert.equal(
+            failureWords({ code: "E_CAPTURE_FAILED", details: { media: "video" } }),
+            "The drawing could not be captured.",
+        );
+        assert.equal(
+            refusalWords({ code: "E_TOO_LARGE", params: { of: "pixels" } }),
+            "this browser cannot make an image this size",
+        );
+        assert.equal(
+            refusalWords({ code: "E_UNSUPPORTED", params: { reason: "format", format: "webp" } }),
+            "this browser cannot write this image format",
+        );
     });
 });

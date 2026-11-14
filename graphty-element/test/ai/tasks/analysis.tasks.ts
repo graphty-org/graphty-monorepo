@@ -430,7 +430,7 @@ export const PATH_TASKS = [
         tier: ["catalog", "multi-step"],
         dataset: "knuth-miles",
         prompts: ["Show me the cheapest road network that still connects every city."],
-        tools: ["run_algorithm", "style", "results"],
+        tools: ["run_algorithm", "style", "filter", "results"],
         reference: [[[{ tool: "run_algorithm", args: { name: "kruskal", style: true } }]]],
         check: ({ s }) => {
             const run = runOf(s, "kruskal", "prim");
@@ -442,7 +442,10 @@ export const PATH_TASKS = [
                         JSON.stringify(layer.selector).includes(`results.${run.id}.`) ||
                         JSON.stringify(layer.encode ?? {}).includes(`results.${run.id}.`),
                 );
-            assert.isTrue(painted, "the tree is not shown");
+            // Showing only the tree's roads shows it as well as painting them does.
+            const tree = [...s.data.edges()].map((edge) => edge.id).filter((id) => run.result?.edge(id)?.in === true);
+            const filtered = s.visibility.edges.size === tree.length && tree.every((id) => s.visibility.edges.has(id));
+            assert.isTrue(painted || filtered, "the tree is not shown");
         },
     }),
     defineTask({

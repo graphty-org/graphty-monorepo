@@ -11,7 +11,9 @@ graphty documents that carry those things, and the one JSON file they travel in:
 - **notes**: what a person wrote about the graph, its nodes and edges, its kept sets and its
   results ([notes.md](notes.md)).
 
-Status: specification of version 1, not yet implemented; recipes need graphty-element 3.0.0. The
+Status: specification of version 1. Version 2 ([version-2.md](version-2.md), designed 2026-11-14,
+not implemented) regroups these documents into seven sections that save and load separately, and
+wins where the two disagree. Recipes need graphty-element 3.0.0. The
 owner's decisions are in
 [../decisions/2026-09-28-document-formats-first-version.md](../decisions/2026-09-28-document-formats-first-version.md).
 

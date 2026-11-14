@@ -1,5 +1,8 @@
 # Self-contained save files
 
+See design/documents/version-2.md (2026-11-14): changes to named built-ins are handled by file versions and
+migrations, which may make some carry-instead-of-name work below unnecessary.
+
 ## The rule
 
 A file that graphty-element or the graphty app writes for later reading (a project file, an

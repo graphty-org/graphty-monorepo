@@ -829,17 +829,13 @@ export function paintedOverOf(
     if (agreement.readOver !== "row") {
         return () => undefined;
     }
-    const matchedOf = (kind: Target): number =>
-        rowLayers(session, ids, kind).reduce(
-            (most, layer) => Math.max(most, session.styles.counts(layer.id).matched),
-            0,
-        );
     return (channel) => {
         const entry = agreement.channels.find((c) => c.channel === channel);
         if (entry === undefined) {
             return undefined;
         }
-        const of = matchedOf(channel.startsWith("node.") ? "node" : "edge");
+        const read = agreement.elements ?? { nodes: 0, edges: 0 };
+        const of = channel.startsWith("node.") ? read.nodes : read.edges;
         const shares =
             entry.state === "agree"
                 ? [{ layerId: entry.layerId, count: of - entry.unpainted }]
@@ -866,7 +862,7 @@ export function paintedOverOf(
         return {
             by,
             layers: by.map((name) => covering.find((id) => nameOf(id) === name) ?? covering[0]),
-            count: above.reduce((sum, share) => sum + share.count, 0),
+            count: entry.overridden ?? 0,
             of,
             ...(hiddenBy === undefined ? {} : { hiddenBy }),
         };

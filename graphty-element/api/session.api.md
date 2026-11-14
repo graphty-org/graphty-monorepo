@@ -527,12 +527,14 @@ export type ChannelAgreement = {
     readonly layerId: LayerId;
     readonly unpainted: number;
     readonly covered?: number;
+    readonly overridden?: number;
 } | {
     readonly channel: Channel;
     readonly state: "mixed";
     readonly breakdown: readonly ChannelShare[];
     readonly unpainted: number;
     readonly covered?: number;
+    readonly overridden?: number;
 };
 
 // @public
@@ -6819,6 +6821,10 @@ export type StyleAdjustmentCode = "style.out-of-range" | "style.alpha-not-drawn"
 // @public
 export interface StyleAgreement {
     readonly channels: readonly ChannelAgreement[];
+    readonly elements?: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
     readonly readOver?: "row" | "everyElement";
 }
 

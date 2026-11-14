@@ -72,6 +72,7 @@ import {
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
 import { featureOff } from "../features/resolve";
+import { FILE_GRAPH_VALUE, type FileGraphValue } from "../session/commands/data";
 import { dispatcherOf, scopeResolverOfSession } from "../session/GraphSession";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
@@ -573,6 +574,12 @@ export function buildExportSnapshot(
         addMissingNodes: true,
         weightDtype: "f64",
     });
+    // What the loaded file's reader recorded under `meta.extra` (DOT's `strict` and HTML labels), so
+    // the writer of that format writes it again (issue #7600).
+    const file = dispatcherOf(session).state.graph.values.get(FILE_GRAPH_VALUE) as FileGraphValue | undefined;
+    if (file?.extra !== undefined) {
+        builder.setMeta({ extra: file.extra });
+    }
 
     const allNodes = session.data.nodes();
     const allEdges = session.data.edges();

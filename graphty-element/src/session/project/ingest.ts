@@ -20,6 +20,7 @@ import { DataSource, type DataSourceChunk, type DeclaredDirection, TIMELINE_READ
 import { decideRepeat, edgeIdOf, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
+import { readerMetaExtra } from "../../data/graph-io-import";
 import type { GraphStore } from "../../data/GraphStore";
 import { GROUPS_VALUE, RANK_SETS_VALUE, readGroups, readRankSets } from "../../data/groups";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
@@ -48,7 +49,7 @@ import {
 import { ISSUES_VALUE, type IssueState, loadFactsOf, withLoadFacts } from "../issues";
 import { DEFAULT_LIMITS, type DefaultableLimits, tooLargeError } from "../limits";
 import type { ProgressChange } from "../shared";
-import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/provenance";
+import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withSupplied } from "../sources/provenance";
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
 import type { DataSourceDescriptor, EdgeEnd, LeftOutEdge, LoadedSource, LoadedSourceKind } from "../types";
 import { frozenRecord } from "./draft";
@@ -471,10 +472,11 @@ interface EdgeBatch {
     readonly tally: ImportTally;
 }
 
-/** The nodes and edges the load in progress supplied. */
+/** The nodes and edges the load in progress supplied, and the nodes it made. */
 interface Supplied {
     readonly nodes: Set<NodeId>;
     readonly edges: Set<EdgeId>;
+    readonly made: Set<NodeId>;
 }
 
 /**
@@ -839,7 +841,7 @@ export class Ingest<K extends KnownEdge> {
         // as there, as the real merge does (#935).
         this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
         this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
-        const supplied: Supplied = { nodes: new Set<NodeId>(), edges: new Set<EdgeId>() };
+        const supplied: Supplied = { nodes: new Set<NodeId>(), edges: new Set<EdgeId>(), made: new Set<NodeId>() };
         this.supplied = supplied;
         this.sealedTally = null;
         return supplied;
@@ -894,6 +896,13 @@ export class Ingest<K extends KnownEdge> {
         const had = prior === undefined ? undefined : earlierProvenance?.[key];
         const nodes = new Set([...(had?.nodes ?? []), ...supplied.nodes]);
         const edges = new Set([...(had?.edges ?? []), ...supplied.edges]);
+        // The nodes it named that were in the graph before it and that no load supplied (a node
+        // `addNodes` made): taking it out leaves them (issue #7708).
+        const earlierNodes = provenanceIndex(earlierProvenance).nodes;
+        const held = [
+            ...(had?.held ?? []),
+            ...[...supplied.nodes].filter((id) => !supplied.made.has(id) && !earlierNodes.has(id)),
+        ];
         const entry: LoadedSource =
             prior === undefined
                 ? loaded
@@ -909,7 +918,7 @@ export class Ingest<K extends KnownEdge> {
             [SOURCES_VALUE]: Object.freeze(
                 prior === undefined ? [...earlier, entry] : earlier.map((each, at) => (at === same ? entry : each)),
             ),
-            [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, { nodes: [...nodes], edges: [...edges] }),
+            [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, { nodes: [...nodes], edges: [...edges], held }),
             ...(facts === null
                 ? {}
                 : {
@@ -937,6 +946,16 @@ export class Ingest<K extends KnownEdge> {
         supplied.edges.add(edge);
         supplied.nodes.add(source);
         supplied.nodes.add(target);
+    }
+
+    /**
+     * Record a node as made by the load in progress.
+     * @param id - The node's id.
+     */
+    private noteMade(id: NodeIdType): void {
+        if (isStorableId(id)) {
+            this.supplied?.made.add(id);
+        }
     }
 
     /**
@@ -1110,6 +1129,7 @@ export class Ingest<K extends KnownEdge> {
             // Frozen once, here, so the render object holds the record the graph slice holds.
             const record = frozenRecord(node);
             const { index } = writer.addNode(nodeId, record, readSeedPosition(node));
+            this.noteMade(nodeId);
             this.host.nodeStored(nodeId, record, index);
         }
 
@@ -1426,6 +1446,7 @@ export class Ingest<K extends KnownEdge> {
         for (const id of ids) {
             if (isStorableId(id) && !this.host.store().builder.hasNode(id)) {
                 this.loadMadeEndpoints.add(id);
+                this.supplied?.made.add(id);
             }
         }
     }
@@ -2120,7 +2141,8 @@ export class Ingest<K extends KnownEdge> {
                     progress,
                 );
 
-                keepFileGraph(reader, type, writer);
+                const read = held === undefined ? source : HELD_READERS.get(held);
+                keepFileGraph(reader, type, writer, read === null || read === undefined ? null : readerMetaExtra(read));
 
                 this.drawMadeEndpoints(writer);
                 const errors = reader.getErrorAggregator();
@@ -2476,16 +2498,23 @@ function heldReader(held: HeldRows): ChunkReader {
  * @param reader - The source, once its last chunk is read.
  * @param format - The format it read.
  * @param writer - The command's writer.
+ * @param extra - What the file recorded under `meta.extra`, which an export writes again (issue #7600).
  */
-function keepFileGraph(reader: ChunkReader, format: string, writer: GraphWriter): void {
+function keepFileGraph(
+    reader: ChunkReader,
+    format: string,
+    writer: GraphWriter,
+    extra: Readonly<Record<string, unknown>> | null,
+): void {
     const attributes = reader.declaredGraphValues;
     const layout = reader.declaredFileLayout;
-    if (attributes !== null && attributes !== undefined) {
+    if ((attributes !== null && attributes !== undefined) || extra !== null) {
         writer.setGraphValues({
             [FILE_GRAPH_VALUE]: Object.freeze({
                 format,
-                attributes,
+                attributes: attributes ?? Object.freeze({}),
                 ...(layout === null || layout === undefined ? {} : { layout }),
+                ...(extra === null ? {} : { extra }),
             }),
         });
     }

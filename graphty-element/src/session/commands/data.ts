@@ -599,6 +599,8 @@ export interface FileGraphValue {
     readonly attributes: Readonly<Record<string, unknown>>;
     /** The layout the file asks to be drawn with, as graph-io read it; absent when it names none. */
     readonly layout?: FileLayout;
+    /** What the file's reader recorded under graph-format's `meta.extra`; absent when it recorded nothing. */
+    readonly extra?: Readonly<Record<string, unknown>>;
 }
 
 /**

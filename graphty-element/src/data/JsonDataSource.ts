@@ -21,6 +21,7 @@ import {
     type ReaderImport,
     type RecordMapping,
     rememberImport,
+    rememberMetaExtra,
     toRecords,
 } from "./graph-io-import";
 import { readSeedPosition } from "./seedPosition";
@@ -675,6 +676,7 @@ export class JsonDataSource extends DataSource {
             typeof record.id === "string" || typeof record.id === "number" ? snapshot.ids.indexOf(record.id) : -1,
         );
         const edges = this.keptEdges(snapshot, Array.isArray(root.edges) ? root.edges : [], dialect);
+        rememberMetaExtra(this, snapshot);
         rememberImport(this, () => dialectImport(imported, nodes, edges));
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
     }

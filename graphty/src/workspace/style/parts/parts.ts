@@ -14,7 +14,7 @@
 import type { Channel } from "@graphty/graphty-element/catalog";
 
 /** How a channel shows in its section. */
-export type Tier = "main" | "tail";
+type Tier = "main" | "tail";
 
 /** One thing inside a part a reader names: a fill's gradient, a node's border rings. */
 export interface PartItem {

@@ -232,7 +232,11 @@ test("the studio's waits keep the shared gate's lanes: a low-lane waiter never h
     const high = join(pool, `.high-${process.pid}`);
     let low;
     try {
-        await until(() => spawnSync("flock", ["-n", join(pool, "slot8"), "true"]).status !== 0);
+        // every holder, not only slot 8's: a low-lane waiter that finds slot 4 still free takes it, runs and
+        // removes its ticket at once, and the wait for that ticket below never ends (#6914's CI run)
+        await until(() =>
+            [4, 5, 6, 7, 8].every((i) => spawnSync("flock", ["-n", join(pool, `slot${i}`), "true"]).status !== 0),
+        );
         low = spawn(gate, ["true"], { env: { ...env, BROWSER_SLOT_PRIORITY: "low" }, stdio: "ignore" });
         await until(() => readdirSync(pool).some((f) => f.startsWith(".low-")));
         writeFileSync(high, "");

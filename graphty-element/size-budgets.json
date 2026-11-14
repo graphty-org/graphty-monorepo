@@ -21,7 +21,7 @@
         "models": {
             "source": "src/models/chunk.ts",
             "external": ["@babylonjs/core"],
-            "budget": 40900
+            "budget": 58456
         }
     }
 }

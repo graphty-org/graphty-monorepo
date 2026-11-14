@@ -11,7 +11,7 @@ import { NoteCollector } from "../common/notes.js";
 import { type GraphTool, toolOf } from "../common/units.js";
 import type { GraphImporter, ImportReport } from "../types.js";
 import { POSITION_ISSUE, type PositionNoteCode } from "./codes.js";
-import { median, toNeutral } from "./convert.js";
+import { constantZ, median, toNeutral } from "./convert.js";
 import type {
     ExtractPositionsOptions,
     FilePositionGroup,
@@ -380,26 +380,6 @@ function dropZeroPile(values: Float64Array): void {
             values.fill(Number.NaN, i, i + 3);
         }
     }
-}
-
-/**
- * Whether every placed row has the same z (Pajek writes z = 0.5 on 2D drawings).
- * @param values - the raw coordinates
- * @returns true when z never differs
- */
-function constantZ(values: Float64Array): boolean {
-    let z = Number.NaN;
-    for (let i = 0; i < values.length; i += 3) {
-        if (Number.isNaN(values[i])) {
-            continue;
-        }
-        if (Number.isNaN(z)) {
-            z = values[i + 2];
-        } else if (values[i + 2] !== z) {
-            return false;
-        }
-    }
-    return true;
 }
 
 // ------------------------------------------------------------ groups

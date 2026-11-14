@@ -74,7 +74,8 @@ export function neutralPositions(snapshot: GraphSnapshot, column: Column): Float
     }
     const width = extra.width === undefined ? null : snapshot.nodes.get(extra.width);
     const height = extra.height === undefined ? null : snapshot.nodes.get(extra.height);
-    const realZ = extra.sourceDims === 3 || hasZ(out);
+    // as extractPositions() reads it: a 3D file whose z never differs (Pajek on a 2D drawing) is flat
+    const realZ = extra.sourceDims === 3 ? !constantZ(out) : hasZ(out);
     const p: [number, number, number] = [0, 0, 0];
     for (let i = 0; i < out.length; i += 3) {
         const row = i / 3;
@@ -147,6 +148,26 @@ function hasZ(coords: Float64Array): boolean {
         }
     }
     return false;
+}
+
+/**
+ * Whether every placed row has the same z (Pajek writes z = 0.5 on 2D drawings).
+ * @param values - the raw coordinates
+ * @returns true when z never differs
+ */
+export function constantZ(values: Float64Array): boolean {
+    let z = Number.NaN;
+    for (let i = 0; i < values.length; i += 3) {
+        if (Number.isNaN(values[i])) {
+            continue;
+        }
+        if (Number.isNaN(z)) {
+            z = values[i + 2];
+        } else if (values[i + 2] !== z) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**

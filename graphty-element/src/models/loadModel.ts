@@ -14,6 +14,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import type { BuiltInModelFormat } from "../catalog/detectModel";
 import type { CodedFact } from "../session/shared";
 import type { ModelExtension, OwnFormat } from "./chunk";
+import { DECODERS_IN_BUILD } from "./decoders/inBuild";
 import { guardRequests, REFUSED } from "./requestGuard";
 
 /** The model chunk, as its one dynamic import resolves. */
@@ -147,12 +148,20 @@ type DracoModule = typeof import("./decoders/draco");
 /**
  * Load the decoder modules a glTF's extensions need.
  * @param used - The extensions it uses.
- * @param required - The extensions it requires. Without the KTX2 peer, a glTF that only uses
- *     `KHR_texture_basisu` draws its fallback images instead.
+ * @param required - The extensions it requires. When the KTX2 decoder is not in the build or does
+ *     not load, a glTF that only uses `KHR_texture_basisu` draws its fallback images instead.
  * @returns The Draco module when the glTF uses Draco, so the load can be counted.
  */
 async function loadDecoders(used: readonly string[], required: readonly string[]): Promise<DracoModule | undefined> {
     const needed = new Set(DECODER_EXTENSIONS.filter(([name]) => used.includes(name)).map(([, kind]) => kind));
+    if (needed.has("draco") && !DECODERS_IN_BUILD) {
+        // `./bundle` leaves the decoder out (vite.bundle.config.ts).
+        throw new ModelLoadFailure({
+            code: "E_MODEL_DECODER_UNAVAILABLE",
+            params: { extension: "KHR_draco_mesh_compression", reason: "missing" },
+        });
+    }
+
     let draco: DracoModule | undefined;
     try {
         if (needed.has("draco")) {
@@ -167,26 +176,18 @@ async function loadDecoders(used: readonly string[], required: readonly string[]
     }
 
     if (needed.has("ktx2")) {
-        let ktx2: typeof import("./decoders/ktx2");
-        try {
-            ktx2 = await import("./decoders/ktx2");
-        } catch {
+        const failed = DECODERS_IN_BUILD
+            ? await import("./decoders/ktx2").then(
+                  () => undefined,
+                  () => "load" as const,
+              )
+            : "missing";
+        if (failed !== undefined && required.includes("KHR_texture_basisu")) {
             throw new ModelLoadFailure({
                 code: "E_MODEL_DECODER_UNAVAILABLE",
-                params: { extension: "KHR_texture_basisu", reason: "load" },
+                params: { extension: "KHR_texture_basisu", reason: failed },
             });
         }
-
-        await ktx2.loadKtx2().catch(() => {
-            if (!required.includes("KHR_texture_basisu")) {
-                return;
-            }
-
-            throw new ModelLoadFailure({
-                code: "E_MODEL_DECODER_UNAVAILABLE",
-                params: { extension: "KHR_texture_basisu", package: ktx2.KTX2_PACKAGE, reason: "missing" },
-            });
-        });
     }
 
     return draco;

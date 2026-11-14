@@ -1058,7 +1058,7 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     E_MODEL_EXTERNAL_URL: () => "This model loads parts from somewhere else, which is not allowed. Export it as .glb.",
     E_MODEL_DECODER_UNAVAILABLE: (p) => {
         if (p.reason === "missing") {
-            return `This model's compressed pictures need ${said(p.package) || "a decoder package"}, which this page does not have.`;
+            return "This page cannot read this model's compression.";
         }
         if (p.reason === "load") {
             return "The decoder for this model's compressed data did not load. Try again.";

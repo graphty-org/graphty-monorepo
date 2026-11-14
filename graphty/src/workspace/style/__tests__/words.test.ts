@@ -246,12 +246,12 @@ describe("model variant words", () => {
     it("says why a decoder failed by its reason, and calls approximated points a chip", () => {
         const fact = (reason: string): Parameters<typeof modelChip>[0] => ({
             code: "E_MODEL_DECODER_UNAVAILABLE",
-            params: { reason, package: "@babylonjs/ktx2decoder" },
+            params: { reason, extension: "KHR_texture_basisu" },
         });
-        assert.equal(modelChip(fact("missing")).tip, "needs @babylonjs/ktx2decoder");
+        assert.equal(modelChip(fact("missing")).tip, "no decoder on this page");
         assert.equal(modelChip(fact("load")).tip, "decoder did not load");
         assert.equal(modelChip(fact("decode")).tip, "compressed data damaged");
-        assert.match(modelWords(fact("missing")), /@babylonjs\/ktx2decoder/);
+        assert.match(modelWords(fact("missing")), /cannot read this model's compression/);
         assert.match(modelWords(fact("load")), /Try again/);
         assert.deepEqual(modelChip({ code: "W_MODEL_POINTS_APPROXIMATED", params: { points: 216, drawn: 216 } }), {
             word: "Approximated",

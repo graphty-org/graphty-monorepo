@@ -466,12 +466,14 @@ function cubeGltf(options: CubeOptions = {}): { json: Record<string, unknown>; b
         }
     }
     if (options.unlit) {
-        material.extensions = { KHR_materials_unlit: {} };
-        extensionsUsed.push("KHR_materials_unlit");
+        const name = "KHR_materials_unlit";
+        material.extensions = { [name]: {} };
+        extensionsUsed.push(name);
     }
     if (options.transmissionUsed) {
-        material.extensions = { KHR_materials_transmission: { transmissionFactor: 1 } };
-        extensionsUsed.push("KHR_materials_transmission");
+        const name = "KHR_materials_transmission";
+        material.extensions = { [name]: { transmissionFactor: 1 } };
+        extensionsUsed.push(name);
     }
     if (options.quantized) {
         extensionsUsed.push("KHR_mesh_quantization");
@@ -493,9 +495,10 @@ function cubeGltf(options: CubeOptions = {}): { json: Record<string, unknown>; b
     if (options.gpuInstancing) {
         // The cube placed twice, side by side, as gltfpack -i writes it.
         const translation = accessor(bin.view(bytesOf([-0.75, 0, 0, 0.75, 0, 0], Float32Array)), 5126, 2, "VEC3");
-        nodes[0].extensions = { EXT_mesh_gpu_instancing: { attributes: { TRANSLATION: translation } } };
-        extensionsUsed.push("EXT_mesh_gpu_instancing");
-        extensionsRequired.push("EXT_mesh_gpu_instancing");
+        const name = "EXT_mesh_gpu_instancing";
+        nodes[0].extensions = { [name]: { attributes: { TRANSLATION: translation } } };
+        extensionsUsed.push(name);
+        extensionsRequired.push(name);
     }
     if (options.animated) {
         const input = accessor(bin.view(bytesOf([0, 1], Float32Array)), 5126, 2, "SCALAR", { min: [0], max: [1] });

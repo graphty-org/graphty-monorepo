@@ -324,8 +324,9 @@ const config: KnipConfig = {
                 // nothing externalises it), so each is a devDependency that production source imports.
                 // TanStack AI is built into the AI engine's own chunks the same way, imported only by
                 // src/ai/engine/tanstack/ (design/ai/tanstack-ai-harness-design.md, section 3.2), and so
-                // is the in-page code sandbox (TanStack Code Mode's QuickJS driver and its WebAssembly).
-                // Only `lint:knip:prod` would report them, as unlisted.
+                // is the in-page code sandbox (TanStack Code Mode's QuickJS driver and its WebAssembly),
+                // and three, whose copy of the Draco glTF decoder the build writes beside its chunks
+                // (src/models/decoders/draco.ts). Only `lint:knip:prod` would report them, as unlisted.
                 ...(production
                     ? [
                           "lodash",
@@ -339,6 +340,7 @@ const config: KnipConfig = {
                           "@tanstack/ai-isolate-quickjs",
                           "@jitl/quickjs-wasmfile-release-sync",
                           "@jsonhero/json-infer-types",
+                          "three",
                       ]
                     : []),
                 // Storybook addons

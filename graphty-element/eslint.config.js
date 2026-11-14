@@ -46,8 +46,6 @@ export default tseslint.config(
             // The lifecycle tests' Chrome extension: a service worker Chrome loads, two lines.
             "test/lifecycle/discard-extension/**",
             "test/fast-check-experiment/**",
-            // Third-party decoders copied unchanged (src/models/decoders/vendor/*/README.md).
-            "src/models/decoders/vendor/**",
             "examples/**/*.js",
             "bin/**",
             ".storybook/webllm-stub.js",
@@ -81,15 +79,6 @@ export default tseslint.config(
             "test/ai/engine/reasoningOptions.test.ts",
             "test/ai/engine/live.test.ts",
         ],
-        rules: {
-            camelcase: ["error", { properties: "never" }],
-        },
-    },
-
-    // glTF's extension names (KHR_materials_unlit) and the keys of Babylon's KTX2 URL configuration
-    // (wasmUASTCToRGBA_SRGB) are the file format's and Babylon's own vocabulary.
-    {
-        files: ["src/models/decoders/ktx2.ts", "test/fixtures/models/**/*.ts"],
         rules: {
             camelcase: ["error", { properties: "never" }],
         },

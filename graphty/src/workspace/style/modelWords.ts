@@ -112,7 +112,7 @@ const STRUCTURE_TIPS: Readonly<Record<string, string>> = {
 function decoderTip(p: CodedFact["params"]): string {
     switch (p.reason) {
         case "missing":
-            return both("needs", said(p.package) || "a decoder package");
+            return "no decoder on this page";
         case "load":
             return "decoder did not load";
         case "decode":

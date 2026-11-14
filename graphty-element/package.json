@@ -62,6 +62,9 @@
         "./custom-elements.json": "./dist/custom-elements.json",
         "./graphty-catalog.json": "./dist/graphty-catalog.json"
     },
+    "imports": {
+        "#ktx2-transcoders/*": "@babylonjs/ktx2decoder/wasm/*"
+    },
     "sideEffects": [
         "./dist/graphty.js",
         "./dist/graphty.bundle.js",
@@ -72,6 +75,7 @@
         "./src/data/index.ts",
         "./src/layout/index.ts",
         "./src/ai/keys/withEncryptStorage.ts",
+        "./src/models/decoders/*.ts",
         "./index.ts",
         "./src/graphty-element.ts",
         "./docs/examples/**/*.ts"
@@ -180,7 +184,6 @@
     },
     "devDependencies": {
         "@babylonjs/core": "^8.36.1",
-        "@babylonjs/ktx2decoder": "8.56.2",
         "@babylonjs/loaders": "8.56.2",
         "@gltf-transform/core": "^4.5.1",
         "@gltf-transform/extensions": "^4.5.1",
@@ -221,6 +224,7 @@
         "lodash": "^4.17.21",
         "ngraph.random": "^1.2.0",
         "storybook": "^9.1.21",
+        "three": "^0.182.0",
         "tsx": "^4.21.0",
         "typedoc": "^0.28.15",
         "typedoc-plugin-markdown": "^4.9.0",
@@ -236,7 +240,6 @@
     },
     "peerDependencies": {
         "@babylonjs/core": "^8.0.0",
-        "@babylonjs/ktx2decoder": "^8.0.0",
         "@babylonjs/loaders": "^8.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": ">=1.29.0",
@@ -247,9 +250,6 @@
         "neo4j-driver": "^5.0.0"
     },
     "peerDependenciesMeta": {
-        "@babylonjs/ktx2decoder": {
-            "optional": true
-        },
         "@graphty/webgpu-graph-algorithms": {
             "optional": true
         },
@@ -270,6 +270,7 @@
         }
     },
     "dependencies": {
+        "@babylonjs/ktx2decoder": "8.56.2",
         "@graphty/algorithms": "workspace:^",
         "@graphty/graph-format": "workspace:^",
         "@graphty/graph-io": "workspace:^",

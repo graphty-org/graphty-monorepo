@@ -83,8 +83,17 @@ const INVENTORY: Record<string, Covered> = {
             "an asset read for a model or a picture; the model and picture caches hold the frame until it is on " +
             "its nodes (the intake and samples modules draw nothing)",
     },
-    "src/models/loadModel.ts": { count: 2, kind: "model", reason: "a model's loader chunk and text formats" },
+    "src/models/loadModel.ts": {
+        count: 5,
+        kind: "model",
+        reason: "a model's loader chunk, text formats and Draco, meshopt and KTX2 decoder modules, inside its load",
+    },
     "src/models/chunk.ts": { count: 2, kind: "model", reason: "a model's asset container load" },
+    "src/models/readers/container.ts": {
+        count: 1,
+        kind: "model",
+        reason: "a picture of a model graphty-element reads itself, which its load waits for (chunk.ts, settle)",
+    },
     "src/models/TextureCache.ts": { count: 1, kind: "picture", reason: "a node's picture decoded into a texture" },
     "src/meshes/pictureSize.ts": {
         count: 2,

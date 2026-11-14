@@ -608,17 +608,19 @@ thread.
 **Decoders.** Each decoder is its own chunk (src/models/decoders/), loaded only for a glTF whose
 `extensionsUsed` names it, and none is fetched from cdn.babylonjs.com:
 
-- Draco: Google's glTF build (`draco_wasm_wrapper_gltf.js`, `draco_decoder_gltf.wasm`, Apache-2.0)
-  is copied into the element's source and served beside the chunk; `DracoDecoder` decodes in one
+- Draco: Google's glTF build (`draco_wasm_wrapper.js`, `draco_decoder.wasm`, Apache-2.0), taken
+  at build time from three.js's copy (a devDependency) and served beside the chunk; `DracoDecoder` decodes in one
   worker. A primitive's Draco buffer view and attribute ids are index-checked.
 - meshopt: the `meshoptimizer` dependency, whose decoder carries its WebAssembly inline, through an
   extension of the element's own registered under both `EXT_meshopt_compression` and
   `KHR_meshopt_compression`. Each compressed view's source must fit its buffer, its decoded size
   (`count x byteStride`) must fit the view and counts toward the decoded-bytes limit, and a
   fallback buffer with no data is allowed.
-- KTX2: `@babylonjs/ktx2decoder` is an optional peer the element imports itself; its transcoders
-  are copied into the element's source and served beside the chunk. Without the peer the model
-  fails to draw with `E_MODEL_DECODER_UNAVAILABLE { extension, package, reason: "missing" }`.
+- KTX2: `@babylonjs/ktx2decoder` is a dependency; its transcoders (its `wasm/` folder) are served
+  beside the chunk.
+- `./bundle` carries no WebAssembly, so it leaves the Draco and KTX2 decoders out: a model that
+  needs one fails with `E_MODEL_DECODER_UNAVAILABLE { extension, reason: "missing" }`, and a glTF
+  that only uses KTX2 draws its fallback pictures.
 
 A decoder whose files cannot load is `reason: "load"`; damaged compressed data is `reason: "decode"`.
 The transmission family (transmission, volume, dispersion, diffuse transmission, volume scatter) is
@@ -757,7 +759,7 @@ string param from a file (names, clip names) is cut to 256 characters.
 | `E_MODEL_AMBIGUOUS`           | `candidates`                                                                                                                         | Two different main files in one set                                                                | "Which one is the model?" with the list                                                                                                                               |
 | `E_MODEL_MISSING_FILE`        | `name`, `referencedBy`                                                                                                               | A `.bin`, texture or `.mtl` is not in the set                                                      | "robot.gltf needs robot.bin. Drop the whole folder or a .zip, or export as .glb."                                                                                     |
 | `E_MODEL_EXTERNAL_URL`        | `url`                                                                                                                                | A reference outside the file set                                                                   | "This model loads parts from somewhere else, which is not allowed. Export it as .glb."                                                                                |
-| `E_MODEL_DECODER_UNAVAILABLE` | `reason` (`missing`, `load`, `decode`), `extension`, `package`                                                                       | The KTX2 peer is not installed, a decoder's files did not load, or compressed data is damaged      | "Install @babylonjs/ktx2decoder to draw this model's pictures." / "Try again." / "This model's data is damaged."                                                      |
+| `E_MODEL_DECODER_UNAVAILABLE` | `reason` (`missing`, `load`, `decode`), `extension`                                                                                  | `./bundle` has no decoder for it, a decoder's files did not load, or compressed data is damaged    | "This page cannot read this model's compression." / "Try again." / "This model's data is damaged."                                                                    |
 | `E_MODEL_PARSE`               | `format`                                                                                                                             | Babylon could not read a file that passed the checks                                               | "The file is damaged or not a valid GLB."                                                                                                                             |
 | `E_MODEL_ZIP`                 | `reason: "corrupt" \| "encrypted" \| "empty" \| "duplicate" \| "ratio" \| "entries" \| "nested"`                                     | The zip cannot be read safely                                                                      | "The .zip could not be opened."                                                                                                                                       |
 | `E_MODEL_NAME_TAKEN`          | `id`                                                                                                                                 | A name already held by different files, or a reserved `asset:sample/` name                         | "A different model is already called rack."                                                                                                                           |

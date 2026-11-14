@@ -842,6 +842,9 @@ importers:
 
   graphty-element:
     dependencies:
+      '@babylonjs/ktx2decoder':
+        specifier: 8.56.2
+        version: 8.56.2(@babylonjs/core@8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2))
       '@graphty/algorithms':
         specifier: workspace:^
         version: link:../algorithms
@@ -903,9 +906,6 @@ importers:
       '@babylonjs/core':
         specifier: ^8.36.1
         version: 8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2)
-      '@babylonjs/ktx2decoder':
-        specifier: 8.56.2
-        version: 8.56.2(@babylonjs/core@8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2))
       '@babylonjs/loaders':
         specifier: 8.56.2
         version: 8.56.2(@babylonjs/core@8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2))(babylonjs-gltf2interface@8.56.2)
@@ -1026,6 +1026,9 @@ importers:
       storybook:
         specifier: ^9.1.21
         version: 9.1.21(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@8.3.5(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      three:
+        specifier: ^0.182.0
+        version: 0.182.0
       tsx:
         specifier: ^4.21.0
         version: 4.23.15

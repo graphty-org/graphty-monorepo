@@ -1981,7 +1981,13 @@ async function readProject(
                 await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
             }
 
-            tx.visibility.showContext = visibility.showContext === true;
+            // Dispatched and awaited, not set through `showContext`, whose setter cannot hand back its
+            // promise: an open aborted meanwhile (the element disposed) left that promise rejected
+            // with no one to catch it.
+            const show = visibility.showContext === true;
+            if (tx.visibility.showContext !== show) {
+                await tx.execute({ op: "visibility.context", show });
+            }
         });
     }
 

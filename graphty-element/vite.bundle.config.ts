@@ -42,6 +42,36 @@ function withoutProgram(): Plugin {
     };
 }
 
+const NO_DECODER = "\0graphty-no-decoder";
+
+/**
+ * Leaves the Draco decoder and the KTX2 transcoders out of `./bundle`: one file cannot carry their
+ * WebAssembly beside it, and inlined they would add close to 1 MB to every page. `DECODERS_IN_BUILD` is
+ * false, so a model that needs one reports `E_MODEL_DECODER_UNAVAILABLE` with `reason: "missing"`
+ * (a glTF that only uses KTX2 draws its fallback images). meshopt's decoder carries its WebAssembly
+ * inside its JavaScript and stays.
+ * @returns The plugin.
+ */
+function withoutDecoders(): Plugin {
+    return {
+        name: "graphty-bundle-without-decoders",
+        enforce: "pre",
+        resolveId(source, importer): string | undefined {
+            return /^\.\/decoders\/(?:draco|ktx2)$/.test(source) &&
+                importer?.endsWith("/src/models/loadModel.ts") === true
+                ? NO_DECODER
+                : undefined;
+        },
+        load(id): string | undefined {
+            if (id.endsWith("/src/models/decoders/inBuild.ts")) {
+                return "export const DECODERS_IN_BUILD = false;";
+            }
+
+            return id === NO_DECODER ? "export {};" : undefined;
+        },
+    };
+}
+
 /**
  * The self-contained build behind the `./bundle` export.
  *
@@ -62,7 +92,7 @@ function withoutProgram(): Plugin {
 export default defineConfig({
     // The AI providers' SDKs are built in; this one needs its Node-only toolset stubbed (vite.config.ts).
     // Everything is copied in here, so its license list is the package's whole list.
-    plugins: [stubAnthropicNodeToolset(), thirdPartyLicenses(), withoutProgram()],
+    plugins: [stubAnthropicNodeToolset(), thirdPartyLicenses(), withoutProgram(), withoutDecoders()],
     // Relative, so the Graphviz Worker's file is found beside the bundle wherever it is served.
     base: "./",
     // The Graphviz Worker stays a file of its own and imports the optional package by name, which

@@ -1,9 +1,9 @@
 /**
  * The model decoders ship inside graphty-element and nothing names Babylon's CDN for them: the
  * library build writes the Draco decoder and the KTX2 transcoders beside the chunks that load
- * them, and `./bundle` beside itself; the decoder chunks reference those files and no
- * cdn.babylonjs.com address; THIRD-PARTY-LICENSES.txt carries their notices. Build first
- * (`npm run build`).
+ * them; the decoder chunks reference those files and no cdn.babylonjs.com address;
+ * THIRD-PARTY-LICENSES.txt carries their notices. `./bundle`, one file, leaves both out
+ * (vite.bundle.config.ts). Build first (`npm run build`).
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -15,8 +15,8 @@ import { assert, describe, it } from "vitest";
 const DIST = fileURLToPath(new URL("../../dist", import.meta.url));
 const CHUNKS = join(DIST, "chunks");
 const DECODER_FILES = [
-    "draco_decoder_gltf",
-    "draco_wasm_wrapper_gltf",
+    "draco_decoder",
+    "draco_wasm_wrapper",
     "msc_basis_transcoder",
     "uastc_astc",
     "uastc_bc7",
@@ -28,7 +28,7 @@ const DECODER_FILES = [
 ];
 
 describe("model decoders in the package", () => {
-    it("are written beside the library's chunks and beside ./bundle", () => {
+    it("are written beside the library's chunks, and never beside ./bundle", () => {
         assert.isTrue(existsSync(CHUNKS), "run npm run build first");
         const chunks = readdirSync(CHUNKS);
         const top = readdirSync(DIST);
@@ -37,9 +37,9 @@ describe("model decoders in the package", () => {
                 chunks.some((f) => f.startsWith(`${name}-`)),
                 `dist/chunks holds ${name}`,
             );
-            assert.isTrue(
+            assert.isFalse(
                 top.some((f) => f.startsWith(`${name}.`)),
-                `dist holds ${name} for ./bundle`,
+                `dist holds ${name} beside ./bundle`,
             );
         }
     });
@@ -51,7 +51,10 @@ describe("model decoders in the package", () => {
             assert.isDefined(file, `a ${prefix} chunk`);
             const code = readFileSync(join(CHUNKS, file), "utf8");
             assert.notInclude(code, "babylonjs.com", file);
-            if (prefix !== "meshopt-") {
+            if (prefix === "meshopt-") {
+                // Registered when the chunk is imported: an empty chunk (a build told it is pure) registers nothing.
+                assert.include(code, "KHR_meshopt_compression", file);
+            } else {
                 assert.match(code, /new URL\("[\w-]+\.(?:wasm|js)", import\.meta\.url\)/, file);
             }
         }
@@ -59,7 +62,7 @@ describe("model decoders in the package", () => {
 
     it("carry their notices in THIRD-PARTY-LICENSES.txt", () => {
         const text = readFileSync(join(DIST, "THIRD-PARTY-LICENSES.txt"), "utf8");
-        assert.include(text, "src/models/decoders/vendor/draco");
-        assert.include(text, "src/models/decoders/vendor/ktx2");
+        assert.include(text, "src/models/decoders/licenses/draco");
+        assert.include(text, "src/models/decoders/licenses/ktx2");
     });
 });

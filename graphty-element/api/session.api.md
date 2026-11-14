@@ -1004,6 +1004,12 @@ export interface DraftTable {
 }
 
 // @public
+export interface DrawnValue {
+    readonly count: number;
+    readonly value: unknown;
+}
+
+// @public
 export function edgeConditions<F extends ConditionField>(selector: Selector_2, fields: readonly F[]): Condition<F>[];
 
 // @public
@@ -3221,6 +3227,7 @@ export interface LayerReach {
     readonly locked: boolean;
     readonly row: StyleRowId;
     readonly sets: readonly Channel[];
+    readonly writes: readonly Channel[];
 }
 
 // @public
@@ -7026,6 +7033,7 @@ export interface StylesApi {
     defaultValue(channel: Channel): ChannelValue | undefined;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     drawnCount(id: LayerId): number;
+    drawnValues(channel: Channel): readonly DrawnValue[];
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;

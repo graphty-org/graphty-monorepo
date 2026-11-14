@@ -13,6 +13,7 @@ import "@graphty/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import {
     addModel,
@@ -26,6 +27,10 @@ import {
     written,
 } from "./modelHarness";
 import { quadGlb } from "./quadGlb";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Waits until focus is on a tile of the pop-over, by its name.

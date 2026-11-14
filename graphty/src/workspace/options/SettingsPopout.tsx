@@ -27,6 +27,8 @@ interface SettingsPopoutProps {
     placement?: "left" | "right";
     /** The highest the panel's top may sit. */
     boundaryTop?: number;
+    /** The button's glyph; the settings gear by default. */
+    icon?: React.ReactNode;
     /** The settings. */
     children: React.ReactNode;
 }
@@ -47,6 +49,7 @@ interface SettingsPopoutProps {
  * @param props.width - The panel's width
  * @param props.placement - The side of the button it opens on
  * @param props.boundaryTop - The highest the panel's top may sit
+ * @param props.icon - The button's glyph
  * @param props.children - The settings
  * @returns The button and its popover
  */
@@ -60,6 +63,7 @@ export function SettingsPopout({
     width = 264,
     placement = "left",
     boundaryTop,
+    icon = <GLYPHS.settings size={14} aria-hidden />,
     children,
 }: Readonly<SettingsPopoutProps>): React.JSX.Element {
     if (useContext(InSettings) && import.meta.env.DEV) {
@@ -69,7 +73,7 @@ export function SettingsPopout({
         <Popout opened={opened} onOpenChange={onOpenChange}>
             <Popout.Trigger>
                 <Tooltip label={tip}>
-                    <AdvancedButton label={label} changed={changed} icon={<GLYPHS.settings size={14} aria-hidden />} />
+                    <AdvancedButton label={label} changed={changed} icon={icon} />
                 </Tooltip>
             </Popout.Trigger>
             <Popout.Panel

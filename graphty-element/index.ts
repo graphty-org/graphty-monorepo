@@ -405,7 +405,7 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // Video capture exports
 // =============================================================================
 export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
-export type { AnimationOptions, AnimationResult, CameraWaypoint } from "./src/video/VideoCapture";
+export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
 
 // Video capture estimation
 export type { CaptureEstimate } from "./src/video/estimation";

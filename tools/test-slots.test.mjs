@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
     acquire,
     commandWhat,
+    COUNT_MAX_AGE_MS,
     HELD,
     laneOf,
     liveTickets,
@@ -234,21 +235,45 @@ describe("test-slots", () => {
     });
 
     it("takes one slot per 8 cores (at least 2) unless GRAPHTY_TEST_SLOTS says otherwise; 0 is no limit", async () => {
-        assert.equal(slotCount({}, 32), 4);
-        assert.equal(slotCount({}, 4), 2);
-        assert.equal(slotCount({ GRAPHTY_TEST_SLOTS: "6" }, 32), 6);
-        assert.throws(() => slotCount({ GRAPHTY_TEST_SLOTS: "many" }, 32), /whole number/);
+        const none = { GRAPHTY_TEST_SLOTS_DIR: fresh() };
+        assert.equal(slotCount(none, 32), 4);
+        assert.equal(slotCount(none, 4), 2);
+        assert.equal(slotCount({ ...none, GRAPHTY_TEST_SLOTS: "6" }, 32), 6);
+        assert.throws(() => slotCount({ ...none, GRAPHTY_TEST_SLOTS: "many" }, 32), /whole number/);
         const dir = fresh();
         await acquire({ ...quiet, dir, slots: 0, label: "unlimited" });
         assert.deepEqual(readdirSync(dir), []);
     });
 
+    it("reads the slot count from the ticket directory's .count file when GRAPHTY_TEST_SLOTS is unset", () => {
+        const dir = fresh();
+        writeFileSync(join(dir, ".count"), "6\n");
+        assert.equal(slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32), 6);
+        assert.equal(slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir, GRAPHTY_TEST_SLOTS: "3" }, 32), 3, "the variable wins");
+        writeFileSync(join(dir, ".count"), "six");
+        assert.throws(() => slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32), /\.count must be a whole number/);
+    });
+
+    it("ignores a .count file written more than two hours ago and falls back to the default", () => {
+        const dir = fresh();
+        const file = join(dir, ".count");
+        writeFileSync(file, "6\n");
+        const written = statSync(file).mtimeMs;
+        assert.equal(slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32, written + COUNT_MAX_AGE_MS - 1000), 6);
+        assert.equal(
+            slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32, written + COUNT_MAX_AGE_MS + 1000),
+            4,
+            "stale: one per 8 cores",
+        );
+    });
+
     it("gives a Node run at most its share of the cores as workers, and no cap where slots are off", () => {
-        assert.equal(workerShare({}, 32, 32), 8);
-        assert.equal(workerShare({}, 4, 4), 2);
+        const none = { GRAPHTY_TEST_SLOTS_DIR: fresh() };
+        assert.equal(workerShare(none, 32, 32), 8);
+        assert.equal(workerShare(none, 4, 4), 2);
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "6" }, 32, 32), 5);
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "64" }, 32, 32), 1);
-        assert.equal(workerShare({}, 32, 1), 1, "a pinned run has one core to use");
+        assert.equal(workerShare(none, 32, 1), 1, "a pinned run has one core to use");
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "0" }, 32), undefined);
         assert.equal(workerShare({ GITHUB_ACTIONS: "true" }, 32), undefined);
     });

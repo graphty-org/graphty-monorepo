@@ -339,6 +339,11 @@ Every round, over `marked` in the state file and the branch list above (no extra
 `tools/worktree-cleanup.mjs` removes finished worktrees on its own (the servherd server `worktree-cleanup`, every 15
 minutes, from `.worktrees/worktree-cleanup-live`). Check only that `servherd_list` shows it online, else start it:
 `servherd_start({ name: "worktree-cleanup", cwd: "/home/apowers/Projects/graphty-monorepo/.worktrees/worktree-cleanup-live", command: "node tools/worktree-cleanup.mjs --apply --every 15" })`.
+A server left online keeps its worktree forever, so also stop servers whose job is over: in `servherd_list`, every
+online server whose cwd no longer exists, or lies in a worktree whose branch merged or is `[gone]` (the candidates of
+`./tools/worktree-prune.sh --dry-run`, which lists each one's servers), gets `servherd_stop` then `servherd_remove`.
+Never stop one in the main checkout, a live tool (`tools/live-tools.json`), the broker, a review server, a watcher, or
+any you are unsure of; list those older than 3 days in the round's last line instead.
 
 ### 12. Dashboard members no step covers
 

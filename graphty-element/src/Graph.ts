@@ -1852,9 +1852,14 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Shuts down the graph, stopping animations and disposing all resources.
+     * Shuts down the graph, stopping animations and disposing all resources. A second call does
+     * nothing.
      */
     shutdown(): void {
+        if (this.#teardown.signal.aborted) {
+            return;
+        }
+
         // First, so a repaint queued behind a load or a run -- or one already painting -- stops
         // rather than running against the store and session this is about to dispose.
         this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));

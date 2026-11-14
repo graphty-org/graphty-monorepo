@@ -2,8 +2,9 @@
  * @file Records held as columns and built on demand (design/rendering/row-renderer.md 4.6,
  * "Records into columns", stage 29). A `"batched"` `importColumns` hands the load records that
  * carry their source and row; the graph slice's maps and the op log keep the row, a small integer,
- * and build the record the first time it is read. The map keeps what it built, so `Node.data` and
- * every reader see one object per record from then on.
+ * and build the record each time it is read. The map never keeps what it built: something reads
+ * every record after a load (measured: keeping them held the whole 90 MB at 1M + 1M), so a kept
+ * record would undo the saving. A `Node`, once built, keeps its own record as `Node.data`.
  */
 
 import type { GraphRecord } from "./state";
@@ -108,9 +109,8 @@ export function rowsView(source: RowSource): readonly GraphRecord[] {
 
 /**
  * The graph slice's map of records by id. A record built from columns is stored as a number, its
- * place among the rows of every source this map was given, and built and kept when it is first read
- * by `get` or any iteration; anything else is stored as it is, so a map no column record reaches is
- * a plain `Map`.
+ * place among the rows of every source this map was given, and built afresh on every `get` or
+ * iteration; anything else is stored as it is, so a map no column record reaches is a plain `Map`.
  */
 export class RecordMap<K> extends Map<K, GraphRecord> {
     private readonly sources: RowSource[] = [];
@@ -169,48 +169,32 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
     }
 
     /**
-     * Resolve an entry and keep what was built.
-     * @param key - The id.
-     * @param value - What the map holds for it.
-     * @returns The record.
-     */
-    private kept(key: K, value: GraphRecord | number): GraphRecord {
-        if (typeof value !== "number") {
-            return value;
-        }
-
-        const record = this.resolve(value);
-        super.set(key, record);
-        return record;
-    }
-
-    /**
-     * The record for an id, built from columns and kept on first read.
+     * The record for an id, built from columns when held as its place.
      * @param key - The id.
      * @returns The record, or undefined.
      */
     override get(key: K): GraphRecord | undefined {
         const value = super.get(key) as GraphRecord | number | undefined;
-        return value === undefined ? undefined : this.kept(key, value);
+        return value === undefined ? undefined : this.resolve(value);
     }
 
     /**
-     * Every id and record, each built and kept on first read.
+     * Every id and record, each built from columns when held as its place.
      * @yields The entries.
      */
     override *entries(): MapIterator<[K, GraphRecord]> {
         for (const [key, value] of super.entries()) {
-            yield [key, this.kept(key, value)];
+            yield [key, this.resolve(value)];
         }
     }
 
     /**
-     * Every record, each built and kept on first read.
+     * Every record, each built from columns when held as its place.
      * @yields The records.
      */
     override *values(): MapIterator<GraphRecord> {
-        for (const [key, value] of super.entries()) {
-            yield this.kept(key, value);
+        for (const value of super.values()) {
+            yield this.resolve(value);
         }
     }
 
@@ -223,7 +207,7 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
     }
 
     /**
-     * Call a function for each entry, each record built and kept on first read.
+     * Call a function for each entry, each record built from columns when held as its place.
      * @param fn - The function.
      * @param self - Its `this`.
      */

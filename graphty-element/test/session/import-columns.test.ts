@@ -140,7 +140,7 @@ describe("session.data.importColumns", () => {
         });
     }
 
-    it("holds a batched importColumns' records as columns, built on first read and kept (stage 29)", async () => {
+    it("holds a batched importColumns' records as columns, built on each read (stage 29)", async () => {
         for (const batched of [false, true]) {
             const session = createElementSession({}, { batched: () => batched });
             const before = recordsBuilt.count;
@@ -171,10 +171,12 @@ describe("session.data.importColumns", () => {
             assert.deepStrictEqual(node, { id: "b", position: [1, 0, 0], group: 1 });
             assert.deepStrictEqual(nodes[1], node);
             assert.deepStrictEqual([...graph.edges.values()][1], edges[1]);
-            // A record built on read is kept: every reader sees one object from then on.
-            assert.strictEqual(graph.nodes.get("b"), node);
+            // A record from columns is built afresh on each read and never kept by the slice:
+            // reading every record (a style pass does) must not hold a million of them.
+            assert.strictEqual(graph.nodes.get("b") === node, !batched, `slice keeps the record: ${String(batched)}`);
+            assert.deepStrictEqual(graph.nodes.get("b"), node);
             assert.isTrue(Object.isFrozen(node));
-            assert.strictEqual(recordsBuilt.count - before, batched ? 1 + SOURCES.length : 0);
+            assert.strictEqual(recordsBuilt.count - before, batched ? 3 + SOURCES.length : 0);
         }
     });
 

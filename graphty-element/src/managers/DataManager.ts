@@ -1448,8 +1448,12 @@ export class DataManager implements Manager {
      * @returns 1 when the node was built or stored, else 0.
      */
     private reconcileNode(id: NodeIdType, slice: GraphSlice, doomed: Set<NodeIdType>, moves: UnbuiltMove[]): number {
-        const record = slice.nodes.get(id);
         const unbuilt = this.unbuiltRowOf(id);
+        // A row kept with its record in the slice's columns keeps reading it there: reading it
+        // here would build every record of a load on the pass after it.
+        const inSlice =
+            unbuilt !== INVALID_INDEX && this.unbuilt.get(unbuilt)?.record === IN_SLICE && slice.nodes.has(id);
+        const record = inSlice ? IN_SLICE : slice.nodes.get(id);
         if (unbuilt !== INVALID_INDEX) {
             // A row drawn with no `Node` takes its record and keeps no `Node`.
             const index = record === undefined ? INVALID_INDEX : this.store.builder.indexOf(id);

@@ -1236,6 +1236,17 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   (`slice.nodes`, `slice.edges`, read by `Node.data` and every record reader), so loading without one means
   holding records as columns and building them on demand, which is stage 29's "records into columns", conditional
   on stage 30's harness run. Stage 28 builds nothing more for it.
+  Records into columns (stage 29, built): under `"batched"`, `importColumns` copies its columns into a row source
+  (`session/project/recordMap.ts`) and builds no record at load. The journal's `add-nodes` and `add-edges` commands
+  hold an array view that builds each record when read; the graph slice's maps are a `RecordMap` (a `Map` subclass)
+  holding a row number per column record, as do the op log's `nodes` and `edges` ranges; rows stored with no `Node`
+  or `Edge` keep a marker and read the record from the slice. Corrections to this section and to the stage note:
+  the record had four holders, not two (the journal's command and the data manager's unbuilt rows besides the
+  slice and the op log), and a record is built on every read and never kept, not "built on demand and kept":
+  something reads every record after a load, so keeping what was built held the whole 90 MB (859 MB after GC
+  against 874 MB on master); built per read it is 775 MB, under the 800 MB target (1M + 1M, RTX, 2026-11-14). A
+  built `Node` still keeps its own record as `Node.data`; a second read of a column row's slice record is an equal
+  object, not the same one. The objects path keeps its records as before.
 - **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
   one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
   whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the

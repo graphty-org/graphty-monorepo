@@ -4116,6 +4116,8 @@ export class UpdateManager implements Manager {
         const camera = scene.activeCamera;
         const fallback = this.defaultSizeSpace();
         const all = fallback !== "scene";
+        // The graph-wide space just went back to "scene": every node it sized returns to 1.
+        const leftAll = !all && this.sizedDefault !== "scene";
         const { unsized } = this;
         this.unsized = new Set();
         this.sizingDirty = false;
@@ -4153,10 +4155,13 @@ export class UpdateManager implements Manager {
             size(node);
         }
 
-        // A node whose style stopped following the view goes back to the graph-wide space's size.
+        // A node whose style stopped following the view goes back to the graph-wide space's size,
+        // and so does every node when the graph-wide space stopped following it.
         if (!all) {
-            for (const node of unsized) {
-                size(node);
+            for (const node of leftAll ? this.layoutManager.nodes : unsized) {
+                if (!this.viewSized.has(node)) {
+                    size(node);
+                }
             }
         }
 

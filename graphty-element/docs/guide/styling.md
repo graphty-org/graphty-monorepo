@@ -566,7 +566,7 @@ Set it on a layer for some nodes:
 await element.session.styles.add({
     name: "Hubs stay readable",
     target: "node",
-    selector: { match: "expression", where: "data.degree > 20" },
+    selector: { match: "expression", where: "graphty.degree > `20`" },
     set: { "node.size": 2, "node.sizeSpace": "screen" },
 });
 ```

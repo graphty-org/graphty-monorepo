@@ -152,6 +152,23 @@ describe("node size space", () => {
         assert.isBelow(radius("big"), radius("small"));
     });
 
+    it("pivot, then scene, with a layer setting a space: the other nodes go back to their perspective size", async () => {
+        await drawn(true, false);
+        const perspective = radius("small");
+        element.layoutBehavior = { node: { sizeSpace: "pivot" } };
+        await element.session.styles.add({
+            name: "held",
+            target: "node",
+            selector: { match: "ids", nodes: ["big"] },
+            set: { "node.sizeSpace": "screen" },
+        });
+        await element.waitForStableFrame();
+        assert.isBelow(radius("small") / perspective, 0.99, "pivot draws the near node smaller");
+        element.layoutBehavior = { node: { sizeSpace: "scene" } };
+        await element.waitForStableFrame();
+        assert.closeTo(radius("small") / perspective, 1, 0.01);
+    });
+
     it("pivot, in 2D: sizes are left alone (an orthographic view has no depth to undo)", async () => {
         await drawn(true, true);
         await element.setViewMode("2d");

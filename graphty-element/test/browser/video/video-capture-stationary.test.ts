@@ -1,7 +1,18 @@
 import { afterEach, assert, beforeEach, test, vi } from "vitest";
 
 import { Graph } from "../../../src/Graph.js";
-import { restoreMockMediaRecorder, setupMockMediaRecorder } from "./mock-media-recorder.js";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
+import { MockMediaRecorder, restoreMockMediaRecorder, setupMockMediaRecorder } from "./mock-media-recorder.js";
+
+/**
+ * The canvas the last recording was made from.
+ * @returns The recorded canvas.
+ */
+function recordedCanvas(): HTMLCanvasElement {
+    const track = MockMediaRecorder.lastStream?.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
+    assert.ok(track, "a recording was made");
+    return track.canvas;
+}
 
 // Store original MediaRecorder
 let originalMediaRecorder: typeof MediaRecorder;
@@ -35,20 +46,16 @@ test("can capture video with stationary camera", async () => {
     assert.ok(result.blob.type.startsWith("video/webm"));
     assert.equal(result.metadata.fps, 30);
     assert.equal(result.metadata.format, "webm"); // Format detected from blob type
-    assert.ok(result.metadata.framesCaptured >= 0);
-    assert.ok(result.metadata.width > 0);
-    assert.ok(result.metadata.height > 0);
+    // 2 s at 30 fps: every frame expected is either captured or dropped.
+    const { framesCaptured, framesDropped, dropRate } = result.metadata;
+    assert.equal(framesCaptured + framesDropped, 60);
+    assert.equal(dropRate, Math.round((framesDropped / 60) * 100));
+    // Recorded from the canvas the graph draws on, at its own size.
+    assert.equal(result.metadata.width, graph.canvas.width);
+    assert.equal(result.metadata.height, graph.canvas.height);
+    assert.equal(recordedCanvas(), graph.canvas, "recorded from the graph's own canvas at its own size");
 
     graph.dispose();
-});
-
-test("auto-detects best supported codec", () => {
-    const isVP9Supported = MediaRecorder.isTypeSupported("video/webm;codecs=vp9");
-    const isVP8Supported = MediaRecorder.isTypeSupported("video/webm;codecs=vp8");
-    const isWebMSupported = MediaRecorder.isTypeSupported("video/webm");
-
-    // At least one should be supported
-    assert.ok(isVP9Supported || isVP8Supported || isWebMSupported);
 });
 
 test("fires animation-progress events", async () => {
@@ -98,7 +105,7 @@ test("respects custom fps setting", async () => {
     graph.dispose();
 });
 
-test("respects custom dimensions", async () => {
+test("records at the size asked for", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
@@ -112,30 +119,93 @@ test("respects custom dimensions", async () => {
         height: 1080,
     });
 
+    // The recorder was handed a canvas of that size, not the graph's.
+    assert.notEqual(recordedCanvas(), graph.canvas);
+    assert.equal(recordedCanvas().width, 1920);
+    assert.equal(recordedCanvas().height, 1080);
     assert.equal(result.metadata.width, 1920);
     assert.equal(result.metadata.height, 1080);
 
     graph.dispose();
 });
 
-test("calculates expected frames correctly", async () => {
+test("a width alone keeps the canvas's aspect", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
     const graph = new Graph(canvas);
 
-    const result = await graph.captureAnimation({
-        duration: 2000,
-        fps: 30,
-        cameraMode: "stationary",
-    });
+    const result = await graph.captureAnimation({ duration: 500, cameraMode: "stationary", width: 400 });
 
-    // 2 seconds at 30fps = 60 frames expected
-    const expectedFrames = (2000 / 1000) * 30;
-    assert.ok(result.metadata.framesCaptured <= expectedFrames + 5); // Allow small variance
-    assert.ok(result.metadata.framesCaptured >= expectedFrames - 5);
+    const height = Math.round(400 * (graph.canvas.height / graph.canvas.width));
+    assert.equal(recordedCanvas().width, 400);
+    assert.equal(recordedCanvas().height, height);
+    assert.equal(result.metadata.height, height);
 
     graph.dispose();
+});
+
+test("counts the frames the graph draws while recording, at most one per 1/fps", async () => {
+    const graph = await createTestGraph();
+    // The test draws every frame itself: none while the recorder starts, then five at once.
+    graph.engine.stopRenderLoop();
+    let drawn = false;
+    graph.eventManager.addListener("animation-progress", () => {
+        if (!drawn) {
+            drawn = true;
+            for (let i = 0; i < 5; i++) {
+                graph.scene.render();
+            }
+        }
+    });
+
+    const result = await graph.captureAnimation({ duration: 1000, fps: 10, cameraMode: "stationary" });
+
+    // Five frames drawn within one 1/fps interval are one frame of the video; the other nine
+    // frames expected were never drawn.
+    assert.equal(result.metadata.framesCaptured, 1);
+    assert.equal(result.metadata.framesDropped, 9);
+    assert.equal(result.metadata.dropRate, 90);
+
+    cleanupTestGraph(graph);
+});
+
+test("a graph that draws nothing while recording drops every frame", async () => {
+    const graph = await createTestGraph();
+    graph.engine.stopRenderLoop();
+
+    const result = await graph.captureAnimation({ duration: 500, fps: 20, cameraMode: "stationary" });
+
+    assert.equal(result.metadata.framesCaptured, 0);
+    assert.equal(result.metadata.framesDropped, 10);
+    assert.equal(result.metadata.dropRate, 100);
+
+    cleanupTestGraph(graph);
+});
+
+test("records from the camera asked for, then puts the camera back", async () => {
+    const graph = await createTestGraph();
+    const before = graph.getCameraState();
+    const asked = { position: { x: 3, y: 4, z: 25 }, target: { x: 0, y: 0, z: 0 } };
+
+    const recording = graph.eventManager.waitFor("animation-progress");
+    const capturePromise = graph.captureAnimation({ duration: 500, cameraMode: "stationary", camera: asked });
+    await recording;
+    const during = graph.getCameraState();
+    await capturePromise;
+    const after = graph.getCameraState();
+
+    for (const axis of ["x", "y", "z"] as const) {
+        assert.closeTo(during.position?.[axis] ?? Number.NaN, asked.position[axis], 1e-4, `recorded from ${axis}`);
+        assert.closeTo(
+            after.position?.[axis] ?? Number.NaN,
+            before.position?.[axis] ?? Number.NaN,
+            1e-4,
+            `put back on ${axis}`,
+        );
+    }
+
+    cleanupTestGraph(graph);
 });
 
 test("supports cancellation", async () => {

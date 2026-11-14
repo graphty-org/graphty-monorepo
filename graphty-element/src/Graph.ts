@@ -7178,9 +7178,14 @@ export class Graph implements GraphContext {
     async captureAnimation(
         options: import("./video/VideoCapture.js").AnimationOptions,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const { MediaRecorderCapture } = await import("./video/MediaRecorderCapture.js");
+        const { MediaRecorderCapture, holdCameraForCapture } = await import("./video/MediaRecorderCapture.js");
 
-        const capture = new MediaRecorderCapture();
+        const capture = new MediaRecorderCapture((onFrame) => {
+            const observer = this.scene.onAfterRenderObservable.add(onFrame);
+            return () => {
+                this.scene.onAfterRenderObservable.remove(observer);
+            };
+        });
 
         // Store reference for cancellation
         this.activeCapture = capture;
@@ -7200,8 +7205,14 @@ export class Graph implements GraphContext {
                 return await this.captureAnimatedCameraVideo(options, capture, onProgress);
             }
 
-            // Capture stationary video
-            const result = await capture.captureRealtime(this.canvas, options, onProgress);
+            // Capture stationary video, from the camera asked for
+            const restoreCamera = options.camera ? await holdCameraForCapture(this, options.camera) : undefined;
+            let result: import("./video/VideoCapture.js").AnimationResult;
+            try {
+                result = await capture.captureRealtime(this.canvas, options, onProgress);
+            } finally {
+                await restoreCamera?.();
+            }
 
             // Handle download if requested
             this.handleVideoDownload(result, options);

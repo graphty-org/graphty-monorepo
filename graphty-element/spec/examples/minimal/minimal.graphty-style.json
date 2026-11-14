@@ -1,0 +1,9 @@
+{
+    "kind": "graphty-style",
+    "version": 2,
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "layers": []
+}

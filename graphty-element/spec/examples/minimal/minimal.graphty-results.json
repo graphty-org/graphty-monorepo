@@ -1,0 +1,14 @@
+{
+    "kind": "graphty-results",
+    "version": 2,
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "bindsTo": {
+        "data": "minimal-data",
+        "sources": {},
+        "fingerprint": "sha256:04db2cc4a22e46fd30f2cad25594248d2d4ae3f5add050b47c50f9694022e256"
+    },
+    "runs": {}
+}

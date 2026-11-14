@@ -1,0 +1,11 @@
+{
+    "kind": "graphty-view",
+    "version": 1,
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "bindsTo": {
+        "data": "minimal-data"
+    }
+}

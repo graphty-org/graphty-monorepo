@@ -1,0 +1,12 @@
+{
+    "kind": "graphty-notes",
+    "version": 2,
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "bindsTo": {
+        "data": "minimal-data"
+    },
+    "notes": []
+}

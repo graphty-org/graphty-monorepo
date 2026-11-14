@@ -1,0 +1,1375 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-document/v2.json",
+    "kind": "graphty-document",
+    "version": 2,
+    "id": "9b2f6d0e-3c41-4f7a-8e55-0a1d2c3b4e5f",
+    "name": "Card fraud, week 46",
+    "created": "2026-11-10T17:02:00.000Z",
+    "modified": "2026-11-14T18:00:00.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "sections": {
+        "data": {
+            "$schema": "https://graphty.app/schema/documents/graphty-data/v2.json",
+            "kind": "graphty-data",
+            "version": 2,
+            "id": "d1a7c0de-0001-4000-8000-000000000001",
+            "created": "2026-11-10T17:02:00.000Z",
+            "modified": "2026-11-14T17:42:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "sources": [
+                {
+                    "id": "reader",
+                    "label": "Your changes",
+                    "kind": "reader",
+                    "origin": {
+                        "hash": "sha256:cc8f9f240589d5fab437538bb038dd9dcd03ec8e5dd48a23ef8aa5e98096e0c9"
+                    },
+                    "copy": {
+                        "edits": [
+                            {
+                                "node": {
+                                    "space": "account",
+                                    "key": "acct-1003"
+                                },
+                                "columns": {
+                                    "country": {
+                                        "value": "NG",
+                                        "was": "GH"
+                                    }
+                                }
+                            }
+                        ],
+                        "added": [],
+                        "removed": [],
+                        "merges": []
+                    },
+                    "loaded": "2026-11-14T17:41:30.000Z"
+                },
+                {
+                    "id": "accounts",
+                    "label": "accounts-2026-11.csv",
+                    "kind": "file",
+                    "format": "csv",
+                    "options": {
+                        "delimiter": ",",
+                        "encoding": "utf-8",
+                        "header": true
+                    },
+                    "origin": {
+                        "name": "accounts-2026-11.csv",
+                        "path": "accounts-2026-11.csv",
+                        "size": 127,
+                        "mediaType": "text/csv",
+                        "hash": "sha256:2d78d9b0925110f381b2f2f0c01ebfef2d71ef73afe53b7f3674f7a3d3d79831"
+                    },
+                    "mapping": {
+                        "nodes": {
+                            "key": "account_id",
+                            "space": "account",
+                            "renamed": {
+                                "holder": "label"
+                            }
+                        }
+                    },
+                    "settings": {
+                        "directed": true,
+                        "duplicateIds": "first",
+                        "unmatched": "add",
+                        "repeatedEdges": "keep"
+                    },
+                    "copy": {
+                        "nodes": {
+                            "account_id": ["acct-1001", "acct-1002", "acct-1003"],
+                            "holder": ["Ana Ruiz", "Ben Ode", "Cy Lam"],
+                            "opened": ["2021-03-02", "2026-10-30", "2026-11-01"],
+                            "country": [null, "NG", "GH"]
+                        }
+                    },
+                    "columns": {
+                        "nodes": {
+                            "account_id": {
+                                "name": "account_id",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "holder": {
+                                "name": "holder",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "opened": {
+                                "name": "opened",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "country": {
+                                "name": "country",
+                                "dtype": "string",
+                                "nullable": true
+                            }
+                        }
+                    },
+                    "loaded": "2026-11-14T17:40:00.000Z"
+                },
+                {
+                    "id": "activity",
+                    "label": "Bank API: card activity, week 46",
+                    "kind": "network",
+                    "format": "json",
+                    "options": {
+                        "nodesPath": "counterparties",
+                        "edgesPath": "events",
+                        "maxRows": 50000
+                    },
+                    "origin": {
+                        "url": "https://api.example-bank.test/v1/activity?week=46",
+                        "credentials": {
+                            "slot": "bank-api-token"
+                        },
+                        "mediaType": "application/json",
+                        "size": 1873,
+                        "hash": "sha256:fc9a1f29ee5b6bc787dea94715293106fe37f80a9ce153e4eb9ad07a9be88a09",
+                        "etag": "\"a41f-46\"",
+                        "lastModified": "Fri, 14 Nov 2026 17:30:00 GMT"
+                    },
+                    "mapping": {
+                        "nodes": {
+                            "key": "id",
+                            "renamed": {
+                                "name": "label"
+                            }
+                        },
+                        "edges": {
+                            "edgeId": "event_id",
+                            "source": "account_id",
+                            "sourceSpace": "account",
+                            "target": "counterparty_id",
+                            "renamed": {
+                                "amt": "amount",
+                                "ts": "time"
+                            }
+                        }
+                    },
+                    "settings": {
+                        "time": "ts",
+                        "directed": true,
+                        "duplicateIds": "first",
+                        "unmatched": "add",
+                        "repeatedEdges": "keep"
+                    },
+                    "copy": {
+                        "nodes": {
+                            "id": ["dev-9f3", "merch-77"],
+                            "kind": ["device", "merchant"],
+                            "name": ["Android 9f3", "QuickGift Cards"],
+                            "mcc": [null, "5947"]
+                        },
+                        "edges": {
+                            "event_id": ["pay-881", "pay-889", null, "pay-890", null],
+                            "account_id": ["acct-1001", "acct-1002", "acct-1002", "acct-1003", "acct-1003"],
+                            "counterparty_id": ["merch-77", "merch-77", "dev-9f3", "merch-77", "dev-9f3"],
+                            "event": ["payment", "payment", "device-login", "payment", "device-login"],
+                            "amt": [42.5, 980, null, 975, null],
+                            "ts": ["2026-11-10T09:14:00Z", "2026-11-10T09:15:10Z", null, "2026-11-10T09:15:40Z", null],
+                            "first_seen": [null, null, "2026-11-08T22:10:00Z", null, "2026-11-09T01:45:00Z"]
+                        }
+                    },
+                    "columns": {
+                        "nodes": {
+                            "id": {
+                                "name": "id",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "kind": {
+                                "name": "kind",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "name": {
+                                "name": "name",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "mcc": {
+                                "name": "mcc",
+                                "dtype": "string",
+                                "nullable": true
+                            }
+                        },
+                        "edges": {
+                            "event_id": {
+                                "name": "event_id",
+                                "dtype": "string",
+                                "nullable": true
+                            },
+                            "account_id": {
+                                "name": "account_id",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "counterparty_id": {
+                                "name": "counterparty_id",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "event": {
+                                "name": "event",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "amt": {
+                                "name": "amt",
+                                "dtype": "f64",
+                                "nullable": true
+                            },
+                            "ts": {
+                                "name": "ts",
+                                "dtype": "string",
+                                "nullable": true
+                            },
+                            "first_seen": {
+                                "name": "first_seen",
+                                "dtype": "string",
+                                "nullable": true
+                            }
+                        }
+                    },
+                    "loaded": "2026-11-14T17:42:00.000Z"
+                }
+            ],
+            "types": [
+                {
+                    "name": "account",
+                    "domain": "node",
+                    "plainName": "Account",
+                    "rules": [
+                        {
+                            "source": "accounts"
+                        }
+                    ],
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "label": {
+                                "type": "string"
+                            },
+                            "opened": {
+                                "type": "string",
+                                "format": "date",
+                                "measurement": "time"
+                            },
+                            "country": {
+                                "type": "string",
+                                "measurement": "categorical"
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "merchant",
+                    "domain": "node",
+                    "plainName": "Merchant",
+                    "rules": [
+                        {
+                            "source": "activity",
+                            "column": "kind",
+                            "values": ["merchant"]
+                        }
+                    ],
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "label": {
+                                "type": "string"
+                            },
+                            "kind": {
+                                "type": "string",
+                                "measurement": "categorical"
+                            },
+                            "mcc": {
+                                "type": "string",
+                                "measurement": "categorical"
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "device",
+                    "domain": "node",
+                    "plainName": "Device",
+                    "rules": [
+                        {
+                            "source": "activity",
+                            "column": "kind",
+                            "values": ["device"]
+                        }
+                    ],
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "label": {
+                                "type": "string"
+                            },
+                            "kind": {
+                                "type": "string",
+                                "measurement": "categorical"
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "payment",
+                    "domain": "edge",
+                    "plainName": "Payment",
+                    "rules": [
+                        {
+                            "source": "activity",
+                            "column": "event",
+                            "values": ["payment"]
+                        }
+                    ],
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "event": {
+                                "type": "string",
+                                "measurement": "categorical"
+                            },
+                            "amount": {
+                                "type": "number",
+                                "measurement": "quantitative",
+                                "unit": "USD"
+                            },
+                            "time": {
+                                "type": "string",
+                                "format": "date-time",
+                                "measurement": "time"
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "used-device",
+                    "domain": "edge",
+                    "plainName": "Used device",
+                    "rules": [
+                        {
+                            "source": "activity",
+                            "column": "event",
+                            "values": ["device-login"]
+                        }
+                    ],
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "event": {
+                                "type": "string",
+                                "measurement": "categorical"
+                            },
+                            "first_seen": {
+                                "type": "string",
+                                "format": "date-time",
+                                "measurement": "time"
+                            }
+                        }
+                    }
+                }
+            ],
+            "issues": {
+                "ignored": [],
+                "kept": [],
+                "fixed": []
+            },
+            "joins": [
+                {
+                    "op": "join.add",
+                    "source": "accounts"
+                },
+                {
+                    "op": "join.add",
+                    "source": "activity"
+                }
+            ],
+            "rekeys": [],
+            "graph": {
+                "directed": true,
+                "multigraph": false,
+                "graph": {},
+                "nodes": [
+                    {
+                        "id": 0,
+                        "graphty.space": "account",
+                        "graphty.key": "acct-1001",
+                        "graphty.types": ["account"],
+                        "_source.loads": ["accounts"],
+                        "label": "Ana Ruiz",
+                        "opened": "2021-03-02"
+                    },
+                    {
+                        "id": 1,
+                        "graphty.space": "account",
+                        "graphty.key": "acct-1002",
+                        "graphty.types": ["account"],
+                        "_source.loads": ["accounts"],
+                        "label": "Ben Ode",
+                        "opened": "2026-10-30",
+                        "country": "NG"
+                    },
+                    {
+                        "id": 2,
+                        "graphty.space": "account",
+                        "graphty.key": "acct-1003",
+                        "graphty.types": ["account"],
+                        "_source.loads": ["accounts"],
+                        "label": "Cy Lam",
+                        "opened": "2026-11-01",
+                        "country": "NG"
+                    },
+                    {
+                        "id": 3,
+                        "graphty.space": "device",
+                        "graphty.key": "dev-9f3",
+                        "graphty.types": ["device"],
+                        "_source.loads": ["activity"],
+                        "kind": "device",
+                        "label": "Android 9f3"
+                    },
+                    {
+                        "id": 4,
+                        "graphty.space": "merchant",
+                        "graphty.key": "merch-77",
+                        "graphty.types": ["merchant"],
+                        "_source.loads": ["activity"],
+                        "kind": "merchant",
+                        "label": "QuickGift Cards",
+                        "mcc": "5947"
+                    }
+                ],
+                "links": [
+                    {
+                        "source": 0,
+                        "target": 4,
+                        "key": "pay-881",
+                        "graphty.types": ["payment"],
+                        "_source.loads": ["activity"],
+                        "event": "payment",
+                        "amount": 42.5,
+                        "time": "2026-11-10T09:14:00Z"
+                    },
+                    {
+                        "source": 1,
+                        "target": 4,
+                        "key": "pay-889",
+                        "graphty.types": ["payment"],
+                        "_source.loads": ["activity"],
+                        "event": "payment",
+                        "amount": 980,
+                        "time": "2026-11-10T09:15:10Z"
+                    },
+                    {
+                        "source": 1,
+                        "target": 3,
+                        "graphty.types": ["used-device"],
+                        "_source.loads": ["activity"],
+                        "event": "device-login",
+                        "first_seen": "2026-11-08T22:10:00Z"
+                    },
+                    {
+                        "source": 2,
+                        "target": 4,
+                        "key": "pay-890",
+                        "graphty.types": ["payment"],
+                        "_source.loads": ["activity"],
+                        "event": "payment",
+                        "amount": 975,
+                        "time": "2026-11-10T09:15:40Z"
+                    },
+                    {
+                        "source": 2,
+                        "target": 3,
+                        "graphty.types": ["used-device"],
+                        "_source.loads": ["activity"],
+                        "event": "device-login",
+                        "first_seen": "2026-11-09T01:45:00Z"
+                    }
+                ]
+            }
+        },
+        "style": {
+            "$schema": "https://graphty.app/schema/documents/graphty-style/v2.json",
+            "kind": "graphty-style",
+            "version": 2,
+            "id": "org.example-bank.fraud-review-style",
+            "revision": "3.1.0",
+            "name": "Fraud review style",
+            "description": "Highlights near-limit gift card payments and colors accounts by PageRank.",
+            "created": "2026-09-02T16:20:00.000Z",
+            "modified": "2026-11-12T21:05:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "authors": [
+                {
+                    "name": "Fraud analytics team",
+                    "uri": "https://example-bank.test/fraud"
+                }
+            ],
+            "license": "CC-BY-4.0",
+            "keywords": ["fraud", "card testing"],
+            "language": "en",
+            "dependencies": {
+                "columns": [
+                    {
+                        "name": "amount",
+                        "schema": {
+                            "type": "number",
+                            "measurement": "quantitative",
+                            "unit": "USD"
+                        }
+                    },
+                    {
+                        "name": "mcc",
+                        "schema": {
+                            "type": "string",
+                            "measurement": "categorical"
+                        }
+                    }
+                ],
+                "types": ["merchant"],
+                "results": ["pagerank", "communities"]
+            },
+            "origin": {
+                "from": "https://example-bank.test/kits/fraud-team-kit.graphty.json"
+            },
+            "palettes": [
+                {
+                    "id": "org.example-bank.risk",
+                    "plainName": "Risk",
+                    "kind": "sequential",
+                    "colors": ["#2e7d32", "#f9a825", "#c62828"],
+                    "capacity": null,
+                    "colorblindSafe": []
+                },
+                {
+                    "id": "okabe-ito",
+                    "plainName": "Eight Distinct Colors",
+                    "kind": "categorical",
+                    "colors": ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"],
+                    "capacity": 8,
+                    "colorblindSafe": ["deuteranopia", "protanopia", "tritanopia"]
+                }
+            ],
+            "layers": [
+                {
+                    "id": "base",
+                    "name": "Everything",
+                    "target": "node",
+                    "kind": "base",
+                    "selector": {
+                        "match": "everything"
+                    },
+                    "set": {
+                        "node.shape": "sphere",
+                        "node.color": "#90a4ae"
+                    }
+                },
+                {
+                    "id": "merchants",
+                    "name": "Merchants",
+                    "target": "node",
+                    "selector": {
+                        "match": "type",
+                        "types": ["merchant"]
+                    },
+                    "set": {
+                        "node.shape": "box",
+                        "node.size": 2
+                    }
+                },
+                {
+                    "id": "big-payments",
+                    "name": "Big payments",
+                    "target": "edge",
+                    "selector": {
+                        "match": "expression",
+                        "where": "data.amount > 500"
+                    },
+                    "set": {
+                        "edge.color": "#c62828",
+                        "edge.arrowHead": "normal",
+                        "edge.style": "solid"
+                    }
+                },
+                {
+                    "id": "device-rings",
+                    "name": "Device rings",
+                    "target": "node",
+                    "kind": "encoding",
+                    "selector": {
+                        "match": "has",
+                        "path": "results.communities.group"
+                    },
+                    "encode": {
+                        "node.color": {
+                            "by": "results.communities.group",
+                            "scale": "ordinal",
+                            "palette": "okabe-ito",
+                            "overflow": "other"
+                        }
+                    }
+                },
+                {
+                    "id": "risk-score",
+                    "name": "Risk by PageRank",
+                    "target": "node",
+                    "kind": "encoding",
+                    "selector": {
+                        "match": "has",
+                        "path": "results.pagerank.value"
+                    },
+                    "encode": {
+                        "node.color": {
+                            "by": "results.pagerank.value",
+                            "scale": "linear",
+                            "palette": "org.example-bank.risk"
+                        }
+                    }
+                },
+                {
+                    "id": "selected",
+                    "name": "Selected",
+                    "target": "node",
+                    "kind": "highlight",
+                    "selector": {
+                        "match": "state",
+                        "state": "selected"
+                    },
+                    "set": {
+                        "node.outline": "#2457c5"
+                    }
+                }
+            ],
+            "valueLabels": [
+                {
+                    "column": "mcc",
+                    "value": "5947",
+                    "label": "Gift, card, novelty and souvenir shops"
+                }
+            ]
+        },
+        "recipe": {
+            "$schema": "https://graphty.app/schema/documents/graphty-recipe/v2.json",
+            "kind": "graphty-recipe",
+            "version": 2,
+            "id": "org.example-bank.card-testing-sweep",
+            "revision": "1.2.0",
+            "name": "Card-testing sweep",
+            "description": "Keeps the week's activity, ranks accounts, finds device rings and flags high-risk accounts.",
+            "created": "2026-08-19T15:00:00.000Z",
+            "modified": "2026-11-03T19:30:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "dependencies": {
+                "columns": [
+                    {
+                        "name": "time",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time",
+                            "measurement": "time"
+                        }
+                    },
+                    {
+                        "name": "amount",
+                        "schema": {
+                            "type": "number",
+                            "measurement": "quantitative",
+                            "unit": "USD"
+                        }
+                    }
+                ],
+                "types": ["account", "device"],
+                "sources": [
+                    {
+                        "role": "accounts",
+                        "columns": [],
+                        "types": ["account"]
+                    }
+                ],
+                "results": ["pagerank"]
+            },
+            "namespace": "card_testing",
+            "commands": [
+                {
+                    "op": "graph.filter",
+                    "on": "edges",
+                    "where": "data.time >= '2026-11-09'",
+                    "description": "Only this week's activity."
+                },
+                {
+                    "op": "algo.run",
+                    "algorithm": "pagerank",
+                    "as": "pagerank",
+                    "params": {
+                        "dampingFactor": 0.85
+                    },
+                    "style": false
+                },
+                {
+                    "op": "algo.run",
+                    "algorithm": "louvain",
+                    "as": "communities",
+                    "params": {
+                        "resolution": 1
+                    },
+                    "scope": {
+                        "types": ["account", "device"]
+                    },
+                    "seed": 1873,
+                    "style": false,
+                    "description": "Accounts that share devices fall into one group."
+                },
+                {
+                    "op": "set.define",
+                    "id": "set_01JCBPX7K2M4Q8R1T5V9W3Y6ZA",
+                    "name": "High-risk accounts",
+                    "reading": "induced",
+                    "where": {
+                        "kind": "all",
+                        "of": [
+                            {
+                                "kind": "source",
+                                "sources": ["accounts"]
+                            },
+                            {
+                                "kind": "expression",
+                                "where": "results.pagerank.value > 0.2"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "op": "layout.set",
+                    "id": "force",
+                    "engine": "ngraph",
+                    "dimension": 3,
+                    "options": {
+                        "seed": 52211
+                    }
+                }
+            ]
+        },
+        "settings": {
+            "$schema": "https://graphty.app/schema/documents/graphty-settings/v1.json",
+            "kind": "graphty-settings",
+            "version": 1,
+            "modified": "2026-11-14T17:50:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "dependencies": {
+                "columns": [
+                    {
+                        "name": "time",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time",
+                            "measurement": "time"
+                        }
+                    }
+                ]
+            },
+            "settings": {
+                "background": {
+                    "backgroundType": "color",
+                    "color": "#fafafa"
+                },
+                "runPlacement": "beneath",
+                "layoutTransition": {
+                    "transition": "glide",
+                    "seconds": 0.8
+                }
+            },
+            "playback": {
+                "mode": "sliding",
+                "step": "auto",
+                "missing": "outside",
+                "outside": "ghost",
+                "timeZone": "UTC"
+            }
+        },
+        "results": {
+            "$schema": "https://graphty.app/schema/documents/graphty-results/v2.json",
+            "kind": "graphty-results",
+            "version": 2,
+            "modified": "2026-11-14T17:58:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "bindsTo": {
+                "data": "d1a7c0de-0001-4000-8000-000000000001",
+                "sources": {
+                    "reader": "sha256:cc8f9f240589d5fab437538bb038dd9dcd03ec8e5dd48a23ef8aa5e98096e0c9",
+                    "accounts": "sha256:2d78d9b0925110f381b2f2f0c01ebfef2d71ef73afe53b7f3674f7a3d3d79831",
+                    "activity": "sha256:fc9a1f29ee5b6bc787dea94715293106fe37f80a9ce153e4eb9ad07a9be88a09"
+                },
+                "fingerprint": "sha256:b322036be091bca422b46ca73e3715fb12818e7fe7c1ec09de1e6434b951fc2c"
+            },
+            "runs": {
+                "card_testing__pagerank": {
+                    "namespace": "card_testing",
+                    "as": "pagerank",
+                    "algorithm": "pagerank",
+                    "params": {
+                        "dampingFactor": 0.85
+                    },
+                    "engine": {
+                        "name": "@graphty/algorithms",
+                        "version": "2.1.2"
+                    },
+                    "seed": null,
+                    "durationMs": 3,
+                    "fields": [
+                        {
+                            "name": "value",
+                            "domain": "node",
+                            "type": "number"
+                        },
+                        {
+                            "name": "rank",
+                            "domain": "node",
+                            "type": "integer"
+                        }
+                    ],
+                    "caveats": {
+                        "exact": true,
+                        "converged": true,
+                        "iterations": 21,
+                        "direction": "directed",
+                        "weight": null
+                    },
+                    "nodes": {
+                        "refs": [
+                            {
+                                "space": "account",
+                                "key": "acct-1001"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1003"
+                            },
+                            {
+                                "space": "device",
+                                "key": "dev-9f3"
+                            },
+                            {
+                                "space": "merchant",
+                                "key": "merch-77"
+                            }
+                        ],
+                        "columns": {
+                            "value": [0.11, 0.24, 0.23, 0.11, 0.31],
+                            "rank": [4, 2, 3, 4, 1]
+                        }
+                    }
+                },
+                "card_testing__communities": {
+                    "namespace": "card_testing",
+                    "as": "communities",
+                    "algorithm": "louvain",
+                    "params": {
+                        "resolution": 1
+                    },
+                    "engine": {
+                        "name": "@graphty/algorithms",
+                        "version": "2.1.2"
+                    },
+                    "seed": 1873,
+                    "durationMs": 2,
+                    "fields": [
+                        {
+                            "name": "group",
+                            "domain": "node",
+                            "type": "integer"
+                        },
+                        {
+                            "name": "groupSize",
+                            "domain": "node",
+                            "type": "integer"
+                        },
+                        {
+                            "name": "modularity",
+                            "domain": "graph",
+                            "type": "number"
+                        },
+                        {
+                            "name": "groupCount",
+                            "domain": "graph",
+                            "type": "integer"
+                        }
+                    ],
+                    "caveats": {
+                        "exact": true,
+                        "direction": "directed",
+                        "weight": null,
+                        "scope": {
+                            "types": ["account", "device"]
+                        }
+                    },
+                    "graph": {
+                        "modularity": 0.22,
+                        "groupCount": 2
+                    },
+                    "nodes": {
+                        "refs": [
+                            {
+                                "space": "account",
+                                "key": "acct-1001"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1003"
+                            },
+                            {
+                                "space": "device",
+                                "key": "dev-9f3"
+                            }
+                        ],
+                        "columns": {
+                            "group": [1, 0, 0, 0],
+                            "groupSize": [1, 3, 3, 3]
+                        }
+                    }
+                },
+                "session__route": {
+                    "namespace": "session",
+                    "as": "route",
+                    "algorithm": "dijkstra",
+                    "params": {
+                        "source": {
+                            "space": "account",
+                            "key": "acct-1002"
+                        },
+                        "target": {
+                            "space": "account",
+                            "key": "acct-1003"
+                        },
+                        "direction": "all"
+                    },
+                    "engine": {
+                        "name": "@graphty/algorithms",
+                        "version": "2.1.2"
+                    },
+                    "seed": null,
+                    "durationMs": 1,
+                    "fields": [
+                        {
+                            "name": "distance",
+                            "domain": "node",
+                            "type": "number"
+                        },
+                        {
+                            "name": "onPath",
+                            "domain": "edge",
+                            "type": "boolean"
+                        }
+                    ],
+                    "caveats": {
+                        "exact": true,
+                        "direction": "directed",
+                        "weight": null
+                    },
+                    "nodes": {
+                        "refs": [
+                            {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            {
+                                "space": "device",
+                                "key": "dev-9f3"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1003"
+                            }
+                        ],
+                        "columns": {
+                            "distance": [0, 1, 2]
+                        }
+                    },
+                    "edges": {
+                        "refs": [
+                            {
+                                "from": {
+                                    "space": "account",
+                                    "key": "acct-1002"
+                                },
+                                "to": {
+                                    "space": "device",
+                                    "key": "dev-9f3"
+                                },
+                                "h": "sha256:722d766ae12854b9fc7dc07f84c1e411f1976fb97ea6db7425d2f496c199c581",
+                                "n": 0
+                            },
+                            {
+                                "from": {
+                                    "space": "account",
+                                    "key": "acct-1003"
+                                },
+                                "to": {
+                                    "space": "device",
+                                    "key": "dev-9f3"
+                                },
+                                "h": "sha256:494bfcc1f1772e28c7e9b66385b4fc494ca53b4dfdf442e877477150dd48d87b",
+                                "n": 0
+                            }
+                        ],
+                        "columns": {
+                            "onPath": [true, true]
+                        }
+                    }
+                },
+                "layout": {
+                    "id": "force",
+                    "engine": {
+                        "name": "ngraph.forcelayout",
+                        "version": "3.3.1"
+                    },
+                    "dimension": 3,
+                    "options": {
+                        "seed": 52211
+                    },
+                    "seed": 52211,
+                    "durationMs": 41,
+                    "nodes": {
+                        "refs": [
+                            {
+                                "space": "account",
+                                "key": "acct-1001"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1003"
+                            },
+                            {
+                                "space": "device",
+                                "key": "dev-9f3"
+                            },
+                            {
+                                "space": "merchant",
+                                "key": "merch-77"
+                            }
+                        ],
+                        "columns": {
+                            "position": [
+                                [-3.2, 1.1, 0.4],
+                                [2, 2.4, -0.7],
+                                [2.6, 1.5, 0.9],
+                                [4.1, 3.3, 0.2],
+                                [0, 0, 0]
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "notes": {
+            "$schema": "https://graphty.app/schema/documents/graphty-notes/v2.json",
+            "kind": "graphty-notes",
+            "version": 2,
+            "modified": "2026-11-14T17:59:10.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "language": "en",
+            "bindsTo": {
+                "data": "d1a7c0de-0001-4000-8000-000000000001"
+            },
+            "notes": [
+                {
+                    "id": "note_01JCBQ4Z8N5V2W7XKD3M9RTF6A",
+                    "time": "2026-11-14T17:55:00.000Z",
+                    "targets": [
+                        {
+                            "node": {
+                                "space": "account",
+                                "key": "acct-1002"
+                            }
+                        },
+                        {
+                            "node": {
+                                "space": "account",
+                                "key": "acct-1003"
+                            }
+                        }
+                    ],
+                    "text": "Both opened in the two weeks before the burst, and both log in from **dev-9f3**.",
+                    "mediaType": "text/markdown",
+                    "author": "M. Okafor"
+                },
+                {
+                    "id": "note_01JCBQ9H2C7YB4F0S6NWEX1KPD",
+                    "time": "2026-11-14T17:57:20.000Z",
+                    "targets": [
+                        {
+                            "edge": {
+                                "from": {
+                                    "space": "account",
+                                    "key": "acct-1002"
+                                },
+                                "to": {
+                                    "space": "merchant",
+                                    "key": "merch-77"
+                                },
+                                "key": "pay-889"
+                            }
+                        }
+                    ],
+                    "text": "980 USD, 30 seconds before pay-890 from the same device.",
+                    "mediaType": "text/markdown",
+                    "author": "M. Okafor"
+                },
+                {
+                    "id": "note_01JCBQBM5RZ3T8D1G4VAHQ7N2E",
+                    "time": "2026-11-14T17:58:00.000Z",
+                    "edited": "2026-11-14T17:59:10.000Z",
+                    "targets": [
+                        {
+                            "graph": true
+                        },
+                        {
+                            "result": "card_testing__pagerank"
+                        }
+                    ],
+                    "text": "Classic card testing: a small probe, then near-limit gift card buys.",
+                    "mediaType": "text/markdown",
+                    "author": "M. Okafor",
+                    "done": "2026-11-14T17:59:10.000Z"
+                }
+            ]
+        },
+        "view": {
+            "$schema": "https://graphty.app/schema/documents/graphty-view/v1.json",
+            "kind": "graphty-view",
+            "version": 1,
+            "modified": "2026-11-14T17:59:40.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "bindsTo": {
+                "data": "d1a7c0de-0001-4000-8000-000000000001"
+            },
+            "camera": {
+                "dimension": 3,
+                "controller": "orbit",
+                "position": [0, 4, 18],
+                "target": [0.8, 1.2, 0],
+                "fov": 0.8
+            },
+            "xr": {
+                "center": [0.8, 1.2, 0],
+                "scale": 0.25,
+                "rotation": [0, 0.6, 0]
+            },
+            "views": [
+                {
+                    "name": "Device cluster",
+                    "camera": {
+                        "dimension": 3,
+                        "controller": "orbit",
+                        "position": [3, 3, 6],
+                        "target": [3, 2.4, 0],
+                        "fov": 0.8
+                    }
+                }
+            ],
+            "selection": {
+                "nodes": [
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    }
+                ],
+                "edges": [
+                    {
+                        "from": {
+                            "space": "account",
+                            "key": "acct-1002"
+                        },
+                        "to": {
+                            "space": "device",
+                            "key": "dev-9f3"
+                        },
+                        "h": "sha256:722d766ae12854b9fc7dc07f84c1e411f1976fb97ea6db7425d2f496c199c581",
+                        "n": 0
+                    }
+                ]
+            },
+            "placed": [
+                {
+                    "node": {
+                        "space": "merchant",
+                        "key": "merch-77"
+                    },
+                    "position": [0, 0, 0],
+                    "pinned": true
+                }
+            ],
+            "sets": [
+                {
+                    "id": "set_01JCBR2D6F8H0K3M5P7S9V1X4Z",
+                    "name": "Escalate to case team",
+                    "kind": "fixed",
+                    "reading": "induced",
+                    "nodes": [
+                        {
+                            "space": "account",
+                            "key": "acct-1002"
+                        },
+                        {
+                            "space": "account",
+                            "key": "acct-1003"
+                        },
+                        {
+                            "space": "device",
+                            "key": "dev-9f3"
+                        }
+                    ]
+                }
+            ],
+            "visibility": {
+                "window": {
+                    "attribute": "time",
+                    "from": "2026-11-09T00:00:00Z",
+                    "to": "2026-11-11T00:00:00Z"
+                },
+                "showContext": true,
+                "hidden": []
+            },
+            "timeline": {
+                "at": "2026-11-10T09:15:00Z"
+            },
+            "viewRotation": 0,
+            "framing": {
+                "extent": "drawn",
+                "padding": 0.1
+            },
+            "hiddenColumns": [
+                {
+                    "kind": "node",
+                    "name": "opened"
+                }
+            ],
+            "layers": [
+                {
+                    "id": "suspects",
+                    "name": "Suspects",
+                    "after": "risk-score",
+                    "target": "node",
+                    "kind": "highlight",
+                    "selector": {
+                        "match": "ids",
+                        "nodes": [
+                            {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1003"
+                            }
+                        ]
+                    },
+                    "set": {
+                        "node.outline": "#c62828"
+                    },
+                    "source": {
+                        "by": "user"
+                    }
+                },
+                {
+                    "id": "route",
+                    "name": "Route from Ben Ode to Cy Lam",
+                    "after": "suspects",
+                    "target": "node",
+                    "kind": "highlight",
+                    "selector": {
+                        "match": "has",
+                        "path": "results.session__route.distance"
+                    },
+                    "set": {
+                        "node.glow": "#f9a825"
+                    },
+                    "source": {
+                        "by": "run",
+                        "runId": "session__route",
+                        "algorithm": "dijkstra",
+                        "params": {
+                            "source": {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            "target": {
+                                "space": "account",
+                                "key": "acct-1003"
+                            },
+                            "direction": "all"
+                        }
+                    }
+                }
+            ],
+            "runs": {
+                "session__route": {
+                    "namespace": "session",
+                    "as": "route",
+                    "name": "Ben Ode to Cy Lam",
+                    "algorithm": "dijkstra",
+                    "params": {
+                        "source": {
+                            "space": "account",
+                            "key": "acct-1002"
+                        },
+                        "target": {
+                            "space": "account",
+                            "key": "acct-1003"
+                        },
+                        "direction": "all"
+                    },
+                    "scope": "graph",
+                    "style": false
+                }
+            }
+        }
+    }
+}

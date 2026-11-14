@@ -1,0 +1,9 @@
+{
+    "kind": "graphty-recipe",
+    "version": 2,
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "commands": []
+}

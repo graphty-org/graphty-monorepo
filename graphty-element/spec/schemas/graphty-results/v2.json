@@ -1,0 +1,219 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-results/v2.json",
+    "title": "graphty results section, version 2",
+    "description": "The record of each run: what ran, the seed it used, engine versions, duration, caveats, and its outputs as columns. Bound to one dataset.",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/header"
+        }
+    ],
+    "required": ["kind", "version", "generator", "bindsTo", "runs"],
+    "properties": {
+        "kind": {
+            "const": "graphty-results"
+        },
+        "version": {
+            "const": 2
+        },
+        "dependencies": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/boundDependencies"
+        },
+        "bindsTo": {
+            "allOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/bindsToData"
+                }
+            ],
+            "required": ["data", "sources", "fingerprint"],
+            "properties": {
+                "sources": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/sha256"
+                    }
+                },
+                "fingerprint": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/sha256"
+                }
+            }
+        },
+        "runs": {
+            "type": "object",
+            "properties": {
+                "layout": {
+                    "type": "object",
+                    "required": ["id", "engine", "dimension", "nodes"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "engine": {
+                            "type": "object",
+                            "required": ["name", "version"],
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "version": {
+                                    "type": "string",
+                                    "minLength": 1
+                                }
+                            }
+                        },
+                        "dimension": {
+                            "enum": [2, 3]
+                        },
+                        "options": {
+                            "type": "object"
+                        },
+                        "seed": {
+                            "type": ["integer", "null"]
+                        },
+                        "durationMs": {
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "nodes": {
+                            "type": "object",
+                            "properties": {
+                                "refs": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                    }
+                                },
+                                "columns": {
+                                    "type": "object",
+                                    "properties": {
+                                        "position": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
+                                            }
+                                        }
+                                    },
+                                    "required": ["position"],
+                                    "unevaluatedProperties": false
+                                }
+                            },
+                            "required": ["refs", "columns"],
+                            "unevaluatedProperties": false
+                        }
+                    }
+                }
+            },
+            "patternProperties": {
+                "^[a-z][a-z0-9_]*__[a-z][a-z0-9_]*$": {
+                    "type": "object",
+                    "required": ["namespace", "as", "algorithm", "engine", "fields"],
+                    "properties": {
+                        "namespace": {
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/namespace"
+                        },
+                        "as": {
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runName"
+                        },
+                        "algorithm": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "params": {
+                            "type": "object"
+                        },
+                        "engine": {
+                            "type": "object",
+                            "required": ["name", "version"],
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "version": {
+                                    "type": "string",
+                                    "minLength": 1
+                                }
+                            }
+                        },
+                        "seed": {
+                            "type": ["integer", "null"]
+                        },
+                        "durationMs": {
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "fields": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "domain": {
+                                        "enum": ["node", "edge", "graph"]
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    }
+                                },
+                                "required": ["name", "domain", "type"],
+                                "unevaluatedProperties": false
+                            }
+                        },
+                        "caveats": {
+                            "type": "object"
+                        },
+                        "graph": {
+                            "type": "object"
+                        },
+                        "nodes": {
+                            "type": "object",
+                            "properties": {
+                                "refs": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                    }
+                                },
+                                "columns": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "array"
+                                    }
+                                }
+                            },
+                            "required": ["refs", "columns"],
+                            "unevaluatedProperties": false
+                        },
+                        "edges": {
+                            "type": "object",
+                            "properties": {
+                                "refs": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
+                                    }
+                                },
+                                "columns": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "array"
+                                    }
+                                }
+                            },
+                            "required": ["refs", "columns"],
+                            "unevaluatedProperties": false
+                        }
+                    }
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}

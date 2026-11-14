@@ -1,0 +1,491 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-data/v2.json",
+    "kind": "graphty-data",
+    "version": 2,
+    "id": "d1a7c0de-0001-4000-8000-000000000001",
+    "created": "2026-11-10T17:02:00.000Z",
+    "modified": "2026-11-14T17:42:00.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "sources": [
+        {
+            "id": "reader",
+            "label": "Your changes",
+            "kind": "reader",
+            "origin": {
+                "hash": "sha256:cc8f9f240589d5fab437538bb038dd9dcd03ec8e5dd48a23ef8aa5e98096e0c9"
+            },
+            "copy": {
+                "edits": [
+                    {
+                        "node": {
+                            "space": "account",
+                            "key": "acct-1003"
+                        },
+                        "columns": {
+                            "country": {
+                                "value": "NG",
+                                "was": "GH"
+                            }
+                        }
+                    }
+                ],
+                "added": [],
+                "removed": [],
+                "merges": []
+            },
+            "loaded": "2026-11-14T17:41:30.000Z"
+        },
+        {
+            "id": "accounts",
+            "label": "accounts-2026-11.csv",
+            "kind": "file",
+            "format": "csv",
+            "options": {
+                "delimiter": ",",
+                "encoding": "utf-8",
+                "header": true
+            },
+            "origin": {
+                "name": "accounts-2026-11.csv",
+                "path": "accounts-2026-11.csv",
+                "size": 127,
+                "mediaType": "text/csv",
+                "hash": "sha256:2d78d9b0925110f381b2f2f0c01ebfef2d71ef73afe53b7f3674f7a3d3d79831"
+            },
+            "mapping": {
+                "nodes": {
+                    "key": "account_id",
+                    "space": "account",
+                    "renamed": {
+                        "holder": "label"
+                    }
+                }
+            },
+            "settings": {
+                "directed": true,
+                "duplicateIds": "first",
+                "unmatched": "add",
+                "repeatedEdges": "keep"
+            },
+            "copy": {
+                "nodes": {
+                    "account_id": ["acct-1001", "acct-1002", "acct-1003"],
+                    "holder": ["Ana Ruiz", "Ben Ode", "Cy Lam"],
+                    "opened": ["2021-03-02", "2026-10-30", "2026-11-01"],
+                    "country": [null, "NG", "GH"]
+                }
+            },
+            "columns": {
+                "nodes": {
+                    "account_id": {
+                        "name": "account_id",
+                        "dtype": "string",
+                        "nullable": false
+                    },
+                    "holder": {
+                        "name": "holder",
+                        "dtype": "string",
+                        "nullable": false
+                    },
+                    "opened": {
+                        "name": "opened",
+                        "dtype": "string",
+                        "nullable": false
+                    },
+                    "country": {
+                        "name": "country",
+                        "dtype": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "loaded": "2026-11-14T17:40:00.000Z"
+        },
+        {
+            "id": "activity",
+            "label": "Bank API: card activity, week 46",
+            "kind": "network",
+            "format": "json",
+            "options": {
+                "nodesPath": "counterparties",
+                "edgesPath": "events",
+                "maxRows": 50000
+            },
+            "origin": {
+                "url": "https://api.example-bank.test/v1/activity?week=46",
+                "credentials": {
+                    "slot": "bank-api-token"
+                },
+                "mediaType": "application/json",
+                "size": 1873,
+                "hash": "sha256:fc9a1f29ee5b6bc787dea94715293106fe37f80a9ce153e4eb9ad07a9be88a09",
+                "etag": "\"a41f-46\"",
+                "lastModified": "Fri, 14 Nov 2026 17:30:00 GMT"
+            },
+            "mapping": {
+                "nodes": {
+                    "key": "id",
+                    "renamed": {
+                        "name": "label"
+                    }
+                },
+                "edges": {
+                    "edgeId": "event_id",
+                    "source": "account_id",
+                    "sourceSpace": "account",
+                    "target": "counterparty_id",
+                    "renamed": {
+                        "amt": "amount",
+                        "ts": "time"
+                    }
+                }
+            },
+            "settings": {
+                "time": "ts",
+                "directed": true,
+                "duplicateIds": "first",
+                "unmatched": "add",
+                "repeatedEdges": "keep"
+            },
+            "copy": {
+                "nodes": {
+                    "id": ["dev-9f3", "merch-77"],
+                    "kind": ["device", "merchant"],
+                    "name": ["Android 9f3", "QuickGift Cards"],
+                    "mcc": [null, "5947"]
+                },
+                "edges": {
+                    "event_id": ["pay-881", "pay-889", null, "pay-890", null],
+                    "account_id": ["acct-1001", "acct-1002", "acct-1002", "acct-1003", "acct-1003"],
+                    "counterparty_id": ["merch-77", "merch-77", "dev-9f3", "merch-77", "dev-9f3"],
+                    "event": ["payment", "payment", "device-login", "payment", "device-login"],
+                    "amt": [42.5, 980, null, 975, null],
+                    "ts": ["2026-11-10T09:14:00Z", "2026-11-10T09:15:10Z", null, "2026-11-10T09:15:40Z", null],
+                    "first_seen": [null, null, "2026-11-08T22:10:00Z", null, "2026-11-09T01:45:00Z"]
+                }
+            },
+            "columns": {
+                "nodes": {
+                    "id": {
+                        "name": "id",
+                        "dtype": "string",
+                        "nullable": false
+                    },
+                    "kind": {
+                        "name": "kind",
+                        "dtype": "string",
+                        "nullable": false
+                    },
+                    "name": {
+                        "name": "name",
+                        "dtype": "string",
+                        "nullable": false
+                    },
+                    "mcc": {
+                        "name": "mcc",
+                        "dtype": "string",
+                        "nullable": true
+                    }
+                },
+                "edges": {
+                    "event_id": {
+                        "name": "event_id",
+                        "dtype": "string",
+                        "nullable": true
+                    },
+                    "account_id": {
+                        "name": "account_id",
+                        "dtype": "string",
+                        "nullable": false
+                    },
+                    "counterparty_id": {
+                        "name": "counterparty_id",
+                        "dtype": "string",
+                        "nullable": false
+                    },
+                    "event": {
+                        "name": "event",
+                        "dtype": "string",
+                        "nullable": false
+                    },
+                    "amt": {
+                        "name": "amt",
+                        "dtype": "f64",
+                        "nullable": true
+                    },
+                    "ts": {
+                        "name": "ts",
+                        "dtype": "string",
+                        "nullable": true
+                    },
+                    "first_seen": {
+                        "name": "first_seen",
+                        "dtype": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "loaded": "2026-11-14T17:42:00.000Z"
+        }
+    ],
+    "types": [
+        {
+            "name": "account",
+            "domain": "node",
+            "plainName": "Account",
+            "rules": [
+                {
+                    "source": "accounts"
+                }
+            ],
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string"
+                    },
+                    "opened": {
+                        "type": "string",
+                        "format": "date",
+                        "measurement": "time"
+                    },
+                    "country": {
+                        "type": "string",
+                        "measurement": "categorical"
+                    }
+                }
+            }
+        },
+        {
+            "name": "merchant",
+            "domain": "node",
+            "plainName": "Merchant",
+            "rules": [
+                {
+                    "source": "activity",
+                    "column": "kind",
+                    "values": ["merchant"]
+                }
+            ],
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "measurement": "categorical"
+                    },
+                    "mcc": {
+                        "type": "string",
+                        "measurement": "categorical"
+                    }
+                }
+            }
+        },
+        {
+            "name": "device",
+            "domain": "node",
+            "plainName": "Device",
+            "rules": [
+                {
+                    "source": "activity",
+                    "column": "kind",
+                    "values": ["device"]
+                }
+            ],
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "measurement": "categorical"
+                    }
+                }
+            }
+        },
+        {
+            "name": "payment",
+            "domain": "edge",
+            "plainName": "Payment",
+            "rules": [
+                {
+                    "source": "activity",
+                    "column": "event",
+                    "values": ["payment"]
+                }
+            ],
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "string",
+                        "measurement": "categorical"
+                    },
+                    "amount": {
+                        "type": "number",
+                        "measurement": "quantitative",
+                        "unit": "USD"
+                    },
+                    "time": {
+                        "type": "string",
+                        "format": "date-time",
+                        "measurement": "time"
+                    }
+                }
+            }
+        },
+        {
+            "name": "used-device",
+            "domain": "edge",
+            "plainName": "Used device",
+            "rules": [
+                {
+                    "source": "activity",
+                    "column": "event",
+                    "values": ["device-login"]
+                }
+            ],
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "string",
+                        "measurement": "categorical"
+                    },
+                    "first_seen": {
+                        "type": "string",
+                        "format": "date-time",
+                        "measurement": "time"
+                    }
+                }
+            }
+        }
+    ],
+    "issues": {
+        "ignored": [],
+        "kept": [],
+        "fixed": []
+    },
+    "joins": [
+        {
+            "op": "join.add",
+            "source": "accounts"
+        },
+        {
+            "op": "join.add",
+            "source": "activity"
+        }
+    ],
+    "rekeys": [],
+    "graph": {
+        "directed": true,
+        "multigraph": false,
+        "graph": {},
+        "nodes": [
+            {
+                "id": 0,
+                "graphty.space": "account",
+                "graphty.key": "acct-1001",
+                "graphty.types": ["account"],
+                "_source.loads": ["accounts"],
+                "label": "Ana Ruiz",
+                "opened": "2021-03-02"
+            },
+            {
+                "id": 1,
+                "graphty.space": "account",
+                "graphty.key": "acct-1002",
+                "graphty.types": ["account"],
+                "_source.loads": ["accounts"],
+                "label": "Ben Ode",
+                "opened": "2026-10-30",
+                "country": "NG"
+            },
+            {
+                "id": 2,
+                "graphty.space": "account",
+                "graphty.key": "acct-1003",
+                "graphty.types": ["account"],
+                "_source.loads": ["accounts"],
+                "label": "Cy Lam",
+                "opened": "2026-11-01",
+                "country": "NG"
+            },
+            {
+                "id": 3,
+                "graphty.space": "device",
+                "graphty.key": "dev-9f3",
+                "graphty.types": ["device"],
+                "_source.loads": ["activity"],
+                "kind": "device",
+                "label": "Android 9f3"
+            },
+            {
+                "id": 4,
+                "graphty.space": "merchant",
+                "graphty.key": "merch-77",
+                "graphty.types": ["merchant"],
+                "_source.loads": ["activity"],
+                "kind": "merchant",
+                "label": "QuickGift Cards",
+                "mcc": "5947"
+            }
+        ],
+        "links": [
+            {
+                "source": 0,
+                "target": 4,
+                "key": "pay-881",
+                "graphty.types": ["payment"],
+                "_source.loads": ["activity"],
+                "event": "payment",
+                "amount": 42.5,
+                "time": "2026-11-10T09:14:00Z"
+            },
+            {
+                "source": 1,
+                "target": 4,
+                "key": "pay-889",
+                "graphty.types": ["payment"],
+                "_source.loads": ["activity"],
+                "event": "payment",
+                "amount": 980,
+                "time": "2026-11-10T09:15:10Z"
+            },
+            {
+                "source": 1,
+                "target": 3,
+                "graphty.types": ["used-device"],
+                "_source.loads": ["activity"],
+                "event": "device-login",
+                "first_seen": "2026-11-08T22:10:00Z"
+            },
+            {
+                "source": 2,
+                "target": 4,
+                "key": "pay-890",
+                "graphty.types": ["payment"],
+                "_source.loads": ["activity"],
+                "event": "payment",
+                "amount": 975,
+                "time": "2026-11-10T09:15:40Z"
+            },
+            {
+                "source": 2,
+                "target": 3,
+                "graphty.types": ["used-device"],
+                "_source.loads": ["activity"],
+                "event": "device-login",
+                "first_seen": "2026-11-09T01:45:00Z"
+            }
+        ]
+    }
+}

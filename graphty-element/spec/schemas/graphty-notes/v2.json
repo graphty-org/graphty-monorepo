@@ -1,0 +1,217 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-notes/v2.json",
+    "title": "graphty notes section, version 2",
+    "description": "People's notes about the graph, its elements, sets and results, targets by element reference. Bound to one dataset.",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/header"
+        }
+    ],
+    "required": ["kind", "version", "generator", "bindsTo", "notes"],
+    "properties": {
+        "kind": {
+            "const": "graphty-notes"
+        },
+        "version": {
+            "const": 2
+        },
+        "dependencies": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/boundDependencies"
+        },
+        "bindsTo": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/bindsToData"
+        },
+        "notes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["id", "time", "targets", "text"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "pattern": "^note_[0-9A-Za-z_-]{1,64}$"
+                    },
+                    "time": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
+                    },
+                    "edited": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
+                    },
+                    "done": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
+                    },
+                    "targets": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "minProperties": 1,
+                            "oneOf": [
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "graph": {
+                                            "const": true
+                                        }
+                                    },
+                                    "required": ["graph"],
+                                    "unevaluatedProperties": false
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "node": {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                        }
+                                    },
+                                    "required": ["node"],
+                                    "unevaluatedProperties": false
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "edge": {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
+                                        }
+                                    },
+                                    "required": ["edge"],
+                                    "unevaluatedProperties": false
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "set": {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/setId"
+                                        },
+                                        "name": {
+                                            "type": "string",
+                                            "minLength": 1
+                                        }
+                                    },
+                                    "required": ["set"],
+                                    "unevaluatedProperties": false
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "result": {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runId"
+                                        }
+                                    },
+                                    "required": ["result"],
+                                    "unevaluatedProperties": false
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "item": {
+                                            "type": "object",
+                                            "properties": {
+                                                "result": {
+                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runId"
+                                                },
+                                                "key": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "field": {
+                                                            "type": "string",
+                                                            "minLength": 1
+                                                        },
+                                                        "value": {
+                                                            "type": ["string", "number", "boolean"]
+                                                        }
+                                                    },
+                                                    "required": ["field", "value"],
+                                                    "unevaluatedProperties": false
+                                                }
+                                            },
+                                            "required": ["result", "key"],
+                                            "unevaluatedProperties": false
+                                        }
+                                    },
+                                    "required": ["item"],
+                                    "unevaluatedProperties": false
+                                },
+                                {
+                                    "not": {
+                                        "anyOf": [
+                                            {
+                                                "required": ["graph"]
+                                            },
+                                            {
+                                                "required": ["node"]
+                                            },
+                                            {
+                                                "required": ["edge"]
+                                            },
+                                            {
+                                                "required": ["set"]
+                                            },
+                                            {
+                                                "required": ["result"]
+                                            },
+                                            {
+                                                "required": ["item"]
+                                            }
+                                        ]
+                                    },
+                                    "description": "A target kind a later release adds: read unsupported, kept."
+                                }
+                            ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 64
+                    },
+                    "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 65536,
+                        "pattern": "\\S"
+                    },
+                    "mediaType": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 255
+                    },
+                    "author": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256,
+                        "pattern": "\\S"
+                    },
+                    "cites": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "minProperties": 1,
+                            "oneOf": [
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "result": {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runId"
+                                        }
+                                    },
+                                    "required": ["result"],
+                                    "unevaluatedProperties": false
+                                },
+                                {
+                                    "not": {
+                                        "required": ["result"]
+                                    }
+                                }
+                            ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 64
+                    },
+                    "extensions": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/extensions"
+                    }
+                }
+            },
+            "maxItems": 10000
+        }
+    }
+}

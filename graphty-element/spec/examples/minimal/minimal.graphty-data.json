@@ -1,0 +1,19 @@
+{
+    "kind": "graphty-data",
+    "version": 2,
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "id": "minimal-data",
+    "sources": [],
+    "types": [],
+    "joins": [],
+    "graph": {
+        "directed": false,
+        "multigraph": false,
+        "graph": {},
+        "nodes": [],
+        "links": []
+    }
+}

@@ -1,0 +1,40 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-settings/v1.json",
+    "kind": "graphty-settings",
+    "version": 1,
+    "modified": "2026-11-14T17:50:00.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "dependencies": {
+        "columns": [
+            {
+                "name": "time",
+                "schema": {
+                    "type": "string",
+                    "format": "date-time",
+                    "measurement": "time"
+                }
+            }
+        ]
+    },
+    "settings": {
+        "background": {
+            "backgroundType": "color",
+            "color": "#fafafa"
+        },
+        "runPlacement": "beneath",
+        "layoutTransition": {
+            "transition": "glide",
+            "seconds": 0.8
+        }
+    },
+    "playback": {
+        "mode": "sliding",
+        "step": "auto",
+        "missing": "outside",
+        "outside": "ghost",
+        "timeZone": "UTC"
+    }
+}

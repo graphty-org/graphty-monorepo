@@ -1,0 +1,76 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-notes/v2.json",
+    "kind": "graphty-notes",
+    "version": 2,
+    "modified": "2026-11-14T17:59:10.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "language": "en",
+    "bindsTo": {
+        "data": "d1a7c0de-0001-4000-8000-000000000001"
+    },
+    "notes": [
+        {
+            "id": "note_01JCBQ4Z8N5V2W7XKD3M9RTF6A",
+            "time": "2026-11-14T17:55:00.000Z",
+            "targets": [
+                {
+                    "node": {
+                        "space": "account",
+                        "key": "acct-1002"
+                    }
+                },
+                {
+                    "node": {
+                        "space": "account",
+                        "key": "acct-1003"
+                    }
+                }
+            ],
+            "text": "Both opened in the two weeks before the burst, and both log in from **dev-9f3**.",
+            "mediaType": "text/markdown",
+            "author": "M. Okafor"
+        },
+        {
+            "id": "note_01JCBQ9H2C7YB4F0S6NWEX1KPD",
+            "time": "2026-11-14T17:57:20.000Z",
+            "targets": [
+                {
+                    "edge": {
+                        "from": {
+                            "space": "account",
+                            "key": "acct-1002"
+                        },
+                        "to": {
+                            "space": "merchant",
+                            "key": "merch-77"
+                        },
+                        "key": "pay-889"
+                    }
+                }
+            ],
+            "text": "980 USD, 30 seconds before pay-890 from the same device.",
+            "mediaType": "text/markdown",
+            "author": "M. Okafor"
+        },
+        {
+            "id": "note_01JCBQBM5RZ3T8D1G4VAHQ7N2E",
+            "time": "2026-11-14T17:58:00.000Z",
+            "edited": "2026-11-14T17:59:10.000Z",
+            "targets": [
+                {
+                    "graph": true
+                },
+                {
+                    "result": "card_testing__pagerank"
+                }
+            ],
+            "text": "Classic card testing: a small probe, then near-limit gift card buys.",
+            "mediaType": "text/markdown",
+            "author": "M. Okafor",
+            "done": "2026-11-14T17:59:10.000Z"
+        }
+    ]
+}

@@ -1,0 +1,197 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-view/v1.json",
+    "kind": "graphty-view",
+    "version": 1,
+    "modified": "2026-11-14T17:59:40.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "bindsTo": {
+        "data": "d1a7c0de-0001-4000-8000-000000000001"
+    },
+    "camera": {
+        "dimension": 3,
+        "controller": "orbit",
+        "position": [0, 4, 18],
+        "target": [0.8, 1.2, 0],
+        "fov": 0.8
+    },
+    "xr": {
+        "center": [0.8, 1.2, 0],
+        "scale": 0.25,
+        "rotation": [0, 0.6, 0]
+    },
+    "views": [
+        {
+            "name": "Device cluster",
+            "camera": {
+                "dimension": 3,
+                "controller": "orbit",
+                "position": [3, 3, 6],
+                "target": [3, 2.4, 0],
+                "fov": 0.8
+            }
+        }
+    ],
+    "selection": {
+        "nodes": [
+            {
+                "space": "account",
+                "key": "acct-1002"
+            },
+            {
+                "space": "account",
+                "key": "acct-1003"
+            }
+        ],
+        "edges": [
+            {
+                "from": {
+                    "space": "account",
+                    "key": "acct-1002"
+                },
+                "to": {
+                    "space": "device",
+                    "key": "dev-9f3"
+                },
+                "h": "sha256:722d766ae12854b9fc7dc07f84c1e411f1976fb97ea6db7425d2f496c199c581",
+                "n": 0
+            }
+        ]
+    },
+    "placed": [
+        {
+            "node": {
+                "space": "merchant",
+                "key": "merch-77"
+            },
+            "position": [0, 0, 0],
+            "pinned": true
+        }
+    ],
+    "sets": [
+        {
+            "id": "set_01JCBR2D6F8H0K3M5P7S9V1X4Z",
+            "name": "Escalate to case team",
+            "kind": "fixed",
+            "reading": "induced",
+            "nodes": [
+                {
+                    "space": "account",
+                    "key": "acct-1002"
+                },
+                {
+                    "space": "account",
+                    "key": "acct-1003"
+                },
+                {
+                    "space": "device",
+                    "key": "dev-9f3"
+                }
+            ]
+        }
+    ],
+    "visibility": {
+        "window": {
+            "attribute": "time",
+            "from": "2026-11-09T00:00:00Z",
+            "to": "2026-11-11T00:00:00Z"
+        },
+        "showContext": true,
+        "hidden": []
+    },
+    "timeline": {
+        "at": "2026-11-10T09:15:00Z"
+    },
+    "viewRotation": 0,
+    "framing": {
+        "extent": "drawn",
+        "padding": 0.1
+    },
+    "hiddenColumns": [
+        {
+            "kind": "node",
+            "name": "opened"
+        }
+    ],
+    "layers": [
+        {
+            "id": "suspects",
+            "name": "Suspects",
+            "after": "risk-score",
+            "target": "node",
+            "kind": "highlight",
+            "selector": {
+                "match": "ids",
+                "nodes": [
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    }
+                ]
+            },
+            "set": {
+                "node.outline": "#c62828"
+            },
+            "source": {
+                "by": "user"
+            }
+        },
+        {
+            "id": "route",
+            "name": "Route from Ben Ode to Cy Lam",
+            "after": "suspects",
+            "target": "node",
+            "kind": "highlight",
+            "selector": {
+                "match": "has",
+                "path": "results.session__route.distance"
+            },
+            "set": {
+                "node.glow": "#f9a825"
+            },
+            "source": {
+                "by": "run",
+                "runId": "session__route",
+                "algorithm": "dijkstra",
+                "params": {
+                    "source": {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    "target": {
+                        "space": "account",
+                        "key": "acct-1003"
+                    },
+                    "direction": "all"
+                }
+            }
+        }
+    ],
+    "runs": {
+        "session__route": {
+            "namespace": "session",
+            "as": "route",
+            "name": "Ben Ode to Cy Lam",
+            "algorithm": "dijkstra",
+            "params": {
+                "source": {
+                    "space": "account",
+                    "key": "acct-1002"
+                },
+                "target": {
+                    "space": "account",
+                    "key": "acct-1003"
+                },
+                "direction": "all"
+            },
+            "scope": "graph",
+            "style": false
+        }
+    }
+}

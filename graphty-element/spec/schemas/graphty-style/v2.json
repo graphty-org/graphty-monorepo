@@ -1,0 +1,240 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-style/v2.json",
+    "title": "graphty style section, version 2",
+    "description": "Style layers, palettes, shaders as source text, the style tree, value labels and the assets the layers draw. Reusable: names no element.",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/header"
+        }
+    ],
+    "required": ["kind", "version", "generator", "layers"],
+    "properties": {
+        "kind": {
+            "const": "graphty-style"
+        },
+        "version": {
+            "const": 2
+        },
+        "dependencies": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/reusableDependencies"
+        },
+        "layers": {
+            "type": "array",
+            "items": {
+                "allOf": [
+                    {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/layerBase"
+                    },
+                    {
+                        "properties": {
+                            "selector": {
+                                "allOf": [
+                                    {
+                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/commonSelector"
+                                    },
+                                    {
+                                        "not": {
+                                            "properties": {
+                                                "match": {
+                                                    "const": "ids"
+                                                }
+                                            },
+                                            "required": ["match"]
+                                        }
+                                    },
+                                    {
+                                        "if": {
+                                            "properties": {
+                                                "match": {
+                                                    "const": "member"
+                                                }
+                                            },
+                                            "required": ["match"]
+                                        },
+                                        "then": {
+                                            "type": "object",
+                                            "properties": {
+                                                "match": true,
+                                                "of": {
+                                                    "oneOf": [
+                                                        {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "description": "graph, visible, selection, largest-component (an open vocabulary)."
+                                                        },
+                                                        {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "set": {
+                                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/setId"
+                                                                }
+                                                            },
+                                                            "required": ["set"],
+                                                            "unevaluatedProperties": false
+                                                        },
+                                                        {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "where": {
+                                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/expression"
+                                                                }
+                                                            },
+                                                            "required": ["where"],
+                                                            "unevaluatedProperties": false
+                                                        },
+                                                        {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "types": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/typeName"
+                                                                    },
+                                                                    "minItems": 1
+                                                                }
+                                                            },
+                                                            "required": ["types"],
+                                                            "unevaluatedProperties": false
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            "required": ["of"],
+                                            "unevaluatedProperties": false
+                                        }
+                                    },
+                                    {
+                                        "if": {
+                                            "properties": {
+                                                "match": {
+                                                    "const": "rule"
+                                                }
+                                            },
+                                            "required": ["match"]
+                                        },
+                                        "then": {
+                                            "type": "object",
+                                            "properties": {
+                                                "match": true,
+                                                "where": {
+                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/reusableRuleTree"
+                                                },
+                                                "edges": {
+                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeReading"
+                                                }
+                                            },
+                                            "required": ["where"],
+                                            "unevaluatedProperties": false
+                                        }
+                                    }
+                                ]
+                            },
+                            "after": false
+                        }
+                    }
+                ]
+            }
+        },
+        "palettes": {
+            "type": "array",
+            "items": {
+                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/palette"
+            }
+        },
+        "shaders": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "text": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": ["id", "text"],
+                "unevaluatedProperties": false
+            }
+        },
+        "tree": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/treeRow"
+            }
+        },
+        "valueLabels": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "column": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "value": {
+                        "type": ["string", "number", "boolean"]
+                    },
+                    "label": {
+                        "type": "string"
+                    }
+                },
+                "required": ["column", "value", "label"],
+                "unevaluatedProperties": false
+            }
+        },
+        "assets": {
+            "type": "array",
+            "items": {
+                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/asset"
+            }
+        }
+    },
+    "$defs": {
+        "treeRow": {
+            "type": "object",
+            "properties": {
+                "layer": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "folder": {
+                    "type": "string"
+                },
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/treeRow"
+                    }
+                },
+                "pin": {
+                    "enum": ["top", "bottom", "none"]
+                },
+                "locked": {
+                    "type": "boolean"
+                },
+                "hidden": {
+                    "type": "boolean"
+                }
+            },
+            "oneOf": [
+                {
+                    "required": ["layer"],
+                    "not": {
+                        "required": ["folder"]
+                    }
+                },
+                {
+                    "required": ["folder", "children"],
+                    "not": {
+                        "required": ["layer"]
+                    }
+                }
+            ]
+        }
+    }
+}

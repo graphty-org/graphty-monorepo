@@ -1,0 +1,266 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-document/v2.json",
+    "title": "graphty document, version 2 (the full file)",
+    "description": "A thin wrapper whose sections object holds any subset of sections, at most one of each kind (spec/README.md, 'The full file').",
+    "type": "object",
+    "required": ["kind", "version", "generator", "sections"],
+    "properties": {
+        "$schema": {
+            "type": "string",
+            "format": "uri"
+        },
+        "kind": {
+            "const": "graphty-document"
+        },
+        "version": {
+            "const": 2
+        },
+        "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+        },
+        "name": {
+            "type": "string",
+            "maxLength": 1024
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 65536
+        },
+        "created": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
+        },
+        "modified": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
+        },
+        "generator": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/generator"
+        },
+        "authors": {
+            "type": "array",
+            "items": {
+                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/author"
+            }
+        },
+        "license": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+        },
+        "keywords": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+            }
+        },
+        "language": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$"
+        },
+        "sections": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "kind": {
+                            "const": "graphty-data"
+                        },
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "version": {
+                                "const": 2
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-data/v2.json"
+                    },
+                    "description": "The data section. Its kind must be graphty-data. A version this schema does not describe is held by a reader, never rejected here."
+                },
+                "style": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "kind": {
+                            "const": "graphty-style"
+                        },
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "version": {
+                                "const": 2
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-style/v2.json"
+                    },
+                    "description": "The style section. Its kind must be graphty-style. A version this schema does not describe is held by a reader, never rejected here."
+                },
+                "recipe": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "kind": {
+                            "const": "graphty-recipe"
+                        },
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "version": {
+                                "const": 2
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-recipe/v2.json"
+                    },
+                    "description": "The recipe section. Its kind must be graphty-recipe. A version this schema does not describe is held by a reader, never rejected here."
+                },
+                "settings": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "kind": {
+                            "const": "graphty-settings"
+                        },
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "version": {
+                                "const": 1
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-settings/v1.json"
+                    },
+                    "description": "The settings section. Its kind must be graphty-settings. A version this schema does not describe is held by a reader, never rejected here."
+                },
+                "results": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "kind": {
+                            "const": "graphty-results"
+                        },
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "version": {
+                                "const": 2
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-results/v2.json"
+                    },
+                    "description": "The results section. Its kind must be graphty-results. A version this schema does not describe is held by a reader, never rejected here."
+                },
+                "notes": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "kind": {
+                            "const": "graphty-notes"
+                        },
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "version": {
+                                "const": 2
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-notes/v2.json"
+                    },
+                    "description": "The notes section. Its kind must be graphty-notes. A version this schema does not describe is held by a reader, never rejected here."
+                },
+                "view": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "kind": {
+                            "const": "graphty-view"
+                        },
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "version": {
+                                "const": 1
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-view/v1.json"
+                    },
+                    "description": "The view section. Its kind must be graphty-view. A version this schema does not describe is held by a reader, never rejected here."
+                }
+            },
+            "propertyNames": {
+                "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+                "type": "object",
+                "required": ["kind", "version"],
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "version": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "description": "A section kind a later release adds: skipped with W_UNKNOWN_KIND and kept on re-save."
+            }
+        },
+        "extensions": {
+            "allOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/extensions"
+                }
+            ],
+            "additionalProperties": {
+                "description": "A third party's data or section, keyed by its reverse-domain kind."
+            }
+        }
+    }
+}

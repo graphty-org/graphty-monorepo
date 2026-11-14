@@ -1,0 +1,289 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-results/v2.json",
+    "kind": "graphty-results",
+    "version": 2,
+    "modified": "2026-11-14T17:58:00.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "bindsTo": {
+        "data": "d1a7c0de-0001-4000-8000-000000000001",
+        "sources": {
+            "reader": "sha256:cc8f9f240589d5fab437538bb038dd9dcd03ec8e5dd48a23ef8aa5e98096e0c9",
+            "accounts": "sha256:2d78d9b0925110f381b2f2f0c01ebfef2d71ef73afe53b7f3674f7a3d3d79831",
+            "activity": "sha256:fc9a1f29ee5b6bc787dea94715293106fe37f80a9ce153e4eb9ad07a9be88a09"
+        },
+        "fingerprint": "sha256:b322036be091bca422b46ca73e3715fb12818e7fe7c1ec09de1e6434b951fc2c"
+    },
+    "runs": {
+        "card_testing__pagerank": {
+            "namespace": "card_testing",
+            "as": "pagerank",
+            "algorithm": "pagerank",
+            "params": {
+                "dampingFactor": 0.85
+            },
+            "engine": {
+                "name": "@graphty/algorithms",
+                "version": "2.1.2"
+            },
+            "seed": null,
+            "durationMs": 3,
+            "fields": [
+                {
+                    "name": "value",
+                    "domain": "node",
+                    "type": "number"
+                },
+                {
+                    "name": "rank",
+                    "domain": "node",
+                    "type": "integer"
+                }
+            ],
+            "caveats": {
+                "exact": true,
+                "converged": true,
+                "iterations": 21,
+                "direction": "directed",
+                "weight": null
+            },
+            "nodes": {
+                "refs": [
+                    {
+                        "space": "account",
+                        "key": "acct-1001"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    },
+                    {
+                        "space": "device",
+                        "key": "dev-9f3"
+                    },
+                    {
+                        "space": "merchant",
+                        "key": "merch-77"
+                    }
+                ],
+                "columns": {
+                    "value": [0.11, 0.24, 0.23, 0.11, 0.31],
+                    "rank": [4, 2, 3, 4, 1]
+                }
+            }
+        },
+        "card_testing__communities": {
+            "namespace": "card_testing",
+            "as": "communities",
+            "algorithm": "louvain",
+            "params": {
+                "resolution": 1
+            },
+            "engine": {
+                "name": "@graphty/algorithms",
+                "version": "2.1.2"
+            },
+            "seed": 1873,
+            "durationMs": 2,
+            "fields": [
+                {
+                    "name": "group",
+                    "domain": "node",
+                    "type": "integer"
+                },
+                {
+                    "name": "groupSize",
+                    "domain": "node",
+                    "type": "integer"
+                },
+                {
+                    "name": "modularity",
+                    "domain": "graph",
+                    "type": "number"
+                },
+                {
+                    "name": "groupCount",
+                    "domain": "graph",
+                    "type": "integer"
+                }
+            ],
+            "caveats": {
+                "exact": true,
+                "direction": "directed",
+                "weight": null,
+                "scope": {
+                    "types": ["account", "device"]
+                }
+            },
+            "graph": {
+                "modularity": 0.22,
+                "groupCount": 2
+            },
+            "nodes": {
+                "refs": [
+                    {
+                        "space": "account",
+                        "key": "acct-1001"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    },
+                    {
+                        "space": "device",
+                        "key": "dev-9f3"
+                    }
+                ],
+                "columns": {
+                    "group": [1, 0, 0, 0],
+                    "groupSize": [1, 3, 3, 3]
+                }
+            }
+        },
+        "session__route": {
+            "namespace": "session",
+            "as": "route",
+            "algorithm": "dijkstra",
+            "params": {
+                "source": {
+                    "space": "account",
+                    "key": "acct-1002"
+                },
+                "target": {
+                    "space": "account",
+                    "key": "acct-1003"
+                },
+                "direction": "all"
+            },
+            "engine": {
+                "name": "@graphty/algorithms",
+                "version": "2.1.2"
+            },
+            "seed": null,
+            "durationMs": 1,
+            "fields": [
+                {
+                    "name": "distance",
+                    "domain": "node",
+                    "type": "number"
+                },
+                {
+                    "name": "onPath",
+                    "domain": "edge",
+                    "type": "boolean"
+                }
+            ],
+            "caveats": {
+                "exact": true,
+                "direction": "directed",
+                "weight": null
+            },
+            "nodes": {
+                "refs": [
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "device",
+                        "key": "dev-9f3"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    }
+                ],
+                "columns": {
+                    "distance": [0, 1, 2]
+                }
+            },
+            "edges": {
+                "refs": [
+                    {
+                        "from": {
+                            "space": "account",
+                            "key": "acct-1002"
+                        },
+                        "to": {
+                            "space": "device",
+                            "key": "dev-9f3"
+                        },
+                        "h": "sha256:722d766ae12854b9fc7dc07f84c1e411f1976fb97ea6db7425d2f496c199c581",
+                        "n": 0
+                    },
+                    {
+                        "from": {
+                            "space": "account",
+                            "key": "acct-1003"
+                        },
+                        "to": {
+                            "space": "device",
+                            "key": "dev-9f3"
+                        },
+                        "h": "sha256:494bfcc1f1772e28c7e9b66385b4fc494ca53b4dfdf442e877477150dd48d87b",
+                        "n": 0
+                    }
+                ],
+                "columns": {
+                    "onPath": [true, true]
+                }
+            }
+        },
+        "layout": {
+            "id": "force",
+            "engine": {
+                "name": "ngraph.forcelayout",
+                "version": "3.3.1"
+            },
+            "dimension": 3,
+            "options": {
+                "seed": 52211
+            },
+            "seed": 52211,
+            "durationMs": 41,
+            "nodes": {
+                "refs": [
+                    {
+                        "space": "account",
+                        "key": "acct-1001"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    },
+                    {
+                        "space": "device",
+                        "key": "dev-9f3"
+                    },
+                    {
+                        "space": "merchant",
+                        "key": "merch-77"
+                    }
+                ],
+                "columns": {
+                    "position": [
+                        [-3.2, 1.1, 0.4],
+                        [2, 2.4, -0.7],
+                        [2.6, 1.5, 0.9],
+                        [4.1, 3.3, 0.2],
+                        [0, 0, 0]
+                    ]
+                }
+            }
+        }
+    }
+}

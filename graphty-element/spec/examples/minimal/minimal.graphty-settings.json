@@ -1,0 +1,9 @@
+{
+    "kind": "graphty-settings",
+    "version": 1,
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "settings": {}
+}

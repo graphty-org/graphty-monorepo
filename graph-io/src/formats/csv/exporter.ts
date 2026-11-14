@@ -99,6 +99,11 @@ export const CSV_LOSS = Object.freeze({
      * E_INVALID_ID.
      */
     ID_TEXT_COLLISION: LOSS.ID_TEXT_COLLISION,
+    /**
+     * An edge touches the node whose id is the empty string: an edge table reads a blank endpoint, quoted or not, as a
+     * missing one, so the save fails with E_INVALID_ID. The node table and the adjacency table keep the id.
+     */
+    ID_CHARSET: LOSS.ID_CHARSET,
     /** Ids that read back as a different type, such as the text "7" as the number 7. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /**
@@ -507,6 +512,7 @@ function planExport(
     }
     if (csv.table === "edges") {
         noteNodeCoverage(snapshot, edgeRows, note);
+        emptyEndpointNote(snapshot, edgeRows, note);
     }
 
     // weights
@@ -536,6 +542,27 @@ function planExport(
         nodeColumns,
         idText,
     };
+}
+
+/**
+ * E_ID_CHARSET: edge rows with an endpoint whose id is the empty string, which the importer reads
+ * as a missing endpoint (a blank cell names no node in an edge table).
+ * @param snapshot - the snapshot
+ * @param edgeRows - the edge rows written
+ * @param note - the recorder
+ */
+function emptyEndpointNote(snapshot: GraphSnapshot, edgeRows: readonly number[], note: NoteFn): void {
+    const list = snapshot.edgeList();
+    const empty = (index: number): boolean => String(snapshot.ids.idOf(index)) === "";
+    const count = edgeRows.filter((e) => empty(list.src[e]) || empty(list.dst[e])).length;
+    if (count > 0) {
+        note(
+            CSV_LOSS.ID_CHARSET,
+            `${count} edge${plural(count)} ${agree(count, "touches", "touch")} the node whose id is the empty string, which an edge table reads as a blank endpoint; the save fails with E_INVALID_ID`,
+            null,
+            count,
+        );
+    }
 }
 
 /** Records one loss note. */
@@ -1293,7 +1320,8 @@ function edgeHeaders(plan: Plan): string[] {
 }
 
 /**
- * Plan an export and refuse it when a fatal note is present (E_INVALID_ID for id text collisions),
+ * Plan an export and refuse it when a fatal note is present (E_INVALID_ID for id text collisions
+ * and for an edge to the empty-string id),
  * before anything is written.
  * @param snapshot - the snapshot
  * @param options - the caller's options
@@ -1307,6 +1335,10 @@ function prepare(snapshot: GraphSnapshot, options: (CsvExportOptions & CommonExp
             reason: "collision",
             count: collision.count,
         });
+    }
+    const empty = plan.notes.find((n) => n.code === CSV_LOSS.ID_CHARSET);
+    if (empty !== undefined) {
+        throw new GraphFormatError("E_INVALID_ID", empty.message, { reason: "charset", count: empty.count, id: "" });
     }
     return plan;
 }

@@ -5525,6 +5525,9 @@ export class Graph implements GraphContext {
         // instances of an unpickable batch, so Babylon never sees them: on every move it has just
         // restored `defaultCursor`, and this sets `hoverCursor` back when the pointer is over a line.
         let edgeHoverMoves = 0;
+        // The newest move whose answer was heard: an older read landing later is dropped, but a
+        // pointer that keeps moving still hears each read one late, instead of never (#8016).
+        let edgeHoverHeard = 0;
         this.scene.onPointerObservable.add((pointerInfo) => {
             const move = ++edgeHoverMoves;
             const canvas = this.scene.getEngine().getInputElement();
@@ -5540,8 +5543,12 @@ export class Graph implements GraphContext {
             }
 
             const over = (edgeId: EdgeId | undefined): void => {
-                // A read answered after a later move is that move's no longer.
-                if (edgeId !== undefined && move === edgeHoverMoves) {
+                if (move <= edgeHoverHeard) {
+                    return;
+                }
+
+                edgeHoverHeard = move;
+                if (edgeId !== undefined) {
                     canvas.style.cursor = this.scene.hoverCursor;
                 }
             };

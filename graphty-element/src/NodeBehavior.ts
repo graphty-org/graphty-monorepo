@@ -103,8 +103,10 @@ export interface NodePointerRoster {
     readonly engaged: Set<NodeDragHandler>;
     /** Handlers whose node the pointer is over: they hear the move that leaves it. */
     readonly hovered: Set<NodeDragHandler>;
-    /** Pointer moves so far, so a hover answered late is dropped once a newer move came. */
+    /** Pointer moves so far, numbering each move's hover answer. */
     moves: number;
+    /** The newest move whose hover answer was delivered, so an older answer landing later is dropped. */
+    heard: number;
     /** The node the last move found under the pointer. */
     overId: NodeIdType | undefined;
 }
@@ -194,17 +196,17 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 
             // Picked AFTER the drags above have moved their nodes, so the hover reads where things
             // are now. On the batched path the answer is read from the node ID target and comes
-            // later; only the latest move's answer is heard.
+            // later. An answer is dropped only when a newer move's answer was already heard: a
+            // pointer that moves every frame while each read takes several frames still hears
+            // each answer one read late, instead of never (#8016).
             const move = ++roster.moves;
             const pickedId = hoverNodeId(scene, scene.pointerX, scene.pointerY);
             if (pickedId instanceof Promise) {
                 void pickedId.then((id) => {
-                    if (move === roster.moves) {
-                        deliverHover(roster, id);
-                    }
+                    hearHover(roster, move, id);
                 });
             } else {
-                deliverHover(roster, pickedId);
+                hearHover(roster, move, pickedId);
             }
 
             break;
@@ -218,6 +220,19 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
         default:
             // Ignore other pointer events
             break;
+    }
+}
+
+/**
+ * Deliver a move's hover answer unless a newer move's answer was already delivered.
+ * @param roster - The scene's nodes.
+ * @param move - The move's number.
+ * @param pickedId - The node under the pointer at that move, if any.
+ */
+function hearHover(roster: NodePointerRoster, move: number, pickedId: NodeIdType | undefined): void {
+    if (move > roster.heard) {
+        roster.heard = move;
+        deliverHover(roster, pickedId);
     }
 }
 
@@ -254,6 +269,7 @@ export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
             hovered: new Set(),
             overId: undefined,
             moves: 0,
+            heard: 0,
         };
         scene.onPrePointerObservable.add((pointerInfo) => {
             deliverPointerEvent(scene, created, pointerInfo);

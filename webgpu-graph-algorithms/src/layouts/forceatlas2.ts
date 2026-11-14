@@ -70,7 +70,14 @@ import { RepulsionGrid, type RepulsionGridOverrides } from "./repulsion-grid.js"
 // ============================================================ constants and small helpers
 
 /** Every override K2 accepts, with its default (contract 3.10.1 plus the two standard graph overrides). */
-const K2_DEFAULTS: Overrides = { LINLOG: false, DISTRIBUTED: false, TIER: 0, USE_PERM: false, HAS_WEIGHTS: false };
+const K2_DEFAULTS: Overrides = {
+    LINLOG: false,
+    DISTRIBUTED: false,
+    DISSUADE_HUBS: false,
+    TIER: 0,
+    USE_PERM: false,
+    HAS_WEIGHTS: false,
+};
 
 /** Every override K5 accepts, with its default. */
 const K5_DEFAULTS: Overrides = { SWING_MODE: 0 };
@@ -113,7 +120,7 @@ function gridOverrides(merged: Overrides): RepulsionGridOverrides {
  * Applies FA2_DEFAULTS to the option record; validates ranges (spec 7.14; contract 3.13). With `previous` the record
  * is a PATCH over it (an absent or explicitly undefined field keeps the previous value) and `maxInFlight` may not
  * change (the uniform ring is sized by it at construction). `nodeSize` is E_UNSUPPORTED { option: "nodeSize" } (the
- * adjustSizes correction is deferred); `dissuadeHubs` is kept and ignored, exactly like the CPU.
+ * adjustSizes correction is deferred); `dissuadeHubs` divides each node's attraction by its degree + 1, as the CPU does.
  * @param options - the caller's options (or a setParams patch)
  * @param previous - the current resolved record when resolving a patch
  * @returns the frozen resolved record
@@ -265,7 +272,7 @@ export class ForceAtlas2Model
     }
 
     /**
-     * { LINLOG, DISTRIBUTED, TIER: 0, SWING_MODE: compat === "networkx" ? 1 : 0, STRONG_GRAVITY, GRAVITY_CENTER:
+     * { LINLOG, DISTRIBUTED, DISSUADE_HUBS, TIER: 0, SWING_MODE: compat === "networkx" ? 1 : 0, STRONG_GRAVITY, GRAVITY_CENTER:
      * compat === "networkx" ? 1 : 0 }; USE_PERM / HAS_WEIGHTS are merged in by the simulation from ModelResources
      * (3.10, never from core.hasWeights). A pure query: the simulation calls it with the current AND the next record
      * inside setParams() to decide the recompile, so it never touches the model's record (PLAN DECISION 12).
@@ -278,6 +285,7 @@ export class ForceAtlas2Model
         return {
             LINLOG: resolved.linlog,
             DISTRIBUTED: resolved.distributedAction,
+            DISSUADE_HUBS: resolved.dissuadeHubs,
             TIER: 0,
             SWING_MODE: mode,
             STRONG_GRAVITY: resolved.strongGravity,

@@ -764,7 +764,7 @@ const FA2_STATS_FINALIZE: KernelEntry = {
     phase: "P3",
 };
 
-/** `fa2-attraction` (K2, 3.10.1): the attraction gather over the CSR rows (the first writer of `force` each iteration); LINLOG / DISTRIBUTED / TIER 0 thread-per-row / 1 32-lanes-per-row / 2 workgroup-per-row (P4 PD-6) plus the standard USE_PERM / HAS_WEIGHTS; LAW 0 FA2 / 1 FR / 2 spring (P5); 6 storage bindings; calls the reduction helpers (TIER 2). */
+/** `fa2-attraction` (K2, 3.10.1): the attraction gather over the CSR rows (the first writer of `force` each iteration); LINLOG / DISTRIBUTED / DISSUADE_HUBS / TIER 0 thread-per-row / 1 32-lanes-per-row / 2 workgroup-per-row (P4 PD-6) plus the standard USE_PERM / HAS_WEIGHTS; LAW 0 FA2 / 1 FR / 2 spring (P5); 6 storage bindings; calls the reduction helpers (TIER 2). */
 const FA2_ATTRACTION: KernelEntry = {
     id: "fa2-attraction",
     body: fa2AttractionWgsl,
@@ -779,6 +779,7 @@ const FA2_ATTRACTION: KernelEntry = {
         { name: "DISTRIBUTED", type: "bool", default: false },
         { name: "TIER", type: "u32", default: 0 },
         { name: "LAW", type: "u32", default: 0 },
+        { name: "DISSUADE_HUBS", type: "bool", default: false },
     ],
     uniforms: [FA2_PARAMS],
     needs: ["subgroups"],

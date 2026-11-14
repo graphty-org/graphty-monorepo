@@ -8,6 +8,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import type { LoadPathReason } from "../../src/data/report";
 import type { GraphSession } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { dataDigest } from "../../src/session/project/digest";
@@ -42,6 +43,7 @@ function kept(session: GraphSession): [number, number] {
 
 /** A node record that is a class instance, not a plain object. */
 class Row {
+    readonly [key: string]: unknown;
     readonly id: string;
     /**
      * @param id - The id.
@@ -52,7 +54,7 @@ class Row {
 }
 
 describe("columnsEligible", () => {
-    const rows: [string, Parameters<typeof columnsEligible>[0], string | null][] = [
+    const rows: [string, Parameters<typeof columnsEligible>[0], LoadPathReason | null][] = [
         ["objects path", { batched: false, records: NODES }, "objects"],
         ["plain nodes", { batched: true, records: NODES }, null],
         ["plain edges", { batched: true, records: EDGES, edges: { repeated: "keep", weight: "weight" } }, null],

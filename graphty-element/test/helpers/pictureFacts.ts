@@ -60,6 +60,29 @@ export async function colorShare(url: string, color: PictureColor): Promise<numb
 }
 
 /**
+ * The mean row of a picture's pixels dominated by a color (as {@link colorShare} counts them),
+ * from 0 at the top to 1 at the bottom.
+ * @param url - The picture.
+ * @param color - The color.
+ * @returns The mean row, or NaN when no pixel shows the color.
+ */
+export async function colorRow(url: string, color: PictureColor): Promise<number> {
+    const data = await pixels(url);
+    const width = Math.round(Math.sqrt(data.length / 4));
+    const c = CHANNEL[color];
+    let rows = 0;
+    let matched = 0;
+    for (let at = 0; at < data.length; at += 4) {
+        const [o1, o2] = [0, 1, 2].filter((k) => k !== c).map((k) => data[at + k]);
+        if (data[at + 3] > 0 && data[at + c] >= o1 + 40 && data[at + c] >= o2 + 40) {
+            rows += Math.floor(at / 4 / width) / width;
+            matched++;
+        }
+    }
+    return rows / matched;
+}
+
+/**
  * The share of two same-sized pictures' pixels that differ: any channel by more than 24.
  * @param a - One picture.
  * @param b - The other.

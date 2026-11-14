@@ -27,7 +27,7 @@ import type { LayerId } from "../catalog/types";
 import type { NodeStyleConfig } from "../config";
 import { isGraphtyError } from "../errors";
 import type { GraphContext } from "../managers/GraphContext";
-import type { AssetRecord, AssetsApiInternal } from "../session/assets/AssetsApi";
+import type { AssetRecord, AssetsApiInternal, ModelSummary } from "../session/assets/AssetsApi";
 import type { NetworkApiInternal } from "../session/network";
 import type { CodedFact } from "../session/shared";
 import type { SessionStylesApi } from "../session/styles/StylesApi";
@@ -128,13 +128,17 @@ const TRANSPARENT_NODES = 100;
 /**
  * The geometry options a node's shape block asks for.
  * @param shape - The shape block.
- * @param format - The model's format, which settles a "detected" up axis.
+ * @param upAxis - The model summary's up axis, which settles a "detected" one.
  * @returns The options.
  */
-export function optionsOf(shape: NonNullable<NodeStyleConfig["shape"]>, format: string): TemplateOptions {
+export function optionsOf(
+    shape: NonNullable<NodeStyleConfig["shape"]>,
+    upAxis: ModelSummary["upAxis"],
+): TemplateOptions {
     const asked = shape.modelSourceUp ?? "detected";
-    // glTF's loader converts +Y up itself; an STL is taken as Z up; OBJ and PLY as Y up.
-    const detected = format === "stl" ? "z" : "y";
+    // glTF's loader converts +Y up itself; an STL is taken as Z up, Gaussian splats as Y down,
+    // OBJ and other PLYs as Y up.
+    const detected = upAxis === "unknown" ? "y" : upAxis;
     return {
         up: asked === "detected" ? detected : asked,
         turn: shape.modelTurn ?? 0,
@@ -526,7 +530,7 @@ export class ModelCache {
                     this.scene,
                     container,
                     `graphty-model-${String(++templates)}`,
-                    { ...optionsOf(shape, record.format), image },
+                    { ...optionsOf(shape, this.session.assets.inspect(record.id).upAxis), image },
                     () => chunk.neutralEnvironment(this.scene),
                 );
                 if (!this.entries.has(entry.key)) {

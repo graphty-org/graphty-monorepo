@@ -348,7 +348,7 @@ export interface ModelSummary {
     readonly textures: number;
     readonly textureBytes: number; // decoded, as w * h * 4 * 4/3 (RGBA with mipmaps)
     readonly bounds?: { min: [number, number, number]; max: [number, number, number] }; // as authored
-    readonly upAxis: "y" | "z" | "unknown";
+    readonly upAxis: "y" | "z" | "-y" | "unknown"; // "-y": Gaussian splats, stored Y down
     readonly animations: readonly { name: string; seconds: number }[];
     readonly skinned: boolean;
     readonly morphTargets: number;
@@ -516,7 +516,7 @@ source (URL | File | files | bytes)
   -> read bytes (fetch / Blob.arrayBuffer), limits while streaming  -> E_MODEL_FETCH, E_MODEL_TOO_LARGE
   -> unpack (.zip -> named files, streaming)                         -> E_MODEL_ZIP
   -> pick the main file, detect its format by bytes                  -> E_MODEL_FORMAT_*, E_MODEL_AMBIGUOUS
-  -> check references against the file set (allowlist)               -> E_MODEL_MISSING_FILE, E_MODEL_EXTERNAL_URL
+  -> resolve references to keys of the file set                        -> E_MODEL_MISSING_FILE, E_MODEL_EXTERNAL_URL
   -> check structure and counts (glTF JSON, OBJ/STL/PLY scan)        -> E_MODEL_STRUCTURE, E_MODEL_TOO_LARGE
   -> check decoder data (meshopt ranges, Draco indices)              -> E_MODEL_STRUCTURE
   -> digest, store, summary (AssetRecord "accepted")                 [Babylon-free up to here: ./session]
@@ -551,22 +551,40 @@ When the same base name appears in several formats (a kit with `rack.glb`, `rack
 
 ### 3.3 References, structure and decoders, before anything is decoded
 
-**References are an allowlist.** A reference (`buffers[].uri`, `images[].uri`, `mtllib`, the file
-name in a `map_*` line after its option flags) is valid only if, after percent-decoding once and
-normalizing the path, it is a key in the file set, or a `data:` URL whose media type is an image
-or `application/octet-stream`. Everything else -- `http(s):`, `//host`, `blob:`, `file:`, paths
-that leave the set with `..` -- is `E_MODEL_EXTERNAL_URL { url }`. A missing key is
-`E_MODEL_MISSING_FILE { name, referencedBy }`.
+**References resolve to keys of the file set.** A reference (glTF `buffers[].uri` and
+`images[].uri`, OBJ `mtllib`, the file name in an MTL `map_*` line after its option flags, a PLY's
+`comment TextureFile`, a `.babylon` material's texture `name`, the pictures a SOG's `meta.json`
+names) is percent-decoded once and resolved to a key in the file set:
 
-**A model fetched by URL brings the files beside it.** When the main file names a file the set
-does not hold (a `.gltf`'s `.bin` and images, an `.obj`'s `.mtl` and the images the `.mtl` names),
-the element fetches it relative to the main file's URL -- the reference has already passed the
-allowlist, so the request is on the same origin and in the main file's folder or below -- adds it
-to the set and checks again. The files together are held to `maxBytes`, at most 64 files are added
-(`E_MODEL_TOO_LARGE { what: "count" }`), each request is made like the main one, and a file that
-does not answer is `E_MODEL_FETCH`. A reference to another host, or above the folder, stays
-`E_MODEL_EXTERNAL_URL` and is never requested. Sites laid out differently -- other folders, other cases, signed
-URLs, parts on other hosts, web pages, zips -- are handled by section 12.
+- a relative path inside the main file's folder is its normalized path (tolerant matching, 12.5);
+- a `data:` URL whose media type is an image or `application/octet-stream` is its bytes;
+- a web address (`http:`, `https:` or `//host`) is held under its host and path
+  (`https://assets.babylonjs.com/environments/car.png` as
+  `assets.babylonjs.com/environments/car.png`), and a relative path that climbs above the set's top
+  with `..` is held under that path with the climbing `..` dropped (`../textures/wheel.png` as
+  `textures/wheel.png`). Neither is matched by case or base name: a file of the same name is not
+  the one the address names, though a caller may `use` it (12.4);
+- any other scheme (`blob:`, `javascript:`, `ftp:`) is `E_MODEL_EXTERNAL_URL { url }`; a path from
+  the author's disk, `file:` included, means only its base name (12.5).
+
+A key the set does not hold is `E_MODEL_MISSING_FILE { name, referencedBy }`, `name` being the key.
+For a web address or a climbing path it also carries `url`, the absolute address it names (a
+network path takes the model's scheme; a climbing path is resolved against the address of the file
+that names it, so it has a `url` only when the model came from a web address).
+
+**A model fetched by URL brings the files it names on its own origin.** When the main file names
+a file the set does not hold (a `.gltf`'s `.bin` and images, an `.obj`'s `.mtl` and the images the
+`.mtl` names, a `.babylon` file's textures), the element fetches it and adds it to the set under its
+key, then checks again: a file inside the main file's folder relative to the main file's URL (the
+tries of 12.2), and a file outside it -- a web address or a climbing path whose `url` is on the
+same origin as the main file -- from that `url`. The files together are held to `maxBytes`, at most
+64 files are added (`E_MODEL_TOO_LARGE { what: "count" }`), each request is made like the main one
+(no credentials, no referrer), and a file that does not answer stays missing. A file on another
+origin is never fetched by itself: it stays `E_MODEL_MISSING_FILE` with its `url`, which an
+application offers to the reader (12.10); supplying it by that URL (`supply(ref, { name, url })`)
+asks `session.network` first, as any part on another host does (12.7). The same holds for a model
+from local files: every web address it names is a missing part with its `url`. Sites laid out
+differently -- other folders, other cases, signed URLs, web pages, zips -- are handled by section 12.
 
 **A second guard that does not depend on parsing.** For the length of each load, every request
 Babylon makes passes one hook (the glTF loader's `preprocessUrlAsync` and Babylon's global URL
@@ -574,7 +592,12 @@ preprocessing, which also catches the OBJ loader's material and image loads). Lo
 that cannot resolve against the page (`graphty-model:/<n>/`), and the loaders resolve every
 reference against it, so a reference the checker missed never becomes a same-origin request
 carrying the reader's cookies: a URL under a load's root that is not one of the files made for
-that load throws `E_MODEL_EXTERNAL_URL`. The hook is process-wide and a load is asynchronous, so
+that load throws `E_MODEL_EXTERNAL_URL`. The guard finds a file by the same keys the intake uses: a
+web address under the root (`graphty-model:/1/https://host/x.png`) maps to the file held under
+`host/x.png`, and a climbing path to the file held under its path without the climbing `..`, so a
+fetched outside file is read from the set and Babylon never requests the outside address itself.
+Babylon's glTF loader refuses a `uri` containing `..`, so each `..` in a glTF `uri` is
+percent-encoded before loading; the guard decodes it back. The hook is process-wide and a load is asynchronous, so
 it judges only URLs under a load's root; every other request made while a load runs (a node's
 picture, an edge's texture, another element on the page) is not the model's and passes
 unchanged (issue #7235). OBJ `mtllib` and `map_*` lines are also
@@ -639,9 +662,12 @@ that only uses it draws opaque, and one that requires it is refused.
   `gltf.validate = false` (the validator is a CDN fetch; the structure checks above replace it),
   `gltf.alwaysComputeBoundingBox = true`. The file's cameras and lights are discarded.
 - **Up axis.** glTF and GLB need nothing: the loader's `__root__` node already converts glTF's +Y
-  up into Babylon's frame. For the rest, `node.modelSourceUp: "detected"` means: STL is Z up, OBJ
-  and PLY are Y up (Blender's OBJ exporter writes Y up by default). STL and PLY report
-  `W_MODEL_UP_GUESSED`; OBJ does not, because its guess is usually right.
+  up into Babylon's frame. For the rest, `node.modelSourceUp: "detected"` draws the summary's
+  `upAxis` up: STL is Z up, OBJ and PLY meshes and point clouds are Y up (Blender's OBJ exporter
+  writes Y up by default), and Gaussian splats (`.splat`, `.spz`, `.sog` and a splat PLY) are Y
+  down (`"-y"`), the 3D Gaussian splatting convention, which Babylon's own splat loader also flips
+  for every one of those containers. STL, PLY and splats report `W_MODEL_UP_GUESSED { format, up }`;
+  OBJ does not, because its guess is usually right.
 - **Fit.** The template is measured with `getHierarchyBoundingVectors` in its rest pose,
   recentered on its bounding-box center (unless `node.modelCenter: "origin"`), and scaled so its
   largest extent is 1. Each instance is then scaled by `node.size x extentPerSize(sizeMode)`, the
@@ -757,7 +783,7 @@ string param from a file (names, clip names) is cut to 256 characters.
 | `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`                                                                                                                 | Recognized but not loadable (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon)                        | "FBX files cannot be loaded yet. Export as GLB from your 3D program."                                                                                                 |
 | `E_MODEL_FORMAT_UNKNOWN`      | `fileName`                                                                                                                           | No format matches the bytes                                                                        | "This is not a 3D model file graphty knows."                                                                                                                          |
 | `E_MODEL_AMBIGUOUS`           | `candidates`                                                                                                                         | Two different main files in one set                                                                | "Which one is the model?" with the list                                                                                                                               |
-| `E_MODEL_MISSING_FILE`        | `name`, `referencedBy`                                                                                                               | A `.bin`, texture or `.mtl` is not in the set                                                      | "robot.gltf needs robot.bin. Drop the whole folder or a .zip, or export as .glb."                                                                                     |
+| `E_MODEL_MISSING_FILE`        | `name`, `referencedBy`, `url?` (the absolute address of a part outside the main file's folder)                                       | A `.bin`, texture or `.mtl` is not in the set                                                      | "robot.gltf needs robot.bin. Drop the whole folder or a .zip, or export as .glb."                                                                                     |
 | `E_MODEL_EXTERNAL_URL`        | `url`                                                                                                                                | A reference outside the file set                                                                   | "This model loads parts from somewhere else, which is not allowed. Export it as .glb."                                                                                |
 | `E_MODEL_DECODER_UNAVAILABLE` | `reason` (`missing`, `load`, `decode`), `extension`                                                                                  | `./bundle` has no decoder for it, a decoder's files did not load, or compressed data is damaged    | "This page cannot read this model's compression." / "Try again." / "This model's data is damaged."                                                                    |
 | `E_MODEL_PARSE`               | `format`                                                                                                                             | Babylon could not read a file that passed the checks                                               | "The file is damaged or not a valid GLB."                                                                                                                             |
@@ -773,7 +799,7 @@ string param from a file (names, clip names) is cut to 256 characters.
 | `W_MODEL_HAS_ANIMATIONS`      | `clips`                                                                                                                              | Clips exist and animation is off                                                                   | Offer a "Play animation" control (later)                                                                                                                              |
 | `W_MODEL_POINTS_APPROXIMATED` | `points`, `drawn`                                                                                                                    | A point cloud or splat drawn as small solids                                                       | Say the points are drawn as small solids                                                                                                                              |
 | `W_MODEL_TEXTURE_FAILED`      | `name`                                                                                                                               | One texture could not be decoded; the rest of the model is drawn                                   | "One texture (bark.png) could not be read; the model shows without it."                                                                                               |
-| `W_MODEL_UP_GUESSED`          | `format`, `up`                                                                                                                       | STL or PLY: the up axis is a guess                                                                 | Show the "Turn upright" control near the model                                                                                                                        |
+| `W_MODEL_UP_GUESSED`          | `format`, `up`                                                                                                                       | STL, PLY or splats: the up axis is a guess                                                         | Show the "Turn upright" control near the model                                                                                                                        |
 | `W_MODEL_REMOVED`             | `id`, `layerIds`                                                                                                                     | An asset in use was removed                                                                        | "Layers that used this model now show the plain shape."                                                                                                               |
 | `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                                                                                                                    | A project was saved naming a model it does not hold (7.3)                                          | "This project names a model on the web; others may not be able to open it."                                                                                           |
 | `E_MODEL_WEB_PAGE`            | `url`, `host`, `part?`, `suggested?`                                                                                                 | The URL answered with a web page, not a model (12.6)                                               | "That address is a web page, not the model file."                                                                                                                     |
@@ -792,21 +818,21 @@ Later packages add `W_MODEL_ANIMATION_UNKNOWN`, `W_MODEL_ANIMATION_LIMITED` (3.6
 
 Nothing in this table is ever asked of the user.
 
-| What                    | How                                                                                                                                                                                                                                                                                                                                                                                                           | Fallback when it cannot be told                               |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Format                  | First bytes: GLB starts `glTF` (0x46546C67) with version 2; glTF is JSON with an `asset.version`; binary STL has length `84 + 50 * triangleCount` read from bytes 80-83; ASCII STL starts `solid` and contains `facet`; PLY starts `ply\n`; OBJ has lines starting `v ` and `f `; zip starts `PK\x03\x04`; FBX starts `Kaydara FBX Binary`; USDZ is a zip holding a `.usdc`/`.usda`. Then registered sniffers | The extension; then `E_MODEL_FORMAT_UNKNOWN`                  |
-| Model or graph data     | `detectModelFormat` in `./catalog` (2.4)                                                                                                                                                                                                                                                                                                                                                                      | Treated as graph data                                         |
-| The main file in a set  | Rank order and same-name de-duplication (3.2)                                                                                                                                                                                                                                                                                                                                                                 | `E_MODEL_AMBIGUOUS`                                           |
-| Missing companion files | References checked against the set                                                                                                                                                                                                                                                                                                                                                                            | `E_MODEL_MISSING_FILE`                                        |
-| Decoders needed         | glTF `extensionsRequired`                                                                                                                                                                                                                                                                                                                                                                                     | `E_MODEL_DECODER_UNAVAILABLE`                                 |
-| Units                   | Irrelevant: every model is fitted to the node                                                                                                                                                                                                                                                                                                                                                                 | --                                                            |
-| Up axis                 | glTF, GLB: fixed by the spec; STL: Z; OBJ: Y                                                                                                                                                                                                                                                                                                                                                                  | PLY and STL report `W_MODEL_UP_GUESSED`; `node.modelSourceUp` |
-| Center, size            | Bounding box, fitted like a box node of the same size                                                                                                                                                                                                                                                                                                                                                         | `node.modelCenter`, `node.modelFit`                           |
-| Lighting                | The scene's environment, else the bundled one                                                                                                                                                                                                                                                                                                                                                                 | `node.unlit`                                                  |
-| Animations, skeleton    | The glTF JSON                                                                                                                                                                                                                                                                                                                                                                                                 | Static rest pose                                              |
-| Transparency            | Material alpha modes                                                                                                                                                                                                                                                                                                                                                                                          | --                                                            |
-| Cost                    | Triangles per use, materials, texture bytes                                                                                                                                                                                                                                                                                                                                                                   | Warnings (8.2)                                                |
-| License                 | `asset.copyright`                                                                                                                                                                                                                                                                                                                                                                                             | Recorded as unknown; never invented                           |
+| What                    | How                                                                                                                                                                                                                                                                                                                                                                                                           | Fallback when it cannot be told                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Format                  | First bytes: GLB starts `glTF` (0x46546C67) with version 2; glTF is JSON with an `asset.version`; binary STL has length `84 + 50 * triangleCount` read from bytes 80-83; ASCII STL starts `solid` and contains `facet`; PLY starts `ply\n`; OBJ has lines starting `v ` and `f `; zip starts `PK\x03\x04`; FBX starts `Kaydara FBX Binary`; USDZ is a zip holding a `.usdc`/`.usda`. Then registered sniffers | The extension; then `E_MODEL_FORMAT_UNKNOWN`                          |
+| Model or graph data     | `detectModelFormat` in `./catalog` (2.4)                                                                                                                                                                                                                                                                                                                                                                      | Treated as graph data                                                 |
+| The main file in a set  | Rank order and same-name de-duplication (3.2)                                                                                                                                                                                                                                                                                                                                                                 | `E_MODEL_AMBIGUOUS`                                                   |
+| Missing companion files | References checked against the set                                                                                                                                                                                                                                                                                                                                                                            | `E_MODEL_MISSING_FILE`                                                |
+| Decoders needed         | glTF `extensionsRequired`                                                                                                                                                                                                                                                                                                                                                                                     | `E_MODEL_DECODER_UNAVAILABLE`                                         |
+| Units                   | Irrelevant: every model is fitted to the node                                                                                                                                                                                                                                                                                                                                                                 | --                                                                    |
+| Up axis                 | glTF, GLB: fixed by the spec; STL: Z; OBJ, PLY meshes and point clouds: Y; Gaussian splats: -Y (Y down)                                                                                                                                                                                                                                                                                                       | PLY, STL and splats report `W_MODEL_UP_GUESSED`; `node.modelSourceUp` |
+| Center, size            | Bounding box, fitted like a box node of the same size                                                                                                                                                                                                                                                                                                                                                         | `node.modelCenter`, `node.modelFit`                                   |
+| Lighting                | The scene's environment, else the bundled one                                                                                                                                                                                                                                                                                                                                                                 | `node.unlit`                                                          |
+| Animations, skeleton    | The glTF JSON                                                                                                                                                                                                                                                                                                                                                                                                 | Static rest pose                                                      |
+| Transparency            | Material alpha modes                                                                                                                                                                                                                                                                                                                                                                                          | --                                                                    |
+| Cost                    | Triangles per use, materials, texture bytes                                                                                                                                                                                                                                                                                                                                                                   | Warnings (8.2)                                                        |
+| License                 | `asset.copyright`                                                                                                                                                                                                                                                                                                                                                                                             | Recorded as unknown; never invented                                   |
 
 ---
 
@@ -1132,6 +1158,9 @@ find nothing in the set, a model fetched by URL tries, in this order, stopping a
    folder or whose folder was not found: `<folder of main>/<base>`, then `textures/<base>` and
    `Textures/<base>` below the main file's folder. Never above it, never another host.
 
+A part outside the main file's folder (3.3) has one address, its `url`: tried (with try 2) only
+when it is on the main file's origin, and never on another.
+
 Every try counts toward the set's `maxBytes` and toward a new cap of **16 requests per part**
 beyond the first; the set's 64-file cap is unchanged. A try that answers with a web page (12.6
 detection) is a miss, not a file. The first part not found after the tries is not the end of the
@@ -1240,8 +1269,8 @@ A reference that is not a key of the set as written is matched, in order:
 
 A local absolute path an author's exporter wrote (`C:\Users\me\wood.png`, `/home/me/wood.png`,
 `file:///C:/wood.png`) is treated as its base name and matched by step 3 only; it is never
-fetched as written. `http(s):`, `//host`, `blob:` and `..` leaving the set stay
-`E_MODEL_EXTERNAL_URL` (3.3). Steps 2 and 3 apply only when exactly one file matches; that use is
+fetched as written. A web address and a path climbing above the set are held under their own keys
+and never matched tolerantly; `blob:` and other schemes stay `E_MODEL_EXTERNAL_URL` (3.3). Steps 2 and 3 apply only when exactly one file matches; that use is
 reported as `W_MODEL_PART_SUBSTITUTED { name, used, referencedBy }` on the accepted record. Two or
 more matches are `E_MODEL_PART_AMBIGUOUS { name, referencedBy, candidates }`, which a caller
 settles with `supply(ref, { name, use })`; the element never guesses. For a model fetched by URL,
@@ -1271,8 +1300,9 @@ suggested? }`. `url` is shown without its query. `part` is the part's name when 
 
 Nothing in this section raises a limit or opens a path the design closed.
 
-- **Parts by URL go through the gate.** A supplied part URL on the main file's own origin is
-  fetched as an automatic try is. On any other host it is a question in `session.network` (2.6),
+- **Parts by URL go through the gate.** A part the model names by an address on its own origin is
+  fetched with it (3.3); one on another origin is fetched only once it is supplied. A supplied part
+  URL on the main file's own origin is fetched as an automatic try is. On any other host it is a question in `session.network` (2.6),
   `W_URL_NEEDS_APPROVAL` with `kind` the part's kind (`"model"` for geometry and `.mtl`,
   `"texture"` for a picture) and the new `by: "supplied"` (`NetworkRequestAsker` is an open union),
   unless the host is already allowed by the page, the reader or the project. A denied part is
@@ -1349,6 +1379,9 @@ use })`). A row shows a spinner while its call runs and disappears when the part
   `suggested`, a "Use the file's address" button that pastes it), `E_MODEL_TOO_LARGE`.
 - **A pasted URL on another site** raises the app's existing web-address question (2.6) through
   `network:pending`; the app words `by: "supplied"` as "Load a part of this model from <host>?".
+- **A part named by its own address** (`params.url`, 3.3): the row opens with its address field
+  showing and filled in with that address, so loading it is one click on the field's go button
+  (and the question above, for another site).
 - **Several models in a zip** (`E_MODEL_AMBIGUOUS`): one row labeled "Model" with a select of
   `candidates` (and "+N more" from `more`), answered with `supply(ref, { main })`.
 - **Warnings** on the accepted model, worded from codes: `W_MODEL_PART_SUBSTITUTED` ("Used

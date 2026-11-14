@@ -3,10 +3,12 @@
  * image sizes read from their headers.
  *
  * A reference inside a model (a glTF buffer or image `uri`, an OBJ `mtllib`, an MTL `map_*` file)
- * is valid only if, after percent-decoding once and normalizing the path, it is a key in the file
- * set, or a `data:` URL of an image or of plain bytes. Everything else -- `http(s):`, `//host`,
- * `blob:`, `file:`, a path that leaves the set with `..` -- is `E_MODEL_EXTERNAL_URL`
- * (design/rendering/node-models.md section 3.3).
+ * is a key in the file set after percent-decoding once and normalizing the path, or a `data:` URL
+ * of an image or of plain bytes. A web address (`http(s):`, `//host`) or a path that climbs above
+ * the set's top with `..` is a file outside the folder: it is held under the key
+ * {@link setKeyOf} gives it, and while the set lacks it, it is a missing part carrying its
+ * absolute `url` when one is known. Any other scheme (`blob:`, `javascript:`) is
+ * `E_MODEL_EXTERNAL_URL` (design/rendering/node-models.md section 3.3).
  */
 
 import type { CodedFact, CodedFactParam } from "../shared";
@@ -89,9 +91,10 @@ export function dirOf(path: string): string {
 /**
  * Resolve "." and ".." in a slash-separated path.
  * @param path - The path.
- * @returns The normalized path, or undefined when ".." leaves the top.
+ * @param clamp - Drop a ".." that would leave the top instead of giving up.
+ * @returns The normalized path, or undefined when ".." leaves the top and `clamp` is false.
  */
-export function normalizePath(path: string): string | undefined {
+export function normalizePath(path: string, clamp = false): string | undefined {
     const out: string[] = [];
     for (const part of path.replaceAll("\\", "/").split("/")) {
         if (part === "" || part === ".") {
@@ -99,7 +102,7 @@ export function normalizePath(path: string): string | undefined {
         }
 
         if (part === "..") {
-            if (out.length === 0) {
+            if (out.length === 0 && !clamp) {
                 return undefined;
             }
 
@@ -111,6 +114,60 @@ export function normalizePath(path: string): string | undefined {
     }
 
     return out.join("/");
+}
+
+/** A web address as a model writes it: `http:`, `https:` or a network path (`//host`). */
+const WEB_ADDRESS = /^(?:https?:)?\/\//i;
+
+/** A web address inside a joined path: at its start or after a folder's slash, then a host. */
+const WEB_IN_PATH = /(?:^|\/)(?:https?:)?\/\/(?=[^/])/i;
+
+/**
+ * The key in a file set a reference is held under, from the folder of the file that names it
+ * joined to the reference (`folder + reference`, which is also what a loader asks the request
+ * guard for under a load's root): a web address is held as its host and path
+ * (`https://cdn.example/t/wood.png` as `cdn.example/t/wood.png`), and a path that climbs above
+ * the set's top drops the `..` that climb (`../textures/wood.png` as `textures/wood.png`).
+ * @param joined - The folder and the reference, percent-decoded once.
+ * @returns The key, or undefined when nothing is left of it.
+ */
+export function setKeyOf(joined: string): string | undefined {
+    const web = WEB_IN_PATH.exec(joined);
+    if (web !== null) {
+        const rest = joined.slice(web.index + web[0].length);
+        // An index search, not a `[?#].*$` regex: that one backtracks polynomially on many `?`s.
+        const end = rest.search(/[?#]/);
+        return normalizePath(end < 0 ? rest : rest.slice(0, end)) || undefined;
+    }
+
+    return normalizePath(joined) ?? normalizePath(joined, true);
+}
+
+/**
+ * The absolute address a reference outside the folder means: a web address as written (a network
+ * path takes the model's scheme), or a climbing path resolved against the address of the file
+ * that names it, when the model came from a web address.
+ * @param ref - The reference as the file wrote it.
+ * @param from - The path of the file that wrote it.
+ * @param base - The main file's web address, for a model fetched by URL.
+ * @returns The address without its fragment, or undefined when none is known.
+ */
+function outsideUrl(ref: string, from: string, base: string | undefined): string | undefined {
+    try {
+        let url: URL;
+        if (WEB_ADDRESS.test(ref)) {
+            url = new URL(ref, base ?? "https://host.invalid/");
+        } else if (base === undefined) {
+            return undefined;
+        } else {
+            url = new URL(ref, new URL(from.split("/").map(encodeURIComponent).join("/"), base));
+        }
+
+        url.hash = "";
+        return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
+    } catch {
+        return undefined;
+    }
 }
 
 /**
@@ -241,6 +298,8 @@ export interface Findings {
     readonly missing: CodedFact[];
     /** Each reference found in the set, in the order the model names it, when the caller lists parts. */
     readonly found?: { readonly name: string; readonly role: PartRole; readonly file: string }[];
+    /** The main file's web address, for a model fetched by URL: what a climbing path resolves against. */
+    readonly base?: string;
 }
 
 /**
@@ -261,7 +320,7 @@ export function findReference(
     findings: Findings,
 ): Resolved | undefined {
     try {
-        const resolved = resolveReference(ref, from, files);
+        const resolved = resolveReference(ref, from, files, findings.base);
         const used = resolved.substituted;
         if (used !== undefined && !findings.warnings.some((w) => w.params.name === used.params.name)) {
             findings.warnings.push(used);
@@ -293,15 +352,22 @@ export function findReference(
 }
 
 /**
- * Check one reference against the allowlist and resolve it, tolerantly (design 12.5).
+ * Check one reference and resolve it, tolerantly (design 12.5).
  * @param ref - The reference as the file wrote it.
  * @param from - The path of the file that wrote it.
  * @param files - The file set.
+ * @param base - The main file's web address, for a model fetched by URL.
  * @returns The file or the data URL's bytes.
- * @throws Refusal `E_MODEL_EXTERNAL_URL` for anything outside the set, `E_MODEL_MISSING_FILE`
- *     for a path the set does not hold, `E_MODEL_PART_AMBIGUOUS` for one several files match.
+ * @throws Refusal `E_MODEL_EXTERNAL_URL` for a scheme other than `http(s):` and `data:`,
+ *     `E_MODEL_MISSING_FILE` for a file the set does not hold (with `url` for one outside the
+ *     folder whose address is known), `E_MODEL_PART_AMBIGUOUS` for one several files match.
  */
-export function resolveReference(ref: string, from: string, files: ReadonlyMap<string, Uint8Array>): Resolved {
+export function resolveReference(
+    ref: string,
+    from: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    base?: string,
+): Resolved {
     if (/^data:/i.test(ref)) {
         const type = ref.slice(5, ref.search(/[;,]/) < 0 ? undefined : ref.search(/[;,]/));
         const bytes = DATA_TYPES.test(type) ? decodeDataUrl(ref) : undefined;
@@ -321,23 +387,31 @@ export function resolveReference(ref: string, from: string, files: ReadonlyMap<s
 
     // A path from the author's disk means only its base name; it is never requested as written.
     const local = isLocalAbsolute(decoded);
-    if (!local && (looksExternal(ref) || looksExternal(decoded))) {
+    const web = !local && (WEB_ADDRESS.test(ref) || WEB_ADDRESS.test(decoded));
+    if (!local && !web && (looksExternal(ref) || looksExternal(decoded))) {
         refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref) });
     }
 
-    const path = local ? baseName(decoded) : normalizePath(dirOf(from) + decoded);
-    if (path === undefined) {
-        refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref) });
+    const joined = dirOf(from) + decoded;
+    let inside: string | undefined;
+    if (local) {
+        inside = baseName(decoded);
+    } else if (!web) {
+        inside = normalizePath(joined);
     }
 
-    const match = matchInSet(path, files, local);
+    if (inside === undefined) {
+        return resolveOutside(ref, from, files, setKeyOf(joined), base);
+    }
+
+    const match = matchInSet(inside, files, local);
     if (match === undefined) {
-        refuse("E_MODEL_MISSING_FILE", { name: cut(path), referencedBy: cut(from) });
+        refuse("E_MODEL_MISSING_FILE", { name: cut(inside), referencedBy: cut(from) });
     }
 
     if ("candidates" in match) {
         refuse("E_MODEL_PART_AMBIGUOUS", {
-            name: cut(path),
+            name: cut(inside),
             referencedBy: cut(from),
             candidates: match.candidates.map(cut),
         });
@@ -350,11 +424,46 @@ export function resolveReference(ref: string, from: string, files: ReadonlyMap<s
             ? {
                   substituted: {
                       code: "W_MODEL_PART_SUBSTITUTED",
-                      params: { name: cut(path), used: cut(match.path), referencedBy: cut(from) },
+                      params: { name: cut(inside), used: cut(match.path), referencedBy: cut(from) },
                   },
               }
             : {}),
     };
+}
+
+/**
+ * Resolve a reference outside the main file's folder (a web address, or a path climbing above the
+ * set's top): the set holds it under its key exactly, or it is missing. No tolerant matching: a
+ * file of the same base name is not the one the address names, though a caller may `use` it.
+ * @param ref - The reference as the file wrote it.
+ * @param from - The path of the file that wrote it.
+ * @param files - The file set.
+ * @param key - Its key in the set.
+ * @param base - The main file's web address, for a model fetched by URL.
+ * @returns The file.
+ */
+function resolveOutside(
+    ref: string,
+    from: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    key: string | undefined,
+    base: string | undefined,
+): Resolved {
+    if (key === undefined) {
+        refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref) });
+    }
+
+    const bytes = files.get(key);
+    if (bytes !== undefined) {
+        return { path: key, bytes };
+    }
+
+    const url = outsideUrl(ref, from, base);
+    return refuse("E_MODEL_MISSING_FILE", {
+        name: cut(key),
+        referencedBy: cut(from),
+        ...(url === undefined ? {} : { url: cut(url) }),
+    });
 }
 
 /** An image's size in pixels. */

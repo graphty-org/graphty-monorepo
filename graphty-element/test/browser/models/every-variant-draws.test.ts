@@ -12,7 +12,7 @@ import { isGraphtyError } from "../../../src/errors";
 import { operationQueueOf } from "../../../src/Graph";
 import { unzipModel } from "../../../src/session/assets/unzip";
 import manifest from "../../fixtures/models/variants/manifest.json";
-import { colorShare, differingShare, drawnShare, type PictureColor } from "../../helpers/pictureFacts";
+import { colorRow, colorShare, differingShare, drawnShare, type PictureColor } from "../../helpers/pictureFacts";
 import { drawnAsModel, mount, nextModelEvent } from "./helpers";
 
 /** Every fixture file, by its path below the variants folder. */
@@ -30,6 +30,7 @@ interface Variant {
     readonly refused: { code: string } | null;
     readonly needs?: string;
     readonly drawFails?: string[];
+    readonly upright?: { readonly top: PictureColor; readonly bottom: PictureColor };
 }
 
 /**
@@ -86,6 +87,15 @@ describe("every model variant draws", () => {
                 await colorShare(picture, variant.color as PictureColor),
                 0.01,
                 `it shows ${variant.color}`,
+            );
+        }
+        if (variant.upright !== undefined) {
+            const { top, bottom } = variant.upright;
+            const [topRow, bottomRow] = [await colorRow(picture, top), await colorRow(picture, bottom)];
+            assert.isBelow(
+                topRow,
+                bottomRow,
+                `${top} (row ${String(topRow)}) is drawn above ${bottom} (row ${String(bottomRow)})`,
             );
         }
 

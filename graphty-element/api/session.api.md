@@ -3841,7 +3841,7 @@ export interface ModelSummary {
     // (undocumented)
     readonly transparent: boolean;
     readonly triangles: number;
-    readonly upAxis: "y" | "z" | "unknown";
+    readonly upAxis: "y" | "z" | "-y" | "unknown";
     readonly vertexColors?: boolean;
 }
 

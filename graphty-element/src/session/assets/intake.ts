@@ -601,16 +601,27 @@ export function webPageParams(url: URL, part?: string): Record<string, string> {
 }
 
 /**
- * The paths the automatic tries ask for, in order (design 12.2): beside the main file, then for
- * a picture its base name beside the main file and in `textures/` and `Textures/` below it.
- * @param name - The missing part's path in the set.
- * @param role - The part's role.
- * @returns The paths, each once.
+ * Where the automatic tries look for a missing part, in order, as the key each file is held under
+ * and the address it is fetched from. A part inside the main file's folder (design 12.2): beside
+ * the main file, then for a picture its base name beside the main file and in `textures/` and
+ * `Textures/` below it. A part outside the folder (its fact carries `url`, design 3.3): its own
+ * address, only on the main file's origin; another origin is never asked for by itself.
+ * @param fact - The part's `E_MODEL_MISSING_FILE`.
+ * @param main - The main file's URL.
+ * @returns The keys and addresses, each once.
  */
-function triesFor(name: string, role: unknown): string[] {
+function triesFor(fact: CodedFact, main: URL): (readonly [string, URL])[] {
+    const name = String(fact.params.name);
+    if (typeof fact.params.url === "string") {
+        const url = parseUrl(fact.params.url);
+        return url?.origin === main.origin ? [[name, url]] : [];
+    }
+
     const base = baseName(name);
-    const paths = role === "texture" ? [name, base, `textures/${base}`, `Textures/${base}`] : [name];
-    return [...new Set(paths)];
+    const paths = fact.params.role === "texture" ? [name, base, `textures/${base}`, `Textures/${base}`] : [name];
+    // Each path is normalized with no ".." left: the URL it resolves to is on the same origin and
+    // inside the main file's folder.
+    return [...new Set(paths)].map((path) => [path, new URL(path.split("/").map(encodeURIComponent).join("/"), main)]);
 }
 
 /** What fetching a model's parts shares: the main URL, the limits, and the set as it grows. */
@@ -629,15 +640,17 @@ interface PartFetch {
  * @param given - The set.
  * @param main - Its main file.
  * @param limits - The limits in force.
+ * @param base - The main file's URL.
  * @returns The facts, or undefined when the set passes.
  */
 async function problemsOf(
     given: ReadonlyMap<string, Uint8Array>,
     main: string,
     limits: ModelLimits,
+    base: string,
 ): Promise<readonly CodedFact[] | undefined> {
     try {
-        await checkFileSet(given, { main }, limits);
+        await checkFileSet(given, { main }, limits, base);
         return undefined;
     } catch (error) {
         if (!(error instanceof Refusal)) {
@@ -676,7 +689,7 @@ function finalRefusal(
 ): Refusal {
     const [lead, ...more] = facts.map((f) => {
         const shown = f.code === "E_MODEL_MISSING_FILE" ? tried.get(String(f.params.name)) : undefined;
-        return shown === undefined ? f : { code: f.code, params: { ...f.params, tried: shown } };
+        return shown === undefined || shown.length === 0 ? f : { code: f.code, params: { ...f.params, tried: shown } };
     });
     const refusal = new Refusal(lead.code, { ...lead.params }, more);
     // Only parts are missing: the session holds what was fetched, for supply (design 12.4).
@@ -762,14 +775,11 @@ async function fetchPart(fact: CodedFact, fetching: PartFetch, tried: Map<string
     const shown: string[] = [];
     tried.set(name, shown);
     const budget = { requests: 0 };
-    for (const path of triesFor(name, fact.params.role)) {
+    for (const [path, address] of triesFor(fact, fetching.url)) {
         if (fetching.given.size > MAX_COMPANION_FILES) {
             refuse("E_MODEL_TOO_LARGE", { what: "count", found: fetching.given.size, limit: MAX_COMPANION_FILES });
         }
 
-        // The path is normalized with no ".." left: the URL it resolves to is on the same
-        // origin and inside the main file's folder.
-        const address = new URL(path.split("/").map(encodeURIComponent).join("/"), fetching.url);
         if (shown.length < MAX_TRIED_SHOWN) {
             shown.push(shownUrl(address));
         }
@@ -791,11 +801,12 @@ async function fetchPart(fact: CodedFact, fetching: PartFetch, tried: Map<string
 /**
  * Fetch a model by URL with the files it references: a .gltf's .bin and images, an .obj's .mtl
  * and the images the .mtl names. Each is tried at the addresses of design 12.2, all on the main
- * file's origin and in its folder or below; the set's total, misses included, is held to
- * `maxBytes`, at most {@link MAX_COMPANION_FILES} files are added and at most
- * {@link MAX_EXTRA_REQUESTS} requests beyond the first are made for one part. A reference outside
- * that tree, or to another host, stays refused by the checks (`E_MODEL_EXTERNAL_URL`). Every part
- * still missing after its tries is reported at once, with the addresses tried.
+ * file's origin: in its folder or below, or at the address a reference outside the folder names
+ * (design 3.3); the set's total, misses included, is held to `maxBytes`, at most
+ * {@link MAX_COMPANION_FILES} files are added and at most {@link MAX_EXTRA_REQUESTS} requests
+ * beyond the first are made for one part. A reference to another origin is never fetched here: it
+ * stays a missing part carrying its `url`, for the reader to supply. Every part still missing
+ * after its tries is reported at once, with the addresses tried.
  * @param url - The main file's URL.
  * @param limits - The limits in force.
  * @param signal - The caller's signal.
@@ -830,7 +841,7 @@ export async function fetchModelSet(
     const fetching: PartFetch = { url, limits, signal, gate, given, total: first.length };
     const tried = new Map<string, string[]>();
     for (;;) {
-        const facts = await problemsOf(given, main, limits);
+        const facts = await problemsOf(given, main, limits, url.href);
         if (facts === undefined) {
             return { given, main };
         }
@@ -854,6 +865,7 @@ export async function fetchModelSet(
  * @param given - The file set as given.
  * @param options - The caller's main file and format, if any.
  * @param limits - The limits in force.
+ * @param base - The main file's web address, for a model fetched by URL.
  * @returns The checked asset and its kind.
  * @throws Refusal for the first problem found.
  */
@@ -861,12 +873,13 @@ export async function checkAsset(
     given: ReadonlyMap<string, Uint8Array>,
     options: Pick<AddAssetOptions, "main" | "format" | "skipped">,
     limits: ModelLimits,
+    base?: string,
 ): Promise<CheckedModel & { readonly kind: "model" | "image" }> {
     const [[path, bytes]] = given;
     const format = given.size === 1 ? imageFormatOf(bytes) : undefined;
     if (format === undefined) {
         const skipped = options.skipped ?? [];
-        const checked = await checkFileSet(withSkips(given, skipped), options, limits);
+        const checked = await checkFileSet(withSkips(given, skipped), options, limits, base);
         return {
             kind: "model",
             ...checked,
@@ -1190,6 +1203,8 @@ function checkByFormat(
  * @param given - The file set as given.
  * @param options - The caller's main file and format, if any.
  * @param limits - The limits in force.
+ * @param base - The main file's web address, for a model fetched by URL: what a reference climbing
+ *     above its folder resolves against.
  * @returns The checked model.
  * @throws Refusal for the first problem found.
  */
@@ -1197,6 +1212,7 @@ export async function checkFileSet(
     given: ReadonlyMap<string, Uint8Array>,
     options: Pick<AddAssetOptions, "main" | "format">,
     limits: ModelLimits,
+    base?: string,
 ): Promise<CheckedModel> {
     const files = await unpackZip(given, limits);
     const main =
@@ -1209,7 +1225,7 @@ export async function checkFileSet(
         refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: main.format, fileName: cut(main.path) });
     }
 
-    const findings: Findings = { warnings: [], missing: [] };
+    const findings: Findings = { warnings: [], missing: [], ...(base === undefined ? {} : { base }) };
     const checked = checkByFormat(main, files, limits, findings);
     return {
         files,

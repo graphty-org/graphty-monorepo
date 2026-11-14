@@ -71,6 +71,17 @@
         "geometry": "mesh",
         "warnings": [],
         "refused": null,
+        "upload": "folder",
+        "id": "gltf-texture-above-folder",
+        "format": "gltf",
+        "color": "green",
+        "what": ".gltf whose PNG texture is above its folder (../textures/cube.png)",
+        "files": ["cube.gltf", "cube.bin", "textures/cube.png"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
         "upload": "files",
         "id": "glb-textured",
         "format": "glb",
@@ -571,6 +582,7 @@
         "refused": null,
         "upload": "files",
         "format": "ply",
+        "upAxis": "y",
         "id": "ply-points-ascii",
         "encoding": "ascii",
         "color": "red",
@@ -583,6 +595,7 @@
         "refused": null,
         "upload": "files",
         "format": "ply",
+        "upAxis": "y",
         "id": "ply-points-bin",
         "encoding": "binary",
         "color": "red",
@@ -590,10 +603,28 @@
         "files": ["points.ply"]
     },
     {
+        "geometry": "points",
+        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "upAxis": "y",
+        "id": "ply-points-upright",
+        "encoding": "ascii",
+        "color": "any",
+        "upright": {
+            "top": "green",
+            "bottom": "red"
+        },
+        "what": "ASCII PLY point cloud, green above and red below with Y up",
+        "files": ["points.ply"]
+    },
+    {
         "geometry": "splats",
         "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
         "refused": null,
         "upload": "files",
+        "upAxis": "-y",
         "format": "ply",
         "id": "ply-splat",
         "encoding": "binary",
@@ -606,6 +637,7 @@
         "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
         "refused": null,
         "upload": "files",
+        "upAxis": "-y",
         "format": "ply",
         "id": "ply-splat-compressed",
         "encoding": "binary",
@@ -615,9 +647,10 @@
     },
     {
         "geometry": "splats",
-        "warnings": ["W_MODEL_POINTS_APPROXIMATED"],
+        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
         "refused": null,
         "upload": "files",
+        "upAxis": "-y",
         "format": "splat",
         "id": "splat",
         "color": "red",
@@ -626,9 +659,26 @@
     },
     {
         "geometry": "splats",
-        "warnings": ["W_MODEL_POINTS_APPROXIMATED"],
+        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
         "refused": null,
         "upload": "files",
+        "upAxis": "-y",
+        "format": "splat",
+        "id": "splat-upright",
+        "color": "any",
+        "upright": {
+            "top": "green",
+            "bottom": "red"
+        },
+        "what": "raw .splat, green on top and red below with Y pointing down",
+        "files": ["points.splat"]
+    },
+    {
+        "geometry": "splats",
+        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
+        "refused": null,
+        "upload": "files",
+        "upAxis": "-y",
         "format": "spz",
         "id": "spz",
         "color": "any",
@@ -637,9 +687,10 @@
     },
     {
         "geometry": "splats",
-        "warnings": ["W_MODEL_POINTS_APPROXIMATED"],
+        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
         "refused": null,
         "upload": "files",
+        "upAxis": "-y",
         "format": "sog",
         "id": "sog",
         "color": "any",
@@ -667,6 +718,17 @@
         "color": "green",
         "what": ".babylon mesh with a PNG texture",
         "files": ["cube.babylon", "cube.png"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "folder",
+        "id": "babylon-absolute-textures",
+        "format": "babylon",
+        "color": "green",
+        "what": ".babylon whose texture is named by an absolute web address, held under its key",
+        "files": ["cube.babylon", "assets.example.com/textures/cube.png"]
     },
     {
         "id": "fbx",

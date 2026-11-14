@@ -191,8 +191,11 @@ export interface ModelSummary {
         readonly min: readonly [number, number, number];
         readonly max: readonly [number, number, number];
     };
-    /** The axis that points up in the file: fixed for glTF, assumed for the others. */
-    readonly upAxis: "y" | "z" | "unknown";
+    /**
+     * The axis that points up in the file: fixed for glTF, assumed for the others (`"-y"` for
+     * Gaussian splats, which store Y pointing down). `node.modelSourceUp: "detected"` draws it up.
+     */
+    readonly upAxis: "y" | "z" | "-y" | "unknown";
     readonly animations: readonly { readonly name: string; readonly seconds: number }[];
     readonly skinned: boolean;
     readonly morphTargets: number;
@@ -956,7 +959,8 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         const parts = listed === undefined ? {} : { parts: Object.freeze(listed) };
         let checked: Awaited<ReturnType<Awaited<ReturnType<typeof loadIntake>>["checkAsset"]>>;
         try {
-            checked = await intakeModule.checkAsset(files, options, limits);
+            const base = at.extra.url === undefined ? undefined : parseUrl(at.extra.url)?.href;
+            checked = await intakeModule.checkAsset(files, options, limits, base);
         } catch (error) {
             if (!(error instanceof Refusal)) {
                 throw error;

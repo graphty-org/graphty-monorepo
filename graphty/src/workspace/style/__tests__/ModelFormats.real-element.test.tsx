@@ -5,8 +5,10 @@
  * `generate.ts` there): the files, folder or .zip are chosen in the dialog; an accepted variant's
  * preview is drawn, not blank, in the variant's color, its caption names the variant, the element's
  * record and summary report the expected format and parts, and Add draws it on the layer's nodes; a
- * refused one is named and has no preview. Also: a web address, a missing texture shown and then
- * supplied, and no request to any host but the test server (no decoder from a CDN).
+ * refused one is named and has no preview. Also: a web address, a .babylon whose textures are
+ * absolute addresses (on its own site, fetched with it; on another, a row with the address filled
+ * in), a missing texture shown and then supplied, and no request to any host but the test server
+ * (no decoder from a CDN).
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -119,6 +121,26 @@ async function choose(dialog: HTMLElement, variant: Variant): Promise<void> {
 }
 
 /**
+ * Answers fetches of the given addresses with the given bytes, and lists them as they are asked.
+ * @param served - address to bytes.
+ * @returns the addresses asked for, in order.
+ */
+function serveAddresses(served: ReadonlyMap<string, Uint8Array<ArrayBuffer>>): string[] {
+    const asked: string[] = [];
+    const original = globalThis.fetch.bind(globalThis);
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+        const to = input instanceof Request ? input.url : String(input);
+        const body = served.get(to);
+        if (body === undefined) {
+            return original(input, init);
+        }
+        asked.push(to);
+        return Promise.resolve(new Response(body, { status: 200 }));
+    });
+    return asked;
+}
+
+/**
  * The closed Advanced line, with its chips.
  * @param dialog - the dialog.
  * @returns the line.
@@ -226,7 +248,7 @@ describe("every model format and variant, through the Load custom model dialog",
             const found = parts.filter((p) => p.state === "found").map((p) => (p.file ?? p.name).split("/").pop());
             assert.sameMembers(
                 found,
-                variant.files.filter((f) => f !== variant.needs),
+                variant.files.filter((f) => f !== variant.needs).map((f) => f.split("/").pop()),
                 "every file is a part",
             );
         }
@@ -259,6 +281,74 @@ describe("every model format and variant, through the Load custom model dialog",
         assert.isDefined(variant);
         await assertPreview(dialog, variant);
         assert.sameMembers(asked, [...served.keys()], "the model and its buffer were fetched");
+        await addModel(dialog);
+        const ref = String(written(session, "node.model"));
+        await reaches(session, ref, "drawn");
+    });
+
+    it("loads a .babylon whose texture is an absolute address on its own site, with no part question", async () => {
+        const texture = "https://assets.example.com/textures/cube.png";
+        const asked = serveAddresses(
+            new Map([
+                [
+                    "https://assets.example.com/meshes/cube.babylon",
+                    await bytesOf("babylon-absolute-textures/cube.babylon"),
+                ],
+                [texture, await bytesOf("babylon-absolute-textures/assets.example.com/textures/cube.png")],
+            ]),
+        );
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await userEvent.type(
+            within(dialog).getByRole("textbox", { name: "Model address" }),
+            "https://assets.example.com/meshes/cube.babylon{Enter}",
+        );
+        const variant = TABLE.find((v) => v.id === "babylon-absolute-textures");
+        assert.isDefined(variant);
+        await assertPreview(dialog, variant);
+        assert.deepEqual(asked, ["https://assets.example.com/meshes/cube.babylon", texture], "fetched with the model");
+        assert.isNull(within(dialog).queryByRole("textbox", { name: "cube.png address" }), "no part question");
+        await addModel(dialog);
+        const ref = String(written(session, "node.model"));
+        await reaches(session, ref, "drawn");
+    });
+
+    it("offers a texture on another site in the Files row with its address filled in, loaded in one click", async () => {
+        const texture = "https://assets.example.com/textures/cube.png";
+        const asked = serveAddresses(
+            new Map([
+                [
+                    "https://models.example.com/meshes/cube.babylon",
+                    await bytesOf("babylon-absolute-textures/cube.babylon"),
+                ],
+                [texture, await bytesOf("babylon-absolute-textures/assets.example.com/textures/cube.png")],
+            ]),
+        );
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await userEvent.type(
+            within(dialog).getByRole("textbox", { name: "Model address" }),
+            "https://models.example.com/meshes/cube.babylon{Enter}",
+        );
+        const row = await within(await within(dialog).findByTestId("model-files")).findByRole("group", {
+            name: "cube.png",
+        });
+        const field = within(row).getByRole<HTMLInputElement>("textbox", { name: "cube.png address" });
+        assert.equal(field.value, texture, "the row holds the address the model names");
+        assert.deepEqual(
+            asked,
+            ["https://models.example.com/meshes/cube.babylon"],
+            "another site is not fetched by itself",
+        );
+
+        await userEvent.click(within(row).getByRole("button", { name: "Load cube.png from address" }));
+        const question = await screen.findByRole("dialog", { name: "Open a web address?" });
+        assert.include(question.textContent, "Load a part of this model from assets.example.com?");
+        await userEvent.click(within(question).getByRole("button", { name: "Continue" }));
+        const variant = TABLE.find((v) => v.id === "babylon-absolute-textures");
+        assert.isDefined(variant);
+        await assertPreview(dialog, variant);
+        assert.include(asked, texture);
         await addModel(dialog);
         const ref = String(written(session, "node.model"));
         await reaches(session, ref, "drawn");

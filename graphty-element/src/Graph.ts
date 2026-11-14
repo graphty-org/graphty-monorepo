@@ -7248,7 +7248,7 @@ export class Graph implements GraphContext {
                     this.scene,
                     container,
                     `graphty-model-thumbnail-${record.digest.slice(0, 8)}`,
-                    optionsOf(shape, record.format),
+                    optionsOf(shape, assets.inspect(record.id).upAxis),
                     () => chunk.neutralEnvironment(this.scene),
                 );
                 try {

@@ -27,6 +27,7 @@ interface Variant {
     readonly warnings: string[];
     readonly refused: { code: string; params?: Record<string, unknown> } | null;
     readonly needs?: string;
+    readonly upAxis?: string;
 }
 
 const manifest = JSON.parse(readFileSync(join(VARIANTS, "manifest.json"), "utf8")) as Variant[];
@@ -90,6 +91,12 @@ describe("every model variant on intake", () => {
         if (variant.geometry !== "mesh") {
             const points = record.problems.find((p) => p.code === "W_MODEL_POINTS_APPROXIMATED");
             assert.strictEqual(points?.params.points, summary.points);
+        }
+
+        if (variant.upAxis !== undefined) {
+            assert.strictEqual(summary.upAxis, variant.upAxis);
+            const guessed = record.problems.find((p) => p.code === "W_MODEL_UP_GUESSED");
+            assert.strictEqual(guessed?.params.up, variant.upAxis);
         }
     });
 });

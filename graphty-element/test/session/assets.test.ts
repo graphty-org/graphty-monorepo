@@ -287,9 +287,14 @@ describe("session.assets: hostile files, each refused with its code", () => {
         });
     }
 
-    it("refuses an image reference outside the set, and names a missing file", async () => {
+    it("reports an image at a web address as a missing part carrying the address, and names a missing file", async () => {
         const external = triangleGltf({ textures: [{ source: 0 }], images: [{ uri: "https://host/x.png" }] });
-        assertRejected(await add({ files: gltfPair(external) }), "E_MODEL_EXTERNAL_URL", { url: "https://host/x.png" });
+        assertRejected(await add({ files: gltfPair(external) }), "E_MODEL_MISSING_FILE", {
+            name: "host/x.png",
+            url: "https://host/x.png",
+            role: "texture",
+            optional: true,
+        });
         const missing = triangleGltf({ textures: [{ source: 0 }], images: [{ uri: "bark.png" }] });
         assertRejected(await add({ files: gltfPair(missing) }), "E_MODEL_MISSING_FILE", {
             name: "bark.png",
@@ -297,12 +302,34 @@ describe("session.assets: hostile files, each refused with its code", () => {
         });
     });
 
-    it("refuses a map_Kd line whose file is a URL behind -o flags", async () => {
+    it("reports a map_Kd line whose file is a URL behind -o flags as a missing part with its address", async () => {
         assertRejected(
             await add({ files: objSet("newmtl x\nmap_Kd -o 1 1 1 http://host/x.png\n") }),
-            "E_MODEL_EXTERNAL_URL",
-            { url: "http://host/x.png" },
+            "E_MODEL_MISSING_FILE",
+            { name: "host/x.png", url: "http://host/x.png", referencedBy: "quad.mtl" },
         );
+    });
+
+    it("reports a path above the folder of local files as a missing part with no address", async () => {
+        for (const uri of ["../shared/tri.bin", "%2e%2e/shared/tri.bin"]) {
+            const json = triangleGltf({ buffers: [{ uri, byteLength: 36 }] });
+            const record = await add({ files: new Map([["tri.gltf", utf8(JSON.stringify(json))]]) });
+            assertRejected(record, "E_MODEL_MISSING_FILE", { name: "shared/tri.bin", role: "geometry" });
+            assert.isUndefined(record.problems[0].params.url, uri);
+        }
+    });
+
+    it("takes a part outside the folder from local files once the set holds it under its key", async () => {
+        const json = triangleGltf({ buffers: [{ uri: "//cdn.example.org/kit/tri.bin", byteLength: 36 }] });
+        const files = new Map([["tri.gltf", utf8(JSON.stringify(json))]]);
+        const assets = createAssetsApi();
+        const waiting = await assets.add({ files });
+        assertRejected(waiting, "E_MODEL_MISSING_FILE", {
+            name: "cdn.example.org/kit/tri.bin",
+            url: "https://cdn.example.org/kit/tri.bin",
+        });
+        const done = await assets.supply(waiting.id, { name: "cdn.example.org/kit/tri.bin", file: TRIANGLE_BIN });
+        assert.strictEqual(done.state, "accepted", JSON.stringify(done.problems));
     });
 
     it("refuses an accessor of 2e8 elements with no buffer view", async () => {
@@ -646,9 +673,9 @@ describe("session.assets: tolerant matching (design 12.5)", () => {
         });
     });
 
-    it("still refuses a web address, even when a file of its base name is in the set", async () => {
+    it("never matches a web address by base name: it stays a missing part with its address", async () => {
         const record = await add({ files: objNaming("http://host/x.png", { "x.png": PNG_1X1 }) });
-        assertRejected(record, "E_MODEL_EXTERNAL_URL", { url: "http://host/x.png" });
+        assertRejected(record, "E_MODEL_MISSING_FILE", { name: "host/x.png", url: "http://host/x.png" });
     });
 });
 

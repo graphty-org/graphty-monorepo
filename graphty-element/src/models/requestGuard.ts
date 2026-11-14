@@ -5,9 +5,10 @@
  *
  * A load names its files under a root of its own in `graphty-model:`, a scheme no page can resolve,
  * and the loaders resolve every reference a model makes against that root (an absolute
- * `https://host/x.png` becomes `graphty-model:/1/https://host/x.png`). So a reference the intake
- * checks missed never turns into a same-origin request carrying the reader's cookies: it is either
- * one of the load's own files, mapped to the `blob:` URL made for it, or it is refused.
+ * `https://host/x.png` becomes `graphty-model:/1/https://host/x.png`). So a reference never turns
+ * into a request of its own carrying the reader's cookies: it is either one of the load's own
+ * files, mapped to the `blob:` URL made for it (a web address by the key the intake held its
+ * fetched bytes under), or it is refused.
  *
  * Only `graphty-model:` URLs are the guard's business. The hook is process-wide and a load is
  * asynchronous, so every other request made meanwhile -- a node's picture, an edge's texture,
@@ -16,7 +17,7 @@
 
 import { Tools } from "@babylonjs/core/Misc/tools.js";
 
-import { matchInSet, normalizePath } from "../session/assets/references";
+import { matchInSet, setKeyOf } from "../session/assets/references";
 
 /** The root every model load's files are named under, below a root of the load's own. Unresolvable against any page. */
 const MODEL_ROOT = "graphty-model:/";
@@ -52,11 +53,11 @@ function resolve(url: string): string | undefined {
                 return undefined;
             }
 
-            // The same tolerant matching the intake accepted the model by (design 12.5): a
-            // reference written in another case, with backslashes or as a path on its author's
-            // disk reaches the one file of the set it was checked against, and nothing else.
-            const normalized = normalizePath(path) ?? "";
-            const match = matchInSet(normalized, files);
+            // The same keys and tolerant matching the intake accepted the model by (design 3.3,
+            // 12.5): a reference written in another case, with backslashes or as a path on its
+            // author's disk, and a web address or a path above the folder whose file the set holds
+            // under its key, reach the one file of the set it was checked against, and nothing else.
+            const match = matchInSet(setKeyOf(path) ?? "", files);
             return match !== undefined && "path" in match ? files.get(match.path) : undefined;
         }
     }

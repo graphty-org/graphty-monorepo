@@ -193,7 +193,8 @@ function SupplyPart({
     unused,
 }: Readonly<PartControlsProps>): React.JSX.Element {
     const chooser = useRef<HTMLInputElement | null>(null);
-    const [byAddress, setByAddress] = useState(unused.length === 0);
+    // A part named by its own address (graphty-element's `params.url`) opens with that address.
+    const [byAddress, setByAddress] = useState(unused.length === 0 || typeof part.params.url === "string");
     return (
         <>
             {unused.length > 0 ? (
@@ -342,7 +343,9 @@ function PartErrors({
  * @returns The row
  */
 export function PartRow({ part, first, supply, onDiscard, unused = [] }: Readonly<PartRowProps>): React.JSX.Element {
-    const [url, setUrl] = useState("");
+    // A part the model names by an address graphty-element did not fetch by itself (another site,
+    // or local files) comes with it filled in, so loading it from there is one click.
+    const [url, setUrl] = useState(typeof part.params.url === "string" ? part.params.url : "");
     const [busy, setBusy] = useState(false);
     const [errors, setErrors] = useState<readonly CodedFact[]>([]);
     const [last, setLast] = useState<PartAnswer | null>(null);

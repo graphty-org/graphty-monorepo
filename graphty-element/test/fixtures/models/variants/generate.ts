@@ -54,6 +54,10 @@ interface Variant {
     readonly needs?: string;
     /** Accepted, but drawing it fails with one of these codes. */
     readonly drawFails?: string[];
+    /** The axis the summary says points up in the file. */
+    readonly upAxis?: "y" | "z" | "-y";
+    /** The color the picture shows at the top, and the one at the bottom, when drawn upright. */
+    readonly upright?: { readonly top: "red" | "green" | "blue"; readonly bottom: "red" | "green" | "blue" };
     /** A short description for people. */
     readonly what: string;
 }
@@ -806,10 +810,11 @@ const XYZN = ["float x", "float y", "float z", "float nx", "float ny", "float nz
 const FACE = ["list uchar int vertex_indices"];
 
 /**
- * The red point grid as 32-byte splat rows.
+ * The point grid as 32-byte splat rows, red unless `colorOf` says otherwise.
+ * @param colorOf - The r, g, b of a point.
  * @returns The rows.
  */
-function splatRows(): Uint8Array {
+function splatRows(colorOf: (p: number[]) => number[] = () => [255, 0, 0]): Uint8Array {
     const out = new Uint8Array(GRID.length * 32);
     const view = new DataView(out.buffer);
     GRID.forEach((p, i) => {
@@ -817,10 +822,13 @@ function splatRows(): Uint8Array {
         for (let k = 0; k < 3; k++) {
             view.setFloat32(i * 32 + 12 + k * 4, 0.04, true);
         }
-        out.set([255, 0, 0, 255, 128, 128, 128, 255], i * 32 + 24);
+        out.set([...colorOf(p), 255, 128, 128, 128, 255], i * 32 + 24);
     });
     return out;
 }
+
+/** Green above, red below, for a file whose Y points up. */
+const GREEN_ABOVE_Y = (p: number[]): number[] => (p[1] > 0 ? [0, 255, 0] : [255, 0, 0]);
 
 // ---------------------------------------------------------------------------------------------
 // Downloads, once.
@@ -924,6 +932,26 @@ async function main(): Promise<void> {
                 "cube.gltf": withBufferUri(json, "cube.bin"),
                 "cube.bin": bin,
                 "cube.png": png(GREEN),
+            },
+        );
+    }
+    {
+        // A texture above the main file's folder: held under the path with the climbing ".." dropped.
+        const { json, bin } = cubeGltf({ texture: "png" });
+        json.images = [{ uri: "../textures/cube.png" }];
+        write(
+            {
+                ...mesh,
+                id: "gltf-texture-above-folder",
+                format: "gltf",
+                color: "green",
+                upload: "folder",
+                what: ".gltf whose PNG texture is above its folder (../textures/cube.png)",
+            },
+            {
+                "cube.gltf": withBufferUri(json, "cube.bin"),
+                "cube.bin": bin,
+                "textures/cube.png": png(GREEN),
             },
         );
     }
@@ -1366,6 +1394,7 @@ async function main(): Promise<void> {
         ...mesh,
         format: "ply",
         geometry: "points" as const,
+        upAxis: "y" as const,
         warnings: [...up("ply"), "W_MODEL_POINTS_APPROXIMATED"],
     };
     const pointRows = GRID.map((p) => [...p, 255, 0, 0]);
@@ -1382,12 +1411,33 @@ async function main(): Promise<void> {
             "points.ply": ply("binary_little_endian", [{ element: "vertex", properties: pointProps, rows: pointRows }]),
         },
     );
-    const splats = { ...mesh, geometry: "splats" as const, warnings: ["W_MODEL_POINTS_APPROXIMATED"] };
+    // A point cloud is not a Gaussian splat: its Y points up, so it is drawn as it is written.
+    write(
+        {
+            ...points,
+            id: "ply-points-upright",
+            encoding: "ascii",
+            color: "any",
+            upright: { top: "green", bottom: "red" },
+            what: "ASCII PLY point cloud, green above and red below with Y up",
+        },
+        {
+            "points.ply": ply("ascii", [
+                { element: "vertex", properties: pointProps, rows: GRID.map((p) => [...p, ...GREEN_ABOVE_Y(p)]) },
+            ]),
+        },
+    );
+    // Gaussian splats store Y pointing down (the 3D Gaussian splatting convention).
+    const splats = {
+        ...mesh,
+        geometry: "splats" as const,
+        upAxis: "-y" as const,
+        warnings: ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
+    };
     write(
         {
             ...splats,
             format: "ply",
-            warnings: [...up("ply"), ...splats.warnings],
             id: "ply-splat",
             encoding: "binary",
             color: "red",
@@ -1435,7 +1485,6 @@ async function main(): Promise<void> {
         {
             ...splats,
             format: "ply",
-            warnings: [...up("ply"), ...splats.warnings],
             id: "ply-splat-compressed",
             encoding: "binary",
             color: "any",
@@ -1448,6 +1497,18 @@ async function main(): Promise<void> {
     write(
         { ...splats, format: "splat", id: "splat", color: "red", what: "raw .splat (32-byte rows)" },
         { "points.splat": splatRows() },
+    );
+    // Its Y points down, so the green half (negative Y in the file) must be drawn on top.
+    write(
+        {
+            ...splats,
+            format: "splat",
+            id: "splat-upright",
+            color: "any",
+            upright: { top: "green", bottom: "red" },
+            what: "raw .splat, green on top and red below with Y pointing down",
+        },
+        { "points.splat": splatRows((p) => GREEN_ABOVE_Y([p[0], -p[1], p[2]])) },
     );
     write(
         { ...splats, format: "spz", id: "spz", color: "any", what: "Niantic .spz (Babylon sample)" },
@@ -1501,6 +1562,25 @@ async function main(): Promise<void> {
         {
             "cube.babylon": babylonFile({ diffuse: [1, 1, 1], diffuseTexture: { name: "cube.png" } }),
             "cube.png": png(GREEN),
+        },
+    );
+    // A texture named by an absolute web address, as Babylon's own samples write it: the set holds
+    // it under the key the address gives (its host and path).
+    write(
+        {
+            ...mesh,
+            id: "babylon-absolute-textures",
+            format: "babylon",
+            color: "green",
+            what: ".babylon whose texture is named by an absolute web address, held under its key",
+            upload: "folder",
+        },
+        {
+            "cube.babylon": babylonFile({
+                diffuse: [1, 1, 1],
+                diffuseTexture: { name: "https://assets.example.com/textures/cube.png" },
+            }),
+            "assets.example.com/textures/cube.png": png(GREEN),
         },
     );
 

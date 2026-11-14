@@ -14,11 +14,36 @@ import { ParseSogMeta } from "@babylonjs/loaders/SPLAT/sog.js";
 import { ParseSpz } from "@babylonjs/loaders/SPLAT/spz.js";
 import { gunzipSync } from "fflate";
 
-import { dirOf } from "../../session/assets/references";
+import { resolveReference } from "../../session/assets/references";
 import { type Geometry, ModelReadError, splatRowsToSolids, toLeftHanded } from "./geometry";
 
 /** Babylon's "reject" parse mode. */
 const REJECT = 3;
+
+/**
+ * A SOG's pictures by the names its `meta.json` writes, each resolved the way the intake accepted
+ * it (case, base name, or the key of a picture outside the folder, design 3.3), so Babylon finds
+ * every one in the map and never requests a name it lacks.
+ * @param files - The file set.
+ * @param main - The `meta.json`'s path.
+ * @returns The map Babylon's SOG parser reads, with the main file as `meta.json`.
+ */
+function sogFiles(files: ReadonlyMap<string, Uint8Array>, main: string): Map<string, Uint8Array> {
+    const bytes = files.get(main) as Uint8Array;
+    const meta = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, { files?: unknown } | undefined>;
+    // Babylon looks the main file up as `meta.json`, whatever it is called.
+    const set = new Map<string, Uint8Array>([["meta.json", bytes]]);
+    for (const key of ["means", "scales", "quats", "sh0", "shN"]) {
+        const names = meta[key]?.files;
+        for (const name of Array.isArray(names) ? names : []) {
+            if (typeof name === "string") {
+                set.set(name, resolveReference(name, main, files).bytes);
+            }
+        }
+    }
+
+    return set;
+}
 
 /**
  * Read a splat file into solids.
@@ -48,16 +73,7 @@ export async function readSplat(
             }
             rows = parsed.data;
         } else {
-            const dir = dirOf(main);
-            const set = new Map<string, Uint8Array>();
-            for (const [path, file] of files) {
-                if (path.startsWith(dir)) {
-                    set.set(path.slice(dir.length), file);
-                }
-            }
-            // Babylon looks the main file up as `meta.json`, whatever it is called.
-            set.set("meta.json", files.get(main) as Uint8Array);
-            rows = (await ParseSogMeta(set, "", scene)).data;
+            rows = (await ParseSogMeta(sogFiles(files, main), "", scene)).data;
         }
     } catch (error) {
         throw error instanceof ModelReadError ? error : new ModelReadError("splat");

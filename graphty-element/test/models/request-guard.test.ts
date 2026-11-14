@@ -14,7 +14,7 @@ describe("requestGuard", () => {
         const load = guardRequests(new Map([["car.glb", "blob:https://page/car"]]));
         try {
             assert.throws(() => Tools.PreprocessUrl(`${load.root}https://host/x.png`), REFUSED);
-            assert.throws(() => Tools.PreprocessUrl(`${load.root}../car.glb`), REFUSED);
+            assert.throws(() => Tools.PreprocessUrl(`${load.root}../other.glb`), REFUSED);
             assert.throws(() => Tools.PreprocessUrl("graphty-model:/999999/car.glb"), REFUSED);
             assert.strictEqual(Tools.PreprocessUrl(`${load.root}car.glb`), "blob:https://page/car");
             // Not the model's: another picture on the page passes while the load runs.
@@ -27,5 +27,30 @@ describe("requestGuard", () => {
             load.release();
         }
         assert.strictEqual(Tools.PreprocessUrl("blob:https://page/picture"), "blob:https://page/picture");
+    });
+
+    it("maps a web address or a path above the folder to the key the intake held its file under", () => {
+        const load = guardRequests(
+            new Map([
+                ["car.babylon", "blob:https://page/car"],
+                ["assets.example.com/environments/car.png", "blob:https://page/body"],
+                ["textures/wheel.png", "blob:https://page/wheel"],
+            ]),
+        );
+        try {
+            for (const [asked, answer] of [
+                ["https://assets.example.com/environments/car.png", "blob:https://page/body"],
+                ["//assets.example.com/environments/car.png?v=2", "blob:https://page/body"],
+                ["sub/https://assets.example.com/environments/car.png", "blob:https://page/body"],
+                ["../textures/wheel.png", "blob:https://page/wheel"],
+                ["%2E%2E/textures/wheel.png", "blob:https://page/wheel"],
+            ]) {
+                assert.strictEqual(Tools.PreprocessUrl(`${load.root}${asked}`), answer, asked);
+            }
+            // The outside address itself is never requested: one the set does not hold is refused.
+            assert.throws(() => Tools.PreprocessUrl(`${load.root}https://elsewhere.example.org/x.png`), REFUSED);
+        } finally {
+            load.release();
+        }
     });
 });

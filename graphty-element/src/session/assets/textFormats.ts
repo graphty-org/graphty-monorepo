@@ -31,10 +31,10 @@ import {
     dirOf,
     type Findings,
     findReference,
-    normalizePath,
     refuse,
     resolveReference,
     roleOfName,
+    setKeyOf,
     textureBytesOf,
 } from "./references";
 
@@ -110,7 +110,7 @@ function textOf(bytes: Uint8Array, limits: ModelLimits): string {
  */
 function baseSummary(
     format: string,
-    upAxis: "y" | "z",
+    upAxis: "y" | "z" | "-y",
 ): Omit<ModelSummary, "triangles" | "meshes" | "materials" | "textures" | "textureBytes"> {
     return {
         format,
@@ -651,7 +651,9 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
         ["binary_little_endian", "binary"],
         ["binary_big_endian", "binaryBigEndian"],
     ] as const);
-    const warnings: CodedFact[] = [{ code: "W_MODEL_UP_GUESSED", params: { format: "ply", up: "y" } }];
+    // Gaussian splats store Y pointing down (the 3D Gaussian splatting convention); other PLYs Y up.
+    const upAxis = kind === "splats" ? "-y" : "y";
+    const warnings: CodedFact[] = [{ code: "W_MODEL_UP_GUESSED", params: { format: "ply", up: upAxis } }];
     let triangles = face?.count ?? 0;
     let facts: Partial<ModelSummary> = { geometry: "mesh" };
     if (kind === "mesh") {
@@ -668,7 +670,7 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
     const texture = textureName === undefined ? undefined : resolveReference(textureName, path, files);
     return {
         summary: Object.freeze({
-            ...baseSummary("ply", "y"),
+            ...baseSummary("ply", upAxis),
             triangles,
             meshes: 1,
             materials: Object.freeze([]),
@@ -683,7 +685,7 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
 }
 
 /**
- * A summary of a splat file.
+ * A summary of a splat file, taken as Y down.
  * @param format - `splat`, `spz` or `sog`.
  * @param points - The splats in the file.
  * @param limits - The limits in force.
@@ -693,7 +695,9 @@ function splatScanned(format: string, points: number, limits: ModelLimits): Scan
     const { triangles, facts, warning } = pointFacts("splats", points, limits);
     return {
         summary: Object.freeze({
-            ...baseSummary(format, "y"),
+            // Gaussian splats store Y pointing down (the 3D Gaussian splatting convention, which
+            // Babylon's own splat loader also flips for .splat, .spz, .sog and splat PLY).
+            ...baseSummary(format, "-y"),
             triangles,
             meshes: 1,
             materials: Object.freeze([]),
@@ -702,7 +706,7 @@ function splatScanned(format: string, points: number, limits: ModelLimits): Scan
             ...facts,
             vertexColors: true,
         }),
-        warnings: [warning],
+        warnings: [{ code: "W_MODEL_UP_GUESSED", params: { format, up: "-y" } }, warning],
     };
 }
 
@@ -953,7 +957,7 @@ export function withSkips(
                     }
 
                     const name = mapFileName(tokens.slice(1)).replaceAll("\\", "/");
-                    const resolved = (normalizePath(dirOf(path) + name) ?? name).toLowerCase();
+                    const resolved = (setKeyOf(dirOf(path) + name) ?? name).toLowerCase();
                     return !gone.has(resolved) && !gone.has(baseName(name).toLowerCase());
                 });
             out.set(path, new TextEncoder().encode(kept.join("\n")));

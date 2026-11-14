@@ -116,8 +116,9 @@ function prepareGltf(
             json = JSON.parse(glb1.text) as Record<string, unknown>;
             ({ body } = glb1);
         } else {
-            const text = format === "glb" ? module.readGlb(bytes).text : new TextDecoder().decode(bytes);
-            json = JSON.parse(text) as Record<string, unknown>;
+            const glb = format === "glb" ? module.readGlb(bytes) : undefined;
+            json = JSON.parse(glb?.text ?? new TextDecoder().decode(bytes)) as Record<string, unknown>;
+            body = glb?.bin;
         }
     } catch {
         throw new ModelLoadFailure({ code: "E_MODEL_PARSE", params: { format } });
@@ -128,7 +129,13 @@ function prepareGltf(
     const used = strings(json.extensionsUsed);
     const required = strings(json.extensionsRequired);
     if (!module.isGltf1(json)) {
-        return { files, extension: READERS[format] as ModelExtension, used, required };
+        const plain = withoutClimbs(json, files, main, body);
+        return {
+            files: plain.files,
+            extension: plain.extension ?? (READERS[format] as ModelExtension),
+            used,
+            required,
+        };
     }
 
     const slash = main.lastIndexOf("/");
@@ -140,6 +147,54 @@ function prepareGltf(
     }
 
     return { files: upgraded, extension: ".gltf", used: [], required: [] };
+}
+
+/**
+ * A glTF 2.0 whose `uri`s climb above its folder (`../textures/wood.png`), which Babylon's glTF
+ * loader refuses to resolve, with each `..` percent-encoded: the loader then asks the request
+ * guard for it, which decodes it to the key the intake held the file under (design 3.3). A GLB
+ * is served as a `.gltf` beside its binary chunk, the way an upgraded glTF 1.0 is.
+ * @param json - The glTF's JSON.
+ * @param files - The file set.
+ * @param main - The main file.
+ * @param body - A GLB's binary chunk.
+ * @returns The set to load, and the loader when it changed.
+ */
+function withoutClimbs(
+    json: Record<string, unknown>,
+    files: ReadonlyMap<string, Uint8Array>,
+    main: string,
+    body: Uint8Array | undefined,
+): { files: ReadonlyMap<string, Uint8Array>; extension?: ModelExtension } {
+    const entries = ["buffers", "images"].flatMap((key) => {
+        const list = json[key];
+        return Array.isArray(list)
+            ? list.filter((e): e is Record<string, unknown> => typeof e === "object" && e !== null)
+            : [];
+    });
+    const climbing = entries.filter((e) => typeof e.uri === "string" && !/^data:/i.test(e.uri) && e.uri.includes(".."));
+    if (climbing.length === 0) {
+        return { files };
+    }
+
+    for (const entry of climbing) {
+        entry.uri = String(entry.uri).replaceAll("..", "%2E%2E");
+    }
+
+    const slash = main.lastIndexOf("/");
+    const changed = new Map(files);
+    if (body !== undefined) {
+        const bodyName = `${main.slice(slash + 1)}.body.bin`;
+        const [first] = Array.isArray(json.buffers) ? (json.buffers as Record<string, unknown>[]) : [];
+        if (typeof first === "object" && first.uri === undefined) {
+            first.uri = encodeURIComponent(bodyName);
+        }
+
+        changed.set(main.slice(0, slash + 1) + bodyName, body);
+    }
+
+    changed.set(main, new TextEncoder().encode(JSON.stringify(json)));
+    return { files: changed, ...(body === undefined ? {} : { extension: ".gltf" }) };
 }
 
 /** The Draco module, when a load uses it. */

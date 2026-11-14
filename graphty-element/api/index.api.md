@@ -8338,7 +8338,11 @@ export class UpdateManager implements Manager {
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal
+    buildPlainRow(id: NodeIdType_2): void;
+    // @internal
     columnFraming(): ColumnFraming | undefined;
+    // @internal
+    dataCleared(): void;
     deriving: () => boolean;
     disableZoomToFit(): void;
     dispose(): void;
@@ -8358,6 +8362,8 @@ export class UpdateManager implements Manager {
     init(): Promise<void>;
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;
+    // @internal
+    limitsChanged(): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
     get nodesScaledByView(): boolean;
@@ -8366,6 +8372,11 @@ export class UpdateManager implements Manager {
     operationsPending: (() => boolean) | null;
     readonly pending: PendingWork;
     picturesLoading: (() => boolean) | null;
+    // @internal
+    plainLabelRows(): {
+        row: number;
+        id: NodeIdType_2;
+    }[];
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;

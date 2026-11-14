@@ -550,24 +550,18 @@ export const STORY_RUNS = {
  * the groups a full run would ask for 42 test runners at once; with them it asks for 27.
  *
  * Each group is kept under about 15 minutes so no test job holds up a pull request's CI or a
- * re-run of one failed job. Measured on CI runners (ci.yml runs 39537734606 of 2026-10-21 and
- * 39883665524, 39887583054, 39896390282 of 2026-10-23; vitest's own Duration line, plus about 1.5
- * minutes of checkout, install and browser setup per job):
- *   small-node     graph-format 0.8, graph-samples 0.4, cytoscape-extensions 0.5,
- *                  cytoscape-extensions-cytoscape-versions 0.8, layout 0.3, algorithms-default 0.4
- *                                                                    about 3 + setup = 5 minutes
- *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
- *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
- *                  webgpu-graph-algorithms-browser 1.1, graphty-element-webgpu (new, not yet measured on CI),
- *                  algorithms-storybook 1.8,
- *                  layout-storybook 0.3, cytoscape-extensions-storybook 0.7
- *                                                                    about 10 + setup = 12 minutes
+ * re-run of one failed job. A full run runs every member, so a group must also fit its test step's
+ * deadline (TEST_STEP_LIMIT_MS) on a slow runner: GROUP_MEMBER_SECONDS holds each member's slowest
+ * measured time, and tools/ci-workflows.test.mjs fails a member with no measurement or a group that
+ * does not fit. Every member is measured before it joins a group (#7848).
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
  * graphty-1 to graphty-6 (about 105 minutes in all, see SHARDS), graphty-large-graph-1 to -6 (one file each, at most about 6 minutes)
  * graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it)
  * and graphty-element-gpu-loss (11.2 minutes of vitest in full run 42255498419; small-browser took 28 minutes
- * with it and reached its deadline before the layout and cytoscape-extensions storybooks ran, #6035).
+ * with it and reached its deadline before the layout and cytoscape-extensions storybooks ran, #6035)
+ * and graphty-element-webgpu (143 to 312 s of vitest on SwiftShader; it joined small-browser unmeasured and
+ * the group's step took 24 min 58 s of its 26 minute deadline in full run 43547830976, #7848).
  */
 export const GROUPS = {
     "small-node": [
@@ -586,11 +580,34 @@ export const GROUPS = {
         "compact-mantine",
         "visual-review",
         "webgpu-graph-algorithms-browser",
-        "graphty-element-webgpu",
         "algorithms-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
     ],
+};
+
+/**
+ * Each group member's slowest vitest Duration (seconds, summed over its vitest runs) in full runs
+ * 43275345618, 43527306776 and 43547830976 (2026-11-12 to 14). Remeasure from a group job's log when a
+ * member is added or grows.
+ */
+export const GROUP_MEMBER_SECONDS = {
+    "graph-format": 78,
+    "graph-samples": 39,
+    "babylonjs-map": 3,
+    "cytoscape-extensions": 15,
+    "cytoscape-extensions-cytoscape-versions": 25,
+    layout: 46,
+    "algorithms-default": 40,
+    "algorithms-browser": 4,
+    "graph-io-browser": 20,
+    "remote-logger": 17,
+    "compact-mantine": 463,
+    "visual-review": 286,
+    "webgpu-graph-algorithms-browser": 76,
+    "algorithms-storybook": 135,
+    "layout-storybook": 32,
+    "cytoscape-extensions-storybook": 54,
 };
 
 // Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls

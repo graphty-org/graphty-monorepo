@@ -885,6 +885,8 @@ export class Dispatcher {
     private readonly bySlice = new Map<string, Set<Group>>();
     /** Jobs waiting on a key another group holds. */
     private readonly waiters = new Set<Job>();
+    /** Writes on their way to the queue, not yet dispatched: see {@link Dispatcher.ahead}. */
+    private readonly coming = new Set<Promise<unknown>>();
     private readonly steps = new Map<string, StepMeta>();
     /** Orders dispatches, records, undos and hold acquisitions against each other. */
     private tick = 0;
@@ -2722,22 +2724,47 @@ export class Dispatcher {
      * @returns True while one is.
      */
     get hasWaiters(): boolean {
-        return this.waiters.size > 0;
+        return this.waiters.size > 0 || this.coming.size > 0;
     }
 
     /**
-     * Settles once no queued command is waiting off the queue for a key: each such command gave
-     * its queue slot up, so an idle queue does not mean it has run.
+     * Settles once no queued command is waiting off the queue for a key, and no write announced
+     * with {@link Dispatcher.ahead} is still on its way: each such command gave its queue slot up,
+     * or has not reached the queue yet, so an idle queue does not mean it has run.
      * @returns Whether there was one to wait for; what it ran may have queued more work.
      */
     async waitersSettled(): Promise<boolean> {
         let waited = false;
-        while (this.waiters.size > 0) {
+        while (this.waiters.size > 0 || this.coming.size > 0) {
             waited = true;
-            await Promise.allSettled([...this.waiters].map((job) => job.promise));
+            await Promise.allSettled([...[...this.waiters].map((job) => job.promise), ...this.coming]);
         }
 
         return waited;
+    }
+
+    /**
+     * Whether a write announced with {@link Dispatcher.ahead} is still on its way to the queue.
+     * @returns True while one is.
+     */
+    get writesAhead(): boolean {
+        return this.coming.size > 0;
+    }
+
+    /**
+     * Count a write that must wait before it can be dispatched -- a style edit loading the body of
+     * a catalog shader it names -- as owed, so a wait for the picture to settle waits for it
+     * rather than finding the queue idle and photographing the graph without it.
+     * @param work - Settles once the write has been dispatched and has run, or has failed.
+     * @returns The same promise.
+     */
+    ahead<T>(work: Promise<T>): Promise<T> {
+        this.coming.add(work);
+        const done = (): void => {
+            this.coming.delete(work);
+        };
+        work.then(done, done);
+        return work;
     }
 
     /**

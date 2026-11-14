@@ -788,12 +788,28 @@ describe("turning the globe at the closest zoom and at the opening zoom", () => 
             const eye = (): Vector3 => element.graph.getScene().activeCamera?.globalPosition.clone() ?? Vector3.Zero();
             const start = eye();
             const height = start.length() - radius;
+            // A key turns on each frame it is on: the 8 frames a press owes, or longer while it is
+            // still down. The keyup comes when the runner delivers it, on a loaded one 130 frames
+            // after the keydown, so the turn is counted in frames rather than assumed to be 8.
+            const scene = element.graph.getScene();
+            let turned = 0;
+            let last = start;
+            const counting = scene.onAfterRenderObservable.add(() => {
+                const now = eye();
+                turned += now.equals(last) ? 0 : 1;
+                last = now;
+            });
+            cleanups.push(() => {
+                counting.remove();
+            });
             await pressKey(element, "{ArrowLeft}");
+            counting.remove();
             const end = eye();
             const angle = Math.atan2(Vector3.Cross(start, end).length(), Vector3.Dot(start, end));
-            // A tap is 8 frames of keyboardRotationSpeed (0.02 rad), scaled down by the height
-            // as a share of the radius below one radius up.
-            const expected = 0.16 * Math.min(1, height / radius);
+            assert.isAtLeast(turned, 8, "a tap turns for at least its 8 frames");
+            // Each frame turns by keyboardRotationSpeed (0.02 rad), scaled down by the height as a
+            // share of the radius below one radius up.
+            const expected = turned * 0.02 * Math.min(1, height / radius);
             assert.closeTo(angle / expected, 1, 0.02, "the turn about the globe's center follows the height");
             assert.closeTo(
                 (end.length() - radius) / height,

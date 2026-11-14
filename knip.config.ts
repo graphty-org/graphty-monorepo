@@ -52,9 +52,6 @@ const config: KnipConfig = {
                 // only in .secretlintrc.json)
                 "secretlint",
                 "@secretlint/secretlint-rule-preset-recommend",
-                // Semantic release plugins (used by nx release and child packages)
-                "@semantic-release/changelog",
-                "@semantic-release/git",
                 // The githerd CLI, linked at the root so `pnpm exec githerd` works from any
                 // checkout; nothing imports it
                 "@graphty/githerd",

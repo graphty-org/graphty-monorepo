@@ -1,8 +1,12 @@
+import { fileURLToPath } from "node:url";
+
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest } from "../vitest.base.mjs";
+
+const src = fileURLToPath(new URL("./src/", import.meta.url));
 
 const config = defineConfig({
     test: {
@@ -25,6 +29,13 @@ const config = defineConfig({
         projects: [
             // Project 1: default - Node.js environment for server/client/cli tests
             {
+                // the documentation examples (docs/examples/) import the package by its published name, as a reader does
+                resolve: {
+                    alias: [
+                        { find: /^@graphty\/remote-logger$/, replacement: `${src}index.ts` },
+                        { find: /^@graphty\/remote-logger\/([a-z]+)$/, replacement: `${src}$1/index.ts` },
+                    ],
+                },
                 test: {
                     name: "default",
                     environment: "node",
@@ -35,6 +46,7 @@ const config = defineConfig({
                         "test/integration/**/*.test.ts",
                         "test/mcp/**/*.test.ts",
                         "test/vite/**/*.test.ts",
+                        "test/docs-examples.test.ts",
                     ],
                     exclude: ["**/node_modules/**", "**/dist/**"],
                     // Run sequentially to avoid port conflicts in server tests

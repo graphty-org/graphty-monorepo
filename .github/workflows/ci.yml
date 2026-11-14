@@ -398,9 +398,11 @@ jobs:
                   for p in $(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")'); do
                       jq -e --arg p "$p" 'index($p)' <<<"$AFFECTED" >/dev/null && docs=true
                   done
-                  # files the docs pages include from outside docs/ (visual-review's page includes its README)
+                  # files the docs pages include from outside docs/ (visual-review's pages include sections of its README);
+                  # an include may name a region (README.md#setup) or a line range (README.md{3,10}): the file is what counts
                   includes=$(git grep -oE '@include: *[^ >]+' -- 'docs/' '*/docs/*' | while IFS=: read -r file m; do
-                      m=${m#*@include:}; m=${m# }; realpath -m --relative-to=. "$(dirname "$file")/${m%--}"
+                      m=${m#*@include:}; m=${m# }; m=${m%--}; m=${m%%#*}; m=${m%%\{*}
+                      realpath -m --relative-to=. "$(dirname "$file")/$m"
                   done || true)
                   [[ -n "$includes" ]] && grep -qxFf <(echo "$includes") <<<"$changed" && docs=true
                   {

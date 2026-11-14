@@ -7,7 +7,8 @@
  * device runs it: two chains that alternate the reverse and the forward pull, one seeded as hubs and one as
  * authorities. The oracle runs exactly `maxIterations` iterations, as the device runs a whole batch, and records
  * the first iteration i whose L1 delta sum |x(i) - x(i-p)| (p = 1, or 2 for an alternating chain, whose previous
- * iterate of the same kind is two back) fell below n * tolerance, iteration maxIterations included: the device
+ * iterate of the same kind is two back) fell below n * tolerance (tolerance times the L1 size of x(i) for
+ * eigenvector, whose undirected passes add the identity shift), iteration maxIterations included: the device
  * records that delta one iteration late (PD-9: `pr-scale` at iteration i + 1 compares x(i) with the iterate it is
  * about to overwrite), so after the last pull it runs one more scale and finalize, without a pull, to measure it. The final
  * vector is normalised ONCE at the end (sum for HITS, L2 for eigenvector and Katz). The reverse adjacency is walked
@@ -54,11 +55,19 @@ interface Adjacency {
     readonly weights: Float32Array | null;
 }
 
-/** The recurrence's coefficients: the per-iteration normaliser (null for Katz), alpha and beta. */
+/**
+ * The recurrence's coefficients: the per-iteration normaliser (null for Katz), alpha and beta; `shifted` makes beta
+ * multiply the normalised iterate (eigenvector's `(A + beta I)`), `seed` is x(0) (1 / n everywhere when absent) and
+ * `relative` holds the delta to tolerance times the iterate's L1 size (a zero delta also counts) instead of n *
+ * tolerance.
+ */
 interface Recurrence {
     readonly norm: "sum" | "l2" | null;
     readonly alpha: number;
     readonly beta: number;
+    readonly shifted?: boolean;
+    readonly seed?: Float64Array;
+    readonly relative?: boolean;
 }
 
 /**
@@ -129,7 +138,7 @@ function iterate(
     const period = adjacencies.length;
     // the last `period` iterates x(i-p) .. x(i-1), oldest first; absent ones are the device's zero-filled ring slots
     const recent: Float64Array[] = Array.from({ length: period - 1 }, () => new Float64Array(n));
-    recent.push(new Float64Array(n).fill(1 / n));
+    recent.push(recurrence.seed ?? new Float64Array(n).fill(1 / n));
     let first = 0;
     for (let iteration = 1; iteration <= options.maxIterations; iteration++) {
         const adj = adjacencies[(iteration - 1) % period];
@@ -138,17 +147,21 @@ function iterate(
         const y = recurrence.norm === null ? x : normalise(Float64Array.from(x), recurrence.norm);
         const next = new Float64Array(n);
         let err = 0;
+        let size = 0;
         for (let v = 0; v < n; v++) {
             let acc = 0;
             for (let arc = adj.rowPtr[v]; arc < adj.rowPtr[v + 1]; arc++) {
                 acc += (adj.weights === null ? 1 : adj.weights[arc]) * y[adj.colIdx[arc]];
             }
-            next[v] = recurrence.beta + recurrence.alpha * acc;
+            next[v] = recurrence.beta * (recurrence.shifted === true ? y[v] : 1) + recurrence.alpha * acc;
             err += Math.abs(next[v] - prev[v]);
+            size += Math.abs(next[v]);
         }
         recent.shift();
         recent.push(next);
-        if (first === 0 && err < n * options.tolerance) {
+        const settled =
+            recurrence.relative === true ? err < options.tolerance * size || err === 0 : err < n * options.tolerance;
+        if (first === 0 && settled) {
             first = iteration;
         }
     }
@@ -207,13 +220,31 @@ export function hitsOracle(s: GraphSnapshot, options: SpectralOracleOptions): Hi
 }
 
 /**
- * Eigenvector centrality in f64: the L2-normalised power iteration over the out-arcs.
+ * Eigenvector centrality in f64: the L2-normalised power iteration over the out-arcs, stopping on a change relative
+ * to the iterate. Undirected, each pass is `(A + cI) y` from 0 at a node with no arcs, `c = max(1, sqrt(h) / 2)` for
+ * `h` the largest sum of squared folded weights over a node's arcs to other nodes (the device's identity shift).
  * @param s - the snapshot
  * @param options - maxIterations, tolerance, weighted
  * @returns the L2-normalised scores, the first converged iteration and whether it converged
  */
 export function eigenvectorOracle(s: GraphSnapshot, options: SpectralOracleOptions): SpectralOracleResult {
-    return run([forwardOf(s, options.weighted)], { norm: "l2", alpha: 1, beta: 0 }, "l2", options);
+    const forward = forwardOf(s, options.weighted);
+    if (s.directed) {
+        return run([forward], { norm: "l2", alpha: 1, beta: 0, relative: true }, "l2", options);
+    }
+    let most = 0;
+    const seed = new Float64Array(s.nodeCount);
+    for (let v = 0; v < s.nodeCount; v++) {
+        let sum = 0;
+        for (let arc = s.rowPtr[v]; arc < s.rowPtr[v + 1]; arc++) {
+            const w = forward.weights === null ? 1 : forward.weights[arc];
+            sum += s.colIdx[arc] === v ? 0 : w * w;
+        }
+        most = Math.max(most, sum);
+        seed[v] = s.rowPtr[v + 1] > s.rowPtr[v] ? 1 / s.nodeCount : 0;
+    }
+    const shift = Math.max(1, Math.sqrt(most) / 2);
+    return run([forward], { norm: "l2", alpha: 1, beta: shift, shifted: true, seed, relative: true }, "l2", options);
 }
 
 /**

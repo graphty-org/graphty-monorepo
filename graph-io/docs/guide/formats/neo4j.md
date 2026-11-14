@@ -110,11 +110,21 @@ such as `|`.
 - A header with `:ID`, `:START_ID` or `:END_ID` is recognized as Neo4j even in a `.csv` file, so
   you rarely need `format: "neo4j"`. Pass it when the input has no header graph-io can see, such as
   a relationships-only string.
-- One file can hold several sections, each starting with its own header row.
+- One file can hold several sections, each starting with its own header row. After the first
+  row, a row starts a new section only when every cell is a header cell and its `:ID`,
+  `:START_ID` or `:END_ID` follows the colon directly, so a data cell such as `Note: ID` stays data.
+- The delimiter is a comma, as for `neo4j-admin`, unless a header row is separated by tabs. Pass
+  `delimiter` for anything else.
 - Property columns get the type their header declares: `int` an integer column, `long` and
   `double` 64-bit floats, `float` a 32-bit float, `boolean` booleans, `string` text, date and time
   types milliseconds (with the original text kept in a `<name>.text` column when it is not in
-  canonical form), `point` JSON, and `type[]` a list. A column without a type is text.
+  canonical form), `point` JSON, `type[]` a list, and `vector{coordinateType:FLOAT32,dimensions:3}`
+  a list of numbers of its coordinate type. A column without a type is text.
+- A cell that does not read as its declared type (`yes` in a `boolean` column, or a vector of the
+  wrong length) is reported as `E_COLUMN_TYPE` and left without a value; the rest of the row is kept.
+- Several `:ID` columns form a composite key, stored as the id `["aa","11"]`; relationships name
+  it with as many `:START_ID` and `:END_ID` columns, in the same order.
+- A node id declared twice keeps its first row, as `neo4j-admin` does, with `W_DUPLICATE_NODE`.
 - `:LABEL` becomes the `labels` list column and `:TYPE` the edge column `type`.
 - An id space (`movieId:ID(Movie)`) keeps the same id in two spaces apart: a node of a space is
   stored under the id `Movie:m1`, with its id text in the `originalId` column and its space in
@@ -202,7 +212,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 
 - <a id="import-nodes"></a>`nodes`: More node files, each a string, bytes or a stream with its own header row; read after the main input.
 - <a id="import-relationships"></a>`relationships`: Relationship files, each a string, bytes or a stream with its own header row; read after the node files.
-- <a id="import-delimiter"></a>`delimiter`: The field delimiter, one character (neo4j-admin's `--delimiter`). The default is to detect "," or a tab from the first rows, so a `.tsv` file needs no option. It must differ from `arrayDelimiter`: with `delimiter: ";"`, also pass `arrayDelimiter: ","` or `"|"`.
+- <a id="import-delimiter"></a>`delimiter`: The field delimiter, one character (neo4j-admin's `--delimiter`). The default is a comma, or a tab when a header row is tab-separated, so a `.tsv` file needs no option. It must differ from `arrayDelimiter`: with `delimiter: ";"`, also pass `arrayDelimiter: ","` or `"|"`.
 - <a id="import-arraydelimiter"></a>`arrayDelimiter`: The delimiter inside list values and `:LABEL` cells (neo4j-admin's `--array-delimiter`). It must differ from `delimiter`.
 - <a id="import-quote"></a>`quote`: The quote character, one character (neo4j-admin's `--quote`).
 
@@ -241,7 +251,7 @@ The codes this format's import report can hold. They are also exported as `NEO4J
 - `E_NEO4J_COLUMN_COUNT` (error): A row with a different field count than the header.
 - `E_MISSING_ID` (error): A node row without an id.
 - `E_MISSING_ENDPOINT` (error): A relationship row without a start or end id.
-- `W_DUPLICATE_NODE` (warning): A node id repeated in one id space (last write wins).
+- `W_DUPLICATE_NODE` (warning): A node id repeated in one id space (the first row is kept).
 - `E_NEO4J_ID_SPACE_COLLISION` (error): A spaced node id `Space:id` that equals the text of an id declared without a space.
 - `E_NEO4J_ENDPOINT_SPACE` (error): A spaced relationship endpoint `Space:id` that names a node declared without a space; the row is skipped.
 - `W_ID_MERGED` (warning): Two different id texts became the same number because `ids` is "number", so their nodes were merged.

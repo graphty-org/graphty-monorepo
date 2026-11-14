@@ -39,8 +39,9 @@ await graph.runAlgorithm("graphty", "betweenness");
 
 `eigenvector` stops after `maxIterations` power-iteration passes (default 1000, at most 10000). If it
 has not met `tolerance` by then the run fails with a `GraphtyError` whose code is
-`E_NOT_CONVERGED`, rather than publishing scores that are not the answer. Long paths and large
-grids need more passes; raise the param and run it again:
+`E_NOT_CONVERGED`, rather than publishing scores that are not the answer. `tolerance` is relative
+to the scores, so the answer is as close on a large graph as on a small one. Large grids and sparse
+random graphs (about one edge per node or fewer) need more passes; raise the param and run it again:
 
 ```typescript
 await graph.runAlgorithm("graphty", "eigenvector", { algorithmOptions: { maxIterations: 5000 } });

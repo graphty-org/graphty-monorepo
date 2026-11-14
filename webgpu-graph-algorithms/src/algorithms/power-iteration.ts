@@ -59,6 +59,13 @@ export interface PowerIterationConfig {
     readonly alpha: number;
     readonly beta: number;
     readonly uniformP: number;
+    /**
+     * True: `beta` multiplies the iterate itself, so each pull is `(A + beta I) x` (eigenvector's identity shift);
+     * false or undefined: `beta` multiplies `uniformP`.
+     */
+    readonly betaTimesIterate?: boolean | undefined;
+    /** x(0); undefined is 1 / n for every node. */
+    readonly seed?: F32 | undefined;
     readonly maxIterations: number;
     readonly tolerance: number;
     /** undefined takes the adjacency's weights, null runs UNWEIGHTED on a weighted snapshot (T4 Step 4). */
@@ -218,7 +225,7 @@ function runIfDone(
 }
 
 /**
- * Runs the power iteration of `config` over `n` nodes from x(0) = 1 / n, in batches of eight iterations with ONE
+ * Runs the power iteration of `config` over `n` nodes from x(0) = `config.seed` (1 / n by default), in batches of eight iterations with ONE
  * readback per batch (the header and the iterate together), stopping at the first batch whose header records a
  * converged iteration or at `maxIterations`. The returned iterate is RAW: the last `spmv-pull` output, which the
  * caller normalises once on the host. The iterate travels with the header in EVERY batch, not once after the loop:
@@ -251,7 +258,13 @@ export async function runPowerIteration(
         const partialsBuffer = scope.scratch(partialsBytes, "partials");
         const partials = whole(partialsBuffer, partialsBytes);
         await ctx.allocator.check();
-        const pullOptions = { personalization: false, dangling: false, weights: config.weights, tiers: null };
+        // the personalization slot binds xNorm itself when it is null (spmv.ts), which is the identity shift
+        const pullOptions = {
+            personalization: config.betaTimesIterate === true,
+            dangling: false,
+            weights: config.weights,
+            tiers: null,
+        };
         const pulls = [{ core: config.adjacency, pull: await prepareSpmvPull(scope, config.adjacency, pullOptions) }];
         if (config.alternate !== null) {
             pulls.push({ core: config.alternate, pull: await prepareSpmvPull(scope, config.alternate, pullOptions) });
@@ -262,7 +275,7 @@ export async function runPowerIteration(
         const finalize = await ctx.pipelines.kernel(kernelSpec("pr-finalize", { NORM_MODE: config.normMode }));
         const finalizePlan = plan1d(1, ctx.workgroupSize, ctx.caps);
         const { queue } = ctx.device;
-        queue.writeBuffer(ring[0].buffer, 0, new Float32Array(n).fill(1 / n));
+        queue.writeBuffer(ring[0].buffer, 0, config.seed ?? new Float32Array(n).fill(1 / n));
         for (const slot of ring.slice(1)) {
             queue.writeBuffer(slot.buffer, 0, new Float32Array(n));
         }
@@ -285,7 +298,9 @@ export async function runPowerIteration(
                     groups,
                     iteration,
                     trackConvergence: 1,
-                    convergeThreshold: config.tolerance * n,
+                    // NORM_MODE 2 (eigenvector) holds the change to the tolerance relative to the iterate: pr-finalize
+                    // scales this by the folded L1 size. The others keep the per-node threshold.
+                    convergeThreshold: config.normMode === 2 ? config.tolerance : config.tolerance * n,
                 });
                 const rankIn = ring[(iteration - 1) % ring.length];
                 // the slot the pull overwrites still holds x(iteration - ring.length): that is rankPrev (PD-9)

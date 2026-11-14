@@ -1,7 +1,7 @@
 /**
  * @file A file's defaults stay drawn when the project holds the base look in its Everything row
- * (`editableBase`, issue #7495). The file's defaults layers are ordinary layers of kind `base`;
- * only the element's own base layers give way to Everything.
+ * (`editableBase`, issue #7495). A file's defaults are never kind `base`, which only the element's
+ * own base layers are, so they never give way to Everything.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

@@ -11,11 +11,14 @@ import {
     columnSamples,
     joinClashes,
     type JoinGraph,
+    type JoinMembers,
     type JoinPlan,
     joinReport,
     type JoinTable,
     keyMatchesOf,
     planJoin,
+    scopedTo,
+    suggestAmong,
     suggestFor,
     suggestJoin,
 } from "./join";
@@ -80,8 +83,23 @@ export interface JoinsDraftHost {
     }[];
     /** A joined table's rows by its load's key, for a `via` naming one. */
     joinedTable(key: SourceKey): JoinTable | undefined;
-    /** Joins the steps, in order, as one undoable step. */
-    commit(steps: readonly { readonly table: JoinTable; readonly choices: JoinChoices }[]): Promise<void>;
+    /**
+     * Committed joins reopened as the recipe's first steps (`prepareJoins({ edit })`): the graph
+     * this host hands over already has them taken back.
+     */
+    readonly reopened?: readonly {
+        readonly table: JoinTable;
+        readonly choices: JoinChoices;
+        readonly name: string;
+        readonly joined: SourceKey;
+    }[];
+    /**
+     * Joins the steps, in order, as one undoable step; any reopened joins are taken back first.
+     * Not called when the recipe is left as it opened.
+     */
+    commit(
+        steps: readonly { readonly table: JoinTable; readonly choices: JoinChoices; readonly name: string }[],
+    ): Promise<void>;
 }
 
 /** The recipe at one point of its history. */
@@ -128,9 +146,19 @@ function refuse(code: GraphtyErrorCode, message: string, details: Record<string,
  */
 function copyOf(graph: { readonly nodes: readonly DraftNode[]; readonly edges: readonly DraftEdge[] }): DraftGraph {
     return {
-        nodes: new Map(graph.nodes.map((node) => [String(node.id), node])),
-        edges: new Map(graph.edges.map((edge) => [edge.id, edge])),
+        nodes: new Map(graph.nodes.map((node) => [String(node.id), { ...node, data: own(node.data) }])),
+        edges: new Map(graph.edges.map((edge) => [edge.id, { ...edge, data: own(edge.data) }])),
     };
+}
+
+/**
+ * An element's values without a network load's `_source.` bookkeeping, which is no value of the
+ * graph: a step never joins on it and a preview never shows it.
+ * @param data - The values.
+ * @returns The values a join reads.
+ */
+function own(data: Readonly<Record<string, unknown>>): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(data).filter(([name]) => !isSourceFactKey(name)));
 }
 
 /**
@@ -233,6 +261,24 @@ function applied(
 }
 
 /**
+ * Whether two lists of steps read the same tables with the same choices and names, in order.
+ * @param a - One list.
+ * @param b - The other.
+ * @returns True when they are the same recipe.
+ */
+function sameSteps(a: readonly JoinStepEntry[], b: readonly JoinStepEntry[]): boolean {
+    return (
+        a.length === b.length &&
+        a.every(
+            (step, index) =>
+                step.from === b[index].from &&
+                step.name === b[index].name &&
+                JSON.stringify(step.choices) === JSON.stringify(b[index].choices),
+        )
+    );
+}
+
+/**
  * Open a join recipe draft over a session's graph.
  * @param host - What it reads from the session, and how it commits.
  * @returns The draft.
@@ -243,11 +289,28 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
     const directed = given.directed ?? true;
     const loads = host.sources();
     const held = new Map<string, JoinTable>();
-    let history: State[] = [{ steps: [] }];
-    let at = 0;
     let serial = 0;
+    // A reopened join is a step from the start: its table held, its choices and name kept.
+    const opened: readonly JoinStepEntry[] = Object.freeze(
+        (host.reopened ?? []).map((each) => {
+            const key = `${HELD}${String(held.size + 1)}`;
+            held.set(key, Object.freeze({ ...each.table }));
+            serial += 1;
+            return Object.freeze({
+                id: `j${String(serial)}`,
+                from: key,
+                choices: each.choices,
+                name: each.name,
+                joined: each.joined,
+            });
+        }),
+    );
+    let history: State[] = [{ steps: opened }];
+    let at = 0;
     let done = false;
     let cached: readonly StepRun[] | null = null;
+    // The steps run so far while the recipe runs, so a step can match onto an earlier one.
+    let running: readonly StepRun[] = [];
 
     const live = (verb: string): void => {
         if (done) {
@@ -278,9 +341,6 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
             return host.joinedTable(key);
         }
 
-        // A network load's `_source.` bookkeeping is no value of the table: a step never joins on it.
-        const own = (data: Readonly<Record<string, unknown>>): Record<string, unknown> =>
-            Object.fromEntries(Object.entries(data).filter(([name]) => !isSourceFactKey(name)));
         const rows: Readonly<Record<string, unknown>>[] = load.asEdges
             ? load.edges.flatMap((id) => {
                   const edge = graph.edges.get(id);
@@ -297,6 +357,30 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
         );
         return { name: load.name, columns, rows };
     };
+    /**
+     * The elements a load supplied, or a step added, for a key's `onto`.
+     * @param onto - A load's key or a step's id.
+     * @returns The elements, or undefined for a key no load or step has.
+     */
+    const membersOf = (onto: string): JoinMembers | undefined => {
+        const load = loads.find((each) => each.key === onto);
+        if (load !== undefined) {
+            return { nodes: new Set(load.nodes.map(String)), edges: new Set(load.edges.map(String)) };
+        }
+
+        const step = (cached ?? running).find((each) => each.entry.id === onto);
+        if (step === undefined) {
+            return undefined;
+        }
+
+        const added = (prefix: string): Set<string> =>
+            new Set(
+                [...step.fates]
+                    .filter(([key, fate]) => fate === "added" && key.startsWith(prefix))
+                    .map(([key]) => key.slice(prefix.length)),
+            );
+        return { nodes: added("n:"), edges: added("e:") };
+    };
     const joinGraph = (graph: DraftGraph): JoinGraph => ({
         nodes: [...graph.nodes.values()],
         edges: [...graph.edges.values()].map((edge) => ({
@@ -305,6 +389,7 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
         })),
         table: (key) => tableOf(key, graph),
         directed,
+        members: membersOf,
     });
 
     const run = (): readonly StepRun[] => {
@@ -313,6 +398,7 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
         }
 
         const runs: StepRun[] = [];
+        running = runs;
         let graph = start;
         for (const entry of state().steps) {
             const before = graph;
@@ -408,13 +494,17 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
 
         return found;
     };
-    const frozenStep = (id: string, step: JoinStep): JoinStepEntry =>
-        Object.freeze({
+    const frozenStep = (id: string, step: JoinStep): JoinStepEntry => {
+        // A reopened step stays its join's when it is changed.
+        const joined = state().steps.find((each) => each.id === id)?.joined;
+        return Object.freeze({
             id,
             from: step.from,
             choices: step.choices,
             ...(step.name === undefined ? {} : { name: step.name }),
+            ...(joined === undefined ? {} : { joined }),
         });
+    };
 
     const draft: JoinsDraft = {
         get inputs(): readonly JoinInput[] {
@@ -507,9 +597,13 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
             checkFrom({ from, choices: { keys: [] } });
             const graph = before === undefined ? (run().at(-1)?.after ?? start) : stepRun(before).before;
             const table = tableOf(from, graph) ?? { name: from, columns: [], rows: [] };
-            return options.shape === undefined
+            if (options.shape !== undefined) {
+                return suggestFor(table, joinGraph(graph), options.shape);
+            }
+
+            return options.among === undefined
                 ? suggestJoin(table, joinGraph(graph))
-                : suggestFor(table, joinGraph(graph), options.shape);
+                : suggestAmong(table, joinGraph(graph), options.among);
         },
         samples(from: string, column: string): readonly unknown[] {
             live("read an input's values");
@@ -529,8 +623,10 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
 
             const read = joinGraph(graph);
             const loose = { ignoreCase: options.ignoreCase === true, ignoreSpaces: options.ignoreSpaces === true };
+            const target = options.target === "edge" ? "edge" : "node";
+            const elements = scopedTo(target === "edge" ? read.edges : read.nodes, read, options.onto, target);
             return Object.freeze(
-                keyMatchesOf(table, column, options.target === "edge" ? read.edges : read.nodes, loose).map((each) =>
+                keyMatchesOf(table, column, elements, loose).map((each) =>
                     Object.freeze({ ...each, samples: Object.freeze(each.samples) }),
                 ),
             );
@@ -621,11 +717,14 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
                     lookup === undefined
                         ? each.choices
                         : { ...rest, lookup: { name: lookup.name, columns: lookup.columns, rows: lookup.rows } };
-                const name = each.entry.name ?? each.table.name;
-                return [{ table: { ...each.table, name }, choices }];
+                // The step's name names the joined source; the table keeps its own, so a reopened
+                // step reads the same table.
+                return [{ table: each.table, choices, name: each.entry.name ?? each.table.name }];
             });
             done = true;
-            if (steps.length > 0) {
+            // A recipe left as its reopened joins opened changes nothing.
+            const unchanged = state().steps === opened || sameSteps(state().steps, opened);
+            if ((steps.length > 0 || opened.length > 0) && !(opened.length > 0 && unchanged)) {
                 await host.commit(steps);
             }
         },

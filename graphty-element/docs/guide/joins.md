@@ -53,6 +53,17 @@ const choices = {
 Two keys on a values join make a compound key. An `"edges"` join takes exactly two: the source
 end, then the target end, each on its own graph value.
 
+When two loads share ids (a person `P3` and a building `P3`), `onto` matches a key against one
+load only, by its `sources()` key; in a recipe it may also name a step, to match the nodes that
+step added. A values join compares every key with the elements its first key's `onto` names:
+
+```ts
+const keys = [
+    { file: "person_id", graph: "id", onto: people.key },
+    { file: "building_id", graph: "id", onto: buildings.key },
+];
+```
+
 ## What a join does: its shape
 
 `choices.shape` says what the rows are. Absent, the suggestion's shape is used.
@@ -178,7 +189,9 @@ await draft.load({ join: choices });
 | `keys[].kind`    | Match only nodes of this kind, and give the nodes `"add"` makes this kind         |
 
 A row whose id is blank, repeats an earlier row's, or whose keys name nothing is left out. An edges
-join is the same thing with exactly two keys and no node in the middle.
+join is the same thing with exactly two keys and no node in the middle. The report's `byKey` counts
+each key on its own, in `keys` order: `matched`, the rows whose value names a node, and `created`,
+the nodes it makes (`[{ matched: 222, created: 0 }, { matched: 0, created: 5 }]`).
 
 ### Merging a second list of the same things
 
@@ -207,7 +220,16 @@ await draft.load({ join: { keys, shape: "merge", compare: true, membership: "in"
 ```
 
 A clashing column of the table is written as `<column> (<table name>)`, so both graphs' values
-sit side by side. The report's `regions.nodes` counts each region, by the same codes.
+sit side by side, unless `clash` says to keep one. The report's `regions.nodes` counts each region,
+by the same codes. `joinRegionRule(choices, regions)` is the filter keeping some regions, for
+`visibility.addCondition` once the join is committed:
+
+```ts
+import { joinRegionRule } from "@graphty/graphty-element/session";
+
+const rule = joinRegionRule(choices, ["both"]); // the intersection
+if (rule !== null) await session.visibility.addCondition({ effect: "keep", rule });
+```
 
 ### Translating keys through a mapping table
 
@@ -272,6 +294,29 @@ naming nodes and a `rowNode.id` for `"row-nodes"`, the key and `link.columns` fo
 ```ts
 recipe.suggest(entries, undefined, { shape: "row-nodes" });
 // { shape: "row-nodes", keys: [{ file: "person_id", ... }, { file: "building_id", ... }], rowNode: { id: "entry_id" } }
+```
+
+To guess what each row becomes among all four outcomes, pass `among`: `"row-nodes"` is suggested
+for a table three or more of whose columns name nodes, and `"link"` for a table of the graph's own
+nodes whose rows share values:
+
+```ts
+recipe.suggest(entries, undefined, { among: ["node-values", "edges", "row-nodes", "link"] }).shape;
+```
+
+### Editing committed joins
+
+`prepareJoins({ edit })` reopens committed joins (keys of `data.joins()`) as the recipe's first
+steps: the recipe starts from the graph with them taken back, each step holds its join's table,
+choices and name, and its `joined` names the join. `commit()` takes them back and joins every step
+again, as one undo step; a recipe left as it opened commits nothing, and a removed step's join
+stays taken back:
+
+```ts
+const recipe = data.prepareJoins({ edit: data.joins().map((join) => join.source) });
+const [first] = recipe.steps; // first.joined === data.joins()[0].source
+recipe.change(first.id, { from: first.from, choices: { ...first.choices, repeated: "both" } });
+await recipe.commit();
 ```
 
 ## Naming what a join writes

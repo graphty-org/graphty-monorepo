@@ -196,6 +196,7 @@ import type {
     JoinRecord,
     JoinReport,
     JoinsDraft,
+    JoinsDraftOptions,
     JoinShape,
     LoadChoices,
     LoadedSource,
@@ -3052,21 +3053,9 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        const provenance = this.provenance();
         const snapshot = this.current();
-        const space = edgeSpaceOf(snapshot);
-        const going = withJoinsResting(sources, key);
-        const left = sources.filter((each) => !going.includes(each));
-        const staying = broughtBy(left, provenance);
-        const brought = broughtBy(going, provenance);
-        const nodes = [...brought.nodes].filter((id) => snapshot.ids.has(id));
-        const edges = [...brought.edges].filter((id) => space.indexOf(id) !== INVALID_INDEX);
-        const goingNodes = nodes.filter((id) => !staying.nodes.has(id));
-        const goingEdges = edges.filter((id) => !staying.edges.has(id));
-        // Each join's values back, newest join first, so the oldest join's "before" is what remains.
-        const restored = new Map<string, Readonly<Record<string, unknown>>>();
-        const valuesBack = going.flatMap((each) => this.restoreValues(each, restored).steps);
-        const last = left.at(-1);
+        const back = this.takeBack(withJoinsResting(sources, key));
+        const { going, nodes, edges } = back;
         if (this.writes.send === undefined) {
             throw new GraphtyError({
                 code: "E_UNSUPPORTED",
@@ -3080,6 +3069,53 @@ export class SessionData implements SessionDataApi {
             op: "batch",
             label: `Removed ${entry.name ?? key}`,
             fact: { code: "data.remove-source", params: { key, name: entry.name ?? null } },
+            steps: back.steps,
+        });
+        const after = this.current();
+        const removed = { nodes: before.nodes - after.nodeCount, edges: before.edges - after.edgeCount };
+        return Object.freeze({
+            removed: Object.freeze(removed),
+            kept: Object.freeze({
+                nodes: nodes.length - back.gone.nodes.length,
+                edges: edges.filter((id) => edgeSpaceOf(after).indexOf(id) !== INVALID_INDEX).length,
+            }),
+            alsoRemoved: Object.freeze(going.map((each) => each.key).filter((each) => each !== key)),
+        });
+    }
+
+    /**
+     * The steps taking loads out of the graph, newest first, keeping what another load also
+     * supplied: each join's values put back, then what only they brought removed, then the loads
+     * left recorded.
+     * @param going - the loads, newest first
+     * @returns the steps; the values put back and what goes, by `<kind>:<id>` as a join reads
+     * them; and the nodes and edges the loads brought, and of those the ones that go
+     */
+    private takeBack(going: readonly LoadedSource[]): {
+        readonly going: readonly LoadedSource[];
+        readonly steps: SessionCommand[];
+        readonly restored: Map<string, Readonly<Record<string, unknown>>>;
+        readonly gone: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] };
+        readonly nodes: readonly NodeId[];
+        readonly edges: readonly EdgeId[];
+    } {
+        const sources = this.sources();
+        const provenance = this.provenance();
+        const snapshot = this.current();
+        const space = edgeSpaceOf(snapshot);
+        const left = sources.filter((each) => !going.some((other) => other.key === each.key));
+        const staying = broughtBy(left, provenance);
+        const brought = broughtBy(going, provenance);
+        const nodes = [...brought.nodes].filter((id) => snapshot.ids.has(id));
+        const edges = [...brought.edges].filter((id) => space.indexOf(id) !== INVALID_INDEX);
+        const goingNodes = nodes.filter((id) => !staying.nodes.has(id));
+        const goingEdges = edges.filter((id) => !staying.edges.has(id));
+        // Each join's values back, newest join first, so the oldest join's "before" is what remains.
+        const restored = new Map<string, Readonly<Record<string, unknown>>>();
+        const valuesBack = going.flatMap((each) => this.restoreValues(each, restored).steps);
+        const last = left.at(-1);
+        return {
+            going,
             steps: [
                 ...valuesBack,
                 { op: "data.apply", mutation: { kind: "remove-edges", ids: goingEdges } },
@@ -3091,17 +3127,11 @@ export class SessionData implements SessionDataApi {
                     provenance: going.reduce((held, each) => withoutSource(held, each.key), provenance),
                 },
             ],
-        });
-        const after = this.current();
-        const removed = { nodes: before.nodes - after.nodeCount, edges: before.edges - after.edgeCount };
-        return Object.freeze({
-            removed: Object.freeze(removed),
-            kept: Object.freeze({
-                nodes: nodes.length - goingNodes.length,
-                edges: edges.filter((id) => edgeSpaceOf(after).indexOf(id) !== INVALID_INDEX).length,
-            }),
-            alsoRemoved: Object.freeze(going.map((each) => each.key).filter((each) => each !== key)),
-        });
+            restored,
+            gone: { nodes: goingNodes, edges: goingEdges },
+            nodes,
+            edges,
+        };
     }
 
     /**
@@ -3669,23 +3699,37 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Open a join recipe over the graph as it is now.
+     * Open a join recipe over the graph as it is now, or with committed joins reopened as its steps.
+     * @param options - the committed joins to reopen
      * @returns the draft
      */
-    prepareJoins(): JoinsDraft {
+    prepareJoins(options: JoinsDraftOptions = {}): JoinsDraft {
         this.requireLive("prepareJoins");
         const provenance = this.provenance();
+        const reopened = this.reopenedJoins(options.edit ?? []);
+        const back = reopened.length === 0 ? undefined : this.takeBack([...reopened].reverse());
+        const gone = new Set([
+            ...(back?.gone.nodes ?? []).map((id) => `node:${String(id)}`),
+            ...(back?.gone.edges ?? []).map((id) => `edge:${id}`),
+        ]);
+        const read = this.joinGraph(back?.restored, gone);
         return createJoinsDraft({
             graph: () => ({
-                nodes: this.joinRows("node").map((row) => ({ id: row.id, data: row.data })),
-                edges: this.edges().map(({ id, source, target, ...data }) => ({
-                    id,
-                    source,
-                    target,
+                nodes: read.nodes.map((row) => ({ id: row.id, data: row.data })),
+                edges: read.edges.map(({ id, source, target, data }) => ({
+                    id: id as EdgeId,
+                    source: source as NodeId,
+                    target: target as NodeId,
                     data,
                 })),
-                directed: this.current().directed,
+                directed: read.directed,
             }),
+            reopened: reopened.map((each) => ({
+                table: each.join.table,
+                choices: each.join.choices,
+                name: each.name ?? each.join.table.name,
+                joined: each.key,
+            })),
             sources: () =>
                 this.storedSources()
                     .filter((each) => each.kind !== "join")
@@ -3699,19 +3743,45 @@ export class SessionData implements SessionDataApi {
             joinedTable: (key) => this.storedSources().find((each) => each.key === key)?.join?.table,
             commit: (steps) =>
                 this.afterLoads(
-                    () => this.commitJoins(steps),
+                    () =>
+                        this.commitJoins(
+                            steps,
+                            reopened.map((each) => each.key),
+                        ),
                     () => undefined,
                 ),
         });
     }
 
     /**
+     * The committed joins a recipe reopens, oldest first: those named and every join resting on
+     * one of them.
+     * @param keys - the joins named
+     * @returns their loads
+     */
+    private reopenedJoins(keys: readonly SourceKey[]): (LoadedSource & { readonly join: JoinRecord })[] {
+        const sources = this.sources();
+        const going = new Set<SourceKey>();
+        for (const key of keys) {
+            this.joinedSource(key);
+            withJoinsResting(sources, key).forEach((each) => going.add(each.key));
+        }
+
+        return sources.filter(
+            (each): each is LoadedSource & { readonly join: JoinRecord } =>
+                going.has(each.key) && each.join !== undefined,
+        );
+    }
+
+    /**
      * A join recipe's steps joined in order, as one undoable step.
-     * @param steps - each step's table and choices
+     * @param steps - each step's table, choices and name
+     * @param reopened - the committed joins the recipe reopened, taken back first
      * @returns settles once the step is recorded
      */
     private async commitJoins(
-        steps: readonly { readonly table: JoinTable; readonly choices: JoinChoices }[],
+        steps: readonly { readonly table: JoinTable; readonly choices: JoinChoices; readonly name?: string }[],
+        reopened: readonly SourceKey[] = [],
     ): Promise<void> {
         this.requireLive("commit");
         const transaction = this.writes.transaction?.bind(this.writes);
@@ -3724,9 +3794,20 @@ export class SessionData implements SessionDataApi {
         }
 
         await transaction(`Joined ${String(steps.length)} tables`, async (send) => {
+            // The reopened joins are taken back first: the steps join again in their place.
+            const going = this.reopenedJoins(reopened);
+            if (going.length > 0) {
+                await send({
+                    op: "batch",
+                    label: `Took back ${String(going.length)} joins`,
+                    fact: { code: "data.remove-source", params: { key: going[0].key, name: going[0].name ?? null } },
+                    steps: this.takeBack([...going].reverse()).steps,
+                });
+            }
+
             for (const step of steps) {
                 // A held table is loaded from its rows; `config` says the load reads a table.
-                const source = { type: "csv", name: step.table.name, config: {} };
+                const source = { type: "csv", name: step.name ?? step.table.name, config: {} };
                 await this.applyJoin(
                     send,
                     { ...step.table, source },
@@ -3866,11 +3947,18 @@ export class SessionData implements SessionDataApi {
             this.joinRows(kind)
                 .filter((row) => !gone.has(`${kind}:${String(row.id)}`))
                 .map((row) => ({ ...row, data: restored.get(`${kind}:${String(row.id)}`) ?? row.data }));
+        const provenance = this.provenance();
         return {
             nodes: read("node"),
             edges: read("edge"),
             table: (key) => this.loadTable(key),
             directed: this.current().directed,
+            members: (onto) => {
+                const supplied = provenance?.[onto];
+                return supplied === undefined
+                    ? undefined
+                    : { nodes: new Set(supplied.nodes.map(String)), edges: new Set(supplied.edges.map(String)) };
+            },
         };
     }
 

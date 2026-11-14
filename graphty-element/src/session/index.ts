@@ -35,6 +35,7 @@ export { browserProjects } from "./browserProjects";
 export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
+export { JOIN_REGIONS, joinRegionRule } from "./join";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits, LimitsOption } from "./limits";
@@ -122,6 +123,7 @@ export type {
     JoinElementFate,
     JoinInput,
     JoinKey,
+    JoinKeyCount,
     JoinKeyMatch,
     JoinKeyMatchOptions,
     JoinLink,
@@ -140,6 +142,7 @@ export type {
     JoinRowFate,
     JoinRowNode,
     JoinsDraft,
+    JoinsDraftOptions,
     JoinShape,
     JoinStep,
     JoinStepEntry,

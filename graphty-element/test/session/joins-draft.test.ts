@@ -284,9 +284,10 @@ describe("data.prepareJoins", () => {
         assert.strictEqual(recipe.steps.find((each) => each.id === kind)?.name, "people.csv kind");
         await recipe.commit();
 
+        // The table keeps its own name, so a step reopened from the join reads the same table.
         assert.deepEqual(
             session.data.joins().map((join) => join.table.name),
-            ["people.csv kind", "people.csv"],
+            ["people.csv", "people.csv"],
         );
         const named = session.data
             .sources()

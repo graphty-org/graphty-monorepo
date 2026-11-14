@@ -114,6 +114,7 @@ export type {
     JoinElementFate,
     JoinInput,
     JoinKey,
+    JoinKeyCount,
     JoinKeyMatch,
     JoinKeyMatchOptions,
     JoinLink,
@@ -132,6 +133,7 @@ export type {
     JoinRowFate,
     JoinRowNode,
     JoinsDraft,
+    JoinsDraftOptions,
     JoinShape,
     JoinStep,
     JoinStepEntry,
@@ -310,7 +312,7 @@ export type {
     FileStyleTranslationCode,
     LoadStyleReport,
 } from "./src/session";
-export { COLUMN_ROLES, LOAD_ROLES } from "./src/session";
+export { COLUMN_ROLES, JOIN_REGIONS, joinRegionRule, LOAD_ROLES } from "./src/session";
 export {
     EXPORT_LOSS_CODES,
     EXPORT_STYLE_LOSS_CODES,

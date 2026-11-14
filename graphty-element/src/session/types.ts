@@ -1894,11 +1894,12 @@ export interface SessionDataApi {
      * recipe.preview().nodes; // the graph as the recipe leaves it, each element's fate
      * await recipe.commit(); // one undo step
      * ```
+     * @param options - Committed joins to reopen as its first steps. @since 3.39.0
      * @returns The draft.
      * @since 3.37.0
      * @beta
      */
-    prepareJoins(): JoinsDraft;
+    prepareJoins(options?: JoinsDraftOptions): JoinsDraft;
     /**
      * Join a joined table again with other choices, as one undoable step: the values or edges the
      * join made are taken back, the values it wrote over put back, and the table joined anew
@@ -2664,6 +2665,13 @@ export interface JoinKey {
      * @since 3.39.0
      */
     readonly kind?: string;
+    /**
+     * Match only the elements one load supplied (a key of `data.sources()`), or, in a join recipe,
+     * the nodes one step added (its id): two loads sharing an id are then told apart. A key no
+     * load or step has refuses with `E_SOURCE_UNKNOWN`. Every element when absent.
+     * @since 3.39.0
+     */
+    readonly onto?: string;
 }
 
 /**
@@ -2708,6 +2716,16 @@ export interface JoinSuggestOptions {
      * best single key onto the nodes.
      */
     readonly shape?: JoinShape;
+    /**
+     * The shapes to choose among, when `shape` is absent: the suggestion's shape is the one of
+     * these that fits the table best. Beyond the shapes suggested without it, `"row-nodes"` is
+     * chosen for a table three or more of whose columns each name a node (a door entry naming its
+     * person, building and door), and `"link"` for a table of the graph's own nodes that would
+     * bring them no new value but whose rows share values (accounts sharing a phone). Default:
+     * the shapes suggested without it.
+     * @since 3.39.0
+     */
+    readonly among?: readonly JoinShape[];
 }
 
 /**
@@ -2979,6 +2997,22 @@ export interface JoinReport {
      * @since 3.39.0
      */
     readonly edgesMerged?: number;
+    /**
+     * For `"row-nodes"`: one count per key, in the order of `JoinChoices.keys`. Absent otherwise.
+     * @since 3.39.0
+     */
+    readonly byKey?: readonly JoinKeyCount[];
+}
+
+/**
+ * What one key of a join found ({@link JoinReport.byKey}).
+ * @since 3.39.0
+ */
+export interface JoinKeyCount {
+    /** The rows whose value in the key's column names a node. */
+    readonly matched: number;
+    /** The distinct nodes the key makes for values naming none (`JoinKey.unknown: "add"`). */
+    readonly created: number;
 }
 
 /**
@@ -3080,6 +3114,28 @@ export interface JoinStep {
 export interface JoinStepEntry extends JoinStep {
     /** Its id in the draft. */
     readonly id: string;
+    /**
+     * For a step reopened from a committed join (`prepareJoins({ edit })`): that join's load.
+     * @since 3.39.0
+     */
+    readonly joined?: SourceKey;
+}
+
+/**
+ * How {@link SessionDataApi.prepareJoins} opens a recipe.
+ * @since 3.39.0
+ * @beta
+ */
+export interface JoinsDraftOptions {
+    /**
+     * Committed joins to edit, keys of `data.joins()`: the draft starts from the graph with them
+     * taken back, and each is its first steps (in `data.joins()` order), its table held, its
+     * choices and name kept and `joined` its key. A join resting on one of them (keyed on a
+     * column it wrote, or joined onto it) comes back with it. `commit()` takes them back and
+     * joins every step, as one undoable step; a recipe left as it opened commits nothing.
+     * A key that is no join refuses with `E_SOURCE_UNKNOWN`.
+     */
+    readonly edit?: readonly SourceKey[];
 }
 
 /**
@@ -3220,6 +3276,12 @@ export interface JoinKeyMatchOptions {
     readonly ignoreCase?: boolean;
     /** Compare whatever spaces the values hold. Default false. */
     readonly ignoreSpaces?: boolean;
+    /**
+     * Compare only with the elements one load supplied, or one step added, as `JoinKey.onto`.
+     * Every element when absent.
+     * @since 3.39.0
+     */
+    readonly onto?: string;
 }
 
 /**

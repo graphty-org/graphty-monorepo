@@ -2964,6 +2964,9 @@ export type ItemKey = {
 };
 
 // @public
+export const JOIN_REGIONS: readonly JoinRegion[];
+
+// @public
 export interface JoinChoices {
     readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
     readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
@@ -3021,7 +3024,14 @@ export interface JoinKey {
     readonly file: string;
     readonly graph: Path;
     readonly kind?: string;
+    readonly onto?: string;
     readonly unknown?: "add" | "leave-out";
+}
+
+// @public
+export interface JoinKeyCount {
+    readonly created: number;
+    readonly matched: number;
 }
 
 // @beta
@@ -3037,6 +3047,7 @@ export interface JoinKeyMatchOptions {
     readonly before?: string;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
+    readonly onto?: string;
     readonly target?: "node" | "edge";
 }
 
@@ -3140,7 +3151,11 @@ export type JoinReduce = "count" | "sum" | "min" | "max" | "mean" | "first" | "l
 export type JoinRegion = "both" | "only-from" | "only-onto";
 
 // @public
+export function joinRegionRule(choices: JoinChoices, keep: readonly JoinRegion[]): RuleTree | null;
+
+// @public
 export interface JoinReport {
+    readonly byKey?: readonly JoinKeyCount[];
     readonly clashes: readonly {
         readonly column: string;
         readonly code: "clash";
@@ -3212,6 +3227,11 @@ export interface JoinsDraft {
     undo(): void;
 }
 
+// @beta
+export interface JoinsDraftOptions {
+    readonly edit?: readonly SourceKey[];
+}
+
 // @public
 export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link" | "row-nodes";
 
@@ -3225,6 +3245,7 @@ export interface JoinStep {
 // @beta
 export interface JoinStepEntry extends JoinStep {
     readonly id: string;
+    readonly joined?: SourceKey;
 }
 
 // @beta
@@ -3249,6 +3270,7 @@ export interface JoinSuggestion {
 
 // @beta
 export interface JoinSuggestOptions {
+    readonly among?: readonly JoinShape[];
     readonly shape?: JoinShape;
 }
 
@@ -6037,7 +6059,7 @@ export interface SessionDataApi {
         readonly guess?: "names" | "values";
     }): Promise<LoadDraft>;
     // @beta
-    prepareJoins(): JoinsDraft;
+    prepareJoins(options?: JoinsDraftOptions): JoinsDraft;
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
     readableValues(): readonly ReadableValue[];

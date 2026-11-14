@@ -17,7 +17,7 @@ the expectation today; the reference points into
 | cys | 53 | 53 | 0 | 40 | 0 |
 | dot | 196 | 196 | 0 | 178 | 0 |
 | gexf | 110 | 107 | 3 | 104 | 1 |
-| gml | 109 | 98 | 11 | 88 | 3 |
+| gml | 109 | 109 | 0 | 98 | 4 |
 | graphml | 148 | 148 | 0 | 134 | 0 |
 | json | 427 | 420 | 7 | 102 | 0 |
 | neo4j | 45 | 30 | 15 | 29 | 0 |
@@ -87,6 +87,7 @@ rest of the format's expectations does something else.
 - cys (cytoscape-integration-tests): Cytoscape hides the node of an expanded group and removes a collapsed group's members from the network it shows; graph-io's snapshot holds every node the network file declares in the network and records groups as parent containment, the collapsed members in meta.extra.cytoscape.groups (design section 3.1); Cytoscape shows 4 nodes and 2 edges (1 file)
 - cys (spec): Cytoscape's entry patterns need a folder before networks/ and tables/, so it loads nothing; the entries are unambiguous, so graph-io reads them (1 file)
 - cys (spec): Cytoscape throws a NullPointerException; graph-io skips the table and says so (1 file)
+- gml (networkx-3.1): networkx ignores OGDF's rootcluster block (an unknown top-level key); OGDF's own reader reads it as the cluster tree, which graph-io keeps as group nodes (2 files)
 - json (python-json-obographs): fastobo.load_graph reads the untyped nodes as Typedefs (11 Terms); the schema makes type optional and says nothing of untyped nodes being properties, so they are nodes (design 4.6: every node is a node) (1 file)
 - obo (spec): fastobo keeps the backslash and reads the next line as a separate clause; the 1.2 guide defines the backslash at a line end as a continuation (1 file)
 - obo (spec): fastobo and ROBOT reject the whole file; graph-io skips the one clause (design 4.3) (1 file)
@@ -216,39 +217,12 @@ No known failures.
 
 ## gml
 
-### a node without id is skipped instead of given a generated id (sources.md 4.4) (#7645) (4)
+### round trip: the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds "mangle" (sources.md 4.4) (#7744) (4)
 
-- `igraph/tests_unit_graph2.gml`: nodes: expected 3, got 0
-- `igraph/tests_regression_bug_2497.gml`: nodes: expected 2, got 1
-- `ogdf/invalid_missing-id.gml`: nodes: expected 3, got 2
-- `authored/node-without-id.gml`: nodes: expected 3, got 2; label "no id" missing (no label column)
-
-### string and bare-word node ids are rejected (sources.md 4.4) (#7645) (4)
-
-- `ogdf/invalid_invalid-integer.gml`: failed: E_SYNTAX: "invalid_invalid-integer.gml" could not be read as gml: expected a value for key "source" at line 12, found "fooBar"
-- `gephi/label.gml`: failed: E_SYNTAX: "label.gml" could not be read as gml: expected a value for key "id" at line 5, found "A"
-- `gephi/emojis.gml`: failed: E_SYNTAX: "emojis.gml" could not be read as gml: expected a value for key "id" at line 5, found "A"
-- `authored/bareword-ids.gml`: failed: E_SYNTAX: "bareword-ids.gml" could not be read as gml: expected a value for key "id" at line 2, found "a"
-
-### round trip: exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4) (#7647) (3)
-
-- `netzschleuder/karate-77.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
-- `netzschleuder/lesmis.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
-- `authored/underscore-keys.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
-
-### graph-io reads OGDF's rootcluster block as a group node (id cluster<id>) holding its vertices, which networkx ignores (ISSUES.md, Specimen sheets: GML) (#7648) (2)
-
-- `ogdf/cluster_malformed-node-index.gml`: nodes: expected 3, got 4
-- `ogdf/cluster_node-in-two-clusters.gml`: nodes: expected 3, got 4
-
-### round trip: the group node's id cluster<id> is not a GML integer id, so the GML export throws E_INVALID_ID unless sanitizeIds is set (ISSUES.md, Specimen sheets: GML) (#7648) (2)
-
-- `ogdf/cluster_malformed-node-index.gml`: (no detail)
-- `ogdf/cluster_node-in-two-clusters.gml`: (no detail)
-
-### no nesting depth guard (sources.md 4.4) (#7646) (1)
-
-- `authored/deep-nesting-5000.gml`: imported (1 nodes) where a failure was expected
+- `ogdf/invalid_invalid-integer.gml`: threw: GraphFormatError: 1 node id is not integers (first: "fooBar" at index 3); pass sanitizeIds: "mangle" to rewrite them
+- `gephi/label.gml`: threw: GraphFormatError: 3 node ids are not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `gephi/emojis.gml`: threw: GraphFormatError: 1 node id is not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `authored/bareword-ids.gml`: threw: GraphFormatError: 2 node ids are not integers (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
 
 
 ## graphml

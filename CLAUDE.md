@@ -170,6 +170,15 @@ APIs, you can make them without getting my approval."
   packages (owner, 2026-11-10): see "Public API and breaking changes". Ask him again only when a
   real outside consumer appears.
 
+### Owner's standing rules (2026-11-13)
+
+Act on these without asking him, and tell him in one line: (1) a recorded decision or standing rule releases an
+owner label; (2) additive work whose default leaves the graphty app unchanged is ux-safe and ordered; (3) his issue
+stating the expected result is the order; (4) invisible accessibility and default-contrast fixes are ordered; (5)
+free CI and dev-tooling changes go ahead; (6) save files carry small built-ins and name large ones; (7) a superseded
+branch is folded into its successor and kept; (8) an outside pull request is re-filed as our own issue.
+Full wording: design/owner-standing-rules.md.
+
 ### Why
 
 The failure mode this prevents is silent and expensive: a capability lands "in the product"
@@ -339,9 +348,10 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
    issue: its number in the name (`fix/1234-topic`), `--issue N` or `--new-issue "<title>"`. Every commit pushes
    the branch until its pull request is open. When you stop,
    `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`.
-2. Before opening it, run what CI would: `pnpm run check:quick` (in the background; it runs through
-   `tools/low-priority.sh` and includes the selected tests, `node tools/sonar-gate.mjs` and every check of CI's
-   Checks job). `pnpm run test:changed` alone misses those checks. A long-lived branch -- open more than about two
+2. Before opening it, a job of the rounds runs the pre-push checklist in `.claude/skills/pipeline-round/shared.md`
+   ("Subagent rules"); a human, or a long-lived branch below, runs the full set, `pnpm run check:quick` (in the
+   background, through `tools/low-priority.sh`: the selected tests, `node tools/sonar-gate.mjs` and every check of
+   CI's Checks job). `pnpm run test:changed` alone misses those checks. A long-lived branch -- open more than about two
    days, holding more than a day of work, after a merge of master that brought app or graphty-element changes or
    needed conflicts resolved, or after a large change (a refactor of a shared component, a dependency or lockfile
    upgrade, a change to graphty-element's styling, layout or rendering) -- whose change reaches the graphty app also

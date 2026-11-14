@@ -91,7 +91,6 @@ import {
 } from "../../../index.js";
 import type { AdHocData } from "../../../schema";
 import type { LayerSpec, StyleChange } from "../../../session";
-import { operationQueueOf } from "../../../src/Graph";
 
 // -------------------------------------------------------------------------------------------
 // The extension: a format the element has never heard of
@@ -689,7 +688,7 @@ async function mountElement(): Promise<Graphty> {
  */
 async function loadRoster(opts: RosterConfig): Promise<void> {
     await element.addDataFromSource(ROSTER_FORMAT, opts);
-    await operationQueueOf(element.graph).waitForCompletion();
+    await element.graph.waitForSettled();
 }
 
 /**
@@ -771,7 +770,7 @@ beforeEach(async () => {
 afterEach(async () => {
     // A load leaves queued work behind it, and disposing while that work is still queued runs it
     // against a graph that no longer exists.
-    await operationQueueOf(element.graph).waitForCompletion();
+    await element.graph.waitForSettled();
     container.remove();
     beforeChunk = null;
 });
@@ -790,7 +789,7 @@ describe("a third party's file format", () => {
         element.dataSourceConfig = { data: ROSTER };
 
         await loaded;
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.graph.waitForSettled();
 
         assert.deepStrictEqual(heldNodeIds(), PEOPLE, "every person in the file is a node in the graph");
         assert.strictEqual(element.getDataManager().edges.size, LINKS, "and every link is an edge");
@@ -809,7 +808,7 @@ describe("a third party's file format", () => {
 
         element.clearData();
         await element.addDataFromSource("json", { data: BUILT_IN_JSON });
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.graph.waitForSettled();
 
         assert.deepStrictEqual(heldNodeIds(), ["ceres", "pallas"], "and the built-in JSON format still loads its own");
     });
@@ -860,7 +859,7 @@ describe("a third party's file format", () => {
         await element.loadFromFile(new File([ROSTER], "team.roster", { type: "text/plain" }), {
             format: ROSTER_FORMAT,
         });
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.graph.waitForSettled();
 
         assert.deepStrictEqual(heldNodeIds(), PEOPLE);
     });
@@ -1128,7 +1127,7 @@ describe("a third party's format being recognised from a file", () => {
         // Indented, so the format's own content sniffer does not match it and the file name is
         // genuinely the only thing identifying it.
         await element.loadFromFile(new File([ROSTER_ONLY_ITS_NAME_IDENTIFIES], "team.roster", { type: "text/plain" }));
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.graph.waitForSettled();
 
         assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the element worked out which format it had been handed");
         assert.strictEqual(
@@ -1142,7 +1141,7 @@ describe("a third party's format being recognised from a file", () => {
         const finished = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
 
         await element.loadFromFile(new File([ROSTER], "notes.txt", { type: "text/plain" }));
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.graph.waitForSettled();
 
         assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the sniffer the format declared was asked and answered");
         assert.strictEqual((await finished).format, ROSTER_FORMAT, "and it was that format that read the file");
@@ -1155,7 +1154,7 @@ describe("a third party's format being recognised from a file", () => {
 
         try {
             await element.loadFromUrl(url);
-            await operationQueueOf(element.graph).waitForCompletion();
+            await element.graph.waitForSettled();
 
             assert.deepStrictEqual(heldNodeIds(), PEOPLE);
         } finally {
@@ -1168,7 +1167,7 @@ describe("a third party's format being recognised from a file", () => {
 
         try {
             await element.loadFromUrl(url, { format: ROSTER_FORMAT });
-            await operationQueueOf(element.graph).waitForCompletion();
+            await element.graph.waitForSettled();
 
             assert.deepStrictEqual(heldNodeIds(), PEOPLE);
         } finally {
@@ -1204,7 +1203,7 @@ describe("a third party's format being recognised from a file", () => {
         );
 
         await element.loadFromFile(new File([ACME_XML], "team.xml", { type: "text/xml" }));
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.graph.waitForSettled();
 
         assert.deepStrictEqual(heldNodeIds(), ACME_PEOPLE, "and the file loaded through the format that claimed it");
     });
@@ -1284,7 +1283,7 @@ describe("a third party's format being configured", () => {
         // identity paths. None of those is an option this format declared, and a format that
         // was refused for them could not be reached through either call.
         await element.loadFromFile(new File([ROSTER], "team.roster", { type: "text/plain" }));
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.graph.waitForSettled();
 
         assert.deepStrictEqual(heldNodeIds(), PEOPLE);
     });
@@ -1559,7 +1558,7 @@ const EDGE_LIST = "source,target\na,b\nb,c\nc,d\nd,e\na,c\n";
  */
 async function loadInto(target: Graphty, format: string, data: string): Promise<void> {
     await target.addDataFromSource(format, { data });
-    await operationQueueOf(target.graph).waitForCompletion();
+    await target.graph.waitForSettled();
 }
 
 /**

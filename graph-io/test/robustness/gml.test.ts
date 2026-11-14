@@ -432,11 +432,11 @@ describe("GML robustness: policies and several graphs", () => {
     });
 
     it("says which graph failed when a later graph of importAllGraphs exceeds the error limit", async () => {
-        const text = `graph [ node [ id 1 ] ] graph [ ${"node [ ] ".repeat(150)}]`;
+        const text = `graph [ node [ id 1 ] ] graph [ ${"node [ id 1.5 ] ".repeat(150)}]`;
         const err = await rejects(importAllGraphs(text, { format: "gml" }));
         expect(err.message).toMatch(/^graph 1: error limit of 100 exceeded/);
         expect(err.details.graphIndex).toBe(1);
-        expect(err.details.code).toBe("E_MISSING_ID");
+        expect(err.details.code).toBe("E_GML_ID_TYPE");
         expect(err.report.truncated).toBe(true);
     });
 });

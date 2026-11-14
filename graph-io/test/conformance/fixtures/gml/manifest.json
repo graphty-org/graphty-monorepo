@@ -423,8 +423,7 @@
         "outcome": "pass",
         "nodes": 3,
         "edges": 0
-      },
-      "knownFailure": "a node without id is skipped instead of given a generated id (sources.md 4.4) (#7645)"
+      }
     },
     {
       "file": "igraph/tests_unit_graph3.gml",
@@ -455,8 +454,7 @@
         "nodeIds": [
           2
         ]
-      },
-      "knownFailure": "a node without id is skipped instead of given a generated id (sources.md 4.4) (#7645)"
+      }
     },
     {
       "file": "igraph/tests_regression_invalid1.gml",
@@ -658,17 +656,18 @@
       "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/cluster/malformed-node-index.gml",
       "license": "GPL-2.0 or GPL-3.0; test-only, not published",
       "version": "master, retrieved 2026-09-23",
-      "exercises": "OGDF: trailing rootcluster block after the graph (unknown top-level key)",
+      "exercises": "OGDF: trailing rootcluster block after the graph, its cluster read as a group node cluster1 holding its vertices and written back as rootcluster",
       "oracle": "networkx-3.1",
       "expected": {
         "outcome": "pass",
-        "nodes": 3,
+        "nodes": 4,
         "edges": 3,
         "directed": false,
         "nodeIds": [
           1,
           2,
-          3
+          3,
+          "cluster1"
         ],
         "edgeChecks": [
           {
@@ -685,25 +684,25 @@
           }
         ]
       },
-      "knownFailure": "graph-io reads OGDF's rootcluster block as a group node (id cluster<id>) holding its vertices, which networkx ignores (ISSUES.md, Specimen sheets: GML) (#7648)",
-      "roundTripFailure": "the group node's id cluster<id> is not a GML integer id, so the GML export throws E_INVALID_ID unless sanitizeIds is set (ISSUES.md, Specimen sheets: GML) (#7648)"
+      "oracleDisagrees": "networkx ignores OGDF's rootcluster block (an unknown top-level key); OGDF's own reader reads it as the cluster tree, which graph-io keeps as group nodes"
     },
     {
       "file": "ogdf/cluster_node-in-two-clusters.gml",
       "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/cluster/node-in-two-clusters.gml",
       "license": "GPL-2.0 or GPL-3.0; test-only, not published",
       "version": "master, retrieved 2026-09-23",
-      "exercises": "OGDF: trailing rootcluster block after the graph (unknown top-level key)",
+      "exercises": "OGDF: trailing rootcluster block after the graph, its cluster read as a group node cluster1 holding its vertices and written back as rootcluster",
       "oracle": "networkx-3.1",
       "expected": {
         "outcome": "pass",
-        "nodes": 3,
+        "nodes": 4,
         "edges": 3,
         "directed": false,
         "nodeIds": [
           1,
           2,
-          3
+          3,
+          "cluster1"
         ],
         "edgeChecks": [
           {
@@ -720,8 +719,7 @@
           }
         ]
       },
-      "knownFailure": "graph-io reads OGDF's rootcluster block as a group node (id cluster<id>) holding its vertices, which networkx ignores (ISSUES.md, Specimen sheets: GML) (#7648)",
-      "roundTripFailure": "the group node's id cluster<id> is not a GML integer id, so the GML export throws E_INVALID_ID unless sanitizeIds is set (ISSUES.md, Specimen sheets: GML) (#7648)"
+      "oracleDisagrees": "networkx ignores OGDF's rootcluster block (an unknown top-level key); OGDF's own reader reads it as the cluster tree, which graph-io keeps as group nodes"
     },
     {
       "file": "ogdf/invalid_ambiguous-id.gml",
@@ -782,7 +780,7 @@
           "fooBar"
         ]
       },
-      "knownFailure": "string and bare-word node ids are rejected (sources.md 4.4) (#7645)"
+      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4) (#7744)"
     },
     {
       "file": "ogdf/invalid_invalid-node.gml",
@@ -808,8 +806,7 @@
         "outcome": "pass",
         "nodes": 3,
         "edges": 1
-      },
-      "knownFailure": "a node without id is skipped instead of given a generated id (sources.md 4.4) (#7645)"
+      }
     },
     {
       "file": "ogdf/invalid_missing-source.gml",
@@ -883,7 +880,7 @@
           }
         ]
       },
-      "knownFailure": "string and bare-word node ids are rejected (sources.md 4.4) (#7645)"
+      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4) (#7744)"
     },
     {
       "file": "gephi/emojis.gml",
@@ -903,7 +900,7 @@
           "\u2705"
         ]
       },
-      "knownFailure": "string and bare-word node ids are rejected (sources.md 4.4) (#7645)"
+      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4) (#7744)"
     },
     {
       "file": "netzschleuder/karate-77.gml",
@@ -921,8 +918,7 @@
           0,
           33
         ]
-      },
-      "roundTripFailure": "exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4) (#7647)"
+      }
     },
     {
       "file": "netzschleuder/lesmis.gml",
@@ -940,8 +936,7 @@
           "Myriel",
           "Napoleon"
         ]
-      },
-      "roundTripFailure": "exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4) (#7647)"
+      }
     },
     {
       "file": "networkx/simple-undirected.gml",
@@ -1317,7 +1312,7 @@
           }
         ]
       },
-      "knownFailure": "string and bare-word node ids are rejected (sources.md 4.4) (#7645)"
+      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4) (#7744)"
     },
     {
       "file": "authored/node-without-id.gml",
@@ -1333,8 +1328,7 @@
         "labels": [
           "no id"
         ]
-      },
-      "knownFailure": "a node without id is skipped instead of given a generated id (sources.md 4.4) (#7645)"
+      }
     },
     {
       "file": "authored/two-graphs.gml",
@@ -1623,8 +1617,7 @@
       "oracle": "spec",
       "expected": {
         "outcome": "fail"
-      },
-      "knownFailure": "no nesting depth guard (sources.md 4.4) (#7646)"
+      }
     },
     {
       "file": "authored/underscore-keys.gml",
@@ -1644,8 +1637,7 @@
             "value": 3
           }
         ]
-      },
-      "roundTripFailure": "exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4) (#7647)"
+      }
     },
     {
       "file": "authored/special-reals.gml",

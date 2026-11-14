@@ -163,8 +163,8 @@ Gaps found while finishing, each open:
   label Gephi hides is written as a label of opacity 0; graphology keeps a label's markup and line breaks only as
   text; the CSV writer names label settings CSV has no column for as written. Each is an expected failure in
   graphty-element's `export-round-trip`.
-- OGDF's `rootcluster` is read as a group node `cluster<id>`; GML cannot hold that id, so the GML export throws
-  E_INVALID_ID unless `sanitizeIds` is set (two conformance fixtures marked).
+- Fixed 2026-11-13 (#7648): OGDF's `rootcluster` is read as a group node `cluster<id>`, and the GML export threw
+  E_INVALID_ID on that id unless `sanitizeIds` was set; it now writes those group nodes back as `rootcluster`.
 - graphty-element's style-fidelity scorecard (`test/fidelity/scorecard.test.ts`) still judges against the older
   reference scenes, which are graph-io's own earlier reading and not the programs' drawings; 36 of its properties
   now read as each program draws them and score lower there, and are allowed drops in `requested-floors.json`.

@@ -117,6 +117,17 @@ describe("list", () => {
                 issue(12, "Failing on master: lint", ["bug", "priority:critical"]),
                 issue(14, "Red master: CI failed on abc1234", ["bug", "priority:critical"]),
                 issue(15, "canary deploy failed on abc1234", ["bug", "priority:critical"]),
+                ...[
+                    "Master baselines tree unsigned on abc1234",
+                    "Nightly stalled since 2026-11-13",
+                    "Nightly site deploy failed on abc1234",
+                    "Nightly promotion failed: publish on abc1234",
+                    "Shadow release run: publish failed on abc1234",
+                    "Release scheduler could not start a release train",
+                    "graphty-monorepo's write deploy keys are not exactly the release key",
+                ].map((t, i) => issue(200 + i, t, ["bug", "priority:critical"])),
+                issue(16, "Load-sensitive test: x (tools)", ["bug", "priority:critical", "intermittent"]),
+                issue(17, "Flaky in full run: y", ["bug", "priority:critical", "intermittent"]),
                 issue(13, "critical bug", ["bug", "priority:critical"]),
                 issue(6, "kept", ["bug"]),
                 issue(9, "ux-safe enhancement", ["enhancement", "ux-safe"]),
@@ -125,7 +136,7 @@ describe("list", () => {
         ];
         assert.deepEqual(
             numbers(pages).sort((a, b) => a - b),
-            [2, 6, 9, 13],
+            [2, 6, 9, 13, 16, 17],
         );
     });
 

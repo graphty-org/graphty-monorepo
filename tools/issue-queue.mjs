@@ -37,6 +37,22 @@ const SKIP_LABELS = [
     "githerd-heartbeat",
     "ci-budget",
 ];
+// The priority:critical alarms tools file that are not code work, or whose code fix pipeline-round owns (master-guard's
+// revert, bisect, the fix that opens while master is red, owner-only screenshots and keys). Load-sensitive and flaky
+// test issues are code work and stay in the queue.
+const ALARM_TITLES = [
+    "Full run red:", // tools/full-run.mjs RED_TITLE
+    "Master baselines tree unsigned", // tools/full-run.mjs UNSIGNED_TITLE
+    "Failing on master:", // tools/results/run-group.mjs
+    "Red master: CI failed on", // tools/master-guard.mjs RED_PREFIX
+    "canary deploy failed on", // tools/master-guard.mjs DEPLOY_PREFIX
+    "Nightly stalled since", // tools/channel/nightly.mjs STALL_TITLE
+    "Nightly site deploy failed", // tools/channel/nightly.mjs FAILED_TITLE
+    "Nightly promotion failed:", // release.yml
+    "Shadow release run:", // release.yml
+    "Release scheduler could not start", // tools/release-scheduler/src/worker.js ISSUE_TITLE
+    "graphty-monorepo's write deploy keys", // tools/release-scheduler/src/worker.js DEPLOY_KEY_ISSUE_TITLE
+];
 const HELD_MAJOR = new Set([676, 702, 843, 1370]);
 const PRIORITIES = ["critical", "high", "medium", "low"];
 const EFFORTS = ["low", "medium", "high"];
@@ -85,12 +101,7 @@ export function skipReason(issue) {
     if (issue.title.startsWith("Release held:")) return "release held";
     if (issue.title.includes("lane red on master")) return "lane red on master";
     if (/^Nightly (held on|missed slot)/.test(issue.title)) return "nightly alarm";
-    // Red master, red full runs and failed canary deploys: pipeline-round's alarms (master-guard's revert, bisect,
-    // the fix that opens while master is red). Titles from tools/full-run.mjs, tools/results/run-group.mjs and
-    // tools/master-guard.mjs (RED_PREFIX, DEPLOY_PREFIX).
-    if (/^(Full run red:|Failing on master:|Red master: CI failed on|canary deploy failed on)/.test(issue.title)) {
-        return "master alarm";
-    }
+    if (ALARM_TITLES.some((t) => issue.title.startsWith(t))) return "pipeline alarm";
     if (/design\/brand|brand kit/i.test(issue.title)) return "design/brand";
     return null;
 }

@@ -43,6 +43,7 @@ import {
     fileIssues,
     groupKeys,
     groupFamily,
+    groupShape,
     junitOf,
     newFlakyJudge,
     postRecords,
@@ -582,6 +583,13 @@ describe("runGroup", () => {
         assert.deepEqual(keys({ "test-command": "c" }), { variant: "f|flags=off|whole", inputs: key("off") });
         assert.equal(keys({ "test-command": "c" }, { ...e, GRAPHTY_FLAGS: "on" }).inputs, key("on"));
         assert.notEqual(key("on"), key("off"));
+        // a pull request's On bin past the shard count has no SHARDS entry: its command says it is On (#7847)
+        const bin = (command) => groupShape({ shardName: "g-features-on-37", shard: undefined, command, env: e });
+        assert.equal(
+            bin("cd g && GRAPHTY_FEATURES_ON=1 pnpm exec vitest run 'a.test.ts'").variant,
+            "g-features-on|flags=on|selected",
+        );
+        assert.equal(bin("cd g && pnpm exec vitest run 'a.test.ts'").flags, "off");
     });
 });
 
@@ -779,13 +787,18 @@ describe("planRead", () => {
             "graphty-element-browser|flags=off|selected",
         ]);
     });
-    it("never asks about a full-run-only family, such as the On shards", () => {
-        const on = {
-            shard: "graphty-element-browser-features-on-1",
-            package: "graphty-element",
-            "full-run-only": true,
-        };
-        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    it("never asks about a full-run-only family, such as lifecycle", () => {
+        const life = { shard: "graphty-element-lifecycle", package: "graphty-element", "full-run-only": true };
+        assert.deepEqual(variantsOf([...shards, life], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    });
+    it("asks about an On family under flags=on: its selected files run on a pull request (#7847)", () => {
+        const on = { shard: "graphty-element-browser-features-on-1", package: "graphty-element", flags: "on" };
+        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), [
+            "graphty-element-browser|flags=off|whole",
+            "graphty-element-browser|flags=off|selected",
+            "graphty-element-browser-features-on|flags=on|whole",
+            "graphty-element-browser-features-on|flags=on|selected",
+        ]);
     });
     it("also asks for a story shard's screenshot family, whatever the family is called", () => {
         const stories = [
@@ -1257,6 +1270,17 @@ describe("the pull request rules", () => {
         assert.equal(q.get("variants"), `${FAMILY}|flags=off|whole,${FAMILY}|flags=off|selected`);
         const down = config({ RESULTS_URL: "http://127.0.0.1:9", GRAPHTY_RESULTS_TOKEN: "t" });
         assert.equal(await refreshPlan(plan, { cfg: down, sha: "h1", family: FAMILY, variant: o.variant }), plan);
+    });
+
+    it("asks an On twin's re-run for master's flags=on evidence, not flags=off (#7847)", async () => {
+        const plan = { base: "b1", affected: [], quarantine: [], failingOnBase: [] };
+        const s = await serve(() => ({ quarantine: [], failingOnBase: [{ name: "k" }] }));
+        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const on = "graphty-features-on";
+        const fresh = await refreshPlan(plan, { cfg, sha: "h1", family: on, variant: `${on}|flags=on|selected` });
+        assert.equal(fresh.failingOnBase[0].name, "k");
+        const q = new URL(s.seen.find((r) => r.url.startsWith("/v1/plan")).url, s.url).searchParams;
+        assert.equal(q.get("variants"), `${on}|flags=on|whole,${on}|flags=on|selected`);
     });
 
     it("leaves a run that did not end in test failures alone", () => {

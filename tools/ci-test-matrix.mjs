@@ -19,7 +19,9 @@
  *   files without coverage, replacing the shard it came from; a shard the plan selects nothing for is left
  *   out; a shard it runs whole stays as it is.
  *   --pull-request leaves out the shards marked "full-run-only" (and their bins): they run in the 6-hour full run
- *   (the features-on twins, FEATURES_ON_SHARDS, and graphty-element-lifecycle), unless --only names them.
+ *   (graphty-element-lifecycle, the fidelity slices), unless --only names them. A shard marked
+ *   "pull-request": "selected" (the features-on twins, FEATURES_ON_SHARDS) runs on a pull request only as the bins
+ *   of the files the change selected, never whole and never as a whole family packed into bins.
  * Prints three GITHUB_OUTPUT lines:
  *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
@@ -459,8 +461,10 @@ const on = (...projects) => projects.map((p) => `--project=${p}-${ON_SUFFIX}`).j
  * The "On" configuration (design/ci/channels-pipeline/features.md, section 7.3): the graphty-element and
  * graphty shards again with every declared experiment switched on, through the "<project>-features-on"
  * vitest projects (tools/features-on.mjs), which exist only under GRAPHTY_FEATURES_ON=1. The same commands as their Off twins without coverage (judged on
- * the Off run) or a blob report (the Off run's reports are the ones merged). "full-run-only": planned only
- * in a full run, never on a pull request (plan()). They exist only while graphty-element declares an
+ * the Off run) or a blob report (the Off run's reports are the ones merged). "pull-request": "selected": on a
+ * pull request only the bins of the files its change selected run (plan()), so a change that breaks a twin fails
+ * its own pull request (issue #7847: about 10 such changes reached the full run in two weeks); a whole twin
+ * family (an everything change, a config change) runs only in a full run. They exist only while graphty-element declares an
  * experiment: with none, On would equal Off, and SHARDS holds no On shard at all. `flags: "on"` makes
  * tools/results/run-group.mjs file their results under the store's flags=on variant.
  */
@@ -496,7 +500,7 @@ export const FEATURES_ON_SHARDS = [
         "test-command": `cd graphty && ${ON_ENV}=1 pnpm exec vitest run ${on("storybook")}`,
         "needs-browser": true,
     },
-].map((s) => ({ ...s, "full-run-only": true, local: "never", flags: "on" }));
+].map((s) => ({ ...s, "pull-request": "selected", local: "never", flags: "on" }));
 
 export const SHARDS = FEATURES_DECLARED ? [...OFF_SHARDS, ...FEATURES_ON_SHARDS] : OFF_SHARDS;
 
@@ -687,7 +691,8 @@ export function ciCommand(shard) {
  * @param affected package directory names
  * @param [only] shard names: when given, every other shard is left out
  * @param [light] tools/test-select.mjs --plan output: its bins replace their shards, its `none` shards are left out
- * @param [pullRequest] leave out the "full-run-only" shards and their bins (--only naming one plans it either way)
+ * @param [pullRequest] leave out the "full-run-only" shards and their bins, and every "pull-request": "selected"
+ *   shard but its selected bins (--only naming one plans it either way)
  * @param [shards] the shards to plan from (for tests)
  * @returns the matrix's include list
  */
@@ -696,10 +701,12 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
     // a light plan's binned and empty shards run as bins, or not at all
     const replaced = new Set([...(light?.none ?? []), ...(light?.bins ?? []).flatMap((b) => b.covers ?? [b.shard])]);
     const runs = (s) => !s?.["full-run-only"] || !pullRequest || only !== undefined;
+    // a "pull-request": "selected" shard runs on a pull request only as bins of the files the change selected
+    const whole = (s) => runs(s) && (s?.["pull-request"] !== "selected" || !pullRequest || only !== undefined);
     // a shard runs when its package is affected, or one its "affected-by" names (a dependency nx cannot see)
     const touched = (s) => [s.package, ...(s["affected-by"] ?? [])].some((p) => affected.includes(p));
     const wanted = (s) =>
-        touched(s) && (only === undefined || only.includes(s.shard)) && !replaced.has(s.shard) && runs(s);
+        touched(s) && (only === undefined || only.includes(s.shard)) && !replaced.has(s.shard) && whole(s);
     // A shard of its own uploads its coverage the way a group does, unless ci.yml has a step of its own
     // for it (graphty-element, webgpu-graph-algorithms) or it writes none.
     const include = shards
@@ -720,7 +727,7 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
     // a packed whole family (`whole`: its package) is left out with its package, as its shards would be
     const bins = (light?.bins ?? []).filter((b) => {
         const shard = shards.find((s) => s.shard === b.shard);
-        return runs(shard) && (!b.whole || touched(shard ?? { package: b.whole }));
+        return runs(shard) && (!b.whole || (touched(shard ?? { package: b.whole }) && whole(shard)));
     });
     const all = [...include, ...bins.map((b) => binEntry(b, shards))];
     return [...all.filter((e) => e.flags !== "on"), ...all.filter((e) => e.flags === "on")];

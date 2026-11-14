@@ -4,6 +4,8 @@
  * modules import from here, so they never pull in the reader.
  */
 
+import type { Column, GraphSnapshot } from "@graphty/graph-format";
+
 import type { PositionColumnExtra } from "./types.js";
 
 /**
@@ -49,6 +51,45 @@ export function toNeutral(
         p[1] = flipY(p[1]);
         p[2] = flipY(p[2]);
     }
+}
+
+/**
+ * A role-`position` column's rows in the neutral convention (center, y up), read through the
+ * spelling its `meta.extra` declares: what a writer that converts the neutral form to its own
+ * spelling (the Cytoscape family) starts from, so a column read from a y-down or top-left file
+ * (Pajek, yEd) is not written mirrored. A column that declares no spelling is already neutral and
+ * comes back as stored. Rows without a value are NaN.
+ * @param snapshot - the graph, for the width and height columns a top-left anchor names
+ * @param column - the position column
+ * @returns x, y, z per node
+ */
+export function neutralPositions(snapshot: GraphSnapshot, column: Column): Float64Array {
+    const extra = column.meta.extra as PositionColumnExtra;
+    const out = new Float64Array(3 * column.length).fill(Number.NaN);
+    for (let row = 0; row < column.length; row++) {
+        if (column.isSet(row)) {
+            const v = column.value(row) as ArrayLike<number>;
+            out.set([v[0], v[1], v.length > 2 ? v[2] : 0], 3 * row);
+        }
+    }
+    const width = extra.width === undefined ? null : snapshot.nodes.get(extra.width);
+    const height = extra.height === undefined ? null : snapshot.nodes.get(extra.height);
+    // as extractPositions() reads it: a 3D file whose z never differs (Pajek on a 2D drawing) is flat
+    const realZ = extra.sourceDims === 3 ? !constantZ(out) : hasZ(out);
+    const p: [number, number, number] = [0, 0, 0];
+    for (let i = 0; i < out.length; i += 3) {
+        const row = i / 3;
+        const size: [number, number] | null =
+            width?.isSet(row) === true && height?.isSet(row) === true
+                ? [Number(width.value(row)), Number(height.value(row))]
+                : null;
+        p[0] = out[i];
+        p[1] = out[i + 1];
+        p[2] = out[i + 2];
+        toNeutral(p, extra, size, realZ);
+        out.set(p, i);
+    }
+    return out;
 }
 
 /**
@@ -110,6 +151,26 @@ function hasZ(coords: Float64Array): boolean {
 }
 
 /**
+ * Whether every placed row has the same z (Pajek writes z = 0.5 on 2D drawings).
+ * @param values - the raw coordinates
+ * @returns true when z never differs
+ */
+export function constantZ(values: Float64Array): boolean {
+    let z = Number.NaN;
+    for (let i = 0; i < values.length; i += 3) {
+        if (Number.isNaN(values[i])) {
+            continue;
+        }
+        if (Number.isNaN(z)) {
+            z = values[i + 2];
+        } else if (values[i + 2] !== z) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * The median of some numbers.
  * @param values - the numbers, reordered in place
  * @returns the median, or null for none
@@ -127,8 +188,9 @@ export function median(values: number[]): number | null {
 /**
  * How each built-in writer that writes the position column as it stands spells a coordinate:
  * GML (y down, as yEd draws it) and Pajek (y down, z centered on 0.5). Every other built-in writer
- * either converts the neutral form itself (JSON, XGMML, CX, CX2, Cytoscape sessions, yEd graphics
- * in a styled GraphML) or writes a y-up format (GEXF, DOT).
+ * either converts the neutral form itself, reading the column through `neutralPositions()` (JSON,
+ * XGMML, CX, CX2, Cytoscape sessions, yEd graphics in a styled GraphML), or writes a y-up format
+ * (GEXF, DOT).
  */
 const WRITTEN_SPELLING: Readonly<Partial<Record<string, PositionColumnExtra>>> = {
     gml: { yAxis: "down" },

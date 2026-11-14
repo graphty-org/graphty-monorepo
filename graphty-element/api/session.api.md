@@ -2820,6 +2820,24 @@ export interface GroupOverlap {
 }
 
 // @public
+export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
+
+// @public
+export interface GroupTable {
+    readonly columns: readonly string[];
+    readonly groupBy: Path;
+    readonly rows: readonly GroupTableRow[];
+}
+
+// @public
+export interface GroupTableOptions {
+    readonly summaries?: Readonly<Record<Path, readonly GroupSummary[]>>;
+}
+
+// @public
+export type GroupTableRow = Readonly<Record<string, string | number | boolean | null>>;
+
+// @public
 export interface HighlightSpec {
     readonly field?: string;
     readonly name?: string;
@@ -5966,6 +5984,7 @@ export interface SessionDataApi {
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
+    groupTable(groupBy: Path, options?: GroupTableOptions): GroupTable;
     hiddenColumns(): readonly ColumnRef[];
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;

@@ -3384,11 +3384,12 @@ export interface ProjectConfig {
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**
      * What a pinned node's halo looks like, in the shape of {@link ProjectConfig.selectionStyle}
-     * (only `color`, `scale` and `opacity` are read). Absent by default. Set while
-     * {@link ProjectConfig.startingRows} is on, the starting rows gain a fifth, Pinned (nodes in
-     * the state `"pinned"`, pinned to the top directly below Selected, drawing this halo); cleared,
-     * the row is taken away. The look is the consumer's choice, so nothing is drawn for a pinned
-     * node until it is set.
+     * (only `color`, `scale` and `opacity` are read). Absent by default. Set when
+     * {@link ProjectConfig.startingRows} turns on (in the same `config.set` or before), the default
+     * rows gain a Pinned row (nodes in the state `"pinned"`, pinned to the top directly below
+     * Selected, drawing this halo). The row is ordinary data from then on: changing or clearing
+     * this setting later leaves it as it is. The look is the consumer's choice, so nothing is drawn
+     * for a pinned node until it is set.
      *
      * ```ts
      * await session.config.set({ startingRows: true, pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } });
@@ -3397,15 +3398,15 @@ export interface ProjectConfig {
      */
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     /**
-     * Whether the style tree starts with its three starting rows: Everything (pinned to the
-     * bottom, writing nothing), Selected (pinned to the top, drawing a solid node halo and edge band
-     * in the selection settings' colors and sizes, a gold ring and a blue band by default) and Hovered
-     * (pinned to the top, writing nothing). False by default.
-     * Turned on, the rows are added in the same step, and the selection settings
-     * ({@link ProjectConfig.selectionStyle}) draw nothing themselves; `styles.restoreStartingRows()`
-     * brings back any a reader deleted. While a time field is designated, a fourth row, Ghost, sits
-     * directly below Selected: it paints the elements outside the time window grey at low opacity
-     * when the timeline draws them (`session.time.setSettings({ outside: "ghost" })`).
+     * Whether the project draws with its default rows: Everything (pinned to the bottom, writing
+     * nothing), Selected (pinned to the top, drawing a solid node halo and edge band in the selection
+     * settings' colors and sizes, a gold ring and a blue band by default) and Hovered (pinned to the
+     * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
+     * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.
+     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; with the timeline on, a
+     * Ghost row (the elements outside the time window, grey at low opacity, when the timeline draws
+     * them: `session.time.setSettings({ outside: "ghost" })`). The rows are ordinary data: a reader
+     * may delete or change any of them, and no later setting adds, removes or rewrites one.
      * @since 3.26.0
      */
     readonly startingRows: boolean;
@@ -3413,8 +3414,8 @@ export interface ProjectConfig {
      * Whether the element's base look (every node and edge value it draws before any layer says
      * otherwise) is held by the Everything starting row as ordinary values a reader can edit or
      * remove, instead of by the element's two locked base layers. False by default. With it on, the
-     * locked base layers paint nothing, the Everything row is added (or restored) holding the base
-     * values when {@link ProjectConfig.startingRows} is on, and an element that no shown layer
+     * locked base layers paint nothing, the Everything row is written holding the base values when
+     * {@link ProjectConfig.startingRows} turns on (in the same `config.set` or after), and an element that no shown layer
      * paints is not drawn: hiding the Everything row hides every element no other shown layer
      * paints, and an element a shown layer paints stays drawn in that layer's look.
      * @since 3.26.0
@@ -4048,7 +4049,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `style.pin-row` | `row`: its name, or its id; `pin`: `"top"`, `"bottom"` or `"none"` |
  * | `style.lock-row` | `row`: its name, or its id; `locked` |
  * | `style.hide-row` | `row`: its name, or its id; `hidden` |
- * | `style.restore-starting-rows` | none |
+ * | `style.add-default-rows` | none |
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
@@ -4140,7 +4141,7 @@ export type HistoryCode =
     | "style.lock-row"
     | "style.hide-row"
     | "style.delete-row"
-    | "style.restore-starting-rows"
+    | "style.add-default-rows"
     | "shader.add"
     | "shader.replace"
     | "shader.remove"

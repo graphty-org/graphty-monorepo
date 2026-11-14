@@ -443,7 +443,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "addFolder",
                 "pinRow",
                 "lockRow",
-                "restoreStartingRows",
                 "layersUnder",
                 "layerGroups",
                 "highlightStyle",

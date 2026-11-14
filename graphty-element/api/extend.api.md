@@ -719,7 +719,7 @@ export interface DefaultPaletteControls {
         readonly diverging?: string;
     }, options?: {
         readonly reapply?: boolean;
-    }): void;
+    }): Promise<void>;
 }
 
 // @public

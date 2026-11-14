@@ -163,8 +163,8 @@ export class RowIdRecords<I, R> {
      * @yields Each, in row order.
      */
     *values(): Generator<{ id: I; record: R }> {
-        for (const [, value] of this) {
-            yield value;
+        for (const [row, id] of this.ids) {
+            yield { id, record: this.records[row] as R };
         }
     }
 

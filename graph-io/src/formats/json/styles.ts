@@ -21,6 +21,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { itemAt } from "../../common/text.js";
+import { flipY } from "../../positions/convert.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonBoolean, canonNumber, canonOpacity } from "../../styles/canon/number.js";
@@ -288,6 +289,28 @@ function directedArrows(snapshot: GraphSnapshot): {
 function cells(snapshot: GraphSnapshot, target: StyleTarget, name: string): ((i: number) => unknown) | null {
     const table = target === "node" ? snapshot.nodes : snapshot.edges;
     return table.has(name) ? (i: number) => plainCell(table.value(name, i)) : null;
+}
+
+/**
+ * vis.js: each node's `x` and `y` as the file wrote them: the role-`position` column the importer made of numeric ones
+ * (its y flipped back to down), else the plain `x` / `y` cells (text vis-network parses as a number).
+ * @param snapshot - the graph
+ * @returns the x and y readers
+ */
+function visPlaces(
+    snapshot: GraphSnapshot,
+): readonly [((i: number) => unknown) | null, ((i: number) => unknown) | null] {
+    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    const position = snapshot.nodes.byRole("position");
+    if (position === null) {
+        return [xs, ys];
+    }
+    const down = (k: 0 | 1, v: number): number => (k === 1 ? flipY(v) : v);
+    const at =
+        (k: 0 | 1, plain: ((i: number) => unknown) | null) =>
+        (i: number): unknown =>
+            position.isSet(i) ? down(k, (position.value(i) as ArrayLike<number>)[k]) : plain?.(i);
+    return [at(0, xs), at(1, ys)];
 }
 
 /**
@@ -2530,7 +2553,7 @@ function visGeometry(snapshot: GraphSnapshot, nodeValues: Values, shapes: readon
         }
         return typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : Number.NaN;
     };
-    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    const [xs, ys] = visPlaces(snapshot);
     const num = (v: StyleValue | null | undefined): number | null => (typeof v === "number" && v > 0 ? v : null);
     return {
         at: (i) => {
@@ -2845,7 +2868,7 @@ function visSupport(physics: unknown, layout: unknown, placed: boolean): Row | n
  * @returns true when every node is placed
  */
 function visPlacesAll(snapshot: GraphSnapshot): boolean {
-    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    const [xs, ys] = visPlaces(snapshot);
     // as visGeometry reads a place: a number, or a string vis-network parses as one
     const at = (cell: ((i: number) => unknown) | null, i: number): boolean => {
         const v = cell?.(i);

@@ -16,20 +16,42 @@ const PR_CHECKS = `
       ... on StatusContext { context state createdAt } } } } } } }
   stackCommits: commits(last: 100) { nodes { commit { oid } } }`;
 
-/** Open pull requests the collector reads: one page. A full page may have left some out. */
-export const OPEN_PAGE = 50;
+/** Open pull requests a page of the open list, without checks (50 with checks took GitHub 11 s, a 504, #7815). */
+const OPEN_PAGE = 100;
+/** Open pull requests the collector reads at most: a longer list is incomplete (isGhostRun calls nothing a ghost). */
+export const OPEN_CAP = 300;
+/**
+ * Open pull requests whose checks one request asks for: 10 answered in at most 2.4 s and 15 in up to 4.2 s, while
+ * 50 took 11 s (a 504, #7815). Older pull requests carry more checks, so batches of the same size vary.
+ */
+export const CHECKS_BATCH = 10;
+
+const openList = (after: string): string =>
+    `open: pullRequests(states: OPEN, first: ${OPEN_PAGE}, after: ${after}, orderBy: {field: UPDATED_AT, direction: DESC})`;
 
 /**
- * Open pull requests with their checks (first page only, for the stocks) and the most recently updated ones
- * without checks, paged: both with checks in one query timed out at GitHub (a 504).
+ * The first page of open pull requests without their checks (CHECKS_QUERY adds them) and the most recently updated
+ * ones, paged. Asking for the checks of 50 open pull requests in this query took GitHub over 10 s (a 504, #7815).
  */
 export const PR_QUERY = `query($owner: String!, $name: String!, $cursor: String, $withOpen: Boolean!) {
   repository(owner: $owner, name: $name) {
-    open: pullRequests(states: OPEN, first: ${OPEN_PAGE}, orderBy: {field: UPDATED_AT, direction: DESC}) @include(if: $withOpen) {
-      pageInfo { hasNextPage endCursor } nodes { ${PR_BASE} ${PR_CHECKS} } }
+    ${openList("null")} @include(if: $withOpen) {
+      pageInfo { hasNextPage endCursor } nodes { id ${PR_BASE} } }
     recent: pullRequests(first: 50, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
       pageInfo { hasNextPage endCursor } nodes { ${PR_BASE} } }
   }
+}`;
+
+/** The later pages of open pull requests, when more than OPEN_PAGE are open. */
+export const OPEN_QUERY = `query($owner: String!, $name: String!, $after: String!) {
+  repository(owner: $owner, name: $name) {
+    ${openList("$after")} { pageInfo { hasNextPage endCursor } nodes { id ${PR_BASE} } }
+  }
+}`;
+
+/** The head checks and commits of a batch of at most CHECKS_BATCH open pull requests, by node id. */
+export const CHECKS_QUERY = `query($ids: [ID!]!) {
+  nodes(ids: $ids) { ... on PullRequest { id ${PR_CHECKS} } }
 }`;
 
 const ISSUE_FIELDS = `number title state stateReason createdAt updatedAt closedAt labels(first: 20) { nodes { name } }`;

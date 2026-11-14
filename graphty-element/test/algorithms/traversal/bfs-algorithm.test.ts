@@ -2,20 +2,9 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
-import { createMockGraph, getNodeResult, type MockGraphOpts } from "../../helpers/mockGraph";
+import { asNumber, createMockGraph, getNodeResult } from "../../helpers/mockGraph";
 
-/**
- * The shared mock, kept behind the name and the loose return type this file already used.
- *
- * It carries a real graph store, which is where an algorithm now reads its input from; the node
- * and edge maps it also exposes are where the results land.
- * @param opts - which fixture to load
- * @returns the mock graph
- */
-
-async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    return createMockGraph(opts);
-}
+const mockGraph = createMockGraph;
 
 describe("BFSAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -53,7 +42,7 @@ describe("BFSAlgorithm", () => {
             for (const node of fakeGraph.nodes.values()) {
                 const level = getNodeResult(algo, node.id, "graphty", "bfs", "level");
                 if (level !== undefined) {
-                    assert.isAtLeast(level, 0);
+                    assert.isAtLeast(asNumber(level), 0);
                 }
             }
         });
@@ -67,8 +56,8 @@ describe("BFSAlgorithm", () => {
             for (const node of fakeGraph.nodes.values()) {
                 const levelPct = getNodeResult(algo, node.id, "graphty", "bfs", "levelPct");
                 if (levelPct !== undefined) {
-                    assert.isAtLeast(levelPct, 0);
-                    assert.isAtMost(levelPct, 1);
+                    assert.isAtLeast(asNumber(levelPct), 0);
+                    assert.isAtMost(asNumber(levelPct), 1);
                 }
             }
         });
@@ -83,7 +72,7 @@ describe("BFSAlgorithm", () => {
             for (const node of fakeGraph.nodes.values()) {
                 const order = getNodeResult(algo, node.id, "graphty", "bfs", "visitOrder");
                 if (order !== undefined) {
-                    visitOrders.add(order);
+                    visitOrders.add(asNumber(order));
                 }
             }
 

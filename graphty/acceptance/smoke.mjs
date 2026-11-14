@@ -73,8 +73,8 @@ function watch(page) {
     const errors = [];
     page.on("console", (m) => {
         if (m.type() !== "error") return;
-        const at = m.location().url;
-        errors.push(`console: ${m.text().split("\n")[0]}${at ? ` (${at})` : ""}`);
+        const at = m.location().url ? " (" + m.location().url + ")" : "";
+        errors.push(`console: ${m.text().split("\n")[0]}${at}`);
     });
     page.on("pageerror", (e) => errors.push(`thrown: ${e.message.split("\n")[0]}`));
     return errors;
@@ -211,7 +211,8 @@ function options(argv) {
         if (routes && Boolean(v.dist) === Boolean(v.url))
             throw new Error("give the routes one site, --dist <dir> or --url <origin> (or --no-routes)");
         if (!routes && !v.element) throw new Error("--no-routes needs --element");
-        return { ...v, routes, picked: routes ? select(v.only ? v.only.split(",").filter(Boolean) : null) : [] };
+        const only = v.only ? v.only.split(",").filter(Boolean) : null;
+        return { ...v, routes, picked: routes ? select(only) : [] };
     } catch (err) {
         console.error(`${err.message}; see the comment at the top of ${fileURLToPath(import.meta.url)}`);
         process.exit(2);
@@ -226,9 +227,9 @@ async function main(o) {
     const results = [];
     const report = (r) => {
         results.push(r);
-        console.log(
-            `${r.result.padEnd(4)} ${`${(r.ms / 1000).toFixed(1)} s`.padStart(8)}  ${r.id}${r.reason ? `: ${r.reason}` : ""}`,
-        );
+        const time = `${(r.ms / 1000).toFixed(1)} s`.padStart(8);
+        const why = r.reason ? ": " + r.reason : "";
+        console.log(`${r.result.padEnd(4)} ${time}  ${r.id}${why}`);
     };
     let http = null;
     try {

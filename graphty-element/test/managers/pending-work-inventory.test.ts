@@ -224,7 +224,7 @@ const INVENTORY: Record<string, Covered> = {
         reason: "a shader's thumbnail for a picker, fetched for the application; never drawn on the canvas",
     },
     "src/xr/XRSessionManager.ts": {
-        count: 1,
+        count: 2,
         reason: "an immersive session's module; while one runs the picture moves with the head and is never final",
     },
 };

@@ -5,6 +5,7 @@
  */
 
 import type { XRReferenceSpaceType } from "../xr/XRSessionManager";
+import { xrConfigSchema } from "./xr-config-schema";
 
 /**
  * UI configuration for XR buttons
@@ -18,7 +19,7 @@ export interface XRUIConfig {
 
     /**
      * Position of the XR buttons on screen
-     * @default "bottom-left"
+     * @default "bottom-right"
      */
     position: "bottom-left" | "bottom-right" | "top-left" | "top-right";
 
@@ -162,7 +163,7 @@ export interface XRAiConfig {
 export interface XRConfig {
     /**
      * Enable XR features globally
-     * @default true
+     * @default false
      */
     enabled: boolean;
 
@@ -191,37 +192,10 @@ export interface XRConfig {
 }
 
 /**
- * Default XR configuration
+ * Default XR configuration: the schema's defaults, so the two cannot disagree.
  *
  * Note: XR is disabled by default to avoid issues with navigator.xr.isSessionSupported()
  * hanging in headless browser environments (CI, tests). Users who want XR should
  * explicitly enable it by setting xr.enabled: true in their configuration.
  */
-export const defaultXRConfig: XRConfig = {
-    enabled: false,
-    ui: {
-        enabled: true,
-        position: "bottom-right",
-        unavailableMessageDuration: 5000,
-        showAvailabilityWarning: false,
-        vrLabel: "VR",
-        arLabel: "AR",
-        unavailableLabel: "VR / AR NOT AVAILABLE",
-    },
-    vr: {
-        enabled: true,
-        referenceSpaceType: "local-floor",
-        optionalFeatures: [],
-    },
-    ar: {
-        enabled: true,
-        referenceSpaceType: "local-floor",
-        optionalFeatures: [],
-    },
-    input: {
-        handTracking: true,
-        nearInteraction: true,
-        zAxisAmplification: 10,
-        enableZAmplificationInDesktop: false,
-    },
-};
+export const defaultXRConfig: XRConfig = xrConfigSchema.parse({});

@@ -2,6 +2,7 @@ import { assert } from "chai";
 import { describe, test } from "vitest";
 
 import { xrConfigSchema } from "../../src/config/xr-config-schema";
+import { defaultXRConfig } from "../../src/config/XRConfig";
 
 describe("XR Configuration Schema", () => {
     describe("Valid configurations", () => {
@@ -161,6 +162,13 @@ describe("XR Configuration Schema", () => {
                 const result = xrConfigSchema.safeParse(config);
                 assert.isTrue(result.success, `Type ${type} should be valid`);
             });
+        });
+    });
+
+    describe("Defaults", () => {
+        test("are the ones the element uses: XR off, and the schema and defaultXRConfig agree", () => {
+            assert.deepEqual(xrConfigSchema.parse({}), defaultXRConfig);
+            assert.isFalse(defaultXRConfig.enabled);
         });
     });
 

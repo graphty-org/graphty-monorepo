@@ -22,10 +22,11 @@ const xrControllerButton = z.enum(["a", "b", "x", "y"]);
 export const xrConfigSchema = z
     .object({
         /**
-         * Enable/disable XR functionality globally
-         * @default true
+         * Enable/disable XR functionality globally. Off by default: asking a headless browser
+         * which XR modes it supports can hang.
+         * @default false
          */
-        enabled: z.boolean().default(true),
+        enabled: z.boolean().default(false),
 
         /**
          * XR UI button configuration

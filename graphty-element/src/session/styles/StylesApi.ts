@@ -165,11 +165,11 @@ import {
     colorsOf,
     DEFAULT_GRAY_THRESHOLD,
     grayCollisionsOf,
+    grayUsesOf,
     replaceColorPatch,
     type StyleColor,
     type StyleGrayCollision,
     type StyleGrayCollisionOptions,
-    type StyleGrayUse,
 } from "./colors";
 import {
     type BindingPreview,
@@ -5438,31 +5438,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         grayCollisions(options: StyleGrayCollisionOptions = {}): readonly StyleGrayCollision[] {
-            const uses: { color: string; use: StyleGrayUse }[] = [];
-            for (const layer of legendSources.layers()) {
-                for (const block of buildLayerLegend(legendSources, layer.id) ?? []) {
-                    // A ramp blends on purpose, and a block painting nothing now is not in use.
-                    const ramp = block.kind === "sequential" || block.kind === "diverging";
-                    if (ramp || block.painted === 0 || channelDescriptor(block.channel)?.accepts !== "color") {
-                        continue;
-                    }
-
-                    for (const swatch of block.swatches) {
-                        if (
-                            swatch.color !== undefined &&
-                            swatch.paintedOverBy === undefined &&
-                            swatch.hidden !== true
-                        ) {
-                            const use = { layer: block.layerId, channel: block.channel };
-                            uses.push({
-                                color: swatch.color,
-                                use: block.kind === "literal" ? use : { ...use, value: swatch.value },
-                            });
-                        }
-                    }
-                }
-            }
-
+            const uses = legendSources
+                .layers()
+                .flatMap((layer) => (buildLayerLegend(legendSources, layer.id) ?? []).flatMap(grayUsesOf));
             return grayCollisionsOf(uses, options.threshold ?? DEFAULT_GRAY_THRESHOLD);
         },
 

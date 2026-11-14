@@ -15,7 +15,7 @@
 import type { Binding, Channel, ChannelValue, LayerId, LayerSpec, Rgba } from "../../catalog/types";
 import { channelDescriptor, toColorValue } from "./channels";
 import type { Layer } from "./Layer";
-import { luminance } from "./legend";
+import { type LegendBlock, luminance } from "./legend";
 
 /** One place a layer writes a colour. */
 export interface ColorWrite {
@@ -237,6 +237,28 @@ export function lightnessOf(color: { r: number; g: number; b: number }): number 
 }
 
 /**
+ * The colours one legend block draws, each with where: none for a colour ramp, whose steps blend
+ * on purpose, for a block painting nothing now, or for a channel that is not a colour; and no row
+ * a layer above paints over.
+ * @param block - The block.
+ * @returns Each colour and its use.
+ */
+export function grayUsesOf(block: LegendBlock): { color: string; use: StyleGrayUse }[] {
+    const ramp = block.kind === "sequential" || block.kind === "diverging";
+    if (ramp || block.painted === 0 || !isColorChannel(block.channel)) {
+        return [];
+    }
+
+    const use = { layer: block.layerId, channel: block.channel };
+    return block.swatches
+        .filter((swatch) => swatch.color !== undefined && swatch.paintedOverBy === undefined && swatch.hidden !== true)
+        .map((swatch) => ({
+            color: swatch.color ?? "",
+            use: block.kind === "literal" ? use : { ...use, value: swatch.value },
+        }));
+}
+
+/**
  * Every pair of distinct colours whose lightness differs by less than the threshold.
  * @param uses - Each colour drawn and where, in paint order; one colour may be listed many times.
  * @param threshold - The smallest L* difference that does not collide.
@@ -274,5 +296,6 @@ export function grayCollisionsOf(
         }
     }
 
-    return Object.freeze(found.sort((a, b) => a.difference - b.difference));
+    found.sort((a, b) => a.difference - b.difference);
+    return Object.freeze(found);
 }

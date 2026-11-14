@@ -9,6 +9,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { WRITABLE_LANE } from "../../src/data/lane";
 import { click } from "../helpers/real-input";
 import {
     adapterSays,
@@ -41,6 +42,34 @@ describe("the layout filling the row table on a shared device", () => {
         const uploadsBeforeRead = table.positionUploads;
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
         assert.strictEqual(table.positionUploads - uploadsBeforeRead, 0);
+    });
+
+    it("touches no row on the CPU per landing, and publishes the rows when something reads them", async () => {
+        const graph = await running("batched");
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        await copied(graph);
+        await landed(graph);
+        const lane = graph.getDataManager()[WRITABLE_LANE];
+        const engine = layoutOf(graph);
+        const { copies, repackedRows } = table;
+        const written = lane.generation;
+        const walked = engine.rowsWalked;
+        await landed(graph);
+        await landed(graph);
+        await landed(graph);
+
+        // each landing went up by copy, and no row was written, repacked or walked on the CPU for it
+        assert.isAtLeast(table.copies - copies, 2);
+        assert.strictEqual(lane.generation - written, 0);
+        assert.strictEqual(table.repackedRows - repackedRows, 0);
+        assert.strictEqual(engine.rowsWalked - walked, 0);
+
+        // a read publishes the rows the card shows
+        const at = graph.getNode("n0")?.getPosition();
+        assert.isTrue(Number.isFinite(at?.x));
+        assert.isAbove(lane.generation - written, 0);
+        assert.isBelow((await textureDiff(graph)).worst, 1e-5);
     });
 
     it("shows the rows added while it runs once the layout places them", async () => {

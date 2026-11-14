@@ -1124,6 +1124,27 @@ a node drawn as an object, any hidden row (`RowTable.hiddenRows`), a layout tran
 outside its publish (a scope or followers). Labels and bent edges are not framed while the layout moves. The box's
 eight corners are the framing's spots, so `camera.fitBounds` "turning" keeps the whole box in view as the camera turns.
 
+As built (cosmos-gap stage 119): a landing copied on the card is no longer also published on the CPU. Before, every
+layout frame still ran the CPU publish beside the copy: `publishColumn` over every row, the table's repack of every
+row, and the skip-mask walk, 49 ms of an 82 ms CPU frame at 1M + 1M. Now, when the landing goes up by copy, the
+simulation engine copies it, sends the transform and owes the lane its publish (`ElementPositions.owe`). The first read
+or write of a row writes it: `view`, `read`, `isPlaced`, `write`, `grow`, `remap`, `setPinned`, and on the table
+`rowPosition`, `rowBounds` and `centerOf` (`RowTable.catchUp`), so a pick, a node's position, an export, a drag and a
+freeze see the rows the card shows. The rows come from the newest landing, with the transform that landing drew with.
+`generation` and `changes` do not trigger it, so a frame that only checks whether the lane moved writes nothing. A
+flush that has touched rows to send writes the owed publish first, because rows go up in whole texture lines. The skip
+walk runs only when something can have changed it: a fixed row, a hold or followers, or a table write to a row it
+keeps (`RowTable.ownRowWrites`). Three things are left. The envelope is still measured on every landing, because it is
+the transform the next batches draw with; that is two read-only passes over the read-back (13 ms a frame at 1M rows).
+While a publish is owed, the zoom-to-fit of a running layout frames the envelope's sphere (target centre plus or minus
+the scaling radius) instead of the rows' own box, which can frame a little more loosely. And a built `Node`, a label on
+one, or anything else that reads a row on every frame still writes the publish on every frame, at today's cost.
+Counted in `shared-device-drawn.test.ts`: across three copied landings, `ElementPositions.generation`,
+`RowTable.repackedRows` and the engine's `rowsWalked` do not move; reading a node's position then publishes the rows,
+and the texture equals the CPU copy. Measured on paced WebGPU, interleaved, load average 16-20: the layout frame went
+from 169 ms to 86 ms at 1M + 1M and from 114 ms to 73 ms at 100k + 1M. Both are now GPU-bound, on the line draw plus
+the layout's own passes on the shared device.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,

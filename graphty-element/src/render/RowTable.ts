@@ -130,6 +130,14 @@ class RowTexture {
         }
     }
 
+    /**
+     * Whether rows wait to go up.
+     * @returns True when a row was touched since the last upload.
+     */
+    get dirty(): boolean {
+        return this.first <= this.last;
+    }
+
     touch(first: number, last = first): void {
         this.first = Math.min(this.first, first);
         this.last = Math.max(this.last, last);
@@ -204,8 +212,6 @@ function moveRows(
  * keeps it out of the repack until the mesh and the lane agree again.
  */
 export class RowTable {
-    /** The `rowBounds` table: x, y, z and bounding radius times w, so radius 0 means hidden. */
-    rowBounds: Float32Array<ArrayBuffer>;
     /** Rows in the tables: the lane's count at the last freeze. */
     rows = 0;
     /** Calls that sent a texture to the card. */
@@ -227,6 +233,16 @@ export class RowTable {
      */
     drawnMirror: ((row: number, x: number, y: number, z: number, w: number) => void) | null = null;
 
+    /** Rows {@link RowTable.flush} copied from the lane: CPU rows a frame touched. */
+    repackedRows = 0;
+    /**
+     * Counts every write that can change which rows keep their own place ({@link RowTable.keepsOwnRow}):
+     * unchanged, a layout skips the walk that finds them.
+     */
+    ownRowWrites = 0;
+
+    /** x, y, z and bounding radius times w, so radius 0 means hidden. */
+    private bounds: Float32Array<ArrayBuffer>;
     private readonly positions: RowTexture;
     private readonly extents: RowTexture;
     private flags: Uint8Array<ArrayBuffer>;
@@ -253,7 +269,7 @@ export class RowTable {
         const { capacity } = lane();
         this.positions = new RowTexture(scene, POSITION_FLOATS, capacity);
         this.extents = new RowTexture(scene, EXTENT_FLOATS, capacity);
-        this.rowBounds = new Float32Array(this.positions.floats.length);
+        this.bounds = new Float32Array(this.positions.floats.length);
         this.flags = new Uint8Array(this.positions.floats.length / POSITION_FLOATS);
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
@@ -282,7 +298,17 @@ export class RowTable {
      * @returns The array.
      */
     get rowPosition(): Float32Array<ArrayBuffer> {
+        this.catchUp();
         return this.positions.floats;
+    }
+
+    /**
+     * The `rowBounds` table: x, y, z and bounding radius times w, so radius 0 means hidden.
+     * @returns The array.
+     */
+    get rowBounds(): Float32Array<ArrayBuffer> {
+        this.catchUp();
+        return this.bounds;
     }
 
     /**
@@ -379,6 +405,8 @@ export class RowTable {
         device.queue.submit([encoder.finish()]);
         this.positions.clean();
         this.copied = true;
+        // The rows are drawn somewhere new, whether or not the lane follows them this frame.
+        this.moves++;
         this.copies++;
         return true;
     }
@@ -410,6 +438,7 @@ export class RowTable {
      * @returns A new vector.
      */
     centerOf(row: number): Vector3 {
+        this.catchUp();
         const { floats } = this.positions;
         const base = row * POSITION_FLOATS;
         return new Vector3(floats[base], floats[base + 1], floats[base + 2]);
@@ -470,11 +499,12 @@ export class RowTable {
         const atLane =
             Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (this.twoD ? 0 : lane.z);
         const flags = this.flags[row] ?? 0;
+        this.ownRowWrites++;
         this.flags[row] = atLane ? flags & ~HELD : flags | HELD;
         this.moves++;
         const base = row * POSITION_FLOATS;
         const { floats } = this.positions;
-        const bounds = this.rowBounds;
+        const { bounds } = this;
         floats[base] = bounds[base] = x;
         floats[base + 1] = bounds[base + 1] = y;
         floats[base + 2] = bounds[base + 2] = z;
@@ -497,6 +527,7 @@ export class RowTable {
         }
 
         const flags = this.flags[row] ?? 0;
+        this.ownRowWrites++;
         this.flags[row] = w === 1 ? flags & ~SHRUNK : flags | SHRUNK;
         if ((flags & HIDDEN) === 0) {
             this.writeW(row, w);
@@ -534,6 +565,7 @@ export class RowTable {
     drop(row: number): void {
         if (row < this.rows) {
             this.hiddenCount += ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
+            this.ownRowWrites++;
             this.flags[row] = HIDDEN;
             this.writeW(row, 0);
         }
@@ -585,13 +617,14 @@ export class RowTable {
     replaced(remap: U32 | null, nodes: Iterable<Node>): void {
         const lane = this.lane();
         this.moves++;
+        this.ownRowWrites++;
         this.positions.follow(remap, lane.capacity);
         this.extents.follow(remap, lane.capacity);
         const { length } = this.positions.floats;
-        if (remap !== null || length > this.rowBounds.length) {
+        if (remap !== null || length > this.bounds.length) {
             const bounds = new Float32Array(length);
-            moveRows(this.rowBounds, bounds, POSITION_FLOATS, remap);
-            this.rowBounds = bounds;
+            moveRows(this.bounds, bounds, POSITION_FLOATS, remap);
+            this.bounds = bounds;
             const flags = new Uint8Array(length / POSITION_FLOATS);
             moveRows(this.flags, flags, 1, remap);
             this.flags = flags;
@@ -621,6 +654,7 @@ export class RowTable {
     /** Forget every row: the dataset was cleared. */
     cleared(): void {
         this.moves++;
+        this.ownRowWrites++;
         this.flags.fill(0);
         this.hiddenCount = 0;
         this.widest = 0;
@@ -631,6 +665,12 @@ export class RowTable {
     /** Bring the tables up to the lane and send what changed. Runs before every frame. */
     flush(): void {
         const lane = this.lane();
+        // Rows go up in whole texture lines from the CPU copy, so a publish the lane owes is written
+        // first, or the line would carry the rest of its rows back to an older landing.
+        if (this.positions.dirty) {
+            lane.settle();
+        }
+
         const twoD = this.scene.metadata?.twoD === true;
         if (lane.changes !== this.laneChanges || twoD !== this.twoD) {
             this.twoD = twoD;
@@ -653,6 +693,13 @@ export class RowTable {
         }
     }
 
+    /** Bring the CPU copy up to a publish the lane owes (`ElementPositions.owe`) before it is read. */
+    private catchUp(): void {
+        if (this.lane().settle()) {
+            this.flush();
+        }
+    }
+
     /** Stop following the frames and free the textures. */
     dispose(): void {
         this.stopFlush();
@@ -668,6 +715,7 @@ export class RowTable {
     private repack(lane: Float32Array, send: boolean): void {
         const { flags } = this;
         const rows = lane.length / 3;
+        this.repackedRows += rows;
         for (let row = 0; row < rows; row++) {
             if (((flags[row] ?? 0) & (HELD | SHRUNK)) === 0) {
                 this.repackRow(row, lane);
@@ -688,7 +736,7 @@ export class RowTable {
         const from = row * 3;
         const to = row * POSITION_FLOATS;
         const { floats } = this.positions;
-        const bounds = this.rowBounds;
+        const { bounds } = this;
         const x = lane[from] ?? Number.NaN;
         const placed = Number.isFinite(x);
         const w = placed && ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
@@ -709,7 +757,7 @@ export class RowTable {
     private writeW(row: number, w: number): void {
         const base = row * POSITION_FLOATS;
         this.positions.floats[base + 3] = w;
-        this.rowBounds[base + 3] = (this.extents.floats[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
+        this.bounds[base + 3] = (this.extents.floats[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
         this.positions.touch(row);
         this.mirror(row);
     }

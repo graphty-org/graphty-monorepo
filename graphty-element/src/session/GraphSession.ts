@@ -4075,11 +4075,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
     // `session.hidden`, forward or on undo and redo: repaint the nodes whose hiding moved and the
     // edges touching them, so the pass draws them hidden or as their layers paint them.
-    dispatcher.lane.register("visibility", (rendered, target) => {
+    dispatcher.lane.register("visibility", (rendered, target): Promise<unknown> | undefined => {
         const before = rendered.visibility.hidden ?? [];
         const after = target.visibility.hidden ?? [];
         if (stack === null || before === after) {
-            return;
+            return undefined;
         }
 
         const graph = snapshot();
@@ -4094,7 +4094,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }
 
         if (moved.size === 0) {
-            return;
+            return undefined;
         }
 
         // ponytail: walks every edge (O(E)) per hide; an incidence index if hiding is ever per frame.
@@ -4106,7 +4106,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             }
         }
 
-        // Returned, so the pass -- and the step or undo that waits on it -- settles once it is drawn.
+        // Returned, so the pass -- and the step or undo that waits on it -- settles once it is drawn;
+        // a pass that hides nothing new stays synchronous.
         return painter
             .repaintElements(
                 stack.compiled(),

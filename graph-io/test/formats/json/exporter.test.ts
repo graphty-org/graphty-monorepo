@@ -505,7 +505,23 @@ describe("check() notes", () => {
         const full = new GraphBuilder({ directed: true });
         full.declareNodeColumn({ name: "position", dtype: "f64", components: 3, role: "position" });
         full.setNodeValue("position", full.addNode("a"), [1, 2, 3]);
-        expect((await exported(full.freeze(), { dialect: "vis" })).nodes).toEqual([{ id: "a", position: [1, 2, 3] }]);
+        // vis-network's x / y, its y growing downward; the z is dropped (reported)
+        const visNotes = jsonExporter.check(full.freeze(), { dialect: "vis" });
+        expect(note(visNotes, JSON_LOSS.POSITION_Z_DROPPED)?.count).toBe(1);
+        expect((await exported(full.freeze(), { dialect: "vis" })).nodes).toEqual([{ id: "a", x: 1, y: -2 }]);
+        expect((await exported(full.freeze(), { dialect: "graphology" })).nodes).toEqual([
+            { key: "a", attributes: { x: 1, y: 2 } },
+        ]);
+        // a plain x / y column cannot share the keys the position is written under
+        const both = new GraphBuilder({ directed: true });
+        both.declareNodeColumn({ name: "y", dtype: "f64" });
+        both.declareNodeColumn({ name: "position", dtype: "f64", components: 3, role: "position" });
+        both.setNodeValue("y", both.addNode("a"), 7);
+        both.setNodeValue("position", 0, [1, 2, 0]);
+        for (const dialect of ["vis", "graphology"] as const) {
+            expect(note(jsonExporter.check(both.freeze(), { dialect }), JSON_LOSS.RESERVED_KEY)?.column).toBe("y");
+        }
+        expect((await exported(both.freeze(), { dialect: "vis" })).nodes).toEqual([{ id: "a", x: 1, y: -2 }]);
     });
 
     it("writes the Cytoscape parent by id and reports a parents column or hierarchy elsewhere", async () => {

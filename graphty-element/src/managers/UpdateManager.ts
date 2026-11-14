@@ -26,7 +26,7 @@ import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
-import { DEFAULT_NODE_SCREEN_REFERENCE, viewSizeScale } from "../render/nodeSizeSpace";
+import { DEFAULT_NODE_SCREEN_REFERENCE, type SizeView, viewSizeScale } from "../render/nodeSizeSpace";
 import type { RowTable } from "../render/RowTable";
 import type { ElementMask } from "../session/scope/index";
 import type { EdgeAgeFade } from "../session/time/ageFade";
@@ -4102,6 +4102,32 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * What a sizing pass reads off the camera, and the view it was read at kept for `sizingPending`.
+     * @param camera - The active camera.
+     * @returns A point's view depth, the view's size, and the orbit pivot's depth (null when none).
+     */
+    private sizingFrame(camera: Camera): {
+        depthOf: (p: Vector3) => number;
+        sizeView: SizeView;
+        zPivot: number | null;
+    } {
+        const view = camera.getViewMatrix().m;
+        this.sizedView.set(view);
+        const depthOf = (p: Vector3): number => p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14];
+        if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
+            return {
+                depthOf,
+                sizeView: { orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) },
+                zPivot: null,
+            };
+        }
+
+        const orbit = this.camera.getActiveController();
+        const zPivot = orbit instanceof OrbitCameraController ? depthOf(orbit.pivot.getAbsolutePosition()) : null;
+        return { depthOf, sizeView: { fov: camera.fov }, zPivot };
+    }
+
+    /**
      * Scale each node mesh for its size space (`node.sizeSpace`, else
      * `layoutBehavior.node.sizeSpace`): "pivot" by its view depth over the orbit pivot's, "screen"
      * by the view's height at its depth over the layout's `nodeScreenReference`. Only the nodes
@@ -4130,16 +4156,7 @@ export class UpdateManager implements Manager {
             return changed;
         }
 
-        const view = camera.getViewMatrix().m;
-        this.sizedView.set(view);
-        const depthOf = (p: Vector3): number => p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14];
-        const ortho = camera.mode === Camera.ORTHOGRAPHIC_CAMERA;
-        const sizeView = ortho
-            ? { orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) }
-            : { fov: camera.fov };
-        const orbit = this.camera.getActiveController();
-        const zPivot =
-            !ortho && orbit instanceof OrbitCameraController ? depthOf(orbit.pivot.getAbsolutePosition()) : null;
+        const { depthOf, sizeView, zPivot } = this.sizingFrame(camera);
         const reference = this.layoutManager.layoutEngine?.nodeScreenReference ?? DEFAULT_NODE_SCREEN_REFERENCE;
 
         let changed = false;

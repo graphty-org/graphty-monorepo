@@ -589,7 +589,7 @@ describe("Settings' map layout node size rule", () => {
         await userEvent.keyboard("{Control>},{/Control}");
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         return within(dialog).getByRole("switch", {
-            name: "Map layout automatically enables depth-independent size",
+            name: /^Map layout automatically enables depth-independent size/,
         });
     }
 
@@ -631,7 +631,7 @@ describe("Settings' map layout node size rule", () => {
         });
         await userEvent.click(screen.getByRole("button", { name: "Layout" }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Circular/ }));
+        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
         await waitFor(() => {
             assert.notStrictEqual(element.session.layout.id, "location-map");

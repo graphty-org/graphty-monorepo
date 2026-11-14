@@ -181,7 +181,8 @@ export interface GraphtyElementJSXProps {
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
-     * not a step, and from 2D it switches to 3D first in the same step.
+     * not a step, and from 2D it switches to 3D first in the same step. A switch that fails is
+     * reported as `graph-error`; `setViewMode` hands the caller the failure instead.
      */
     viewMode?: Graphty["viewMode"];
     /**
@@ -397,7 +398,8 @@ export interface GraphtyElementJSXProps {
     "render-on-demand"?: boolean;
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
-     * not a step, and from 2D it switches to 3D first in the same step.
+     * not a step, and from 2D it switches to 3D first in the same step. A switch that fails is
+     * reported as `graph-error`; `setViewMode` hands the caller the failure instead.
      */
     "view-mode"?: string;
     /**

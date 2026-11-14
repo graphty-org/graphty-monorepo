@@ -394,7 +394,7 @@ export function NeighborList({
     return (
         // Esc anywhere in the list returns to the center node, unless a control used it first (the
         // Hops field takes back what was typed).
-        <section
+        <section // NOSONAR(S6848): Esc is a shortcut on the list, not a control; every control in it is native
             ref={heading}
             onKeyDown={(event) => {
                 if (event.key === "Escape" && !event.defaultPrevented) {

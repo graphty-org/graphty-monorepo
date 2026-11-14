@@ -256,6 +256,24 @@ function opensOnOf(
 }
 
 /**
+ * The tab shown: the reader's pick for this item, else the one it opens on. A Notes pick whose last
+ * note was just deleted falls back to the tab the item opens on.
+ * @param picked - the reader's last pick and the item it was made on.
+ * @param identity - the item shown.
+ * @param hasNotes - whether it has notes, so a Notes tab.
+ * @param opensOn - the tab it opens on.
+ * @returns the tab, or null for a kind with no tabs.
+ */
+function tabShown(
+    picked: { identity: string; tab: InspectorTab } | null,
+    identity: string,
+    hasNotes: boolean,
+    opensOn: InspectorTab | null,
+): InspectorTab | null {
+    return picked?.identity === identity && (picked.tab !== "notes" || hasNotes) ? picked.tab : opensOn;
+}
+
+/**
  * The style tree row a layer or folder row's header draws the tree's own glyph and menu for.
  * @param session - the session.
  * @param resolved - what is inspected.
@@ -535,8 +553,7 @@ export function Inspector(): React.JSX.Element {
     const notes = session === null ? [] : notesAbout(session, resolved);
     const hasNotes = notes.length > 0;
     const opensOn = opensOnOf(opensOnValues(session, run, resolved), kind, inspected, remembered, hasNotes);
-    // A Notes pick whose last note was just deleted falls back to the tab the item opens on.
-    const tab = picked?.identity === identity && (picked.tab !== "notes" || hasNotes) ? picked.tab : opensOn;
+    const tab = tabShown(picked, identity, hasNotes, opensOn);
     // A path is not a measure, though its run row is one.
     const kindWord = isPath ? PATH_WORD : KIND_WORDS[kindId];
     const runDraft = run !== undefined && draft?.run === run.id ? draft.values : {};

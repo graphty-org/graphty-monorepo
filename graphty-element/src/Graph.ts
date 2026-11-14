@@ -7,28 +7,22 @@ import "./algorithms/index"; // register all internal algorithms
 import "@babylonjs/core/Culling/ray.js";
 import "@babylonjs/core/Animations/animatable.js";
 
-import {
-    type AbstractEngine,
-    AbstractMesh,
-    Animation,
-    Camera,
-    CubicEase,
-    EasingFunction,
-    type Effect,
-    Engine,
-    type Nullable,
-    NullEngine,
-    Observable,
-    type Observer,
-    PointerEventTypes,
-    Quaternion,
-    RenderingGroup,
-    Scene,
-    type SubMesh,
-    Vector3,
-    WebGPUEngine,
-    WebXRDefaultExperience,
-} from "@babylonjs/core";
+import type { AbstractEngine, Nullable, Observer } from "@babylonjs/core";
+import { Animation } from "@babylonjs/core/Animations/animation.js";
+import { CubicEase, EasingFunction } from "@babylonjs/core/Animations/easing.js";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
+import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
+import type { Effect } from "@babylonjs/core/Materials/effect.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
+import { Observable } from "@babylonjs/core/Misc/observable.js";
+import { RenderingGroup } from "@babylonjs/core/Rendering/renderingGroup.js";
+import { Scene } from "@babylonjs/core/scene.js";
+import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
@@ -148,6 +142,8 @@ import {
     EventOfType,
     EventType,
     type LimitsWarningEvent,
+    type RenderLostEvent,
+    type RenderRestoredEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
@@ -304,7 +300,7 @@ import {
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
-import { createLazyShaderHost } from "./shaders/chunk";
+import { createLazyShaderHost, disposedError } from "./shaders/chunk";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import { downloadBlob } from "./utils/download";
@@ -725,6 +721,9 @@ export class Graph implements GraphContext {
      */
     #cameraPlaced = false;
 
+    /** The tour playing now, if any: `ended` is set to stop it at its next step or frame. */
+    #tour: TourHandle | undefined;
+
     /**
      * The reader moved the camera: the element's own framing stops until the next load or layout,
      * as it does for `setCameraState`. Left running, a re-frame still owed -- a layout that had not
@@ -743,6 +742,15 @@ export class Graph implements GraphContext {
         this.updateManager.stopAutoZoomToFit();
     };
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
+    /**
+     * Announces a new skybox's image: `skybox-loaded` once its texture arrived, `skybox-failed`
+     * when it could not be loaded. The element turns each into its `graphty-skybox-*` DOM event.
+     * @param url - The skybox image.
+     * @param loaded - Whether its texture loaded.
+     */
+    readonly #announceSkybox = (url: string, loaded: boolean): void => {
+        this.eventManager.emit(loaded ? "skybox-loaded" : "skybox-failed", { graph: this, url });
+    };
     #autoFrame = true;
     /** Whether the wheel zooms toward the pointer; see {@link setZoomToPointer}. */
     #zoomToPointer = false;
@@ -894,6 +902,12 @@ export class Graph implements GraphContext {
     });
     /** What shutdown has to free, set just before it disposes the managers. */
     #releaseAcceleration: (() => void) | null = null;
+    /** Set from a `render-lost` until the device is back; see {@link Graph.restartRenderer}. */
+    #renderLost = false;
+    /** The restart waited on, settled when the device is back or the browser refuses it. */
+    #restart: { promise: Promise<void>; resolve: () => void; reject: (error: unknown) => void } | null = null;
+    /** WebGL's `WEBGL_lose_context`, taken while the context lives: a lost context hands out none. */
+    #loseContext: { restoreContext(): void } | null = null;
     private readonly dataManager: DataManager;
     private readonly layoutManager: LayoutManager;
     private readonly statsManager: StatsManager;
@@ -1283,9 +1297,7 @@ export class Graph implements GraphContext {
             // steps below are idempotent.
             const { graph } = this.styles.config;
             if (changed("background")) {
-                this.renderManager.applyBackground(graph.background, (url) => {
-                    this.eventManager.emit("skybox-loaded", { graph: this, url });
-                });
+                this.renderManager.applyBackground(graph.background, this.#announceSkybox);
                 this.updateManager.meshesAdded();
             }
 
@@ -1374,6 +1386,9 @@ export class Graph implements GraphContext {
         // way to the array, a new snapshot reloads the layout without starting it.
         this.layoutManager.onRest = () => {
             dispatcherOf(this.session).arrangement.rest();
+        };
+        this.layoutManager.onMotion = (motion) => {
+            this.session.layoutMotion(motion);
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
@@ -1623,9 +1638,29 @@ export class Graph implements GraphContext {
         // What was selected is worked out from the change only when a change holds the camera: a
         // walk of the selection on every change is quadratic in a removal of many selected nodes.
         let pivoted = false;
+        // A right-click or a touch-and-hold asks for a menu about what is under the pointer: a
+        // selection it makes (the element's own, or the menu's opener selecting the node from its
+        // `contextmenu` handler) keeps the camera still, or the node would glide out from under a
+        // menu opened at the pointer (issue #7452). Held for the press's own events and the
+        // handlers they run, until the next task.
+        let menuPress = false;
+        let menuPressEnd: ReturnType<typeof setTimeout> | undefined;
+        const pressMenu = (event: Event): void => {
+            if (event.type !== "contextmenu" && (event as PointerEvent).button !== 2) {
+                return;
+            }
+            menuPress = true;
+            clearTimeout(menuPressEnd);
+            menuPressEnd = setTimeout(() => {
+                menuPress = false;
+            });
+        };
+        for (const type of ["pointerdown", "pointerup", "contextmenu"]) {
+            this.element.addEventListener(type, pressMenu, { capture: true, signal: this.#teardown.signal });
+        }
         this.session.on("selection:changed", ({ cause, added, removed }) => {
             const causes = this.styles.config.behavior.camera.pivotOnSelectionCauses;
-            if (causes === undefined || causes.includes(cause)) {
+            if (!menuPress && (causes === undefined || causes.includes(cause))) {
                 pivoted = true;
                 return;
             }
@@ -2146,6 +2181,49 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Gets the graph drawn again after `render-lost`: asks the browser for the WebGL context or
+     * a WebGPU device again, and rebuilds every buffer, texture and shader from the graph held in
+     * memory. The data, the styles, the camera and the undo history stay as they are; nothing is
+     * loaded again. The element already asks once by itself, so this is for when the browser has
+     * not given the device back. Resolves at once while nothing is lost.
+     * @returns A promise that resolves when the graph is drawn again (after `render-restored`).
+     * @throws A `GraphtyError` with `E_RENDER_LOST` when the browser cannot give a WebGL context
+     *     back, `E_DEVICE_LOST` when no new WebGPU device can be opened, or `E_DISPOSED` when the
+     *     graph is shut down first.
+     * @since 3.53.0
+     */
+    restartRenderer(): Promise<void> {
+        if (!this.#renderLost) {
+            return Promise.resolve();
+        }
+
+        if (this.#restart === null) {
+            let resolve: () => void = () => undefined;
+            let reject: (error: unknown) => void = () => undefined;
+            const promise = new Promise<void>((yes, no) => {
+                resolve = yes;
+                reject = no;
+            });
+            this.#restart = { promise, resolve, reject };
+        }
+
+        const { engine } = this;
+        if (engine instanceof RecoveringWebGPUEngine) {
+            engine.retryRestore();
+        } else {
+            // In a task of its own: called from a `render-lost` listener, this runs while the
+            // browser is still dispatching `webglcontextlost`, before it has seen the event
+            // cancelled, and a restore asked for then is refused.
+            const loseContext = this.#loseContext;
+            setTimeout(() => {
+                loseContext?.restoreContext();
+            }, 0);
+        }
+
+        return this.#restart.promise;
+    }
+
+    /**
      * Promises that {@link Graph.init} is on its way, so an accelerator looked for from now on
      * waits for the device the renderer opens. Whoever calls this must call init or shut down.
      * @internal
@@ -2260,9 +2338,12 @@ export class Graph implements GraphContext {
         // a consumer that parked the scene's animations before WebGPU opened keeps them parked
         const animates = this.scene.animationsEnabled;
         const previous = this.renderManager;
-        const label = this.canvas.getAttribute("aria-label");
-        if (label !== null) {
-            canvas.setAttribute("aria-label", label);
+        // The name, role and description a screen reader reads follow the drawing to its new canvas.
+        for (const name of ["aria-label", "role", "aria-describedby"]) {
+            const value = this.canvas.getAttribute(name);
+            if (value !== null) {
+                canvas.setAttribute(name, value);
+            }
         }
 
         this.canvas.replaceWith(canvas);
@@ -2435,7 +2516,95 @@ export class Graph implements GraphContext {
             recoverable: false,
             cause,
         });
+        this.settleRestart(error);
         this.eventManager.emitGraphError(this, error, "other");
+    }
+
+    /**
+     * Publishes the loss and the return of the drawing device as `render-lost` and
+     * `render-restored`. Babylon already rebuilds every buffer, texture and shader from the scene
+     * it holds when the device comes back (the WebGPU engine through {@link RecoveringWebGPUEngine}),
+     * so the graph, its styles, its camera and its history never leave memory; this only tells the
+     * consumer, and keeps `rendererStatus.drawing` true to what is on screen. The observers are
+     * removed on shutdown: Babylon never clears these observables, so one left there would keep a
+     * disposed graph alive.
+     */
+    private watchRenderLoss(): void {
+        const { engine, canvas } = this;
+        if (engine instanceof NullEngine) {
+            return;
+        }
+
+        const renderer = engine instanceof WebGPUEngine ? "webgpu" : "webgl";
+        if (engine instanceof Engine) {
+            this.#loseContext = engine._gl.getExtension("WEBGL_lose_context");
+        }
+
+        const setDrawing = (drawing: boolean): void => {
+            if (this.#rendererStatus !== null) {
+                this.#rendererStatus = { ...this.#rendererStatus, drawing };
+            }
+        };
+        const lost = engine.onContextLostObservable.add(() => {
+            this.#renderLost = true;
+            setDrawing(false);
+            this.eventManager.emit("render-lost", {
+                code: "E_RENDER_LOST",
+                params: { renderer },
+            } satisfies Omit<RenderLostEvent, "type">);
+        });
+        const restored = engine.onContextRestoredObservable.add(() => {
+            this.#renderLost = false;
+            setDrawing(true);
+            this.settleRestart(null);
+            this.eventManager.emit("render-restored", { renderer } satisfies Omit<RenderRestoredEvent, "type">);
+        });
+        const { signal } = this.#teardown;
+        // The browser tried to give a WebGL context back and could not make one.
+        canvas.addEventListener(
+            "webglcontextcreationerror",
+            () => {
+                if (this.#renderLost) {
+                    this.settleRestart(
+                        new GraphtyError({
+                            code: "E_RENDER_LOST",
+                            message: "the browser could not give the WebGL context back",
+                            source: "view",
+                            recoverable: true,
+                            details: { renderer },
+                        }),
+                    );
+                }
+            },
+            { signal },
+        );
+        signal.addEventListener(
+            "abort",
+            () => {
+                engine.onContextLostObservable.remove(lost);
+                engine.onContextRestoredObservable.remove(restored);
+                this.settleRestart(disposedError());
+            },
+            { once: true },
+        );
+    }
+
+    /**
+     * Settles the restart waited on, if any.
+     * @param error - Why it failed, or null when the graph is drawn again.
+     */
+    private settleRestart(error: unknown): void {
+        const restart = this.#restart;
+        this.#restart = null;
+        if (restart === null) {
+            return;
+        }
+
+        if (error === null) {
+            restart.resolve();
+        } else {
+            restart.reject(error);
+        }
     }
 
     /**
@@ -2539,6 +2708,7 @@ export class Graph implements GraphContext {
                 return;
             }
 
+            this.watchRenderLoss();
             this.#renderPathOpen = true;
             this.#applyRenderPath();
 
@@ -2578,9 +2748,7 @@ export class Graph implements GraphContext {
 
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.
-            this.renderManager.applyBackground(this.styles.config.graph.background, (url) => {
-                this.eventManager.emit("skybox-loaded", { graph: this, url });
-            });
+            this.renderManager.applyBackground(this.styles.config.graph.background, this.#announceSkybox);
             this.applyViewRotation(false);
 
             // Start the graph system (render loop, etc.)
@@ -2684,6 +2852,8 @@ export class Graph implements GraphContext {
 
                     this.reportSettlementChange();
                 }
+
+                this.layoutManager.checkMotion();
             });
         });
 
@@ -2904,7 +3074,12 @@ export class Graph implements GraphContext {
         this.writeViewSettings((settings) => {
             settings.behavior = view;
         });
-        NodeEffects.setOutlineWidth(this.scene, parsed.node.outlineWidth);
+        if (NodeEffects.outlineWidthOf(this.scene, undefined) !== (parsed.node.outlineWidth ?? 1)) {
+            NodeEffects.setOutlineWidth(this.scene, parsed.node.outlineWidth);
+            // A ring the shader batch draws packs the width when painted, so it is painted again.
+            NodeShaderDrawing.peek(this.scene)?.outlineWidthChanged();
+        }
+
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();
         // `layout.visibleOnly` switched lays the graph out again over what it now covers.
@@ -7108,9 +7283,16 @@ export class Graph implements GraphContext {
      * ```
      */
     async captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
-        const screenshotCapture = new ScreenshotCapture(this.engine, this.scene, this.canvas, this, () => {
-            this.renderManager.requestFrame();
-        });
+        const screenshotCapture = new ScreenshotCapture(
+            this.engine,
+            this.scene,
+            this.canvas,
+            this,
+            () => {
+                this.renderManager.requestFrame();
+            },
+            () => this.session.styles.legend(),
+        );
         return screenshotCapture.captureScreenshot(options);
     }
 
@@ -7257,7 +7439,14 @@ export class Graph implements GraphContext {
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
         const { CameraPathAnimator } = await import("./video/CameraPathAnimator.js");
 
-        const cameraPath = options.tour ? this.tourPath(options.tour, options.duration) : options.cameraPath;
+        // A path with a view or a hold is a tour, flown with the element's own camera moves; any
+        // other path, and a `tour` of names, keeps the animator (issue #7936 records its defects).
+        if (!options.tour && options.cameraPath?.some((stop) => "view" in stop || stop.hold !== undefined)) {
+            return this.captureTourVideo(options, options.cameraPath, capture, onProgress);
+        }
+        const cameraPath = options.tour
+            ? this.tourPath(options.tour, options.duration)
+            : (options.cameraPath as import("./video/VideoCapture.js").CameraWaypoint[] | undefined);
         // Validate cameraPath is provided
         if (!cameraPath || cameraPath.length < 2) {
             throw new Error("Animated camera mode requires at least 2 waypoints in cameraPath");
@@ -7319,6 +7508,157 @@ export class Graph implements GraphContext {
             }
             return { position, target, ...(index === 0 ? {} : { duration: leg }) };
         });
+    }
+
+    /**
+     * Record a tour: the stops flown with the element's own camera moves while the recording runs,
+     * and the tour stopped when the recording ends.
+     * @param options - Animation configuration options
+     * @param path - The tour's stops
+     * @param capture - Media recorder capture instance
+     * @param onProgress - Progress callback function
+     * @returns The recording
+     */
+    private async captureTourVideo(
+        options: import("./video/VideoCapture.js").AnimationOptions,
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+        capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
+        onProgress: (progress: number) => void,
+    ): Promise<import("./video/VideoCapture.js").AnimationResult> {
+        const stops = this.resolveTour(path);
+        const tour = this.beginTour();
+        const recording = capture.captureRealtime(this.canvas, options, onProgress).finally(() => {
+            if (this.#tour === tour) {
+                this.cancelCameraAnimation();
+            }
+        });
+        const [result] = await Promise.all([recording, this.flyTour(stops, options.easing, tour)]);
+        this.handleVideoDownload(result, options);
+        return result;
+    }
+
+    /**
+     * Each stop of a tour as the camera state it flies to, checked before anything moves.
+     * @param path - The stops.
+     * @returns The camera state, flight and hold of each stop.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
+     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     */
+    private resolveTour(
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+    ): { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[] {
+        const flat = this.getViewMode() === "2d";
+        return path.map((stop, index) => {
+            const view = "view" in stop ? stop.view : { position: stop.position, target: stop.target };
+            const state = orbitAnglesToPosition(typeof view === "string" ? this.resolveCameraPreset(view) : view);
+            if (flat ? state.zoom === undefined && !state.pan : !state.position || !state.target) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: `tour stop ${index} has no ${flat ? "2D zoom or pan" : "camera position and target"} to fly to`,
+                    source: "view",
+                    details: { stop: index, ...(typeof view === "string" ? { view } : {}), mode: flat ? "2d" : "3d" },
+                });
+            }
+            return { state, duration: Math.max(0, stop.duration ?? 0), hold: Math.max(0, stop.hold ?? 0) };
+        });
+    }
+
+    /**
+     * Make a new tour the one playing, ending any tour or camera move under way.
+     * @returns The tour's handle.
+     */
+    private beginTour(): TourHandle {
+        this.cancelCameraAnimation();
+        const tour = { ended: false };
+        this.#tour = tour;
+        return tour;
+    }
+
+    /**
+     * Fly a tour's stops in order, holding at each, until the last or until the tour is ended.
+     * @param stops - The resolved stops.
+     * @param easing - The easing of each flight.
+     * @param tour - The tour's handle, from `beginTour`.
+     */
+    private async flyTour(
+        stops: readonly { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[],
+        easing: import("./screenshot/types.js").CameraAnimationOptions["easing"],
+        tour: TourHandle,
+    ): Promise<void> {
+        try {
+            for (const { state, duration, hold } of stops) {
+                if (tour.ended) {
+                    return;
+                }
+                await this.setCameraState(state, { animate: duration > 0, duration, easing: easing ?? "easeInOut" });
+                await this.holdTourStop(hold, tour);
+            }
+        } finally {
+            if (this.#tour === tour) {
+                this.#tour = undefined;
+            }
+        }
+    }
+
+    /**
+     * Wait while frames are drawn until their time adds up to the hold, or the tour is ended.
+     * @param ms - The hold, in milliseconds.
+     * @param tour - The tour's handle.
+     * @returns Settles when the hold is over.
+     */
+    private holdTourStop(ms: number, tour: TourHandle): Promise<void> {
+        if (ms <= 0 || tour.ended) {
+            return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+            let held = 0;
+            const observer = this.scene.onAfterRenderObservable.add(() => {
+                held += this.engine.getDeltaTime();
+                if (held >= ms || tour.ended) {
+                    this.scene.onAfterRenderObservable.remove(observer);
+                    resolve();
+                }
+            });
+        });
+    }
+
+    /**
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
+     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
+     * `position` and `target`. Every stop is checked before the camera moves. The camera's
+     * transition time (`setCameraTransitionDuration`), when set, replaces each flight's duration.
+     * `cancelCameraAnimation` ends the tour where it is; a new tour or a capture's tour replaces it.
+     * @param path - The stops, in order.
+     * @param options - How to fly.
+     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
+     * @returns Settles when the last stop's hold is over, or the tour is ended.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
+     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @example
+     * ```typescript
+     * await graph.playTour([
+     *     { view: "overview", hold: 2000 },
+     *     { view: "cluster-a", duration: 1500, hold: 3000 },
+     * ]);
+     * ```
+     */
+    async playTour(
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+        options?: { easing?: import("./screenshot/types.js").CameraAnimationOptions["easing"] },
+    ): Promise<void> {
+        const stops = this.resolveTour(path);
+        const releaseFrames = animatesEveryFrame(this.scene);
+        try {
+            await this.flyTour(stops, options?.easing, this.beginTour());
+        } finally {
+            releaseFrames();
+        }
     }
 
     /**
@@ -7393,9 +7733,9 @@ export class Graph implements GraphContext {
 
     /**
      * Stop the camera's animated moves: the one under way stops where the camera is now, and
-     * moves still waiting their turn are dropped. Every caller awaiting one of them resolves; a
-     * cancelled move is not an error.
-     * @returns True if a camera move was cancelled, false if none was under way or waiting
+     * moves still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
+     * awaiting one of them resolves; a cancelled move is not an error.
+     * @returns True if a camera move or tour was cancelled, false if none was under way or waiting
      * @example
      * ```typescript
      * const moving = graph.applyCameraView("top", { animate: true, duration: 2000 });
@@ -7404,7 +7744,12 @@ export class Graph implements GraphContext {
      * ```
      */
     cancelCameraAnimation(): boolean {
-        return this.operationQueue.cancelByCategory("camera-update") > 0;
+        const tour = this.#tour;
+        if (tour) {
+            tour.ended = true;
+            this.#tour = undefined;
+        }
+        return this.operationQueue.cancelByCategory("camera-update") > 0 || tour !== undefined;
     }
 
     /**
@@ -10038,4 +10383,9 @@ export class Graph implements GraphContext {
 
         this.shutdown();
     }
+}
+
+/** A playing tour, ended by setting `ended`: it stops at its next step or frame. */
+interface TourHandle {
+    ended: boolean;
 }

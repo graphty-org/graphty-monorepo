@@ -31,6 +31,8 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
     mkdirSync(join(repo, "webgpu-graph-algorithms"));
     mkdirSync(join(dir, "bin"));
     copyFileSync(SCRIPT, join(repo, "tools/check-quick.sh"));
+    for (const f of ["step-log.mjs", "wait-log.mjs"])
+        copyFileSync(new URL(`./${f}`, import.meta.url).pathname, join(repo, "tools", f));
     writeFileSync(join(repo, "tools/test-changed.mjs"), envDump(out("tests.json"), "STUB_RC_TESTS"));
     writeFileSync(join(repo, "tools/sonar-gate.mjs"), envDump(out("sonar.json"), "STUB_RC_SONAR"));
     writeFileSync(join(repo, "tools/test-slots.mjs"), envDump(out("gpu.json"), "STUB_RC_GPU"));
@@ -68,6 +70,7 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
             GRAPHTY_TEST_QUARANTINE: "0",
             GRAPHTY_TEST_SLOTS: "3",
             GRAPHTY_EGL_LIB_DIR: "/egl",
+            PIPELINE_STEP_LOG: out("steps.jsonl"),
             ...env,
         },
     });
@@ -87,6 +90,16 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
         integrity: read("integrity.json"),
         dryRun: read("dryrun.json"),
         budgets: read("budgets.json"),
+        steps: (() => {
+            try {
+                return readFileSync(out("steps.jsonl"), "utf8")
+                    .trim()
+                    .split("\n")
+                    .map((l) => JSON.parse(l));
+            } catch {
+                return [];
+            }
+        })(),
         links: (() => {
             try {
                 return readFileSync(out("links"), "utf8");
@@ -121,6 +134,20 @@ describe("tools/check-quick.sh", () => {
         assert.equal(gpu, undefined, "no GPU run when webgpu-graph-algorithms is not affected");
         assert.doesNotMatch(pnpm, /docs:build|check:bundle-size|run size/, "no docs or bundle step when unaffected");
         assert.match(r.stdout, /\[PASS\] quick check/);
+    });
+
+    it("logs each step's time and exit code, and the whole run's, to the step log", () => {
+        const { r, steps } = sandbox({ env: { STUB_RC_SONAR: "4" } });
+        assert.equal(r.status, 1, r.stdout + r.stderr);
+        const step = (what) => steps.find((s) => s.kind === "check-quick-step" && s.what === what);
+        assert.equal(step("Selected tests")?.exit, 0);
+        assert.equal(step("SonarQube (changed lines)")?.exit, 4, "a failed step keeps its own exit code");
+        const ran = r.stdout.match(/^> /gm).length;
+        assert.equal(steps.filter((s) => s.kind === "check-quick-step").length, ran, "one line per step that ran");
+        const total = steps.filter((s) => s.kind === "check-quick");
+        assert.equal(total.length, 1);
+        assert.equal(total[0].exit, 1, "the run's exit code");
+        for (const s of steps) assert.ok(Number.isInteger(s.ms) && s.ms >= 0 && s.start <= s.end, JSON.stringify(s));
     });
 
     it("runs the NVIDIA tests with GRAPHTY_GPU_REQUIRE=nvidia and the libEGL tree when webgpu is affected", () => {

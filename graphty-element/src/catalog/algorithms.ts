@@ -426,6 +426,13 @@ const WEIGHT_OPTION: OptionDescriptor = {
     description: "The edge column read as the weight. Absent: the weight the graph was loaded with; null: none.",
 };
 
+/** The `weight` option of an algorithm whose weighted form is opt-in: absent, it reads none. */
+const OPT_IN_WEIGHT_OPTION: OptionDescriptor = {
+    ...WEIGHT_OPTION,
+    default: null,
+    description: "The edge column read as the weight. Absent or null: none, so every edge counts the same.",
+};
+
 /** The built-in descriptors as written, before what is read from the classes is added. */
 const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
     {
@@ -1124,7 +1131,11 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
 /** Every built-in class, by the 1.10 key its `static type` carries, for what the table derives from them. */
 const CLASSES: ReadonlyMap<
     string,
-    { readonly scopeInput?: string; readonly weightMeaning: AlgorithmDescriptor["weightMeaning"] }
+    {
+        readonly scopeInput?: string;
+        readonly weightMeaning: AlgorithmDescriptor["weightMeaning"];
+        readonly loadedWeightByDefault: boolean;
+    }
 > = new Map(
     [
         AStarAlgorithm,
@@ -1173,11 +1184,13 @@ const CLASSES: ReadonlyMap<
  */
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHORED_ALGORITHMS.map((descriptor) => {
     // Every class behind a folded key reads the same meaning (both shortest-path engines read a distance).
-    const weightMeaning = CLASSES.get(descriptor.legacyKeys[0].key)?.weightMeaning ?? null;
+    const cls = CLASSES.get(descriptor.legacyKeys[0].key);
+    const weightMeaning = cls?.weightMeaning ?? null;
+    const weightOption = cls?.loadedWeightByDefault === false ? OPT_IN_WEIGHT_OPTION : WEIGHT_OPTION;
 
     return {
         ...descriptor,
-        options: weightMeaning === null ? descriptor.options : [...descriptor.options, WEIGHT_OPTION],
+        options: weightMeaning === null ? descriptor.options : [...descriptor.options, weightOption],
         weightMeaning,
         scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph")
             ? "subgraph"

@@ -32,7 +32,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { GraphSnapshot, U8, U32 } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, type U8, type U32 } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, ScopeId, ScopeInput, Selector } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
@@ -402,6 +402,35 @@ export interface SelectionApi {
      */
     clear(options?: SelectionApplyOptions): SelectionDelta;
     /**
+     * The selection the last emptying took away: what was selected before `clear()`, a click on
+     * empty canvas, or any other change that left nothing selected. Only the elements still in
+     * the graph: one removed since is left out, and null once none is left, or before anything
+     * selected was emptied. A new selection does not change it; the next emptying does.
+     *
+     * ```ts
+     * session.selection.clear();
+     * session.selection.previous(); // { nodes: ["a", "b"], edges: [] }
+     * ```
+     * @returns The node ids and edge ids, or null.
+     * @since 3.40.0
+     */
+    previous(): { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null;
+    /**
+     * Select {@link SelectionApi.previous} again, in place of whatever is selected now: the "bring
+     * it back" after a clear. Like every selection change it adds no undo step. With nothing to
+     * bring back it changes nothing.
+     *
+     * ```ts
+     * session.selection.clear({ cause: "user" });
+     * session.selection.restore({ cause: "user" }); // selected again
+     * ```
+     * @param options - Who made the change; a script (`"api"`) when absent.
+     * @returns What changed.
+     * @throws A `GraphtyError` coded `E_BAD_COMMAND` when the cause is not `"user"` or `"api"`.
+     * @since 3.40.0
+     */
+    restore(options?: SelectionApplyOptions): SelectionDelta;
+    /**
      * The node under the pointer now, or null. Not part of the selection and never a step: the
      * element writes it as the pointer moves, and a `{ match: "state", state: "hovered" }` or a
      * `{ match: "hover" }` style layer paints it.
@@ -707,6 +736,25 @@ function diffMembership(
     }
 }
 
+/**
+ * The ids a captured membership held, among the rows the graph still has.
+ * @param before - The captured bytes.
+ * @param count - The live row count.
+ * @param space - The ids of the rows.
+ * @returns The member ids, in row order.
+ */
+function membersOf<TId>(before: U8, count: number, space: MaskIdSpace<TId>): TId[] {
+    const ids: TId[] = [];
+    const end = Math.min(before.length, count);
+    for (let index = 0; index < end; index++) {
+        if (before[index] === MEMBER) {
+            ids.push(space.idOf(index));
+        }
+    }
+
+    return ids;
+}
+
 /** What one attribute looked like as a walk accumulated it. */
 interface AttributeAccumulator {
     /** The finite numbers seen, in index order. */
@@ -857,6 +905,9 @@ class Selection implements SelectionOwner {
 
     /** The target the selection is exactly, while nothing else has changed it. */
     #origin: SelectionTarget | null = null;
+
+    /** What the last emptying took away, by id; see {@link SelectionApi.previous}. */
+    #previous: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null = null;
 
     /** A change {@link Selection.applyAtNextRead} is holding for the next read. */
     #pending: { readonly target: SelectionTarget; readonly op: SelectionOp; readonly cause: SelectionCause } | null =
@@ -1292,6 +1343,37 @@ class Selection implements SelectionOwner {
         return this.#delta(before, originBefore, EMPTY_STRINGS, EMPTY_PATHS, cause);
     }
 
+    previous(): { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null {
+        this.#sync();
+        const kept = this.#previous;
+        if (kept === null) {
+            return null;
+        }
+
+        // Ids, not rows, so a renumbering freeze cannot point it at another element; one the
+        // graph no longer holds is dropped for good.
+        const { nodeSpace, edgeSpace } = this.#frame;
+        const nodes = kept.nodes.filter((id) => nodeSpace.indexOf(id) !== INVALID_INDEX);
+        const edges = kept.edges.filter((id) => edgeSpace.indexOf(id) !== INVALID_INDEX);
+        if (nodes.length === 0 && edges.length === 0) {
+            this.#previous = null;
+        } else if (nodes.length < kept.nodes.length || edges.length < kept.edges.length) {
+            this.#previous = Object.freeze({ nodes: Object.freeze(nodes), edges: Object.freeze(edges) });
+        }
+
+        return this.#previous;
+    }
+
+    restore(options?: SelectionApplyOptions): SelectionDelta {
+        const cause = callerCause(options);
+        const previous = this.previous();
+        if (previous === null) {
+            return this.#delta(this.#capture(), this.#origin, EMPTY_STRINGS, EMPTY_PATHS, cause);
+        }
+
+        return this.#change({ nodes: [...previous.nodes], edges: [...previous.edges] }, "replace", cause, false);
+    }
+
     /**
      * Keep this selection under a name, as a kept set of its nodes and edges, created from the
      * selection.
@@ -1553,6 +1635,14 @@ class Selection implements SelectionOwner {
 
         diffMembership(this.#nodes, before.nodes, (index) => nodeSpace.idOf(index), added, removed);
         diffMembership(this.#edges, before.edges, (index) => edgeSpace.idOf(index), added, removed);
+
+        // Whatever emptied it -- clear(), a click on empty canvas, an undo -- keeps what it took.
+        if (removed.length > 0 && this.#nodes.size === 0 && this.#edges.size === 0) {
+            this.#previous = Object.freeze({
+                nodes: Object.freeze(membersOf(before.nodes, this.#nodes.count, nodeSpace)),
+                edges: Object.freeze(membersOf(before.edges, this.#edges.count, edgeSpace)),
+            });
+        }
 
         const delta: SelectionDelta = Object.freeze({
             added: Object.freeze(added),

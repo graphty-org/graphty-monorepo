@@ -75,6 +75,12 @@ const INVENTORY: Record<string, Covered> = {
             "to its caller, drawing nothing) and InputManager's playback file (the input it replays moves the " +
             "camera like a reader)",
     },
+    "src/session/backgroundImage.ts": {
+        count: 1,
+        reason:
+            "prepareBackgroundImage decodes a chosen picture and hands its data URL to the caller; it draws " +
+            "nothing itself; the skybox the caller then writes is drawn by the render manager",
+    },
     "src/session/assets/unzip.ts": { count: 1, kind: "load", reason: "unzipping a file being loaded" },
     "src/session/assets/AssetsApi.ts": {
         count: 3,
@@ -225,7 +231,7 @@ const INVENTORY: Record<string, Covered> = {
         reason: "a shader's thumbnail for a picker, fetched for the application; never drawn on the canvas",
     },
     "src/xr/XRSessionManager.ts": {
-        count: 1,
+        count: 2,
         reason: "an immersive session's module; while one runs the picture moves with the head and is never final",
     },
 };

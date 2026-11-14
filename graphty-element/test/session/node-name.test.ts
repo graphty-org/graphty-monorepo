@@ -43,3 +43,33 @@ describe("session.data.name", () => {
         session.dispose();
     });
 });
+
+describe("session.data.nodeName and edgeName", () => {
+    it("gives the label with its id, falls back to the id, and names an edge by its ends", async () => {
+        const session = createGraphSession();
+        await session.config.set({ data: { knownFields: { nodeLabelPath: "label" } } });
+        await session.data.addNodes([{ id: 71, label: "Ohio" }, { id: 7, label: "" }, { id: "n" }]);
+        await session.data.addEdges([{ source: 71, target: 7 }]);
+
+        assert.deepEqual(session.data.nodeName(71), { id: 71, name: "Ohio", labeled: true });
+        assert.deepEqual(session.data.nodeName("71"), { id: 71, name: "Ohio", labeled: true }, "either spelling");
+        assert.deepEqual(session.data.nodeName(7), { id: 7, name: "7", labeled: false }, "an empty label");
+        assert.deepEqual(session.data.nodeName("n"), { id: "n", name: "n", labeled: false }, "no label value");
+        assert.deepEqual(session.data.nodeName("gone"), { id: "gone", name: "gone", labeled: false });
+
+        const [edge] = session.data.edges();
+        const expected = { source: session.data.nodeName(71), target: session.data.nodeName(7) };
+        assert.deepEqual(session.data.edgeName(edge.id), expected);
+        assert.deepEqual(session.data.edgeName({ source: 71, target: 7 }), expected);
+        assert.isUndefined(session.data.edgeName("999999"), "an edge id the graph has no edge for");
+
+        session.dispose();
+    });
+
+    it("gives the id as the name when no label column is set", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: 1, label: "One" }]);
+        assert.deepEqual(session.data.nodeName(1), { id: 1, name: "1", labeled: false });
+        session.dispose();
+    });
+});

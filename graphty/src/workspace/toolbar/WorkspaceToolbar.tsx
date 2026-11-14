@@ -2,7 +2,7 @@ import "./toolbar.css";
 
 import { MenuCheckItem, MenuItemDescription, MenuShortcut, Toolbar, ToolButton } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Menu, Popover } from "@mantine/core";
+import { Menu, Popover, Text } from "@mantine/core";
 import React, { forwardRef, useRef } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
@@ -128,8 +128,8 @@ function focusGoesWithClose(): boolean {
 /** The mode words, as the Mode tool's name and its menu rows say them. */
 const MODE_WORDS = { "2d": "2D", "3d": "3D", vr: "VR", ar: "AR" } as const;
 
-/** The Mode tool's face: the icon of the mode the canvas is in. */
-const MODE_GLYPHS = { "2d": GLYPHS.mode2d, "3d": GLYPHS.mode3d, vr: GLYPHS.modeVr, ar: GLYPHS.modeAr } as const;
+/** The Mode tool's face in VR and AR: the mode's icon. 2D and 3D show their words instead. */
+const MODE_GLYPHS = { vr: GLYPHS.modeVr, ar: GLYPHS.modeAr } as const;
 
 /**
  * The Mode menu: Exit VR or AR while immersive; then the modes (2D, 3D, then one "VR / AR" row
@@ -233,12 +233,20 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
 }
 
 /**
- * The Mode tool's face: the icon of the mode the canvas is in, named for tests by `data-mode`.
+ * The Mode tool's face, named for tests by `data-mode`: the words "2D" or "3D" (an icon for 2D read
+ * as a plain rectangle), or the VR or AR icon, in the same 20px box as the other tools' glyphs.
  * @param props - Component props
  * @param props.mode - The mode
- * @returns The icon
+ * @returns The face
  */
 function ModeGlyph({ mode }: Readonly<{ mode: keyof typeof MODE_WORDS }>): React.JSX.Element {
+    if (mode === "2d" || mode === "3d") {
+        return (
+            <Text span fz={13} fw={700} lh="20px" w={20} ta="center" data-mode={mode}>
+                {MODE_WORDS[mode]}
+            </Text>
+        );
+    }
     const Glyph = MODE_GLYPHS[mode];
     return <Glyph size={20} data-mode={mode} />;
 }

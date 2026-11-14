@@ -50,6 +50,7 @@ import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
+import type { LayoutMotion } from "../session/types";
 import { isDefinedLayout } from "../simple/defineLayout";
 import type { Styles } from "../Styles";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
@@ -757,6 +758,12 @@ export class LayoutManager implements Manager {
     /** Told when the layout comes to rest: it settled, was paused, or finished placing. */
     onRest: (() => void) | null = null;
 
+    /** Told when {@link LayoutManager.motion} changes; see {@link LayoutManager.checkMotion}. */
+    onMotion: ((motion: LayoutMotion) => void) | null = null;
+
+    /** The motion last told to `onMotion`. */
+    #toldMotion: LayoutMotion = "settled";
+
     /**
      * Whether undo, redo or a restore is on its way to the position array. While it is, a new
      * snapshot or accelerator reloads the engine without starting it, so nothing moves the
@@ -916,6 +923,8 @@ export class LayoutManager implements Manager {
         ) {
             this.layoutEngine.reheat();
         }
+
+        this.checkMotion();
     }
 
     /**
@@ -1284,6 +1293,7 @@ export class LayoutManager implements Manager {
 
         this.engine = undefined;
         this.onRest = null;
+        this.onMotion = null;
         this.runningDriver = undefined;
         this.running = false;
     }
@@ -1685,16 +1695,36 @@ export class LayoutManager implements Manager {
 
     /**
      * The rows drawn with no `Node`, under renderPath "batched"; none under "objects".
-     * @returns Their row numbers.
+     * @returns A mask by row number, 1 for such a row, or null when there is none. A mask, not a
+     *   set: at a million rows building a set of them cost about 0.1 s of every layout start.
      */
-    private columnRows(): number[] {
+    private columnRows(): Uint8Array | null {
         if (this.dataManager.renderLimits?.batched() !== true) {
-            return [];
+            return null;
         }
 
         // A row stored with no `Node` is one too, painted or not yet.
         const drawn = this.graphContext?.getNodeBatches?.()?.columnRowIndices() ?? [];
-        return [...new Set([...drawn, ...dataManagerInternals.unbuiltRows(this.dataManager)])];
+        const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
+        let bound = 0;
+        for (const rows of [drawn, unbuilt]) {
+            for (const row of rows) {
+                bound = Math.max(bound, row + 1);
+            }
+        }
+
+        if (bound === 0) {
+            return null;
+        }
+
+        const mask = new Uint8Array(bound);
+        for (const rows of [drawn, unbuilt]) {
+            for (const row of rows) {
+                mask[row] = 1;
+            }
+        }
+
+        return mask;
     }
 
     /**
@@ -1789,8 +1819,9 @@ export class LayoutManager implements Manager {
         const nodes = byRow
             ? [...dataManagerInternals.builtNodes(this.dataManager)]
             : [...this.dataManager.nodes.values()];
-        const rows = new Set(this.columnRows());
-        return rows.size === 0 ? nodes : nodes.filter((n) => !rows.has(n.index));
+        // No `Node` to leave out (a batched load builds none): the rows need not be gathered.
+        const rows = nodes.length === 0 ? null : this.columnRows();
+        return rows === null ? nodes : nodes.filter((n) => rows[n.index] !== 1);
     }
 
     /**
@@ -1803,7 +1834,7 @@ export class LayoutManager implements Manager {
      */
     private addBodies(engine: LayoutEngine, nodes: Node[]): void {
         const rows = this.columnRows();
-        if (!(engine instanceof D3GraphEngine || engine instanceof NGraphEngine) || rows.length === 0) {
+        if (!(engine instanceof D3GraphEngine || engine instanceof NGraphEngine) || rows === null) {
             layoutEngineInternals.addNodes(engine, nodes);
             return;
         }
@@ -1823,7 +1854,6 @@ export class LayoutManager implements Manager {
             }
         }
 
-        const rowSet = new Set(rows);
         let ids: NodeIdType[] = [];
         for (let row = 0; row < snapshot.nodeCount; row++) {
             const n = byRow.get(row);
@@ -1834,7 +1864,7 @@ export class LayoutManager implements Manager {
                 }
 
                 layoutEngineInternals.addNodes(engine, [n]);
-            } else if (rowSet.has(row)) {
+            } else if (rows[row] === 1) {
                 ids.push(snapshot.ids.idOf(row));
             }
         }
@@ -3179,6 +3209,31 @@ export class LayoutManager implements Manager {
      */
     get isPaused(): boolean {
         return !this.running && !this.isSettled;
+    }
+
+    /**
+     * Whether the layout is moving: `running`, `paused` (stopped before it converged) or `settled`.
+     * @returns The motion.
+     */
+    get motion(): LayoutMotion {
+        if (this.running) {
+            return "running";
+        }
+
+        return this.isSettled ? "settled" : "paused";
+    }
+
+    /**
+     * Tell `onMotion` when the motion differs from what it was last told. Called whenever running
+     * starts or stops, and by the frame loop for what changes without that (a new engine built
+     * while paused, which may converge at once).
+     */
+    checkMotion(): void {
+        const { motion } = this;
+        if (motion !== this.#toldMotion) {
+            this.#toldMotion = motion;
+            this.onMotion?.(motion);
+        }
     }
 
     /**

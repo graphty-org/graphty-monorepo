@@ -326,6 +326,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionConfig", members: ["inEffect"], reason: "panel-state", kind: BY_DESIGN },
     ...(["SelectionApi", "SelectionOwner"] as const).flatMap((root): Exclusion[] => [
         { root, members: ["count"], reason: "covered-by", by: "query.overview", kind: BY_DESIGN },
+        { root, members: ["previous"], reason: "covered-by", by: "query.overview", kind: BY_DESIGN },
+        { root, members: ["restore"], reason: "covered-by", by: "select.set", kind: BY_DESIGN },
         {
             root,
             members: [

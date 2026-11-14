@@ -190,17 +190,7 @@ async function writeRowNow(
         if (first === undefined) {
             return;
         }
-        // Temporary: writeLine (row.ts) still types its session as GraphSession, though it reads no history;
-        // widen it to TransactionScope and drop this cast (issue #7078, row.ts held by pull request #7615).
-        await writeLine(
-            session as GraphSession,
-            ctx.row,
-            ctx.side,
-            first[0],
-            { value: first[1] },
-            ctx.fresh,
-            Object.fromEntries(rest),
-        );
+        await writeLine(session, ctx.row, ctx.side, first[0], { value: first[1] }, ctx.fresh, Object.fromEntries(rest));
         return;
     }
     // The layer's other values kept, the written ones in their place; undefined takes one off.

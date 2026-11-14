@@ -329,25 +329,19 @@ export function labelTextOf(data: unknown, block: Record<string, unknown> | unde
 }
 
 /**
- * A label's background color as the one string the label renderer takes: an advanced color style's solid value,
- * or a gradient's first color as a fallback.
+ * A label's background color in the form the label renderer draws: a color string, an advanced
+ * color style's solid value, or a gradient (linear or radial, with its stops) as it is, which the
+ * renderer paints itself.
  * @param color - The block's background color.
  * @returns The color, or undefined for none.
  */
-function labelBackgroundColor(color: RichTextStyleType["backgroundColor"]): string | undefined {
-    if (!color) {
-        return undefined;
-    }
-    if (typeof color === "string") {
-        return color;
-    }
-    if (color.colorType === "solid") {
+function labelBackgroundColor(
+    color: RichTextStyleType["backgroundColor"],
+): RichTextStyleType["backgroundColor"] | undefined {
+    if (typeof color === "object" && color.colorType === "solid") {
         return color.value;
     }
-    if (color.colorType === "gradient") {
-        return color.colors[0];
-    }
-    return undefined;
+    return color;
 }
 
 /**

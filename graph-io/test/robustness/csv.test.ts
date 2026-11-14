@@ -694,10 +694,9 @@ describe("csv robustness: adjacency tables", () => {
         expect(weightsOf(snapshot)).toEqual([1, undefined]);
     });
 
-    // known failure: a weight that overflows to Infinity (`c:1e400`) is kept with no warning; the
-    // intended behavior reports it. Remove `.fails` when the shared weight parser reports overflow.
-    it.fails("adjacency-weight-overflow: a weight beyond the f64 range is reported", async () => {
-        const { report } = await load("a c:1e400\n", adjacency);
-        expect(report.issues.length).toBeGreaterThan(0);
+    it("adjacency-weight-overflow: a weight beyond the f64 range is reported", async () => {
+        const { snapshot, report } = await load("a c:1e400\n", adjacency);
+        expect(report.issues.map((i) => i.code)).toEqual(["W_PRECISION"]);
+        expect(weightsOf(snapshot)).toEqual([Infinity]);
     });
 });

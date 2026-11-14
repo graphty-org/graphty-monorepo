@@ -329,6 +329,22 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(cy.$("#f").data("hops")).toBe(3);
     });
 
+    it("breadthFirstSearch and depthFirstSearch: one tree edge per node on a multigraph, the one the walk took", () => {
+        // b-a then a-b twice: the walk from a reaches b over its first arc, edge e0, in either direction
+        const cy = graph([
+            ["b", "a"],
+            ["a", "b"],
+            ["a", "b"],
+            ["b", "c"],
+        ]);
+        for (const directed of [false, true]) {
+            const tree = directed ? ["a", "e1", "b", "e3", "c"] : ["a", "e0", "b", "e3", "c"];
+            expect(ids(cy.graphtyBreadthFirstSearch({ root: "#a", directed }).path)).toEqual(tree);
+            expect(ids(cy.graphtyDepthFirstSearch({ root: "#a", directed }).path)).toEqual(tree);
+            expect(ids(cy.graphtyDirectionOptimizedBfs({ root: "#a", directed }).path)).toEqual(tree);
+        }
+    });
+
     it("closenessCentrality and nodeClosenessCentrality: known values, and the same order as closenessCentralityNormalized", () => {
         const cy = graph([
             ["a", "b"],
@@ -857,8 +873,9 @@ describe("results and errors in Cytoscape terms", () => {
             ["f", "g"],
         ]);
         cy.add({ data: { id: "h" } });
+        expect(() => cy.graphtyDeltaPageRank({ maxIterations: 2000 })).toThrow(/DeltaPageRank: the ranks overflowed/);
         expect(() => cy.graphtyDeltaPageRank({ maxIterations: 2000 })).toThrow(
-            /graphtyDeltaPageRank: the ranks overflowed/,
+            expect.objectContaining({ code: "E_BAD_OPTION" }),
         );
         const prio = cy.graphtyDeltaPageRank({ priority: true, maxIterations: 2000 });
         expect(prio.rank("#a")).toBeCloseTo(cy.graphtyPageRank({ directed: true }).rank("#a") ?? NaN, 6);

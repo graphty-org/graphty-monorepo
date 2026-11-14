@@ -178,6 +178,8 @@ const DECLARED = [
     "node.chartLineWidth",
     "node.chartBorderColor",
     "node.chartBorderWidth",
+    "node.chartBackgroundColor",
+    "node.chartBackgroundOpacity",
     "node.groupPadding",
     "node.groupPaddingRatio",
     "node.groupPaddingOf",
@@ -422,8 +424,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and two node channels and one hundred and sixty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 202);
+    it("splits into two hundred and four node channels and one hundred and sixty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 204);
         assert.strictEqual(channelsFor("edge").length, 165);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -713,6 +715,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.chartMax",
         "node.chartLineWidth",
         "node.chartBorderColor",
+        "node.chartBackgroundColor",
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",
@@ -981,6 +984,7 @@ describe("colour channels", () => {
             "node.overlayColor",
             "node.glyphColor",
             "node.chartBorderColor",
+            "node.chartBackgroundColor",
             "node.shapeLineHaloColor",
             "node.gradientColor",
             "edge.color",

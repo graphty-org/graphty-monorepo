@@ -101,7 +101,15 @@ import {
     type TransactionOptions as DispatchOptions,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
-import { EDGES_ADDED, forEachEdgeOfKey, namesEdges, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
+import {
+    EDGES_ADDED,
+    forEachEdgeOfKey,
+    graphDiffOf,
+    namesEdges,
+    nodeOfKey,
+    NODES_ADDED,
+    ROWS_MOVED,
+} from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
@@ -697,6 +705,7 @@ class Session implements ElementSession {
                 cause: change.cause,
             });
             beside?.(change);
+            tellData(this.watchers, change);
         };
         this.dispatcher.events.caughtUp = (change) => {
             publish(this.watchers, "project:derived", {
@@ -4759,6 +4768,53 @@ function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, 
             });
         }
     }
+}
+
+/**
+ * Publish `data:changed` for a project change that applied graph op logs, when anyone listens and
+ * the change added, removed or rewrote a node or edge. A rollback publishes nothing: what it reverts
+ * was never told.
+ * @param watchers - The session's watchers.
+ * @param change - The project change.
+ * @param change.cause - What made it.
+ * @param change.graph - The op logs it applied, in order.
+ */
+function tellData(
+    watchers: Watchers,
+    change: {
+        readonly cause: SessionEventMap["data:changed"]["cause"];
+        readonly graph?: Parameters<typeof graphDiffOf>[0];
+    },
+): void {
+    if (change.graph === undefined || change.cause === "rollback" || (watchers.get("data:changed")?.size ?? 0) === 0) {
+        return;
+    }
+
+    const diff = graphDiffOf(change.graph);
+    const count = (ids: { readonly nodes: unknown[]; readonly edges: unknown[] }): number =>
+        ids.nodes.length + ids.edges.length;
+    if (count(diff.added) + count(diff.removed) + count(diff.updated) === 0) {
+        return;
+    }
+
+    const frozen = <T extends object>(ids: T): Readonly<T> => {
+        for (const list of Object.values(ids)) {
+            Object.freeze(list);
+        }
+
+        return Object.freeze(ids);
+    };
+    publish(
+        watchers,
+        "data:changed",
+        Object.freeze({
+            added: frozen(diff.added),
+            removed: frozen(diff.removed),
+            updated: frozen(diff.updated),
+            fields: frozen(diff.fields),
+            cause: change.cause,
+        }),
+    );
 }
 
 /**

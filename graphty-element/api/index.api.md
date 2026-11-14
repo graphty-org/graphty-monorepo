@@ -2991,6 +2991,7 @@ export class Graph implements GraphContext {
         params?: Readonly<Record<string, unknown>>;
         extent?: CameraViewExtent;
     }): CameraState;
+    restartRenderer(): Promise<void>;
     retryLastAiCommand(): Promise<ExecutionResult>;
     get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -3238,7 +3239,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -3581,6 +3582,7 @@ export class Graphty extends LitElement {
         params?: Readonly<Record<string, unknown>>;
         extent?: CameraViewExtent;
     }): CameraState;
+    restartRenderer(): Promise<void>;
     retryLastAiCommand(): Promise<ExecutionResult>;
     get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -3973,15 +3975,19 @@ export type GraphtyErrorCode =
 | "E_LOCKED"
 /**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
-* unreadable file. `details` carry the url and the status where there was one, and `cause`
+* unreadable file. `details` carry the url (or the file's name), the status where there was
+* one and `timeoutMs` when the last request ran out of time, and `cause`
 * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
 * than 408 and 429), which fails after one request with `recoverable: false`.
 */
 | "E_FETCH_FAILED"
 /**
 * A source was fetched but could not be parsed as the format it claimed to be. `details`
-* carry the format, the line and, where the parser reported one, the column. The caller
-* corrects the file, or re-imports naming the true format.
+* carry the format, the line and, where the parser reported one, the column; when graph-io
+* read it, `details.issue` is graph-io's code for what stopped it (`"E_XML_SYNTAX"`,
+* `"E_CSV_UNCLOSED_QUOTE"`...) and `details.element` where. A reader that threw without a
+* code of its own is reported as this too, with its error as `cause`. The caller corrects
+* the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
 /**
@@ -4184,6 +4190,13 @@ export type GraphtyErrorCode =
 * the CPU in silence.
 */
 | "E_DEVICE_LOST"
+/**
+* The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+* device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+* The session and its data are untouched; the element asks for the device back, and
+* `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+*/
+| "E_RENDER_LOST"
 /**
 * No WebGL context could be created, so nothing can be rendered. `details` carry what the
 * canvas reported. The session's data and results still work; only the view is unavailable.
@@ -4452,9 +4465,20 @@ export interface GraphtyErrorDetailsMap {
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
+    E_FETCH_FAILED: {
+        readonly url?: string;
+        readonly file?: string;
+        readonly status?: number;
+        readonly attempts?: number;
+        readonly timeoutMs?: number;
+    };
     E_PARSE_FAILED: {
         readonly format?: string;
         readonly line?: number;
+        readonly rowErrors?: number;
+        readonly limit?: number;
+        readonly issue?: string;
+        readonly element?: string;
     };
     E_TOO_LARGE: {
         readonly limit?: number;
@@ -7332,6 +7356,16 @@ export interface RendererStatus {
 }
 
 // @public
+export interface RenderLostEvent {
+    code: "E_RENDER_LOST";
+    params: {
+        readonly renderer: "webgl" | "webgpu";
+    };
+    // (undocumented)
+    type: "render-lost";
+}
+
+// @public
 export class RenderManager implements Manager {
     constructor(canvas: HTMLCanvasElement, eventManager: EventManager, config?: RenderManagerConfig);
     applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void;
@@ -7402,6 +7436,13 @@ export interface RenderQualityChange {
 
 // @public
 export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-frame" | "guard.recovered";
+
+// @public
+export interface RenderRestoredEvent {
+    renderer: "webgl" | "webgpu";
+    // (undocumented)
+    type: "render-restored";
+}
 
 export { ReplayFetch }
 

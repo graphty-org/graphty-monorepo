@@ -77,6 +77,8 @@ export type {
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
+    DataChange,
+    DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
     DerivedColumn,

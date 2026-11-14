@@ -76,7 +76,6 @@ import type {
     Rgba,
     StaticStyle,
 } from "../../catalog/types";
-import { MIN_DRAWN_FONT_SIZE } from "../../config/RichTextStyle";
 import { isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
 import { isPlainObject } from "../../utils/isPlainObject";
@@ -265,9 +264,6 @@ export interface ValidationResult {
      *
      * `W_ALPHA_IGNORED`: a color with an alpha written to a channel that cannot draw it
      * translucent (`node.outline`), so it is drawn opaque. `params.channel` and `params.path`.
-     *
-     * `W_TEXT_TOO_SMALL`: a text size under 1 written to a label, tooltip or caption size, which
-     * draws no text. `params.channel`, `params.path` and `params.value`.
      *
      * `W_LABEL_STYLE_BOUND`: a whole label style channel (`node.labelStyle`) bound to a path. No
      * scale produces a whole label style, so the binding paints nothing. `params.channel` is the
@@ -530,35 +526,6 @@ function alphaWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[
     }).map((channel) =>
         Object.freeze({ code: "W_ALPHA_IGNORED" as const, params: Object.freeze({ channel, path: `set.${channel}` }) }),
     );
-}
-
-/** The text size channels: each draws no text under {@link MIN_DRAWN_FONT_SIZE}. */
-const TEXT_SIZE_CHANNELS: readonly string[] = [
-    "node.labelSize",
-    "node.tooltipSize",
-    "edge.labelSize",
-    "edge.arrowHeadTextSize",
-    "edge.arrowTailTextSize",
-];
-
-/**
- * The warnings a layer's literal text sizes earn: a size under 1 draws no text.
- * @param spec - The specification.
- * @returns The warnings; none when every literal size draws.
- */
-function textSizeWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[] {
-    return TEXT_SIZE_CHANNELS.flatMap((channel) => {
-        const value = spec.set?.[channel as keyof typeof spec.set];
-
-        return typeof value === "number" && value < MIN_DRAWN_FONT_SIZE
-            ? [
-                  Object.freeze({
-                      code: "W_TEXT_TOO_SMALL" as const,
-                      params: Object.freeze({ channel, path: `set.${channel}`, value }),
-                  }),
-              ]
-            : [];
-    });
 }
 
 /**
@@ -1814,12 +1781,7 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
         };
     }
 
-    const warnings = [
-        ...log.warnings,
-        ...selectorWarnings(spec, target, options.elements),
-        ...alphaWarnings(spec),
-        ...textSizeWarnings(spec),
-    ];
+    const warnings = [...log.warnings, ...selectorWarnings(spec, target, options.elements), ...alphaWarnings(spec)];
 
     return {
         result: Object.freeze({

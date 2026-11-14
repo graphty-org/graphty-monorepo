@@ -99,7 +99,7 @@ export const RichTextStyle = z.strictObject({
 
     // Font settings
     font: z.string().default("Verdana").optional(),
-    fontSize: z.number().default(48).optional(),
+    fontSize: z.number().min(1).default(48).optional(),
     // How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48.
     size: z.number().positive().optional(),
     // How tall the letters (one font size) are drawn in the scene; set, it decides the label's size over size.
@@ -277,23 +277,14 @@ export type RichTextStyleType = z.infer<typeof RichTextStyle>;
 export const defaultRichTextLabelStyle: RichTextStyleType = RichTextStyle.parse({});
 
 /**
- * The smallest font size that draws any text. A size under it (0, or a negative number, which
- * the schema accepts) draws no text at all, and a layer that writes one is told so with
- * `W_TEXT_TOO_SMALL`.
- */
-export const MIN_DRAWN_FONT_SIZE = 1;
-
-/**
- * Whether a resolved text block draws: switched on, and at a size that draws text.
+ * Whether a resolved text block draws: switched on.
  * @param block - The resolved label, tooltip or caption block.
  * @returns The block when it draws, else undefined.
  */
 export function drawnText<T extends Pick<RichTextStyleType, "enabled" | "fontSize">>(
     block: T | undefined,
 ): T | undefined {
-    return block?.enabled === true && (block.fontSize === undefined || block.fontSize >= MIN_DRAWN_FONT_SIZE)
-        ? block
-        : undefined;
+    return block?.enabled === true ? block : undefined;
 }
 
 /**

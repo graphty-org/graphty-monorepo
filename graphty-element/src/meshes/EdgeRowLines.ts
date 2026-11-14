@@ -9,7 +9,7 @@ import type { RowTable } from "../render/RowTable";
 import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
-import { NO_ROW, type PulledLineBatch } from "./PulledLineBatch";
+import type { PulledLineBatch } from "./PulledLineBatch";
 
 /** Style keys a row line may set: any other needs an `Edge` (a cap, a label or a band is drawn by one). */
 const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
@@ -199,7 +199,7 @@ export class EdgeRowLines {
     /**
      * Hide or show an edge row's line, as the edge masks say: its piece draws nothing while hidden and keeps its
      * place, look and nodes' rows, so a time window that hides and shows rows builds no `Edge` and writes only the
-     * pieces' two row numbers. Nothing for a row not drawn here.
+     * pieces' hidden flags. Nothing for a row not drawn here.
      * @param row - The edge row.
      * @param hidden - Whether it is hidden.
      */
@@ -210,13 +210,7 @@ export class EdgeRowLines {
         }
 
         lines.hidden[row] = hidden ? 1 : 0;
-        const batch = this.batches[lines.batchOf[row]];
-        if (hidden) {
-            batch.setRows(lines.piece[row], NO_ROW, NO_ROW);
-        } else {
-            batch.setRows(lines.piece[row], lines.source[row], lines.target[row]);
-        }
-
+        this.batches[lines.batchOf[row]].setHidden(lines.piece[row], hidden);
         this.host.requestFrame();
     }
 
@@ -358,10 +352,7 @@ export class EdgeRowLines {
             }
 
             const hidden = lines.hidden[row] === 1;
-            if (!hidden) {
-                batch.setRows(piece, source, target);
-            }
-
+            batch.setRows(piece, source, target);
             this.lines.set(edge, lines.batchOf[row], piece, source, target);
             this.lines.hidden[edge] = hidden ? 1 : 0;
             this.drawn++;

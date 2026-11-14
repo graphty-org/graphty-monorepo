@@ -153,9 +153,11 @@ export function plyGeometryKind(header: PlyHeader): PlyGeometryKind {
  */
 export function plyTextureFile(header: PlyHeader): string | undefined {
     for (const comment of header.comments) {
-        const match = /^texturefile\s+(.+)$/i.exec(comment);
-        if (match !== null) {
-            return match[1].trim();
+        // A prefix test and a slice, not a `\s+(.+)$` regex, which backtracks on long whitespace runs.
+        const [word, ...rest] = comment.trim().split(/\s/);
+        const name = rest.join(" ").trim();
+        if (word.toLowerCase() === "texturefile" && name !== "") {
+            return name;
         }
     }
 
@@ -325,7 +327,7 @@ function column(vertex: ElementData, ...names: string[]): Float64Array | undefin
  * @returns The interleaved values, or undefined when a column is missing.
  */
 function interleave(count: number, cols: (Float64Array | undefined)[]): Float32Array | undefined {
-    if (cols.some((c) => c === undefined)) {
+    if (cols.includes(undefined)) {
         return undefined;
     }
 

@@ -770,7 +770,7 @@ function readSogMeta(text: string): { count: number; pictures: string[] } {
             : undefined;
     };
     const shape = group("means")?.shape;
-    const fromShape = Array.isArray(shape) ? Number(shape[0]) : NaN;
+    const fromShape = Array.isArray(shape) ? Number(shape[0]) : Number.NaN;
     const count = typeof meta.count === "number" ? meta.count : fromShape;
     if (!Number.isSafeInteger(count) || count < 0) {
         refuse("E_MODEL_STRUCTURE", { rule: "splat" });

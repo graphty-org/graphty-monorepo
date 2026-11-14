@@ -76,6 +76,33 @@ interface Part {
 }
 
 /**
+ * A mesh's vertices in its own space and rest pose, indexed and with normals.
+ * @param mesh - The mesh.
+ * @returns Its vertex data.
+ */
+function restPose(mesh: Mesh): VertexData {
+    const data = VertexData.ExtractFromMesh(mesh, true, true);
+    // A glTF primitive with no indices draws its vertices in order (the loader marks it
+    // unindexed); the merged template is drawn indexed, so it gets those indices, or it
+    // draws nothing.
+    if (mesh.isUnIndexed || (data.indices?.length ?? 0) === 0) {
+        data.indices = Array.from({ length: mesh.getTotalVertices() }, (_, i) => i);
+    }
+    // The rest pose: skin weights and morph targets are not carried over.
+    data.matricesIndices = null;
+    data.matricesWeights = null;
+    data.matricesIndicesExtra = null;
+    data.matricesWeightsExtra = null;
+    if (data.normals === null && data.positions !== null && data.indices !== null) {
+        const normals: number[] = [];
+        VertexData.ComputeNormals(data.positions, data.indices, normals);
+        data.normals = normals;
+    }
+
+    return data;
+}
+
+/**
  * Bake every drawable part of the container into world-space vertex data, turned upright.
  * @param container - The loaded model.
  * @param turn - The orientation to bake in.
@@ -88,24 +115,7 @@ function bakeParts(container: AssetContainer, turn: Matrix): Part[] {
             continue;
         }
 
-        const data = VertexData.ExtractFromMesh(mesh, true, true);
-        // A glTF primitive with no indices draws its vertices in order (the loader marks it
-        // unindexed); the merged template is drawn indexed, so it gets those indices, or it
-        // draws nothing.
-        if (mesh.isUnIndexed || (data.indices?.length ?? 0) === 0) {
-            data.indices = Array.from({ length: mesh.getTotalVertices() }, (_, i) => i);
-        }
-        // The rest pose: skin weights and morph targets are not carried over.
-        data.matricesIndices = null;
-        data.matricesWeights = null;
-        data.matricesIndicesExtra = null;
-        data.matricesWeightsExtra = null;
-        if (data.normals === null && data.positions !== null && data.indices !== null) {
-            const normals: number[] = [];
-            VertexData.ComputeNormals(data.positions, data.indices, normals);
-            data.normals = normals;
-        }
-
+        const data = restPose(mesh);
         const { material } = mesh;
         const signature = [data.uvs, data.uvs2, data.colors, data.tangents].map((a) => (a ? 1 : 0)).join("");
         const blend = material?.needAlphaBlendingForMesh(mesh) === true ? "b" : "o";

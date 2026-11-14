@@ -102,8 +102,7 @@
             "layout",
             "algorithms",
             "cytoscape-extensions",
-            "visual-review",
-            "githerd"
+            "visual-review"
         ]
     },
     "fileLevelBrowser": {

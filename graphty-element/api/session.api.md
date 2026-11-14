@@ -527,12 +527,14 @@ export type ChannelAgreement = {
     readonly layerId: LayerId;
     readonly unpainted: number;
     readonly covered?: number;
+    readonly overridden?: number;
 } | {
     readonly channel: Channel;
     readonly state: "mixed";
     readonly breakdown: readonly ChannelShare[];
     readonly unpainted: number;
     readonly covered?: number;
+    readonly overridden?: number;
 };
 
 // @public
@@ -2203,6 +2205,14 @@ export type GraphtyErrorCode =
 */
 | "E_SHADER_REFUSED"
 /**
+* The browser or the headset would not start an immersive (VR or AR) session: the reader
+* refused permission, the device was busy, or the session could not be set up. `details.mode`
+* is `"vr"` or `"ar"`, `details.reason` is `"active"` when another session was already running,
+* and `cause` carries what the browser rejected with. Nothing was left half built: the graph
+* stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
+*/
+| "E_XR_SESSION_FAILED"
+/**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
 * needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
@@ -2424,7 +2434,22 @@ export type GraphtyErrorCode =
 /**
 * A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
 */
-| "E_IMAGE_LOAD" | "E_INTERNAL";
+| "E_IMAGE_LOAD"
+/**
+* A screenshot, a video or a clipboard copy was started and could not be finished: the
+* renderer, the image encoder, the media recorder or the clipboard write failed, or there was
+* no camera to draw from. `details.media` is `"image"` or `"video"`, `details.destination` is
+* `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
+* @since 3.40.0
+*/
+| "E_CAPTURE_FAILED"
+/**
+* A screenshot waited for the layout to stop moving and it was still moving when the wait ran
+* out. `details.timeoutMs` is the wait. The caller captures again later, raises
+* `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
+* @since 3.40.0
+*/
+| "E_NOT_SETTLED" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -3029,6 +3054,7 @@ export interface JoinRecord {
     readonly before?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
     readonly choices: JoinChoices;
     readonly columns: readonly string[];
+    readonly made?: readonly NodeId_2[];
     readonly matched: number;
     readonly onto: SourceKey | null;
     readonly rows: number;
@@ -3728,6 +3754,13 @@ export interface Neighbor {
     readonly name: string;
     readonly node: NodeRecord;
     readonly weight: number;
+}
+
+// @public
+export interface NeighborhoodWindow {
+    readonly from: number | string;
+    readonly path: Path;
+    readonly to: number | string;
 }
 
 // @public
@@ -5314,6 +5347,7 @@ export interface RunsApi {
     remove(id: RunId): RunRemoval;
     rename(id: RunId, name: string | null): Promise<void>;
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
+    sweep(algorithm: AlgorithmKey, option: OptionDescriptor["name"], values: readonly unknown[], options?: SweepOptions): Run<SweepResult>;
 }
 
 // @public
@@ -5533,7 +5567,7 @@ export interface SelectionApi {
     // @deprecated
     promote(name: string): ScopeId;
     readonly size: number;
-    statistics(): Promise<SelectionStatistics>;
+    statistics(options?: SelectionStatisticsOptions): Promise<SelectionStatistics>;
     readonly truncated: boolean;
 }
 
@@ -5557,6 +5591,7 @@ export interface SelectionAttributeStatistics {
     readonly min?: number;
     readonly path: Path;
     readonly plainName: string;
+    readonly sum?: number;
 }
 
 // @public
@@ -5589,9 +5624,15 @@ export interface SelectionStatistics {
         readonly min: number;
         readonly max: number;
     };
+    readonly edgeAttributes: readonly SelectionAttributeStatistics[];
     readonly edges: number;
     readonly inducedEdges: number;
     readonly nodes: number;
+}
+
+// @public
+export interface SelectionStatisticsOptions {
+    readonly scope?: ScopeInput;
 }
 
 // @public
@@ -6789,6 +6830,10 @@ export type StyleAdjustmentCode = "style.out-of-range" | "style.alpha-not-drawn"
 // @public
 export interface StyleAgreement {
     readonly channels: readonly ChannelAgreement[];
+    readonly elements?: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
     readonly readOver?: "row" | "everyElement";
 }
 
@@ -7045,6 +7090,31 @@ export interface SummaryGroup {
     readonly name?: string;
     readonly rank?: number;
     readonly size: number;
+}
+
+// @public
+export interface SweepOptions extends RunOptions {
+    readonly label?: string;
+    readonly params?: Readonly<Record<string, unknown>>;
+    readonly scope?: ScopeInput;
+    readonly seed?: number;
+    readonly style?: RunStyle;
+}
+
+// @public
+export interface SweepResult extends BatchResult {
+    readonly option: OptionDescriptor["name"];
+    readonly rows: readonly SweepRow[];
+}
+
+// @public
+export interface SweepRow {
+    readonly failure?: BatchStepFailure;
+    readonly graph?: Readonly<Record<string, unknown>>;
+    readonly ok: boolean;
+    readonly runId?: RunId;
+    readonly summary?: ResultSummary;
+    readonly value: unknown;
 }
 
 // @public

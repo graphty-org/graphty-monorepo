@@ -142,3 +142,17 @@ export function suggestRunName(descriptor: AlgorithmDescriptor, params: Readonly
 function plainName(descriptor: AlgorithmDescriptor): RunName {
     return { id: plainId(descriptor.key), label: descriptor.plainName, distinguishedBy: null };
 }
+
+/**
+ * The id a sweep gives the run of one of its values: the algorithm, the option and the value, so
+ * every value is a result of its own rather than a re-run of the one before.
+ * @param key - The algorithm's catalog key.
+ * @param option - The option the sweep varies.
+ * @param value - The value.
+ * @returns The id, such as `louvain_resolution_0_5`.
+ */
+export function sweepRunId(key: string, option: string, value: unknown): string {
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+
+    return [plainId(key), idPart(option), idPart(text ?? "")].filter((part) => part !== "").join("_");
+}

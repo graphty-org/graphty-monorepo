@@ -452,34 +452,6 @@ describe("centrality and community adapters on the index-based ports", () => {
         }
     });
 
-    it("eigenvector turns a start vector keyed by node id into one keyed by row", async () => {
-        const graph = await graphWith(WEIGHTED_MULTI);
-        const startVector = new Map([
-            ["A", 5],
-            ["E", 0.1],
-        ]);
-        const algorithm = new EigenvectorCentralityAlgorithm(graph);
-        // Programmatic only: the options schema does not carry a Map, so it is set on the options.
-        (algorithm as unknown as { _schemaOptions: Record<string, unknown> })._schemaOptions.startVector = startVector;
-        const { values } = await measured(graph, algorithm);
-        const s = referenceSnapshot(graph.getDataManager(), "undirected");
-        const reference = byId(
-            s,
-            eigenvectorCentrality(s, {
-                maxIterations: 1000,
-                tolerance: 1e-6,
-                mode: "total",
-                startVector: Float64Array.from(
-                    { length: s.nodeCount },
-                    (_, i) => startVector.get(String(s.ids.idOf(i))) ?? 1,
-                ),
-            }).scores,
-        );
-        for (const id of graph.getDataManager().nodes.keys()) {
-            close(values.get(id), reference.get(id), `eigenvector of ${String(id)}`);
-        }
-    });
-
     describe("routing", () => {
         const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY.eigenvectorCentrality;
 

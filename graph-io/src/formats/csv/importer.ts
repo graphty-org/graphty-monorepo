@@ -299,6 +299,12 @@ export const COMMENT_LIKE_RECORD_CODE = "W_CSV_COMMENT_LIKE_RECORD";
  */
 export const TRAILING_DELIMITER_CODE = "W_CSV_TRAILING_DELIMITER";
 /**
+ * The first row was read as data, but it could be a header: every cell is a word of three or more characters that no other row
+ * repeats (`from_node,to_node` over rows of names). Pass `header: true` if it is one.
+ * @category Issue and loss codes
+ */
+export const POSSIBLE_HEADER_CODE = "W_CSV_POSSIBLE_HEADER";
+/**
  * A headerless three-column table's third column holds text, so it is an attribute, not the weight.
  * @category Issue and loss codes
  */
@@ -774,6 +780,9 @@ class TableReader {
 
     private dataRows = 0;
 
+    /** The cells of a first row read as data that could be a header, until a later row repeats one of them. */
+    private possibleHeader: { cells: ReadonlySet<string>; line: number } | null = null;
+
     private nodeOrdinal = 0;
     /** Whether a field-count error has already suggested `table: "adjacency"`. */
     private adjacencyHinted = false;
@@ -894,7 +903,21 @@ class TableReader {
                 line: firstLine,
             });
         }
+        this.reportPossibleHeader();
         this.reportReaderFindings();
+    }
+
+    /** Warn when a first row read as data could be a header and no later row repeated any of its cells. */
+    private reportPossibleHeader(): void {
+        if (this.possibleHeader === null) {
+            return;
+        }
+        this.state.report.warning(
+            "validation-error",
+            POSSIBLE_HEADER_CODE,
+            "the first row is read as data, but no other row repeats its cells, so it may be a header; pass header: true if it is",
+            { line: this.possibleHeader.line },
+        );
     }
 
     /**
@@ -925,6 +948,9 @@ class TableReader {
         }
         if (!header) {
             pending.push(first);
+            if (mode === "auto" && second !== null && couldBeHeader(first.row)) {
+                this.possibleHeader = { cells: new Set(first.row.map((c) => c.trim())), line: first.line };
+            }
         }
         if (second !== null) {
             pending.push(second);
@@ -1575,6 +1601,10 @@ class TableReader {
     private processRow(row: string[], quoted: readonly boolean[], line: number): void {
         const plan = this.requirePlan();
         this.dataRows++;
+        const possible = this.possibleHeader;
+        if (possible !== null && line !== possible.line && row.some((cell) => possible.cells.has(cell.trim()))) {
+            this.possibleHeader = null;
+        }
         if (this.state.csv.decimalComma) {
             for (let i = 0; i < row.length; i++) {
                 if (DECIMAL_COMMA.test(row[i])) {
@@ -1967,6 +1997,22 @@ class TableReader {
             }
         }
     }
+}
+
+/**
+ * A column-name-like word: three or more characters, a letter or underscore first, then letters, digits, `_`, `.`,
+ * `:` or `-` (short ids such as `a`, `b1` or `u` are left alone).
+ */
+const NAME_LIKE = /^[A-Za-z_][\w.:-]{2,}$/;
+
+/**
+ * Whether a first row could be a header of unknown column names: two or more distinct name-like cells.
+ * @param row - the first row
+ * @returns true when it could be a header
+ */
+function couldBeHeader(row: readonly string[]): boolean {
+    const cells = row.map((c) => c.trim());
+    return cells.length >= 2 && new Set(cells).size === cells.length && cells.every((c) => NAME_LIKE.test(c));
 }
 
 /**

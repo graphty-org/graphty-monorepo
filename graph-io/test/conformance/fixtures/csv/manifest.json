@@ -945,8 +945,7 @@
         "warnings": [
           "W_CSV_POSSIBLE_HEADER"
         ]
-      },
-      "knownFailure": "a header of unknown names over text rows is read as data silently (sources.md 7.4) (#7636)"
+      }
     },
     {
       "file": "dialect/comment-lines-anywhere.csv",

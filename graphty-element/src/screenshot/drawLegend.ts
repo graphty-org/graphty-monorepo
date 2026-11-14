@@ -1,4 +1,4 @@
-import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
+import { captureError } from "./captureError.js";
 import type { ScreenshotLegendSection } from "./types.js";
 
 /** Sizes in canvas (CSS) pixels; every one is multiplied by the capture's scale. */
@@ -88,10 +88,7 @@ export async function drawLegend(
     canvas.height = image.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) {
-        throw new ScreenshotError(
-            "Failed to get 2D context for the legend",
-            ScreenshotErrorCode.CANVAS_ALLOCATION_FAILED,
-        );
+        throw captureError("E_OUT_OF_MEMORY", "Failed to get 2D context for the legend", { of: "canvas" });
     }
     ctx.drawImage(image, 0, 0);
     image.close();
@@ -142,9 +139,7 @@ export async function drawLegend(
                 if (drawn) {
                     resolve(drawn);
                 } else {
-                    reject(
-                        new ScreenshotError("Failed to draw the legend", ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED),
-                    );
+                    reject(captureError("E_CAPTURE_FAILED", "Failed to draw the legend", { media: "image" }));
                 }
             },
             blob.type,

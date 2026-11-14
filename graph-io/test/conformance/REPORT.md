@@ -15,7 +15,7 @@ the expectation today; the reference points into
 | cx | 51 | 51 | 0 | 47 | 0 |
 | cx2 | 57 | 57 | 0 | 53 | 0 |
 | cys | 53 | 53 | 0 | 40 | 0 |
-| dot | 196 | 191 | 5 | 173 | 1 |
+| dot | 196 | 196 | 0 | 178 | 0 |
 | gexf | 110 | 107 | 3 | 104 | 1 |
 | gml | 109 | 98 | 11 | 88 | 3 |
 | graphml | 148 | 145 | 3 | 131 | 0 |
@@ -197,21 +197,7 @@ No known failures.
 
 ## dot
 
-### a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4) (#7638) (3)
-
-- `graphviz-issues/1408.dot`: failed: E_SYNTAX: "1408.dot" could not be read as dot: line 6: unexpected character "#"
-- `authored/hash-indented.gv`: failed: E_SYNTAX: "hash-indented.gv" could not be read as dot: line 2: unexpected character "#"
-- `authored/hash-midline.gv`: failed: E_SYNTAX: line 2: unexpected character "#"
-
-### an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4) (#7639) (2)
-
-- `pydot/hash_inside_html.dot`: node "<b>b2 #rules!</b>" missing
-- `pydot/html_labels.dot`: nodes: expected 6, got 5; node "abcde" missing
-
-### round trip: the DOT export writes subgraph members before the other nodes, so node order changes on re-import (#7640) (1)
-
-- `graphviz-graphs/b7.gv`: ids[2]: expected "a", got "y"; ids[3]: expected "c", got "z"
-
+No known failures.
 
 ## gexf
 

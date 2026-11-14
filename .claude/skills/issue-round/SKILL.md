@@ -164,15 +164,17 @@ rounds had closed 161 low bugs and 160 high ones in 7 days while 13 of 20 open c
 - [ ] Critical first. A `priority:critical` issue in the queue is taken before anything else when no live job works
       it: no live `taken` marker (see "Stale" and "Idle claims" in the shared file), no open pull request naming it, and
       no `fix attempt` marker in the last 6 hours. The queue already drops the critical alarms that are not code work
-      (`release-status`, `ci-budget`, `Release held:`, `Nightly missed slot`, `Nightly held on`, `Full run red:`,
-      `Failing on master:`, `Red master: CI failed on`, `canary deploy failed on`, owner-review waits labelled `hold` or `blocked`): those stay pipeline-round's.
+      (alarm labels such as `release-status` and `ci-budget`, and the alarm titles in `ALARM_TITLES` in
+      `tools/issue-queue.mjs`: red master, red full runs, nightly and release alarms, unsigned baselines; owner-review
+      waits carry `hold` or `blocked`): those stay pipeline-round's.
 - [ ] While any critical or high issue is startable (free under step 4, not owner-only, not `needs-decision`), start
       no job led by a medium or low issue, from a cluster or the queue. A related medium or low issue may ride in a job
       led by a critical or high one (step 3), since it costs no extra slot.
 - [ ] When the top critical or high issue is not startable, skip to the next critical or high one, never silently
-      lower. The round's last line names why the top is blocked: `top of queue #<n> <priority> <owner-only |
-needs-decision | waits on #<m> | file collision with #<m>>`. Only when no critical or high issue is startable may
-      medium and low jobs start; idle slots go first to diagnoses of the blocked critical and high issues (step 1).
+      lower. The round's last line names why the top is blocked, as `top of queue #<n> <priority> <reason>`, the
+      reason one of owner-only, needs-decision, `waits on #<m>` or `file collision with #<m>`. Only when no critical
+      or high issue is startable may medium and low jobs start; idle slots go first to diagnoses of the blocked
+      critical and high issues (step 1).
 
 A load-sensitive failure (critical by the owner's rule, 2026-10-22) keeps its label: never lower it, and its job
 reproduces it under `taskset -c 0`, names the mechanism and never fixes it with a longer wait. Never lower a priority

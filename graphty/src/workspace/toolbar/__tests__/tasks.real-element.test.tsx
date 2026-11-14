@@ -284,6 +284,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(await screen.findByRole("option", { name: /Re-run layout/ }));
         await waitFor(() => {
             assert.notEqual(session.positions.generation, generation);
+            // Recorded as a re-run, not as a change of layout.
+            assert.equal(session.history.steps.at(-1)?.fact.code, "layout.rerun");
         });
         assert.equal(session.layout.id, "circular");
 

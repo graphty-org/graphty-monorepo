@@ -95,6 +95,9 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
             reaches: [
                 { op: "layout.set" },
                 { door: "SessionLayout.set" },
+                // The layout it already has, with the same engine and options, is run again.
+                { op: "layout.rerun" },
+                { door: "SessionLayout.rerun" },
                 { options: "layouts" },
                 { options: "engines" },
                 ...ids.map((id) => ({ catalog: `layouts/${id}` })),
@@ -129,11 +132,17 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
                     engineOptionsOf(layout, engine),
                     (args.options ?? {}) as Record<string, unknown>,
                 );
+                const same =
+                    layout.id === tx.layout.id &&
+                    (engine ?? layout.engine) === tx.layout.engine &&
+                    JSON.stringify(args.options === undefined ? {} : options) === JSON.stringify(tx.layout.options);
                 await coded(() =>
-                    tx.layout.set(layout.id, {
-                        ...(engine === undefined ? {} : { engine }),
-                        ...(args.options === undefined ? {} : { options }),
-                    }),
+                    same
+                        ? tx.layout.rerun()
+                        : tx.layout.set(layout.id, {
+                              ...(engine === undefined ? {} : { engine }),
+                              ...(args.options === undefined ? {} : { options }),
+                          }),
                 );
                 return {
                     ...ok(undefined, { layout: tx.layout.id, engine: tx.layout.engine }),

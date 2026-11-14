@@ -47,7 +47,7 @@ describe("a yEd file opened with its styles", () => {
             );
             assert.isNotNull(found);
             assert.isAbove(found?.session.data.lastImport()?.counts.nodes ?? 0, 0);
-            return found as HTMLElementTagNameMap["graphty-element"];
+            return found;
         });
         const { session } = element;
         await session.styles.settled();

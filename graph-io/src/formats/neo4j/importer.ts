@@ -1187,6 +1187,11 @@ class Neo4jImportSession {
             report.counts.skippedNodes++;
             return;
         }
+        // counted before its cells are read: a cell error at the error limit ends the import with the
+        // node already in the sink. A node a relationship created before its row is counted once.
+        if (!existed) {
+            report.counts.nodes++;
+        }
         this.parseProperties(section.properties, cells, quoted, line, idText);
         // a write the sink refuses is recorded and the rest of the row is still written
         const set = (column: ColumnHandle, value: unknown): void => {
@@ -1209,10 +1214,6 @@ class Neo4jImportSession {
         }
         this.writeProperties("node", section.properties, index, line, idText);
         this.reportPrecision(line, idText);
-        // a node a relationship created before its row (or an earlier row) is counted once
-        if (!existed) {
-            report.counts.nodes++;
-        }
     }
 
     /**
@@ -1399,10 +1400,11 @@ class Neo4jImportSession {
             report.counts.nodes++;
             this.placeholders.push({ id, index: sink.indexOf(id) });
         }
+        // counted before its writes, which may end the import at the error limit with the edge in the sink
+        report.counts.edges++;
         this.setRelationshipType(section, cells, edge, line, element);
         this.writeProperties("edge", section.properties, edge, line, element);
         this.reportPrecision(line, element);
-        report.counts.edges++;
     }
 
     /**

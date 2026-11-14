@@ -768,7 +768,8 @@ describe("neo4jImporter (design 8.4)", () => {
             expect(err.code).toBe("E_IMPORT");
             expect(err.report.truncated).toBe(true);
             expect(err.report.errorCount).toBe(4);
-            expect(err.report.counts.nodes).toBe(3);
+            // the fourth row's node is in the sink when its bad cell ends the import, and is counted
+            expect(err.report.counts.nodes).toBe(4);
             expect(err.report.format).toBe("neo4j");
         });
 

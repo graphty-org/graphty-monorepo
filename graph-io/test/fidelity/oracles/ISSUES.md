@@ -5126,3 +5126,20 @@ on the second.
   alone; it now takes the box of the inked lines (`inkedLines`, a quarter turn at a time).
 - label.offset 100/107 -> 107/107 and label.anchor 105/107 -> 107/107, on both views. No other sample of any program
   changed a failing element or a score (full report against master, 563 samples).
+
+## Cytoscape chart category names past the labels list (#7824, 2026-11-14)
+
+`images-charts-p7` `line-domain-labels-column` plots 5 values with 3 labels (X, Y, Z); Cytoscape writes "..." under the
+fourth and fifth points (`stray.present`, 2 per view per format, cx, cx2, cys, xgmml).
+
+- Cytoscape names a category its labels list does not cover `#k` (custom-graphics-internal's `createCategoryDataset`),
+  and JFreeChart fits every category name on one line of 0.95 of a category (half the plot's height when turned):
+  `TextUtilities.createTextBlock` keeps the words that fit, at least one character, and when any of the name is left
+  over replaces the last 3 characters with "...", or writes "..." alone for 3 characters or fewer. `#4` at size 10 is
+  14.7 wide in a 10.2 category, so it keeps "#" and draws "...". A one-character name is never cut (the size 20 bar
+  chart draws a, b and c whole in narrower categories). graph-io now does both (`domainNames`, `fitName`); heat maps
+  keep naming only by their columns.
+- stray.present 16 -> 0. Not closed: the node's words now read "X Y Z ......" on graphty's side and "X Y Z ... ..."
+  on the oracle's, because the comparator measures the oracle's "..." in the browser's face for Tahoma (0.75 em) where
+  JFreeChart laid it out in Dialog (0.954 em), so it sees a word space graphty's drawing does not. label.text and
+  label.anchor on node 522930: 0 -> 16, recorded with #7850. No other sample changed.

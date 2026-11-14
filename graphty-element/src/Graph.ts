@@ -9584,6 +9584,8 @@ export class Graph implements GraphContext {
 
     // Voice input adapter instance (lazy-initialized)
     private voiceAdapter: VoiceInputAdapter | null = null;
+    // Removes the running session's `onTranscript`, so it never hears a later session.
+    private voiceTranscriptOff: (() => void) | null = null;
 
     /**
      * Get the voice input adapter.
@@ -9607,6 +9609,8 @@ export class Graph implements GraphContext {
                 if (active) {
                     this.eventManager.emit("ai-voice-start", {});
                 } else {
+                    this.voiceTranscriptOff?.();
+                    this.voiceTranscriptOff = null;
                     this.eventManager.emit("ai-voice-end", { reason });
                 }
             });
@@ -9625,8 +9629,10 @@ export class Graph implements GraphContext {
      * @param options - Voice input options
      * @param options.continuous - Whether to continuously listen for input
      * @param options.interimResults - Whether to return interim transcription results
-     * @param options.language - BCP 47 language tag (e.g., "en-US", "fr-FR")
-     * @param options.onTranscript - Callback for transcription events
+     * @param options.language - BCP 47 language tag (e.g., "en-US", "fr-FR"); without one the
+     *   browser recognizes the page's language (`<html lang>`)
+     * @param options.onTranscript - Callback for this session's transcription events; it is not
+     *   called again once the session ends or another starts
      * @param options.onStart - Callback when voice input starts
      * @returns True if voice input started successfully
      * @example
@@ -9657,11 +9663,6 @@ export class Graph implements GraphContext {
             return false;
         }
 
-        // Register transcript callback if provided
-        if (options?.onTranscript) {
-            adapter.onInput(options.onTranscript);
-        }
-
         // Register start callback if provided
         if (options?.onStart) {
             adapter.onStart(options.onStart);
@@ -9671,8 +9672,13 @@ export class Graph implements GraphContext {
         adapter.start({
             continuous: options?.continuous ?? false,
             interimResults: options?.interimResults ?? true,
-            language: options?.language ?? "en-US",
+            language: options?.language,
         });
+
+        // Registered after `start`, which ends the previous session (and removes its callback) first.
+        // This session's callback is removed when it ends.
+        this.voiceTranscriptOff?.();
+        this.voiceTranscriptOff = options?.onTranscript ? adapter.onInput(options.onTranscript) : null;
 
         // Return true because permission is being requested
         // Actual start/failure will be notified via onStart callback

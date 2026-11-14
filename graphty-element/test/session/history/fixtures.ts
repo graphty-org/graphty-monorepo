@@ -983,6 +983,14 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "layout.set", id: "force", scope: { nodes: ["n1", "n2"] } },
     },
     {
+        // On a renderer only: with nothing drawn, no node moves, so the step changes no state. An
+        // unseeded random layout lands somewhere new on every run.
+        name: "layout.rerun: the current layout run again",
+        tags: ["renderer"],
+        before: (session) => session.layout.set("random"),
+        command: { op: "layout.rerun" },
+    },
+    {
         name: "layout.scope: part of the graph",
         tags: ["session"],
         command: { op: "layout.scope", scope: { nodes: ["n1", "n2"] } },

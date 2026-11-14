@@ -236,12 +236,16 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static hasZodOptions(): boolean;
     // @internal
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput;
+    // @internal
+    static readonly loadedWeightByDefault: boolean;
     // (undocumented)
     static namespace: string;
     get namespace(): string;
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId): number;
     // @deprecated
     static optionsSchema: OptionsSchema_2;
+    // @internal
+    parallelEdgePolicy(): SimplifyPolicy | undefined;
     // @internal
     static parallelEdges?: SimplifyPolicy;
     publishResult(_context: RunControls, runId: string, _fields?: readonly FieldDescriptor[]): Promise<RunResult | undefined>;
@@ -2566,7 +2570,13 @@ export { ExpandRequest }
 export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions & {
     readonly scope?: ExportScope;
     readonly columns?: readonly string[];
+    readonly groupTable?: ExportGroupTable;
 };
+
+// @public
+export interface ExportGroupTable extends GroupTableOptions {
+    readonly groupBy: string;
+}
 
 // @public
 export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
@@ -4814,6 +4824,14 @@ export interface GroupOutlineAtResult {
 }
 
 // @public
+export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
+
+// @public
+export interface GroupTableOptions {
+    readonly summaries?: Readonly<Record<Path, readonly GroupSummary[]>>;
+}
+
+// @public
 export interface HighlightSuggestion {
     readonly as: "highlight";
     readonly channels: readonly Channel[];
@@ -5074,6 +5092,7 @@ export abstract class LayoutEngine {
 export class LayoutManager implements Manager {
     constructor(eventManager: EventManager, dataManager: DataManager, styles: Styles);
     get building(): boolean;
+    checkMotion(): void;
     // @internal
     clustersChanged(): void;
     get dimension(): 2 | 3 | undefined;
@@ -5099,7 +5118,9 @@ export class LayoutManager implements Manager {
     get layoutEngine(): LayoutEngine | undefined;
     get layoutType(): string | undefined;
     loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): void;
+    get motion(): LayoutMotion;
     get nodes(): Iterable<Node_2>;
+    onMotion: ((motion: LayoutMotion) => void) | null;
     onRest: (() => void) | null;
     placeGroups(): void;
     // @internal

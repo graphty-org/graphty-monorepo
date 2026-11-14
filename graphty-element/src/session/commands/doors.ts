@@ -2120,6 +2120,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             emptyClick: EVENTS,
             elementClick: EVENTS,
             groupOutlineClick: EVENTS,
+            layoutMotion: EVENTS,
         },
     },
     {
@@ -2267,6 +2268,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             running: IN_FLIGHT,
             setPaused: IN_FLIGHT,
             isPaused: READ,
+            motion: READ,
             setGraphContext: LIFECYCLE,
             updateStyles: RENDER,
             init: LIFECYCLE,
@@ -2290,6 +2292,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             hasLayoutEngine: READ,
             updatePositions: TRANSPORT,
             onRest: RENDER,
+            onMotion: RENDER,
+            checkMotion: RENDER,
             restoring: RENDER,
             replacing: RENDER,
             graphWritesWaiting: RENDER,
@@ -2958,6 +2962,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             histogram: READ,
             valueCounts: READ,
             overRepresented: READ,
+            groupTable: READ,
             // The column commands, each one batch.
             setRole: {
                 kind: "dispatches",
@@ -3558,8 +3563,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             options: READ,
             dimension: READ,
             arrangedDimension: READ,
+            motion: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
+            rerun: calls([], [{ op: "layout.rerun" }]),
             optionInEffect: READ,
             locationColumns: READ,
         },
@@ -3661,6 +3668,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,
+            // A layout drawing from the card owes the lane its frame; settling it writes the rows.
+            owe: LANE,
+            forgive: LANE,
+            settle: LANE,
+            keeps: READ,
+            unsettledView: READ,
         },
     },
     {

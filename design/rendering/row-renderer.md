@@ -313,7 +313,11 @@ The join shader reads six points as attributes. A new define `EDGE_PULLED` build
 `gl_VertexID`, an edge table texture of two row numbers (8 MB at a million) and `texelFetch`; every later line is untouched, so the line
 draws the same pixels (0 on all four renderer and API pairs), and a million-edge move uploads 1.5 MB, not 80 MB. **Pulled edges are one
 non-instanced `gl_VertexID` draw on every renderer, never instanced**: instancing gains nothing on the RTX and is 4 to 6 times slower on
-SwiftShader. The 14-vertex form needs an index buffer, 120 MB at capacity 2^20; expanded lines take 1,408 MB.
+SwiftShader. The draw is unindexed (stage 123, #6389): `gl_VertexID / 30` is the draw slot and the rest the corner, which
+the shader's own copy of the template's index list turns into a template vertex (6 corners for the lean and animated programs).
+Correction: this section said the 14-vertex form needs an index buffer, 120 MB at capacity 2^20; it needs none. While pieces
+of two widths interleave, a draw order table (a float a slot, `edgeOrder`) names the piece each slot draws, which the index
+list's order did before (#6392); with one width no table is read. Expanded lines take 1,408 MB.
 
 `repeatPerVertex` is deleted at stage 16, once pulled edges are the path: expanded lines die past 524,288 pieces on SwiftShader, which is why
 software renderers cannot load a million edges. Object lines there then draw instanced as on hardware: 0 pixels different, 15-53% slower.
@@ -1123,6 +1127,48 @@ over those rows only). The walk still runs for a framing asked for, the framing 
 a node drawn as an object, any hidden row (`RowTable.hiddenRows`), a layout transition and an engine that holds rows
 outside its publish (a scope or followers). Labels and bent edges are not framed while the layout moves. The box's
 eight corners are the framing's spots, so `camera.fitBounds` "turning" keeps the whole box in view as the camera turns.
+
+As built (cosmos-gap stage 119): a landing copied on the card is no longer also published on the CPU. Before, every
+layout frame still ran the CPU publish beside the copy: `publishColumn` over every row, the table's repack of every
+row, and the skip-mask walk, 49 ms of an 82 ms CPU frame at 1M + 1M. Now, when the landing goes up by copy, the
+simulation engine copies it, sends the transform and owes the lane its publish (`ElementPositions.owe`). The first read
+or write of a row writes it: `view`, `read`, `isPlaced`, `write`, `grow`, `remap`, `setPinned`, and on the table
+`rowPosition`, `rowBounds` and `centerOf` (`RowTable.catchUp`), so a pick, a node's position, a drag and a freeze see
+the rows the card shows. The store's snapshot is different: it lends the lane by reference as its `position` column and
+a cached snapshot comes back without a lane accessor, and the store's own `getSnapshot` runs on every frame, so it
+cannot write the publish. The two readers that hand the snapshot's coordinates on write it instead: the consumer copy
+behind `session.data.snapshot()` and the read-only store's `getSnapshot` (an export), and an algorithm's input
+(`Algorithm.input`, which every run reads the graph through, `AStar`'s heuristic and the off-thread copy included). The rows come from the newest landing, with the transform that landing drew with.
+`generation` and `changes` do not trigger it, so a frame that only checks whether the lane moved writes nothing. Owing
+moves the public `generation` once per landing, since the coordinates a reader would get have changed (a consumer
+polling it re-reads, and the read writes the publish); `changes` moves only when the publish is written. A pinned row
+is one the publish leaves alone, so `RowTable.centerOf` of a pinned, placed row (`ElementPositions.keeps`) reads it
+without writing the rest. The undo history's question is different: whether the lane moved since its last capture (`Arrangement.moved`) writes the owed publish first, so a rest point (a pause), an undo or redo, or a `positions.set` during a run seals the arrangement the card shows; those are not per frame. A
+flush that has touched rows to send writes the owed publish first, because rows go up in whole texture lines. The skip
+walk runs only when something can have changed it: a fixed row, a hold or followers, or a table write to a row it
+keeps (`RowTable.ownRowWrites`). Three things are left. The envelope is still measured on every landing, because it is
+the transform the next batches draw with; that is two read-only passes over the read-back (13 ms a frame at 1M rows).
+While a publish is owed, the zoom-to-fit of a running layout frames the envelope's sphere (target centre plus or minus
+the scaling radius) grown by every pinned or dragged row, as a written publish grows its box, instead of the rows' own
+box, which can frame a little more loosely. And a built `Node`, a label on
+one, or anything else that reads a row on every frame still writes the publish on every frame, at today's cost.
+Counted in `shared-device-drawn.test.ts`: across three copied landings, `ElementPositions.changes`,
+`RowTable.repackedRows` and the engine's `rowsWalked` do not move; reading a node's position then publishes the rows,
+and the texture equals the CPU copy, while `generation` moves once a landing. A `session.data.snapshot()` taken
+while landings are owed writes the publish and carries the node's current position (`test/algorithms/owed-publish.test.ts`
+pins the algorithm input). A node pinned at x 500 stays inside the
+box framed while landings are owed, and the pinned node's per-frame read writes no row. Measured on paced WebGPU, interleaved, load average 16-20: the layout frame went
+from 169 ms to 86 ms at 1M + 1M and from 114 ms to 73 ms at 100k + 1M. Both are now GPU-bound, on the line draw plus
+the layout's own passes on the shared device.
+
+As built (cosmos-gap stage 119, correction): `RowTable`'s copied-landing flag stayed true across frames once a
+publish was owed, since an owed landing writes no lane row and so no repack cleared it. A lane write then settles
+first, the settle copies the owed landing again, and the write that asked for it moves the lane; the next repack
+copied the new rows into the CPU copy and sent none, so a layout switched to mid-run (ForceAtlas2 to circular) was
+never drawn and the texture rested on the old landing. The table now remembers the lane's `changes` at the copy
+(`copiedAt`) instead of a flag: a repack of exactly that lane sends nothing, a lane written since sends every row.
+Counted in `shared-device-drawn.test.ts` ("draws a layout switched to while a landing is owed on the card": the
+texture equals the CPU copy after the switch; worst difference 57.8 before the fix).
 
 ### 4.6 Columns and load (#3249)
 

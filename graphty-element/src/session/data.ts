@@ -102,6 +102,7 @@ import {
     LOAD_ROLES,
     readSource,
 } from "./draft";
+import type { LaneStore } from "./GraphSession";
 import { columnMutations } from "./importColumns";
 import {
     type DataIssue,
@@ -134,7 +135,7 @@ import {
     resultCellRanks,
     resultSortValue,
 } from "./results/pageColumns";
-import { buildHistogram, resolveBinCount } from "./results/statistics";
+import { arrayColumn, buildHistogram, computeColumnStatistics, resolveBinCount } from "./results/statistics";
 import type { HistogramOptions } from "./results/types";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
@@ -192,6 +193,10 @@ import type {
     FindOptions,
     FindResult,
     GraphStatistics,
+    GroupSummary,
+    GroupTable,
+    GroupTableOptions,
+    GroupTableRow,
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
@@ -236,6 +241,9 @@ import { valueLabelsAt } from "./valueLabels";
 
 /** A value a column holds that can be given a name (`data.label`) or counted. */
 type ColumnScalar = string | number | boolean;
+
+/** Every summary `groupTable` writes. */
+const GROUP_SUMMARIES: readonly GroupSummary[] = ["count", "sum", "min", "max", "mean", "median"];
 
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
@@ -792,7 +800,7 @@ export class SessionData implements SessionDataApi {
     readonly store: SessionGraphStore;
 
     /** The store itself, which the session's own readers read. */
-    private readonly graphStore: SessionGraphStore;
+    private readonly graphStore: LaneStore;
     private readonly records: SessionRecordSource | null;
     private readonly readConfig: () => SessionDataConfig;
     private readonly writes: DataWrites;
@@ -879,7 +887,7 @@ export class SessionData implements SessionDataApi {
      * @param pages - the revision and the scope resolver a page reads
      */
     constructor(
-        store: SessionGraphStore,
+        store: LaneStore,
         records: SessionRecordSource | null,
         readConfig: () => SessionDataConfig,
         writes: DataWrites,
@@ -1970,7 +1978,7 @@ export class SessionData implements SessionDataApi {
      */
     snapshot(): GraphSnapshot {
         this.requireLive("snapshot");
-        return consumerSnapshot(this.graphStore.getSnapshot());
+        return consumerSnapshot(this.graphStore);
     }
 
     /**
@@ -5159,16 +5167,9 @@ export class SessionData implements SessionDataApi {
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
         const counts = new Map<ColumnScalar, number>();
         let missing = 0;
-        // Degree, in-degree and out-degree are read from the snapshot, not a column.
-        const structure = kind === "node" ? structureValuesOf(snapshot, path) : undefined;
+        const read = this.valueReader(kind, path);
         for (let index = 0; index < total; index++) {
-            let value: unknown;
-            if (structure !== undefined) {
-                value = structure[index];
-            } else {
-                value =
-                    path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
-            }
+            const value = read(index);
             if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
                 counts.set(value, (counts.get(value) ?? 0) + 1);
             } else {
@@ -5178,6 +5179,25 @@ export class SessionData implements SessionDataApi {
 
         const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
         return Object.freeze({ values: Object.freeze(values), missing, total });
+    }
+
+    /**
+     * How a path's value is read per element, as `valueCounts` counts it.
+     * @param kind - nodes or edges
+     * @param path - the value path, or `"id"` for the node id
+     * @returns the value of the element at a row
+     */
+    private valueReader(kind: "node" | "edge", path: Path): (index: number) => unknown {
+        const snapshot = this.current();
+        // Degree, in-degree and out-degree are read from the snapshot, not a column.
+        const structure = kind === "node" ? structureValuesOf(snapshot, path) : undefined;
+        if (structure !== undefined) {
+            return (index) => structure[index];
+        }
+        if (path === "id" && kind === "node") {
+            return (index) => snapshot.ids.idOf(index);
+        }
+        return (index) => this.pages.valueAt(kind, index, path);
     }
 
     /**
@@ -5207,6 +5227,69 @@ export class SessionData implements SessionDataApi {
             snapshot.nodeCount,
             paths.map((path) => ({ path, valueAt: (index: number) => this.pages.valueAt("node", index, path) })),
         );
+    }
+
+    /**
+     * One row per group of the nodes, with its size and the summaries asked for.
+     * @param groupBy - the path holding each node's group
+     * @param options - the summaries, by the node path they read
+     * @returns the table, largest group first
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for an unknown summary.
+     */
+    groupTable(groupBy: Path, options: GroupTableOptions = {}): GroupTable {
+        const summaries = Object.entries(options.summaries ?? {});
+        for (const [path, asked] of summaries) {
+            const unknown = (Array.isArray(asked) ? asked : [asked]).find(
+                (each) => !GROUP_SUMMARIES.includes(each as GroupSummary),
+            );
+            if (!Array.isArray(asked) || unknown !== undefined) {
+                throw new GraphtyError({
+                    code: "E_OPTION_RANGE",
+                    message: `summaries of ${path} must be a list of ${GROUP_SUMMARIES.join(", ")}`,
+                    source: "data",
+                    details: { option: "summaries", path, value: unknown, available: GROUP_SUMMARIES },
+                });
+            }
+        }
+
+        // The groups and their sizes are the value counts of the path, largest first.
+        const groups = this.valueCounts(groupBy, { kind: "node" }).values;
+        const labels = this.valueLabels(groupBy);
+        const members = new Map<ColumnScalar, number[]>(groups.map((each) => [each.value, []]));
+        const groupAt = this.valueReader("node", groupBy);
+        const count = this.current().nodeCount;
+        for (let index = 0; summaries.length > 0 && index < count; index++) {
+            members.get(groupAt(index) as ColumnScalar)?.push(index);
+        }
+
+        const columns = ["group", ...(labels.size > 0 ? ["label"] : []), "size"];
+        for (const [path, asked] of summaries) {
+            columns.push(...asked.map((summary) => `${path}.${summary}`));
+        }
+
+        const rows = groups.map(({ value, count: size }) => {
+            const row: Record<string, string | number | boolean | null> = { group: value };
+            if (labels.size > 0) {
+                row.label = labels.get(String(value)) ?? null;
+            }
+            row.size = size;
+            const indices = members.get(value) ?? [];
+            for (const [path, asked] of summaries) {
+                const read = this.valueReader("node", path);
+                const numbers = indices.map((index) => {
+                    const cell = read(index);
+                    return typeof cell === "number" ? cell : Number.NaN;
+                });
+                const statistics = computeColumnStatistics(arrayColumn(numbers));
+                for (const summary of asked) {
+                    const figure = summary === "count" ? statistics.measured : statistics[summary];
+                    row[`${path}.${summary}`] = summary === "count" || statistics.measured > 0 ? figure : null;
+                }
+            }
+            return Object.freeze<GroupTableRow>(row);
+        });
+
+        return Object.freeze({ groupBy, columns: Object.freeze(columns), rows: Object.freeze(rows) });
     }
 
     /**
@@ -6265,10 +6348,10 @@ export function headlessDataService(
  * @param store - The store.
  * @returns The read-only store.
  */
-function readonlyStore(store: SessionGraphStore): SessionGraphStore {
+function readonlyStore(store: LaneStore): SessionGraphStore {
     const positions = readonlyPositions(() => store.positions);
     return {
-        getSnapshot: () => consumerSnapshot(store.getSnapshot()),
+        getSnapshot: () => consumerSnapshot(store),
         undirected: (snapshot) => store.undirected(snapshot),
         positions,
         get seededNodeCount() {
@@ -6292,10 +6375,16 @@ function readonlyStore(store: SessionGraphStore): SessionGraphStore {
  * of them would change what compute runs over, or place and pin nodes, with no step and nothing
  * for undo to restore. A copy keeps the published type, so an exporter reading
  * `byRole("position").data` works unchanged, and whatever the consumer writes stays theirs.
- * @param resident - The store's snapshot.
+ *
+ * The resident snapshot lends the lane by reference and is handed back cached without touching the
+ * lane, so a layout's owed publish (design/rendering/row-renderer.md 4.5) is written first: the copy
+ * carries the latest landing, not the coordinates of the last settle.
+ * @param store - The store.
  * @returns The consumer's snapshot.
  */
-function consumerSnapshot(resident: GraphSnapshot): GraphSnapshot {
+function consumerSnapshot(store: LaneStore): GraphSnapshot {
+    store.positions.settle();
+    const resident = store.getSnapshot();
     // ponytail: copies the whole snapshot per call (O(nodes + edges)); cache a copy per freeze and
     // lane generation, handed out as read-only views, if a consumer calls this every frame.
     const copy = fromBytes(resident.toBytes(), { validate: "none" });

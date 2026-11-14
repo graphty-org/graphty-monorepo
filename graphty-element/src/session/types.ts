@@ -2403,7 +2403,40 @@ export interface DraftRow {
      * Present only on the rows `only: "unmatched"` reads.
      */
     readonly missingEnds?: readonly EdgeEnd[];
+    /**
+     * Why the row was rejected or left unmatched, as a code and its facts. Present on the rows
+     * `only: "rejected"` and `only: "unmatched"` read, and on every row of `LoadReport.rows`.
+     */
+    readonly reason?: RowReason;
 }
+
+/**
+ * Why a row of an import made no node or edge, or named a node no node row held: a neutral fact a
+ * reader words from `code` and `params`.
+ *
+ * - `"refused-row"` (the code `LoadReport.errors` gives the same row): the row's id, or an edge
+ *   row's end, cannot be a node id -- absent, null, blank, or not a string or a finite number.
+ *   `params.rowsAre` is `"nodes"` or `"edges"`; for an edge row `params.ends` lists the unusable
+ *   ends (`"source"`, `"target"`).
+ * - `"unknown-end"` (the code `data.issues()` gives these edges): an edge row names a node no node
+ *   row (nor, for a merge, the graph) holds. `params.ends` lists those ends and `params.ids` the
+ *   ids they name, in the same order.
+ * @since 3.40.0
+ */
+export interface RowReason {
+    /** The kind of problem. */
+    readonly code: RowReasonCode;
+    /** The facts the code names. */
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The codes a {@link RowReason} gives.
+ *
+ * OPEN UNION: codes may be added in a minor release; handle unknown codes.
+ * @since 3.40.0
+ */
+export type RowReasonCode = "refused-row" | "unknown-end";
 
 /** One end of an edge: the node it leaves, or the node it enters. */
 export type EdgeEnd = "source" | "target";

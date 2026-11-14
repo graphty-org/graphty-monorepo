@@ -180,6 +180,8 @@ export type {
     ResultColumn,
     ResultColumnDescriptor,
     ResultSort,
+    RowReason,
+    RowReasonCode,
     RowUpdate,
     RunPlacement,
     SessionAttributes,

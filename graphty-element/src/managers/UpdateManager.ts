@@ -4416,7 +4416,7 @@ export class UpdateManager implements Manager {
         }
 
         if (sphere !== null && active instanceof OrbitCameraController) {
-            this.frameGlobe(active, box, sphere);
+            this.frameGlobe(active, box, sphere, frame?.surface === "globe" && frame.world);
         } else {
             this.frameBox(box, frame);
         }
@@ -4448,13 +4448,16 @@ export class UpdateManager implements Manager {
      * @param orbit - The orbit camera.
      * @param box - The box around the nodes.
      * @param radius - The globe's radius.
+     * @param world - Whether the whole globe is the subject (world data or `extent: "world"`).
      */
-    private frameGlobe(orbit: OrbitCameraController, box: FramingBox, radius: number): void {
+    private frameGlobe(orbit: OrbitCameraController, box: FramingBox, radius: number, world: boolean): void {
         // Where the bare sphere just fits: data that needs the camera as far out as that spans the earth.
         orbit.zoomToSphere(Vector3.Zero(), radius);
         const whole = orbit.cameraDistance;
-        this.frameBox(box, null);
-        if (orbit.cameraDistance + orbit.pivot.position.length() >= whole) {
+        if (!world) {
+            this.frameBox(box, null);
+        }
+        if (world || orbit.cameraDistance + orbit.pivot.position.length() >= whole) {
             orbit.zoomToSphere(Vector3.Zero(), radius * GLOBE_FRAMING);
         } else {
             orbit.slidePivotNear(Vector3.Zero());

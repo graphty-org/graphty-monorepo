@@ -368,22 +368,28 @@ describe("the camera on a location map", () => {
         });
     });
 
-    it("opens a globe whose data spans the earth as the whole sphere", async () => {
+    it("opens a globe as the whole sphere for data that spans the earth, and for extent: world", async () => {
         // Twelve places around the equator, one every 30 degrees of longitude.
         const world = Array.from({ length: 12 }, (_, k) => ({
             id: `p${String(k)}`,
             latitude: 0,
             longitude: k * 30 - 165,
         }));
-        const element = await mounted("3d", { mapDimension: "3d" }, world);
-        const frame = element.mapFrame;
-        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
-        const camera = element.graph.getScene().activeCamera;
-        assert.isNotNull(camera);
-        // The whole sphere, with its tenth to spare, fills the shorter side of the view.
-        const tan = Math.tan((camera?.fov ?? 0.8) / 2) * Math.min(1, WIDTH / HEIGHT);
-        const whole = (radius * 1.1 * Math.sqrt(1 + tan * tan)) / tan;
-        assert.closeTo(eyeRadius(element) / whole, 1, 0.02, "the camera stands where the whole globe fits");
+        for (const [options, places] of [
+            [{ mapDimension: "3d" }, world],
+            [{ mapDimension: "3d", extent: "world" }, CITY],
+        ] as const) {
+            const element = await mounted("3d", options, places);
+            const frame = element.mapFrame;
+            const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+            const camera = element.graph.getScene().activeCamera;
+            assert.isNotNull(camera);
+            // The whole sphere, with its tenth to spare, fills the shorter side of the view.
+            const tan = Math.tan((camera?.fov ?? 0.8) / 2) * Math.min(1, WIDTH / HEIGHT);
+            const whole = (radius * 1.1 * Math.sqrt(1 + tan * tan)) / tan;
+            assert.closeTo(eyeRadius(element) / whole, 1, 0.02, `${JSON.stringify(options)}: the whole globe fits`);
+            element.remove();
+        }
     });
 
     it("holds node sizes on screen over a tilted 2D map, its arcs above it, and comes down to the map", async () => {

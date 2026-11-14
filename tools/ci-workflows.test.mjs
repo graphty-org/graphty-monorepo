@@ -3294,8 +3294,8 @@ describe("Playwright's system packages", () => {
     });
 
     // Runs install.sh against a fake apt: sudo logs its arguments (and really runs rm), pnpm answers
-    // the dry run with PKGS and the install by writing DOWNLOADS into the archive directory, and
-    // dpkg-query reports the packages named in INSTALLED as installed.
+    // the dry run (as Playwright 1.65+ does) by listing the packages of "a b" not named in INSTALLED and
+    // exiting 1 if any, and the install by writing DOWNLOADS into the archive directory.
     const run = ({ hit, cached = [], stale = [], downloads = [], aptSays = "", installed = "a b" }) => {
         const home = mkdtempSync(join(TMP, "pw-debs-"));
         const bin = join(home, "bin");
@@ -3309,13 +3309,13 @@ describe("Playwright's system packages", () => {
         stub(
             "pnpm",
             `echo "pnpm $*" >> "${home}/calls"
-if [ "$4" = --dry-run ]; then echo 'sudo -- sh -c "apt-get update&& apt-get install -y --no-install-recommends a b"'; exit; fi
+if [ "$4" = --dry-run ]; then
+    missing=""; for p in a b; do case " ${installed} " in *" $p "*) ;; *) missing="$missing  $p\n";; esac; done
+    if [ -n "$missing" ]; then printf "Missing system dependencies:\n$missing"; exit 1; fi
+    echo "All system dependencies are installed."; exit
+fi
 for d in ${downloads.join(" ")}; do touch "${archives}/$d"; done
 echo "${aptSays}"`,
-        );
-        stub(
-            "dpkg-query",
-            `rc=0; for p in "\${@:3}"; do case " ${installed} " in *" $p "*) echo "ii  $p";; *) echo "dpkg-query: no packages found matching $p" >&2; rc=1;; esac; done; exit $rc`,
         );
         const r = spawnSync("bash", [script], {
             encoding: "utf8",
@@ -3341,14 +3341,14 @@ echo "${aptSays}"`,
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n/m);
         assert.doesNotMatch(r.calls, /install-deps chromium/);
-        assert.match(r.stdout, /All 2 packages Chromium needs are installed/);
+        assert.match(r.stdout, /All system packages Chromium needs are installed/);
     });
 
     it("on a hit fails when the cache left a package Chromium needs uninstalled", () => {
         const r = run({ hit: "true", cached: ["a.deb"], installed: "a" });
         assert.equal(r.status, 1);
         assert.match(r.stdout, /::error::Chromium's system packages are not all installed/);
-        assert.match(r.stdout, /no packages found matching b/);
+        assert.match(r.stdout, /^ {2}b$/m);
     });
 
     it("on a miss clears apt's old downloads, installs with apt and caches only what apt downloaded", () => {

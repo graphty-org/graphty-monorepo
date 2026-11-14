@@ -52,14 +52,16 @@ export function targetsOf(session: GraphSession, resolved: Resolved): NoteTarget
  * One target's name, as a chip shows it.
  * @param session - the session.
  * @param target - the target, as saved or as a door built it.
- * @returns the words: "Ava", "Ava -> Ben", "Graph", a run's name.
+ * @returns the words: "Ohio (71)", "71", "Ava -> Ben", "Graph", a run's name.
  */
 export function targetWords(session: GraphSession, target: NoteTarget | NoteTargetInput): string {
     if ("graph" in target) {
         return "Graph";
     }
     if ("node" in target) {
-        return String(target.node);
+        // The label with the id beside it, "Ohio (71)"; the id alone when the node has no label.
+        const { name, id, labeled } = session.data.nodeName(target.node);
+        return labeled ? `${name} (${String(id)})` : name;
     }
     if ("edge" in target) {
         const edge = typeof target.edge === "string" ? session.data.edge(target.edge) : target.edge;

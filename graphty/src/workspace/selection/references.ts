@@ -122,7 +122,7 @@ export function referenceSections(
     const { nodeCount } = session.data.statistics();
     const found = typed === "" ? null : findNodes(session, typed);
     const nodes = (found?.nodes ?? []).map((each) => {
-        const label = session.data.name(each.id) ?? String(each.id);
+        const label = session.data.nodeName(each.id).name;
         const hint = matchedValue(each, label, lower);
         return { value: `node:${String(each.id)}`, label, ...(hint === undefined ? {} : { hint }) };
     });

@@ -523,7 +523,7 @@ function pinnedGroup(
         if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
             return {};
         }
-        const has = "node" in at ? (session.data.name(at.node) ?? String(at.node)) : "the selected edge";
+        const has = "node" in at ? session.data.nodeName(at.node).name : "the selected edge";
         return { pinned: { key: String(value), has } };
     } catch (error) {
         // An element gone since it was selected pins nothing.

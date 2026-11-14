@@ -7,7 +7,7 @@ import { selectionWorkspaceOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { resolveInspected } from "../inspector/inspected";
-import { staleWords } from "../inspector/words";
+import { count, staleWords } from "../inspector/words";
 import { isPanelEscape, matchesKey } from "../keys/keys";
 import { errorWords } from "../project/words";
 import { useSteps } from "../selection/useSteps";
@@ -23,17 +23,7 @@ import { ADD_ROW_LABEL, addFolderOf, addHoverHighlight, addLayer, moveRows, orNo
 import { ROW_COMMANDS } from "./commands";
 import { KindGlyph } from "./KindGlyph";
 import { RowMenuItems } from "./RowMenu";
-import {
-    builtParts,
-    count,
-    findTreeRow,
-    groupRowOf,
-    isHidden,
-    layerCount,
-    layerKindWords,
-    placeOf,
-    rowName,
-} from "./rows";
+import { builtParts, findTreeRow, groupRowOf, isHidden, layerCount, layerKindWords, placeOf, rowName } from "./rows";
 
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;

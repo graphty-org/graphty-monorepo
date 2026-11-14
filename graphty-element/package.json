@@ -156,6 +156,7 @@
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "lint": "node ../tools/test-slots.mjs --lint eslint --concurrency 2 $ESLINT_CACHE && node eslint-rules/node-position-funnel.test.mjs && node eslint-rules/node-mesh-funnel.test.mjs && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit && npm run typecheck:strict-consumer",
         "benchmark": "tsx benchmarks/run.ts",
+        "fidelity:issues": "tsx scripts/fidelity-issues.ts",
         "fidelity:ratchet": "tsx scripts/fidelity-ratchet.ts",
         "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json && tsc -p tsconfig.strict-consumer.json && tsc -p tsconfig.no-jsx-opt-in.json",
         "lint:fix": "eslint --fix",

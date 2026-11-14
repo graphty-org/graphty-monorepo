@@ -20,11 +20,7 @@ const GRADIENT_PIECES = 64;
  * @returns The hex, or null.
  */
 function hexOf(text: string): string | null {
-    try {
-        return colorToHex(text) ?? null;
-    } catch {
-        return null;
-    }
+    return colorToHex(text) ?? null;
 }
 
 /**
@@ -57,6 +53,40 @@ export function gradientStopList(text: string | undefined, count: number): numbe
 }
 
 /**
+ * Where each of a gradient's colors sits, from 0 to 1: the given stops when there is one per color,
+ * otherwise evenly spaced. One color sits at 0, which paints the whole ramp in it; evenly spacing
+ * it as `i / (count - 1)` would be NaN, which `addColorStop` throws on.
+ * @param count - How many colors the gradient has.
+ * @param stops - Where each sits, or none.
+ * @returns One offset per color.
+ */
+function gradientOffsets(count: number, stops?: readonly number[] | null): number[] {
+    if (stops?.length === count) {
+        return [...stops];
+    }
+    return Array.from({ length: count }, (_, i) => (count === 1 ? 0 : i / (count - 1)));
+}
+
+/**
+ * Add a gradient's colors to a canvas ramp, each at its offset from {@link gradientOffsets}. The
+ * one place node, label and legend ramps add their stops, so one color or a stop list means the
+ * same everywhere.
+ * @param ramp - The canvas gradient, with no stops yet.
+ * @param colors - The colors.
+ * @param stops - Where each sits, or none.
+ */
+export function addGradientStops(
+    ramp: Pick<CanvasGradient, "addColorStop">,
+    colors: readonly (string | undefined)[],
+    stops?: readonly number[] | null,
+): void {
+    const offsets = gradientOffsets(colors.length, stops);
+    colors.forEach((color, i) => {
+        ramp.addColorStop(offsets[i], color ?? "transparent");
+    });
+}
+
+/**
  * The colors of a line's gradient pieces, from its source end to its target end, or null when the
  * style paints the line in no gradient: `line.gradient` with fewer than two colors, or kind "none".
  * A linear gradient runs from the source end to the target end; a radial one out from the line's
@@ -79,7 +109,7 @@ export function gradientPieceColors(
         return null;
     }
 
-    const stops = gradientStopList(gradient.stops, colors.length) ?? colors.map((_, i) => i / (colors.length - 1));
+    const stops = gradientOffsets(colors.length, gradientStopList(gradient.stops, colors.length));
 
     return Array.from({ length: pieces }, (_, i) => {
         const t = (i + 0.5) / pieces;

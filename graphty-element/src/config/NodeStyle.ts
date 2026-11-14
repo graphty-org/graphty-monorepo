@@ -593,7 +593,8 @@ export const NodeStyle = z.strictObject({
      * bottom, each an equal share after `margin` (a share of the side, default 0) at each end and
      * `gap` (a share of the side, default 0) split between them. A bar runs from 0 (or the nearer
      * end of the range) to its value. `lineWidth` is a line's and a whisker's width, `borderWidth` /
-     * `borderColor` a bar's and a box's outline, in the units of `shape.size`.
+     * `borderColor` a bar's and a box's outline, in the units of `shape.size`. `backgroundColor` at
+     * `backgroundOpacity` (default 1) fills the plot box under the chart; unset, the plot has no fill.
      */
     chart: z
         .strictObject({
@@ -613,6 +614,8 @@ export const NodeStyle = z.strictObject({
             lineWidth: z.number().nonnegative().optional(),
             borderColor: ColorStyle.optional(),
             borderWidth: z.number().nonnegative().optional(),
+            backgroundColor: ColorStyle.optional(),
+            backgroundOpacity: z.number().min(0).max(1).optional(),
         })
         .optional(),
     /**

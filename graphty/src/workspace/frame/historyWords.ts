@@ -134,6 +134,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "algo.legacy": (p, s) => `running ${algorithmName(s, p.algorithm)}`,
     "algo.remove": (p, s) => `removing ${runWords(s, p.run)}`,
     "algo.move": (p, s) => `moving ${runWords(s, p.run)}`,
+    "algo.rename": (p, s) => `renaming ${runWords(s, p.run)}`,
     "algo.batch": (p) => `running ${counted(p, "method")}`,
     "algo.template": () => "running the template's methods",
     batch: (p) => text(p, "label", counted(p, "change", "steps")),

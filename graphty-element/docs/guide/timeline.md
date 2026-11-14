@@ -54,6 +54,9 @@ Text in ISO 8601 form and numbers are read directly. Left out, the unit comes fr
 numbers from 1000 to 2999 are years, epochs are seconds or milliseconds, and any other numbers are
 plain ordered steps (`"ordinal"`). `time.candidates()` lists the columns that read as time, and
 `time.notices()` reports values that did not.
+`session.catalog.timeAttributes()` gives the same columns as attribute descriptors (the ones
+`data.attributes()` returns), with any column a file or a load declared as time first, so a time
+picker can list them by their `plainName`. With the experiment off it lists none.
 
 Before a load, a draft says which columns look like time, and applies nothing. A column looks like
 time when every sampled value is a strict date, or when its name speaks of time (`date`, `time`,

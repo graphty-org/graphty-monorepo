@@ -105,12 +105,10 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
         const drawn = k === null ? undefined : Math.min(k, snapshot.nodeCount);
 
         context.report({
-            phase: "measuring distances",
+            phase: "measuring-distances",
             completed: 0,
             total: nodeIds.length,
-            message: sampled
-                ? "A breadth-first search runs from every sampled source."
-                : "A breadth-first search runs from every node.",
+            params: { sampled },
         });
         // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
         // The element's own half -- reading the scores back out -- is chunked below.
@@ -120,7 +118,7 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
         context.signal.throwIfAborted();
 
         const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+        await walkInChunks(nodeIds, context, "reading-scores", (nodeId) => {
             const score = value.scores[snapshot.ids.indexOf(nodeId)];
             nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
         });

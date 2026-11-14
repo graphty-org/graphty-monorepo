@@ -7,14 +7,11 @@ import { seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import type { CommonLayoutOptions } from "../simulation/types.js";
 import { np } from "../utils/numpy.js";
-import { refusal } from "./common.js";
+import { checkScaleCenter, refusal } from "./common.js";
 import { layoutDim } from "./start.js";
 
 /** The ideal distance of a pair with no path between them, as networkx fills its matrix. */
 const UNREACHABLE = 1e6;
-
-/** The seed of the 3D random start: networkx starts unseeded, and a fixed seed draws the same graph the same way. */
-const START_SEED = 42;
 
 /** Options of indexed.kamadaKawai. */
 export interface KamadaKawaiOptions extends CommonLayoutOptions {
@@ -25,7 +22,7 @@ export interface KamadaKawaiOptions extends CommonLayoutOptions {
      * as distances.
      */
     readonly dist?: Float32Array | Float64Array | null | undefined;
-    /** Start positions, `dim` values per node in index order (NaN reads as 0); absent: a circle in 2D, a seeded random cube in 3D. */
+    /** Start positions, `dim` values per node in index order (NaN reads as 0); absent: a circle in 2D, a random cube drawn from `seed` in 3D. */
     readonly pos?: F32 | null | undefined;
     /** true (the default): the snapshot's weights; a string: that numeric edge column; false / null: every edge is 1. */
     readonly weight?: boolean | string | null | undefined;
@@ -197,7 +194,7 @@ export function idealDistances(s: GraphSnapshot, options: KamadaKawaiOptions): n
 }
 
 /**
- * The start positions: `pos` (NaN as 0), else networkx's -- the unit circle in 2D, a seeded random unit cube in 3D.
+ * The start positions: `pos` (NaN as 0), else networkx's -- the unit circle in 2D, a random unit cube drawn from `seed` in 3D (unseeded without one).
  * @param s - the snapshot
  * @param options - the options
  * @param dim - 2 or 3
@@ -224,7 +221,7 @@ function startPositions(s: GraphSnapshot, options: KamadaKawaiOptions, dim: 2 | 
     }
     // float64, as kamadaKawaiLayout drew it: a float32 start settles in a different local minimum
     const column = new Float64Array(3 * n).fill(Number.NaN);
-    seedPositions(s, column, options.seed === undefined ? START_SEED : options.seed, 3, 1, null, "fr");
+    seedPositions(s, column, options.seed ?? null, 3, 1, null, "fr");
     return Array.from({ length: n }, (_, i) => Array.from(column.subarray(3 * i, 3 * i + 3)));
 }
 
@@ -240,6 +237,7 @@ function startPositions(s: GraphSnapshot, options: KamadaKawaiOptions, dim: 2 | 
  * distance matrix cannot be allocated
  */
 export function kamadaKawai(g: GraphSnapshot, options: KamadaKawaiOptions = {}): LayoutResult {
+    checkScaleCenter(options.scale, options.center);
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const n = s.nodeCount;

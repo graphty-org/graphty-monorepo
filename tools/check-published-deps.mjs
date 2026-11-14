@@ -80,16 +80,6 @@ const FRAMEWORK_IMPORTS_ALLOWED = {
 };
 
 /**
- * Declared peer dependencies a package may keep although no shipped file imports them: removing a
- * peer is a breaking change, so it waits for the next major (tools/check-peer-deps-stable.mjs).
- */
-const UNUSED_PEERS_ALLOWED = {
-    // The AI SDK 5, which graphty-element no longer imports (its TanStack AI engine replaced it);
-    // the peers stay declared, optional, until the next major.
-    "@graphty/graphty-element": new Set(["ai", "@ai-sdk/anthropic", "@ai-sdk/google", "@ai-sdk/openai"]),
-};
-
-/**
  * Specifiers a shipped file holds as text that looks like an import but is not one, by file, with
  * the reason. Each file pattern is as narrow as the code that writes the text.
  */
@@ -280,17 +270,16 @@ function shippedFrameworkProblems(packed, files, manifest) {
  * @param imported - Package name to the first file that imports it.
  * @param declared - Every dependency and peer dependency name.
  * @param deps - The dependencies.
- * @param manifest - The package's manifest.
  * @returns The problems.
  */
-function importMismatches(imported, declared, deps, manifest) {
+function importMismatches(imported, declared, deps) {
     const problems = [];
     for (const [name, file] of imported) {
         if (!declared.has(name))
             problems.push(`${file} imports "${name}", which is neither a dependency nor a peer dependency`);
     }
     for (const name of declared) {
-        if (!imported.has(name) && !UNUSED_PEERS_ALLOWED[manifest.name]?.has(name)) {
+        if (!imported.has(name)) {
             const kind = name in deps ? "dependency" : "peer dependency";
             problems.push(`declares ${kind} "${name}", which no shipped file imports`);
         }
@@ -348,7 +337,7 @@ function selfTest() {
             "package.json",
             JSON.stringify({
                 name: "@graphty/graphty-element",
-                peerDependencies: { ai: "*", "@ai-sdk/openai": "*", "@mlc-ai/web-llm": "*" },
+                peerDependencies: { ai: "*", "@mlc-ai/web-llm": "*" },
             }),
         );
         write("dist/ai.d.ts", 'import type { ChatOptions } from "@tanstack/ai";\n');
@@ -397,7 +386,7 @@ export function check(dir, packed, workspaceVersions) {
     return [
         ...forbiddenFiles(files),
         ...shippedFrameworkProblems(packed, files, manifest),
-        ...importMismatches(imported, declared, deps, manifest),
+        ...importMismatches(imported, declared, deps),
         ...dependencyAndPeer(deps, peers),
         ...staleRanges(deps, peers, workspaceVersions),
     ];

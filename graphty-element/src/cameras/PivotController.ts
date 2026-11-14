@@ -176,8 +176,8 @@ export class PivotController {
     }
 
     /**
-     * Pan relative to the current view direction.
-     * Uses accumulated yaw to calculate view-relative movement.
+     * Pan along the reader's horizontal right and forward: the pivot's own axes, however it has
+     * been turned (by `rotate`, `rotateAroundAxis` or `spin`), flattened onto the ground.
      * @param right - Movement along view's right vector
      * @param forward - Movement along view's forward vector
      */
@@ -186,16 +186,18 @@ export class PivotController {
             return;
         }
 
-        // Calculate view-relative directions using accumulated yaw
-        const cosYaw = Math.cos(this.accumulatedYaw);
-        const sinYaw = Math.sin(this.accumulatedYaw);
+        const rightAxis = this.pivot.getDirection(Axis.X);
+        rightAxis.y = 0;
+        if (rightAxis.lengthSquared() < 1e-8) {
+            // The pivot is rolled onto its side: its right points straight up, so use its forward.
+            const forwardAxis = this.pivot.getDirection(Axis.Z);
+            rightAxis.set(forwardAxis.z, 0, -forwardAxis.x);
+        }
 
-        // Right vector: (cos(yaw), 0, sin(yaw))
-        // Forward vector: (-sin(yaw), 0, cos(yaw))
-        const worldX = right * cosYaw - forward * sinYaw;
-        const worldZ = right * sinYaw + forward * cosYaw;
-
-        this.pan(new Vector3(worldX, 0, worldZ));
+        rightAxis.normalize();
+        // Babylon is left-handed: right x up is forward.
+        const forwardAxis = Vector3.Cross(rightAxis, Axis.Y);
+        this.pan(rightAxis.scale(right).addInPlace(forwardAxis.scale(forward)));
     }
 
     /**

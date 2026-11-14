@@ -334,6 +334,35 @@ describe("T14: save and reopen, on the real element", () => {
         await userEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
     });
 
+    it("shows the name the element holds after a refused rename and after an Undo of a rename", async () => {
+        const store = createWorkspaceStore();
+        const { session } = await buildProject(store);
+        assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine families" }));
+
+        // A name past the element's 256 characters is refused: the header keeps the name the
+        // project holds, and says the rename did not happen.
+        const long = "x".repeat(257);
+        await userEvent.keyboard("{F2}");
+        await userEvent.fill(await screen.findByRole("textbox", { name: "Project name" }), long);
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, `The project could not be renamed ${long}.`);
+        });
+        assert.equal(session.project.name, "Florentine families");
+        assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
+
+        await userEvent.keyboard("{F2}");
+        const field = await screen.findByRole("textbox", { name: "Project name" });
+        await userEvent.clear(field);
+        await userEvent.type(field, "Florentine B{Enter}");
+        assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine B" }));
+        assert.equal(session.project.name, "Florentine B");
+
+        await userEvent.keyboard("{Control>}z{/Control}");
+        assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine families" }));
+        assert.equal(session.project.name, "Florentine families");
+    });
+
     it("keeps the old name and still asks before Close when the browser cannot keep the project", async () => {
         try {
             const store = createWorkspaceStore();

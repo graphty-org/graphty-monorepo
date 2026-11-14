@@ -10,7 +10,7 @@ import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { focusLineNext } from "../style/useFocusLine";
 import type { Resolved } from "./inspected";
-import { hexOf } from "./reads";
+import { hexOf, hidden } from "./reads";
 import { channelTokens } from "./words";
 
 /** One line: a row that wins at least one property on the element. */
@@ -156,8 +156,9 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
     let explanation;
     try {
         explanation = session.styles.explain(target);
-    } catch {
+    } catch (error) {
         // E_BAD_COMMAND: the element is gone (removed between the selection and this read).
+        hidden("styles.explain", error, "E_BAD_COMMAND");
         return null;
     }
 

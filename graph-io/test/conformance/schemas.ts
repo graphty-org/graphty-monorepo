@@ -118,6 +118,12 @@ export const SCHEMA_KNOWN_FAILURES: readonly SchemaClass[] = [
         reason: 'a date / dateTime column is declared with type="date" / "dateTime"; GEXF 1.3\'s attrtype-type has no such types (they are timeformat values), so the column should be written as string or its time value',
     },
     {
+        name: "GraphML node ids with the same text",
+        kind: "graphml",
+        pattern: /Duplicate key-sequence \['[^']*'\] in key identity-constraint '\{[^}]*\}node_id_key'/,
+        reason: 'two node ids with the same text (the number 1 and the string "1") are both written as id="1", so the document repeats a node id and a reader merges the two nodes (#7916)',
+    },
+    {
         name: "JGF numeric edge id",
         kind: "jgf",
         pattern: /edges\/\d+\/id: .* is not of type 'string'/,

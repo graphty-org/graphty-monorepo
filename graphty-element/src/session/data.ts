@@ -3050,8 +3050,8 @@ export class SessionData implements SessionDataApi {
         const space = edgeSpaceOf(snapshot);
         const going = withJoinsResting(sources, key);
         const left = sources.filter((each) => !going.includes(each));
-        const staying = broughtBy(left, provenance);
-        const brought = broughtBy(going, provenance);
+        const staying = broughtBy(left, provenance, false);
+        const brought = broughtBy(going, provenance, true);
         const nodes = [...brought.nodes].filter((id) => snapshot.ids.has(id));
         const edges = [...brought.edges].filter((id) => space.indexOf(id) !== INVALID_INDEX);
         const goingNodes = nodes.filter((id) => !staying.nodes.has(id));
@@ -5803,18 +5803,22 @@ function nodesEdgesMake(plan: Extract<JoinPlan, { kind: "edges" }>, graph: JoinG
  * that it brought just the nodes it made.
  * @param loads - the loads
  * @param provenance - what each load supplied
+ * @param leaving - true for loads being taken out, which take of a join's ends only the ones it
+ *     made; false for loads that stay, which hold every end they name
  * @returns the node ids and the edge ids
  */
 function broughtBy(
     loads: readonly LoadedSource[],
     provenance: Provenance | undefined,
+    leaving: boolean,
 ): { readonly nodes: Set<NodeId>; readonly edges: Set<EdgeId> } {
     const nodes = new Set<NodeId>();
     const edges = new Set<EdgeId>();
     for (const load of loads) {
         const supplied = provenance?.[load.key];
         const values = load.join !== undefined && !addsElements(load.join);
-        (values ? nodesJoinMade(load, provenance) : nodesJoinAdded(load, provenance)).forEach((id) => nodes.add(id));
+        const named = leaving ? nodesJoinAdded(load, provenance) : (supplied?.nodes ?? []);
+        (values ? nodesJoinMade(load, provenance) : named).forEach((id) => nodes.add(id));
         if (!values) {
             supplied?.edges.forEach((id) => edges.add(id));
         }

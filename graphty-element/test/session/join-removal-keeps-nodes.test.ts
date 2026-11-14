@@ -61,6 +61,30 @@ describe("removing a join that adds edges", () => {
         session.dispose();
     });
 
+    it("keeps the ends of a join that stays when another load goes", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "id\na\nb\n" }, name: "people-a.csv" });
+        await session.data.import(
+            { type: "csv", config: { data: "id\nc\nd\n" }, name: "people-b.csv" },
+            { mode: "merge" },
+        );
+        const draft = await session.data.prepare(
+            { config: { file: new File(["from,to\na,b\na,c\n"], "links.csv") }, name: "links.csv" },
+            { onto: "graph" },
+        );
+        await draft.load({ join: { shape: "edges", keys } });
+        const [join] = session.data.joins();
+        const other = session.data
+            .sources()
+            .find((each) => each.key !== join.source && each.key !== join.onto && each.name === "people-b.csv");
+        assert.isDefined(other);
+
+        await session.data.removeSource(other?.key ?? "");
+        assert.deepEqual(ids(session), ["a", "b", "c"]);
+        assert.lengthOf(session.data.edges(), 2);
+        session.dispose();
+    });
+
     it("re-runs an edit over the nodes it did not make", async () => {
         const session = await joined();
         const [join] = session.data.joins();

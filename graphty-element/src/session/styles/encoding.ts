@@ -1251,7 +1251,7 @@ function combineFactor(value: ChannelValue, what: string): number {
  * @param binding - The binding, read for `map`.
  * @returns The scale's name.
  */
-function defaultScaleFor(kind: ChannelValueKind, binding: RuleBinding): string {
+export function defaultScaleFor(kind: ChannelValueKind, binding: RuleBinding): string {
     return binding.map === undefined && (kind === "color" || kind === "number") ? "linear" : "passthrough";
 }
 

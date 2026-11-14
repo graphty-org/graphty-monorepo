@@ -11,7 +11,16 @@ import { selectionWorkspaceOn } from "../features";
 import { OptionRow, OptionsForm } from "../options/OptionsForm";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
-import { engineOf, isDrawn, LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
+import {
+    engineOf,
+    isDrawn,
+    LAYOUT_SEED,
+    layoutDescription,
+    layoutName,
+    randomSeed,
+    startingValues,
+    unavailable,
+} from "./methods";
 import { columnFitWords, layoutErrorWords, locationFieldWords } from "./refusalWords";
 import { TransitionRow } from "./TransitionRow";
 import { SHOWN_ONLY_WORDS } from "./words";
@@ -506,6 +515,7 @@ export function LayoutForm({
         .join("; ");
     const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => optionWords(descriptor.id, option);
 
+    const description = layoutDescription(descriptor);
     const takesSeed = descriptor.options.some((o) => o.name === "seed");
     const row = selectionWorkspaceOn(session);
     const seed = takesSeed ? (
@@ -535,9 +545,9 @@ export function LayoutForm({
         >
             <Stack gap={row ? 4 : 8} className={row ? "ws-options-rows" : undefined}>
                 {header}
-                {descriptor.description === "" || row ? null : (
+                {description === "" || row ? null : (
                     <Text size="xs" c="dimmed">
-                        {descriptor.description}
+                        {description}
                     </Text>
                 )}
                 {showShape ? <ShapeField id={descriptor.id} shape={shape} onPick={pickShape} row={row} /> : null}

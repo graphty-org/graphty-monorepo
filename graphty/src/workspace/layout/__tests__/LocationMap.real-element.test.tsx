@@ -565,6 +565,10 @@ describe("the location map", () => {
 });
 
 describe("Settings' map layout node size rule", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
     afterEach(() => {
         localStorage.removeItem(MAP_DEPTH_INDEPENDENT_SIZE.key);
     });

@@ -158,14 +158,25 @@ const gate = join(here, "with-browser.sh");
 // The tier 1 workspace is reached with ?next until the Switch-over makes it the default (graphty/src/App.tsx)
 const TIER1 = "/?next";
 // REAL_VIEWPORT=<w>x<h> sets the window for a screenshot audit at other sizes; studies keep 1440 x 900
-const [vw, vh] = (process.env.REAL_VIEWPORT || "1440x900").split("x").map(Number);
+const askedViewport = process.env.REAL_VIEWPORT || "1440x900";
+if (!/^[1-9]\d*x[1-9]\d*$/.test(askedViewport)) {
+    console.error(`REAL_VIEWPORT must be <width>x<height> in pixels, like 1440x900, not "${askedViewport}"`);
+    process.exit(2);
+}
+const [vw, vh] = askedViewport.split("x").map(Number);
 const VIEWPORT = { width: vw, height: vh };
 // A session nobody steps for this long is closed, so one whose agent was stopped before --end frees
 // its browser slot soon (two stopped agents held slots for 45 minutes in round 1, 2026-10-06).
-// REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds).
+// REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds): more than 0 and under 24 hours,
+// since a setTimeout past 2^31 ms fires at once.
 const MAX_IDLE_MS = 24 * 60 * 60 * 1000;
-const askedIdleMs = Number(process.env.REAL_IDLE_SECONDS) * 1000;
-const IDLE_MS = askedIdleMs > 0 && askedIdleMs < MAX_IDLE_MS ? askedIdleMs : 15 * 60 * 1000;
+const askedIdle = process.env.REAL_IDLE_SECONDS;
+const askedIdleMs = askedIdle ? Number(askedIdle) * 1000 : null;
+if (askedIdleMs !== null && !(Number.isFinite(askedIdleMs) && askedIdleMs > 0 && askedIdleMs < MAX_IDLE_MS)) {
+    console.error(`REAL_IDLE_SECONDS must be a number of seconds above 0 and under 86400, not "${askedIdle}"`);
+    process.exit(2);
+}
+const IDLE_MS = askedIdleMs ?? 15 * 60 * 1000;
 
 // GPU rendering. Headless Chromium draws WebGL with SwiftShader, a software rasterizer: each idle
 // graphty page burned 550-690% CPU, so four study browsers loaded the machine past 47 and every step
@@ -1404,7 +1415,7 @@ async function serve(dir, sr) {
     };
     const touch = () => {
         clearTimeout(idle);
-        // a setTimeout past 2^31 ms fires at once, so an out-of-range REAL_IDLE_SECONDS is ignored
+        // a claimer that set no REAL_IDLE_SECONDS sends 0 (its own value was checked when it started)
         const ms = s.idleMs > 0 && s.idleMs < MAX_IDLE_MS ? s.idleMs : IDLE_MS;
         idle = setTimeout(() => {
             console.log(`no step for ${ms / 1000} seconds; closing the session`);
@@ -1542,7 +1553,7 @@ async function claimWarm(dir, sr, keys) {
             sr: !!sr,
             keys: !!keys,
             missFails: process.env.REAL_MISS_FAILS,
-            idleMs: (Number(process.env.REAL_IDLE_SECONDS) || 0) * 1000,
+            idleMs: askedIdleMs ?? 0,
         }).catch(() => null);
         if (r?.ok) return true;
     }
@@ -2679,12 +2690,14 @@ function divergence(rec, now) {
 // look like, so the time to the first styled graph is read from the screenshots' own clocks
 // (score.mjs). Never shown to the participant.
 async function recordStyles(s, file) {
-    const tree = await s.page.evaluate(styleTree, false).catch(() => null);
-    const content = styleContent(tree);
+    // a throw from the page is recorded as an error, never as "no graph open" (null from styleTree)
+    const tree = await s.page.evaluate(styleTree, false).catch((e) => ({ error: e.message.split("\n")[0] }));
+    const content = tree?.error ? null : styleContent(tree);
     const line = {
         shot: basename(file),
         at: new Date().toISOString(),
         graph: content !== null,
+        ...(tree?.error && { error: tree.error }),
         look: content && createHash("sha1").update(content).digest("hex").slice(0, 12),
         colors: await s.page.evaluate(nodeColors).catch(() => null),
     };

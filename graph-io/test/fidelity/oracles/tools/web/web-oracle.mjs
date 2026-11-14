@@ -19,7 +19,7 @@
 //        snapshot where vis-network ends its stabilization run and fits the view (physics then
 //        stopped), or at once when physics is off; then its own CanvasRenderer
 //        redraws once onto an svgcanvas 2.6.0 context (net.canvas.getContext swapped for the call).
-// sigma: sigma 4.0.1 draws everything (nodes, edges, labels) with WebGL2 and has no vector output.
+// sigma: sigma 4.0.6 draws everything (nodes, edges, labels) with WebGL2 and has no vector output.
 //        Its own export (@sigma/export-image 4.0.0 toBlob, PNG) is wrapped unmodified in an SVG
 //        <image>, so the SVG is the program's real pixels, not vectors.
 //

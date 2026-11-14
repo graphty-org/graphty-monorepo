@@ -213,8 +213,9 @@ The codes this format's import report can hold. They are also exported as `GRAPH
 - `W_GRAPHML_GRAPH_ENDPOINT` (warning): An edge endpoint that names a nested `<graph>`, not a node; a node of that id is created.
 - `E_UNKNOWN_PARENT` (error): The nodes of a nested graph whose container node was skipped lose their parent.
 - `W_DUPLICATE_ATTRIBUTE` (warning): Two `<data>` of one key on one element, two `<default>` in one key, or two weight keys; one is kept.
-- `E_GRAPHML_UNKNOWN_KEY` (error): A `<data>` whose key was never declared.
-- `W_GRAPHML_KEY_DECLARED_LATE` (warning): A `<key>` declared after `<data>` that used it; those values were already reported and dropped.
+- `W_GRAPHML_UNKNOWN_KEY` (warning): A `<data>` whose key was never declared; the key is read as an untyped (string) key named by its id.
+- `W_GRAPHML_KEY_DECLARED_LATE` (warning): A `<key>` declared after `<data>` that used it; that data was already read as text and the key is ignored.
+- `W_GRAPHML_KEY_IN_GRAPH` (warning): A `<key>` declared inside `<graph>` instead of `<graphml>`; it is read as if declared in `<graphml>`.
 - `W_GRAPHML_KEY_DOMAIN` (warning): A `<data>` whose key is declared for another domain.
 - `E_GRAPHML_DATA_MISSING_KEY` (error): A `<data>` without a key attribute.
 - `E_GRAPHML_KEY_FOR_INVALID` (error): A `<key>` whose `for` is not a GraphML domain.
@@ -223,7 +224,8 @@ The codes this format's import report can hold. They are also exported as `GRAPH
 - `E_GRAPHML_DATA_NESTED` (error): Nested elements in the `<data>` of a typed (non-yfiles) key.
 - `W_GRAPHML_DATA_STRUCTURED` (warning): Nested elements in the `<data>` of an untyped key; they are kept as their XML text.
 - `W_DUPLICATE_NODE` (warning): A `<node>` declared twice.
-- `E_GRAPHML_INVALID_DIRECTED` (error): A `directed` attribute that is neither true nor false.
+- `E_GRAPHML_INVALID_DIRECTED` (error): A `directed` attribute that is neither true nor false; the edge takes its graph's direction.
+- `W_GRAPHML_DIRECTED_SPELLING` (warning): A `directed` attribute written `True`, `FALSE` or with spaces, not an xs:boolean spelling; read as the boolean.
 - `E_GRAPHML_INVALID_EDGEDEFAULT` (error): An `edgedefault` that is neither directed nor undirected.
 - `W_GRAPHML_EDGEDEFAULT_MISSING` (warning): A `<graph>` without edgedefault; the `defaultDirected` option applies.
 - `W_MULTIPLE_GRAPHS` (warning): The file holds more than one top-level `<graph>`; their nodes and edges are merged into one graph. `importAllGraphs()` reads every one.

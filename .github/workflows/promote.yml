@@ -51,7 +51,7 @@ jobs:
         name: Promote (owner approval)
         if: ${{ github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 60
+        timeout-minutes: 90 # the smoke test of the candidate takes up to about 20 of these
         environment: production
         permissions:
             actions: read # the run's approvals: who approved is promotedBy
@@ -113,6 +113,50 @@ jobs:
                   echo "version_commit=$(jq -r .versionCommit "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
                   echo "rollback=$(jq -r .rollback "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
                   echo "tag=$(jq -r '.tag // empty' "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
+
+            # The production smoke test of the candidate, before anything moves (a dry run too): every dry-run
+            # route on the candidate's build, in a software-drawn Chromium, with no console error and a drawing
+            # on the canvas, and graphty-element from its npm tarball in a blank page (graphty/acceptance/smoke.mjs).
+            # A red one stops the promotion here. The smoke-published job runs it again on what was published.
+            - uses: pnpm/action-setup@v6
+
+            - name: Restore the pnpm store
+              uses: ./.github/actions/restore-pnpm-store
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Chromium and its system packages
+              run: pnpm exec playwright install --with-deps chromium
+
+            - name: Smoke test the candidate
+              run: |
+                  set -euo pipefail
+                  mkdir -p "$WORK/candidate"
+                  tar --zstd -xf "$WORK/site.tar.zst" -C "$WORK/candidate"
+                  cp "$SITE_CONFIG" "$WORK/candidate/site.json" # what the site deploy adds
+                  # the routes as they were at the candidate's commit: master's may walk a newer UI
+                  commit=$(jq -r .commit "$WORK/plan.json")
+                  git fetch --no-tags --depth 1 origin "$commit"
+                  git checkout "$commit" -- graphty/acceptance/routes.mjs graphty/acceptance/readers.mjs design/ui/studio/tool/files
+                  # the candidate's graphty-element, unless release-hold.json kept it off npm
+                  element=$(jq -r '.versions["graphty-element"] // empty' "$WORK/channel.json")
+                  if [ -n "$element" ] && npm view "@graphty/graphty-element@$element" version | grep -q .; then
+                      node graphty/acceptance/smoke.mjs --dist "$WORK/candidate" --element "@graphty/graphty-element@$element"
+                  else
+                      echo "::notice::graphty-element ${element:-(none)} is not on npm: only the app's routes are tested"
+                      node graphty/acceptance/smoke.mjs --dist "$WORK/candidate"
+                  fi
+
+            - uses: actions/upload-artifact@v7
+              if: ${{ failure() }}
+              with:
+                  name: smoke-candidate-${{ github.run_id }}
+                  path: tmp/smoke
 
             # Before anything moves (a dry run too): re-sets each moved package's tag to the version it already has,
             # so a package whose trusted publisher is missing or lacks "Allow npm dist-tag" fails with nothing moved.
@@ -191,6 +235,96 @@ jobs:
             - run: tools/channel/promote-push.sh site-repo "${{ runner.temp }}/promote/site"
             - timeout-minutes: 30 # a hang guard only
               run: node tools/channel/promote.mjs wait "${{ runner.temp }}/promote/plan.json" --config "$SITE_CONFIG"
+
+    # The production smoke test again, on what was published: once npm's dist-tag shows the new graphty-element
+    # and the site serves the build (the promote and nightly-site jobs waited for that), the same routes on the
+    # live site and graphty-element from npm. A red one files an issue and tells the owner; it never reverts.
+    smoke-published:
+        name: Smoke test what was published
+        needs: [promote, nightly-site]
+        if: ${{ always() && inputs.dry_run != true && needs.promote.result == 'success' && needs.nightly-site.result != 'failure' && needs.nightly-site.result != 'cancelled' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 60
+        environment: release # Pushover
+        permissions:
+            contents: read
+            issues: write # the red issue and the Release status comment
+        env:
+            GH_TOKEN: ${{ github.token }}
+            GITHUB_TOKEN: ${{ github.token }}
+            DIST_TAG: ${{ inputs.channel == 'production' && 'latest' || 'next' }}
+            SITE_URL: ${{ inputs.channel == 'production' && 'https://graphty.app' || 'https://nightly.graphty.app' }}
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  persist-credentials: false
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+            - name: Restore the pnpm store
+              uses: ./.github/actions/restore-pnpm-store
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+            - uses: ./.github/actions/drop-microsoft-apt-source
+            - name: Install Chromium and its system packages
+              run: pnpm exec playwright install --with-deps chromium
+            - uses: actions/download-artifact@v8
+              with:
+                  name: promote-${{ github.run_id }}
+                  path: ${{ runner.temp }}/promote
+            # Only a graphty-element the plan moved is waited for: one already on the tag is there now.
+            - name: Wait for npm to show the new graphty-element
+              timeout-minutes: 20 # a hang guard only: the step ends when npm shows the version
+              run: |
+                  set -euo pipefail
+                  element=$(jq -r '.moves[] | select(.package == "@graphty/graphty-element") | .version' \
+                      "$RUNNER_TEMP/promote/plan.json")
+                  element=${element:-$(npm view "@graphty/graphty-element@$DIST_TAG" version)}
+                  until [ "$(npm view "@graphty/graphty-element@$DIST_TAG" version)" = "$element" ]; do
+                      echo "npm $DIST_TAG is not $element yet"
+                      sleep 15
+                  done
+                  echo "ELEMENT=$element" >> "$GITHUB_ENV"
+            - name: Smoke test the site and the package
+              id: smoke
+              run: |
+                  set -euo pipefail
+                  commit=$(jq -r .commit "$RUNNER_TEMP/promote/plan.json")
+                  git fetch --no-tags --depth 1 origin "$commit"
+                  git checkout "$commit" -- graphty/acceptance/routes.mjs graphty/acceptance/readers.mjs design/ui/studio/tool/files
+                  node graphty/acceptance/smoke.mjs --url "$SITE_URL" --element "@graphty/graphty-element@$ELEMENT" \
+                      2>&1 | tee "$RUNNER_TEMP/smoke.log"
+            - uses: actions/upload-artifact@v7
+              if: ${{ failure() }}
+              with:
+                  name: smoke-published-${{ github.run_id }}
+                  path: tmp/smoke
+            - name: File the issue and tell the owner
+              if: ${{ failure() }}
+              env:
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+                  TAG: ${{ needs.promote.outputs.tag }}
+              run: |
+                  set -euo pipefail
+                  run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  {
+                      echo "The production smoke test failed on $SITE_URL and @graphty/graphty-element@${ELEMENT:-?} after promote.yml published ${TAG:-the build} to $CHANNEL. Nothing was reverted."
+                      echo
+                      echo "Run: $run_url (the artifact smoke-published-${GITHUB_RUN_ID} holds each failed screen)"
+                      echo
+                      echo '```'
+                      grep -E '^(FAILED|fail )' "$RUNNER_TEMP/smoke.log" 2>/dev/null | head -40 || echo "the smoke test did not report: read the run"
+                      echo '```'
+                  } > "$RUNNER_TEMP/issue.md"
+                  issue=$(gh issue create --repo "$GITHUB_REPOSITORY" --title "Production smoke test red after promoting ${TAG:-a build} to $CHANNEL" \
+                      --label bug --label priority:high --label effort:medium --body-file "$RUNNER_TEMP/issue.md")
+                  node tools/release-status.mjs smoke-red --sha "${TAG#site-}" --what "$SITE_URL" \
+                      --issue "${issue##*/}" --run "$run_url"
 
     # channel/<channel> follows what the channel serves. The deploy key never leaves environment release.
     channel-ref:

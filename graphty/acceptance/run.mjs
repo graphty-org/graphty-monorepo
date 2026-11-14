@@ -448,6 +448,9 @@ async function walk(chromium, route, origin) {
     return out;
 }
 
+// The pieces the production smoke test (smoke.mjs) walks the same routes with, in a software-drawn browser.
+export { eventually, hands, readersOf, serve };
+
 // ---------------------------------------------------------------- entry
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

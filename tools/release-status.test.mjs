@@ -143,6 +143,16 @@ describe("statusComment", () => {
         assert.deepEqual([push.title, push.priority], ["Nightly PROMOTION FAILED", "1"]);
     });
 
+    it("announces a red production smoke test after a promotion as a failure, with nothing reverted", () => {
+        const c = statusComment("smoke-red", { run: RUN, sha: "abcdef123", issue: "79", what: "https://graphty.app" });
+        assert.match(
+            c,
+            /\*\*Production smoke test red\*\*: after promoting abcdef1, https:\/\/graphty\.app or graphty-element from npm failed the smoke test\. Nothing was reverted\. Details: #79\./,
+        );
+        const push = pushMessage("smoke-red", { run: RUN, sha: "abcdef123", issue: "79" });
+        assert.deepEqual([push.title, push.priority], ["Production SMOKE TEST RED", "1"]);
+    });
+
     it("refuses an unknown outcome", () => {
         // no release pull request any more: the train publishes directly (owner decision, 2026-10-11)
         for (const gone of ["skipped", "opened", "dequeued"]) {

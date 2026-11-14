@@ -7772,6 +7772,32 @@ describe("promote.yml", () => {
         assert.match(trust, /if: \$\{\{ inputs.config_only != true \}\}/, "a dry run checks the trust too");
     });
 
+    it("smoke tests the candidate before anything moves, and what was published after, filing an issue and never reverting", () => {
+        const at = (s) => main.indexOf(s);
+        const smoke = at("node graphty/acceptance/smoke.mjs --dist");
+        assert.ok(smoke > at("promote.mjs check"), "the smoke test reads the checked plan");
+        assert.ok(smoke < at("promote.mjs trust") && smoke < at("promote.mjs move"), "it blocks before any move");
+        const candidate = steps(main).find((s) => s.includes("smoke.mjs --dist"));
+        assert.doesNotMatch(candidate, /\n {14}if:|continue-on-error/, "it runs in a dry run too, and blocks");
+        assert.match(
+            candidate,
+            /git checkout "\$commit" -- graphty\/acceptance\/routes\.mjs/,
+            "the candidate's own routes",
+        );
+        const after = job(promote, "smoke-published");
+        assert.match(after, /\n {8}needs: \[promote, nightly-site\]\n/);
+        assert.match(after, /inputs.dry_run != true && needs.promote.result == 'success'/);
+        assert.match(
+            after,
+            /until \[ "\$\(npm view "@graphty\/graphty-element@\$DIST_TAG" version\)" = "\$element" \]/,
+        );
+        assert.match(after, /smoke\.mjs --url "\$SITE_URL" --element/);
+        assert.match(after, /gh issue create /);
+        assert.match(after, /--label bug --label priority:high --label effort:medium/);
+        assert.match(after, /release-status\.mjs smoke-red/);
+        assert.doesNotMatch(after, /git push|dist-tag|promote-push|ssh-key/, "it never reverts");
+    });
+
     it("keeps each key in its own environment: graphty-site's key in production, the release key in release", () => {
         assert.equal(promote.match(/secrets.RELEASE_DEPLOY_KEY/g).length, 1);
         assert.match(channelRef, /\n {8}environment: release # the deploy key\n/);

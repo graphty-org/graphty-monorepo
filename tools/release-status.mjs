@@ -15,6 +15,8 @@
 //                   failed" issue
 //   nightly-held    a full run promoted but versioning or landing failed (--what): nothing moved; --issue names
 //                   the "Nightly promotion failed" issue
+//   smoke-red       promote.yml's smoke test failed on what it had just published (--what names the site); --issue
+//                   names the issue it filed. Nothing is reverted
 //   run-ended       a backstop (release-watch.yml): a release run ended badly (--what is its conclusion) and no
 //                   failure comment here names that run and attempt -- it never reached its own announce step
 // Attempts that do nothing (nothing releasable, a release pending, a hold open) are not outcomes and
@@ -98,12 +100,15 @@ export function statusComment(outcome, f, notify = "") {
         case "nightly-held":
             text = `**Nightly promotion failed**${rerun} on ${sha}: ${f.what || "versioning or landing"} did not finish, so nothing reached master, npm \`next\` or nightly.graphty.app. Details: ${ref(f.issue)}. Re-running the failed jobs of the run retries it.`;
             break;
+        case "smoke-red":
+            text = `**Production smoke test red**${rerun}: after promoting ${sha}, ${f.what || "the site"} or graphty-element from npm failed the smoke test. Nothing was reverted. Details: ${ref(f.issue)}.`;
+            break;
         case "run-ended":
             text = `**Release run ended ${f.what || "badly"}**${rerun} on ${sha}, and no comment here reported a failure for it: it stopped before announcing its outcome. Read the run; re-running its failed jobs retries it.`;
             break;
         default:
             throw new Error(
-                `unknown outcome "${outcome}" (held, published, publish-failed, red, owner-item, green-images, nightly, nightly-failed, nightly-held, run-ended)`,
+                `unknown outcome "${outcome}" (held, published, publish-failed, red, owner-item, green-images, nightly, nightly-failed, nightly-held, smoke-red, run-ended)`,
             );
     }
     const mention = notify.trim() ? notify.trim() + " " : "";
@@ -302,6 +307,14 @@ export function pushMessage(outcome, f) {
             lines: [f.what || "Pictures wait for review", "Approve them before the slot so nightly can promote"],
             priority: 0,
             sound: "pushover",
+        },
+        "smoke-red": {
+            title: "Production SMOKE TEST RED",
+            lines: [
+                `${f.what || "The site"} failed after promoting ${sha}; see ${ref(f.issue)}`,
+                "Nothing was reverted",
+            ],
+            ...fail,
         },
         "run-ended": {
             title: "Release RUN ENDED BADLY",

@@ -701,23 +701,29 @@ class Session implements ElementSession {
         let version = 0;
         this.dispatcher = parts.dispatcher;
         // A collapse is worked out from the graph once the loads ahead of it have landed.
-        // Inside a transaction (`tx.groups`) the steps join it; on their own they are one step.
-        this.groups = createGroupsApi(this, (build) => {
-            const joining = this.dispatcher.routing;
-            const send = this.dispatcher.capturedDispatch();
-            return loadLineOf(this.dispatcher).edit(async () => {
+        // Inside a transaction or a command (`tx.groups`, a project opening) the steps join it at
+        // once, as a door called through a routed facade does; on their own they are one step,
+        // taken in line with the loads.
+        this.groups = createGroupsApi(this, async (build) => {
+            if (this.dispatcher.routing) {
+                const send = this.dispatcher.capturedDispatch();
+                for (const command of (await build()).steps) {
+                    await send(command);
+                }
+                return;
+            }
+
+            await loadLineOf(this.dispatcher).edit(async () => {
                 const { label, fact, steps } = await build();
-                const all = async (via: (command: SessionCommand) => Promise<unknown>): Promise<void> => {
-                    for (const command of steps) {
-                        await via(command);
-                    }
-                };
-                await (joining
-                    ? all(send)
-                    : this.dispatcher.transaction(label, (tx) => all((command) => tx.dispatch(command)), {
-                          fact,
-                          moves: true,
-                      }));
+                await this.dispatcher.transaction(
+                    label,
+                    async (tx) => {
+                        for (const command of steps) {
+                            await tx.dispatch(command);
+                        }
+                    },
+                    { fact, moves: true },
+                );
             }, undefined);
         });
         // Chained: the kept sets hear each change after it, to tell `set:changed`.

@@ -12,7 +12,7 @@
  * `_group.weight`) and nothing else: how they look is up to the style layers that read them.
  */
 
-import type { NodeId, Path } from "../catalog/types";
+import type { EdgeId, NodeId, Path } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { SessionCommand } from "./planning";
 import type { RunRef } from "./results/types";
@@ -75,7 +75,8 @@ export interface GroupsApi {
      * Expand a collapsed group, as one undoable step: the node standing in for it leaves, and
      * every member comes back with its record, its coordinates, its pin and its edges.
      * @param ref - The group, as it was collapsed.
-     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the group is not collapsed.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the group is not collapsed, or when an
+     *   edge was added to the node standing in for it (its `details.edges`): remove those first.
      */
     expand(ref: GroupRef): Promise<void>;
     /**
@@ -155,14 +156,19 @@ function edgeInput(edge: EdgeRecord): Record<string, unknown> {
  * @param source - The aggregate's source.
  * @param target - The aggregate's target.
  * @param edge - The edge summed: an aggregate adds its own count and weight.
+ * @param directed - Whether the graph is directed.
  */
 function addTo(
     into: Map<string, Aggregate>,
     source: NodeId,
     target: NodeId,
     edge: Readonly<Record<string, unknown>>,
+    directed: boolean,
 ): void {
-    const key = JSON.stringify([source, target]);
+    // On an undirected graph a-b and b-a are one pair: one edge stands in for both, the way round
+    // the first one seen runs.
+    const ends = [JSON.stringify(source), JSON.stringify(target)];
+    const key = (directed ? ends : ends.sort()).join(",");
     const held = into.get(key) ?? { source, target, count: 0, weight: 0 };
     const count = edge["_group.count"];
     held.count += typeof count === "number" ? count : 1;
@@ -225,6 +231,14 @@ export function createGroupsApi(
     const nodeIdOf = (groupBy: Path, group: GroupValue): NodeId => `group:${groupBy}=${String(group)}`;
     const restoreOf = (node: NodeRecord | undefined): Restore | undefined => node?.[RESTORE] as Restore | undefined;
     const indexOf = (id: NodeId): number => session.data.snapshot().ids.indexOf(id);
+    const sum = (
+        into: Map<string, Aggregate>,
+        source: NodeId,
+        target: NodeId,
+        edge: Readonly<Record<string, unknown>>,
+    ): void => {
+        addTo(into, source, target, edge, session.status.directed);
+    };
 
     /**
      * Where each hidden node is held: the collapsed node whose record keeps it.
@@ -266,7 +280,7 @@ export function createGroupsApi(
             }
 
             if (!(fromInside && toInside)) {
-                addTo(aggregates, fromInside ? node : edge.source, toInside ? node : edge.target, edge);
+                sum(aggregates, fromInside ? node : edge.source, toInside ? node : edge.target, edge);
             }
         }
         return { edges, aggregates };
@@ -325,7 +339,7 @@ export function createGroupsApi(
                 continue;
             }
 
-            addTo(aggregates, at(source), at(target), edge);
+            sum(aggregates, at(source), at(target), edge);
             moved.set(keeper, [...(moved.get(keeper) ?? []), edge]);
         }
         return { plain, aggregates, moved };
@@ -347,7 +361,7 @@ export function createGroupsApi(
                 const source = edge.source as NodeId;
                 const target = edge.target as NodeId;
                 if (back.has(source) || back.has(target)) {
-                    addTo(into, back.has(source) ? source : other, back.has(target) ? target : other, edge);
+                    sum(into, back.has(source) ? source : other, back.has(target) ? target : other, edge);
                 }
             }
         }
@@ -407,6 +421,19 @@ export function createGroupsApi(
         const restore = restoreOf(session.data.node(node));
         if (restore === undefined) {
             throw refusal(`The group ${String(group)} of ${groupBy} is not collapsed.`, { groupBy, group });
+        }
+
+        // An edge someone added to the node standing in has no member to go back to.
+        const added = session.data
+            .edges()
+            .filter((edge) => (edge.source === node || edge.target === node) && edge["_group.count"] === undefined)
+            .map((edge) => edge.id);
+        if (added.length > 0) {
+            throw refusal(`The node standing in for group ${String(group)} of ${groupBy} holds edges added to it.`, {
+                groupBy,
+                group,
+                edges: added,
+            });
         }
 
         const back = new Set(restore.nodes.map((each) => each.id));
@@ -469,5 +496,101 @@ export function createGroupsApi(
                       ];
             });
         },
+    };
+}
+
+/**
+ * The graph as it would be with every group expanded: what a project file saves, so a collapse is
+ * saved as the decision and the members' records, coordinates and run values are saved as they
+ * are. Null when no group is collapsed.
+ */
+export interface ExpandedGraph {
+    /** Every node: the graph's own, then the members held by the collapsed nodes. */
+    readonly nodes: readonly NodeRecord[];
+    /**
+     * Every edge as a save writes it (`{ source, target, ...attributes }`) beside its id: the
+     * graph's own edges keep theirs; a member's edge kept for an expand gets one no graph holds.
+     */
+    readonly edges: readonly { readonly id: EdgeId; readonly record: Readonly<Record<string, unknown>> }[];
+    /** Where each placed node stands. */
+    readonly positions: readonly PositionEntry[];
+    /** The pinned nodes. */
+    readonly pinned: readonly NodeId[];
+    /** The collapses, in the order they are made again on open. */
+    readonly collapsed: readonly { readonly groupBy: Path; readonly group: GroupValue }[];
+    /** Edges added to a node standing in for a group, added again once the groups are collapsed. */
+    readonly added: readonly Record<string, unknown>[];
+}
+
+/**
+ * The graph with every group expanded, read without changing anything.
+ * @param session - The session.
+ * @returns The expanded graph, or null when no group is collapsed.
+ */
+export function expandedGraph(session: GraphSession): ExpandedGraph | null {
+    // ponytail: a member that is itself a collapsed node (a group of collapsed nodes) is saved as
+    // that node; flatten here if nesting collapses ever becomes a use.
+    // Asked on every save, so answered first from the attribute list, kept per data revision,
+    // before any record is read.
+    if (!session.data.attributes().some((each) => each.kind === "node" && each.path === "data._group.by")) {
+        return null;
+    }
+
+    const all = session.data.nodes();
+    const standing = all.filter((node) => node[RESTORE] !== undefined);
+    if (standing.length === 0) {
+        return null;
+    }
+
+    const stands = new Set(standing.map((node) => node.id));
+    const restores = standing.map((node) => node[RESTORE] as Restore);
+    const { ids } = session.data.snapshot();
+    const point = { x: 0, y: 0, z: 0 };
+    const positions: PositionEntry[] = [];
+    const nodes: NodeRecord[] = [];
+    for (const node of all) {
+        if (stands.has(node.id)) {
+            continue;
+        }
+
+        nodes.push(node);
+        const index = ids.indexOf(node.id);
+        if (session.positions.isPlaced(index)) {
+            session.positions.read(index, point);
+            positions.push({ id: node.id, x: point.x, y: point.y, z: point.z });
+        }
+    }
+
+    const edges: { id: EdgeId; record: Readonly<Record<string, unknown>> }[] = [];
+    const added: Record<string, unknown>[] = [];
+    for (const edge of session.data.edges()) {
+        if (!stands.has(edge.source) && !stands.has(edge.target)) {
+            edges.push({ id: edge.id, record: edgeInput(edge) });
+        } else if (edge["_group.count"] === undefined) {
+            added.push(edgeInput(edge));
+        }
+    }
+
+    for (const restore of restores) {
+        nodes.push(...restore.nodes);
+        positions.push(...restore.positions);
+        for (const record of restore.edges) {
+            edges.push({ id: `${RESTORE}:${String(edges.length)}`, record });
+        }
+    }
+
+    return {
+        nodes,
+        edges,
+        positions,
+        pinned: [
+            ...[...session.positions.pinned].filter((id) => !stands.has(id)),
+            ...restores.flatMap((restore) => restore.pinned),
+        ],
+        collapsed: standing.map((node) => ({
+            groupBy: node["_group.by"] as Path,
+            group: node["_group.value"] as GroupValue,
+        })),
+        added,
     };
 }

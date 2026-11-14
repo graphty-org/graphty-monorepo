@@ -52,6 +52,7 @@ A group is named in one of two ways:
   go with them.
 - Expanding puts every member back with its record, its coordinates, its pin and its edges, exactly
   as they were.
+- On an undirected graph, `a-b` and `b-a` from a member to one outside node become one edge.
 - Two groups can be collapsed at once; an edge between them becomes one edge between the two
   collapsed nodes, and expanding them in either order gives back the same graph.
 
@@ -74,8 +75,12 @@ collapsed node like any other node until a layer says otherwise.
 `groups.collapse` or `groups.expand` with `{ groupBy, group, size }`. Called through
 `session.transaction`, `tx.groups.collapse` joins the transaction's step.
 
-A collapse is part of the graph's data, so `session.project.save()` keeps it and
-`session.project.open()` brings it back ready to expand.
+A project file saves the graph expanded -- every member with its record, coordinates, pin and run
+values -- plus the list of collapsed groups. Opening the file loads the expanded graph, restores the
+runs, and collapses those groups again inside the open, so the collapsed nodes and the edges
+standing in for others are always worked out from the members, never stored.
 
 Refusals are `GraphtyError`s coded `E_BAD_COMMAND`: a group with no member in the graph, collapsing a
-group collapsed already, or expanding one that is not collapsed.
+group collapsed already, or expanding one that is not collapsed. Expanding is also refused while
+an edge you added yourself ends at the collapsed node (`details.edges` lists them): it has no member
+to go back to, so remove it first. Such an edge is saved with the project and added again on open.

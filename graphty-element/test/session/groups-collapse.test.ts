@@ -238,21 +238,77 @@ describe("collapsing a group", () => {
         session.dispose();
     });
 
-    it("is saved with the project and expands after opening it", async () => {
+    it("saves the graph expanded and the collapse as a decision, made again on open", async () => {
         const session = await graph();
+        const run = await session.runs.start("components", {}, { style: false });
+        const path = session.results.path(run);
+        await session.styles.add({
+            name: "Group 0",
+            target: "node",
+            selector: { match: "rule", where: { kind: "categories", attribute: path, values: ["0"] } },
+            set: { "node.color": RED },
+        });
         const before = picture(session);
-        await session.groups.collapse(X);
+        await session.groups.collapse({ run, group: 0 });
+        const collapsed = picture(session);
         const { text } = await session.project.save();
         session.dispose();
 
+        // The file holds every member, and no node or edge standing in for them.
+        const saved = JSON.parse(text) as { members: { kind: string; graph?: { nodes: { id: string }[] } }[] };
+        const data = saved.members.find((member) => member.kind === "graphty-data");
+        assert.deepEqual(data?.graph?.nodes.map((node) => node.id).sort(), ["a", "b", "c", "d", "e", "f"]);
+
+        const opened: GraphSession = createGraphSession({
+            runs: { execute: (context) => teams(() => opened, context) },
+        });
+        const { problems } = await opened.project.open(text);
+        assert.deepEqual(problems, []);
+        assert.deepEqual(picture(opened), collapsed);
+        // The open is the step; the collapse made inside it is not one of its own.
+        assert.notStrictEqual(opened.history.steps.at(-1)?.fact.code, "groups.collapse");
+
+        await opened.groups.expand({ run, group: 0 });
+        await opened.styles.settled();
+        assert.deepEqual(picture(opened), before);
+        const [reopened] = opened.runs.list();
+        assert.strictEqual(reopened.result?.node("a")?.group, 0);
+        const color = (id: string): unknown =>
+            (opened.styles.explain({ node: id }).merged as Record<string, { hex?: string } | undefined>)["node.color"]
+                ?.hex;
+        assert.strictEqual(color("a"), RED);
+        assert.notStrictEqual(color("d"), RED);
+        opened.dispose();
+    });
+
+    it("sums an undirected graph's edges both ways round into one per pair", async () => {
+        const session = await graph();
+        await session.config.set({ data: { directed: false } });
+        await session.data.addEdges([{ source: "f", target: "a" }]);
+        const node = await session.groups.collapse(X);
+        // a-f (weight 3) and f-a are one pair.
+        assert.deepEqual(edges(session), [`${node}>d 1 1`, `${node}>f 2 4`, "d>e", "e>f"].sort());
+        session.dispose();
+    });
+
+    it("refuses to expand a collapsed node holding an edge added to it, and saves that edge", async () => {
+        const session = await graph();
+        const node = await session.groups.collapse(X);
+        await session.data.addEdges([{ source: node, target: "e", kind: "added" }]);
+        let code: string | undefined;
+        try {
+            await session.groups.expand(X);
+        } catch (error) {
+            code = isGraphtyError(error) ? error.code : "other";
+        }
+        assert.strictEqual(code, "E_BAD_COMMAND");
+
+        const collapsed = picture(session);
+        const { text } = await session.project.save();
         const opened = createGraphSession();
         await opened.project.open(text);
-        assert.deepEqual(
-            opened.groups.list().map((each) => each.group),
-            ["x"],
-        );
-        await opened.groups.expand(X);
-        assert.deepEqual(picture(opened), before);
+        assert.deepEqual(picture(opened), collapsed);
+        session.dispose();
         opened.dispose();
     });
 

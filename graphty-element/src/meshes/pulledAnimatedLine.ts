@@ -8,6 +8,7 @@ import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { PULLED_ORDER_GLSL } from "./edgeJoinShader";
 
 /**
  * @file A straight animated line (`line.animationSpeed`) pulled from the row table: the object path's greased line,
@@ -33,6 +34,7 @@ uniform float handed;
 uniform float scroll;
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D edgeRows;
+${PULLED_ORDER_GLSL}
 flat varying vec3 vColor;
 varying vec2 vUV;
 
@@ -50,9 +52,13 @@ vec2 grlFix(vec4 i) {
     return res;
 }
 
+const int CORNER_OF[${String(ANIMATED_TEMPLATE.indices.length)}] = int[${String(ANIMATED_TEMPLATE.indices.length)}](${ANIMATED_TEMPLATE.indices.join(", ")});
+
 void main(void) {
-    int piece = gl_VertexID / 4;
-    int corner = gl_VertexID - piece * 4;
+    // unindexed: six corners a piece, each naming one of its four vertices
+    int slot = gl_VertexID / ${String(ANIMATED_TEMPLATE.indices.length)};
+    int corner = CORNER_OF[gl_VertexID - slot * ${String(ANIMATED_TEMPLATE.indices.length)}];
+    int piece = pulledPiece(slot);
     vec4 head = edgeAt(piece * 2);
     vec4 tint = edgeAt(piece * 2 + 1);
     vColor = tint.rgb;
@@ -154,7 +160,6 @@ export function createPulledAnimatedLineMesh(scene: Scene): Mesh {
     const mesh = new Mesh("edge-moving-pulled", scene);
     const vertexData = new VertexData();
     vertexData.positions = new Array<number>(ANIMATED_TEMPLATE.vertices * 3).fill(0);
-    vertexData.indices = [...ANIMATED_TEMPLATE.indices];
     vertexData.applyToMesh(mesh);
 
     const material = new ShaderMaterial(
@@ -163,8 +168,17 @@ export function createPulledAnimatedLineMesh(scene: Scene): Mesh {
         { vertex: "edgeAnimated", fragment: "edgeAnimated" },
         {
             attributes: [],
-            uniforms: ["world", "viewProjection", "projection", "aspect", "handed", "scroll", "baseColor"],
-            samplers: ["rowPosition", "edgeRows", "movingMask"],
+            uniforms: [
+                "world",
+                "viewProjection",
+                "projection",
+                "aspect",
+                "handed",
+                "scroll",
+                "baseColor",
+                "edgeOrdered",
+            ],
+            samplers: ["rowPosition", "edgeRows", "movingMask", "edgeOrder"],
         },
     );
     // (base, moving), sampled nearest and wrapped, as the greased line's moving texture is

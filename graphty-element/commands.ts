@@ -63,6 +63,7 @@ export const COMMANDS = Object.freeze({
     "visibility.steps": { undo: "undoable" },
     "visibility.conditions": { undo: "undoable" },
     "visibility.playback": { undo: "undoable" },
+    "visibility.hide": { undo: "undoable" },
     "set.create": { undo: "undoable" },
     "set.rename": { undo: "undoable" },
     "set.redefine": { undo: "undoable" },
@@ -83,6 +84,7 @@ export const COMMANDS = Object.freeze({
     "positions.set": { undo: "undoable" },
     "positions.pin": { undo: "undoable" },
     "layout.set": { undo: "undoable" },
+    "layout.rerun": { undo: "undoable" },
     "layout.scope": { undo: "undoable" },
     "view.dimension": { undo: "undoable" },
     "layout.transport": {

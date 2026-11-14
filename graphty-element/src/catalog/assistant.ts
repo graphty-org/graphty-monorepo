@@ -136,6 +136,13 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         actions: ["dimension", "camera", "zoom_to", "fit", "save", "restore", "remove_saved", "list_saved"],
     },
     {
+        name: "hidden",
+        plainName: "Hidden nodes",
+        core: false,
+        profiles: STANDARD,
+        actions: ["hide", "show"],
+    },
+    {
         name: "edit_data",
         plainName: "Edit data",
         core: true,
@@ -233,6 +240,7 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
             "list",
             "values",
             "over_represented",
+            "group_table",
             "preview_type",
             "rename",
             "set_type",

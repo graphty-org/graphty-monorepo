@@ -935,6 +935,45 @@ export interface OverRepresentedValues {
 }
 
 /**
+ * One summary of a numeric column over a group's members, as {@link GroupTableOptions.summaries}
+ * names it. Every figure but `count` is over the members carrying a finite number; `count` is how
+ * many do. `median` is the lower median, a value one member holds.
+ *
+ * OPEN UNION: summaries may be added in a minor release; handle unknown ones.
+ */
+export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
+
+/** What `session.data.groupTable(groupBy, options)` summarizes per group. */
+export interface GroupTableOptions {
+    /**
+     * The summaries to write per group, by the node path they read: `{ "data.age": ["mean", "max"] }`
+     * writes the columns `data.age.mean` and `data.age.max`. Only the group and its size when absent.
+     */
+    readonly summaries?: Readonly<Record<Path, readonly GroupSummary[]>>;
+}
+
+/**
+ * One row of a {@link GroupTable}: a cell per {@link GroupTable.columns} key. A summary over a
+ * group with no measured member is null.
+ */
+export type GroupTableRow = Readonly<Record<string, string | number | boolean | null>>;
+
+/**
+ * What `session.data.groupTable(groupBy)` returns: one row per group of the nodes, keyed by neutral
+ * column keys -- `group` (the group's value), `label` (its name from `setValueLabel`, null when
+ * unnamed; present only when the path has a named value), `size` (how many nodes it holds) and one
+ * `<path>.<summary>` per summary asked for.
+ */
+export interface GroupTable {
+    /** The path the nodes were grouped by. */
+    readonly groupBy: Path;
+    /** The column keys, in order. */
+    readonly columns: readonly string[];
+    /** One row per group, largest first. */
+    readonly rows: readonly GroupTableRow[];
+}
+
+/**
  * What a column's values are read as: what `session.data.setType(column, type)` converts them to.
  *
  * - `"text"`: strings, free text.
@@ -1473,6 +1512,31 @@ export interface SessionDataApi {
      */
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
     /**
+     * Change which columns play which role -- the node id, an edge's source or target, the label,
+     * the weight -- after a load, as one undoable step. The rows the load read are read again
+     * under the new mapping, with no file picked or URL fetched: a new id column makes the nodes
+     * anew and the edges find their ends among them, and everything else (style layers, runs,
+     * filters, the load's key) stays, as {@link SessionDataApi.reloadSource} keeps it. A run whose
+     * numbers came from the old graph reads as stale (`run.stale`); nothing is run again. One undo
+     * brings back the old mapping and the old graph.
+     *
+     * ```ts
+     * await session.data.remap({ mapping: { tables: { nodes: { key: "email" } } } });
+     * ```
+     * @param options - The mapping, as a load takes it, laid over the one the load was read with,
+     *     and which load (the only one when absent).
+     * @returns What was added, removed and changed, and what no longer matches anything.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` (`details.reason`:
+     *     `"no-mapping"`, `"which-source"` with `details.known` when the graph holds more than one
+     *     load and none is named, or a role the table's rows cannot have), `E_UNKNOWN_ATTRIBUTE`
+     *     for a column the table does not have, `E_EDGE_ENDPOINTS_UNRESOLVED` for an edge table
+     *     left without an end, `E_SOURCE_UNKNOWN` for a key `sources()` does not list, and
+     *     `E_UNSUPPORTED` (`details.reason: "not-reloadable"`) for a load this session did not
+     *     read itself (`LoadedSource.reloadable`), such as one in a project opened from a file.
+     * @since 3.54.0
+     */
+    remap(options: RemapOptions): Promise<ReplaceReport>;
+    /**
      * What this session read a load from, as `import` and `prepare` took it (the file itself, or
      * the text), so an application can read the load again into a draft, such as to show its rows
      * and change its roles. Only a load this session read itself has one
@@ -1749,6 +1813,23 @@ export interface SessionDataApi {
      * @returns Every group, largest first, with its over-represented values.
      */
     overRepresented(groupBy: Path, options?: { readonly columns?: readonly Path[] }): OverRepresentedValues;
+    /**
+     * One row per group of the nodes -- a community run's `group`, a component, any node path --
+     * with its size and the summaries of numeric columns the caller asks for. Write it as a file
+     * with `exportGraph("csv" | "json", { groupTable: { groupBy } })`. Walks the nodes on every call.
+     *
+     * ```ts
+     * const table = session.data.groupTable("results.louvain.group", {
+     *     summaries: { "data.age": ["mean", "max"] },
+     * });
+     * table.rows[0]; // { group: 3, size: 14, "data.age.mean": 31.5, "data.age.max": 60 }
+     * ```
+     * @param groupBy - The path holding each node's group; a node with no value there is left out.
+     * @param options - The summaries; see {@link GroupTableOptions}.
+     * @returns The table, largest group first.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a summary not in {@link GroupSummary}.
+     */
+    groupTable(groupBy: Path, options?: GroupTableOptions): GroupTable;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @param options - What to measure.
@@ -2347,7 +2428,40 @@ export interface DraftRow {
      * Present only on the rows `only: "unmatched"` reads.
      */
     readonly missingEnds?: readonly EdgeEnd[];
+    /**
+     * Why the row was rejected or left unmatched, as a code and its facts. Present on the rows
+     * `only: "rejected"` and `only: "unmatched"` read, and on every row of `LoadReport.rows`.
+     */
+    readonly reason?: RowReason;
 }
+
+/**
+ * Why a row of an import made no node or edge, or named a node no node row held: a neutral fact a
+ * reader words from `code` and `params`.
+ *
+ * - `"refused-row"` (the code `LoadReport.errors` gives the same row): the row's id, or an edge
+ *   row's end, cannot be a node id -- absent, null, blank, or not a string or a finite number.
+ *   `params.rowsAre` is `"nodes"` or `"edges"`; for an edge row `params.ends` lists the unusable
+ *   ends (`"source"`, `"target"`).
+ * - `"unknown-end"` (the code `data.issues()` gives these edges): an edge row names a node no node
+ *   row (nor, for a merge, the graph) holds. `params.ends` lists those ends and `params.ids` the
+ *   ids they name, in the same order.
+ * @since 3.40.0
+ */
+export interface RowReason {
+    /** The kind of problem. */
+    readonly code: RowReasonCode;
+    /** The facts the code names. */
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The codes a {@link RowReason} gives.
+ *
+ * OPEN UNION: codes may be added in a minor release; handle unknown codes.
+ * @since 3.40.0
+ */
+export type RowReasonCode = "refused-row" | "unknown-end";
 
 /** One end of an edge: the node it leaves, or the node it enters. */
 export type EdgeEnd = "source" | "target";
@@ -3147,6 +3261,14 @@ export interface ReplaceCounts {
     readonly changed: number;
 }
 
+/** What `data.remap` takes. @since 3.54.0 */
+export interface RemapOptions {
+    /** The column roles to change, as `LoadChoices.mapping` names them; a role left out stays as it is. */
+    readonly mapping: LoadMapping;
+    /** The load to re-map, from {@link SessionDataApi.sources}; the only load when absent. */
+    readonly source?: SourceKey;
+}
+
 /**
  * What `session.data.replaceSource(key, source)` did.
  * @since 3.30.0
@@ -3556,6 +3678,13 @@ export interface SessionEventMap {
      * @since 3.36.0
      */
     "canvas:group-outline-click": GroupOutlineClick;
+    /**
+     * The layout's motion changed: it started or restarted (`running`), was paused part-way
+     * (`paused`), or came to rest (`settled`). `layout.motion` is `motion` when it arrives. Only a
+     * change is published. A session that draws nothing never publishes it.
+     * @since 3.53.0
+     */
+    "layout:motion-changed": { readonly motion: LayoutMotion };
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /**
@@ -3700,6 +3829,17 @@ export interface SessionEventMap {
      * committed. A write that was refused, or that changed nothing, publishes nothing.
      */
     "note:changed": NoteChange;
+    /**
+     * The graph's data changed: nodes or edges were added or removed, or their attributes were
+     * edited -- by a load, an add, a removal, an attribute edit, or an undo, redo or restore of
+     * one. One event per change, published synchronously after `project:changed`, so `data.node()`
+     * already reads the new values. A change that touched no node or edge publishes nothing.
+     *
+     * Load progress is `progress:changed` with `task: "load"`, which a session with no view
+     * publishes too; the load's `data:changed` follows when it commits.
+     * @since 3.40.0
+     */
+    "data:changed": DataChange;
     /** A command finished and the journal appended its entry: one event per entry. */
     "journal:appended": { readonly entry: JournalEntry };
     /**
@@ -3823,6 +3963,32 @@ export type ProjectSlice =
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
+/** Node and edge ids, by kind. */
+export interface DataChangeIds {
+    /** Node ids. */
+    readonly nodes: readonly NodeId[];
+    /** Edge ids, as `data.edges()` gives them. */
+    readonly edges: readonly EdgeId[];
+}
+
+/**
+ * What one change did to the graph's data, published as `data:changed`. Netted over the change: a
+ * node added and removed again in one change is in neither list. Frozen.
+ * @since 3.40.0
+ */
+export interface DataChange {
+    /** The nodes and edges the change added. */
+    readonly added: DataChangeIds;
+    /** The nodes and edges it removed (a node's edges go with it). */
+    readonly removed: DataChangeIds;
+    /** The nodes and edges that were there before and after it whose record or weight it wrote. */
+    readonly updated: DataChangeIds;
+    /** The attribute keys whose values it changed on the updated nodes and edges. */
+    readonly fields: { readonly nodes: readonly string[]; readonly edges: readonly string[] };
+    /** What made the change: a command, an undo, a redo, or a restore (a jump in the history). */
+    readonly cause: HistoryCause;
+}
+
 /** The id of one step in `session.history.steps`. */
 export type HistoryStepId = string & { readonly __brand: "HistoryStepId" };
 
@@ -3891,6 +4057,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.condition-edit` | `id`; `effect`: its effect after the edit; `previousEffect`: its effect before |
  * | `visibility.steps` | none: several steps or conditions changed at once, or a reorder |
  * | `visibility.playback` | none: how `session.time` moves windows changed |
+ * | `visibility.hide-nodes`, `visibility.show-nodes` | `count`: how many nodes were named |
  * | `time.field` | `column`: the column designated as the time field |
  * | `time.clear-field` | none |
  * | `set.create` | `name`: the set's name, or null |
@@ -3905,6 +4072,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `positions.set`, `positions.pin`, `positions.release` | `count`: how many nodes |
  * | `node.drag` | `node`: the id dragged |
  * | `layout.set` | `layout`: the layout's id |
+ * | `layout.rerun` | `layout`: the id of the layout run again |
  * | `layout.behavior` | `layout`: the layout's id |
  * | `layout.scope`, `layout.whole-graph` | none |
  * | `project.open` | `name`: the project's name, or null |
@@ -3994,6 +4162,8 @@ export type HistoryCode =
     | "visibility.condition-remove"
     | "visibility.steps"
     | "visibility.playback"
+    | "visibility.hide-nodes"
+    | "visibility.show-nodes"
     | "time.field"
     | "time.clear-field"
     | "set.create"
@@ -4016,6 +4186,7 @@ export type HistoryCode =
     | "positions.release"
     | "node.drag"
     | "layout.set"
+    | "layout.rerun"
     | "layout.behavior"
     | "layout.scope"
     | "layout.whole-graph"
@@ -4239,6 +4410,8 @@ export interface CommandOutcomeMap {
     "visibility.conditions": Promise<void>;
     /** Settles once the playback settings are recorded. */
     "visibility.playback": Promise<void>;
+    /** Settles once the hidden list is recorded and the pass that draws it has run. */
+    "visibility.hide": Promise<void>;
     /** The new set's id, once it is recorded. */
     "set.create": Promise<SetId>;
     /** Settles once the rename is recorded. */
@@ -4273,6 +4446,8 @@ export interface CommandOutcomeMap {
     "positions.pin": Promise<void>;
     /** Settles once the choice is recorded and the layout has spent its pre-steps. */
     "layout.set": Promise<void>;
+    /** Settles once the re-run is recorded and the layout has spent its pre-steps. */
+    "layout.rerun": Promise<void>;
     /** Settles once the scope is recorded. */
     "layout.scope": Promise<void>;
     /** Settles once the switch is recorded and the layout has been rebuilt for it. */
@@ -4376,6 +4551,40 @@ export interface SessionPositions extends ReadonlyElementPositions {
 }
 
 /**
+ * Nodes hidden from the drawing only: each stays in the data, its results, the table, layout,
+ * counts and exports, and is simply not drawn, with every edge that touches it. Unlike a filter
+ * (`session.visibility.set`), which takes elements out of everything, this changes nothing but the
+ * picture. Hiding and showing are undoable steps, and a project file saves the list.
+ *
+ * ```ts
+ * await session.hidden.add(["n7"]); // n7 and its edges leave the canvas
+ * session.hidden.ids.has("n7"); // true
+ * await session.hidden.remove(["n7"]); // drawn again
+ * ```
+ */
+export interface SessionHidden {
+    /**
+     * The hidden node ids, as they were given. `has` takes an integer id written either way. An
+     * id the graph does not hold hides nothing; it is kept, and a project file saves only those
+     * the graph holds.
+     */
+    readonly ids: ReadonlySet<NodeId>;
+    /**
+     * Hide nodes, and the edges that touch them, from the drawing. One step; an id already hidden
+     * is left as it is.
+     * @param ids - The nodes.
+     * @returns Settles once the step is recorded and the pass that draws it has run.
+     */
+    add(ids: readonly NodeId[]): Promise<void>;
+    /**
+     * Draw hidden nodes again. One step; an id that is not hidden is left as it is.
+     * @param ids - The nodes.
+     * @returns Settles once the step is recorded and the pass that draws it has run.
+     */
+    remove(ids: readonly NodeId[]): Promise<void>;
+}
+
+/**
  * Which layout draws the graph, and in how many dimensions: the project's `layout` slice.
  *
  * Choosing a layout and switching between 2D and 3D are undoable steps, and undo puts back the
@@ -4419,6 +4628,35 @@ export interface SessionLayout {
      */
     setDimension(dimension: "2d" | "3d"): Promise<void>;
     /**
+     * Run the current layout again from the start, with the same engine, options and scope, as
+     * choosing it again would. One step, recorded as `layout.rerun` (not `layout.set`), so undo
+     * and a history list name a re-run; undo puts the arrangement back.
+     *
+     * ```ts
+     * await session.layout.rerun();
+     * session.history.steps.at(-1)?.fact; // { code: "layout.rerun", params: { layout: "force" } }
+     * ```
+     * @returns Settles once the step is recorded and the layout has taken its pre-steps.
+     * @throws A `GraphtyError` (as a rejection) with `E_UNSUPPORTED` in a session that draws
+     *     nothing, where there is no layout to run.
+     * @since 3.53.0
+     */
+    rerun(): Promise<void>;
+    /**
+     * Whether the layout is moving now: `running` while it steps, `paused` when it was stopped
+     * before it came to rest (`element.setRunning(false)`), `settled` once it has come to rest
+     * or when nothing is drawn (a session with no renderer always reads `settled`). Not project
+     * state and not undoable. `layout:motion-changed` publishes each change.
+     *
+     * ```ts
+     * const show = (motion: LayoutMotion) => (chip.textContent = motion);
+     * show(session.layout.motion);
+     * session.on("layout:motion-changed", ({ motion }) => show(motion));
+     * ```
+     * @since 3.53.0
+     */
+    readonly motion: LayoutMotion;
+    /**
      * Whether a layout option changes the drawing in a view, as a coded fact: the location map's
      * `mapDimension` is `setting.notIn2d`, because the 2D view always draws its 2D map; then
      * `params.drawn` is the value the view draws instead (`"2d"`). A form shows an option not in
@@ -4446,6 +4684,12 @@ export interface SessionLayout {
      */
     locationColumns(): LocationColumns;
 }
+
+/**
+ * Whether the layout is moving: see {@link SessionLayout.motion}.
+ * @since 3.53.0
+ */
+export type LayoutMotion = "running" | "paused" | "settled";
 
 /** Where the location map layout reads locations: one column of whole locations, or a pair. @since 3.37.0 */
 export interface LocationColumns {
@@ -4660,6 +4904,11 @@ export interface GraphSession {
      * step.
      */
     readonly positions: SessionPositions;
+    /**
+     * Nodes hidden from the drawing only, with their edges, while they stay in the data, results,
+     * layout and exports; hiding and showing are undoable steps.
+     */
+    readonly hidden: SessionHidden;
     /**
      * How many nodes the DATA arrived carrying a coordinate for.
      *
@@ -4897,6 +5146,12 @@ export interface ElementSession extends GraphSession {
      * @param target - The outline's layer, shader and group.
      */
     groupOutlineClick(target: GroupOutlineClick): void;
+    /**
+     * Record the layout's motion and publish `layout:motion-changed` when it changed; the
+     * renderer calls it whenever its layout starts, pauses or comes to rest.
+     * @param motion - The motion now.
+     */
+    layoutMotion(motion: LayoutMotion): void;
     /**
      * What the renderer fades edges by age with (`time.settings.ageFade`): each edge's start and
      * the window, normalized over the data's extent. Null while the setting draws no fade.

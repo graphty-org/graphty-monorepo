@@ -302,6 +302,9 @@ export interface AutosaveLookupOptions {
 export { AwsCredentials }
 
 // @public
+export type BackgroundImageProblem = CodedFact<"E_IMAGE_DECODE">;
+
+// @public
 export interface BatchResult {
     readonly completed: number;
     readonly label: string | null;
@@ -658,6 +661,7 @@ export interface CommandOutcomeMap {
     "data.setFileStyles": Promise<void>;
     "data.setSource": Promise<void>;
     "data.source-expand": Promise<void>;
+    "layout.rerun": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
     "layout.transport": Promise<void>;
@@ -685,6 +689,7 @@ export interface CommandOutcomeMap {
     // @beta
     "visibility.conditions": Promise<void>;
     "visibility.context": Promise<void>;
+    "visibility.hide": Promise<void>;
     "visibility.playback": Promise<void>;
     "visibility.set": Promise<void>;
     "visibility.steps": Promise<void>;
@@ -912,6 +917,24 @@ export { credentials }
 export { credentialSlots }
 
 // @public
+export interface DataChange {
+    readonly added: DataChangeIds;
+    readonly cause: HistoryCause;
+    readonly fields: {
+        readonly nodes: readonly string[];
+        readonly edges: readonly string[];
+    };
+    readonly removed: DataChangeIds;
+    readonly updated: DataChangeIds;
+}
+
+// @public
+export interface DataChangeIds {
+    readonly edges: readonly EdgeId[];
+    readonly nodes: readonly NodeId_2[];
+}
+
+// @public
 export interface DataIssue {
     readonly code: IssueCode;
     readonly column?: ColumnRef;
@@ -942,6 +965,9 @@ export interface DataSourceInput {
     readonly source?: string;
     readonly type?: string;
 }
+
+// @public
+export const DEFAULT_BACKGROUND_IMAGE_SIZE = 4096;
 
 // @beta
 export const DEFAULT_BRANCH_PALETTE: readonly string[];
@@ -983,6 +1009,7 @@ export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" |
 export interface DraftRow {
     readonly line: number;
     readonly missingEnds?: readonly EdgeEnd[];
+    readonly reason?: RowReason;
     readonly values: Readonly<Record<string, unknown>>;
 }
 
@@ -1677,6 +1704,7 @@ export interface GraphSession {
     readonly features: EnabledFeatures;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
+    readonly hidden: SessionHidden;
     readonly history: SessionHistory;
     readonly journal: JournalApi;
     readonly layout: SessionLayout;
@@ -2006,15 +2034,19 @@ export type GraphtyErrorCode =
 | "E_LOCKED"
 /**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
-* unreadable file. `details` carry the url and the status where there was one, and `cause`
+* unreadable file. `details` carry the url (or the file's name), the status where there was
+* one and `timeoutMs` when the last request ran out of time, and `cause`
 * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
 * than 408 and 429), which fails after one request with `recoverable: false`.
 */
 | "E_FETCH_FAILED"
 /**
 * A source was fetched but could not be parsed as the format it claimed to be. `details`
-* carry the format, the line and, where the parser reported one, the column. The caller
-* corrects the file, or re-imports naming the true format.
+* carry the format, the line and, where the parser reported one, the column; when graph-io
+* read it, `details.issue` is graph-io's code for what stopped it (`"E_XML_SYNTAX"`,
+* `"E_CSV_UNCLOSED_QUOTE"`...) and `details.element` where. A reader that threw without a
+* code of its own is reported as this too, with its error as `cause`. The caller corrects
+* the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
 /**
@@ -2217,6 +2249,13 @@ export type GraphtyErrorCode =
 * the CPU in silence.
 */
 | "E_DEVICE_LOST"
+/**
+* The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+* device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+* The session and its data are untouched; the element asks for the device back, and
+* `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+*/
+| "E_RENDER_LOST"
 /**
 * No WebGL context could be created, so nothing can be rendered. `details` carry what the
 * canvas reported. The session's data and results still work; only the view is unavailable.
@@ -2458,9 +2497,13 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_DIGEST_MISMATCH"
 /**
-* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed". Also a skybox background image that could not be loaded, as the detail of the element's `graphty-skybox-failed` event, `params.url` its first 256 characters.
 */
 | "E_IMAGE_LOAD"
+/**
+* A picture the browser cannot decode, so it cannot be drawn (`prepareBackgroundImage`): HEIC in a browser without HEIC support, a damaged file, or a file that is not a picture. `params.format` (its media type, or "" when unknown), `params.fileName` when it is a file.
+*/
+| "E_IMAGE_DECODE"
 /**
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
@@ -2485,9 +2528,20 @@ export interface GraphtyErrorDetailsMap {
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
+    E_FETCH_FAILED: {
+        readonly url?: string;
+        readonly file?: string;
+        readonly status?: number;
+        readonly attempts?: number;
+        readonly timeoutMs?: number;
+    };
     E_PARSE_FAILED: {
         readonly format?: string;
         readonly line?: number;
+        readonly rowErrors?: number;
+        readonly limit?: number;
+        readonly issue?: string;
+        readonly element?: string;
     };
     E_TOO_LARGE: {
         readonly limit?: number;
@@ -2831,6 +2885,24 @@ export interface GroupOverlap {
 }
 
 // @public
+export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
+
+// @public
+export interface GroupTable {
+    readonly columns: readonly string[];
+    readonly groupBy: Path;
+    readonly rows: readonly GroupTableRow[];
+}
+
+// @public
+export interface GroupTableOptions {
+    readonly summaries?: Readonly<Record<Path, readonly GroupSummary[]>>;
+}
+
+// @public
+export type GroupTableRow = Readonly<Record<string, string | number | boolean | null>>;
+
+// @public
 export interface HighlightSpec {
     readonly field?: string;
     readonly name?: string;
@@ -2881,7 +2953,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -2927,6 +2999,9 @@ export interface HopsLeaf {
     readonly max?: number;
     readonly of?: StepReference;
 }
+
+// @public
+export const IMPORT_ROWS_KEPT = 100;
 
 // @public
 export interface ImportColumnsInput {
@@ -3297,6 +3372,9 @@ export interface LayerUnmatchedGroup {
 }
 
 // @public
+export type LayoutMotion = "running" | "paused" | "settled";
+
+// @public
 export interface LayoutRecommendation {
     readonly fact: CodedFact<LayoutRecommendationCode>;
     readonly layout: LayoutDescriptor;
@@ -3568,6 +3646,10 @@ export interface LoadReport extends ImportReport {
     readonly kinds?: {
         readonly sharedIds: number;
         readonly byKind: Readonly<Record<string, number>>;
+    };
+    readonly rows?: {
+        readonly rejected: readonly DraftRow[];
+        readonly unmatched: readonly DraftRow[];
     };
     readonly styles?: LoadStyleReport;
     readonly tooLarge: TooLargeDetails | null;
@@ -4284,6 +4366,26 @@ export interface PositionEntry {
 export type Precision = "f32" | "f64";
 
 // @public
+export function prepareBackgroundImage(file: Blob, options?: PrepareBackgroundImageOptions): Promise<PreparedBackgroundImage>;
+
+// @public
+export interface PrepareBackgroundImageOptions {
+    readonly maxSize?: number;
+}
+
+// @public
+export type PreparedBackgroundImage = {
+    readonly ok: true;
+    readonly data: string;
+    readonly width: number;
+    readonly height: number;
+    readonly scaled: boolean;
+} | {
+    readonly ok: false;
+    readonly problem: BackgroundImageProblem;
+};
+
+// @public
 export type PreviewDefaultedPart = "palette" | "scale" | "domain" | "range";
 
 // @public
@@ -4715,6 +4817,12 @@ export interface RecordSort {
 export { registerSource }
 
 // @public
+export interface RemapOptions {
+    readonly mapping: LoadMapping;
+    readonly source?: SourceKey;
+}
+
+// @public
 export function removeAutosave(key: string, id: string, options?: AutosaveLookupOptions): Promise<void>;
 
 // @public
@@ -5011,6 +5119,15 @@ export interface RowParts {
     readonly node?: LayerId;
     readonly target: RowTarget;
 }
+
+// @public
+export interface RowReason {
+    readonly code: RowReasonCode;
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export type RowReasonCode = "refused-row" | "unknown-end";
 
 // @public
 export interface RowSpec extends Omit<LayerSpec, "target" | "set" | "encode" | "row"> {
@@ -5631,8 +5748,13 @@ export interface SelectionApi {
         readonly edges: number;
     } | null;
     previewHover(on: boolean): void;
+    previous(): {
+        readonly nodes: readonly NodeId[];
+        readonly edges: readonly EdgeId[];
+    } | null;
     // @deprecated
     promote(name: string): ScopeId;
+    restore(options?: SelectionApplyOptions): SelectionDelta;
     readonly size: number;
     statistics(options?: SelectionStatisticsOptions): Promise<SelectionStatistics>;
     readonly truncated: boolean;
@@ -5958,6 +6080,7 @@ export interface SessionDataApi {
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
+    groupTable(groupBy: Path, options?: GroupTableOptions): GroupTable;
     hiddenColumns(): readonly ColumnRef[];
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
@@ -6007,6 +6130,7 @@ export interface SessionDataApi {
     readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
+    remap(options: RemapOptions): Promise<ReplaceReport>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
@@ -6062,11 +6186,15 @@ export interface SessionEventMap {
     "capabilities:changed": {
         readonly capabilities: SessionCapabilities;
     };
+    "data:changed": DataChange;
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
     };
     "journal:appended": {
         readonly entry: JournalEntry;
+    };
+    "layout:motion-changed": {
+        readonly motion: LayoutMotion;
     };
     "model:changed": ModelChange;
     "network:pending": NetworkRequest;
@@ -6159,6 +6287,13 @@ export interface SessionGraphStore {
 }
 
 // @public
+export interface SessionHidden {
+    add(ids: readonly NodeId_2[]): Promise<void>;
+    readonly ids: ReadonlySet<NodeId_2>;
+    remove(ids: readonly NodeId_2[]): Promise<void>;
+}
+
+// @public
 export interface SessionHistory {
     readonly bytes: number;
     cancel(pending: PendingId): readonly PendingStep[];
@@ -6186,8 +6321,10 @@ export interface SessionLayout {
     readonly engine: string;
     readonly id: LayoutId;
     locationColumns(): LocationColumns;
+    readonly motion: LayoutMotion;
     optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
     readonly options: Readonly<Record<string, unknown>>;
+    rerun(): Promise<void>;
     set(id: LayoutId, options?: {
         readonly engine?: string;
         readonly options?: Readonly<Record<string, unknown>>;
@@ -7014,7 +7151,7 @@ export interface StyleProblem {
 }
 
 // @public
-export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "layer";
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer";
 
 // @public
 export interface StyleRepaintFailure {

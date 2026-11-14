@@ -101,7 +101,15 @@ import {
     type TransactionOptions as DispatchOptions,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
-import { EDGES_ADDED, forEachEdgeOfKey, namesEdges, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
+import {
+    EDGES_ADDED,
+    forEachEdgeOfKey,
+    graphDiffOf,
+    namesEdges,
+    nodeOfKey,
+    NODES_ADDED,
+    ROWS_MOVED,
+} from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
@@ -214,6 +222,7 @@ import type {
     HistoryClearOptions,
     HistoryOutcome,
     HistoryRestoreOptions,
+    LayoutMotion,
     LocationColumns,
     ModelChange,
     PositionEntry,
@@ -227,6 +236,7 @@ import type {
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHidden,
     SessionHistory,
     SessionLayout,
     SessionPositions,
@@ -593,6 +603,8 @@ class Session implements ElementSession {
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
+    /** The renderer's layout motion; a session that draws nothing stays `settled`. */
+    private motion: LayoutMotion = "settled";
     /** The settings; identity-stable, every member read live. */
     readonly config: SessionConfig;
     private readonly sessionData: SessionData;
@@ -619,6 +631,7 @@ class Session implements ElementSession {
     private disposed = false;
     /** The lane with the positions verbs beside it; built once, on first read. */
     private positionsView: SessionPositions | undefined;
+    private hiddenView: SessionHidden | undefined;
     private readonly settledFeatures: () => EnabledFeatures;
     /** Whether the timeline experiment is on, for a command that has no `session.time` to ask. */
     private readonly timelineOn: () => boolean;
@@ -694,6 +707,7 @@ class Session implements ElementSession {
                 cause: change.cause,
             });
             beside?.(change);
+            tellData(this.watchers, change);
         };
         this.dispatcher.events.caughtUp = (change) => {
             publish(this.watchers, "project:derived", {
@@ -739,6 +753,7 @@ class Session implements ElementSession {
             this.dispatcher,
             (command) => this.dispatcher.dispatch(command),
             () => locationColumns(this.planning),
+            () => this.motion,
         );
         // What an import asking for a recommended layout chooses, for the graph it loaded.
         const fileGraph = (): FileGraphValue | undefined =>
@@ -985,6 +1000,7 @@ class Session implements ElementSession {
                     this.dispatcher,
                     (command) => scope.dispatch(command),
                     () => locationColumns(this.planning),
+                    () => this.motion,
                 ),
             },
             transaction: {
@@ -1024,6 +1040,15 @@ class Session implements ElementSession {
     get positions(): SessionPositions {
         this.positionsView ??= positionsOf(this.store, this.dispatcher);
         return this.positionsView;
+    }
+
+    /**
+     * The nodes hidden from the drawing only, with the verbs that hide and show them.
+     * @returns the hidden ids and the verbs
+     */
+    get hidden(): SessionHidden {
+        this.hiddenView ??= hiddenOf(this.dispatcher);
+        return this.hiddenView;
     }
 
     /**
@@ -1243,6 +1268,17 @@ class Session implements ElementSession {
     }
 
     /**
+     * Records the layout's motion and publishes `layout:motion-changed` when it changed.
+     * @param motion - The motion now.
+     */
+    layoutMotion(motion: LayoutMotion): void {
+        if (motion !== this.motion) {
+            this.motion = motion;
+            publish(this.watchers, "layout:motion-changed", { motion });
+        }
+    }
+
+    /**
      * Publishes `canvas:group-outline-click`.
      * @param target - The outline's layer, shader and group.
      */
@@ -1453,6 +1489,77 @@ function pinnedOf(pins: ReadonlySet<NodeId>): ReadonlySet<NodeId> {
 }
 
 /**
+ * `session.hidden`: the `visibility` slice's hidden list, read as a sealed set, with the two verbs
+ * that write it.
+ * @param dispatcher - The dispatcher.
+ * @returns The hidden nodes.
+ */
+function hiddenOf(dispatcher: Dispatcher): SessionHidden {
+    return Object.freeze({
+        get ids(): ReadonlySet<NodeId> {
+            return sealedSet(
+                dispatcher.state.visibility.hidden ?? [],
+                "Call session.hidden.add() or remove() to change what is hidden.",
+                otherIdSpelling,
+            );
+        },
+        // An empty list is no step at all.
+        add: async (ids: readonly NodeId[]) => {
+            if (ids.length > 0) {
+                await dispatcher.dispatch({ op: "visibility.hide", ids, hidden: true });
+            }
+        },
+        remove: async (ids: readonly NodeId[]) => {
+            if (ids.length > 0) {
+                await dispatcher.dispatch({ op: "visibility.hide", ids, hidden: false });
+            }
+        },
+    });
+}
+
+/**
+ * The rows `session.hidden` keeps off the canvas, one byte per row: each hidden node, and every
+ * edge with a hidden end. Rebuilt only when the graph or the list changes.
+ * @param snapshot - The current graph.
+ * @param list - The hidden list now.
+ * @returns The bytes for nodes or edges, or null while nothing is hidden.
+ */
+function hiddenRowsOf(
+    snapshot: () => GraphSnapshot,
+    list: () => readonly NodeId[] | undefined,
+): (target: "node" | "edge") => Uint8Array | null {
+    let kept: { graph: GraphSnapshot; ids: readonly NodeId[]; node: Uint8Array; edge: Uint8Array } | null = null;
+
+    return (target) => {
+        const ids = list();
+        if (ids === undefined || ids.length === 0) {
+            return null;
+        }
+
+        const graph = snapshot();
+        if (kept?.graph !== graph || kept.ids !== ids) {
+            const node = new Uint8Array(graph.nodeCount);
+            for (const id of ids) {
+                const row = rowOfEitherSpelling(graph.ids, id);
+                if (row !== INVALID_INDEX) {
+                    node[row] = 1;
+                }
+            }
+
+            const edge = new Uint8Array(graph.edgeCount);
+            const { src, dst } = graph.edgeList();
+            for (let at = 0; at < graph.edgeCount; at++) {
+                edge[at] = node[src[at]] | node[dst[at]];
+            }
+
+            kept = { graph, ids, node, edge };
+        }
+
+        return kept[target];
+    };
+}
+
+/**
  * The coordinates, read-only, with the verbs that place and pin nodes as steps beside them.
  * @param store - The store whose lane it reads.
  * @param dispatcher - The dispatcher the verbs dispatch through.
@@ -1496,12 +1603,14 @@ function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionP
  * @param dispatcher - The session's dispatcher, whose state is read.
  * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
  * @param locate - The columns the location map reads unless its options name some.
+ * @param motion - Whether the renderer's layout is moving.
  * @returns The layout surface.
  */
 function layoutOf(
     dispatcher: Dispatcher,
     dispatch: (command: SessionCommand) => Promise<unknown>,
     locate: () => LocationColumns,
+    motion: () => LayoutMotion,
 ): SessionLayout {
     const choice = (): LayoutChoice => dispatcher.state.layout ?? DEFAULT_LAYOUT;
     return Object.freeze({
@@ -1520,6 +1629,9 @@ function layoutOf(
         get arrangedDimension() {
             return arrangedDimension(choice());
         },
+        get motion() {
+            return motion();
+        },
         set: async (
             id: LayoutId,
             options?: { readonly engine?: string; readonly options?: Readonly<Record<string, unknown>> },
@@ -1533,6 +1645,9 @@ function layoutOf(
         },
         setDimension: async (dimension: "2d" | "3d") => {
             await dispatch({ op: "view.dimension", dimension });
+        },
+        rerun: async () => {
+            await dispatch({ op: "layout.rerun" });
         },
         optionInEffect: (id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect => {
             const drawn =
@@ -3644,6 +3759,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             nodeCount: () => snapshot().nodeCount,
             edgeCount: () => snapshot().edgeCount,
             elements,
+            // `session.hidden`: drawn as not visible over whatever the layers paint.
+            hidden: hiddenRowsOf(snapshot, () => dispatcher.state.visibility.hidden),
             // What makes a run-bound layer cost its RUN rather than the graph: a layer selecting
             // the elements one run measured walks that run's 300 rows, not the graph's 50,000.
             measured: elements.measured,
@@ -3955,6 +4072,50 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             )
             .catch(repaintFailed("hover"));
     };
+
+    // `session.hidden`, forward or on undo and redo: repaint the nodes whose hiding moved and the
+    // edges touching them, so the pass draws them hidden or as their layers paint them.
+    dispatcher.lane.register("visibility", (rendered, target): Promise<unknown> | undefined => {
+        const before = rendered.visibility.hidden ?? [];
+        const after = target.visibility.hidden ?? [];
+        if (stack === null || before === after) {
+            return undefined;
+        }
+
+        const graph = snapshot();
+        const moved = new Set<number>();
+        const now = new Set(after);
+        const was = new Set(before);
+        for (const id of [...before.filter((each) => !now.has(each)), ...after.filter((each) => !was.has(each))]) {
+            const row = rowOfEitherSpelling(graph.ids, id);
+            if (row !== INVALID_INDEX) {
+                moved.add(row);
+            }
+        }
+
+        if (moved.size === 0) {
+            return undefined;
+        }
+
+        // ponytail: walks every edge (O(E)) per hide; an incidence index if hiding is ever per frame.
+        const edge: number[] = [];
+        const { src, dst } = graph.edgeList();
+        for (let at = 0; at < graph.edgeCount; at++) {
+            if (moved.has(src[at]) || moved.has(dst[at])) {
+                edge.push(at);
+            }
+        }
+
+        // Returned, so the pass -- and the step or undo that waits on it -- settles once it is drawn;
+        // a pass that hides nothing new stays synchronous.
+        return painter
+            .repaintElements(
+                stack.compiled(),
+                { node: [...moved], edge },
+                { signal: teardown.signal, report: () => undefined },
+            )
+            .catch(repaintFailed("hidden"));
+    });
 
     // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has
     // replaced the columns under `results.<runId>`, which any layer may read (a run's own layers,
@@ -4731,6 +4892,53 @@ function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, 
             });
         }
     }
+}
+
+/**
+ * Publish `data:changed` for a project change that applied graph op logs, when anyone listens and
+ * the change added, removed or rewrote a node or edge. A rollback publishes nothing: what it reverts
+ * was never told.
+ * @param watchers - The session's watchers.
+ * @param change - The project change.
+ * @param change.cause - What made it.
+ * @param change.graph - The op logs it applied, in order.
+ */
+function tellData(
+    watchers: Watchers,
+    change: {
+        readonly cause: SessionEventMap["data:changed"]["cause"];
+        readonly graph?: Parameters<typeof graphDiffOf>[0];
+    },
+): void {
+    if (change.graph === undefined || change.cause === "rollback" || (watchers.get("data:changed")?.size ?? 0) === 0) {
+        return;
+    }
+
+    const diff = graphDiffOf(change.graph);
+    const count = (ids: { readonly nodes: unknown[]; readonly edges: unknown[] }): number =>
+        ids.nodes.length + ids.edges.length;
+    if (count(diff.added) + count(diff.removed) + count(diff.updated) === 0) {
+        return;
+    }
+
+    const frozen = <T extends object>(ids: T): Readonly<T> => {
+        for (const list of Object.values(ids)) {
+            Object.freeze(list);
+        }
+
+        return Object.freeze(ids);
+    };
+    publish(
+        watchers,
+        "data:changed",
+        Object.freeze({
+            added: frozen(diff.added),
+            removed: frozen(diff.removed),
+            updated: frozen(diff.updated),
+            fields: frozen(diff.fields),
+            cause: change.cause,
+        }),
+    );
 }
 
 /**

@@ -44,6 +44,7 @@ import "./src/graphty-element";
 // =============================================================================
 // Core classes
 // =============================================================================
+export type { AccessibleAnnouncement, AccessibleGraphFacts, AccessibleSelection } from "./src/a11y/ScreenReader";
 export { Edge, type EdgeCapEnd } from "./src/Edge";
 // what `Edge.mesh` is for a line drawn as pattern elements, so a consumer can narrow it (issue #7127)
 export type { NodeScreenPosition } from "./src/Graph";
@@ -55,6 +56,7 @@ export type {
     GraphtyModelChangeDetail,
     GraphtyNoteChangeDetail,
     GraphtyRunChangeDetail,
+    GraphtySkyboxLoadedDetail,
 } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
 export type { PatternedLineMesh } from "./src/meshes/PatternedLineMesh";
@@ -246,12 +248,14 @@ export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSourc
 export { DataSource } from "./src/data/DataSource";
 export type {
     ExportGraphOptions,
+    ExportGroupTable,
     ExportLoss,
     ExportLossCode,
     ExportResult,
     ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
+export type { GroupSummary, GroupTableOptions } from "./src/session/types";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -336,6 +340,8 @@ export type {
     NodeGenericEvent,
     NodeHoverEvent,
     OperationCancelledEvent,
+    RenderLostEvent,
+    RenderRestoredEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
     XRSessionEndedEvent,
@@ -400,7 +406,7 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // Video capture exports
 // =============================================================================
 export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
-export type { AnimationOptions, AnimationResult, CameraWaypoint } from "./src/video/VideoCapture";
+export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
 
 // Video capture estimation
 export type { CaptureEstimate } from "./src/video/estimation";

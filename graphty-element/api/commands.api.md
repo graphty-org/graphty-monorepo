@@ -105,6 +105,9 @@ export const COMMANDS: Readonly<{
     readonly "visibility.playback": {
         readonly undo: "undoable";
     };
+    readonly "visibility.hide": {
+        readonly undo: "undoable";
+    };
     readonly "set.create": {
         readonly undo: "undoable";
     };
@@ -155,6 +158,9 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "layout.set": {
+        readonly undo: "undoable";
+    };
+    readonly "layout.rerun": {
         readonly undo: "undoable";
     };
     readonly "layout.scope": {

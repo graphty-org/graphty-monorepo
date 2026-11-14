@@ -210,6 +210,28 @@ export interface AcceleratorFactoryOptions {
 }
 
 // @public
+export interface AccessibleAnnouncement {
+    readonly code: "selection";
+    readonly params: AccessibleSelection;
+}
+
+// @public
+export interface AccessibleGraphFacts {
+    readonly edges: number;
+    readonly legend: readonly LegendBlock[];
+    readonly nodes: number;
+    readonly selection: AccessibleSelection;
+}
+
+// @public
+export interface AccessibleSelection {
+    readonly count: number;
+    readonly neighborCount: number;
+    readonly neighbors: readonly NodeName[];
+    readonly nodes: readonly NodeName[];
+}
+
+// @public
 export type ActiveRenderer = "webgl" | "webgpu";
 
 // @public
@@ -244,12 +266,16 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static hasZodOptions(): boolean;
     // @internal
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput;
+    // @internal
+    static readonly loadedWeightByDefault: boolean;
     // (undocumented)
     static namespace: string;
     get namespace(): string;
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId): number;
     // @deprecated
     static optionsSchema: OptionsSchema_2;
+    // @internal
+    parallelEdgePolicy(): SimplifyPolicy | undefined;
     // @internal
     static parallelEdges?: SimplifyPolicy;
     publishResult(_context: RunControls, runId: string, _fields?: readonly FieldDescriptor[]): Promise<RunResult | undefined>;
@@ -312,7 +338,7 @@ export interface AnimationOptions {
         preset: string;
     };
     cameraMode: "stationary" | "animated";
-    cameraPath?: CameraWaypoint[];
+    cameraPath?: (CameraWaypoint | ViewWaypoint)[];
     download?: boolean;
     downloadFilename?: string;
     duration: number;
@@ -633,16 +659,15 @@ export interface CameraStateChangedEvent {
 // @public
 export type CameraViewExtent = "centers" | "drawn";
 
-// @public (undocumented)
+// @public
 export interface CameraWaypoint {
     duration?: number;
-    // (undocumented)
+    hold?: number;
     position: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     target: {
         x: number;
         y: number;
@@ -2577,7 +2602,13 @@ export { ExpandRequest }
 export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions & {
     readonly scope?: ExportScope;
     readonly columns?: readonly string[];
+    readonly groupTable?: ExportGroupTable;
 };
+
+// @public
+export interface ExportGroupTable extends GroupTableOptions {
+    readonly groupBy: string;
+}
 
 // @public
 export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
@@ -2974,6 +3005,9 @@ export class Graph implements GraphContext {
     // (undocumented)
     pinOnDrag?: boolean;
     get pixelRatio(): PixelRatio;
+    playTour(path: readonly (CameraWaypoint | ViewWaypoint)[], options?: {
+        easing?: CameraAnimationOptions["easing"];
+    }): Promise<void>;
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
@@ -2992,6 +3026,7 @@ export class Graph implements GraphContext {
         params?: Readonly<Record<string, unknown>>;
         extent?: CameraViewExtent;
     }): CameraState;
+    restartRenderer(): Promise<void>;
     retryLastAiCommand(): Promise<ExecutionResult>;
     get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -3241,7 +3276,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -3251,7 +3286,7 @@ export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
     // (undocumented)
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
+    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
 // @public (undocumented)
@@ -3288,6 +3323,13 @@ export class Graphty extends LitElement {
     set acceleration(value: AccelerationPolicy);
     get accelerationMinNodes(): number;
     set accelerationMinNodes(value: number);
+    get accessibleAnnouncement(): ((announcement: AccessibleAnnouncement) => string) | undefined;
+    set accessibleAnnouncement(value: ((announcement: AccessibleAnnouncement) => string) | undefined);
+    get accessibleDescription(): ((facts: AccessibleGraphFacts) => string) | undefined;
+    set accessibleDescription(value: ((facts: AccessibleGraphFacts) => string) | undefined);
+    accessibleFacts(): AccessibleGraphFacts;
+    get accessibleNodeList(): boolean;
+    set accessibleNodeList(value: boolean);
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
         signal?: AbortSignal;
@@ -3556,6 +3598,9 @@ export class Graphty extends LitElement {
     get pinnedNodes(): ReadonlySet<string | number>;
     get pixelRatio(): PixelRatio;
     set pixelRatio(value: PixelRatio);
+    playTour(path: readonly (CameraWaypoint | ViewWaypoint)[], options?: {
+        easing?: "linear" | "easeIn" | "easeOut" | "easeInOut";
+    }): Promise<void>;
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
@@ -3584,6 +3629,7 @@ export class Graphty extends LitElement {
         params?: Readonly<Record<string, unknown>>;
         extent?: CameraViewExtent;
     }): CameraState;
+    restartRenderer(): Promise<void>;
     retryLastAiCommand(): Promise<ExecutionResult>;
     get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -3976,15 +4022,19 @@ export type GraphtyErrorCode =
 | "E_LOCKED"
 /**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
-* unreadable file. `details` carry the url and the status where there was one, and `cause`
+* unreadable file. `details` carry the url (or the file's name), the status where there was
+* one and `timeoutMs` when the last request ran out of time, and `cause`
 * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
 * than 408 and 429), which fails after one request with `recoverable: false`.
 */
 | "E_FETCH_FAILED"
 /**
 * A source was fetched but could not be parsed as the format it claimed to be. `details`
-* carry the format, the line and, where the parser reported one, the column. The caller
-* corrects the file, or re-imports naming the true format.
+* carry the format, the line and, where the parser reported one, the column; when graph-io
+* read it, `details.issue` is graph-io's code for what stopped it (`"E_XML_SYNTAX"`,
+* `"E_CSV_UNCLOSED_QUOTE"`...) and `details.element` where. A reader that threw without a
+* code of its own is reported as this too, with its error as `cause`. The caller corrects
+* the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
 /**
@@ -4187,6 +4237,13 @@ export type GraphtyErrorCode =
 * the CPU in silence.
 */
 | "E_DEVICE_LOST"
+/**
+* The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+* device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+* The session and its data are untouched; the element asks for the device back, and
+* `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+*/
+| "E_RENDER_LOST"
 /**
 * No WebGL context could be created, so nothing can be rendered. `details` carry what the
 * canvas reported. The session's data and results still work; only the view is unavailable.
@@ -4428,9 +4485,13 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_DIGEST_MISMATCH"
 /**
-* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed". Also a skybox background image that could not be loaded, as the detail of the element's `graphty-skybox-failed` event, `params.url` its first 256 characters.
 */
 | "E_IMAGE_LOAD"
+/**
+* A picture the browser cannot decode, so it cannot be drawn (`prepareBackgroundImage`): HEIC in a browser without HEIC support, a damaged file, or a file that is not a picture. `params.format` (its media type, or "" when unknown), `params.fileName` when it is a file.
+*/
+| "E_IMAGE_DECODE"
 /**
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
@@ -4455,9 +4516,20 @@ export interface GraphtyErrorDetailsMap {
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
+    E_FETCH_FAILED: {
+        readonly url?: string;
+        readonly file?: string;
+        readonly status?: number;
+        readonly attempts?: number;
+        readonly timeoutMs?: number;
+    };
     E_PARSE_FAILED: {
         readonly format?: string;
         readonly line?: number;
+        readonly rowErrors?: number;
+        readonly limit?: number;
+        readonly issue?: string;
+        readonly element?: string;
     };
     E_TOO_LARGE: {
         readonly limit?: number;
@@ -4549,6 +4621,11 @@ export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields
 
 // @public
 export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
+
+// @public
+export interface GraphtySkyboxLoadedDetail {
+    readonly url: string;
+}
 
 // @public
 export type GraphtyWarningCode =
@@ -4827,6 +4904,14 @@ export interface GroupOutlineAtResult {
 }
 
 // @public
+export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
+
+// @public
+export interface GroupTableOptions {
+    readonly summaries?: Readonly<Record<Path, readonly GroupSummary[]>>;
+}
+
+// @public
 export interface HighlightSuggestion {
     readonly as: "highlight";
     readonly channels: readonly Channel[];
@@ -5087,6 +5172,7 @@ export abstract class LayoutEngine {
 export class LayoutManager implements Manager {
     constructor(eventManager: EventManager, dataManager: DataManager, styles: Styles);
     get building(): boolean;
+    checkMotion(): void;
     // @internal
     clustersChanged(): void;
     get dimension(): 2 | 3 | undefined;
@@ -5112,7 +5198,9 @@ export class LayoutManager implements Manager {
     get layoutEngine(): LayoutEngine | undefined;
     get layoutType(): string | undefined;
     loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): void;
+    get motion(): LayoutMotion;
     get nodes(): Iterable<Node_2>;
+    onMotion: ((motion: LayoutMotion) => void) | null;
     onRest: (() => void) | null;
     placeGroups(): void;
     // @internal
@@ -7324,9 +7412,19 @@ export interface RendererStatus {
 }
 
 // @public
+export interface RenderLostEvent {
+    code: "E_RENDER_LOST";
+    params: {
+        readonly renderer: "webgl" | "webgpu";
+    };
+    // (undocumented)
+    type: "render-lost";
+}
+
+// @public
 export class RenderManager implements Manager {
     constructor(canvas: HTMLCanvasElement, eventManager: EventManager, config?: RenderManagerConfig);
-    applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void;
+    applyBackground(background: GraphBackgroundConfig, onSkybox: (url: string, loaded: boolean) => void): void;
     applyLighting(lighting: Lighting): void;
     set backgroundOverride(color: string | null);
     // @internal
@@ -7394,6 +7492,13 @@ export interface RenderQualityChange {
 
 // @public
 export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-frame" | "guard.recovered";
+
+// @public
+export interface RenderRestoredEvent {
+    renderer: "webgl" | "webgpu";
+    // (undocumented)
+    type: "render-restored";
+}
 
 export { ReplayFetch }
 
@@ -8246,7 +8351,11 @@ export class UpdateManager implements Manager {
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal
+    buildPlainRow(id: NodeIdType_2): void;
+    // @internal
     columnFraming(): ColumnFraming | undefined;
+    // @internal
+    dataCleared(): void;
     deriving: () => boolean;
     disableZoomToFit(): void;
     dispose(): void;
@@ -8266,6 +8375,8 @@ export class UpdateManager implements Manager {
     init(): Promise<void>;
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;
+    // @internal
+    limitsChanged(): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
     get nodesScaledByView(): boolean;
@@ -8274,6 +8385,11 @@ export class UpdateManager implements Manager {
     operationsPending: (() => boolean) | null;
     readonly pending: PendingWork;
     picturesLoading: (() => boolean) | null;
+    // @internal
+    plainLabelRows(): {
+        row: number;
+        id: NodeIdType_2;
+    }[];
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;
@@ -8311,6 +8427,13 @@ export interface ViewInsets {
 
 // @public
 export type ViewMode = (typeof VIEW_MODE_VALUES)[number];
+
+// @public
+export interface ViewWaypoint {
+    duration?: number;
+    hold?: number;
+    view: string | CameraState;
+}
 
 // @public
 export const VIRIDIS_COLORS: readonly ["#440154", "#482878", "#3e4989", "#31688e", "#26828e", "#1f9e89", "#35b779", "#6ece58", "#b5de2b", "#fde724"];

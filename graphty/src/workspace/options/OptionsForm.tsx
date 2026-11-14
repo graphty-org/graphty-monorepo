@@ -26,6 +26,7 @@ import React, { useEffect, useState } from "react";
 import { type Meaning, weightName, weightRead } from "../analyze/words";
 import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
+import { drawnYet } from "./notYetDrawn";
 import { splitOptions } from "./splitOptions";
 
 /** One name for one idea across the algorithms and layouts, by option (the `selection-workspace` forms). */
@@ -732,7 +733,7 @@ export function OptionsForm({
     rows = [],
     ...rest
 }: Readonly<OptionsFormProps>): React.JSX.Element {
-    const { key, advanced } = splitOptions(options);
+    const { key, advanced } = splitOptions(options.filter((option) => drawnYet(rest.algorithm, option.name)));
     const list = [...key, ...advanced];
     const field = (option: OptionDescriptor): React.JSX.Element => {
         const own = <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />;

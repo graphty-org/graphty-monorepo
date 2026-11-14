@@ -1023,6 +1023,12 @@ export interface EdgeMember {
 }
 
 // @public
+export interface EdgeName {
+    readonly source: NodeName;
+    readonly target: NodeName;
+}
+
+// @public
 export interface EdgePageOptions extends RecordPageOptions {
     readonly touching?: NodeId_2;
 }
@@ -3850,6 +3856,13 @@ export function nodeConditions<F extends ConditionField>(selector: Selector_2, f
 export type NodeId = string | number;
 
 // @public
+export interface NodeName {
+    readonly id: NodeId_2;
+    readonly labeled: boolean;
+    readonly name: string;
+}
+
+// @public
 export interface NodeRecord {
     readonly [attribute: string]: unknown;
     readonly id: NodeId_2;
@@ -5913,6 +5926,11 @@ export interface SessionDataApi {
     };
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
+    edgeName(edge: {
+        readonly source: NodeId_2;
+        readonly target: NodeId_2;
+    }): EdgeName;
+    edgeName(edge: EdgeId): EdgeName | undefined;
     edgePage(options: EdgePageOptions & {
         readonly columns: readonly ResultColumn[];
     }): RecordPage<EdgeRecord> & {
@@ -5951,6 +5969,7 @@ export interface SessionDataApi {
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
+    nodeName(id: NodeId_2): NodeName;
     nodePage(options: RecordPageOptions & {
         readonly columns: readonly ResultColumn[];
     }): RecordPage<NodeRecord> & {

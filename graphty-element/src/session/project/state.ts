@@ -139,6 +139,11 @@ export interface VisibilityState {
     readonly conditions: readonly FilterCondition[];
     /** How `session.time` moves windows, or null for every default. */
     readonly playback?: TimePlayback | null;
+    /**
+     * The nodes hidden from the drawing only (`session.hidden`), sorted; absent or empty when none.
+     * Nothing else reads it: they stay in the data, the results, layout and every count.
+     */
+    readonly hidden?: readonly NodeId[];
 }
 
 /** One note, as the `notes` slice keeps it: the record, and where it was opened from. */

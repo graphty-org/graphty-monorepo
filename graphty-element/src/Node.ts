@@ -895,8 +895,9 @@ export class Node implements ModelUser {
      * edge of its border. {@link Node.borderReach} for most nodes; but a polygon under a border drawn in from its
      * outline (inside, or centered) has its fill drawn in by the inset on each side of its box, so at a slanted side
      * the fill lies less than the inset inside the outline along the line, and the line stops on the outline plus
-     * what of the border reaches past it. A 27-wide triangle with an inside border of 6 left at its middle 3 beyond
-     * the outline before; Cytoscape desktop ends it on the outline (issue #7566).
+     * what of the border reaches past it, never more than {@link Node.borderReach}. A 27-wide triangle with an inside
+     * border of 6 left at its middle 3 beyond the outline before; Cytoscape desktop ends it on the outline (issue
+     * #7566).
      * @param dir - The unit direction the line leaves in, in the units the node's position is laid out in.
      * @returns The distance.
      * @internal
@@ -912,7 +913,10 @@ export class Node implements ModelUser {
         const toOutline =
             surfaceReach(dir, this.outlineHalfExtents, null, outline) -
             surfaceReach(dir, this.drawnHalfExtents, null, outline);
-        return Math.max(0, toOutline + reach - inset);
+        // never further out than the border's width along the line: across a side the line meets at a shallow
+        // angle the outline lies far along it, and Cytoscape desktop's line stops inside it there
+        // (cx-radiation-bibliography, a hexagon and two round rectangles met nearly edge on)
+        return Math.min(reach, Math.max(0, toOutline + reach - inset));
     }
 
     /**

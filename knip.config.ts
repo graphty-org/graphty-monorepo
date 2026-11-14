@@ -422,9 +422,6 @@ const config: KnipConfig = {
             // The plugin finds nothing else that run reads.
             ...(production ? { vite: false } : {}),
             ignoreDependencies: [
-                // Used in storybook demos
-                "@zag-js/floating-panel",
-                "@zag-js/react",
                 // The engine @storybook/addon-a11y ships (a devDependency here), imported by
                 // tests/a11y/stories-axe.browser.test.tsx to enforce what the addon only reports.
                 // Declaring it would change pnpm-lock.yaml.

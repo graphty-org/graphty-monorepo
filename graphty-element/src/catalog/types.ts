@@ -612,14 +612,18 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     group?: string;
     advanced?: boolean;
     internal?: boolean;
+    /**
+     * What the option does, in an English sentence.
+     * @deprecated Word the option from {@link OptionDescriptor.descriptionId} in the application.
+     */
     description?: string;
     /**
-     * Why `type` is "unknown", in a sentence naming the construct that could not be
-     * classified. Present only when `type` is "unknown".
-     * @deprecated Read {@link OptionDescriptor.unsupported} and word it in the application.
-     * Removed at the next major release.
+     * A stable id for what the option does, which an application keys its own words on, such as
+     * "algorithm.pagerank.dampingFactor". Present on every built-in option that has a description;
+     * an extension that describes its options supplies its own, prefixed with its namespace.
+     * @since 3.55.0
      */
-    unsupportedReason?: string;
+    descriptionId?: string;
     /**
      * Why `type` is "unknown", as a code with no words. Present on every "unknown" option the
      * element derives from a schema; a descriptor written by hand may leave it out. See {@link OptionUnsupportedCode} for the codes.

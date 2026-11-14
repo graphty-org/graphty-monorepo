@@ -231,11 +231,8 @@ import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate
 import { stackChange } from "./repaint";
 import {
     assertRouted,
-    ghostRow,
     isGhostRow,
     partPatch,
-    PINNED_ROW_ID,
-    pinnedRow,
     retargetSelector,
     rowOf,
     type RowParts,
@@ -243,8 +240,6 @@ import {
     type RowSpec,
     type RowTarget,
     type RowWrite,
-    type StartingRow,
-    startingRowOf,
     startingRows,
 } from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
@@ -1364,23 +1359,6 @@ export interface StylesApi {
      * @returns A run that resolves with the ids of the layers removed, bottom first.
      */
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
-    /**
-     * Add back whichever of the three starting rows the tree lacks: Everything (nodes and edges,
-     * pinned to the bottom, writing nothing), Selected (nodes and edges, pinned to the top,
-     * drawing a node halo and an edge band in the selection settings' colors) and Hovered (nodes, pinned to
-     * the top, writing nothing). One undo step; nothing when all three are there. Setting the
-     * project setting `startingRows` to true adds them the same way. While a time field is
-     * designated (`session.time.setField`), the Ghost row comes too: nodes and edges in the state
-     * `"ghosted"`, grey at low opacity, pinned to the top directly below Selected; with
-     * `startingRows` on, designating a field adds it and clearing the field takes it away. While
-     * the project setting `pinnedStyle` is set, the Pinned row comes too: nodes in the state
-     * `"pinned"`, drawing that halo, pinned to the top directly below Selected (above Ghost); with
-     * `startingRows` on, setting `pinnedStyle` adds it and clearing it takes it away.
-     * @param options - A signal to cancel with, and a progress handler.
-     * @returns A run that resolves with the rows added, bottom first.
-     * @since 3.26.0
-     */
-    restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
     /**
      * The stack as a style file: {@link StylesApi.toDocument} marked `kind: "graphty-style"`, the
      * same member a project file holds. It carries the layers (and the palettes they name) and
@@ -3592,18 +3570,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     // when there is one, since the dispatcher routes it there.
                     const members = command.batch();
                     const loading = loadNamedShaders(members);
-                    if (loading !== undefined) {
-                        await loading;
-                    }
                     // Dispatched together, not one after another: each member writes its draft as it is
                     // dispatched, and awaiting each in turn would let a repaint pass run between them.
-                    const outcomes = await dispatcher.transaction(
-                        label,
-                        async (scope) =>
-                            (await Promise.all(
-                                members.map((member) => scope.dispatch(member)),
-                            )) as EditOutcome<unknown>[],
-                    );
+                    const transact = (): Promise<EditOutcome<unknown>[]> =>
+                        dispatcher.transaction(
+                            label,
+                            async (scope) =>
+                                (await Promise.all(
+                                    members.map((member) => scope.dispatch(member)),
+                                )) as EditOutcome<unknown>[],
+                        );
+                    // A shader body still loading holds the write off the queue: counted as owed
+                    // meanwhile, so a settle wait does not find the queue idle and end without it.
+                    const outcomes = await (loading === undefined
+                        ? transact()
+                        : dispatcher.ahead(loading.then(transact)));
                     await Promise.all(outcomes.map((outcome) => outcome.painted));
                     const results = outcomes.map((outcome) => outcome.result);
 
@@ -3611,10 +3592,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 }
 
                 const loading = loadNamedShaders(command);
-                if (loading !== undefined) {
-                    await loading;
-                }
-                const outcome = (await dispatcher.dispatch(command)) as EditOutcome<T>;
+                const outcome = (await (loading === undefined
+                    ? dispatcher.dispatch(command)
+                    : dispatcher.ahead(loading.then(() => dispatcher.dispatch(command))))) as EditOutcome<T>;
                 await outcome.painted;
 
                 return { result: outcome.result };
@@ -4306,197 +4286,41 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         asked === true && dispatcher.services.config?.().runPlacement === "top" ? false : asked;
 
     /**
-     * The stack with an empty Everything row's parts given the base look.
-     * @param parts - The row's parts.
-     * @param stack - The stack.
-     * @param layers - Collects the layers rewritten.
-     * @returns The stack.
+     * The plan that writes the default rows once, as plain data: Everything at the very bottom of
+     * the reader's rows, the rest at the top. It adds every one of them; it never looks for a row
+     * already there, so a row a reader deleted or changed stays as the reader left it.
+     * @returns The plan.
      */
-    const fillBaseLook = (
-        parts: readonly CompiledLayer[],
-        stack: readonly CompiledLayer[],
-        layers: LayerId[],
-    ): readonly CompiledLayer[] => {
-        let next = stack;
-        for (const part of parts) {
-            ({ stack: next } = planUpdate(part.layer.id, { set: baseValues(part.layer.target) }, next));
-            layers.push(part.layer.id);
+    const planDefaultRows = (): EditPlan<readonly RowParts[]> => {
+        const config = dispatcher.services.config?.();
+        const rowsToAdd = startingRows({
+            selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
+            ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
+            ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
+            ghost: dispatcher.services.timeline?.() === true,
+        });
+        let stack = current();
+        const added: RowParts[] = [];
+        const layers: LayerId[] = [];
+        const pins: [LayerId, "top" | "bottom"][] = [];
+        for (const { pin, spec } of rowsToAdd) {
+            const firstOwn = stack.findIndex((entry) => !entry.layer.locked);
+            const index = pin === "bottom" && firstOwn !== -1 ? firstOwn : stack.length;
+            const plan = planAddRow(spec, undefined, { stack, index });
+            ({ stack } = plan);
+            pins.push([plan.result.id, pin]);
+            added.push(plan.result);
+            layers.push(...plan.layers);
         }
 
-        return next;
-    };
-
-    /**
-     * Where a missing starting row goes, and the spec it is added with.
-     * @param stack - The stack it goes into.
-     * @param starting - The starting row.
-     * @param base - Whether `editableBase` is on, so Everything carries the base look.
-     * @returns The index to insert at and the row's spec.
-     */
-    const startingPlacement = (
-        stack: readonly CompiledLayer[],
-        starting: StartingRow,
-        base: boolean,
-    ): { index: number; spec: RowSpec } => {
-        const firstOwn = stack.findIndex((entry) => !entry.layer.locked);
-        const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-        // Everything at the very bottom of the reader's rows; Selected just below Hovered.
-        const below = starting.pin === "bottom" ? firstOwn : hovered;
-        const index = below === -1 ? stack.length : below;
-        const spec =
-            base && starting.templateId === "graphty:starting-everything"
-                ? { ...starting.spec, set: { ...baseValues("node"), ...baseValues("edge") } }
-                : starting.spec;
-
-        return { index, spec };
-    };
-
-    /** What {@link planStartingRows} builds up as it adds and drops rows. */
-    interface StartingRowsWork {
-        stack: readonly CompiledLayer[];
-        rows: Rows;
-        readonly added: RowParts[];
-        readonly layers: LayerId[];
-        readonly pins: [LayerId, "top" | "bottom"][];
-    }
-
-    /**
-     * Whether a layer is a part of the Pinned row.
-     * @param entry - The layer.
-     * @returns True for a Pinned part.
-     */
-    const isPinnedRow = (entry: CompiledLayer): boolean => startingRowOf(entry) === PINNED_ROW_ID;
-
-    /**
-     * Adds a row's parts to the work's stack at an index, keeping its pin for later.
-     * @param work - The plan being built.
-     * @param spec - The row's spec.
-     * @param pin - Where the row is pinned.
-     * @param index - Where its parts go in the stack.
-     */
-    const addStartingRow = (work: StartingRowsWork, spec: RowSpec, pin: "top" | "bottom", index: number): void => {
-        const plan = planAddRow(spec, undefined, { stack: work.stack, index });
-        work.stack = plan.stack;
-        work.rows = reconcile(work.rows, work.stack);
-        work.pins.push([plan.result.id, pin]);
-        work.added.push(plan.result);
-        work.layers.push(...plan.layers);
-    };
-
-    /**
-     * Takes a row's parts out of the work's stack.
-     * @param work - The plan being built.
-     * @param isPart - Whether a layer is one of the row's parts.
-     * @param parts - The row's parts, as the stack holds them now.
-     */
-    const dropStartingRow = (
-        work: StartingRowsWork,
-        isPart: (entry: CompiledLayer) => boolean,
-        parts: readonly CompiledLayer[],
-    ): void => {
-        work.stack = work.stack.filter((entry) => !isPart(entry));
-        work.rows = reconcile(work.rows, work.stack);
-        work.layers.push(...parts.map((entry) => entry.layer.id));
-    };
-
-    /**
-     * Adds one starting row back when the stack lacks it; an Everything row that writes nothing
-     * takes the base look while `editableBase` is on.
-     * @param work - The plan being built.
-     * @param starting - The starting row.
-     * @param base - Whether `editableBase` is on.
-     */
-    const syncStartingRow = (work: StartingRowsWork, starting: StartingRow, base: boolean): void => {
-        const parts = work.stack.filter((entry) => startingRowOf(entry) === starting.templateId);
-        if (parts.length === 0) {
-            const { index, spec } = startingPlacement(work.stack, starting, base);
-            addStartingRow(work, spec, starting.pin, index);
-            return;
-        }
-
-        // An Everything row that writes nothing takes the base look, so turning
-        // `editableBase` on never leaves the graph unpainted.
-        const empty = parts.every((entry) => entry.layer.set === undefined && entry.layer.encode === undefined);
-        if (base && starting.templateId === "graphty:starting-everything" && empty) {
-            work.stack = fillBaseLook(parts, work.stack, work.layers);
-            work.rows = reconcile(work.rows, work.stack);
-        }
-    };
-
-    /**
-     * The Pinned row exists while the pinned look is set: added directly below Selected, and taken
-     * away when the look is cleared.
-     * @param work - The plan being built.
-     */
-    const syncPinnedRow = (work: StartingRowsWork): void => {
-        const pinnedLook = dispatcher.services.config?.().pinnedStyle;
-        const pinnedParts = work.stack.filter(isPinnedRow);
-        if (pinnedLook !== undefined && pinnedParts.length === 0) {
-            const selected = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
-            const hovered = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-            const below = selected === -1 ? hovered : selected;
-            const row = pinnedRow(pinnedLook);
-            addStartingRow(work, row.spec, row.pin, below === -1 ? work.stack.length : below);
-        } else if (pinnedLook === undefined && pinnedParts.length > 0) {
-            dropStartingRow(work, isPinnedRow, pinnedParts);
-        }
-    };
-
-    /**
-     * The Ghost row exists while a time field is designated: added directly below Selected (and
-     * below Pinned), and taken away when the field is cleared.
-     * @param work - The plan being built.
-     */
-    const syncGhostRow = (work: StartingRowsWork): void => {
-        // With the timeline off a saved Ghost row stays as saved, and a time field brings none.
-        if (dispatcher.services.timeline?.() === false) {
-            return;
-        }
-
-        const known = dispatcher.services.config?.().data.knownFields;
-        const timed = (known?.nodeTimePath ?? null) !== null || (known?.edgeTimePath ?? null) !== null;
-        const ghosts = work.stack.filter(isGhostRow);
-        if (timed && ghosts.length === 0) {
-            const pinned = work.stack.findIndex(isPinnedRow);
-            const selected = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
-            const hovered = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-            const below = [pinned, selected, hovered].find((index) => index !== -1) ?? -1;
-            const ghost = ghostRow();
-            addStartingRow(work, ghost.spec, ghost.pin, below === -1 ? work.stack.length : below);
-        } else if (!timed && ghosts.length > 0) {
-            dropStartingRow(work, isGhostRow, ghosts);
-        }
-    };
-
-    /**
-     * The plan that adds back whichever starting rows the stack lacks, each pinned where it
-     * belongs: Everything at the very bottom of the reader's rows, Selected just below Hovered.
-     * @returns The plan; the stack unchanged when every starting row is there.
-     */
-    const planStartingRows = (): EditPlan<readonly RowParts[]> => {
-        const look = dispatcher.services.config?.().selectionStyle ?? DEFAULT_SELECTION_STYLE;
-        const stack = current();
-        const work: StartingRowsWork = { stack, rows: rowsOf(stack), added: [], layers: [], pins: [] };
-
-        const base = editableBase();
-
-        for (const starting of startingRows(look)) {
-            syncStartingRow(work, starting, base);
-        }
-
-        syncPinnedRow(work);
-        syncGhostRow(work);
-
-        let { rows } = work;
-        const { added, layers, pins } = work;
-        // Pinned once every row is placed: a pin taken earlier would band a row before the next
-        // one is placed by its stack neighbors, and Hovered would land below Selected.
+        // Pinned once every row is placed, so each top row lands above the one added before it.
+        let rows = reconcile(rowsOf(current()), stack);
         for (const [id, pin] of pins) {
             rows = mapRow(rows, id, (row) => ({ ...row, pin }));
         }
 
         return {
-            stack: work.stack,
+            stack,
             rows: normalize(rows),
             result: Object.freeze(added),
             layers,
@@ -4878,8 +4702,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return planUpdate(command.id, command.patch, current(), command.keepEmpty === true);
             case "addRow":
                 return planAddRow(command.spec, command.at);
-            case "restoreStartingRows":
-                return planStartingRows();
+            case "addDefaultRows":
+                return planDefaultRows();
             case "addFolder":
             case "renameRow":
             case "moveRow":
@@ -5311,15 +5135,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 "update",
                 `Hide row ${id}`,
                 { op: "style.patch", action: "hideRow", id, hidden },
-                options,
-            );
-        },
-
-        restoreStartingRows(options: RunOptions = {}): Run<readonly RowParts[]> {
-            return edit<readonly RowParts[]>(
-                "add",
-                "Restore the starting rows",
-                { op: "style.patch", action: "restoreStartingRows" },
                 options,
             );
         },

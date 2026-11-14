@@ -118,7 +118,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
 
         await waitFor(() => {
-            const binding = readerLayers(session)[0]?.encode?.["node.label"];
+            const binding = readerLayers(session).find((l) => l.target === "node")?.encode?.["node.label"];
             assert.equal(binding !== undefined && "by" in binding ? binding.by : undefined, "data.name");
         });
         await waitFor(() => {

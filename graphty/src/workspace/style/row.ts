@@ -31,9 +31,6 @@ export type Target = "node" | "edge";
 /** A binding that reads a value from the data. */
 export type DataBinding = Extract<Binding, { by: string }>;
 
-/** The `userData` key that marks the reader's Everything layer. */
-export const EVERYTHING_KEY = "graphtyEverything";
-
 /** What the From data list hands back: a column of the file, or one field of a run's result. */
 export type DataChoice =
     | { readonly kind: "column"; readonly column: ColumnRef }
@@ -62,19 +59,15 @@ export interface LiteralWrite {
 }
 
 /**
- * The layers of the Everything row: the element's own base layers and the reader's Everything
- * layer, bottom first.
+ * The layers of the Everything row while no tree row selects every element: every layer that
+ * selects every element, bottom first.
  * @param session - the element's session.
  * @returns their ids.
  */
 export function everythingRow(session: GraphSession): LayerId[] {
     return session.styles
         .list()
-        .filter(
-            (layer) =>
-                (layer.source.by === "element" && layer.source.reason === "default") ||
-                layer.userData?.[EVERYTHING_KEY] === true,
-        )
+        .filter((layer) => layer.selector.match === "everything")
         .map((layer) => layer.id);
 }
 
@@ -211,23 +204,23 @@ export interface NewLayer {
     readonly above?: string;
 }
 
-/** The reader's Everything layer, which the Everything row's first edit adds. */
+/**
+ * The Everything row's first edit, while no tree row selects every element: a row like any other,
+ * painting nodes and edges, which from then on is the row that paints the whole graph.
+ */
 export const EVERYTHING_LAYER: NewLayer = {
     name: "Everything",
     selector: { match: "everything" },
-    userData: { [EVERYTHING_KEY]: true },
+    both: true,
 };
 
 /**
- * The top layer of the paint tree's topmost row: the highest layer that is not the element's
- * selection, hover or notes highlight, which stay on top.
+ * The top layer of the stack: the topmost row's top layer.
  * @param session - the element's session.
  * @returns the layer, or undefined for an empty stack.
  */
 export function topmostRow(session: TransactionScope): Layer | undefined {
-    return [...session.styles.list()]
-        .reverse()
-        .find((layer) => layer.source.by !== "element" || layer.source.reason === "default");
+    return session.styles.list().at(-1);
 }
 
 /**
@@ -465,11 +458,8 @@ async function stripOthers(styles: GraphSession["styles"], plan: LinePlan): Prom
     const { others, channel } = plan;
     for (const layer of others) {
         const rest = { set: without(layer.set, channel), encode: without(layer.encode, channel) };
-        if (rest.set === undefined && rest.encode === undefined && layer.userData?.[EVERYTHING_KEY] === true) {
-            await styles.remove(layer.id);
-        } else {
-            await styles.update(layer.id, rest);
-        }
+        // A layer left writing nothing stays, as every layer does.
+        await styles.update(layer.id, rest, { keepEmpty: true });
     }
 }
 
@@ -513,11 +503,18 @@ async function addLine(styles: GraphSession["styles"], plan: LinePlan, fresh: Ne
         ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
     };
     const at = base === undefined ? undefined : { above: base.id };
-    const added = fresh.both
-        ? await styles.addRow({ ...spec, target: "both" }, at)
-        : await styles.add({ ...spec, target }, at);
+    // A row of both kinds only for the fresh layer's own selector: a scope narrowed to one kind's
+    // result (`has`) is that kind's alone.
+    let added: { readonly id: LayerId; readonly row: string };
+    if (fresh.both === true && sameSelector(spec.selector, fresh.selector)) {
+        const parts = await styles.addRow({ ...spec, target: "both" }, at);
+        added = { id: parts[target] ?? parts.id, row: parts.id };
+    } else {
+        const layer = await styles.add({ ...spec, target }, at);
+        added = { id: layer.id, row: layer.row ?? layer.id };
+    }
     if (place !== undefined) {
-        await styles.moveRow("row" in added ? (added.row ?? added.id) : added.id, place);
+        await styles.moveRow(added.row, place);
     }
     await stripOthers(styles, plan);
     return added.id;
@@ -577,8 +574,8 @@ export function writeIn(
 }
 
 /**
- * Removes a line (or every part of a compound line) from the layer that sets it. The reader's
- * Everything layer is removed when nothing is left on it. One undoable step of the element's.
+ * Removes a line (or every part of a compound line) from the layer that sets it. The layer stays
+ * when nothing is left on it. One undoable step of the element's.
  * @param session - the element's session, or a transaction's scope.
  * @param layer - the layer that sets the line.
  * @param channels - the channel, or each part's channel.
@@ -590,10 +587,6 @@ export async function removeLine(
 ): Promise<void> {
     const set = without(layer.set, ...channels);
     const encode = without(layer.encode, ...channels);
-    if (set === undefined && encode === undefined && layer.userData?.[EVERYTHING_KEY] === true) {
-        await session.styles.remove(layer.id);
-        return;
-    }
     // The layer stays when this was its last value: the panel removes properties one at a time.
     await session.styles.update(layer.id, { set, encode }, { keepEmpty: true });
 }
@@ -974,8 +967,7 @@ export function startFor(
 
 /**
  * The row a write lands on when the reader has chosen none: the lowest row of the tree that selects
- * every element, whatever it is called and whoever made it. A layer a first edit added beside the
- * element's own look ({@link EVERYTHING_LAYER}) stays in {@link everythingRow}.
+ * every element, whatever it is called and whoever made it.
  * @param session - the element's session.
  * @returns its id, or undefined when no row does.
  */
@@ -983,7 +975,7 @@ export function wholeGraphRow(session: GraphSession): string | undefined {
     const tree = session.styles.tree();
     return session.styles
         .list()
-        .filter((layer) => layer.selector.match === "everything" && layer.userData?.[EVERYTHING_KEY] !== true)
+        .filter((layer) => layer.selector.match === "everything")
         .map((layer) => layer.row ?? layer.id)
         .find((id) => findTreeRow(tree, id) !== undefined);
 }

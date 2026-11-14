@@ -1,6 +1,6 @@
+import { GraphtyError, type GraphtyErrorCode } from "../errors";
 import type { CodedFact } from "../session/shared.js";
 import { BROWSER_LIMITS, calculateDimensions } from "./dimensions.js";
-import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import type { ScreenshotOptions } from "./types.js";
 
 /**
@@ -20,12 +20,12 @@ export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
 export interface CapabilityCheck {
     supported: boolean;
     /**
-     * Why the capture cannot be made, when it cannot: the code `captureScreenshot` would throw
-     * with the same options, and that error's details as `params` (for example
-     * `RESOLUTION_TOO_HIGH` with `{ width, height, totalPixels, maxPixels }`, or
-     * `UNSUPPORTED_FORMAT` with `{ format }`).
+     * Why the capture cannot be made, when it cannot: the `GraphtyError` code `captureScreenshot`
+     * would throw with the same options, and that error's details as `params` (for example
+     * `E_TOO_LARGE` with `{ of: "pixels", width, height, count, limit }`, or `E_UNSUPPORTED` with
+     * `{ reason: "format", format }`).
      */
-    reason?: CodedFact<ScreenshotErrorCode>;
+    reason?: CodedFact<GraphtyErrorCode>;
     /** What may go wrong with a capture that can be made; absent when nothing may. */
     warnings?: CodedFact<ScreenshotWarningCode>[];
     estimatedMemoryMB: number;
@@ -36,14 +36,13 @@ export interface CapabilityCheck {
  * @param error - What `calculateDimensions` threw.
  * @returns The coded reason.
  */
-function refusalOf(error: unknown): CodedFact<ScreenshotErrorCode> {
-    if (!(error instanceof ScreenshotError)) {
-        return { code: ScreenshotErrorCode.INVALID_DIMENSIONS, params: {} };
+function refusalOf(error: unknown): CodedFact<GraphtyErrorCode> {
+    if (!(error instanceof GraphtyError)) {
+        return { code: "E_OPTION_RANGE", params: { option: "size" } };
     }
 
-    const details = typeof error.details === "object" && error.details !== null ? error.details : {};
     const params = Object.fromEntries(
-        Object.entries(details).filter(([, value]) => typeof value === "number" || typeof value === "string"),
+        Object.entries(error.details).filter(([, value]) => typeof value === "number" || typeof value === "string"),
     ) as Record<string, number | string>;
     return { code: error.code, params };
 }
@@ -73,7 +72,7 @@ export async function canCaptureScreenshot(
     if (options.format === "webp" && !(await supportsWebP())) {
         return {
             supported: false,
-            reason: { code: ScreenshotErrorCode.UNSUPPORTED_FORMAT, params: { format: "webp" } },
+            reason: { code: "E_UNSUPPORTED", params: { reason: "format", format: "webp" } },
             estimatedMemoryMB: memoryMB,
         };
     }

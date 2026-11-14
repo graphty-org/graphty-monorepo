@@ -92,7 +92,7 @@ describe("Neo4j robustness: headers and wrong formats", () => {
 
     // DEFERRED: an unquoted data cell shaped like a header cell ("Note: ID") still starts a section.
     // Without a quote, a blank line or a file boundary nothing tells it from a real mid-file header
-    // in graphty's one-file convention; it.fails keeps the defect visible until a rule is chosen.
+    // in graphty's one-file convention; it.fails keeps the defect visible until a rule is chosen (#7655).
     it.fails("neo4j-data-cell-looks-like-header: an unquoted header-shaped data cell is read as data", async () => {
         const { s, report } = await load(":ID,note,:LABEL\n1,Note: ID,P\n2,x,P\n");
         expect(ids(s)).toEqual([1, 2]);

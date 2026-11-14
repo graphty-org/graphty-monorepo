@@ -63,6 +63,20 @@ export const SCHEMA_DEVIATIONS: readonly SchemaClass[] = [
         reason: "node_id_key selects .//node in EVERY graph, so a nested graph's keys reach its parent's table twice and libxml2 rejects an outer edge into a nested graph; the GraphML primer's own nested.graphml fails identically",
     },
     {
+        name: "GraphML nested-graph port key",
+        kind: "graphml",
+        // only in a document with a nested graph (checked in classify())
+        pattern: /Duplicate key-sequence \['[^']*'\] in key identity-constraint '\{[^}]*\}port_name_key'/,
+        reason: "port_name_key selects .//port, which also reaches the ports of the nodes of a node's nested graph, so two of those nodes with a port of the same name (DOT record fields f0, f1, ... in a cluster) collide in their container's table; its own documentation scopes the names to \"each <port> element within this <node>\", and graph-io never writes one name twice on one node",
+    },
+    {
+        name: "yFiles extension content",
+        kind: "graphml",
+        pattern:
+            /Element '\{http:\/\/www\.yworks\.com\/[^}]*\}\w+': This element is not expected|attribute '(\{http:\/\/www\.yworks\.com\/[^}]*\}attr\.uri|yfiles\.type)': The attribute '[^']*' is not allowed/,
+        reason: "yEd and yFiles extend GraphML the way the specification provides (an XSD that redefines data-extension.type and key.extra.attrib, yWorks' ygraphml.xsd); the stock XSD here does not load that extension, so the yFiles data and key attributes a yEd or yFiles file carried, which graph-io writes back as read, are rejected; the source file fails the stock XSD identically",
+    },
+    {
         name: "NMTOKEN character edition",
         kind: "graphml",
         // only when the rejected value IS a fifth-edition Nmtoken (checked in classify())
@@ -229,7 +243,7 @@ function classify(doc: InvalidDocument, message: string): SchemaClass | null {
         if (
             match !== null &&
             (c.name !== "NMTOKEN character edition" || isNmtoken5th(match[1])) &&
-            (c.name !== "GraphML nested-graph keyref" || doc.nested === true)
+            (!c.name.startsWith("GraphML nested-graph") || doc.nested === true)
         ) {
             return c;
         }

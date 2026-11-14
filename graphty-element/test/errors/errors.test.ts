@@ -40,6 +40,9 @@ const CODES_FROM_THE_DESIGN = [
     "E_MODEL_DIGEST_MISMATCH",
     // a node picture that cannot be loaded (issue #4515)
     "E_IMAGE_LOAD",
+    // a screenshot or video that could not be made (issue #6826)
+    "E_CAPTURE_FAILED",
+    "E_NOT_SETTLED",
     // the network sources (design/graph-io/network-sources-design.md section 8), experimental
     "E_SOURCE_BLOCKED",
     "E_SOURCE_AUTH",
@@ -277,6 +280,9 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "source";
         case "E_EXTENSION_FAILED":
             return "extension";
+        case "E_CAPTURE_FAILED":
+        case "E_NOT_SETTLED":
+            return "capture";
         default: {
             const unreachable: never = code;
             return unreachable;

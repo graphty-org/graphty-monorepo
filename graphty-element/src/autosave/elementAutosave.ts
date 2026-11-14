@@ -17,6 +17,7 @@ import {
     type AutosaveLocks,
     Autosaver,
     entryError,
+    LIST_TIMEOUT_MS,
     lockName,
     noLocks,
     ownAmong,
@@ -29,6 +30,7 @@ import type {
     AutosaveApi,
     AutosaveAvailable,
     AutosaveEntry,
+    AutosaveEntryMeta,
     AutosaveOptions,
     AutosaveRestored,
     AutosaveStatus,
@@ -1241,16 +1243,47 @@ async function withLookupStore<T>(
         return await act(store, env);
     } finally {
         if (options.store === undefined) {
-            await store?.close?.();
+            // Not awaited: closing waits for the reads in flight, and a read another tab holds up
+            // (`listWithin`) would hold this lookup with it. The connection closes once it is free.
+            void store?.close?.();
         }
     }
+}
+
+/**
+ * The key's entries, or null when the store did not answer within {@link LIST_TIMEOUT_MS}: another
+ * tab holds a read-write transaction on the database and has not finished it (a tab the browser
+ * suspended in the middle of a write, as Safari does to a tab in the background), and IndexedDB
+ * queues this read behind it for as long as that tab stays suspended.
+ * @param store - The store.
+ * @param key - The autosave key.
+ * @returns The entries, or null.
+ */
+function listWithin(store: AutosaveStore, key: string): Promise<readonly AutosaveEntryMeta[] | null> {
+    return new Promise((resolve, reject) => {
+        // ponytail: a timer, because a transaction held by a suspended tab sends no event until it resumes.
+        const timer = setTimeout(() => {
+            resolve(null);
+        }, LIST_TIMEOUT_MS);
+        store.list(key).then(
+            (metas) => {
+                clearTimeout(timer);
+                resolve(metas);
+            },
+            (error: unknown) => {
+                clearTimeout(timer);
+                reject(error instanceof Error ? error : new Error(String(error)));
+            },
+        );
+    });
 }
 
 /**
  * The work kept under an autosave key, read without an element: for a page that offers it before
  * it shows a graph, such as a start screen. The same list as `autosaver.list()`, oldest first;
  * `live` is true for an entry an element (in any tab) is writing now. Empty where the browser
- * keeps no storage. Open an entry with `autosaver.restore(id)` on an element with the same key.
+ * keeps no storage, and empty after three seconds when another tab holds the browser's database
+ * and does not let go (a tab the browser suspended in the middle of a write). Open an entry with `autosaver.restore(id)` on an element with the same key.
  *
  * `own` is true for the one entry this tab was writing (after a reload, or after the browser
  * discarded the tab and loaded it again) once this tab holds its lock: the call takes the lock and
@@ -1279,7 +1312,13 @@ export function listAutosaves(key: string, options: AutosaveLookupOptions = {}):
             await env.locks.own?.(lockName(key, noted), LEAVING_WAIT_MS);
         }
 
-        const metas = await store.list(key);
+        const metas = await listWithin(store, key);
+        if (metas === null) {
+            // Nothing to offer rather than a page that never starts; the element lists again itself.
+            logger.warn("kept work not listed: another tab holds the database", { afterMs: LIST_TIMEOUT_MS });
+            return [];
+        }
+
         // The entry named before, when the named one was never written or was replaced.
         const candidate = ownAmong(metas, noted, before);
         const exists = metas.some((meta) => meta.id === candidate);

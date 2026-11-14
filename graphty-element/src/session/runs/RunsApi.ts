@@ -19,6 +19,7 @@
  * renderer's manager to talk to it.
  */
 
+import { askedWeight } from "../../algorithms/input/weight";
 import { paletteDescriptor } from "../../catalog/palettes";
 import { registeredAlgorithmByKey } from "../../catalog/registry";
 import {
@@ -1774,14 +1775,16 @@ class Runs implements SessionRunsApi {
      */
     private weightMoved(run: ManagedRun): boolean {
         const recorded = this.weightKeys.get(run.id);
-        if (recorded === undefined || this.options.defaultWeight === undefined || run.params.weight !== undefined) {
+        const descriptor = this.descriptorFor(run.algorithm);
+        if (
+            recorded === undefined ||
+            this.options.defaultWeight === undefined ||
+            askedWeight(run.params.weight, descriptor.options) !== undefined
+        ) {
             return false;
         }
 
-        return (
-            (this.descriptorFor(run.algorithm).weightMeaning ?? null) !== null &&
-            this.options.defaultWeight() !== recorded
-        );
+        return (descriptor.weightMeaning ?? null) !== null && this.options.defaultWeight() !== recorded;
     }
 
     /**

@@ -6,6 +6,7 @@
 
 import { GraphtyError } from "../errors";
 import type { DataMutation } from "./commands/data";
+import { frozenRecord } from "./project/draft";
 import type { ImportColumnsInput } from "./types";
 
 /**
@@ -90,20 +91,24 @@ function withAttributes(
  * ponytail: builds a record per row, the object the graph slice keeps; holding records as columns
  * is stage 29's "records into columns" (row-renderer.md 4.6, "The typed door").
  * @param columns - The columns.
+ * @param frozen - Freeze each record it builds (the `"batched"` render path): the graph slice keeps
+ *     a frozen record as it is, where it copies any other, so the journal and the slice share one.
  * @returns The two mutations, nodes first.
  * @throws `E_BAD_COMMAND` when the columns do not line up.
  */
-export function columnMutations(columns: ImportColumnsInput): [DataMutation, DataMutation] {
+export function columnMutations(columns: ImportColumnsInput, frozen = false): [DataMutation, DataMutation] {
     check(columns);
     const { sources, targets, nodeCount, ids, weights, positions, attributes } = columns;
     const idOf = (row: number): string | number => (ids === undefined ? row : ids[row]);
+    const freeze = (record: Record<string, unknown>): Record<string, unknown> =>
+        frozen ? frozenRecord(record) : record;
     const nodes = Array.from({ length: nodeCount }, (_, row) => {
         const record: Record<string, unknown> = { id: idOf(row) };
         if (positions !== undefined) {
             record.position = [positions[row * 3], positions[row * 3 + 1], positions[row * 3 + 2]];
         }
 
-        return withAttributes(attributes?.nodes, row, record);
+        return freeze(withAttributes(attributes?.nodes, row, record));
     });
     const edges = Array.from({ length: sources.length }, (_, at) => {
         const record: Record<string, unknown> = { source: idOf(sources[at]), target: idOf(targets[at]) };
@@ -111,7 +116,7 @@ export function columnMutations(columns: ImportColumnsInput): [DataMutation, Dat
             record.weight = weights[at];
         }
 
-        return withAttributes(attributes?.edges, at, record);
+        return freeze(withAttributes(attributes?.edges, at, record));
     });
     return [
         { kind: "add-nodes", records: nodes, idPath: "id" },

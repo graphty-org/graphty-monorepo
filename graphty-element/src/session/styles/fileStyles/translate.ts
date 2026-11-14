@@ -4022,16 +4022,13 @@ function listOf(where: Predicate): readonly Predicate[] | null {
 }
 
 /**
- * The kind of layer a rule makes: its defaults are a base, a mapping or a group an encoding, and
- * per-element copies custom.
+ * The kind of layer a rule makes: a mapping or a group is an encoding, and its defaults and
+ * per-element copies are custom. A file's defaults are never kind `base`, which only the element's
+ * own base layers are: they are the file's styling, drawn like any other layer (issue #7495).
  * @param rule - The rule.
  * @returns The kind.
  */
 function layerKindOf(rule: StyleRule): LayerKind {
-    if (rule.role === "defaults") {
-        return "base";
-    }
-
     return rule.role === "mapping" || rule.role === "group" ? "encoding" : "custom";
 }
 

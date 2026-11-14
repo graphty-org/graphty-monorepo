@@ -22,8 +22,8 @@ const TRUSTED = new Map([
     ["graphty-release-scheduler", "Bot"],
 ]);
 
+// priority:critical is work, taken first (owner, 2026-11-14); only its non-code alarms are skipped below.
 const SKIP_LABELS = [
-    "priority:critical",
     "in-progress",
     "needs-decision",
     "needs-info",
@@ -38,7 +38,7 @@ const SKIP_LABELS = [
     "ci-budget",
 ];
 const HELD_MAJOR = new Set([676, 702, 843, 1370]);
-const PRIORITIES = ["high", "medium", "low"];
+const PRIORITIES = ["critical", "high", "medium", "low"];
 const EFFORTS = ["low", "medium", "high"];
 const TYPES = ["bug", "infrastructure", "enhancement"];
 
@@ -85,6 +85,8 @@ export function skipReason(issue) {
     if (issue.title.startsWith("Release held:")) return "release held";
     if (issue.title.includes("lane red on master")) return "lane red on master";
     if (/^Nightly (held on|missed slot)/.test(issue.title)) return "nightly alarm";
+    // Red master and red full runs: pipeline-round's alarms (revert, bisect, the fix that opens while master is red).
+    if (/^(Full run red:|Failing on master:)/.test(issue.title)) return "master alarm";
     if (/design\/brand|brand kit/i.test(issue.title)) return "design/brand";
     return null;
 }

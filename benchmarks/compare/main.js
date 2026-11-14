@@ -106,7 +106,18 @@ const B = {
         lib = name === "cosmos" ? await cosmosAdapter(opts) : await graphtyAdapter(opts);
         return lib.describe();
     },
-    load: () => lib.load(),
+    // No per-frame readback while a load runs: a load spans several of graphty-element's frames, and a
+    // blocking readPixels after each one stalled its ingest on GPU work its own fence pacing
+    // (RenderManager.gpuBehind) would have overlapped. Each adapter reads one pixel itself after the
+    // first complete frame, so firstFrameMs still includes that frame's GPU work, as for cosmos.gl.
+    async load() {
+        SYNC = false;
+        try {
+            return await lib.load();
+        } finally {
+            SYNC = true;
+        }
+    },
     async still(frames = 200) {
         await lib.settle();
         SYNC = false;

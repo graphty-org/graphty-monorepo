@@ -201,6 +201,13 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_ELEMENT"
     /**
+     * A graph was constructed with the id of a page element that the document does not hold, so
+     * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
+     * or passes the element itself.
+     * @since 3.40.0
+     */
+    | "E_HOST_NOT_FOUND"
+    /**
      * A saved document's content is malformed: not the kind it claims, a required member missing
      * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
      * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -267,15 +274,19 @@ export type GraphtyErrorCode =
     | "E_LOCKED"
     /**
      * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
-     * unreadable file. `details` carry the url and the status where there was one, and `cause`
+     * unreadable file. `details` carry the url (or the file's name), the status where there was
+     * one and `timeoutMs` when the last request ran out of time, and `cause`
      * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
      * than 408 and 429), which fails after one request with `recoverable: false`.
      */
     | "E_FETCH_FAILED"
     /**
      * A source was fetched but could not be parsed as the format it claimed to be. `details`
-     * carry the format, the line and, where the parser reported one, the column. The caller
-     * corrects the file, or re-imports naming the true format.
+     * carry the format, the line and, where the parser reported one, the column; when graph-io
+     * read it, `details.issue` is graph-io's code for what stopped it (`"E_XML_SYNTAX"`,
+     * `"E_CSV_UNCLOSED_QUOTE"`...) and `details.element` where. A reader that threw without a
+     * code of its own is reported as this too, with its error as `cause`. The caller corrects
+     * the file, or re-imports naming the true format.
      */
     | "E_PARSE_FAILED"
     /**
@@ -478,6 +489,13 @@ export type GraphtyErrorCode =
      * the CPU in silence.
      */
     | "E_DEVICE_LOST"
+    /**
+     * The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+     * device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+     * The session and its data are untouched; the element asks for the device back, and
+     * `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+     */
+    | "E_RENDER_LOST"
     /**
      * No WebGL context could be created, so nothing can be rendered. `details` carry what the
      * canvas reported. The session's data and results still work; only the view is unavailable.
@@ -1018,6 +1036,7 @@ const CODE_TABLE = {
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
     E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
     E_UNKNOWN_ELEMENT: "E_UNKNOWN_ELEMENT",
+    E_HOST_NOT_FOUND: "E_HOST_NOT_FOUND",
     E_BAD_DOCUMENT: "E_BAD_DOCUMENT",
     E_UNSUPPORTED_VERSION: "E_UNSUPPORTED_VERSION",
     E_UNSAVED_CHANGES: "E_UNSAVED_CHANGES",
@@ -1059,6 +1078,7 @@ const CODE_TABLE = {
     E_SOFTWARE_ONLY: "E_SOFTWARE_ONLY",
     E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
+    E_RENDER_LOST: "E_RENDER_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
     E_SHADER_REFUSED: "E_SHADER_REFUSED",
     E_XR_SESSION_FAILED: "E_XR_SESSION_FAILED",

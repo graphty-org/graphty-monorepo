@@ -19,7 +19,7 @@ import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
 import { drawnFrames } from "../helpers/drawn-frames";
-import { click, drag, nextFrame, type Point, wheel } from "../helpers/real-input";
+import { click, drag, nextFrame, type Point, touchDrag, wheel } from "../helpers/real-input";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -72,9 +72,18 @@ async function applied(element: Graphty): Promise<void> {
  * @param element - The element.
  */
 async function pressW(element: Graphty): Promise<void> {
+    await pressKey(element, "w");
+}
+
+/**
+ * Press a key once and wait for the whole step it moves the camera by; see {@link pressW}.
+ * @param element - The element.
+ * @param key - The key, as `userEvent.keyboard` spells it.
+ */
+async function pressKey(element: Graphty, key: string): Promise<void> {
     const scene = element.graph.getScene();
     const camera = (): Vector3 => scene.activeCamera?.globalPosition.clone() ?? Vector3.Zero();
-    await userEvent.keyboard("w");
+    await userEvent.keyboard(key);
     // A drawn frame has zoomed by part of the step; the step is over on a frame that holds still.
     await applied(element);
     let last = camera();
@@ -117,15 +126,15 @@ function basemapIs(element: Graphty, state: string, source?: string, credit?: st
 }
 
 /**
- * The link the map's credits give, as drawn over the canvas now.
+ * The map's credits as drawn over the canvas now.
  * @param element - The element.
- * @returns The first credit's link, or null when none is drawn.
+ * @returns The credit strip's text, or "" when it is hidden or absent.
  */
-function creditLink(element: Graphty): string | null {
+function creditText(element: Graphty): string {
     const strip =
-        element.querySelector("[data-graphty-attribution]") ??
-        element.shadowRoot?.querySelector("[data-graphty-attribution]");
-    return strip?.querySelector("a")?.getAttribute("href") ?? null;
+        element.querySelector<HTMLElement>("[data-graphty-attribution]") ??
+        element.shadowRoot?.querySelector<HTMLElement>("[data-graphty-attribution]");
+    return strip === null || strip === undefined || strip.style.display === "none" ? "" : (strip.textContent ?? "");
 }
 
 /**
@@ -267,25 +276,6 @@ describe("the camera on a location map", () => {
         assert.isBelow(camera.length(), radius * 1.001, "and comes down to street level");
         const near = element.graph.getScene().activeCamera?.minZ ?? Infinity;
         assert.isBelow(near, camera.length() - radius, "the near clip plane stops short of the surface");
-    });
-
-    it("turns the globe under the hand: the place grabbed stays under the pointer", async () => {
-        const element = await mounted("3d", { mapDimension: "3d" });
-        const frame = element.mapFrame;
-        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
-        // A spot on the globe between its middle and its edge.
-        const from = { x: CENTER.x - 20, y: CENTER.y + 10 };
-        const grabbed = onSphere(element, from, radius);
-        assert.isNotNull(grabbed, "the spot is on the globe");
-        const to = { x: CENTER.x + 40, y: CENTER.y - 20 };
-        await drag(element, from, to, 12);
-        await applied(element);
-        const under = onSphere(element, to, radius);
-        assert.isNotNull(under);
-        if (grabbed !== null && under !== null) {
-            const apart = Math.hypot(grabbed.x - under.x, grabbed.y - under.y, grabbed.z - under.z);
-            assert.isBelow(apart / radius, 0.03, "the grabbed place is under the pointer");
-        }
     });
 
     it("zooms toward the pointer on a map: the city under it stays under it", async () => {
@@ -740,6 +730,97 @@ describe("W and S on the globe", () => {
     });
 });
 
+describe("turning the globe at the closest zoom and at the opening zoom", () => {
+    // Near the surface a drag's turn is millionths of a radian, which the pivot used to drop, and
+    // an arrow key turned the camera a fixed angle of the whole globe, about its center or the
+    // pivot, thousands of kilometres a frame and below the surface.
+
+    /**
+     * A mounted globe and its radius, its camera at the closest zoom when asked.
+     * @param closest - Whether to zoom down to the surface.
+     * @returns The element and the radius.
+     */
+    async function globe(closest: boolean): Promise<{ element: Graphty; radius: number }> {
+        const element = await mounted("3d", { mapDimension: "3d" });
+        const frame = element.mapFrame;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+        if (closest) {
+            // The floor clamps it to the closest the camera comes.
+            await element.setCameraState({ cameraDistance: radius });
+            await applied(element);
+        }
+        return { element, radius };
+    }
+
+    for (const closest of [true, false]) {
+        const zoom = closest ? "at the closest zoom" : "at the opening zoom";
+        for (const [name, gesture] of [
+            ["a mouse drag", drag],
+            ["a one-finger touch drag", touchDrag],
+        ] as const) {
+            it(`${name} keeps the place grabbed under the pointer ${zoom}`, async () => {
+                const { element, radius } = await globe(closest);
+                const from = { x: CENTER.x - 20, y: CENTER.y + 10 };
+                const to = { x: CENTER.x + 40, y: CENTER.y - 20 };
+                const grabbed = onSphere(element, from, radius);
+                const before = onSphere(element, to, radius);
+                const nextPixel = onSphere(element, { x: to.x + 1, y: to.y }, radius);
+                assert.isNotNull(grabbed, "the spot is on the globe");
+                await gesture(element, from, to, 12);
+                await applied(element);
+                const under = onSphere(element, to, radius);
+                assert.isNotNull(under);
+                if (grabbed !== null && under !== null && before !== null && nextPixel !== null) {
+                    const gap = (p: typeof grabbed, q: typeof grabbed): number =>
+                        Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+                    const pixel = gap(before, nextPixel);
+                    const travel = gap(grabbed, before);
+                    assert.isAbove(gap(before, under), travel / 2, "the globe turned under the drag");
+                    assert.isBelow(gap(grabbed, under), 4 * pixel, "the grabbed place is under the pointer");
+                }
+            });
+        }
+
+        it(`turns by an arrow key's tap in step with the height above the surface ${zoom}`, async () => {
+            const { element, radius } = await globe(closest);
+            await click(element, { x: 6, y: 6 });
+            await applied(element);
+            const eye = (): Vector3 => element.graph.getScene().activeCamera?.globalPosition.clone() ?? Vector3.Zero();
+            const start = eye();
+            const height = start.length() - radius;
+            // A key turns on each frame it is on: the 8 frames a press owes, or longer while it is
+            // still down. The keyup comes when the runner delivers it, on a loaded one 130 frames
+            // after the keydown, so the turn is counted in frames rather than assumed to be 8.
+            const scene = element.graph.getScene();
+            let turned = 0;
+            let last = start;
+            const counting = scene.onAfterRenderObservable.add(() => {
+                const now = eye();
+                turned += now.equals(last) ? 0 : 1;
+                last = now;
+            });
+            cleanups.push(() => {
+                counting.remove();
+            });
+            await pressKey(element, "{ArrowLeft}");
+            counting.remove();
+            const end = eye();
+            const angle = Math.atan2(Vector3.Cross(start, end).length(), Vector3.Dot(start, end));
+            assert.isAtLeast(turned, 8, "a tap turns for at least its 8 frames");
+            // Each frame turns by keyboardRotationSpeed (0.02 rad), scaled down by the height as a
+            // share of the radius below one radius up.
+            const expected = turned * 0.02 * Math.min(1, height / radius);
+            assert.closeTo(angle / expected, 1, 0.02, "the turn about the globe's center follows the height");
+            assert.closeTo(
+                (end.length() - radius) / height,
+                1,
+                0.02,
+                "the camera keeps its height: never inside the globe",
+            );
+        });
+    }
+});
+
 describe("zooming a map whose nodes keep their size on screen", () => {
     // With nodeScale: "screen" every zoom step scales every node, and every edge used to be cut
     // back to its nodes' new surfaces on each one: on the OpenFlights sample's 36,906 routes that
@@ -1090,11 +1171,13 @@ describe("the location map's history and map", () => {
         // is still on its way.
         await commands.holdRequests("natural-earth.jpg");
         await commands.holdRequests("127.0.0.1:9");
-        // The credits drawn when each state is told: a fallback is told once the world it falls back
-        // to is drawn, so its credit is already on screen then, not a frame or a picture later.
-        const states: { state: string; error?: { code: string }; credit: string | null }[] = [];
+        // What is on screen when each state is told: a fallback is told only once the world it falls
+        // back to is drawn, so never while that picture is still held back, and the failed service's
+        // credit never shows.
+        let worldServed = false;
+        const states: { state: string; error?: { code: string }; worldServed: boolean; credits: string }[] = [];
         element.addEventListener("basemap-status", (event) => {
-            states.push({ ...event.detail, credit: creditLink(element) });
+            states.push({ ...event.detail, worldServed, credits: creditText(element) });
         });
         await element.session.layout.set("location-map", {
             options: { map: { tiles: "http://127.0.0.1:9/{z}/{x}/{y}.png", attribution: "Bad Tiles Co" } },
@@ -1105,14 +1188,16 @@ describe("the location map's history and map", () => {
         // world it waits for is the one this test holds back.
         await element.waitForSettled();
         await drawnFrames(element.graph.getScene(), 2);
+        worldServed = true;
         await commands.releaseRequests("natural-earth.jpg", false);
         await basemapIs(element, "fallback");
         assert.strictEqual(element.basemapStatus.state, "fallback");
         const fallback = states.find((s) => s.state === "fallback");
         assert.deepInclude(fallback?.error, { code: "E_BASEMAP_UNREACHABLE" });
-        assert.strictEqual(fallback?.credit, "https://www.naturalearthdata.com/", "the credit is a link when told");
+        assert.isTrue(fallback?.worldServed, "the fallback is told only after the world under it arrived");
+        assert.notInclude(fallback?.credits, "Bad Tiles Co", "the failed service is not credited");
         assert.notInclude(element.basemapStatus.attribution, "Bad Tiles Co");
         await applied(element);
-        assert.strictEqual(creditLink(element), "https://www.naturalearthdata.com/", "the credit is a link");
+        assert.notInclude(creditText(element), "Bad Tiles Co", "the failed service is not credited");
     });
 });

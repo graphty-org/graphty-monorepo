@@ -46,10 +46,11 @@ interface Covered {
 
 const INVENTORY: Record<string, Covered> = {
     "src/Graph.ts": {
-        count: 13,
+        count: 12,
         kind: "load",
         reason:
-            "format detection and a URL's download run inside a load that holds a place in the load line; " +
+            "format detection runs inside a load that holds a place in the load line (a URL's download goes " +
+            "through source-bytes' fetchBytes); " +
             "the rest (screenshot capability, video capture and estimation, AI, the XR camera) draw nothing " +
             "of the graph's picture, or run during an immersive session, when the picture is never final",
     },
@@ -224,7 +225,7 @@ const INVENTORY: Record<string, Covered> = {
         reason: "a shader's thumbnail for a picker, fetched for the application; never drawn on the canvas",
     },
     "src/xr/XRSessionManager.ts": {
-        count: 1,
+        count: 2,
         reason: "an immersive session's module; while one runs the picture moves with the head and is never final",
     },
 };

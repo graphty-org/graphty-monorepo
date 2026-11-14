@@ -11,12 +11,12 @@ the expectation today; the reference points into
 
 | Format | Fixtures | Conform | Known failures | Round trips | Round-trip failures |
 |---|---|---|---|---|---|
-| csv | 83 | 72 | 11 | 70 | 0 |
+| csv | 83 | 75 | 8 | 73 | 0 |
 | cx | 51 | 51 | 0 | 47 | 0 |
 | cx2 | 57 | 57 | 0 | 53 | 0 |
 | cys | 53 | 53 | 0 | 40 | 0 |
 | dot | 196 | 196 | 0 | 178 | 0 |
-| gexf | 110 | 107 | 3 | 104 | 1 |
+| gexf | 110 | 110 | 0 | 107 | 0 |
 | gml | 109 | 109 | 0 | 98 | 4 |
 | graphml | 148 | 148 | 0 | 134 | 0 |
 | json | 427 | 420 | 7 | 102 | 0 |
@@ -153,11 +153,6 @@ rest of the format's expectations does something else.
 - `gephi/mixed.csv`: nodes: expected 7, got 5; edges: expected 10, got 5
 - `networkx/karate.adjlist`: nodes: expected 34, got 2; edges: expected 78, got 1
 
-### a quoted empty endpoint becomes an empty-string node id instead of E_MISSING_ENDPOINT (sources.md 7.4) (#7634) (2)
-
-- `csv-spectrum/empty.csv`: nodes: expected 2, got 4; edges: expected 1, got 2
-- `csv-spectrum/empty_crlf.csv`: nodes: expected 2, got 4; edges: expected 1, got 2
-
 ### networkx dict-repr data column not parsed (sources.md 7.4) (#7637) (2)
 
 - `networkx/karate.edgelist`: nodes: expected 34, got 0; edges: expected 78, got 0
@@ -174,10 +169,6 @@ rest of the format's expectations does something else.
 ### matrix CSV not detected (sources.md 7.4) (#7637) (1)
 
 - `gephi/matrix.csv`: nodes: expected 5, got 7; edges: expected 6, got 5
-
-### unquoted id cells are not trimmed (sources.md 7.4) (#7635) (1)
-
-- `dialect/whitespace-around-fields.csv`: nodes: expected 3, got 4; node "c" missing
 
 
 ## cx
@@ -198,22 +189,7 @@ No known failures.
 
 ## gexf
 
-### 1.1 <slices> skipped instead of read as spells (sources.md 1.4 Graph element) (#7643) (1)
-
-- `authored/slices-1.1.gexf`: issue W_UNKNOWN_ELEMENT present
-
-### 1.3 list with an escaped quote misparsed (sources.md 1.4 Attributes) (#7642) (1)
-
-- `graphology/v1_3.gexf`: node "Suzy" single: expected ["a","'b'","c"], got ["a","\\b\\''","c"]
-
-### round trip: dynamic attribute values shift by one element on GEXF re-export (#7644) (1)
-
-- `gephi-datasets/photoviz-dynamic.gexf`: extensions.temporal:node:codelines.element[308]: expected 121, got 120; extensions.temporal:node:codelines.element[309]: expected 122, got 121
-
-### undeclared attvalue dropped instead of kept with a warning (sources.md 1.4 Attributes) (#7641) (1)
-
-- `graphology/undeclared_attribute.gexf`: node 0 url: no such column
-
+No known failures.
 
 ## gml
 
@@ -308,7 +284,7 @@ announced an E_ code (a documented refusal).
 | gml | 300 | 300 | 0 | 0 | boolAsInt |
 | dot | 300 | 268 | 32 (E_DOT_TRAILING_BACKSLASH) | 0 | idText, negativeZero, nonFiniteText, textInferred |
 | pajek | 300 | 137 | 163 (E_PAJEK_TEXT) | 0 | idText, negativeZero, nonFiniteText, textInferred |
-| csv | 300 | 300 | 0 | 0 | direction, idText, negativeZero, nodeOrder, nonFiniteText, textInferred |
+| csv | 300 | 246 | 54 (E_ID_CHARSET) | 0 | direction, idText, negativeZero, nodeOrder, nonFiniteText, textInferred |
 | neo4j | 300 | 300 | 0 | 0 | direction, idText |
 | json node-link | 300 | 300 | 0 | 0 | negativeZero, nonFiniteUnset |
 | json jgf | 300 | 300 | 0 | 0 | idString, negativeZero, nodeOrder, nonFiniteUnset |

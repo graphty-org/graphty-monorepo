@@ -132,11 +132,37 @@ export const LEAN_TEMPLATE_OF: readonly number[] = [1, 2, 7, 6];
 export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
 
 /**
+ * A pulled piece's draw slot and the piece it draws (`PulledLineBatch`): the draw is unindexed, so
+ * `gl_VertexID / corners` is the slot. While pieces of two widths interleave, `edgeOrder` names the
+ * piece each slot draws, four slots to a texel, so they draw in the object path's order; otherwise
+ * (`edgeOrdered` 0) a slot draws the piece of its own number and the table is never read.
+ */
+export const PULLED_ORDER_GLSL = `
+uniform float edgeOrdered;
+uniform highp sampler2D edgeOrder;
+
+int pulledPiece(int slot) {
+    if (edgeOrdered < 0.5) {
+        return slot;
+    }
+    vec4 order = texelFetch(edgeOrder, ivec2((slot >> 2) & 1023, slot >> 12), 0);
+    return int(dot(order, vec4(equal(ivec4(0, 1, 2, 3), ivec4(slot & 3)))) + 0.5);
+}
+`;
+
+/**
+ * The join template vertex each of a lean piece's six corners draws: `LEAN_TEMPLATE_INDICES` read
+ * through `LEAN_TEMPLATE_OF`.
+ */
+const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
+
+/**
  * PULLED EDGES (`EDGE_PULLED`): a piece's six points are not attributes but read at the top of the
  * vertex stage. `edgeRows` holds two row numbers per piece (a texel holds two pieces), and
  * `rowPosition` (`render/RowTable.ts`) holds each row's place and its w; so moving a node uploads
- * its row and no edge byte. The draw is one indexed, non-instanced draw: index `piece * 14 + k`,
- * so `gl_VertexID` names both the piece and its template vertex. A straight piece between node
+ * its row and no edge byte. The draw is one unindexed, non-instanced draw of 30 corners a piece:
+ * `gl_VertexID / 30` is the draw slot (`pulledPiece` names its piece) and the rest names the corner,
+ * which `JOIN_TEMPLATE_INDICES` turns into its template vertex (#6389). A straight piece between node
  * centres is all this reads, written as `EdgeLineBatch.place` writes it: its neighbours are its
  * own ends and its run is zero. A free piece (rows below 0), a piece flagged in `edgeHidden` (a byte a
  * piece, four to a texel) and a piece with a row of w = 0 (hidden or not placed) get every point at
@@ -149,8 +175,7 @@ export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
  * would hold.
  *
  * The LEAN program (`EDGE_PULLED_LEAN`, straight pieces only) draws each piece from
- * `LEAN_TEMPLATE_OF`'s four vertices and six indices, `piece * 4 + k`, instead of the join template's
- * 14 and 30: the same rectangle and the same vertex shader after this, at fewer vertex
+ * `LEAN_TEMPLATE_OF`'s four vertices as six corners, instead of the join template's 30: the same rectangle and the same vertex shader after this, at fewer vertex
  * invocations a piece. Its fragment stage skips the ownership test and the pattern (a lean piece
  * has no neighbour and is solid), so it never discards: the rasterizer's coverage is its shape.
  *
@@ -180,11 +205,13 @@ vec4 pulledRow(int r) {
     return texelFetch(rowPosition, ivec2(r & 1023, r >> 10), 0);
 }
 
+${PULLED_ORDER_GLSL}
 #ifdef EDGE_PULLED_LEAN
-const int PIECE_VERTICES = ${String(LEAN_TEMPLATE_OF.length)};
-const int LEAN_OF[PIECE_VERTICES] = int[PIECE_VERTICES](${LEAN_TEMPLATE_OF.join(", ")});
+const int PIECE_CORNERS = ${String(LEAN_CORNERS.length)};
+const int CORNER_OF[PIECE_CORNERS] = int[PIECE_CORNERS](${LEAN_CORNERS.join(", ")});
 #else
-const int PIECE_VERTICES = ${String(JOIN_TEMPLATE_VERTICES)};
+const int PIECE_CORNERS = ${String(JOIN_TEMPLATE_INDICES.length)};
+const int CORNER_OF[PIECE_CORNERS] = int[PIECE_CORNERS](${JOIN_TEMPLATE_INDICES.join(", ")});
 #endif
 
 #ifdef EDGE_PULLED_CURVE
@@ -196,12 +223,9 @@ const int PIECE_TEXELS = 2;
 #endif
 
 void pullEdge() {
-    int piece = gl_VertexID / PIECE_VERTICES;
-#ifdef EDGE_PULLED_LEAN
-    position = JOIN_TEMPLATE[LEAN_OF[gl_VertexID - piece * PIECE_VERTICES]];
-#else
-    position = JOIN_TEMPLATE[gl_VertexID - piece * PIECE_VERTICES];
-#endif
+    int slot = gl_VertexID / PIECE_CORNERS;
+    position = JOIN_TEMPLATE[CORNER_OF[gl_VertexID - slot * PIECE_CORNERS]];
+    int piece = pulledPiece(slot);
     int texel = piece * PIECE_TEXELS;
     vec4 head = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
     vec4 tint = texelFetch(edgeRows, ivec2((texel + 1) & 1023, (texel + 1) >> 10), 0);

@@ -77,7 +77,10 @@ async function openProject(name: string): Promise<{ session: GraphSession; store
  * @returns the layer and the path.
  */
 async function runGroups(session: GraphSession, algorithm: string): Promise<{ layer: Layer; path: string }> {
-    const { runId } = await session.runs.start(algorithm);
+    // Leiden draws a new seed every run unless given one, and how many groups it finds depends on
+    // the seed (a run on College football found 8); a fixed seed gives the same groups every time.
+    const params = algorithm === "leiden" ? { randomSeed: 1 } : undefined;
+    const { runId } = await session.runs.start(algorithm, params);
     await session.styles.settled();
     const layer = session.styles
         .list()

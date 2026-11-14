@@ -380,10 +380,12 @@ export const NodeStyle = z.strictObject({
                 .optional(),
             outline: z
                 .strictObject({
-                    // COLOUR ONLY. The outline is a ring around the node whose width is a fixed
-                    // share of the node's size (NodeEffects.applyOutlineEffect), so a declared
-                    // `width` would be accepted and ignored.
+                    // The ring around the node (NodeEffects.applyOutlineEffect). A width alone,
+                    // with no colour, draws nothing, as a glow strength alone draws nothing.
                     color: ColorStyle.optional(),
+                    // How wide the ring's band is drawn, as a multiple of its own width (1).
+                    // Unset, the graph's `layoutBehavior.node.outlineWidth`, else 1.
+                    width: z.number().nonnegative().max(10).optional(),
                 })
                 .optional(),
             // The halo the selection is drawn with (`selectionStyle`), in the node's own shape, for any

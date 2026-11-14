@@ -4,15 +4,15 @@
 
 ```ts
 
-import { AbstractMesh } from '@babylonjs/core';
+import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh.js';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
-import { ActionManager } from '@babylonjs/core';
+import type { ActionManager } from '@babylonjs/core/Actions/actionManager.js';
 import { AwsCredentials } from '@graphty/graph-io';
-import { BaseTexture } from '@babylonjs/core';
-import { BoundingBox } from '@babylonjs/core';
-import { BoundingInfo } from '@babylonjs/core';
-import { Camera } from '@babylonjs/core';
-import { Color3 } from '@babylonjs/core';
+import type { BaseTexture } from '@babylonjs/core';
+import type { BoundingBox } from '@babylonjs/core/Culling/boundingBox.js';
+import { BoundingInfo } from '@babylonjs/core/Culling/boundingInfo.js';
+import { Camera } from '@babylonjs/core/Cameras/camera.js';
+import { Color3 } from '@babylonjs/core/Maths/math.color.js';
 import { Column } from '@graphty/graph-format';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
@@ -31,8 +31,8 @@ import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { EdgeMask } from '@graphty/graph-format';
-import { Engine } from '@babylonjs/core';
-import { EngineInstrumentation } from '@babylonjs/core';
+import { Engine } from '@babylonjs/core/Engines/engine.js';
+import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineInstrumentation.js';
 import { ExpandRequest } from '@graphty/graph-io';
 import { ExportCapabilities } from '@graphty/graph-io';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
@@ -58,7 +58,7 @@ import { ImportReport as ImporterReport } from '@graphty/graph-io';
 import { ImportError } from '@graphty/graph-io';
 import { ImportInput } from '@graphty/graph-io';
 import { ImportIssue } from '@graphty/graph-io';
-import { InstancedMesh } from '@babylonjs/core';
+import type { InstancedMesh } from '@babylonjs/core';
 import { IssueCategory } from '@graphty/graph-io';
 import { JSON_LOSS } from '@graphty/graph-io';
 import { LayoutResult } from '@graphty/layout';
@@ -69,22 +69,21 @@ import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import { maskTest } from '@graphty/graph-format';
-import { Matrix } from '@babylonjs/core';
-import { Mesh } from '@babylonjs/core';
+import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
+import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
-import { Observable } from '@babylonjs/core';
-import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
+import { Observable } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
-import { PerfCounter } from '@babylonjs/core';
-import { Plane } from '@babylonjs/core';
-import { PointerInfoPre } from '@babylonjs/core';
+import { PerfCounter } from '@babylonjs/core/Misc/perfCounter.js';
+import type { Plane } from '@babylonjs/core';
+import type { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
-import { Quaternion } from '@babylonjs/core';
+import { Quaternion } from '@babylonjs/core/Maths/math.vector.js';
 import { QueryLanguage } from '@graphty/graph-io';
-import { RawTexture } from '@babylonjs/core';
-import { Ray } from '@babylonjs/core';
+import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture.js';
+import { Ray } from '@babylonjs/core/Culling/ray.js';
 import { RecordBatch } from '@graphty/graph-io';
 import { Recording } from '@graphty/graph-io';
 import { recordingFrom } from '@graphty/graph-io';
@@ -93,8 +92,8 @@ import { ReplayFetch } from '@graphty/graph-io';
 import { replayFetch } from '@graphty/graph-io';
 import { ReplayOptions } from '@graphty/graph-io';
 import { RetryOptions } from '@graphty/graph-io';
-import { Scene } from '@babylonjs/core';
-import { SceneInstrumentation } from '@babylonjs/core';
+import { Scene } from '@babylonjs/core/scene.js';
+import { SceneInstrumentation } from '@babylonjs/core/Instrumentation/sceneInstrumentation.js';
 import { SOURCE_ISSUE } from '@graphty/graph-io';
 import { SourceContext } from '@graphty/graph-io';
 import { SourceCredentialSlot } from '@graphty/graph-io';
@@ -129,13 +128,13 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
-import { TransformNode } from '@babylonjs/core';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
-import { Vector3 } from '@babylonjs/core';
-import { WebGPUEngine } from '@babylonjs/core';
-import { WebXRDefaultExperience } from '@babylonjs/core';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
+import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine.js';
+import type { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience.js';
 import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
@@ -164,7 +163,7 @@ export interface AcceleratorRegistration {
     readonly backend?: "webgpu" | (string & {});
     readonly factory: AcceleratorFactory;
     readonly name: string;
-    readonly sharesDevice?: (adapter: unknown) => boolean;
+    readonly sharesDevice?: (adapter: unknown) => boolean | Promise<boolean>;
 }
 
 // @public
@@ -209,12 +208,16 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static hasZodOptions(): boolean;
     // @internal
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput;
+    // @internal
+    static readonly loadedWeightByDefault: boolean;
     // (undocumented)
     static namespace: string;
     get namespace(): string;
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId_2): number;
     // @deprecated
     static optionsSchema: OptionsSchema;
+    // @internal
+    parallelEdgePolicy(): SimplifyPolicy | undefined;
     // @internal
     static parallelEdges?: SimplifyPolicy;
     publishResult(_context: RunControls, runId: string, _fields?: readonly FieldDescriptor[]): Promise<RunResult | undefined>;
@@ -965,7 +968,13 @@ export { ExportCapabilities }
 export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions & {
     readonly scope?: ExportScope;
     readonly columns?: readonly string[];
+    readonly groupTable?: ExportGroupTable;
 };
+
+// @public
+export interface ExportGroupTable extends GroupTableOptions {
+    readonly groupBy: string;
+}
 
 // @public
 export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
@@ -1320,6 +1329,13 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ELEMENT"
 /**
+* A graph was constructed with the id of a page element that the document does not hold, so
+* there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
+* or passes the element itself.
+* @since 3.40.0
+*/
+| "E_HOST_NOT_FOUND"
+/**
 * A saved document's content is malformed: not the kind it claims, a required member missing
 * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
 * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -1386,15 +1402,19 @@ export type GraphtyErrorCode =
 | "E_LOCKED"
 /**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
-* unreadable file. `details` carry the url and the status where there was one, and `cause`
+* unreadable file. `details` carry the url (or the file's name), the status where there was
+* one and `timeoutMs` when the last request ran out of time, and `cause`
 * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
 * than 408 and 429), which fails after one request with `recoverable: false`.
 */
 | "E_FETCH_FAILED"
 /**
 * A source was fetched but could not be parsed as the format it claimed to be. `details`
-* carry the format, the line and, where the parser reported one, the column. The caller
-* corrects the file, or re-imports naming the true format.
+* carry the format, the line and, where the parser reported one, the column; when graph-io
+* read it, `details.issue` is graph-io's code for what stopped it (`"E_XML_SYNTAX"`,
+* `"E_CSV_UNCLOSED_QUOTE"`...) and `details.element` where. A reader that threw without a
+* code of its own is reported as this too, with its error as `cause`. The caller corrects
+* the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
 /**
@@ -1597,6 +1617,13 @@ export type GraphtyErrorCode =
 * the CPU in silence.
 */
 | "E_DEVICE_LOST"
+/**
+* The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+* device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+* The session and its data are untouched; the element asks for the device back, and
+* `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+*/
+| "E_RENDER_LOST"
 /**
 * No WebGL context could be created, so nothing can be rendered. `details` carry what the
 * canvas reported. The session's data and results still work; only the view is unavailable.
@@ -1865,9 +1892,20 @@ export interface GraphtyErrorDetailsMap {
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
+    E_FETCH_FAILED: {
+        readonly url?: string;
+        readonly file?: string;
+        readonly status?: number;
+        readonly attempts?: number;
+        readonly timeoutMs?: number;
+    };
     E_PARSE_FAILED: {
         readonly format?: string;
         readonly line?: number;
+        readonly rowErrors?: number;
+        readonly limit?: number;
+        readonly issue?: string;
+        readonly element?: string;
     };
     E_TOO_LARGE: {
         readonly limit?: number;
@@ -1945,6 +1983,14 @@ export interface GroupingDefinition<O extends OptionsShorthand> extends Algorith
     readonly node?: never;
     // (undocumented)
     readonly nodes?: never;
+}
+
+// @public
+export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
+
+// @public
+export interface GroupTableOptions {
+    readonly summaries?: Readonly<Record<Path, readonly GroupSummary[]>>;
 }
 
 // @public

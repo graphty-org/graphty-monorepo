@@ -218,6 +218,21 @@ describe("EdgeMesh", () => {
             assert.notStrictEqual(left.mesh, right.mesh);
         });
 
+        test("stops a half barb's line where Cytoscape stops it under HALF_TOP, half-open's where its arm meets", () => {
+            // Cytoscape's HALF_TOP: barb tip 0.3 of the arrow's size off the node, 1.135 long, line cut at 0.5 (#7769)
+            for (const type of ["half-barb", "half-barb-flipped"]) {
+                const end = EdgeMesh.calculateLineEndpoint(
+                    new Vector3(0, 0, 0),
+                    new Vector3(1, 0, 0),
+                    1.135,
+                    EdgeMesh.getArrowGeometry(type),
+                );
+                assert.closeTo(end.x, -0.2, 1e-9, type);
+            }
+            // graphty's own half arrow keeps its stop at the arm's inner corner
+            assert.closeTo(EdgeMesh.getArrowGeometry("half-open").lineStop ?? 1, 0.4, 1e-9);
+        });
+
         test("runs a crossed delta's line through its bar to the back of its delta", () => {
             const geometry = EdgeMesh.getArrowGeometry("cross-delta");
             const end = EdgeMesh.calculateLineEndpoint(new Vector3(0, 0, 0), new Vector3(1, 0, 0), 3, geometry);

@@ -1,6 +1,6 @@
 /**
- * The start page's look, shared by its graph (`HeroGraph.tsx`) and the style tree's Hover highlight
- * template, which rebuilds the page's hover layers from selections.
+ * The start page's look, shared by its graph (`HeroGraph.tsx`) and the tests that rebuild the page's
+ * hover layers from selections.
  */
 
 import { defaultEdgeStyle } from "@graphty/graphty-element/schema";

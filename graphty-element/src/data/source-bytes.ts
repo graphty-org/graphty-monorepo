@@ -71,16 +71,46 @@ export function urlTail(url: string): string {
 }
 
 /**
+ * A read of a file or a URL, with a failure (a file the browser cannot read, a body cut off
+ * mid-download) coded as `E_FETCH_FAILED`.
+ * @param read - The read.
+ * @param where - The file's name or the URL, for the error's details.
+ * @param where.file - The file's name, when it is a file.
+ * @param where.url - The URL, when it is a URL.
+ * @returns What the read resolved to.
+ * @throws A `GraphtyError` with `E_FETCH_FAILED` when the read fails.
+ */
+export async function readOrRefuse<T>(read: Promise<T>, where: { file?: string; url?: string }): Promise<T> {
+    try {
+        return await read;
+    } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw GraphtyError.wrap(error, {
+            code: "E_FETCH_FAILED",
+            source: "data",
+            recoverable: true,
+            message: `Failed to read ${where.url ?? where.file ?? "the source"}: ${reason}`,
+            details: where,
+        });
+    }
+}
+
+/**
  * Read a URL's bytes, once.
  * @param url - The URL.
+ * @param signal - Cancels the fetch; an abort rejects with the signal's reason, uncoded.
  * @returns The bytes.
  * @throws A `GraphtyError` with `E_FETCH_FAILED` when it cannot be read.
  */
-export async function fetchBytes(url: string): Promise<Uint8Array> {
+export async function fetchBytes(url: string, signal?: AbortSignal): Promise<Uint8Array> {
     let response: Response;
     try {
-        response = await fetch(url);
+        response = await fetch(url, signal === undefined ? undefined : { signal });
     } catch (error) {
+        if (signal?.aborted === true) {
+            throw error;
+        }
+
         throw new GraphtyError({
             code: "E_FETCH_FAILED",
             message: `Could not fetch "${url}".`,
@@ -98,7 +128,7 @@ export async function fetchBytes(url: string): Promise<Uint8Array> {
         });
     }
 
-    return new Uint8Array(await response.arrayBuffer());
+    return new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url }));
 }
 
 /**
@@ -142,7 +172,10 @@ export async function readSource(config: Readonly<Record<string, unknown>>): Pro
     }
 
     if (typeof file === "object" && file !== null && typeof (file as FileLike).arrayBuffer === "function") {
-        return new Uint8Array(await (file as FileLike).arrayBuffer());
+        const { name } = file as FileLike;
+        return new Uint8Array(
+            await readOrRefuse((file as FileLike).arrayBuffer(), typeof name === "string" ? { file: name } : {}),
+        );
     }
 
     return typeof url === "string" ? fetchBytes(url) : null;

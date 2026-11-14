@@ -78,7 +78,7 @@ const PAGE_LOAD_CODES: ReadonlySet<string> = new Set([
 const DEADLINE_LATE_MS = 1_000;
 
 /** How long the listing at the start may take before the page loads without a restore. */
-const LIST_TIMEOUT_MS = 3000;
+export const LIST_TIMEOUT_MS = 3000;
 
 /** Facts about each entry and write, for a reader of the logs: ids, counts and booleans, never data. */
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "autosave"]);

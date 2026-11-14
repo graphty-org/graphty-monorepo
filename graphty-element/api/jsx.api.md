@@ -157,7 +157,6 @@ export interface GraphtyElementJSXProps {
     "ondata-loading-complete"?: (event: CustomEvent<EventOfType<"data-loading-complete">>) => void;
     // (undocumented)
     "ondata-loading-error"?: (event: CustomEvent<EventOfType<"data-loading-error">>) => void;
-    // (undocumented)
     "ondata-loading-error-summary"?: (event: CustomEvent<EventOfType<"data-loading-error-summary">>) => void;
     // (undocumented)
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;

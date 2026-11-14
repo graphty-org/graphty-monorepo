@@ -2358,8 +2358,9 @@ export function yedArrowWidth(arrow: unknown): number | null {
  * @param line - its `y:LineStyle`
  * @param put - receives the values
  * @param at - the sites
+ * @returns the fill color its arrowheads are filled with (see {@link readFramedHeads}), or null for an outline alone
  */
-function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): void {
+function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): string | null {
     const band = canonNumber(treeAttr(line, "width"), at("width")) ?? 1;
     const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
     const fill = treeAttr(
@@ -2368,7 +2369,7 @@ function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): v
     );
     if (fill === undefined || band <= 1) {
         put("width", band + 1);
-        return;
+        return null;
     }
     readColor(treeAttr(line, "color"), "outlineColor", "outlineOpacity", put, at);
     // its arrowheads are part of the outline, in the line's color (yed-graphml-specimen-edges-lines generic-framed)
@@ -2377,6 +2378,29 @@ function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): v
     readColor(fill, "color", "opacity", put, at);
     put("width", band - 1);
     put("outlineWidth", 2);
+    return fill;
+}
+
+/**
+ * Reads a filled framed edge's arrowheads as yEd draws them: each a triangle outlined in the line's color and filled
+ * with `FramedEdgePainter.fillColor`, whatever its arrow type (a `delta` in graphml-galaxy-lcms-workflow and a
+ * `standard` in yed-graphml-specimen-edges-lines generic-framed both draw so).
+ * @param arrows - the edge's `y:Arrows`
+ * @param fill - the fill color
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readFramedHeads(arrows: unknown, fill: string, put: PutValue, at: SiteOf): void {
+    for (const end of ["source", "target"] as const) {
+        const arrow = treeAttr(arrows, end);
+        if (arrow !== undefined && arrow !== "none") {
+            // as long as the standard head (12 on a line 1 wide), not yEd's white_delta (16), and as wide as the
+            // white_delta: its outline reaches past the band's (graphml-galaxy-lcms-workflow's heads 14.4 long, 14.6 wide)
+            put(`${end}Arrow`, "triangle-open");
+            put(`${end}ArrowLength`, 12 / 16);
+            readColor(fill, `${end}ArrowFillColor`, null, put, at);
+        }
+    }
 }
 
 /**
@@ -2388,12 +2412,13 @@ function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): v
 function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
     const { r } = real;
     const line = treeChild(r, "LineStyle");
+    let framedFill: string | null = null;
     if (line !== undefined) {
         readColor(treeAttr(line, "color"), "color", "opacity", put, at);
         put("width", yedDrawnWidth(canonNumber(treeAttr(line, "width"), at("width"))));
         put("lineStyle", canonEnum("lineStyle", treeAttr(line, "type"), "yed", at("lineStyle")));
         if (real.type === "GenericEdge" && treeAttr(r, "configuration") === "com.yworks.edge.framed") {
-            readFramedEdge(r, line, put, at);
+            framedFill = readFramedEdge(r, line, put, at);
         }
     }
     const arrows = treeChild(r, "Arrows");
@@ -2404,6 +2429,9 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("targetArrowLength", yedArrowLength(treeAttr(arrows, "target")));
         put("sourceArrowWidth", yedArrowWidth(treeAttr(arrows, "source")));
         put("targetArrowWidth", yedArrowWidth(treeAttr(arrows, "target")));
+        if (framedFill !== null) {
+            readFramedHeads(arrows, framedFill, put, at);
+        }
     }
     if (treeAttr(line, "hasColor") === "false") {
         // a line with no color paints neither itself nor its arrowheads (yed-graphml-specimen-edges-lines

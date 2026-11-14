@@ -485,11 +485,12 @@ export class Graphty extends LitElement {
      *
      * Forwarded from `session.styles.setDefaultPalettes`. A default is resolved when a style
      * layer is written, so a saved document always names a concrete palette: call it before
-     * loading data or adding layers. A later call warns and names the layers that keep the
-     * previous default, or with `reapply: true` repaints them with the new one.
+     * loading data or adding layers. A later call logs the layers that keep the previous
+     * default, or with `reapply: true` repaints them with the new one.
      * @param palettes - A palette id per kind: `categorical`, `sequential` and `diverging`.
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @returns Settles once the re-resolved layers are repainted; rejects when one could not be.
      * @since 2.7.0
      * @example
      * ```ts
@@ -499,8 +500,8 @@ export class Graphty extends LitElement {
      * element.setDefaultPalettes({ categorical: "acme-brand" });
      * ```
      */
-    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void {
-        this.session.styles.setDefaultPalettes(palettes, options);
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): Promise<void> {
+        return this.session.styles.setDefaultPalettes(palettes, options);
     }
 
     /**
@@ -5382,8 +5383,9 @@ export class Graphty extends LitElement {
      * @param options - What to frame and how to configure the view.
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
-     * @param options.extent - What each node counts as in the box: `"centers"` (the default) its
-     *   centre, `"drawn"` the box it is drawn in.
+     * @param options.extent - What each node counts as in the box: `"centers"` its centre,
+     *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
+     *   `"centers"` when `nodes` names a subset.
      * @returns The resolved camera state.
      * @since 1.5.0
      * @example
@@ -5414,7 +5416,8 @@ export class Graphty extends LitElement {
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
-     *   (the default) its centre, `"drawn"` the box it is drawn in.
+     *   its centre, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
+     *   and `"centers"` when `scope` names a subset.
      * @returns A promise that resolves once the camera has arrived.
      * @since 1.5.0
      * @example

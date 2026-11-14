@@ -15,12 +15,12 @@ the expectation today; the reference points into
 | cx | 51 | 51 | 0 | 47 | 0 |
 | cx2 | 57 | 57 | 0 | 53 | 0 |
 | cys | 53 | 53 | 0 | 40 | 0 |
-| dot | 196 | 191 | 5 | 173 | 1 |
+| dot | 196 | 196 | 0 | 178 | 0 |
 | gexf | 110 | 107 | 3 | 104 | 1 |
 | gml | 109 | 98 | 11 | 88 | 3 |
-| graphml | 148 | 145 | 3 | 131 | 0 |
+| graphml | 148 | 148 | 0 | 134 | 0 |
 | json | 427 | 420 | 7 | 102 | 0 |
-| neo4j | 45 | 26 | 19 | 25 | 0 |
+| neo4j | 45 | 30 | 15 | 29 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
 | xgmml | 77 | 77 | 0 | 75 | 0 |
@@ -193,21 +193,7 @@ No known failures.
 
 ## dot
 
-### a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4) (#7638) (3)
-
-- `graphviz-issues/1408.dot`: failed: E_SYNTAX: "1408.dot" could not be read as dot: line 6: unexpected character "#"
-- `authored/hash-indented.gv`: failed: E_SYNTAX: "hash-indented.gv" could not be read as dot: line 2: unexpected character "#"
-- `authored/hash-midline.gv`: failed: E_SYNTAX: line 2: unexpected character "#"
-
-### an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4) (#7639) (2)
-
-- `pydot/hash_inside_html.dot`: node "<b>b2 #rules!</b>" missing
-- `pydot/html_labels.dot`: nodes: expected 6, got 5; node "abcde" missing
-
-### round trip: the DOT export writes subgraph members before the other nodes, so node order changes on re-import (#7640) (1)
-
-- `graphviz-graphs/b7.gv`: ids[2]: expected "a", got "y"; ids[3]: expected "c", got "z"
-
+No known failures.
 
 ## gexf
 
@@ -267,18 +253,7 @@ No known failures.
 
 ## graphml
 
-### <data> for an undeclared key is an error and its value is dropped (sources.md 2.4) (#7650) (1)
-
-- `graphology/miserables_broken.graphml`: failed: E_GRAPHML_UNKNOWN_KEY: error limit of 100 exceeded: line 512: <data> references undeclared key "label"
-
-### <key> declared inside <graph> is skipped and its data rejected (sources.md 2.4) (#7650) (1)
-
-- `gephi-tests/cdata.graphml`: label "foo" missing (no label column); label "bar" missing (no label column)
-
-### per-edge directed other than true/false skips the edge (sources.md 2.4) (#7650) (1)
-
-- `authored/directed-variants.graphml`: edges: expected 4, got 2
-
+No known failures.
 
 ## json
 
@@ -331,22 +306,6 @@ No known failures.
 - `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: "multi-labels.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, 
 - `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: "quotes-none.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _
 
-### an unreadable typed cell drops the whole row instead of warning and leaving it unset (sources.md 9.4) (#7653) (1)
-
-- `admin/boolean-strict.csv`: nodes: expected 5, got 4
-
-### Duplicate node: later row wins, Neo4j keeps the first (sources.md 9.4) (#7653) (1)
-
-- `admin/duplicate-node.csv`: node 1 name: expected "first", got "second"
-
-### several :ID columns (composite key) rejected (sources.md 9.4) (#7653) (1)
-
-- `admin/manual-composite-id.csv`: failed: E_NEO4J_HEADER: "manual-composite-id.csv" could not be read as neo4j: line 1: a node header has more than one :ID column
-
-### vector{...} property type not parsed as a list of numbers (sources.md 9.4) (#7653) (1)
-
-- `admin/manual-vector.csv`: node "a" vector1: expected [0.5,1.5,2.5], got "0.5;1.5;2.5"
-
 
 ## obo
 
@@ -374,9 +333,9 @@ announced an E_ code (a documented refusal).
 | graphml | 300 | 289 | 11 (E_XML_ILLEGAL_CHAR) | 0 | idText |
 | gml | 300 | 300 | 0 | 0 | boolAsInt |
 | dot | 300 | 268 | 32 (E_DOT_TRAILING_BACKSLASH) | 0 | idText, negativeZero, nonFiniteText, textInferred |
-| pajek | 300 | 115 | 133 (E_PAJEK_TEXT) | 52 | idText, negativeZero, nonFiniteText, textInferred |
+| pajek | 300 | 137 | 163 (E_PAJEK_TEXT) | 0 | idText, negativeZero, nonFiniteText, textInferred |
 | csv | 300 | 300 | 0 | 0 | direction, idText, negativeZero, nodeOrder, nonFiniteText, textInferred |
-| neo4j | 300 | 218 | 0 | 82 | direction, idText |
+| neo4j | 300 | 300 | 0 | 0 | direction, idText |
 | json node-link | 300 | 300 | 0 | 0 | negativeZero, nonFiniteUnset |
 | json jgf | 300 | 300 | 0 | 0 | idString, negativeZero, nodeOrder, nonFiniteUnset |
 | json cytoscape | 300 | 300 | 0 | 0 | direction, negativeZero, nonFiniteUnset |
@@ -425,16 +384,10 @@ Minimal cases (`fixtures/generative/cases.json`):
 - `dot-backslash-newline` (1 configuration(s)): a text holding a backslash before a line break is a Graphviz line continuation; export() must refuse it (E_DOT_TRAILING_BACKSLASH) rather than write a text that reads back without both characters. fixed, regression
 - `csv-edgeless-undirected` (1 configuration(s)): an undirected graph without edges has no Type cell to carry its direction; check() must announce W_CSV_DIRECTION_DROPPED. fixed, regression
 - `pajek-numeric-text-parameter` (1 configuration(s)): a string parameter holding -3 reads back as a number; check() must announce W_TEXT_INFERRED. fixed, regression
-- `pajek-infinite-weight` (1 configuration(s)): an infinite edge weight. known failure: pajek: an infinite edge weight is written as `Infinity`, which the Pajek importer reads as a parameter name without a value (E_PAJEK_LINE) and drops the edge; check() announces nothing. Pajek has no spelling for infinity: check() should refuse or note it (#7656)
+- `pajek-infinite-weight` (1 configuration(s)): an infinite edge weight is written as `Infinity` and read back as that weight. fixed, regression
 - `csv-one-column-node-table-pipe` (1 configuration(s)): a node table with the Id column only, an id holding `|`, is written with that id quoted (the bare `|` won the importer's delimiter sniff and split the rows). fixed, regression
-- `gml-list-marker-text` (1 configuration(s)): a text cell holding "[]". known failure: gml: a text cell equal to NetworkX's list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing. Either note it (the NetworkX convention makes the text ambiguous) or write such a text so it cannot be taken for a marker (#7649)
-- `neo4j-tab-in-quoted-id` (1 configuration(s)): an id holding tabs, on a node with three self-loops. known failure: neo4j: the importer sniffs the delimiter; the one-column :ID section gives no evidence for the comma, the quoted ids' tabs repeat evenly, so the file is read tab-delimited and every relationship row fails (text after a closing quote). neo4j-admin uses a comma unless told otherwise (#7654)
-
-Graphs the properties skip until the known failure is fixed:
-
-- pajek: an infinite edge weight is written as `Infinity`, which the Pajek importer reads as a parameter name without a value (E_PAJEK_LINE) and drops the edge; check() announces nothing (#7656)
-- gml: a text cell equal to NetworkX's list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing (#7649)
-- neo4j: the importer sniffs the delimiter: a file whose first section has one column and whose quoted cells hold tabs is read tab-delimited, and the comma-delimited rows fail (text after a closing quote); neo4j-admin's delimiter is a comma unless told otherwise (#7654)
+- `gml-list-marker-text` (1 configuration(s)): text cells and a string id equal to NetworkX's list markers ("[]", "()", "_networkx_list_start"), which the exporter escapes so they read back as text (#7649). fixed, regression
+- `neo4j-tab-in-quoted-id` (1 configuration(s)): an id holding tabs, on a node with three self-loops (the tabs once won the importer's delimiter sniff over the comma). fixed, regression
 
 ## Schema validation
 

@@ -72,6 +72,7 @@
         "./src/data/index.ts",
         "./src/layout/index.ts",
         "./src/ai/keys/withEncryptStorage.ts",
+        "./src/managers/babylonEngineExtensions.ts",
         "./index.ts",
         "./src/graphty-element.ts",
         "./docs/examples/**/*.ts"

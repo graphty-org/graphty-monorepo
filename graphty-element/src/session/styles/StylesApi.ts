@@ -3533,18 +3533,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     // when there is one, since the dispatcher routes it there.
                     const members = command.batch();
                     const loading = loadNamedShaders(members);
-                    if (loading !== undefined) {
-                        await loading;
-                    }
                     // Dispatched together, not one after another: each member writes its draft as it is
                     // dispatched, and awaiting each in turn would let a repaint pass run between them.
-                    const outcomes = await dispatcher.transaction(
-                        label,
-                        async (scope) =>
-                            (await Promise.all(
-                                members.map((member) => scope.dispatch(member)),
-                            )) as EditOutcome<unknown>[],
-                    );
+                    const transact = (): Promise<EditOutcome<unknown>[]> =>
+                        dispatcher.transaction(
+                            label,
+                            async (scope) =>
+                                (await Promise.all(
+                                    members.map((member) => scope.dispatch(member)),
+                                )) as EditOutcome<unknown>[],
+                        );
+                    // A shader body still loading holds the write off the queue: counted as owed
+                    // meanwhile, so a settle wait does not find the queue idle and end without it.
+                    const outcomes = await (loading === undefined
+                        ? transact()
+                        : dispatcher.ahead(loading.then(transact)));
                     await Promise.all(outcomes.map((outcome) => outcome.painted));
                     const results = outcomes.map((outcome) => outcome.result);
 
@@ -3552,10 +3555,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 }
 
                 const loading = loadNamedShaders(command);
-                if (loading !== undefined) {
-                    await loading;
-                }
-                const outcome = (await dispatcher.dispatch(command)) as EditOutcome<T>;
+                const outcome = (await (loading === undefined
+                    ? dispatcher.dispatch(command)
+                    : dispatcher.ahead(loading.then(() => dispatcher.dispatch(command))))) as EditOutcome<T>;
                 await outcome.painted;
 
                 return { result: outcome.result };

@@ -1,6 +1,6 @@
 import { GraphtyLogger, type Logger } from "../logging";
+import { captureError } from "../screenshot/captureError.js";
 import { VIDEO_CONSTANTS } from "../screenshot/constants.js";
-import { ScreenshotError, ScreenshotErrorCode } from "../screenshot/ScreenshotError.js";
 import type { AnimationOptions, AnimationResult } from "./VideoCapture.js";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "video", "recorder"]);
@@ -110,7 +110,10 @@ export class MediaRecorderCapture {
                 return "video/mp4";
             }
 
-            throw new ScreenshotError("MP4 not supported in this browser", ScreenshotErrorCode.UNSUPPORTED_FORMAT);
+            throw captureError("E_UNSUPPORTED", "MP4 not supported in this browser", {
+                reason: "format",
+                format: "mp4",
+            });
         }
 
         if (requestedFormat === "webm") {
@@ -124,7 +127,10 @@ export class MediaRecorderCapture {
                 return "video/webm;codecs=vp8";
             }
 
-            throw new ScreenshotError("WebM not supported in this browser", ScreenshotErrorCode.UNSUPPORTED_FORMAT);
+            throw captureError("E_UNSUPPORTED", "WebM not supported in this browser", {
+                reason: "format",
+                format: "webm",
+            });
         }
 
         // Auto-detect best format (default)
@@ -151,9 +157,10 @@ export class MediaRecorderCapture {
             return "video/webm";
         }
 
-        throw new ScreenshotError(
+        throw captureError(
+            "E_UNSUPPORTED",
             "No supported video formats found. Browser may not support MediaRecorder API.",
-            ScreenshotErrorCode.UNSUPPORTED_FORMAT,
+            { reason: "format" },
         );
     }
 
@@ -322,9 +329,7 @@ export class MediaRecorderCapture {
                 this.activeRecorder = null;
                 this.cancelReject = null;
                 const errorMsg = e instanceof ErrorEvent ? e.message : "Unknown error";
-                reject(
-                    new ScreenshotError(`MediaRecorder error: ${errorMsg}`, ScreenshotErrorCode.VIDEO_CAPTURE_FAILED),
-                );
+                reject(captureError("E_CAPTURE_FAILED", `MediaRecorder error: ${errorMsg}`, { media: "video" }));
             };
 
             const startTimer = setTimeout(() => {
@@ -336,9 +341,10 @@ export class MediaRecorderCapture {
                 this.isCancelled = true;
                 finish();
                 reject(
-                    new ScreenshotError(
+                    captureError(
+                        "E_CAPTURE_FAILED",
                         `MediaRecorder produced no data in ${String(VIDEO_CONSTANTS.RECORDER_START_TIMEOUT_MS)} ms`,
-                        ScreenshotErrorCode.VIDEO_CAPTURE_FAILED,
+                        { media: "video" },
                     ),
                 );
                 if (recorder.state !== "inactive") {

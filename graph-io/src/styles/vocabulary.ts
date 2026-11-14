@@ -200,6 +200,8 @@ export const STYLE_PROPERTIES: {
         ["chartLineWidth", "number"],
         ["chartBorderColor", "color"],
         ["chartBorderWidth", "number"],
+        ["chartBackgroundColor", "color"],
+        ["chartBackgroundOpacity", "opacity"],
         ["groupPadding", "number"],
         ["groupPaddingRatio", "number"],
         ["groupPaddingOf", "text"],

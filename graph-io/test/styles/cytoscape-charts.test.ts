@@ -177,6 +177,12 @@ describe("Cytoscape charts", () => {
             chartColors: "#b7cce1 #8cafd2 #ccdae8",
             chartHorizontal: true,
         });
+        // no axis, no plot background
+        expect(heat.chartBackgroundColor).toBeUndefined();
+        expect(chart("HeatMapChart", '["a","b","c"]', ',"cy_showRangeAxis":true')).toMatchObject({
+            chartBackgroundColor: "#e8eae8",
+            chartBackgroundOpacity: 0.501961,
+        });
         expect(heat.chartSize).toBeCloseTo(51.1 / 60, 6);
         // laid left to right, the last value first
         expect(chart("HeatMapChart", '["a","b","c"]', ',"cy_orientation":"HORIZONTAL"')).toMatchObject({

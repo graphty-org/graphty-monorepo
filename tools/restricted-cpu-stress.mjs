@@ -6,9 +6,9 @@
  * Every vitest run in CI writes test-results/junit-<package>-<pid>.xml (vitest.ci-junit.mjs). The
  * workflow uploads each shard's files as the artifact junit-<shard>-r<repeat> and downloads them all into one
  * directory; this script reads every failing or timed-out test from them and files one issue per
- * test, or comments on the one it filed before. An issue is found again by the tracker's marker line
- * (githerd/lib/flakes.mjs on feat/githerd: `githerd-flaky-test: <package>/<file> > <test>`), so the
- * tracker and this run share one issue per test. These issues say "load-sensitive under restricted
+ * test, or comments on the one it filed before. An issue is found again by its marker line
+ * (`githerd-flaky-test: <package>/<file> > <test>`, the format of the retired githerd flaky-test tracker,
+ * kept so issues filed before still match), so every run shares one issue per test. These issues say "load-sensitive under restricted
  * CPU", not "proven flaky": the run only shows that the test fails when CPU is scarce.
  * The browser and story shards run several times on the same commit; an issue says when a test both
  * failed and passed there (a race), or failed every time.
@@ -22,10 +22,10 @@ import { readdirSync, readFileSync, appendFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// workspace.mjs, not flakes.mjs: the report job installs no dependencies, and flakes.mjs loads @octokit/core.
-import { packageIn, readWorkspace } from "../githerd/lib/workspace.mjs";
+// Only node built-ins and tools/ helpers: the report job installs no dependencies.
+import { workspaceDirs } from "./workspace-files.mjs";
 
-/** The tracker's marker line prefix (githerd/lib/flakes.mjs MARKER). */
+/** The flaky-test issue marker line prefix (unchanged from the retired githerd tracker, so old issues still match). */
 export const MARKER = "githerd-flaky-test: ";
 /** The tracker's labels, at the lowest priority: the tracker raises priority, never lowers it. */
 export const LABELS = ["bug", "intermittent", "effort:medium", "priority:low"];
@@ -50,7 +50,18 @@ const attr = (attrs, name) => {
     return m ? unescapeXml(m[1]) : null;
 };
 
-const WORKSPACE_PACKAGES = readWorkspace(fileURLToPath(new URL("..", import.meta.url))).packages;
+const WORKSPACE_PACKAGES = workspaceDirs(fileURLToPath(new URL("..", import.meta.url)));
+
+/**
+ * The workspace package a name starts with, the longest match (`graphty-element-browser-1` -> `graphty-element`).
+ * @param name - a junit file name without its `junit-` prefix
+ * @param packages - the package directories
+ * @returns the package, or null
+ */
+const packageIn = (name, packages) =>
+    packages
+        .filter((p) => name === p || name.startsWith(`${p}-`))
+        .reduce((best, p) => (best && best.length >= p.length ? best : p), null);
 
 /**
  * The package a junit file belongs to: vitest.ci-junit.mjs names it junit-<package dir>-[<run id>-]<pid>.xml,

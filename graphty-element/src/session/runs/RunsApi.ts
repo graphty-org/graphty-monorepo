@@ -36,7 +36,13 @@ import {
     type SuggestedName,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
-import { ALGO_DEFINITIONS, type AlgoMoveCommand, type AlgoRemoveCommand, type RunService } from "../commands/algo";
+import {
+    ALGO_DEFINITIONS,
+    type AlgoMoveCommand,
+    type AlgoRemoveCommand,
+    type AlgoRenameCommand,
+    type RunService,
+} from "../commands/algo";
 import type { AlgorithmRunCommand } from "../planning";
 import {
     cancelReasonOf,
@@ -86,10 +92,11 @@ import {
     type ResultIdentity,
     type RunIdentity,
 } from "./runId";
-import { type RunName, suggestRunName } from "./suggestedName";
+import { type RunName, suggestRunName, sweepRunId } from "./suggestedName";
 import {
     type BatchResult,
     type BatchStep,
+    type BatchStepFailure,
     type Caveats,
     type EngineVersions,
     isTerminalRunStatus,
@@ -103,6 +110,7 @@ import {
     type RunPainting,
     type RunPhase,
     type RunReader,
+    type RunRecord,
     type RunRemoval,
     type RunsApi,
     type RunScopeFacts,
@@ -111,6 +119,9 @@ import {
     type StaleNote,
     type StartOptions,
     type SuggestionOutcome,
+    type SweepOptions,
+    type SweepResult,
+    type SweepRow,
 } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -390,6 +401,9 @@ export interface SessionRunsApi extends RunsApi {
 // ---------------------------------------------------------------------------------------------
 // Defaults and small helpers
 // ---------------------------------------------------------------------------------------------
+
+/** The longest name a reader may give a run, as a note's or a project's name is capped. */
+const MAX_RUN_NAME = 1024;
 
 /** What a run's numbers are qualified by before the work has said anything about them. */
 /** What a run with no captures keeps. */
@@ -869,7 +883,7 @@ class Runs implements SessionRunsApi {
     private readonly dropped = new Set<RunId>();
 
     /** The batches, which are not algorithm runs and therefore not in `list()`. */
-    private readonly batches = new Set<ManagedRun<BatchResult>>();
+    private readonly batches = new Set<{ cancel(reason?: string): void }>();
 
     /** Where runs are dispatched and recorded. */
     private readonly dispatcher: Dispatcher;
@@ -983,8 +997,88 @@ class Runs implements SessionRunsApi {
      * @returns A run over the batch, resolving to how each member turned out.
      */
     batch(specs: readonly RunSpec[], options: RunOptions & { readonly label?: string } = {}): Run<BatchResult> {
+        return this.batchRun(specs, options, (result) => result);
+    }
+
+    /**
+     * Run one algorithm once per value of one of its options, as one batch, and report what each
+     * value found.
+     * @param algorithm - Which algorithm.
+     * @param option - The option to vary, as the algorithm's catalog `options` name it.
+     * @param values - The values to try, in order.
+     * @param options - The other parameters, the scope, the seed, the style, the label and the
+     *   ordinary run options.
+     * @returns A run over the batch, resolving to one row per value.
+     */
+    sweep(
+        algorithm: AlgorithmKey,
+        option: string,
+        values: readonly unknown[],
+        options: SweepOptions = {},
+    ): Run<SweepResult> {
+        const { params, scope, seed, style, ...batchOptions } = options;
+        const taken = new Set<string>();
+        const specs = values.map((value, index): RunSpec => {
+            const named = sweepRunId(algorithm, option, value);
+            // Two values that spell the same id (0.5 and "0.5") still get a run each.
+            const id = taken.has(named) ? `${named}_${String(index + 1)}` : named;
+            taken.add(id);
+
+            return {
+                algorithm,
+                params: { ...params, [option]: value },
+                as: assertRunId(id),
+                ...(scope === undefined ? {} : { scope }),
+                ...(seed === undefined ? {} : { seed }),
+                // Off unless asked: a sweep is read as a table, and its runs painting over each
+                // other would show only the last.
+                style: style ?? false,
+            };
+        });
+
+        return this.batchRun(specs, batchOptions, (result) =>
+            Object.freeze({
+                ...result,
+                option,
+                rows: Object.freeze(result.steps.map((step) => this.sweepRow(step, values[step.index]))),
+            }),
+        );
+    }
+
+    /**
+     * One row of a sweep: the value, how its member turned out and what it found.
+     * @param step - How the member turned out.
+     * @param value - The value it ran with.
+     * @returns The row.
+     */
+    private sweepRow(step: BatchStep, value: unknown): SweepRow {
+        const found = step.ok && step.runId !== undefined ? this.runs.get(step.runId)?.result : undefined;
+
+        return Object.freeze({
+            value,
+            ok: step.ok,
+            ...(step.runId === undefined ? {} : { runId: step.runId }),
+            ...(step.failure === undefined ? {} : { failure: step.failure }),
+            ...(found === undefined ? {} : { summary: found.summary(), graph: found.graph }),
+        });
+    }
+
+    /**
+     * Start a batch whose result is shaped by `finish`.
+     * @param specs - What to run.
+     * @param options - The batch's label, and the ordinary run options.
+     * @param finish - Turns what the batch produced into what the run resolves to.
+     * @returns A run over the batch.
+     */
+    private batchRun<T extends BatchResult>(
+        specs: readonly RunSpec[],
+        options: RunOptions & { readonly label?: string },
+        finish: (result: BatchResult) => T,
+    ): Run<T> {
         this.refuseWhenDisposed();
 
+        // The record's deprecated label and the journal's history label still need a name; the
+        // result says only what the caller named it (null for none), never words of the element's.
         const label = options.label ?? "Batch";
         const identity: RunIdentity = {
             algorithm: "batch",
@@ -995,8 +1089,15 @@ class Runs implements SessionRunsApi {
             exact: null,
         };
         const id = deriveRunId(identity);
-        let run: ManagedRun<BatchResult> | null = null;
-        const definition: RunDefinition<BatchResult> = {
+        let run: ManagedRun<T> | null = null;
+        const execute = this.batchExecutor(
+            specs,
+            label,
+            options.label ?? null,
+            { code: "algo.batch", params: { label: options.label ?? null, count: specs.length } },
+            () => run,
+        );
+        const definition: RunDefinition<T> = {
             id,
             algorithm: "batch",
             params: identity.params,
@@ -1009,12 +1110,10 @@ class Runs implements SessionRunsApi {
             fields: [],
             engine: this.options.engine,
             caveats: this.defaultCaveats,
-            execute: this.batchExecutor(
-                specs,
-                label,
-                { code: "algo.batch", params: { label: options.label ?? null, count: specs.length } },
-                () => run,
-            ),
+            execute: async (context) => {
+                const outcome = await execute(context);
+                return { ...outcome, result: finish(outcome.result) };
+            },
             publishOnCancel: true,
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
@@ -1032,7 +1131,7 @@ class Runs implements SessionRunsApi {
                 }
             },
         };
-        run = new ManagedRun<BatchResult>(definition, surroundings);
+        run = new ManagedRun<T>(definition, surroundings);
         this.batches.add(run);
         run.start();
 
@@ -1176,6 +1275,18 @@ class Runs implements SessionRunsApi {
         const command: AlgoMoveCommand = { op: "algo.move", runId: id, before };
 
         return this.dispatcher.dispatch(command, options).then(() => undefined);
+    }
+
+    /**
+     * Give a finished run the reader's own name, or take it away with null, as one step.
+     * @param id - The run id.
+     * @param name - The new name, or null.
+     * @returns Settles once the name is recorded; rejects with the refusal.
+     */
+    rename(id: RunId, name: string | null): Promise<void> {
+        const command: AlgoRenameCommand = { op: "algo.rename", runId: id, name };
+
+        return this.dispatcher.dispatch(command).then(() => undefined);
     }
 
     /**
@@ -1786,6 +1897,9 @@ class Runs implements SessionRunsApi {
             move: (command, draft) => {
                 this.moveInto(command, draft);
             },
+            rename: (command, ctx) => {
+                this.renameInto(command, ctx);
+            },
         };
     }
 
@@ -1918,6 +2032,8 @@ class Runs implements SessionRunsApi {
             ...(prior?.painting === undefined ? {} : { painting: prior.painting }),
             derived: this.derivedIds.has(run.id),
             stale: ctx.state.graph.token !== token,
+            // A re-run keeps the name the reader gave it.
+            ...(prior?.name === undefined ? {} : { name: prior.name }),
         });
         const revert = draft.checkpoint();
 
@@ -2490,6 +2606,42 @@ class Runs implements SessionRunsApi {
     }
 
     /**
+     * Carry out one `algo.rename`: write the name onto the run's entry, or take it off.
+     * @param command - The rename.
+     * @param ctx - The command's context.
+     */
+    private renameInto(command: AlgoRenameCommand, ctx: UndoableContext): void {
+        const { runId: id, name } = command;
+        const entry = ctx.state.runs.get(id);
+
+        if (entry === undefined) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_RUN",
+                message: `This session holds no finished run "${id}".`,
+                source: "run",
+                details: { runId: id },
+            });
+        }
+
+        if (name !== null && (typeof name !== "string" || name.trim() === "" || name.length > MAX_RUN_NAME)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `A run's name is 1 to ${String(MAX_RUN_NAME)} characters, not all spaces.`,
+                source: "run",
+                details: { runId: id, option: "name", max: MAX_RUN_NAME },
+            });
+        }
+
+        const renamed: { -readonly [K in keyof RunEntry]: RunEntry[K] } = { ...entry };
+        if (name === null) {
+            delete renamed.name;
+        } else {
+            renamed.name = name;
+        }
+        ctx.draft.runs.set(id, Object.freeze(renamed));
+    }
+
+    /**
      * What removing a run takes with it.
      * @param id - The run id.
      * @returns The layers bound to it.
@@ -2622,6 +2774,11 @@ class Runs implements SessionRunsApi {
 
         if (run === undefined) {
             return id;
+        }
+
+        const named = this.dispatcher.state.runs.get(id)?.name;
+        if (named !== undefined) {
+            return named;
         }
 
         const base = this.baseLabelOf(run);
@@ -2775,7 +2932,8 @@ class Runs implements SessionRunsApi {
      * The work a batch does: start each member in turn, on one progress stream and one cancel, as
      * one transaction, so its members and their layers are one step.
      * @param specs - What to run.
-     * @param label - What the batch is called.
+     * @param label - What the batch is called in the journal.
+     * @param callerLabel - What the caller named it, or null.
      * @param fact - What its step did.
      * @param handle - The batch's own run, once it exists.
      * @returns The executor.
@@ -2783,8 +2941,9 @@ class Runs implements SessionRunsApi {
     private batchExecutor(
         specs: readonly RunSpec[],
         label: string,
+        callerLabel: string | null,
         fact: CodedFact<HistoryCode>,
-        handle: () => ManagedRun<BatchResult> | null,
+        handle: () => { cancel(reason?: string): void } | null,
     ): RunExecutor<BatchResult> {
         return async (context) => {
             const steps: BatchStep[] = [];
@@ -2801,11 +2960,7 @@ class Runs implements SessionRunsApi {
                     const spec = specs[index];
 
                     if (context.signal.aborted || stopped.aborted) {
-                        steps.push({
-                            index,
-                            ok: false,
-                            reason: "The batch was stopped before this member started.",
-                        });
+                        steps.push({ index, ok: false, failure: Object.freeze({ code: "not-started", details: {} }) });
                         continue;
                     }
 
@@ -2813,7 +2968,7 @@ class Runs implements SessionRunsApi {
                         phase: "running",
                         completed: index,
                         total: specs.length,
-                        message: `Running ${spec.algorithm}`,
+                        params: { algorithm: spec.algorithm },
                     });
 
                     const step = await this.runBatchMember(context.signal, spec, index, via, hold);
@@ -2855,7 +3010,13 @@ class Runs implements SessionRunsApi {
             const partial = completed < specs.length;
 
             return {
-                result: Object.freeze({ label, total: specs.length, completed, partial, steps: Object.freeze(steps) }),
+                result: Object.freeze({
+                    label: callerLabel,
+                    total: specs.length,
+                    completed,
+                    partial,
+                    steps: Object.freeze(steps),
+                }),
                 partial,
                 ...(partial
                     ? {
@@ -2942,7 +3103,7 @@ class Runs implements SessionRunsApi {
                 hold,
             );
         } catch (error) {
-            return { index, ok: false, reason: error instanceof Error ? error.message : String(error) };
+            return { index, ok: false, failure: batchStepFailure(error) };
         }
 
         const stopMember = (): void => {
@@ -2956,7 +3117,7 @@ class Runs implements SessionRunsApi {
 
             return { index, runId: member.id, ok: true };
         } catch (error) {
-            return { index, runId: member.id, ok: false, reason: batchStepReason(error) };
+            return { index, runId: member.id, ok: false, failure: batchStepFailure(error) };
         } finally {
             signal.removeEventListener("abort", stopMember);
         }
@@ -2967,12 +3128,14 @@ class Runs implements SessionRunsApi {
      *
      * A throwing observer is contained here rather than allowed to reach the run: a status bar
      * that fails to render must not turn a successful computation into a failed one.
-     * @param run - The run.
+     * @param run - The run, or the batch.
+     * @param run.record - Its record, which the observer is handed.
+     * @param run.generation - Which execution of it this is.
      * @param phase - Which moment it reached.
      * @param cause - What moved it.
      */
     private announce(
-        run: ManagedRun | ManagedRun<BatchResult>,
+        run: { readonly record: RunRecord; readonly generation: number },
         phase: RunPhase,
         cause: RunChange["cause"] = "command",
     ): void {
@@ -3006,16 +3169,18 @@ class Runs implements SessionRunsApi {
 }
 
 /**
- * Why one batch member did not finish, in a sentence its row can show.
+ * Why one batch member did not finish, as a code and the error's own details.
  * @param error - What the member threw.
- * @returns The reason.
+ * @returns The failure.
  */
-function batchStepReason(error: unknown): string {
+function batchStepFailure(error: unknown): BatchStepFailure {
     if (isAbortLike(error)) {
-        return "The batch was canceled.";
+        return Object.freeze({ code: "canceled", details: {} });
     }
 
-    return error instanceof Error ? error.message : String(error);
+    const coded = GraphtyError.wrap(error, { code: "E_INTERNAL", source: "run" });
+
+    return Object.freeze({ code: coded.code, details: coded.details });
 }
 
 /**

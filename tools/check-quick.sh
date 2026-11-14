@@ -88,6 +88,12 @@ step "SonarQube (changed lines)" node tools/sonar-gate.mjs
 # GPU step, and a failing nx must not read as "not affected".
 AFFECTED="$(pnpm exec nx show projects --affected --base="$BASE")" || FAILED+=("Affected projects (nx show projects)")
 affected() { grep -qx "$1" <<<"$AFFECTED"; }
+# graph-io's fidelity stories compile against graphty-element's source, but graph-io drops its project edge to
+# graphty-element (a build cycle), so an element-only change leaves graph-io's lint unrun. CI type-checks them
+# in the Storybooks job (graph-io:build-storybook depends on typecheck-stories).
+if affected graphty-element; then
+    step "graph-io fidelity stories type-check" pnpm exec nx run graph-io:typecheck-stories
+fi
 if affected webgpu-graph-algorithms; then
     step "webgpu-graph-algorithms on the local NVIDIA GPU" gpu_tests
 fi

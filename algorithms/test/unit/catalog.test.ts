@@ -52,6 +52,11 @@ function graph(directed: boolean, weighted: boolean): GraphSnapshot {
 
 const REQUIRED_OPTIONS: Readonly<Record<string, unknown>> = { k: 2, numClusters: 2 };
 
+/** Options an algorithm needs to answer on the weighted fixture: Katz diverges at its default alpha there. */
+const FIXTURE_OPTIONS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+    katzCentrality: { alpha: 0.02 },
+};
+
 /** One argument of each input kind, valid on the fixture; `nth` counts the node inputs before this one. */
 const ARGUMENTS: Readonly<Record<AlgorithmInputKind, (nth: number, s: GraphSnapshot) => unknown>> = {
     node: (nth) => (nth === 0 ? 0 : N - 1),
@@ -71,7 +76,7 @@ const ARGUMENTS: Readonly<Record<AlgorithmInputKind, (nth: number, s: GraphSnaps
 function run(entry: AlgorithmEntry, s: GraphSnapshot, extra: Record<string, unknown> = {}): unknown {
     let nodes = 0;
     const args = entry.inputs.map((input) => ARGUMENTS[input.kind](input.kind === "node" ? nodes++ : nodes, s));
-    const options: Record<string, unknown> = { seed: 1, randomSeed: 1, ...extra };
+    const options: Record<string, unknown> = { seed: 1, randomSeed: 1, ...FIXTURE_OPTIONS[entry.name], ...extra };
     for (const name of entry.requiredOptions) {
         options[name] = REQUIRED_OPTIONS[name];
     }
@@ -151,8 +156,7 @@ describe("ALGORITHMS", () => {
 
     it("names every accelerator method", () => {
         // A compile-time list: adding a method to AlgorithmAccelerator fails the type check until it is listed.
-        // harmonicCloseness is a capability flag on AlgorithmAccelerator, not a method, so no entry names it.
-        const all: Record<Exclude<AcceleratorMethod, "harmonicCloseness">, true> = {
+        const all: Record<AcceleratorMethod, true> = {
             pageRank: true,
             personalizedPageRank: true,
             hits: true,

@@ -583,6 +583,13 @@ function plotSize(
 }
 
 /**
+ * The plot background Cytoscape fills under a heat map's cells when it draws an axis (`cy_showRangeAxis` or
+ * `cy_showDomainAxis`; without one the plot is unfilled): #e8eae8 at 128/255 (measured from Cytoscape 3.10.5's SVG
+ * export of images-charts-p5 and -p7, `fill-opacity="0.501960813999176"`).
+ */
+const HEAT_MAP_BACKGROUND = { chartBackgroundColor: "#e8eae8", chartBackgroundOpacity: num6(128 / 255) };
+
+/**
  * The outline Cytoscape draws round each bar and box.
  * @param options - the chart's options
  * @returns `chartBorderColor` and `chartBorderWidth`
@@ -722,7 +729,9 @@ function plotChart(
         case "HeatMapChart": {
             // one cell per value, top to bottom; laid left to right, the last value first
             const cells = horizontal ? [...finite].reverse() : finite;
-            Object.assign(out, {
+            // the plot is filled only when an axis is drawn round it
+            const axes = options.cy_showRangeAxis === true || options.cy_showDomainAxis === true;
+            Object.assign(out, axes ? HEAT_MAP_BACKGROUND : {}, {
                 chartKind: "cells",
                 chartValues: cells.join(" "),
                 chartColors: cells.map((v) => scaleColor(colors, v, range)).join(" "),

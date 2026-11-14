@@ -596,6 +596,11 @@ interface LayoutScopeSource {
      * @returns The ids.
      */
     visibleEdges?(): ReadonlySet<string>;
+    /**
+     * Whether time is playing now, moving the time window every frame.
+     * @returns True while it plays.
+     */
+    playing?(): boolean;
 }
 
 /** What the filter shows, under `layout.visibleOnly`: its nodes, and the edges it hides between two of them. */
@@ -2481,6 +2486,13 @@ export class LayoutManager implements Manager {
     relayoutForVisibility(): void {
         const engine = this.layoutEngine;
         if (engine === undefined || this.restoring()) {
+            return;
+        }
+
+        // While time plays the window moves every frame: under "hold" the layout waits for the
+        // pause, which calls this again.
+        const { visibleOnlyWhilePlaying } = this.styles.config.behavior.layout;
+        if (visibleOnlyWhilePlaying === "hold" && this.scopeSource?.playing?.() === true) {
             return;
         }
 

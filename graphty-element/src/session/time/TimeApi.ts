@@ -134,6 +134,20 @@ export interface TimeField {
 }
 
 /**
+ * How {@link TimeApi.setField} designates a field.
+ * @experimental timeline
+ * @beta
+ */
+export interface TimeFieldOptions {
+    /**
+     * Convert a text column every one of whose values reads as a date to a date column, in the
+     * same undoable step, so the column's type and the timeline agree. Off by default: the column
+     * keeps its type.
+     */
+    readonly asDates?: boolean;
+}
+
+/**
  * How many elements of one kind have a usable time.
  * @experimental timeline
  * @beta
@@ -405,12 +419,14 @@ export interface TimeApi {
      * clears the window. A column designated again without a unit takes the unit it had before.
      * @param field - Nodes, edges or both; both must name the same column, and when both name an
      *     `end` or `spells`, the same one. A kind naming neither keeps instants.
+     * @param options - With `asDates`, a text column of dates also becomes a date column, in the
+     *     same step; a refused call converts nothing.
      * @returns What the values held.
      * @throws `E_BAD_COMMAND` (`reason`: `"declared-not-time"`, `"time-paths-differ"` with `field`
      *     naming `start`, `end` or `spells`, `"unit"`, `"time-zone"`, `"no-times"` for a column whose
      *     values hold no time at all).
      */
-    setField(field: TimeField | null): Promise<TimeFieldResult>;
+    setField(field: TimeField | null, options?: TimeFieldOptions): Promise<TimeFieldResult>;
     /**
      * The columns whose values read as time, most read first.
      * @returns The candidates; a column none of whose values reads as time is left out.
@@ -615,6 +631,11 @@ export interface TimeSources {
     readonly runs: () => readonly Run[];
     readonly digestOf: (spec: Scope) => string;
     readonly emit: <K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]) => void;
+    /**
+     * Convert a text column whose every value reads as a date to a date column; does nothing to
+     * any other column. Its dispatch is made before its first await. Absent, `asDates` does nothing.
+     */
+    readonly asDates?: (kind: "node" | "edge", column: string) => Promise<void> | undefined;
     /**
      * Settles on the next drawn frame, or at once when no frame is coming. Absent with no renderer.
      * Asked only by a stepped play with `waitForRender`.
@@ -2216,14 +2237,19 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             next = advanced(current, 1);
         }
 
+        // A pause and a new play while the move runs make this tick stale: only the play it
+        // belongs to may go on, or pause.
+        const play = plays;
         try {
             await move(next, "play");
         } catch {
-            api.pause();
+            if (play === plays) {
+                api.pause();
+            }
             return;
         }
 
-        if (playing && !disposed) {
+        if (play === plays && playing && !disposed) {
             nextStep();
         }
     };
@@ -2485,9 +2511,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     /**
      * Designate a field, or clear it: the work of one `setField` call.
      * @param field - The field, or null.
+     * @param options - As `setField` takes them.
      * @returns What it found.
      */
-    const designate = async (field: TimeField | null): Promise<TimeFieldResult> => {
+    const designate = async (field: TimeField | null, options: TimeFieldOptions): Promise<TimeFieldResult> => {
         for (const source of field === null ? [] : [field.nodes, field.edges]) {
             if (source !== undefined) {
                 assertTimeSource(source);
@@ -2521,6 +2548,23 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         await dispatcher.transaction(
             "time.field",
             async (tx) => {
+                // A text column of dates becomes a date column in this same step.
+                const sides =
+                    options.asDates === true
+                        ? ([
+                              ["node", nodes],
+                              ["edge", edges],
+                          ] as const)
+                        : [];
+                for (const [kind, source] of sides) {
+                    if (source !== undefined && source.unit === undefined) {
+                        await dispatcher.routed(
+                            (command, dispatched) => tx.dispatch(command, dispatched),
+                            () => sources.asDates?.(kind, columnOf(source.start)),
+                        );
+                    }
+                }
+
                 await tx.dispatch({
                     op: "config.set",
                     values: {
@@ -2587,8 +2631,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             });
         },
 
-        async setField(field: TimeField | null): Promise<TimeFieldResult> {
-            const run = (): Promise<TimeFieldResult> => designate(field);
+        async setField(field: TimeField | null, options: TimeFieldOptions = {}): Promise<TimeFieldResult> {
+            const run = (): Promise<TimeFieldResult> => designate(field, options);
             const call = fieldCalls === null ? run() : fieldCalls.then(run);
             const settled = call.then(
                 () => undefined,
@@ -2862,14 +2906,17 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             if (start !== current) {
+                const play = plays;
                 void move(start, "play")
                     .then(() => {
-                        if (playing) {
+                        if (play === plays && playing && !disposed) {
                             nextStep();
                         }
                     })
                     .catch(() => {
-                        api.pause();
+                        if (play === plays) {
+                            api.pause();
+                        }
                     });
                 return;
             }

@@ -189,3 +189,33 @@ export async function loadGexfCorpus(harness: Harness, file: string): Promise<vo
     const data = readFileSync(join(__dirname, "..", "helpers", "corpus", "gexf", file), "utf-8");
     await harness.session.data.import({ type: "gexf", config: { data } });
 }
+
+/**
+ * Run `work` with strict state off, as a consumer runs: the strict checks every other test runs
+ * under (test/setup.ts) walk the store and history on every write by design, so a counted-work
+ * test that left them on would count work no consumer does. Strict state is read when a store,
+ * draft or manager is created, so wrap everything that creates one -- for a scaling test, the
+ * whole measured run. The previous setting comes back when `work` returns, throws or settles.
+ * @param work - The work; a promise it returns is awaited before strict state comes back.
+ * @returns What `work` returns.
+ */
+export function withConsumerStrictState<T>(work: () => T): T {
+    const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
+    const strict = scope.__GRAPHTY_STRICT_STATE__;
+    const restore = (): void => {
+        scope.__GRAPHTY_STRICT_STATE__ = strict;
+    };
+    scope.__GRAPHTY_STRICT_STATE__ = false;
+    let result: T;
+    try {
+        result = work();
+    } catch (error) {
+        restore();
+        throw error;
+    }
+    if (result instanceof Promise) {
+        return result.finally(restore) as T;
+    }
+    restore();
+    return result;
+}

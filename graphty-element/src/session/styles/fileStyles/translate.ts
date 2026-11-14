@@ -802,6 +802,8 @@ function channelPlans(
             ["chartLineWidth", [length("node.chartLineWidth")]],
             ["chartBorderColor", [id("node.chartBorderColor")]],
             ["chartBorderWidth", [length("node.chartBorderWidth")]],
+            ["chartBackgroundColor", [id("node.chartBackgroundColor")]],
+            ["chartBackgroundOpacity", [id("node.chartBackgroundOpacity")]],
             ["groupPadding", [length("node.groupPadding")]],
             ["groupPaddingRatio", [id("node.groupPaddingRatio")]],
             ["groupPaddingOf", [id("node.groupPaddingOf")]],

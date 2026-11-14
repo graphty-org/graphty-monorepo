@@ -6,15 +6,15 @@
  * into. XR mode is the element's own signal for an immersive session: the WebXR helper it stores
  * on the scene, in the IN_XR state, which here stands in for a headset.
  *
- * The headset drag runs through the element's real XR input handler, fed a tracked hand that
- * pinches while its controller's ray points at the node (`createXRInputDriver`).
+ * The headset drag runs in a real immersive session on an emulated Quest 3 (IWER): a tracked hand
+ * pinches while its ray points at the node, and moves (`createXRInputDriver`).
  */
-import { Vector3 } from "@babylonjs/core";
+import { Ray, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import type { Node } from "../../src/Node";
-import { asData, cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 import { createXRInputDriver } from "../interactions/helpers/xr-input-driver";
 
 /** Babylon's WebXRState.IN_XR. */
@@ -104,59 +104,71 @@ describe("the XR tracking-glitch guard", () => {
 });
 
 /**
- * Drag the node in a headset: point the right controller at it, pinch, move the hand 10 cm (past
- * the drag threshold, where the drag begins), then move it by each offset in turn from there, and
- * let go. Returns where the node ends up relative to where the drag began.
+ * Drag a node in a real VR session on an emulated Quest 3 (IWER): hold the right hand up, put a
+ * node where its ray points, pinch, move the hand 10 cm (past the drag threshold, where the drag
+ * begins), then move it by each offset in turn from there, and let go. Returns where the node ends
+ * up relative to where the drag began.
+ * @param zAxisAmplification - `xr.input.zAxisAmplification`, or the default.
  * @param offsets - Hand offsets from where the drag began, in metres, one per frame.
  * @returns The node's movement.
  */
-function headsetDrag(...offsets: Vector3[]): Vector3 {
-    graph.scene.metadata.xrHelper = { baseExperience: { state: IN_XR } };
-    const driver = createXRInputDriver(graph.scene);
-    const wrist = new Vector3(0, 1, 0);
-    const hand = (offset: Vector3, pinchDistance = 0.01): void => {
-        driver.setHand("right", wrist.add(offset), pinchDistance);
-        driver.frame();
-    };
+async function headsetDrag(zAxisAmplification: number | undefined, ...offsets: Vector3[]): Promise<Vector3> {
+    // Set before VR starts, as a page would.
+    const driver = await createXRInputDriver("hand", zAxisAmplification === undefined ? {} : { zAxisAmplification });
+    try {
+        const at = new Vector3(0.2, 1, -0.3);
+        const hand = async (offset: Vector3, pinchDistance = 0.01): Promise<void> => {
+            driver.setHand("right", at.add(offset), pinchDistance);
+            await driver.frame();
+        };
+        await hand(Vector3.Zero(), 0.1);
+        const source = driver.element
+            .getXRSessionManager()
+            ?.getXRHelper()
+            ?.input.controllers.find((controller) => controller.inputSource.handedness === "right");
+        assert.exists(source, "the right hand is not tracked");
+        const ray = new Ray(Vector3.Zero(), Vector3.Forward());
+        source.getWorldPointerRayToRef(ray);
+        const on = ray.origin.add(ray.direction.scale(3));
+        await driver.element.session.data.addNodes([{ id: "h", position: { x: on.x, y: on.y, z: on.z } }]);
+        await driver.graph.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(driver.graph).waitForCompletion();
+        await driver.frame();
+        const dragged = driver.graph.getDataManager().getNode("h");
+        assert.isDefined(dragged);
 
-    driver.pointAt("right", node.drawnPosition.add(new Vector3(0, 0, -10)), new Vector3(0, 0, 1));
-    hand(Vector3.Zero());
-    const began = new Vector3(0.1, 0, 0);
-    hand(began);
-    assert.isTrue(driver.handler.isDragging(), "the pinch did not take the node");
-    const start = node.drawnPosition.clone();
-    for (const offset of offsets) {
-        hand(began.add(offset));
+        await hand(Vector3.Zero());
+        const began = new Vector3(0.1, 0, 0);
+        await hand(began);
+        assert.isTrue(driver.handler.isDragging(), "the pinch did not take the node");
+        const start = dragged.drawnPosition.clone();
+        for (const offset of offsets) {
+            await hand(began.add(offset));
+        }
+
+        const moved = dragged.drawnPosition.subtract(start);
+        await hand(began, 0.1);
+        return moved;
+    } finally {
+        await driver.dispose();
     }
-    const moved = node.drawnPosition.subtract(start);
-    hand(began, 0.1);
-    driver.dispose();
-    return moved;
 }
 
 describe("a headset drag", () => {
-    // Drawn where the controller can point at it: the node added above has no place yet.
-    beforeEach(async () => {
-        await graph.setLayout("fixed", { dim: 3 });
-        await graph.addNode(asData({ id: "h", position: { x: 0, y: 0, z: 0 } }));
-        await operationQueueOf(graph).waitForCompletion();
-        await graph.waitForStableFrame();
-        const placed = graph.getDataManager().getNode("h");
-        assert.isDefined(placed);
-        node = placed;
+    test("by default, X and Y follow the hand and Z is 10x", async () => {
+        assertNear(
+            await headsetDrag(undefined, new Vector3(0.1, 0.2, 0.3)),
+            new Vector3(0.1, 0.2, 3),
+            "only depth is amplified",
+        );
     });
 
-    test("by default, X and Y follow the hand and Z is 10x", () => {
-        assertNear(headsetDrag(new Vector3(0.1, 0.2, 0.3)), new Vector3(0.1, 0.2, 3), "only depth is amplified");
+    test("multiplies only Z by xr.input.zAxisAmplification", async () => {
+        assertNear(await headsetDrag(4, new Vector3(0.1, 0.2, 0.3)), new Vector3(0.1, 0.2, 1.2), "Z is 4x, X and Y 1x");
     });
 
-    test("multiplies only Z by xr.input.zAxisAmplification", () => {
-        graph.setXRConfig({ input: { zAxisAmplification: 4 } });
-        assertNear(headsetDrag(new Vector3(0.1, 0.2, 0.3)), new Vector3(0.1, 0.2, 1.2), "Z is 4x, X and Y 1x");
-    });
-
-    test("ignores a hand jump larger than 5 units, and movement carries on after it", () => {
-        const moved = headsetDrag(new Vector3(1, 0, 0), new Vector3(51, 0, 0), new Vector3(52, 0, 0));
+    test("ignores a hand jump larger than 5 units, and movement carries on after it", async () => {
+        const moved = await headsetDrag(undefined, new Vector3(1, 0, 0), new Vector3(51, 0, 0), new Vector3(52, 0, 0));
         assertNear(
             moved,
             new Vector3(2, 0, 0),

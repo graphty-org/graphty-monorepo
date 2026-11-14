@@ -68,18 +68,18 @@ interface Inspected {
 /** The chrome state. */
 export interface WorkspaceState {
     /**
-     * The open project, or null for the start screen (section 2.11).
-     *
-     * The name is held here only until graphty-element publishes `session.project.name` with the
-     * project file (#301, tier1-real-app/plan.md section 2 item 10); the Project package moves it.
-     * `id` changes when another project opens, which mounts a fresh element.
-     */
-    /**
-     * The open project; `blank` when it opened empty, so a reload brings it back even with nothing
-     * written; `opened` when opening it again gives it back, for a reload before graphty-element's
-     * autosave wrote it.
+     * The open project, or null for the start screen (section 2.11); `blank` when it opened empty,
+     * so a reload brings it back even with nothing written; `opened` when opening it again gives it
+     * back, for a reload before graphty-element's autosave wrote it. `id` changes when another
+     * project opens, which mounts a fresh element.
      */
     readonly project: {
+        /**
+         * The name the app shows. graphty-element owns the project's name (`session.project.name`):
+         * this follows it on every `project:status` (ProjectDialogs), and is the app's own name for
+         * the project (its data's) only while the element holds none. Never write a rename here:
+         * rename through `session.project.rename`.
+         */
         readonly name: string;
         readonly id: number;
         readonly blank?: true;

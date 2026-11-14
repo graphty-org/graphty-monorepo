@@ -98,7 +98,8 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 # 3. Only when all six pass, the version job versions the tested commit with nx release (one local commit holding
 #    only version fields and changelogs). Anything red before the release lands holds the WHOLE release: nothing
 #    pushed, nothing published, and the held job opens or updates the one train hold, a "Release held: <what>
-#    failed on <sha>" issue for githerd to fix. A later train that lands closes it.
+#    failed on <sha>" issue, which the pipeline-round routine (.claude/skills/pipeline-round) picks up and fixes. A
+#    later train that lands closes it.
 # 4. The land job merges that version commit into master's CURRENT tip and pushes the merge and one tag per
 #    package ({projectName}@{version}, on the version commit) in one atomic push, with the release deploy key (the
 #    only key master's ruleset lets push without a pull request). A master that moved meanwhile is fetched and
@@ -1855,7 +1856,7 @@ jobs:
 
     # Anything red before the release lands holds the whole release: nothing is pushed to master and nothing is
     # published. This job opens (or retitles and comments on) the open train hold, a "Release held: <what> failed
-    # on <sha>" issue, which githerd turns into a fix job; an open publish hold ("Release held: publish failed") is
+    # on <sha>" issue, which the pipeline-round routine turns into a fix; an open publish hold ("Release held: publish failed") is
     # never touched. Scheduled trains skip while either is open; the train hold closes when a later train lands.
     # A train attempt ends with a landed release or with this issue, never with neither. So the condition is "the
     # release did not land", never a list of the results that count as red: a job's result is not only failure or

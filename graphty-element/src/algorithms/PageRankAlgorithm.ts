@@ -234,7 +234,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             phase: "iterating",
             completed: 0,
             total: nodeIds.length,
-            message: `Power iteration, up to ${String(maxIterations)} passes.`,
+            params: { maxIterations },
         });
 
         const { value, precision } = await run((dispatch, s) => {
@@ -257,7 +257,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
 
         const { ids } = snapshot;
         const measured: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading ranks", (nodeId) => {
+        await walkInChunks(nodeIds, context, "reading-ranks", (nodeId) => {
             const index = ids.indexOf(nodeId);
             const rank = index === INVALID_INDEX ? undefined : value.scores[index];
             measured.push({ id: nodeId, values: rank === undefined ? {} : { value: rank } });

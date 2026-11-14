@@ -19,6 +19,9 @@ interface Manifest {
     module?: string;
     types?: string;
     customElements?: string;
+    name: string;
+    version: string;
+    scripts: Record<string, string>;
     exports: Record<string, string | Record<string, string>>;
     sideEffects: string[];
     files: string[];
@@ -231,6 +234,42 @@ describe("the exports map", () => {
     it("publishes the custom elements manifest, and points the tooling field at it", () => {
         assert.strictEqual(manifest.exports["./custom-elements.json"], "./dist/custom-elements.json");
         assert.strictEqual(manifest.customElements, "./dist/custom-elements.json");
+    });
+
+    it("publishes exactly the subpaths named here, so adding, removing or renaming one fails this file", () => {
+        assert.deepEqual(
+            Object.keys(manifest.exports).sort(),
+            [
+                ...MODULE_ENTRIES.map((entry) => entry.subpath),
+                "./bundle",
+                "./jsx",
+                "./custom-elements.json",
+                "./graphty-catalog.json",
+            ].sort(),
+        );
+    });
+
+    it("publishes the catalogue JSON the agent guide sends consumers to, and the build writes it", () => {
+        assert.strictEqual(manifest.exports["./graphty-catalog.json"], "./dist/graphty-catalog.json");
+        assert.include(manifest.scripts.build, "node scripts/generate-catalog-json.mjs");
+        assert.isTrue(existsSync(resolve(PACKAGE_ROOT, "scripts/generate-catalog-json.mjs")));
+    });
+
+    it("writes a catalogue JSON that carries every built-in table, stamped with this version", () => {
+        const written = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, "dist/graphty-catalog.json"), "utf8")) as Record<
+            string,
+            unknown
+        >;
+
+        assert.strictEqual(written.package, manifest.name);
+        assert.strictEqual(written.version, manifest.version);
+        assert.deepEqual(written.algorithms, JSON.parse(JSON.stringify(catalog.BUILT_IN_ALGORITHMS)));
+        assert.deepEqual(written.layouts, JSON.parse(JSON.stringify(catalog.LAYOUT_DESCRIPTORS)));
+        assert.deepEqual(written.formats, JSON.parse(JSON.stringify(catalog.FORMAT_DESCRIPTORS)));
+        assert.deepEqual(written.palettes, JSON.parse(JSON.stringify(catalog.PALETTE_DESCRIPTORS)));
+        assert.deepEqual(written.scales, JSON.parse(JSON.stringify(catalog.SCALE_DESCRIPTORS)));
+        assert.lengthOf(written.channels as unknown[], Object.keys(catalog.CHANNEL_DESCRIPTORS).length);
+        assert.isNotEmpty(written.errorCodes);
     });
 
     it("is ESM only: no CommonJS entry, in a package whose default import defines a custom element", () => {

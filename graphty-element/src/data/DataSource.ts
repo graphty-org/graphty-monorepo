@@ -484,6 +484,12 @@ export abstract class DataSource {
     nodeSchema: z.core.$ZodObject | null = null;
     protected errorAggregator: ErrorAggregator;
     protected chunkSize: number;
+    /**
+     * Bytes of the file read so far, for load progress: set once the inline data, file or URL
+     * has been read (text counts its UTF-8 bytes). Undefined until then, and for a source that
+     * reads its input some other way.
+     */
+    bytesRead: number | undefined = undefined;
     /** Backing field of {@link declaredDirection}; written only by {@link declareDirection}. */
     private declaration: DeclaredDirection | null = null;
     /** Backing field of {@link declaredTime}; written only by {@link declareTime}. */
@@ -654,6 +660,16 @@ export abstract class DataSource {
      * @throws An `Error` naming the reader when the configuration has no data, file or URL.
      */
     protected async getInput(): Promise<SourceInput> {
+        const input = await this.readInput();
+        this.bytesRead = typeof input === "string" ? new Blob([input]).size : input.byteLength;
+        return input;
+    }
+
+    /**
+     * The source's contents, read from inline data, a file or a URL.
+     * @returns The text or the bytes.
+     */
+    private async readInput(): Promise<SourceInput> {
         const config = this.getConfig();
 
         if (config.data !== undefined) {

@@ -5,8 +5,8 @@ import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/g
 import { Button, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 
-import { loadGraphtyElement } from "../../elementLoader";
 import { siteConfig } from "../../siteConfig";
+import { useElementDefined } from "../../useElementDefined";
 import { GLYPHS } from "../glyphs";
 import { EDGE_WIDTH, HIGHLIGHT_OPACITY, LOOK } from "./heroLook";
 import { HeroTurns } from "./heroTurns";
@@ -396,7 +396,8 @@ function HeroGraphBody({
 }: Readonly<HeroGraphProps & { onRetry: () => void }>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
     const cardRef = useRef<HTMLDialogElement>(null);
-    const [defined, setDefined] = useState(() => customElements.get("graphty-element") !== undefined);
+    // A failure to load the element is the placeholder's Retry, which draws the body afresh.
+    const { defined, failed: elementFailed } = useElementDefined("start");
     const [session, setSession] = useState<GraphSession | null>(null);
     const [shown, setShown] = useState<Shown>({ communities: true, key: false, path: false, flat: false });
     const [said, setSaid] = useState<Said>({});
@@ -421,25 +422,10 @@ function HeroGraphBody({
     schemeRef.current = scheme;
 
     useEffect(() => {
-        let live = true;
-        void loadGraphtyElement()
-            .then(() => customElements.whenDefined("graphty-element"))
-            .then(() => {
-                if (live) {
-                    performance.mark("graphty:hero-element-defined");
-                    setDefined(true);
-                }
-            })
-            .catch((error: unknown) => {
-                if (live) {
-                    console.error("[start] graphty-element could not be loaded:", error);
-                    setLoadState("failed");
-                }
-            });
-        return () => {
-            live = false;
-        };
-    }, []);
+        if (defined) {
+            performance.mark("graphty:hero-element-defined");
+        }
+    }, [defined]);
 
     // The turning follows the pause button, and touches nothing else.
     useEffect(() => {
@@ -690,7 +676,7 @@ function HeroGraphBody({
                         style={{ display: "block", width: "100%", height: "100%" }}
                     />
                 ) : null}
-                <HeroPlaceholder state={loadState} onRetry={onRetry} />
+                <HeroPlaceholder state={elementFailed ? "failed" : loadState} onRetry={onRetry} />
             </div>
             <div className="ws-land-demo">
                 <div className="ws-land-chips" role="toolbar" aria-label="Analyze the graph">

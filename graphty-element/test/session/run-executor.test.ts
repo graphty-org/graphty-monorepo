@@ -14,51 +14,51 @@ import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { createScopeApi } from "../../src/session/scope";
 import { ingestEdge, ingestNode } from "../helpers/rawIngest";
 
-/** One node as the element's data manager holds it: a record the projection writes onto. */
-interface MockNode {
-    /** The node id. */
-    id: string;
-    /** Where the 1.10 projection lands. */
-    algorithmResults?: Record<string, Record<string, Record<string, unknown>>>;
-}
-
-/** One edge as the element's data manager holds it. */
-interface MockEdge {
-    /** The source node id. */
-    srcId: string;
-    /** The target node id. */
-    dstId: string;
-    /** Where the 1.10 projection lands. */
-    algorithmResults?: Record<string, Record<string, Record<string, unknown>>>;
-}
-
 /** A graph the executor can run against with no renderer behind it. */
 interface MockGraph {
     /** The manager under test. */
     manager: AlgorithmManager;
-    /** The node records, keyed by id. */
-    nodes: Map<string, MockNode>;
-    /** The edge records, keyed by "srcId:dstId". */
-    edges: Map<string, MockEdge>;
-    /** How many times the executor asked for a repaint. */
-    repaints: () => number;
+    /** Every member of the graph or its data manager the executor read that a run has no use for. */
+    strayReads: () => readonly string[];
     /** The snapshot the run's scope is resolved against. */
     snapshot: () => GraphSnapshot;
 }
 
 /**
- * Build a graph with the four data-manager members the executor and the algorithms touch.
+ * Wrap a mock so every member read is checked against the members a run is allowed to read.
+ * @param target - The mock.
+ * @param name - What it is, for the record.
+ * @param allowed - The members a run reads.
+ * @param stray - Where a read of any other member is recorded.
+ * @returns The wrapped mock.
+ */
+function watched<T extends object>(target: T, name: string, allowed: ReadonlySet<PropertyKey>, stray: string[]): T {
+    return new Proxy(target, {
+        get(object, key, receiver) {
+            // `then` is read by `await` on anything a promise resolves with; it is not the executor.
+            if (!allowed.has(key) && key !== "then") {
+                stray.push(`${name}.${String(key)}`);
+            }
+
+            return Reflect.get(object, key, receiver) as unknown;
+        },
+    });
+}
+
+/**
+ * Build a graph with only the members the executor and the algorithms read: the snapshot, the
+ * undirected view, the last import's weights, the style config's known fields and the
+ * acceleration controller.
  *
  * Deliberately not the renderer's `Graph`: the point of the run executor is that everything below
- * it reads a snapshot and returns a result, so the only renderer-shaped thing it needs is somewhere
- * to ask for a repaint.
+ * it reads a snapshot and returns a result. Every member it reads is recorded, so a run that
+ * reaches for anything else -- a style manager, the node and edge records, a repaint through an
+ * optional call that a narrow mock would otherwise let pass silently -- is caught.
  * @param nodeIds - The nodes, in the order they arrive.
  * @param edges - The edges, as endpoint pairs.
  * @returns The mock.
  */
 function mockGraph(nodeIds: readonly string[], edges: readonly (readonly [string, string])[]): MockGraph {
-    const nodes = new Map<string, MockNode>();
-    const edgeRecords = new Map<string, MockEdge>();
     const store = new GraphStore({
         directed: "auto",
         positionScale: () => 1,
@@ -66,47 +66,56 @@ function mockGraph(nodeIds: readonly string[], edges: readonly (readonly [string
         onEdgeRemap: () => undefined,
         onReplaced: () => undefined,
     });
-    let repaints = 0;
+    const stray: string[] = [];
 
     for (const id of nodeIds) {
-        nodes.set(id, { id });
         ingestNode(store, id, { id });
     }
 
     for (const [source, target] of edges) {
-        edgeRecords.set(`${source}:${target}`, { srcId: source, dstId: target });
         ingestEdge(store, source, target, 1);
     }
 
-    const dataManager = {
-        nodes,
-        edges: edgeRecords,
-        graphResults: undefined as Record<string, Record<string, Record<string, unknown>>> | undefined,
-        getSnapshot: (): GraphSnapshot => store.getSnapshot(),
-        undirected: (snapshot: GraphSnapshot): DerivedGraph => store.undirected(snapshot),
-        // The two doors the executor used to force a whole-graph re-resolution through at the
-        // end of every run. They are here so a run that reaches for one is caught; see the
-        // executor test below for why nothing should.
-        applyStylesToExistingNodes: (): void => {
-            repaints += 1;
+    const dataManager = watched(
+        {
+            getSnapshot: (): GraphSnapshot => store.getSnapshot(),
+            undirected: (snapshot: GraphSnapshot): DerivedGraph => store.undirected(snapshot),
+            lastImport: undefined,
         },
-        applyStylesToExistingEdges: (): void => {
-            repaints += 1;
+        "dataManager",
+        new Set<PropertyKey>(["getSnapshot", "undirected", "lastImport"]),
+        stray,
+    );
+    const graph = watched(
+        {
+            getDataManager: () => dataManager,
+            // The controller an algorithm with an accelerated implementation asks before it runs.
+            // Its own registry, so nothing another test registered reaches this one.
+            acceleration: new AccelerationController({
+                policy: "auto",
+                minNodes: 0,
+                registry: new AcceleratorRegistry(),
+            }),
+            // Read for the label path and the weight's meaning, and for nothing else: a repaint
+            // through the style manager reads some other member and is recorded.
+            styles: watched(
+                { config: { data: { knownFields: {} } } },
+                "graph.styles",
+                new Set<PropertyKey>(["config"]),
+                stray,
+            ),
+            // A bare graph has no session, so the weight is read off the last import.
+            getSession: undefined,
         },
-    };
-    const graph = {
-        getDataManager: () => dataManager,
-        // The controller an algorithm with an accelerated implementation asks before it runs.
-        // Its own registry, so nothing another test registered reaches this one.
-        acceleration: new AccelerationController({ policy: "auto", minNodes: 0, registry: new AcceleratorRegistry() }),
-    } as unknown as Graph;
+        "graph",
+        new Set<PropertyKey>(["getDataManager", "acceleration", "styles", "getSession"]),
+        stray,
+    ) as unknown as Graph;
     const events = { emitGraphError: () => undefined, emit: () => undefined } as unknown as EventManager;
 
     return {
         manager: new AlgorithmManager(events, graph),
-        nodes,
-        edges: edgeRecords,
-        repaints: () => repaints,
+        strayReads: () => stray,
         snapshot: () => store.getSnapshot(),
     };
 }
@@ -141,9 +150,7 @@ function context(
 }
 
 describe("the run executor", () => {
-    it("returns a result, and the elements it measured are drawn again", async () => {
-        // The result is the source of truth and the only place a value lives: the 1.10
-        // `algorithmResults` projection beside it went with the style layers that selected on it.
+    it("returns a result and reaches nothing but the snapshot to make it", async () => {
         const graph = mockGraph(
             ["a", "b", "c"],
             [
@@ -166,8 +173,10 @@ describe("the run executor", () => {
         // `results.<runId>.<field>` now, and the repaint hangs off the run finishing -- in the
         // element's own wiring, on the `algorithm-run` queue trigger, where it can be scheduled
         // with the rest of the frame's work. `test/browser/session-style-paint.test.ts` pins
-        // that the picture really does catch up.
-        assert.strictEqual(graph.repaints(), 0, "a run publishes a result; drawing it is the style stack's job");
+        // that the picture really does catch up. A repaint here would have to reach past the
+        // snapshot -- for the style manager, or the node and edge records -- and that read is
+        // recorded.
+        assert.deepStrictEqual(graph.strayReads(), [], "a run publishes a result; drawing it is the style stack's job");
     });
 
     it("fills the ranking, the range and the summary nobody computed by hand", async () => {

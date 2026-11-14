@@ -141,3 +141,12 @@ The fresh resolution moves Babylon.js 8.43.0 to 8.56.2, React 19.2.3 to 19.3.0, 
 8.3.18, Lit 3.3.2 to 3.3.3, IWER 2.1.1 to 2.5.0 and typescript-eslint 8.50.1 to 8.71.0. Playwright
 stays on 1.57.0 for everything that launches a browser in tests and captures, because
 visual-review pins it exactly; only graphty-element's direct `@playwright/test` moves to 1.63.
+
+## 2026-11-13: node-forge GHSA-86w9-cpqp-85rv, no longer ignored
+
+node-forge 1.4.1 fixed GHSA-86w9-cpqp-85rv. The override `node-forge@<1.4.3` -> `^1.4.3` in
+pnpm-workspace.yaml (first added at `<1.4.1` on 2026-10-28, raised to `<1.4.3` later) puts every
+copy of node-forge on 1.4.3, so the advisory is now fixed rather than ignored. Its entry is removed
+from the root package.json's `pnpm.auditConfig.ignoreGhsas`, and `pnpm audit` reports nothing for
+node-forge without it. If a lockfile change or a dropped override brings back a vulnerable
+node-forge, the audit now reports it.

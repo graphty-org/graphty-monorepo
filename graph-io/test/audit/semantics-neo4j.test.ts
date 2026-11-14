@@ -3,7 +3,7 @@
  * themselves (facts derived here by manual line parsing of the raw text) and against the quirks
  * graphty-element's CSVDataSource neo4j branch and research note 07 sections 2.6 / 2.10 describe:
  * header typing, id spaces, labels, arrays, empty vs quoted-empty cells, :IGNORE, temporal types,
- * multi-section files. Tests named "DEFECT:" pin a defect and fail until the importer is fixed.
+ * multi-section files.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -407,10 +407,9 @@ describe("Neo4j corpus facts: karate-neo4j.csv and crlf-tabs.tsv", () => {
         expect(column(snapshot, "edges", "type")).toEqual(["NEXT", "NEXT"]);
     });
 
-    it("DEFECT: a .tsv file (an advertised extension) must import without a delimiter option", async () => {
-        // The importer lists ".tsv" and "text/tab-separated-values" but always splits on "," unless
-        // the caller passes delimiter, so importGraph(bytes, { filename: "x.tsv" }) sniffs neo4j and
-        // then fails with E_HEADER on the tab-joined header cell.
+    it("a .tsv file (an advertised extension) imports without a delimiter option", async () => {
+        // The importer lists ".tsv" and "text/tab-separated-values", so a .tsv filename alone must
+        // split on tabs; splitting on "," would fail with E_HEADER on the tab-joined header cell.
         const { snapshot } = await importGraph(readCorpusBytes("neo4j", "crlf-tabs.tsv"), {
             filename: "crlf-tabs.tsv",
         });

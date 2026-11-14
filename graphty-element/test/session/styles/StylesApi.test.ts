@@ -12,6 +12,8 @@ import type {
 } from "../../../src/catalog/types";
 import { EDGE_CONSTANTS } from "../../../src/constants/meshConstants";
 import { isGraphtyError } from "../../../src/errors";
+import { STYLE_DEFINITIONS } from "../../../src/session/commands/style";
+import { Dispatcher } from "../../../src/session/project/Dispatcher";
 import type { RunRef } from "../../../src/session/results/types";
 import { prepareBinding, type PreparedBinding } from "../../../src/session/styles/encoding";
 import {
@@ -52,6 +54,7 @@ import {
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import { createScaleRegistry, type ScaleRegistry } from "../../../src/session/styles/scales";
 import { DEFAULT_HIGHLIGHT } from "../../../src/session/styles/StylesApi";
+import { takeCaughtErrors } from "../../helpers/caught-errors";
 
 /** One element's columns, keyed by the path a selector names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -555,6 +558,20 @@ describe("the stack moves at once, and the picture follows it", () => {
 
         assert.strictEqual(code, "E_INTERNAL");
         assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Doomed"]);
+    });
+
+    it("reports a repaint that fails on undo, and tells no change for it", async () => {
+        const dispatcher = new Dispatcher({ definitions: STYLE_DEFINITIONS });
+        const harness = makeStyles({ dispatcher });
+        await harness.styles.add(layerSpec("Undone"));
+        const told = harness.changes.length;
+        const failure = new Error("the renderer gave up");
+        harness.failure = failure;
+
+        await dispatcher.undo();
+
+        assert.include(takeCaughtErrors(), failure, "the lane reports what no run could reject with");
+        assert.lengthOf(harness.changes, told, "a failed pass is not told as a painted change");
     });
 
     it("resolves with the edit applied when it is cancelled after the call", async () => {

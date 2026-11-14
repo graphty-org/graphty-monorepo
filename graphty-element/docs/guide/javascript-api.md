@@ -434,6 +434,24 @@ A prefix that names no attribute is searched as plain text, so `http://example.c
 the node that carries it. An invalid regular expression is refused with `E_BAD_COMMAND`, and an
 expression that does not parse with `E_BAD_SELECTOR`.
 
+To check an expression as the reader types it, without running it, use
+`session.catalog.validate(expression)`. It never throws for a bad expression: it returns `ok`, the
+parse error as a code with its character position and parameters (no words, so you write the
+message), and every path nothing in the graph answers, each with the nearest paths that would be.
+
+```typescript
+const check = element.session.catalog.validate("data.wieght > `3`");
+if (check.error) {
+    showError(check.error.position, check.error.params.reason); // e.g. "number-needs-backticks"
+}
+for (const { path, reason, candidates } of check.unresolvedPaths) {
+    // reason is "unknown-attribute" or "unknown-run"; candidates[0] is "data.weight" here
+}
+```
+
+Pass `{ kind: "filter" }` for a visibility filter (the same grammar). `{ kind: "formula" }` is
+refused with `E_UNSUPPORTED`: computed-attribute formulas are not implemented.
+
 ### Screenshot and Video Capture
 
 ```typescript

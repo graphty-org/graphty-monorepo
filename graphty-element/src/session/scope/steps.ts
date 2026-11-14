@@ -12,6 +12,8 @@
 import type {
     EdgeId,
     NodeId,
+    Path,
+    Query,
     RuleTree,
     RunId,
     Scope,
@@ -23,7 +25,9 @@ import type {
 import { GraphtyError } from "../../errors";
 import type { NumericColumnSource } from "../results/statistics";
 import type { Histogram, HistogramOptions } from "../results/types";
+import { dependenciesOf } from "../sets/dependencies";
 import type { CodedFact } from "../shared";
+import { expressionPaths } from "../styles/predicate";
 import type { FilterRunResult } from "../visibility/filter";
 import type { Bytes, UnionRead } from "../visibility/union";
 import type { ScopeApi } from "./ScopeApi";
@@ -870,24 +874,25 @@ function stepOf(rule: UnionLeaf, stepId: string): UnionStep {
 }
 
 /**
- * The paths of the runs a rule reads, `results.<run>.*`.
+ * The runs a rule reads: through a `results.<run>.*` path in any leaf or query, or an `item`
+ * leaf naming a result.
  * @param tree - The rule.
  * @returns The run ids.
  */
-function runsRead(tree: RuleTree): string[] {
-    const loose = tree as unknown as Readonly<Record<string, unknown>>;
-    const path = [loose.path, loose.attribute, loose.reads].find(
-        (each): each is string => typeof each === "string" && each.startsWith("results."),
-    );
-    const own = path === undefined ? [] : [path.slice("results.".length).split(".")[0]];
-    switch (tree.kind) {
-        case "all":
-        case "any":
-            return [...own, ...tree.of.flatMap(runsRead)];
-        case "not":
-            return [...own, ...runsRead(tree.of)];
-        default:
-            return own;
+function runsRead(tree: RuleTree): RunId[] {
+    return dependenciesOf(tree, queryPaths).flatMap((each) => (each.kind === "run" ? [each.run] : []));
+}
+
+/**
+ * The paths a query reads, or none when it does not parse (the rule's own check refuses it).
+ * @param where - The query.
+ * @returns The paths.
+ */
+function queryPaths(where: Query): readonly Path[] {
+    try {
+        return expressionPaths(where);
+    } catch {
+        return [];
     }
 }
 

@@ -2523,9 +2523,10 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             return "";
         }
 
-        const schema = this.schemaManager.getSchema();
+        // Extracts again after a data change dropped the cache.
+        const schema = this.schemaManager.extract();
 
-        if (!schema || (schema.nodeCount === 0 && schema.edgeCount === 0)) {
+        if (schema.nodeCount === 0 && schema.edgeCount === 0) {
             return "";
         }
 

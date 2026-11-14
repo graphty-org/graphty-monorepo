@@ -20,6 +20,24 @@ export interface Point {
     readonly y: number;
 }
 
+/**
+ * Where a node is drawn, as a point to send the pointer to.
+ * @param target - The graph or the element, whose `nodeScreenPosition` places the node.
+ * @param id - The node.
+ * @returns Its centre in CSS pixels from the canvas's top-left corner.
+ */
+export function nodePoint(
+    target: { nodeScreenPosition(id: string | number): { x: number; y: number; visible: boolean } | undefined },
+    id: string | number,
+): Point {
+    const at = target.nodeScreenPosition(id);
+    if (at?.visible !== true) {
+        throw new Error(`node ${String(id)} is not drawn on screen`);
+    }
+
+    return { x: at.x, y: at.y };
+}
+
 /** A protocol command and its parameters; the session's own type is too narrow to name them. */
 type Send = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 

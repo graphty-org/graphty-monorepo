@@ -392,7 +392,6 @@ describe("the rules file", () => {
             "algorithms",
             "compact-mantine",
             "cytoscape-extensions",
-            "githerd",
             "graph-format",
             "graph-io",
             "graph-samples",
@@ -879,9 +878,14 @@ describe("running a selection", () => {
     });
 
     it("plans none, files and all, folds the slices of one family into one run, and runs an unreadable one whole", () => {
-        const shards = ["graphty-1", "graphty-2", "graphty-3", "layout", "githerd", "webgpu-graph-algorithms-node"].map(
-            byName,
-        );
+        const shards = [
+            "graphty-1",
+            "graphty-2",
+            "graphty-3",
+            "layout",
+            "remote-logger",
+            "webgpu-graph-algorithms-node",
+        ].map(byName);
         const app = files("graphty/src/a.test.tsx");
         const selection = [
             { shard: "graphty-1", mode: "files", files: app, reasons: [] },
@@ -901,7 +905,7 @@ describe("running a selection", () => {
             [
                 ["graphty-1+graphty-2+graphty-3", "files"],
                 ["layout", "none"],
-                ["githerd", "all"],
+                ["remote-logger", "all"],
                 ["webgpu-graph-algorithms-node", "all"],
             ],
         );
@@ -910,7 +914,7 @@ describe("running a selection", () => {
         const text = describePlan(plan).join("\n");
         assert.match(text, /graphty-1, graphty-2, graphty-3: 1 test file/u);
         assert.match(text, /graphty\/src\/a\.test\.tsx {2}<- imports it/u);
-        assert.match(text, /githerd: WHOLE SHARD/u);
+        assert.match(text, /remote-logger: WHOLE SHARD/u);
         assert.match(text, /nothing to run: layout/u);
     });
 
@@ -2044,17 +2048,17 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
 
     it("packs a one-package change into bins of at most BIN_LIMIT_MS, one vitest run of its files each", () => {
         const app = many(10);
-        const shards = ["graphty-1", "graphty-2", "layout", "githerd"].map(byName);
+        const shards = ["graphty-1", "graphty-2", "layout", "remote-logger"].map(byName);
         const selection = [
             sel("graphty-1", "files", app),
             sel("graphty-2", "files", app),
             sel("layout", "none"),
-            sel("githerd", "all"),
+            sel("remote-logger", "all"),
         ];
         // 1 min recorded is 1.4 min planned with graphty's cost (binCost()): two files a bin
         const durations = { graphty: Object.fromEntries(app.map((f) => [f, 1 * MIN])) };
         const out = lightPlan(ROOT, shards, selection, durations);
-        assert.deepEqual(out.whole, ["githerd"]);
+        assert.deepEqual(out.whole, ["remote-logger"]);
         assert.deepEqual(out.none, ["layout"]);
         assert.deepEqual(
             out.bins.map((b) => b.name),
@@ -2151,11 +2155,11 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             { file: "graphty/src/a.test.tsx", why: "imports graphty/src/a.ts" },
             { file: "graphty/src/b.test.tsx", why: "changed" },
         ];
-        const shards = ["graphty-1", "layout", "githerd"].map(byName);
+        const shards = ["graphty-1", "layout", "remote-logger"].map(byName);
         const out = lightPlan(ROOT, shards, [
             { shard: "graphty-1", mode: "files", files, reasons: [] },
             sel("layout", "none"),
-            { ...sel("githerd", "all"), reasons: ["githerd/package.json changed"] },
+            { ...sel("remote-logger", "all"), reasons: ["remote-logger/package.json changed"] },
         ]);
         assert.deepEqual(out.bins[0].why, {
             "graphty/src/a.test.tsx": "imports graphty/src/a.ts",
@@ -2163,7 +2167,7 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         });
         const md = planSummary(out);
         assert.match(md, /^### Light check: 1 test bins, 1 shards whole, 1 shards with nothing selected/u);
-        assert.match(md, /\*\*githerd\*\* runs whole: githerd\/package.json changed/u);
+        assert.match(md, /\*\*remote-logger\*\* runs whole: remote-logger\/package.json changed/u);
         assert.match(md, /nothing selected, not run: layout/u);
         assert.match(md, /graphty-1: 2 files/u);
         assert.match(md, /`graphty\/src\/a.test.tsx`: imports graphty\/src\/a.ts/u);

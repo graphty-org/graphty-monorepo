@@ -121,6 +121,8 @@ export interface RunEntry {
     readonly painting?: RunPainting;
     /** Whether its id was derived rather than author-assigned. */
     readonly derived: boolean;
+    /** The reader's own name for it (`runs.rename`); absent while it has none. */
+    readonly name?: string;
     /** Whether the graph changed while it computed. */
     readonly stale: boolean;
 }

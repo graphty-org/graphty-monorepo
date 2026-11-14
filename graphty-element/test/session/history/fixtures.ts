@@ -354,6 +354,15 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "algo.move", runId: "deg", before: null },
     },
     {
+        name: "algo.rename: a run given the reader's own name",
+        tags: BOTH,
+        before: async (session) => {
+            await session.runs.start("degree", {}, { as: "deg" });
+            await session.styles.settled();
+        },
+        command: { op: "algo.rename", runId: "deg", name: "Connections" },
+    },
+    {
         name: "style.patch add",
         variant: "add",
         tags: BOTH,

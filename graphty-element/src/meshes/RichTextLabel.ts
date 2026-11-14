@@ -17,7 +17,9 @@ import {
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
 import { DEFAULT_LABEL_GRADIENT_COLORS } from "../config/RichTextStyle";
+import { GraphtyLogger, type Logger } from "../logging";
 import { toColorValue } from "../session/styles/channels";
+import { addGradientStops } from "./edgeGradient";
 import { FrameRoster } from "./FrameRoster";
 import { type GlyphLabelEntry, GlyphLabels, recordRuns } from "./GlyphLabels";
 import {
@@ -41,6 +43,8 @@ import { RichTextAnimator } from "./RichTextAnimator";
 import { hasWords, measureLine, RichTextParser, wrapLines } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
 import { pixelsPerUnit } from "./screenSize";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "label"]);
 
 /** The depth-fading labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
 const depthFadeFrames = new FrameRoster();
@@ -1391,19 +1395,11 @@ export class RichTextLabel {
             const scale = MAX_TEXTURE_SIZE / Math.max(textureWidth, textureHeight);
             textureWidth = Math.floor(textureWidth * scale);
             textureHeight = Math.floor(textureHeight * scale);
-            // Only warn in non-test environments
-            // Check if we're in a test environment by looking for vitest or testing context
-            const isTest =
-                typeof globalThis !== "undefined" &&
-                ("__vitest_worker__" in globalThis ||
-                    "__vitest_environment__" in globalThis ||
-                    (typeof window !== "undefined" && window.location.href.includes("vitest")));
-
-            if (!isTest) {
-                console.warn(
-                    `RichTextLabel: Texture size clamped to ${textureWidth}x${textureHeight} (max: ${MAX_TEXTURE_SIZE})`,
-                );
-            }
+            logger.warn("Label texture size clamped", {
+                width: textureWidth,
+                height: textureHeight,
+                max: MAX_TEXTURE_SIZE,
+            });
         }
 
         return { width: textureWidth, height: textureHeight };
@@ -1814,37 +1810,28 @@ export class RichTextLabel {
     }
 
     private _fillBackground(ctx: CanvasRenderingContext2D): void {
-        // Handle AdvancedColorStyle
         const bgColor = this.options.backgroundColor;
         if (typeof bgColor === "object" && "colorType" in bgColor) {
-            // Handle AdvancedColorStyle
-            if (bgColor.colorType === "gradient") {
-                const gradientX = this.contentArea.x;
-                const gradientY = this.contentArea.y;
-                const gradientWidth = this.contentArea.width;
-                const gradientHeight = this.contentArea.height;
-
-                // Create linear gradient based on direction
-                const angle = (bgColor.direction * Math.PI) / 180;
-                const x1 = gradientX + gradientWidth / 2 - (Math.cos(angle) * gradientWidth) / 2;
-                const y1 = gradientY + gradientHeight / 2 - (Math.sin(angle) * gradientHeight) / 2;
-                const x2 = gradientX + gradientWidth / 2 + (Math.cos(angle) * gradientWidth) / 2;
-                const y2 = gradientY + gradientHeight / 2 + (Math.sin(angle) * gradientHeight) / 2;
-
-                const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
-
-                const { colors } = bgColor;
-                for (let i = 0; i < colors.length; i++) {
-                    gradient.addColorStop(i / (colors.length - 1), colors[i] ?? "transparent");
-                }
-                ctx.fillStyle = gradient;
-                ctx.fill();
-                return;
-            } else if (bgColor.colorType === "solid") {
+            ctx.save();
+            ctx.globalAlpha *= (bgColor.opacity ?? 1) * (this.options.backgroundOpacity ?? 1);
+            if (bgColor.colorType === "solid") {
                 ctx.fillStyle = bgColor.value ?? "transparent";
-                ctx.fill();
-                return;
+            } else {
+                const gradient =
+                    bgColor.colorType === "gradient"
+                        ? this._angledGradient(ctx, bgColor.direction)
+                        : this._radialGradient(
+                              ctx,
+                              bgColor.centerX ?? 0.5,
+                              bgColor.centerY ?? 0.5,
+                              bgColor.radius ?? 1,
+                          );
+                addGradientStops(gradient, bgColor.colors, bgColor.stops);
+                ctx.fillStyle = gradient;
             }
+            ctx.fill();
+            ctx.restore();
+            return;
         }
 
         // Handle legacy gradient properties
@@ -1872,10 +1859,7 @@ export class RichTextLabel {
         const gradientHeight = this.contentArea.height;
 
         if (this.options.backgroundGradientType === "radial") {
-            const centerX = gradientX + gradientWidth / 2;
-            const centerY = gradientY + gradientHeight / 2;
-            const radius = Math.max(gradientWidth, gradientHeight) / 2;
-            gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+            gradient = this._radialGradient(ctx, 0.5, 0.5, 1);
         } else {
             switch (this.options.backgroundGradientDirection) {
                 case "horizontal":
@@ -1896,12 +1880,48 @@ export class RichTextLabel {
             }
         }
 
-        const colors = this.options.backgroundGradientColors;
-        for (let i = 0; i < colors.length; i++) {
-            gradient.addColorStop(i / (colors.length - 1), colors[i] ?? "transparent");
-        }
+        addGradientStops(gradient, this.options.backgroundGradientColors);
 
         return gradient;
+    }
+
+    /**
+     * A linear gradient across the content area at an angle, 0 degrees running left to right, as a
+     * node's gradient runs across its box.
+     * @param ctx - The canvas context the gradient is made for.
+     * @param direction - The angle in degrees.
+     * @returns The gradient, with no stops yet.
+     */
+    private _angledGradient(ctx: CanvasRenderingContext2D, direction: number): CanvasGradient {
+        const { x, y, width, height } = this.contentArea;
+        const angle = (direction * Math.PI) / 180;
+        const dx = (Math.cos(angle) * width) / 2;
+        const dy = (Math.sin(angle) * height) / 2;
+        const cx = x + width / 2;
+        const cy = y + height / 2;
+        return ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
+    }
+
+    /**
+     * A radial gradient over the content area.
+     * @param ctx - The canvas context the gradient is made for.
+     * @param centerX - Its middle across the area, 0 at the left to 1 at the right.
+     * @param centerY - Its middle down the area, 0 at the top to 1 at the bottom.
+     * @param radius - How far it reaches, in halves of the area's longer side; 0 is all the last color.
+     * @returns The gradient, with no stops yet.
+     */
+    private _radialGradient(
+        ctx: CanvasRenderingContext2D,
+        centerX: number,
+        centerY: number,
+        radius: number,
+    ): CanvasGradient {
+        const { x, y, width, height } = this.contentArea;
+        const cx = x + width * centerX;
+        const cy = y + height * centerY;
+        // a canvas paints nothing for a circle of radius 0, so 0 is drawn as a point, as on a node
+        const r = (Math.max(width, height) / 2) * Math.max(radius, 1e-6);
+        return ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
     }
 
     private _drawProgressBar(ctx: CanvasRenderingContext2D): void {
@@ -2571,21 +2591,9 @@ export class RichTextLabel {
      * @param text - The new text content
      */
     public setText(text: string): void {
-        const numericValue = Number(text);
-        if (this.options.smartOverflow && !Number.isNaN(numericValue)) {
-            const num = Number.parseInt(text, 10);
-            if (num > this.options.maxNumber) {
-                if (num >= 1000) {
-                    this.options.text = `${Math.floor(num / 1000)}k`;
-                } else {
-                    this.options.text = `${this.options.maxNumber}${this.options.overflowSuffix}`;
-                }
-            } else {
-                this.options.text = text;
-            }
-        } else {
-            this.options.text = text;
-        }
+        this.options.text = this.options.smartOverflow
+            ? BadgeStyleManager.overflowText(text, this.options.maxNumber, this.options.overflowSuffix)
+            : text;
 
         this._parseRichText();
         this._calculateDimensions();

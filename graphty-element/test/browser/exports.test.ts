@@ -1,22 +1,13 @@
 import { assert, test } from "vitest";
 
-import { AnimationCancelledError, ScreenshotError, ScreenshotErrorCode } from "../../index.js";
+import * as entry from "../../index.js";
+import { AnimationCancelledError } from "../../index.js";
 
-test("ScreenshotError is exported and can be instantiated", () => {
-    const error = new ScreenshotError("Test error", ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED);
-
-    assert.equal(error.name, "ScreenshotError");
-    assert.equal(error.code, ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED);
-    assert.equal(error.message, "Test error");
-});
-
-test("ScreenshotErrorCode enum is exported with expected values", () => {
-    // Verify common error codes exist by using them
-    assert.equal(ScreenshotErrorCode.ENGINE_NOT_CONFIGURED, "ENGINE_NOT_CONFIGURED");
-    assert.equal(ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED, "SCREENSHOT_CAPTURE_FAILED");
-    assert.equal(ScreenshotErrorCode.DIMENSION_TOO_LARGE, "DIMENSION_TOO_LARGE");
-    assert.equal(ScreenshotErrorCode.CLIPBOARD_NOT_SUPPORTED, "CLIPBOARD_NOT_SUPPORTED");
-    assert.equal(ScreenshotErrorCode.VIDEO_CAPTURE_FAILED, "VIDEO_CAPTURE_FAILED");
+test("captures report GraphtyError codes, so there is no second screenshot error family", () => {
+    assert.notProperty(entry, "ScreenshotError");
+    assert.notProperty(entry, "ScreenshotErrorCode");
+    assert.include(entry.GRAPHTY_ERROR_CODES, "E_CAPTURE_FAILED");
+    assert.include(entry.GRAPHTY_ERROR_CODES, "E_NOT_SETTLED");
 });
 
 test("AnimationCancelledError is exported and can be instantiated", () => {

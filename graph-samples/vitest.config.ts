@@ -12,8 +12,6 @@ const config = defineConfig({
         environment: "node",
         pool: "forks",
         include: ["test/**/*.test.ts"],
-        // see test/setup/yield-to-event-loop.ts (the vitest 3 birpc 60 s timeout on long synchronous files)
-        setupFiles: ["./test/setup/yield-to-event-loop.ts"],
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],

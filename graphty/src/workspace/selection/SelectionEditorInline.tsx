@@ -78,6 +78,7 @@ import {
 } from "./model";
 import { type SelectionMenuItem, SelectionMenuItems } from "./SelectionMenu";
 import { CaptionedRow, StepPane } from "./StepPane";
+import { StyleOpenLine } from "./StyleOpenLine";
 import { useSteps } from "./useSteps";
 import {
     type Host,
@@ -476,6 +477,8 @@ export function SelectionEditorInline({
                 ? []
                 : [`[data-row="${CSS.escape(from)}"]`, `[data-selects="${CSS.escape(from)}"]`]),
             `[data-row="${TITLE}"]`,
+            // A style layer's sidebar has no rows, only its Style Nodes... line (issue #6810).
+            "[data-edit]",
         ];
     };
     closeRef.current = close;
@@ -1158,6 +1161,17 @@ export function SelectionEditorInline({
      */
     const outline = (where: "rest" | "ws"): React.JSX.Element => {
         const ws = where === "ws";
+        if (!ws && host === "selector") {
+            // A style layer's selection at rest is one line that opens the workspace (issue #6810).
+            return (
+                <StyleOpenLine
+                    side={side}
+                    onOpen={() => {
+                        openAt(TITLE, EDIT);
+                    }}
+                />
+            );
+        }
         // While the workspace is open the sidebar keeps only the title row, marked as being edited,
         // with no outline and no count: the workspace's header is the one place the count is drawn
         // (spec 3.0, the owner's review, ws-polish 2).

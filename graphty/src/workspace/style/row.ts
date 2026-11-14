@@ -11,12 +11,18 @@
 
 import type { ChannelDescriptor, ShaderUse } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
-import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
+import {
+    type ColumnRef,
+    type GraphSession,
+    type Layer,
+    OVERFLOW_SHAPES,
+    type TransactionScope,
+} from "@graphty/graphty-element/session";
 
 import { findTreeRow, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { DEFAULT_NAME_KEY } from "./cards";
 import type { BeneathValue, RowContext } from "./PropertyRow";
-import { channelPhrase, hexOf, OPACITY_OF, readableName } from "./words";
+import { channelPhrase, hexOf, logUnexpected, OPACITY_OF, readableName } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
@@ -78,7 +84,7 @@ export function everythingRow(session: GraphSession): LayerId[] {
  * @param target - nodes or edges.
  * @returns the layers.
  */
-export function rowLayers(session: GraphSession, ids: readonly LayerId[], target: Target): Layer[] {
+export function rowLayers(session: TransactionScope, ids: readonly LayerId[], target: Target): Layer[] {
     return session.styles.list().filter((layer) => layer.target === target && ids.includes(layer.id));
 }
 
@@ -217,7 +223,7 @@ export const EVERYTHING_LAYER: NewLayer = {
  * @param session - the element's session.
  * @returns the layer, or undefined for an empty stack.
  */
-export function topmostRow(session: GraphSession): Layer | undefined {
+export function topmostRow(session: TransactionScope): Layer | undefined {
     return [...session.styles.list()]
         .reverse()
         .find((layer) => layer.source.by !== "element" || layer.source.reason === "default");
@@ -287,7 +293,7 @@ export const startingAdds = new WeakSet<GraphSession>();
  * @returns the scoped selector, or undefined when a layer that paints everything may hold it.
  */
 function scopeFor(
-    session: GraphSession,
+    session: TransactionScope,
     target: Target,
     channel: Channel,
     binding: DataBinding,
@@ -309,7 +315,7 @@ function scopeFor(
  * @param id - the row.
  * @returns the place, or undefined when the row is gone.
  */
-function placeAbove(session: GraphSession, id: string): { parent: string | null; index: number } | undefined {
+function placeAbove(session: TransactionScope, id: string): { parent: string | null; index: number } | undefined {
     const found = findTreeRow(session.styles.tree(), id);
     if (found === undefined) {
         return undefined;
@@ -349,7 +355,7 @@ function sameSelector(a: Layer["selector"], b: Layer["selector"]): boolean {
  * @returns the id of the layer written to.
  */
 export async function writeLine(
-    session: GraphSession,
+    session: TransactionScope,
     ids: readonly LayerId[],
     target: Target,
     channel: Channel,
@@ -429,7 +435,7 @@ function othersWriting(layers: readonly Layer[], own: Layer | undefined, channel
 
 /** What writeLine writes, and where. */
 interface LinePlan {
-    readonly session: GraphSession;
+    readonly session: TransactionScope;
     readonly layers: readonly Layer[];
     readonly target: Target;
     readonly channel: Channel;
@@ -750,8 +756,10 @@ function agreementBeneath(
     }
     try {
         return session.styles.agreement("graph", channel, { below: row, over: row });
-    } catch {
-        // A row the element's tree does not hold (a run's own layers) has no "beneath" to read.
+    } catch (error) {
+        // A row the element's tree does not hold (an element-owned layer, or one removed since) has no "beneath"
+        // to read: the stack as it is, as for a row not written yet.
+        logUnexpected("styles.agreement", error, ["E_UNKNOWN_LAYER"]);
         return session.styles.agreement("graph", channel);
     }
 }
@@ -814,7 +822,8 @@ export function paintedOverOf(
     let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
     try {
         agreement = session.styles.agreement("graph", undefined, { over: row });
-    } catch {
+    } catch (error) {
+        logUnexpected("styles.agreement", error, ["E_UNKNOWN_LAYER"]);
         return () => undefined;
     }
     if (agreement.readOver !== "row") {
@@ -1050,7 +1059,8 @@ export function layerValues(
                 }),
             ),
         ];
-    } catch {
+    } catch (error) {
+        logUnexpected("styles.layerGroups", error);
         return null;
     }
 }

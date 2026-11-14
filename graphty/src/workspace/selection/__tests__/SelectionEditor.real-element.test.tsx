@@ -42,7 +42,9 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
         return;
     }
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+        await userEvent.click(
+            within(where).getAllByRole("button", { name: /^(Edit |Style (Nodes|Edges)\.\.\.)/ })[0] ?? document.body,
+        );
     }
     const control = await waitFor(() => {
         const ws = document.querySelector<HTMLElement>(".sel-ws");
@@ -104,7 +106,7 @@ async function openLayer(session: GraphSession, name: string, selector: Selector
  * @returns the workspace.
  */
 async function openWs(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which / }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the workspace is open");
@@ -192,9 +194,9 @@ describe("the selection editor in a style layer", () => {
     it("a fresh layer: And... adds a Keep step and opens its picker; a value with no test is kept and reads No test", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Busy", { match: "everything" });
-        // A layer of every node reads as what it paints: All nodes, and only the verbs that narrow.
-        assert.isNotNull(screen.queryByRole("treeitem", { name: "Which nodes" }));
-        assert.isNotNull(screen.queryByRole("treeitem", { name: "All nodes" }));
+        // At rest the layer's selection is its Style Nodes... line alone (issue #6810).
+        assert.isNotNull(screen.queryByRole("button", { name: "Style Nodes..." }));
+        assert.isNull(screen.queryByRole("treeitem", { name: "All nodes" }));
         await startCondition();
         const search = await screen.findByRole("combobox", { name: "Find attributes, results" });
         await waitFor(() => {
@@ -278,6 +280,7 @@ describe("the selection editor in a style layer", () => {
         const session = await openSample();
         const layer = await openLayer(session, "Degree card", { match: "rule", where: DEGREE_6_TO_10 });
         const expected = await counted(session, DEGREE_6_TO_10);
+        await openWs();
         await waitFor(() => {
             assert.match(stepRows()[0] ?? "", new RegExp(`^Degree 6 to 10, ${String(expected)} of 77 nodes so far$`));
         });
@@ -293,6 +296,7 @@ describe("the selection editor in a style layer", () => {
         };
         const expected = await counted(session, saved);
         const layer = await openLayer(session, "Saved", { match: "rule", where: saved });
+        await openWs();
         await waitFor(() => {
             const rows = stepRows();
             assert.lengthOf(rows, 2);
@@ -381,6 +385,7 @@ describe("the selection editor in a style layer", () => {
         const session = await openSample();
         await openLayer(session, "Picked", { match: "rule", where: DEGREE_6_TO_10 });
         assert.isFalse(session.styles.showingBranches);
+        await openWs();
         const step = document.querySelector<HTMLElement>(".sel-step-row[data-row]");
         if (step === null) {
             throw new Error("a step row is drawn");
@@ -497,6 +502,7 @@ describe("the selection editor and the table", () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
         const expected = await counted(session, DEGREE_6_TO_10);
+        await openWs();
         await userEvent.click(row("a"));
         const chip = await screen.findByRole("button", { name: `Select ${String(expected)} of 77 nodes` });
         await userEvent.click(chip);
@@ -610,6 +616,7 @@ describe("the selection editor's keys, names and limits", () => {
     it("Escape in a pane's box takes focus to its row and keeps the text; Escape again is Done", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Picked", { match: "rule", where: DEGREE_6_TO_10 });
+        await openWs();
         await userEvent.click(document.querySelector(".sel-step-row .sel-value") ?? document.body);
         const from = await screen.findByRole("textbox", { name: "Degree from, number" });
         await userEvent.clear(from);
@@ -644,35 +651,24 @@ describe("the selection editor's keys, names and limits", () => {
     });
 });
 
-describe("the outline at rest (the owner's review of 2026-11-01)", () => {
-    it("draws no button, box or input at rest, one 32 px line per row, every value at one x", async () => {
+describe("a style layer's selection at rest (the owner, 2026-11-11, issue #6810)", () => {
+    it("is one line, Style Nodes... with the open-in-new-window icon, and no outline rows", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        // The pointer leaves the editor: nothing is hovered, nothing selected.
-        await userEvent.hover(screen.getByRole("tree", { name: "Style layers" }));
         const editor = document.querySelector<HTMLElement>(".sel-rest");
         if (editor === null) {
             throw new Error("the editor is drawn");
         }
-        // The read-only outline's one control is the title row's Edit (spec 3.0).
-        await waitFor(() => {
-            const shown = [...editor.querySelectorAll<HTMLElement>("button, input, [role=checkbox]")].filter(
-                (each) => each.getClientRects().length > 0,
-            );
-            assert.deepEqual(
-                shown.map((each) => each.getAttribute("aria-label") ?? each.textContent),
-                ["Edit Which nodes"],
-            );
-        });
-        for (const each of editor.querySelectorAll<HTMLElement>(".sel-row")) {
-            assert.isAtMost(each.getBoundingClientRect().height, 32, each.textContent ?? "");
-        }
-        const x = [...editor.querySelectorAll<HTMLElement>(".sel-step-row .sel-value")].map(
-            (each) => each.getBoundingClientRect().left,
+        const shown = [...editor.querySelectorAll<HTMLElement>("button, input, [role=checkbox]")].filter(
+            (each) => each.getClientRects().length > 0,
         );
-        assert.lengthOf(new Set(x), 1, "every value name starts at the same x");
-        // No "+" inside a selection: "+" adds only in a section header.
-        assert.notInclude(editor.textContent ?? "", "+");
+        assert.deepEqual(
+            shown.map((each) => each.textContent),
+            ["Style Nodes..."],
+        );
+        assert.isNotNull(shown[0]?.querySelector("svg"), "the open-in-new-window icon");
+        assert.lengthOf(editor.querySelectorAll(".sel-row, [role=tree]"), 0, "no Which nodes title or All nodes row");
+        assert.notMatch(editor.textContent ?? "", /Which nodes|All nodes/);
     });
 });
 
@@ -725,6 +721,7 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
     it("every control in the outline is inside a tree item, and Done ends picking in one click", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
         await userEvent.click(row("deg").querySelector(".sel-value") ?? row("deg"));
         await waitFor(() => {
             assert.isTrue(session.styles.showingBranches);
@@ -757,7 +754,7 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
     it("Start with is in a group's Advanced, drawn with its caption, and never in the title pane", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        await userEvent.click(screen.getByRole("treeitem", { name: "Which nodes" }));
+        await userEvent.click(screen.getByRole("button", { name: "Style Nodes..." }));
         await waitFor(() => {
             assert.isNotNull(document.querySelector(".sel-pane-box"));
         });

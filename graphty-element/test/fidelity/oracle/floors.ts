@@ -391,13 +391,28 @@ const named = (add: { properties?: readonly string[] } | undefined, property: st
     add?.properties === undefined || add.properties.includes(property);
 
 /**
+ * Refuses a reason too short to say anything, or one that names no issue (`#1234`): a known failure or an accepted drop
+ * stays on the list until its issue is fixed, so each one must say which issue that is (#7015).
+ * @param reason - the reason given
+ * @param what - what the reason is for, for the error
+ */
+export function checkReason(reason: string, what: string): void {
+    if (reason.trim().length < 10) {
+        throw new Error(`${what} needs a reason of 10 or more characters`);
+    }
+    if (!/#\d+/.test(reason)) {
+        throw new Error(`${what} needs a reason that names the issue tracking it (#1234)`);
+    }
+}
+
+/**
  * The accepted drops after a run: a drop whose rate is back at its floor is taken off, and, with a reason, every rate
  * below its floor and its accepted drop is accepted at this run's rate, with the reason. Never accepts without a reason,
  * and never lowers a floor.
  * @param drops - the accepted drops as committed
  * @param gates - the run's verdicts by key
  * @param add - the reason and date to accept the drops with; omitted to accept none
- * @param add.reason - why the rates are lower
+ * @param add.reason - why the rates are lower, naming the issue that tracks them (`#1234`)
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
  * @param add.properties - only these properties (all when omitted)
@@ -408,8 +423,8 @@ export function ratchetDrops(
     gates: readonly KeyGate[],
     add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
 ): { drops: AcceptedDrops; removed: number; added: number; unaccepted: number } {
-    if (add !== undefined && add.reason.trim().length < 10) {
-        throw new Error("accepting a drop below a floor needs a reason of 10 or more characters");
+    if (add !== undefined) {
+        checkReason(add.reason, "accepting a drop below a floor");
     }
     const out: AcceptedDrops = structuredClone(drops);
     let removed = 0;
@@ -445,7 +460,7 @@ export function ratchetDrops(
  * @param records - the known failures as committed
  * @param gates - the run's verdicts by key
  * @param add - the reason and date to add the unlisted failures with; omitted to add nothing
- * @param add.reason - why they are added
+ * @param add.reason - why they are added, naming the issue that tracks them (`#1234`)
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
  * @param add.properties - only these properties (all when omitted)
@@ -459,8 +474,8 @@ export function ratchetKnown(
     add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
     prune: boolean | readonly string[] = false,
 ): { records: KnownRecords; removed: number; added: number; unlisted: number } {
-    if (add !== undefined && add.reason.trim().length < 10) {
-        throw new Error("adding to the known failures needs a reason of 10 or more characters");
+    if (add !== undefined) {
+        checkReason(add.reason, "adding to the known failures");
     }
     const known: KnownFailures = structuredClone(records.known);
     let removed = 0;

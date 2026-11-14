@@ -2599,6 +2599,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             }
 
             this.followSession();
+            // A project or graph that arrived while the store was read (an autosave restore after a
+            // reload) changed nothing followSession heard: look again now that it listens.
+            void this.enqueue(() => this.reopenForGraph());
         } catch (error) {
             // ponytail: an unreadable store reads as no history; the controller still answers.
             logger.warn("History could not open", { error: toSafeError(error).name });

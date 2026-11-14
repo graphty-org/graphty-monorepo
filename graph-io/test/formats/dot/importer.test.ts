@@ -359,7 +359,7 @@ describe("dot importer: the grammar", () => {
             'quoted "id"',
             "linecontinued",
             "abc",
-            "<<b>html</b>>",
+            "<b>html</b>",
             "node",
             "",
             "back\\\\slash",

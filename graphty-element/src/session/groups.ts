@@ -168,7 +168,7 @@ function addTo(
     // On an undirected graph a-b and b-a are one pair: one edge stands in for both, the way round
     // the first one seen runs.
     const ends = [JSON.stringify(source), JSON.stringify(target)];
-    const key = (directed ? ends : ends.sort((a, b) => a.localeCompare(b))).join(",");
+    const key = (directed ? ends : ends.toSorted((a, b) => a.localeCompare(b))).join(",");
     const held = into.get(key) ?? { source, target, count: 0, weight: 0 };
     const count = edge["_group.count"];
     held.count += typeof count === "number" ? count : 1;

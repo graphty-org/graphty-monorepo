@@ -8,6 +8,10 @@
  * one depended on the machine's speed. The fit now records what it read and is owed again when
  * one of those changes before the picture is final, so both orders end on the same framing. Once
  * the picture was final, an inset change moves nothing (test/browser/camera/view-insets.test.ts).
+ *
+ * A style that changes how big the nodes are drawn, landing after the fit, is owed the same way
+ * (issue #7970): a layer naming a shader whose body was still loading landed after the fit on a
+ * cold load and before it on a warm one, so one story framed at two zooms.
  */
 
 import "../../../src/graphty-element";
@@ -79,6 +83,34 @@ describe("an owed fit reads the inputs in force when the picture is final", () =
 
         assert.isAtLeast(writes, 2, "the fit was owed again");
         assertRightOfInset(element);
+    });
+
+    it("nodes a style grows as the fit lands are framed at their new size", async () => {
+        let fits = 0;
+        const off = element.graph.on("zoom-to-fit-complete", () => {
+            // The layer lands right after the fit, before the frame that shows it.
+            if (fits++ === 0) {
+                void element.session.styles.add({
+                    name: "Big",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.size": 12 },
+                });
+            }
+        });
+
+        try {
+            element.zoomToFit();
+            await element.waitForStableFrame();
+        } finally {
+            off();
+        }
+
+        assert.isAtLeast(fits, 2, "the fit was owed again");
+        const settled = element.graph.getCameraState();
+        element.zoomToFit();
+        await element.waitForStableFrame();
+        assert.deepEqual(element.graph.getCameraState(), settled, "a fresh fit frames where the owed one did");
     });
 
     it("a canvas made shorter as the fit lands is framed at its new size", async () => {

@@ -67,7 +67,7 @@ jobs:
             # Baseline PNGs are Git LFS objects. They are cached by the pointer files' hash, so a run
             # downloads from LFS only the images accepted since the cache was saved.
             - name: Restore this project's baseline images
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('{0}/{1}/**/*.png', matrix.baselines, matrix.project), matrix.fonts) }}

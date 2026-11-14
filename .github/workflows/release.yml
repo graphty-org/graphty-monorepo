@@ -471,7 +471,7 @@ jobs:
                   done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
                   { echo "pending=false"; echo "sha=${CANDIDATE}"; } >> "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
               if: ${{ steps.pending.outputs.pending == 'false' }}
 
             - uses: actions/setup-node@v7
@@ -751,7 +751,7 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - uses: actions/setup-node@v7
               with:
@@ -808,7 +808,7 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: node tools/llm-spend.mjs
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - uses: actions/setup-node@v7
               with:
@@ -894,7 +894,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - uses: actions/setup-node@v7
               with:
@@ -1282,7 +1282,7 @@ jobs:
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
               run: git lfs pull --include "visual-baselines/${PROJECT}/**,visual-fonts/**"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
 
             - name: Install dependencies
@@ -1431,7 +1431,7 @@ jobs:
                   done
                   node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
               if: ${{ steps.plan.outputs.dir != '' }}
 
             - name: Install dependencies
@@ -2088,7 +2088,7 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - uses: actions/setup-node@v7
               with:
@@ -2433,7 +2433,7 @@ jobs:
             - name: Check every export is in its pack
               run: node tools/check-packed-exports.mjs
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             # Note: Do NOT set registry-url - it interferes with OIDC trusted publishing
             - uses: actions/setup-node@v7

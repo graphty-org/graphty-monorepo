@@ -274,7 +274,7 @@ jobs:
                   checks=$(jq -c --arg today "$(date -u +%F)" '[.advisory[] | select(.enforce > $today) | .job + (if .step then "/" + .step else "" end)]' <<<"$registry")
                   echo "checks=$checks" | tee -a "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -743,7 +743,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload babylonjs-map build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-babylonjs-map
                   path: babylonjs-map/dist/
@@ -857,7 +857,7 @@ jobs:
                   RUN: ${{ inputs.reuse_build_run }}
               run: node tools/ci-reuse-plan.mjs --build-run "$RUN" | tee -a "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
               if: steps.reuse-build.outputs.artifacts-run == ''
 
             - name: Setup Node.js
@@ -1079,7 +1079,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1242,7 +1242,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1470,7 +1470,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1580,7 +1580,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1690,7 +1690,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -2244,7 +2244,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -2353,7 +2353,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7

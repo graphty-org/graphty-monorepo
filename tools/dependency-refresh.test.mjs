@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { bumpActionRefs, openPullRequest, update } from "./dependency-refresh.mjs";
+import { bumpActionRefs, openPullRequest, remoteTags, update } from "./dependency-refresh.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 
 isolateGit();
@@ -87,6 +87,34 @@ describe("dependency-refresh", () => {
         assert.equal(bumpActionRefs("uses: foo/bar@v1", tagsOf), "uses: foo/bar@v1");
         const pin = "uses: foo/bar@3d3c42e5aac5ba805825da76410c181273ba90b1";
         assert.equal(bumpActionRefs(pin, tagsOf), pin);
+    });
+
+    it("moves a commit pin with a version comment to the newest tag of its major, SHA and comment both", () => {
+        const sha = (n) => n.repeat(40);
+        const shaOf = (repo, tag) => ({ "v1.4.0": sha("a"), "v1.10": sha("b") })[tag];
+        const pin = (ref, v) => `- uses: foo/bar@${ref} # ${v}\n`;
+        assert.equal(bumpActionRefs(pin(sha("0"), "v1.2.3"), tagsOf, shaOf), pin(sha("a"), "v1.4.0"));
+        assert.equal(
+            bumpActionRefs(`uses: foo/bar/sub@${sha("0")}  # v1.2`, tagsOf, shaOf),
+            `uses: foo/bar/sub@${sha("b")}  # v1.10`,
+        );
+        // already newest in its major, or a tag whose commit is unknown: unchanged
+        assert.equal(bumpActionRefs(pin(sha("0"), "v2.1"), tagsOf, shaOf), pin(sha("0"), "v2.1"));
+        assert.equal(
+            bumpActionRefs(pin(sha("0"), "v1.2.3"), tagsOf, () => undefined),
+            pin(sha("0"), "v1.2.3"),
+        );
+    });
+
+    it("reads tags and their commits from git ls-remote, dereferencing annotated tags", () => {
+        const out = [
+            `${"1".repeat(40)}\trefs/tags/v1.0.0`,
+            `${"2".repeat(40)}\trefs/tags/v1.1.0`,
+            `${"3".repeat(40)}\trefs/tags/v1.1.0^{}`,
+            `${"4".repeat(40)}\trefs/tags/latest`,
+        ].join("\n");
+        const tagsMap = remoteTags("o/r", () => out);
+        assert.deepEqual(Object.fromEntries(tagsMap), { "v1.0.0": "1".repeat(40), "v1.1.0": "3".repeat(40) });
     });
 
     it("updates npm within ranges and actions within majors, and regenerates visual-seed.yml from the template", () => {

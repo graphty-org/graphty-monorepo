@@ -129,7 +129,7 @@ jobs:
                   path: ${{ matrix.storybook }}/
 
             - name: Restore this project's baseline images
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('{0}/{1}/**/*.png', matrix.baselines, matrix.project), matrix.fonts) }}

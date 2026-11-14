@@ -272,6 +272,9 @@ describe("the test matrix", () => {
         );
         assert.match(lint.if, /contains\(fromJSON\(needs\.packages\.outputs\.affected\), 'graphty-element'\)/u);
         assert.match(lint.run, /nx run graph-io:lint\b/u);
+        // or nx replays master's cached lint, whose hash would not include graphty-element
+        const project = JSON.parse(readFileSync(new URL("../graph-io/project.json", import.meta.url), "utf8"));
+        assert.ok(project.targets.lint.inputs.some((i) => i.projects?.includes("graphty-element")));
     });
 
     it("runs every member of a group even after one fails, then fails naming it", () => {

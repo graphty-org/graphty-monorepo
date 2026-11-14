@@ -1150,7 +1150,8 @@ jobs:
 
             # graph-io's lint typechecks its fidelity stories, which import graphty-element's source and test
             # helpers; graph-io/project.json negates that dependency (it would be a cycle), so nx never calls
-            # graph-io affected by a graphty-element change, and this step lints it then (#7196).
+            # graph-io affected by a graphty-element change, and this step lints it then (#7196). graph-io's lint
+            # inputs (graph-io/project.json) name graphty-element, so nx's cache never replays master's result here.
             - name: Lint graph-io's fidelity stories (PR, graphty-element affected)
               if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && !contains(fromJSON(needs.packages.outputs.affected), 'graph-io')
               run: pnpm exec nx run graph-io:lint --exclude-task-dependencies

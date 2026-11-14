@@ -1,5 +1,4 @@
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { defaultXRConfig } from "../../src/config/XRConfig";
 import { XRUIManager } from "../../src/ui/XRUIManager";

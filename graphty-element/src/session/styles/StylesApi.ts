@@ -105,8 +105,9 @@ import type {
 } from "../../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
+import { GraphtyLogger } from "../../logging/GraphtyLogger";
 import { quoteEach } from "../../utils/quote-each";
 import { resolveColumn } from "../columns";
 import {
@@ -1360,15 +1361,18 @@ export interface StylesApi {
      * RESOLVED WHEN A LAYER IS WRITTEN: a binding that names no palette records the default's id,
      * so a saved document always names a concrete palette. The call therefore belongs before the
      * layers are added. A later call leaves the layers that took the previous default as they are
-     * and writes a warning naming them; with `reapply: true` it re-resolves those layers instead.
+     * and logs a warning naming them; with `reapply: true` it re-resolves those layers instead.
      * A layer that names its palette is never touched.
      * @param palettes - The palette id per kind. Each must name a palette of that kind.
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @returns Settles once every re-resolved layer has been written and painted, at once when
+     *   there is none. Rejects with the first layer update's error; a layer whose update failed
+     *   keeps the previous default and counts as having taken it, so a later call retries it.
      * @throws `E_UNKNOWN_PALETTE` for an id no palette answers to, `E_BAD_COMMAND` for a palette
      *   of the wrong kind or a slot that is not a palette kind.
      */
-    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void;
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): Promise<void>;
 }
 
 /** A style file: the layers alone, as {@link StylesApi.toFile} writes it. */
@@ -1632,6 +1636,11 @@ export interface StylesSources {
      * @param refusal - The facts.
      */
     readonly onRefused?: (refusal: StyleRefusal) => void;
+    /**
+     * Called when a repaint nobody awaited fails (a branches view's), so a host can publish it.
+     * @param failure - What the repaint was for, and why it failed.
+     */
+    readonly onRepaintFailed?: (failure: StyleRepaintFailure) => void;
     /**
      * Called once after the last {@link StylesSources.onChange} of one repaint.
      * @param batch - The edits that pass told.
@@ -2005,6 +2014,47 @@ function unknownRow(id: StyleRowId, rows: Rows): GraphtyError {
 export interface StyleRefusal {
     /** Why, as codes the application words; see {@link LayerProblem.fact}. */
     readonly problems: readonly ShaderProblem[];
+}
+
+/**
+ * What a repaint the element started on its own was for, as `style:repaint-failed` names it:
+ * `selection`, `hover` and `peek` follow the reader's state, `sets` a set whose members changed,
+ * `branches` a branches view, and `layer` a layer a pass could not paint at all.
+ * @since 3.52.0
+ */
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "layer";
+
+/**
+ * A repaint nobody awaited that failed, or a layer a pass could not paint, as
+ * `style:repaint-failed` publishes it. The picture on screen is stale until the next repaint.
+ * @since 3.52.0
+ */
+export interface StyleRepaintFailure {
+    /** What the repaint was for. */
+    readonly cause: StyleRepaintCause;
+    /** Why, as a code; for `cause: "layer"` its `target` names the layer. */
+    readonly error: GraphtyError;
+}
+
+/**
+ * The failure a repaint nobody awaited publishes.
+ * @param cause - What the repaint was for.
+ * @param error - What it threw.
+ * @returns The failure, its error coded `E_INTERNAL` when what was thrown carried no code.
+ */
+export function repaintFailure(cause: StyleRepaintCause, error: unknown): StyleRepaintFailure {
+    return {
+        cause,
+        error: isGraphtyError(error)
+            ? error
+            : new GraphtyError({
+                  code: "E_INTERNAL",
+                  message: `A ${cause} repaint failed.`,
+                  source: "style",
+                  details: { cause },
+                  cause: error,
+              }),
+    };
 }
 
 /**
@@ -2771,7 +2821,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             .then(
                 () => undefined,
                 (error: unknown) => {
-                    console.error("[graphty] Could not repaint a branches view.", error);
+                    sources.onRepaintFailed?.(repaintFailure("branches", error));
                 },
             )
             .finally(() => {
@@ -3233,10 +3283,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     let defaultPalettes: DefaultPalettes = {};
     /**
      * The bindings, as "layer id / channel", whose palette was filled in from a default rather
-     * than named by the author. Only ever read against the live stack, so an entry for a layer
-     * that is gone answers for nothing.
+     * than named by the author, and the palette written. Only ever read against the live stack,
+     * so an entry for a layer that is gone answers for nothing.
      */
-    const defaulted = new Set<string>();
+    const defaulted = new Map<string, string>();
 
     /**
      * The palette kind a colour binding's default comes from, or null when it reads no palette.
@@ -3296,7 +3346,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             if (palette !== undefined) {
                 encode ??= { ...(spec.encode as Record<string, Binding>) };
                 encode[channel] = { ...binding, palette };
-                defaulted.add(`${id}/${channel}`);
+                defaulted.set(`${id}/${channel}`, palette);
             }
         }
 
@@ -5902,7 +5952,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return selectsAmongDrawn(id).count;
         },
 
-        setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
+        setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): Promise<void> {
             assertDefaultPalettes(palettes);
 
             // The layers that took the default a kind is about to lose: a binding naming no palette
@@ -5919,18 +5969,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                         binding === undefined || channelDescriptor(channel)?.accepts !== "color"
                             ? null
                             : paletteKindOf(binding);
-                    if (
-                        kind === null ||
-                        !("by" in binding) ||
-                        palettes[kind] === undefined ||
-                        palettes[kind] === previous[kind]
-                    ) {
+                    if (kind === null || !("by" in binding) || palettes[kind] === undefined) {
                         return [];
                     }
 
+                    // A binding still on the palette a default wrote took it, whichever default
+                    // that was: one whose reapply failed is stale until a call lands it.
                     const took =
-                        binding.palette === undefined ||
-                        (binding.palette === previous[kind] && defaulted.has(`${layer.id}/${channel}`));
+                        binding.palette === undefined
+                            ? palettes[kind] !== previous[kind]
+                            : binding.palette !== palettes[kind] &&
+                              defaulted.get(`${layer.id}/${channel}`) === binding.palette;
                     return took ? [{ channel, kind }] : [];
                 });
                 if (channels.length > 0) {
@@ -5941,29 +5990,36 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             defaultPalettes = { ...previous, ...palettes };
 
             if (stale.length === 0) {
-                return;
+                return Promise.resolve();
             }
 
             if (options.reapply !== true) {
-                const named = stale.map(({ layer }) => `"${layer.name}" (${layer.id})`).join(", ");
-                console.warn(
-                    `[graphty] setDefaultPalettes: ${named} took the previous default palette and keep it. ` +
-                        "Call setDefaultPalettes before adding layers, or pass { reapply: true } to repaint them.",
+                GraphtyLogger.getLogger(["graphty", "style"]).warn(
+                    "setDefaultPalettes: layers that took the previous default palette keep it; pass reapply",
+                    { layerIds: stale.map(({ layer }) => layer.id) },
                 );
-                return;
+                return Promise.resolve();
             }
 
-            for (const { layer, channels } of stale) {
-                const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
-                for (const { channel, kind } of channels) {
-                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
-                    defaulted.add(`${layer.id}/${channel}`);
-                }
+            // A layer counts as having taken the new default only once its update lands, so a
+            // failed one still reads as stale to the next call.
+            return Promise.all(
+                stale.map(async ({ layer, channels }) => {
+                    const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
+                    for (const { channel, kind } of channels) {
+                        encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
+                    }
 
-                api.update(layer.id, { encode }).then(undefined, (error: unknown) => {
-                    console.error(`[graphty] setDefaultPalettes could not reapply the layer "${layer.name}".`, error);
-                });
-            }
+                    // Read before the update is awaited: a later call may change the defaults meanwhile.
+                    const written = channels.map(({ channel, kind }) => [channel, defaultPalettes[kind]] as const);
+                    await api.update(layer.id, { encode });
+                    for (const [channel, palette] of written) {
+                        if (palette !== undefined) {
+                            defaulted.set(`${layer.id}/${channel}`, palette);
+                        }
+                    }
+                }),
+            ).then(() => undefined);
         },
 
         toDocument(): StyleDocument {

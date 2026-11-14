@@ -13,7 +13,7 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { property } from "../export/lossWords";
-import { formatCount } from "../settings/numberFormat";
+import { count } from "../inspector/words";
 
 /** A style code a load reports: every style code but the ones only an export reports. */
 type ImportStyleCode = Exclude<FileStyleCode, ExportStyleLossCode>;
@@ -92,16 +92,6 @@ export const STYLE_REASON_WORDS: Readonly<Record<FileStyleReason, string>> = {
     CALCULATED: "they are calculated values",
     RESULT_PATH: "they come from a value the file does not hold",
 };
-
-/**
- * A count and its noun, singular for one.
- * @param n - the count.
- * @param noun - the singular noun.
- * @returns such as "1 node" or "9 values".
- */
-function count(n: number, noun: string): string {
-    return `${formatCount(n)} ${noun}${n === 1 ? "" : "s"}`;
-}
 
 /**
  * One load note in words: what happened, where and how often.

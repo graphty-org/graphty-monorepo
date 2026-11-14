@@ -88,6 +88,7 @@ export default defineConfig({
                         { text: "Filter Steps", link: "/guide/filter-steps" },
                         { text: "Selections Built From Steps", link: "/guide/selection-steps" },
                         { text: "Rectangle and Lasso Selection", link: "/guide/region-select" },
+                        { text: "Bringing Back a Cleared Selection", link: "/guide/restore-selection" },
                         { text: "Sets", link: "/guide/sets" },
                         { text: "Notes", link: "/guide/notes" },
                         { text: "Finding", link: "/guide/find" },

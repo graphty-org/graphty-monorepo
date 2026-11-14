@@ -293,6 +293,15 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SelectionApi.restore",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.selection.apply({ nodes: ids(size) });
+            session.selection.clear();
+            return () => session.selection.restore();
+        },
+    },
+    {
         method: "SelectionApi.previewHover",
         growth: "linear",
         prepare: async (session, size) => {

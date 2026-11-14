@@ -58,6 +58,8 @@ import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_lights_punctual.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_node_visibility.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_xmp_json_ld.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/MSFT_sRGBFactors.js";
+// Read as thin instances, which src/models/prepareTemplate.ts bakes into copies.
+import "@babylonjs/loaders/glTF/2.0/Extensions/EXT_mesh_gpu_instancing.js";
 // What the glTF loader would otherwise import lazily (and PBRMaterial, imported by name below).
 import "@babylonjs/loaders/glTF/2.0/pbrMaterialLoadingAdapter.js";
 import "@babylonjs/core/Animations/animationGroup.js";

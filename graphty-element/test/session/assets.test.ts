@@ -388,7 +388,7 @@ describe("session.assets: hostile files, each refused with its code", () => {
         assertRejected(await add({ files: gltfPair(shortBuffer) }), "E_MODEL_STRUCTURE", { rule: "accessor" });
     });
 
-    it("accepts compression it bundles a decoder for, and refuses an unknown required extension and GPU instancing", async () => {
+    it("accepts compression it bundles a decoder for and GPU instancing, and refuses an unknown required extension", async () => {
         const draco = triangleGltf({
             extensionsUsed: ["KHR_draco_mesh_compression"],
             extensionsRequired: ["KHR_draco_mesh_compression"],
@@ -401,8 +401,30 @@ describe("session.assets: hostile files, each refused with its code", () => {
         assertRejected(await add({ files: gltfPair(unknown) }), "E_MODEL_FORMAT_UNSUPPORTED", {
             extension: "EXT_unknown",
         });
-        const instanced = triangleGltf({ extensionsUsed: ["EXT_mesh_gpu_instancing"] });
-        assertRejected(await add({ files: gltfPair(instanced) }), "E_MODEL_STRUCTURE", { rule: "instancing" });
+        // Three instances of the one-triangle mesh count three triangles; attributes that disagree
+        // on the instance count are damaged.
+        const gpuInstancing = "EXT_mesh_gpu_instancing";
+        const instancing = (counts: number[]): Record<string, unknown> =>
+            triangleGltf({
+                extensionsUsed: [gpuInstancing],
+                extensionsRequired: [gpuInstancing],
+                nodes: [
+                    {
+                        mesh: 0,
+                        extensions: {
+                            [gpuInstancing]: { attributes: { TRANSLATION: 1, SCALE: counts.length > 1 ? 2 : 1 } },
+                        },
+                    },
+                ],
+                accessors: [
+                    { bufferView: 0, componentType: 5126, count: 3, type: "VEC3", min: [0, 0, 0], max: [1, 1, 0] },
+                    ...counts.map((count) => ({ bufferView: 0, componentType: 5126, count, type: "VEC3" })),
+                ],
+            });
+        const instanced = await assets.add({ files: gltfPair(instancing([3])) });
+        assert.strictEqual(instanced.state, "accepted", JSON.stringify(instanced.problems));
+        assert.strictEqual(assets.inspect(instanced.id).triangles, 3);
+        assertRejected(await add({ files: gltfPair(instancing([3, 2])) }), "E_MODEL_STRUCTURE", { rule: "instancing" });
     });
 
     it("names formats it recognizes but does not load, and refuses what it does not know", async () => {

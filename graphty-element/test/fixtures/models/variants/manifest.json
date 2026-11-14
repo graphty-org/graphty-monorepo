@@ -171,6 +171,17 @@
         "warnings": [],
         "refused": null,
         "upload": "files",
+        "id": "gltf-gpu-instancing",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB with EXT_mesh_gpu_instancing (a cube placed twice)",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
         "id": "gltf-transmission-used",
         "format": "glb",
         "color": "blue",

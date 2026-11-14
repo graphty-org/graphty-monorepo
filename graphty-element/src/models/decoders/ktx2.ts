@@ -5,12 +5,13 @@
  * Babylon.js fetches its KTX2 decoder and every transcoder from cdn.babylonjs.com by default.
  * Here the decoder's JavaScript is the installed peer, and its transcoders are the copies in
  * ./vendor/ktx2 (Apache-2.0), which the library build writes beside this chunk. Decoding runs on
- * the page's thread. Without the peer, {@link loadKtx2} throws and the model is reported with
+ * the page's thread. The glTF loader's `KHR_texture_basisu` extension is registered only once the
+ * peer has loaded: without the peer, {@link loadKtx2} throws, and a glTF that only uses the
+ * extension draws its fallback PNG or JPEG images, while one that requires it is reported with
  * `E_MODEL_DECODER_UNAVAILABLE { reason: "missing" }`. Loaded by src/models/loadModel.ts only for
  * a model whose summary says it uses KTX2.
  */
 
-import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_basisu.js";
 import "@babylonjs/core/Materials/Textures/Loaders/ktxTextureLoader.js";
 
 import { KhronosTextureContainer2 } from "@babylonjs/core/Misc/khronosTextureContainer2.js";
@@ -74,6 +75,9 @@ export function loadKtx2(): Promise<void> {
             ready = undefined;
             throw new Ktx2Missing(KTX2_PACKAGE);
         }
+
+        // Registered page-wide, so never before the peer is known to be there.
+        await import("@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_basisu.js");
 
         const urls = {
             // Never loaded: the decoder module is the installed peer, below.

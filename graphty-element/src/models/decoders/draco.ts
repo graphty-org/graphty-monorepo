@@ -17,7 +17,23 @@ import wasmUrl from "./vendor/draco/draco_wasm_wrapper_gltf.js?url&no-inline";
 
 DracoDecoder.DefaultConfiguration = { wasmUrl, wasmBinaryUrl, numWorkers: 1 };
 
-/** Drop the decoder after a failed decode, so the next model starts a fresh worker. */
-export function resetDraco(): void {
-    DracoDecoder.ResetDefault();
+/** How many model loads that use Draco are running. */
+let loading = 0;
+
+/** Count a model load that uses Draco as started. */
+export function dracoLoadStarted(): void {
+    loading++;
+}
+
+/**
+ * Count a model load that uses Draco as finished. When the decoder itself failed to load, drop it so
+ * the next model starts a fresh worker -- but only once no other load is using it: disposing the
+ * shared decoder terminates its worker without settling the decodes still waiting on it.
+ * @param decoderFailed - Whether this load failed because the decoder could not be loaded.
+ */
+export function dracoLoadEnded(decoderFailed: boolean): void {
+    loading--;
+    if (decoderFailed && loading === 0) {
+        DracoDecoder.ResetDefault();
+    }
 }

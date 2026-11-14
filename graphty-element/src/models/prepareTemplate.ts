@@ -4,7 +4,8 @@
  *
  * - Every part's transform is baked into its vertices, in its rest pose: a skinned or morphed
  *   part keeps its bind-pose vertices and loses its skeleton and morph targets, so an instance
- *   binds no bone or morph texture.
+ *   binds no bone or morph texture. A part with GPU instances (`EXT_mesh_gpu_instancing`) is
+ *   baked once per instance.
  * - The model is turned so the file's up axis points up, then by `modelTurn` about that axis.
  * - It is centered on its bounding box (or kept on the file's origin) and scaled so its largest
  *   extent is 1 ("contain"), or each extent is 1 ("stretch"). A node then scales its instance by
@@ -17,6 +18,8 @@
  *
  * Reached only through the model chunk (src/models/chunk.ts), so it costs the main entry nothing.
  */
+
+import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
 import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
@@ -103,16 +106,24 @@ function bakeParts(container: AssetContainer, turn: Matrix): Part[] {
             data.normals = normals;
         }
 
-        const world = mesh.computeWorldMatrix(true).multiply(turn);
-        data.transform(world);
-        if (world.determinant() < 0 && data.indices !== null) {
-            flipWinding(data.indices);
-        }
-
         const { material } = mesh;
         const signature = [data.uvs, data.uvs2, data.colors, data.tangents].map((a) => (a ? 1 : 0)).join("");
         const blend = material?.needAlphaBlendingForMesh(mesh) === true ? "b" : "o";
-        parts.push({ data, material, key: `${signature}|${material?.uniqueId ?? -1}|${blend}` });
+        const key = `${signature}|${material?.uniqueId ?? -1}|${blend}`;
+        const placed = mesh.computeWorldMatrix(true).multiply(turn);
+        // A thin instance's matrix places it in the mesh's own space, before the mesh's world matrix.
+        // ponytail: per-instance colors (`_COLOR_0`) are not carried over; bake them as vertex colors if a file needs them.
+        const instances = mesh.thinInstanceGetWorldMatrices();
+        for (const instance of instances.length === 0 ? [Matrix.Identity()] : instances) {
+            const world = instance.multiply(placed);
+            const copy = instances.length > 1 ? data.clone() : data;
+            copy.transform(world);
+            if (world.determinant() < 0 && copy.indices !== null) {
+                flipWinding(copy.indices);
+            }
+
+            parts.push({ data: copy, material, key });
+        }
     }
 
     return parts;

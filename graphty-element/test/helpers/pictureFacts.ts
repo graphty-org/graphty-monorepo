@@ -1,6 +1,7 @@
 /**
- * @file What a picture shows, counted from its pixels: how much of it is drawn (not transparent)
- * and how much of it is one strong color. The model variant tests check a thumbnail with these.
+ * @file What a picture shows, counted from its pixels: how much of it is drawn (not transparent),
+ * how much of it is one strong color, and how much differs from another picture. The model variant
+ * tests check a thumbnail with these.
  */
 
 /** A strong color a fixture is drawn in. */
@@ -56,4 +57,19 @@ export async function colorShare(url: string, color: PictureColor): Promise<numb
         matched += data[at + 3] > 0 && data[at + c] >= o1 + 40 && data[at + c] >= o2 + 40 ? 1 : 0;
     }
     return matched / (data.length / 4);
+}
+
+/**
+ * The share of two same-sized pictures' pixels that differ: any channel by more than 24.
+ * @param a - One picture.
+ * @param b - The other.
+ * @returns 0 to 1.
+ */
+export async function differingShare(a: string, b: string): Promise<number> {
+    const [one, two] = await Promise.all([pixels(a), pixels(b)]);
+    let differing = 0;
+    for (let at = 0; at < one.length; at += 4) {
+        differing += [0, 1, 2, 3].some((k) => Math.abs(one[at + k] - two[at + k]) > 24) ? 1 : 0;
+    }
+    return differing / (one.length / 4);
 }

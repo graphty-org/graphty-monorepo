@@ -55,6 +55,8 @@ export async function readSplat(
                     set.set(path.slice(dir.length), file);
                 }
             }
+            // Babylon looks the main file up as `meta.json`, whatever it is called.
+            set.set("meta.json", files.get(main) as Uint8Array);
             rows = (await ParseSogMeta(set, "", scene)).data;
         }
     } catch (error) {

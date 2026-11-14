@@ -9,7 +9,8 @@
  *   buffer; the sum over all accessors, sparse ones included, is under the decoded-bytes limit;
  * - triangles are counted per use (a mesh used by three nodes counts three times);
  * - nodes, meshes, materials, textures, animations, morph targets and joints are capped;
- * - `EXT_mesh_gpu_instancing` is refused, and so is a required extension the loader does not read;
+ * - a required extension the loader does not read is refused; `EXT_mesh_gpu_instancing` is read,
+ *   its instances counted toward the triangle limit, and refused when its attributes disagree;
  * - a meshopt-compressed view's source fits its buffer, and its decoded size counts toward the
  *   limit; a Draco primitive's buffer view and attribute ids are in range;
  * - image sizes are read from their headers (in buffer views and `data:` URLs too).
@@ -67,6 +68,7 @@ const READABLE_EXTENSIONS = new Set([
     "EXT_meshopt_compression",
     "KHR_meshopt_compression",
     "KHR_texture_basisu",
+    "EXT_mesh_gpu_instancing",
 ]);
 
 /** The compression each glTF extension stands for, in {@link ModelCompression} terms. */
@@ -360,11 +362,6 @@ function checkExtensions(json: Record<string, unknown>): string[] {
     const required = Array.isArray(json.extensionsRequired)
         ? json.extensionsRequired.filter((e) => typeof e === "string")
         : [];
-    const used = Array.isArray(json.extensionsUsed) ? json.extensionsUsed : [];
-    if (used.includes("EXT_mesh_gpu_instancing") || required.includes("EXT_mesh_gpu_instancing")) {
-        refuse("E_MODEL_STRUCTURE", { rule: "instancing" });
-    }
-
     for (const extension of required) {
         if (!READABLE_EXTENSIONS.has(extension)) {
             refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "gltf", extension: cut(extension) });
@@ -690,20 +687,49 @@ interface MeshTally {
 }
 
 /**
- * Refuse a node whose mesh, skin or camera index is out of range, or that asks for instancing.
+ * How many copies of its mesh a node draws: its `EXT_mesh_gpu_instancing` instance count, or 1.
+ * @param node - The node.
+ * @param accessors - The glTF's accessors.
+ * @returns The count.
+ * @throws Refusal when an instance attribute's accessor is out of range, or the counts disagree.
+ */
+function instancesOf(node: Record<string, unknown>, accessors: readonly Record<string, unknown>[]): number {
+    const extension = isObject(node.extensions) ? node.extensions.EXT_mesh_gpu_instancing : undefined;
+    if (extension === undefined) {
+        return 1;
+    }
+
+    const attributes = isObject(extension) && isObject(extension.attributes) ? Object.values(extension.attributes) : [];
+    const counts = new Set(
+        attributes.map((a) => integer(accessors[index(a, accessors.length, "instancing") as number].count, "count")),
+    );
+    if (counts.size !== 1) {
+        refuse("E_MODEL_STRUCTURE", { rule: "instancing" });
+    }
+
+    return [...counts][0];
+}
+
+/**
+ * Refuse a node whose mesh, skin, camera or instance accessor index is out of range.
  * @param nodes - The glTF's nodes.
  * @param meshes - How many meshes it has.
  * @param skins - How many skins.
  * @param cameras - How many cameras.
+ * @param accessors - Its accessors.
  */
-function checkNodes(nodes: readonly Record<string, unknown>[], meshes: number, skins: number, cameras: number): void {
+function checkNodes(
+    nodes: readonly Record<string, unknown>[],
+    meshes: number,
+    skins: number,
+    cameras: number,
+    accessors: readonly Record<string, unknown>[],
+): void {
     for (const node of nodes) {
         index(node.mesh, meshes, "node.mesh");
         index(node.skin, skins, "node.skin");
         index(node.camera, cameras, "node.camera");
-        if (isObject(node.extensions) && "EXT_mesh_gpu_instancing" in node.extensions) {
-            refuse("E_MODEL_STRUCTURE", { rule: "instancing" });
-        }
+        instancesOf(node, accessors);
     }
 }
 
@@ -834,11 +860,13 @@ function tallyMeshes(
 }
 
 /**
- * Triangles per use: each scene node that draws a mesh adds that mesh's triangles.
+ * Triangles per use: each scene node that draws a mesh adds that mesh's triangles, once per
+ * GPU instance it asks for (each instance is baked into the template as its own copy).
  * @param reached - The scene's nodes.
  * @param nodes - The glTF's nodes.
  * @param triangles - Triangles per mesh.
  * @param limits - The limits in force.
+ * @param accessors - The glTF's accessors.
  * @returns The triangles drawn.
  */
 function drawnTriangles(
@@ -846,12 +874,13 @@ function drawnTriangles(
     nodes: readonly Record<string, unknown>[],
     triangles: Float64Array,
     limits: ModelLimits,
+    accessors: readonly Record<string, unknown>[],
 ): number {
     let drawn = 0;
     for (const n of reached) {
         const m = nodes[n].mesh;
         if (typeof m === "number") {
-            drawn += triangles[m];
+            drawn += triangles[m] * instancesOf(nodes[n], accessors);
             if (drawn > limits.maxTriangles) {
                 refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: drawn, limit: limits.maxTriangles });
             }
@@ -1064,9 +1093,9 @@ export function checkGltf(input: GltfInput): GltfChecked {
     const { accessors, views } = checkAccessors(json, buffers, limits);
 
     // Every index the loader follows.
-    checkNodes(nodes, meshes.length, skins.length, cameras.length);
+    checkNodes(nodes, meshes.length, skins.length, cameras.length, accessors);
     const { triangles, morphTargets, bounds } = tallyMeshes(meshes, accessors, materials.length, views.length);
-    const drawn = drawnTriangles(reached, nodes, triangles, limits);
+    const drawn = drawnTriangles(reached, nodes, triangles, limits, accessors);
 
     cap("nodes", nodes.length, GLTF_CAPS.nodes);
     cap("meshes", meshes.length, GLTF_CAPS.meshes);

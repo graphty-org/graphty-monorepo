@@ -87,6 +87,7 @@ interface GltfPrepared {
     readonly files: ReadonlyMap<string, Uint8Array>;
     readonly extension: ModelExtension;
     readonly used: readonly string[];
+    readonly required: readonly string[];
 }
 
 /**
@@ -96,7 +97,7 @@ interface GltfPrepared {
  * @param files - The file set.
  * @param main - The main file.
  * @param format - `glb` or `gltf`.
- * @returns The set to load, the loader, and the extensions the file uses.
+ * @returns The set to load, the loader, and the extensions the file uses and requires.
  */
 function prepareGltf(
     module: ModelChunk,
@@ -121,9 +122,12 @@ function prepareGltf(
         throw new ModelLoadFailure({ code: "E_MODEL_PARSE", params: { format } });
     }
 
-    const used = Array.isArray(json.extensionsUsed) ? json.extensionsUsed.filter((e) => typeof e === "string") : [];
+    const strings = (list: unknown): string[] =>
+        Array.isArray(list) ? list.filter((e): e is string => typeof e === "string") : [];
+    const used = strings(json.extensionsUsed);
+    const required = strings(json.extensionsRequired);
     if (!module.isGltf1(json)) {
-        return { files, extension: READERS[format] as ModelExtension, used };
+        return { files, extension: READERS[format] as ModelExtension, used, required };
     }
 
     const slash = main.lastIndexOf("/");
@@ -134,20 +138,25 @@ function prepareGltf(
         upgraded.set(main.slice(0, slash + 1) + bodyName, body);
     }
 
-    return { files: upgraded, extension: ".gltf", used: [] };
+    return { files: upgraded, extension: ".gltf", used: [], required: [] };
 }
+
+/** The Draco module, when a load uses it. */
+type DracoModule = typeof import("./decoders/draco");
 
 /**
  * Load the decoder modules a glTF's extensions need.
  * @param used - The extensions it uses.
- * @returns A function to call after a failed load, which frees a decoder that may be broken.
+ * @param required - The extensions it requires. Without the KTX2 peer, a glTF that only uses
+ *     `KHR_texture_basisu` draws its fallback images instead.
+ * @returns The Draco module when the glTF uses Draco, so the load can be counted.
  */
-async function loadDecoders(used: readonly string[]): Promise<() => void> {
+async function loadDecoders(used: readonly string[], required: readonly string[]): Promise<DracoModule | undefined> {
     const needed = new Set(DECODER_EXTENSIONS.filter(([name]) => used.includes(name)).map(([, kind]) => kind));
-    let reset = (): void => undefined;
+    let draco: DracoModule | undefined;
     try {
         if (needed.has("draco")) {
-            ({ resetDraco: reset } = await import("./decoders/draco"));
+            draco = await import("./decoders/draco");
         }
 
         if (needed.has("meshopt")) {
@@ -169,6 +178,10 @@ async function loadDecoders(used: readonly string[]): Promise<() => void> {
         }
 
         await ktx2.loadKtx2().catch(() => {
+            if (!required.includes("KHR_texture_basisu")) {
+                return;
+            }
+
             throw new ModelLoadFailure({
                 code: "E_MODEL_DECODER_UNAVAILABLE",
                 params: { extension: "KHR_texture_basisu", package: ktx2.KTX2_PACKAGE, reason: "missing" },
@@ -176,7 +189,7 @@ async function loadDecoders(used: readonly string[]): Promise<() => void> {
         });
     }
 
-    return reset;
+    return draco;
 }
 
 /**
@@ -249,12 +262,12 @@ export async function loadModel(
     }
 
     let reader = READERS[format];
-    let reset = (): void => undefined;
+    let draco: DracoModule | undefined;
     if (format === "glb" || format === "gltf") {
         const prepared = prepareGltf(module, files, main, format);
         ({ files } = prepared);
         reader = prepared.extension;
-        reset = await loadDecoders(prepared.used);
+        draco = await loadDecoders(prepared.used, prepared.required);
     }
 
     const urls = new Map<string, string>();
@@ -263,6 +276,8 @@ export async function loadModel(
     }
 
     const { root, release } = guardRequests(urls);
+    let decoderFailed = false;
+    draco?.dracoLoadStarted();
     try {
         const slash = main.lastIndexOf("/");
         const folder = root + main.slice(0, slash + 1);
@@ -271,12 +286,15 @@ export async function loadModel(
             : await module.loadOwnModel(scene, files, main, reader as OwnFormat, folder);
     } catch (error) {
         const fact = failureOf(error, module, format);
-        if (fact.code === "E_MODEL_DECODER_UNAVAILABLE") {
-            reset();
-        }
-
+        // Only a decoder that failed to load is dropped: a damaged file ("decode") or a KTX2
+        // failure leaves the Draco decoder working.
+        decoderFailed =
+            fact.code === "E_MODEL_DECODER_UNAVAILABLE" &&
+            fact.params.reason === "load" &&
+            fact.params.extension === undefined;
         throw new ModelLoadFailure(fact);
     } finally {
+        draco?.dracoLoadEnded(decoderFailed);
         release();
         for (const url of urls.values()) {
             URL.revokeObjectURL(url);

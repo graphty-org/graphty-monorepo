@@ -86,6 +86,15 @@ export default tseslint.config(
         },
     },
 
+    // glTF's extension names (KHR_materials_unlit) and the keys of Babylon's KTX2 URL configuration
+    // (wasmUASTCToRGBA_SRGB) are the file format's and Babylon's own vocabulary.
+    {
+        files: ["src/models/decoders/ktx2.ts", "test/fixtures/models/**/*.ts"],
+        rules: {
+            camelcase: ["error", { properties: "never" }],
+        },
+    },
+
     // ============================================
     // NODE MESHES MOVE ONLY THROUGH THE POSITION FUNNEL
     // ============================================

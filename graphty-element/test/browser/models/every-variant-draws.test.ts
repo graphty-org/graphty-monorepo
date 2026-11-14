@@ -10,8 +10,9 @@ import { assert, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors";
 import { operationQueueOf } from "../../../src/Graph";
+import { unzipModel } from "../../../src/session/assets/unzip";
 import manifest from "../../fixtures/models/variants/manifest.json";
-import { colorShare, drawnShare, type PictureColor } from "../../helpers/pictureFacts";
+import { colorShare, differingShare, drawnShare, type PictureColor } from "../../helpers/pictureFacts";
 import { drawnAsModel, mount, nextModelEvent } from "./helpers";
 
 /** Every fixture file, by its path below the variants folder. */
@@ -95,5 +96,41 @@ describe("every model variant draws", () => {
         for (const id of ["a", "b", "c"]) {
             assert.isTrue(drawnAsModel(element.graph, id), `${id} is drawn as the model`);
         }
+    });
+
+    // The KTX2 sample's colors are not one strong color, so it is checked against the same cube
+    // with no texture: a texture that is not transcoded and drawn leaves the bare white cube.
+    it("a KTX2 texture is drawn, not left out", async () => {
+        const variant = (manifest as Variant[]).find((v) => v.id === "gltf-ktx2") as Variant;
+        const files = await filesOf(variant);
+        const json = JSON.parse(new TextDecoder().decode(files.get("cube.gltf"))) as {
+            materials: { pbrMetallicRoughness: Record<string, unknown> }[];
+        };
+        delete json.materials[0].pbrMetallicRoughness.baseColorTexture;
+        const bare = new Map(files);
+        bare.set("cube.gltf", new TextEncoder().encode(JSON.stringify(json)));
+        const element = await mount();
+        const textured = await element.session.assets.add({ files });
+        const plain = await element.session.assets.add({ files: bare });
+        assert.strictEqual(textured.state, "accepted", JSON.stringify(textured.problems));
+        assert.strictEqual(plain.state, "accepted", JSON.stringify(plain.problems));
+        const pictures = [
+            await element.modelThumbnail(textured.id, { size: 96 }),
+            await element.modelThumbnail(plain.id, { size: 96 }),
+        ] as const;
+        assert.isAtLeast(await differingShare(...pictures), 0.03, "the texture changes the picture");
+    });
+
+    it("an unbundled SOG whose meta file has another name", async () => {
+        const sog = (manifest as Variant[]).find((v) => v.id === "sog") as Variant;
+        const [bundle] = (await filesOf(sog)).values();
+        const files = await unzipModel(bundle, 64 * 1024 * 1024);
+        files.set("scene.json", files.get("meta.json") as Uint8Array);
+        files.delete("meta.json");
+        const element = await mount();
+        const record = await element.session.assets.add({ files });
+        assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+        const picture = await element.modelThumbnail(record.id, { size: 96 });
+        assert.isAtLeast(await drawnShare(picture), 0.03, "the model is drawn");
     });
 });

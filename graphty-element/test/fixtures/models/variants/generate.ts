@@ -338,6 +338,7 @@ interface CubeOptions {
     readonly unlit?: boolean;
     readonly twoScenes?: boolean;
     readonly transmissionUsed?: boolean;
+    readonly gpuInstancing?: boolean;
 }
 
 /**
@@ -488,6 +489,13 @@ function cubeGltf(options: CubeOptions = {}): { json: Record<string, unknown>; b
     }
     if (options.morph) {
         (json as { meshesWeights?: number[] }).meshesWeights = [0.5];
+    }
+    if (options.gpuInstancing) {
+        // The cube placed twice, side by side, as gltfpack -i writes it.
+        const translation = accessor(bin.view(bytesOf([-0.75, 0, 0, 0.75, 0, 0], Float32Array)), 5126, 2, "VEC3");
+        nodes[0].extensions = { EXT_mesh_gpu_instancing: { attributes: { TRANSLATION: translation } } };
+        extensionsUsed.push("EXT_mesh_gpu_instancing");
+        extensionsRequired.push("EXT_mesh_gpu_instancing");
     }
     if (options.animated) {
         const input = accessor(bin.view(bytesOf([0, 1], Float32Array)), 5126, 2, "SCALAR", { min: [0], max: [1] });
@@ -943,6 +951,12 @@ async function main(): Promise<void> {
     gltfOne("gltf-skinned", { skinned: true }, "blue", "GLB with a skin");
     gltfOne("gltf-unlit", { unlit: true }, "blue", "GLB with KHR_materials_unlit");
     gltfOne("gltf-two-scenes", { twoScenes: true }, "blue", "GLB with two scenes (the default one is drawn)");
+    gltfOne(
+        "gltf-gpu-instancing",
+        { gpuInstancing: true },
+        "blue",
+        "GLB with EXT_mesh_gpu_instancing (a cube placed twice)",
+    );
     gltfOne(
         "gltf-transmission-used",
         { transmissionUsed: true },

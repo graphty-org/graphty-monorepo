@@ -1244,12 +1244,15 @@ function combineFactor(value: ChannelValue, what: string): number {
  *
  * A channel that carries a measurement reads one; a channel that carries a name, a word or a
  * switch takes the value as it is, because there is nothing between "gene" and a shape to
- * interpolate.
+ * interpolate. A binding that names its values with `map` takes them as they are on every
+ * channel: a map is a list of categories, not a measurement, and reading it through `"linear"`
+ * painted the map's colours while the legend described a ramp nobody drew.
  * @param kind - The kind of value the channel accepts.
+ * @param binding - The binding, read for `map`.
  * @returns The scale's name.
  */
-function defaultScaleFor(kind: ChannelValueKind): string {
-    return kind === "color" || kind === "number" ? "linear" : "passthrough";
+function defaultScaleFor(kind: ChannelValueKind, binding: RuleBinding): string {
+    return binding.map === undefined && (kind === "color" || kind === "number") ? "linear" : "passthrough";
 }
 
 /**
@@ -1971,7 +1974,7 @@ function prepareRule(
         return prepareStops(descriptor, binding, options);
     }
 
-    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts);
+    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts, binding);
     const map = options.scales.require(scale);
     const described = options.scales.describe(scale);
     if (described === undefined) {

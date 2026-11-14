@@ -66,10 +66,11 @@ const dirName = (project) => project.replace(/^@graphty\//, "");
  * on top of its tests (FAMILY_BIN_COST in tools/test-select.mjs) -- so a part's time follows its file count. Its
  * files went from 267 to 542 between 2026-10-10 and 2026-11-04, and five parts reached a median of 1013 s against
  * the 900 s shard budget (#5822); eight brought that to about 630 s. By 2026-11-14 the eight parts ran 907 s median
- * and 1,123 s p90 in full runs, and the experiments-on twins' five parts 1,021 s and 1,303 s; ten parts each bring
- * both p90s under 900 s (#7849).
+ * and 1,123 s p90 in full runs, and the experiments-on twins' five parts 1,021 s and 1,303 s. Ten parts would bring the
+ * p90 to 898 s only if time shrank in exact proportion, but each part also pays a fixed cost (browser launch, vitest
+ * start, package import, coverage write), so twelve: about 750 s by proportion, with margin for that cost (#7849).
  */
-const ELEMENT_BROWSER_PARTS = 10;
+const ELEMENT_BROWSER_PARTS = 12;
 
 /**
  * How many parts graphty-element's default and mesh tests split into. In one part they ran 908 s median and 1,241 s
@@ -83,9 +84,10 @@ const ELEMENT_DEFAULT_PARTS = 2;
  * measured time. In full runs 42921328419 to 42996342490 (2026-11-10 and 11) the five parts held about 6,300 s of
  * vitest together, so even an even split was about 1,260 s a part, and the slowest part reached its job's 30-minute
  * deadline three times (#6620). Six parts, split by measured time, planned about 1,060 s each (the twins about 940 s),
- * and ran 1,089 s median and 1,333 s p90 in full runs to 2026-11-14; nine bring the p90 to about 890 s (#7849).
+ * and ran 1,089 s median and 1,333 s p90 in full runs to 2026-11-14. Nine would reach about 890 s only by exact
+ * proportion, with no room for each part's fixed cost; ten bring the p90 to about 800 s by proportion (#7849).
  */
-export const GRAPHTY_PARTS = 9;
+export const GRAPHTY_PARTS = 10;
 const graphtyParts = Array.from({ length: GRAPHTY_PARTS }, (_, i) => i + 1);
 
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).

@@ -273,7 +273,7 @@ describe("shards", () => {
     it("reads each vitest run of a shard command", () => {
         const runs = shardRuns(SHARDS.find((s) => s.shard === "graphty-element-browser-2"));
         assert.deepEqual(runs, [
-            { config: null, projects: ["browser", "interactions", "xr", "minimum-work"], slice: "2/10" },
+            { config: null, projects: ["browser", "interactions", "xr", "minimum-work"], slice: "2/12" },
         ]);
         assert.deepEqual(
             shardRuns(SHARDS.find((s) => s.shard === "graph-io-browser"))[0].config,

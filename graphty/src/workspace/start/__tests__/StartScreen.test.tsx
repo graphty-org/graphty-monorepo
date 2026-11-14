@@ -1,5 +1,5 @@
 /**
- * The start page, Settings and the usage data card, without the element (its tag stays an
+ * The start page, Settings and the usage data question, without the element (its tag stays an
  * empty box): what the page says, the card's answers and the chip that follows them, Settings
  * and its sections, and the ways in, for a first visit and a returning reader. `StartScreen.real-element.test.tsx` opens the samples.
  */
@@ -156,10 +156,14 @@ describe("the start screen", () => {
         assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample: / }), 24);
     });
 
-    it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {
+    it("asks about usage data in the owner's words, pinned over the page, with What is collected behind a disclosure", async () => {
         renderStart();
 
         const card = screen.getByRole("complementary", { name: "Usage data" });
+        // Pinned to the window, not a card at the foot of the start page.
+        assert.isNull(card.closest(".ws-land"));
+        assert.equal(getComputedStyle(card).position, "fixed");
+        assert.isTrue(card.checkVisibility());
         assert.isNotNull(within(card).getByText("Your data is yours, but please help us."));
         assert.isNotNull(within(card).getByText(OWNER_WORDS));
         const collected = within(card).getByText("No file contents ever leave your computer.");
@@ -194,6 +198,24 @@ describe("the start screen", () => {
         assert.isNotNull(within(dialog).getByText("Usage data: off. Nothing is sent."));
     });
 
+    it("asks a first visit that lands straight in a project, and the answer line closes", async () => {
+        renderStart({ project: { name: "Les Miserables", id: 1 } });
+
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
+        assert.equal(initSentry.mock.calls.length, 0);
+        assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }));
+
+        const line = screen.getByText(/Usage data stays off\./, { selector: ".ws-start-answer" });
+        const notice = line.closest<HTMLElement>(".ws-usage-notice");
+        assert.exists(notice);
+        const close = within(notice).getByRole("button", { name: "Close" });
+        // The pressed button went with the question; focus waits on the answer line's close.
+        assert.equal(document.activeElement, close);
+        await userEvent.click(close);
+        assert.isNull(screen.queryByText(/Usage data stays off/));
+    });
+
     it("does not show the card again once it was answered", async () => {
         const first = render(<Workspace store={createWorkspaceStore()} />);
         await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
@@ -213,6 +235,8 @@ describe("the start screen", () => {
         assert.equal(store.get().opening?.name, "Florentine families");
         assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
         assert.isNotNull(screen.getByRole("button", { name: "Local only" }));
+        // The question stays on the project's page until it is answered.
+        assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
     });
 
     it("opens an empty project for New project", async () => {

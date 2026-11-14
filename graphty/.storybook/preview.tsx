@@ -13,6 +13,7 @@ import { initSentry } from "../src/lib/sentry";
 import { theme } from "../src/theme";
 import { loadGraphtyElement } from "../src/elementLoader";
 import { loadFrame } from "../src/workspace/frameLoader";
+import { assumeUsageDeclinedForTests } from "../src/workspace/privacy/usageData";
 import { HeroTurns } from "../src/workspace/start/heroTurns";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 
@@ -117,6 +118,11 @@ const preview: Preview = {
                 dynamicTitle: true,
             },
         },
+    },
+    // The usage data question is pinned over every page of a first visit; a story about it forgets
+    // this answer in its own beforeEach, which runs after this one.
+    beforeEach: () => {
+        assumeUsageDeclinedForTests();
     },
     initialGlobals: {
         theme: "dark",

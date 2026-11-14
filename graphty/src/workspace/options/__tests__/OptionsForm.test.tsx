@@ -42,6 +42,7 @@ async function renderFor(key: string): Promise<readonly OptionDescriptor[]> {
             options={descriptor.options}
             values={{}}
             words={(option) => optionWords(key, option)}
+            algorithm={key}
             onChange={() => undefined}
         />,
     );
@@ -68,6 +69,25 @@ describe("the options form", () => {
         const keys = new Set(options.map((o) => o.name));
         for (const text of labels()) {
             assert.isFalse(keys.has(text), text);
+        }
+    });
+
+    it("draws no control yet for the weight and direction options whose card design is still to come", async () => {
+        // graphty-element declares them (issue #313); the app draws them with the per-card design.
+        const pagerank = await renderFor("pagerank");
+        assert.isTrue(pagerank.some((o) => o.name === "directed"));
+        assert.isNull(screen.queryByText(/direction/i));
+        session?.dispose();
+
+        for (const key of ["closeness", "hits"]) {
+            document.body.innerHTML = "";
+            const options = await renderFor(key);
+            assert.isTrue(
+                options.some((o) => o.name === "weight"),
+                key,
+            );
+            assert.isEmpty(screen.queryAllByLabelText("Weight"), key);
+            session?.dispose();
         }
     });
 

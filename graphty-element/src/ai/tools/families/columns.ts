@@ -10,7 +10,7 @@ import { z } from "zod";
 
 import type { FixCode, IssueId } from "../../../session/issues";
 import type { ColumnRef } from "../../../session/shared";
-import type { ColumnRole, TransactionScope, ValueType } from "../../../session/types";
+import type { ColumnRole, GroupSummary, TransactionScope, ValueType } from "../../../session/types";
 import { MAX_ITEMS, MAX_STRING, recordField, resolveNode, text } from "../fields";
 import {
     type ActionResult,
@@ -21,7 +21,7 @@ import {
     type ToolDefinition,
     ToolRefusal,
 } from "../types";
-import { coded, list, ok } from "./common";
+import { coded, codedNow, list, ok } from "./common";
 
 const column = z.string().max(200).describe("The column's name.");
 const on = z.enum(["node", "edge"]).optional().describe("Default node.");
@@ -102,6 +102,31 @@ export const columnsTool: ToolDefinition = {
             run: ({ tx }, args) => {
                 const group = text(args.column);
                 return Promise.resolve(ok(tx.data.overRepresented(group.includes(".") ? group : `data.${group}`)));
+            },
+        },
+        {
+            name: "group_table",
+            summary: "one row per group of the column: its size and summaries of numeric columns",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+                summaries: z
+                    .record(
+                        z.string().max(200),
+                        z.array(z.enum(["count", "sum", "min", "max", "mean", "median"])).max(6),
+                    )
+                    .optional()
+                    .describe('Per numeric column path, the summaries, e.g. {"data.age": ["mean", "max"]}.'),
+            },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.groupTable" }],
+            run: ({ tx }, args) => {
+                const group = text(args.column);
+                const summaries = args.summaries as Record<string, GroupSummary[]> | undefined;
+                const path = group.includes(".") ? group : `data.${group}`;
+                return Promise.resolve(ok(codedNow(() => tx.data.groupTable(path, { summaries }))));
             },
         },
         {

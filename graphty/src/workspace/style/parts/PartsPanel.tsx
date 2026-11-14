@@ -110,40 +110,39 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
     };
     const page = (part: PartSpec): React.ReactNode =>
         part.id === "shaders" || part.id === "visibility" ? undefined : <PartPage ctx={ctx} part={part} />;
-    const itemPage =
-        (part: PartSpec) =>
-        (id: string): React.ReactNode => {
-            const item = part.items.find((each) => each.id === id);
-            return item === undefined ? undefined : <PartPage ctx={ctx} part={part} item={item} />;
-        };
+    const itemPage = (part: PartSpec, id: string): React.ReactNode => {
+        const item = part.items.find((each) => each.id === id);
+        return item === undefined ? undefined : <PartPage ctx={ctx} part={part} item={item} />;
+    };
+    let body: React.ReactNode = <FindSettingResults ctx={ctx} query={query} parts={parts} />;
+    if (query.trim() === "") {
+        body = parts.map((part) =>
+            part.id === "text" ? (
+                <LabelSection
+                    key={part.id}
+                    ctx={ctx}
+                    configured={part.items.some((item) => itemChannels(item).some(written))}
+                    actions={page(part)}
+                    loose={partChannels(part)}
+                />
+            ) : (
+                <Section
+                    key={part.id}
+                    ctx={ctx}
+                    spec={sectionOf(part, written)}
+                    actions={page(part)}
+                    {...(part.list === true ? { itemActions: (id: string) => itemPage(part, id) } : {})}
+                />
+            ),
+        );
+    }
     return (
-        // NOSONAR(S6848): only catches the "/" key bubbling from the panel's own controls
-        <div onKeyDown={onKeyDown}>
+        <div // NOSONAR(S6848): only catches the "/" key bubbling from the panel's own controls
+            onKeyDown={onKeyDown}
+        >
             <section className="ws-style-group" data-group={ctx.side} data-style-parts="">
                 <FindSettingBox query={query} onQuery={setQuery} inputRef={box} />
-                {query.trim() === "" ? (
-                    parts.map((part) =>
-                        part.id === "text" ? (
-                            <LabelSection
-                                key={part.id}
-                                ctx={ctx}
-                                configured={part.items.some((item) => itemChannels(item).some(written))}
-                                actions={page(part)}
-                                loose={partChannels(part)}
-                            />
-                        ) : (
-                            <Section
-                                key={part.id}
-                                ctx={ctx}
-                                spec={sectionOf(part, written)}
-                                actions={page(part)}
-                                {...(part.list === true ? { itemActions: itemPage(part) } : {})}
-                            />
-                        ),
-                    )
-                ) : (
-                    <FindSettingResults ctx={ctx} query={query} parts={parts} />
-                )}
+                {body}
             </section>
         </div>
     );

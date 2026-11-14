@@ -78,7 +78,7 @@ function nameOf(id: string): string {
     if (named !== undefined) {
         return named;
     }
-    const words = id.replace(/[-_]+/g, " ").trim();
+    const words = id.replaceAll(/[-_]+/g, " ").trim();
     return words.charAt(0).toUpperCase() + words.slice(1);
 }
 

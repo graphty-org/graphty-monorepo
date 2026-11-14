@@ -114,7 +114,8 @@ export function ValueListbox({
     const things = `${channelWord(descriptor.channel).toLowerCase()}s`;
     // As the shared choice field reads it: "mixed", or the default in force when nothing is set.
     const unset = value === undefined && !mixed;
-    let name = current === undefined ? label : `${label}, ${unset ? "default " : ""}${current.plainName}`;
+    const prefix = unset ? "default " : "";
+    let name = current === undefined ? label : `${label}, ${prefix}${current.plainName}`;
     if (mixed) {
         name = `${label}, mixed`;
     }

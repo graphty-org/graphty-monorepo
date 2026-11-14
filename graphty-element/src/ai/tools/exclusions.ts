@@ -212,6 +212,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         members: [
             "setAttributionOffset",
             "setCameraTransitionDuration",
+            "setReducedMotion",
             "setPixelRatio",
             "setZoomToPointer",
             "setLighting",
@@ -231,6 +232,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "attributionOffset",
             "globeLook",
             "cameraTransitionDuration",
+            "reducedMotion",
             "zoomToPointer",
             "viewInsets",
             "autosave",
@@ -965,6 +967,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "releaseDetachedScope",
             "clustersChanged",
             "relayoutForVisibility",
+            "reducedMotion",
         ],
         reason: "internal-handle",
         kind: BY_DESIGN,

@@ -158,6 +158,16 @@ taken only on the owner's order. The labels (owner, 2026-11-10):
   API reference docs are ux-safe.
 - `ux-owner`: anything a user could see, hear or feel as different.
 
+The owner's standing rules of 2026-11-13 (design/owner-standing-rules.md) order more enhancements without him: a
+non-breaking change to graphty-element or a library package whose default leaves the graphty app unchanged (rule 2),
+an issue he filed that states the result he expects (rule 3), and accessibility additions with no visible change or
+contrast fixes to defaults (rule 4). Before listing, label such an issue `ux-safe` (removing `ux-owner` or
+`needs-decision`) with a one-line comment `issue-round: ordered by owner rule <n> (2026-11-13) -- <why>`, so the
+queue offers it; a rule 3 or 4 job may change what users see, picks the remaining reversible details itself and
+states them in its pull request, and its screenshots go to the owner's review as usual. Rule 1 applies too: an
+issue whose comments record his decision, or that a standing rule decides, loses its `needs-decision` or `ux-owner`
+label with a one-line comment naming the decision or rule, and is taken.
+
 Create either label if it is missing, as "Markers" in the shared file does for `in-progress`
 (`gh label create ux-safe -R graphty-org/graphty-monorepo --color 0E8A16 --description "Users could not tell it changed except speed or reliability; issue-round may take it"`,
 `gh label create ux-owner -R graphty-org/graphty-monorepo --color D93F0B --description "Users could see, hear or feel the change; owner-ordered only"`).
@@ -277,7 +287,7 @@ shared file verbatim:
 > unrelated, comment `pipeline-round: released -- not part of <branch>: <reason>` and remove its `in-progress` label;
 > it goes back to the queue. For a `ux-safe` enhancement whose fix turns out to change anything a user of the graphty
 > app could see, hear or feel (screens, words, icons, controls, defaults, interaction, rendered pictures, the
-> information shown, user guides), commit nothing for it:
+> information shown, user guides), unless a comment on it says `ordered by owner rule 3` or `rule 4` (2026-11-13), commit nothing for it:
 > relabel it (`gh issue edit <n> --remove-label ux-safe --add-label ux-owner --remove-label in-progress`) and
 > comment `pipeline-round: released -- ux-owner: <what would change>`. Then find the root cause and fix it there;
 > look for sibling bugs with the same cause in the same package. Follow CLAUDE.md and the package's CLAUDE.md. Run the affected packages' lint, build and tests.

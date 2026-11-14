@@ -539,9 +539,9 @@ function startNone(side: UnionLeaf["side"]): Selector {
 }
 
 /**
- * Adds a step through the editor: And..., the preset typed in the value picker, its reference
+ * Adds a step through the editor: And..., the preset typed in the value picker and its row clicked, its reference
  * picked as Hovered or selected, then its hops and its Except switch when asked.
- * @param preset - what is typed in the value picker.
+ * @param preset - what is typed in the value picker, and the start of the row clicked.
  * @param options - the step's hops and whether it excludes.
  * @param options.hops - its hops, for Within hops of.
  * @param options.except - whether to switch it to Except.
@@ -550,7 +550,9 @@ async function addFocusStep(preset: string, options: { hops?: number; except?: b
     await startCondition();
     await screen.findByRole("combobox", { name: "Find attributes, results" });
     await userEvent.keyboard(preset);
-    await userEvent.keyboard("{Enter}");
+    // Clicked, not Enter: the first lit row can be another word match ("Is in" finds Katz's
+    // "Influence at a distance", listed before Relative to).
+    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${preset}`) }));
     const pane = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws [data-step-pane]");
         assert.isNotNull(found, "the new step's pane");

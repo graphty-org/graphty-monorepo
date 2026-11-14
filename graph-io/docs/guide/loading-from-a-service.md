@@ -23,7 +23,8 @@ The built-in sources are `ndex` (NDEx, the repository of biological networks), `
 (a Memgraph on your own computer) is imported and passed as the source: see
 [NDEx](./sources/ndex.md), [Cypher](./sources/cypher.md), [REST](./sources/rest.md) and
 [SPARQL](./sources/sparql.md). All of
-them are experimental. `listSources()` lists them with their descriptors and examples. To read from your own service, see
+them are experimental. Graph files kept on a file host load through a source too: see
+[GitHub](./sources/github.md), which lists a repository's files and loads one by its format. `listSources()` lists them with their descriptors and examples. To read from your own service, see
 [Writing a source](./writing-a-source.md).
 
 ## Options

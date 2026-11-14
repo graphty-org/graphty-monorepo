@@ -582,6 +582,7 @@ export type {
     FilterResult,
     FilterSelectWithin,
     FilterStep,
+    FilterStepCount,
     RuleTree,
     StepCounts,
     TimePlayback,

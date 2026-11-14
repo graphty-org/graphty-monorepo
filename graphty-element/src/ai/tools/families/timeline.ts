@@ -209,13 +209,14 @@ export const conditionsTool: ToolDefinition = {
     actions: [
         {
             name: "list",
-            summary: "the conditions, what each matches, and the steps",
+            summary: "the conditions, what each matches, the steps and what each step leaves out",
             fields: {},
             effect: "read",
             reaches: [
                 { door: "VisibilityApi.conditions" },
                 { door: "VisibilityApi.conditionCounts" },
                 { door: "VisibilityApi.steps" },
+                { door: "VisibilityApi.stepCounts" },
             ],
             run: ({ tx }) =>
                 Promise.resolve(
@@ -223,6 +224,7 @@ export const conditionsTool: ToolDefinition = {
                         conditions: tx.visibility.conditions,
                         counts: tx.visibility.conditionCounts(),
                         steps: tx.visibility.steps,
+                        stepCounts: tx.visibility.stepCounts(),
                     }),
                 ),
         },
@@ -280,6 +282,20 @@ export const conditionsTool: ToolDefinition = {
             run: async ({ tx }) => {
                 await coded(() => tx.visibility.setConditions([]));
                 return ok();
+            },
+        },
+        {
+            name: "move_step",
+            summary: "move one step to another place in the order",
+            fields: {
+                id: conditionId,
+                index: z.number().int().min(0).describe("Its new place among the steps, from 0."),
+            },
+            effect: "write",
+            reaches: [{ door: "VisibilityApi.moveStep" }, { op: "visibility.conditions" }],
+            run: async ({ tx }, args) => {
+                await coded(() => tx.visibility.moveStep(text(args.id), args.index as number));
+                return ok(undefined, { id: text(args.id) });
             },
         },
         {

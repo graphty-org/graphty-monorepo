@@ -52,6 +52,7 @@ export default {
         "TimeApi.stepBy",
         "TimeApi.window",
         "VisibilityApi.addCondition",
+        "VisibilityApi.moveStep",
         "VisibilityApi.removeCondition",
         "VisibilityApi.set",
         "VisibilityApi.setConditions",

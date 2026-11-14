@@ -222,7 +222,7 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "Filter conditions",
         core: false,
         profiles: STANDARD,
-        actions: ["list", "add", "update", "remove", "clear", "set_steps"],
+        actions: ["list", "add", "update", "remove", "clear", "move_step", "set_steps"],
     },
     {
         name: "columns",

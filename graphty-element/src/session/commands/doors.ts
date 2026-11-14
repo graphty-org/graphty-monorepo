@@ -968,12 +968,18 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
 };
 
 /**
- * A door that changes the one condition `c1` (keep degree at least 1), which it adds first.
+ * A door that changes the conditions it adds first: by default the one condition `c1` (keep
+ * degree at least 1).
  * @param args - The arguments.
  * @param conditions - The conditions the call must leave.
+ * @param setup - The conditions added first.
  * @returns The door.
  */
-function conditionDoor(args: readonly unknown[], conditions: readonly unknown[]): Door {
+function conditionDoor(
+    args: readonly unknown[],
+    conditions: readonly unknown[],
+    setup: readonly unknown[] = [{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }],
+): Door {
     return {
         kind: "dispatches",
         op: "visibility.conditions",
@@ -982,7 +988,7 @@ function conditionDoor(args: readonly unknown[], conditions: readonly unknown[])
             args,
             around: async (target) => {
                 const visibility = target as { setConditions(list: unknown[]): Promise<unknown> };
-                await visibility.setConditions([{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }]);
+                await visibility.setConditions([...setup]);
                 return async () => visibility.setConditions([]);
             },
         },
@@ -1037,6 +1043,18 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     ),
     removeCondition: conditionDoor(["c1"], []),
     conditionCounts: READ,
+    moveStep: conditionDoor(
+        ["c2", 0],
+        [
+            { id: "c2", on: true, effect: "exclude", rule: { kind: "degree", min: 3 } },
+            { id: "c1", on: true, effect: "keep", rule: { kind: "degree", min: 1 } },
+        ],
+        [
+            { id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } },
+            { id: "c2", effect: "exclude", rule: { kind: "degree", min: 3 } },
+        ],
+    ),
+    stepCounts: READ,
 };
 
 /**

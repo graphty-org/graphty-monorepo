@@ -770,6 +770,17 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "VisibilityApi.moveStep",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.visibility.setConditions([
+                { id: "a", effect: "keep", rule: { kind: "degree", min: 1 } },
+                { id: "b", effect: "exclude", rule: { kind: "degree", min: 3 } },
+            ]);
+            return () => session.visibility.moveStep("b", 0);
+        },
+    },
+    {
         method: "VisibilityApi.setWindow",
         growth: "linear",
         prepare: (session, size) =>

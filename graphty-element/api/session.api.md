@@ -1521,6 +1521,24 @@ export interface FilterStep {
     readonly rule: RuleTree;
 }
 
+// @beta
+export interface FilterStepCount {
+    readonly after: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly before: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly id: string;
+    readonly leftOut: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly on: boolean;
+}
+
 // @public
 export interface FindAtLeastRow {
     readonly count: number;
@@ -7833,6 +7851,8 @@ export interface VisibilityApi {
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
     isVisible(id: NodeId | EdgeId): boolean;
+    // @beta
+    moveStep(id: string, index: number, options?: RunOptions): Run<FilterResult>;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
     // @beta
@@ -7843,6 +7863,8 @@ export interface VisibilityApi {
     setSteps(steps: readonly FilterStep[], options?: RunOptions): Run<FilterResult>;
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
     showContext: boolean;
+    // @beta
+    stepCounts(): readonly FilterStepCount[];
     readonly steps: readonly FilterStep[];
     readonly summary: VisibilitySummary;
     summaryOf(source: SourceKey): VisibilitySummary;

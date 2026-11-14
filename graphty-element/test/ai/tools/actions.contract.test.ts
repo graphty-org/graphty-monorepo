@@ -437,6 +437,13 @@ const ROWS: Record<string, Row> = {
     "conditions.update": { args: { action: "update", id: "c1", enabled: false }, setup: withCondition },
     "conditions.remove": { args: { action: "remove", id: "c1" }, setup: withCondition },
     "conditions.clear": { args: { action: "clear" }, setup: withCondition },
+    "conditions.move_step": {
+        args: { action: "move_step", id: "c2", index: 0 },
+        setup: async (session: GraphSession) => {
+            await withCondition(session);
+            await session.visibility.addCondition({ id: "c2", effect: "exclude", rule: { kind: "degree", max: 0 } });
+        },
+    },
     "conditions.set_steps": { args: { action: "set_steps", steps: [{ id: "s1", where: "data.load > `0.5`" }] } },
     "columns.list": { args: { action: "list" } },
     "columns.values": { args: { action: "values", column: "team" } },

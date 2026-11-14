@@ -85,6 +85,7 @@ export default defineConfig({
                         { text: "Result Columns", link: "/guide/result-columns" },
                         { text: "What a Run Painted", link: "/guide/run-painting" },
                         { text: "Filter Conditions", link: "/guide/filter-conditions" },
+                        { text: "Filter Steps", link: "/guide/filter-steps" },
                         { text: "Selections Built From Steps", link: "/guide/selection-steps" },
                         { text: "Rectangle and Lasso Selection", link: "/guide/region-select" },
                         { text: "Sets", link: "/guide/sets" },

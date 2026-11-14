@@ -1661,6 +1661,10 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             }
             if (tag === "image" || picture) {
                 const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+                // an image with no source paints nothing (yEd Live's image node with no image set)
+                if (tag === "image" && (href ?? "").trim() === "") {
+                    continue;
+                }
                 const pixels = href === null ? undefined : pictures.get(unbrokenHref(href));
                 const gradient = pixels === undefined ? null : pictureGradient(pixels);
                 // an embedded SVG's viewport, in the coordinates its own matrix (which holds its viewBox) maps from

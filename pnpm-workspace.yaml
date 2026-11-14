@@ -65,6 +65,9 @@ patchedDependencies:
     # The same patch makes `nx release` treat a commit listed in release-not-breaking.json (the owner's
     # ruling that an already-pushed `!` or BREAKING CHANGE commit is not breaking) as not breaking, for the
     # version bump and the changelog (issue #6476). Carry it to every nx upgrade: it is repo policy.
+    # It also replaces nx's three minimatch.makeRe calls (project and branch globs, generator globs) with
+    # minimatch() itself: the minimatch floor below moves nx to minimatch 11, which removed makeRe
+    # (GHSA-g3hv-75wg-m249, issue #7725). Drop that part once nx depends on minimatch 11.
     "nx@22.7.12": patches/nx@22.7.12.patch
     # Babylon decodes an RGBD texture (a PBR material's BRDF lookup texture) in a post-process after
     # an async shader import and compile, and never checks that the engine is still alive. A

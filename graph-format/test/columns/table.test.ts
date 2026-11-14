@@ -279,6 +279,12 @@ describe("unique enforcement", () => {
         expectError(() => verifyUniqueColumn(bool), "E_DUPLICATE_ID");
         const json = columnFromValues("node", 2, "j", [{ a: 1 }, { a: 1 }], { dtype: "json", unique: true });
         expectError(() => verifyUniqueColumn(json), "E_DUPLICATE_ID");
+        // NaN, Infinity and -0 are values of their own, never equal to null or 0
+        const special = columnFromValues("node", 5, "j", [null, Number.NaN, Infinity, 0, -0], {
+            dtype: "json",
+            unique: true,
+        });
+        expect(() => verifyUniqueColumn(special)).not.toThrow();
         const list = columnFromValues("node", 2, "l", [[1], [1]], { dtype: "list", itemDtype: "i32", unique: true });
         expectError(() => verifyUniqueColumn(list), "E_DUPLICATE_ID");
         const vec = columnFromValues(

@@ -106,7 +106,7 @@ export const NEO4J_ISSUE = Object.freeze({
     MISSING_ID: MISSING_ID_CODE,
     /** A relationship row without a start or end id. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
-    /** A node id repeated in one id space (last write wins). */
+    /** A node id repeated in one id space (the first row is kept). */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** A spaced node id `Space:id` that equals the text of an id declared without a space. */
     ID_SPACE_COLLISION: ID_SPACE_COLLISION_CODE,

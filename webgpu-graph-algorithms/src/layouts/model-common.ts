@@ -261,7 +261,7 @@ function pickCenter(
 }
 
 /**
- * The seed: a finite number, or null (unseeded; 0 keeps the port's "0 = unseeded" quirk through the Lcg).
+ * The seed: an integer >= 0 (0 is an ordinary seed), or null (unseeded).
  * @param given - the value given (undefined = absent)
  * @param fallback - the previous record's value or the default
  * @returns the seed or null
@@ -271,8 +271,8 @@ function pickSeed(given: number | null | undefined, fallback: number | null): nu
         return fallback;
     }
     const value: unknown = given;
-    if (value !== null && (typeof value !== "number" || !Number.isFinite(value))) {
-        throw invalid("seed", given, "a finite number or null");
+    if (value !== null && (typeof value !== "number" || !Number.isInteger(value) || value < 0)) {
+        throw invalid("seed", given, "an integer >= 0 or null");
     }
     return value;
 }

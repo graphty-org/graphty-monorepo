@@ -590,8 +590,8 @@ const STORED_VERSION = 10;
  * Write a zip archive of stored (uncompressed) entries, one entry at a time: each entry's local
  * header and data are yielded as soon as the entry is produced, then the central directory and
  * the end record. Entries are not compressed (ponytail: deflate through `CompressionStream` when
- * the archive size matters). Zip64 is not written: an entry or archive of 4 GiB or more, or more
- * than 65,535 entries, is E_TOO_LARGE.
+ * the archive size matters). Zip64 is not written: an entry or archive of 4 GiB or more, more
+ * than 65,534 entries, or an entry name longer than 65,535 UTF-8 bytes is E_TOO_LARGE.
  * @param entries - the entries, in archive order (may be produced lazily)
  * @yields the archive bytes
  * @returns nothing
@@ -604,7 +604,13 @@ export function* writeZip(entries: Iterable<ZipWriteEntry>): Generator<Uint8Arra
     for (const entry of entries) {
         const name = encoder.encode(entry.name);
         const { data } = entry;
-        if (offset + LOCAL_SIZE + name.byteLength + data.byteLength >= U32_MAX || count === U16_MAX) {
+        if (name.byteLength > U16_MAX) {
+            throw new GraphFormatError("E_TOO_LARGE", "a zip entry name is longer than 65,535 bytes", {
+                entry: entry.name,
+            });
+        }
+        // a count of 0xffff in the end record is the zip64 marker, so 65,534 entries is the most
+        if (offset + LOCAL_SIZE + name.byteLength + data.byteLength >= U32_MAX || count >= U16_MAX - 1) {
             throw new GraphFormatError("E_TOO_LARGE", "the archive needs zip64, which graph-io does not write", {
                 entry: entry.name,
             });
@@ -650,6 +656,9 @@ export function* writeZip(entries: Iterable<ZipWriteEntry>): Generator<Uint8Arra
     let size = 0;
     for (const record of central) {
         size += record.byteLength;
+        if (size >= U32_MAX) {
+            throw new GraphFormatError("E_TOO_LARGE", "the archive needs zip64, which graph-io does not write");
+        }
         yield record;
     }
     const end = new Uint8Array(EOCD_SIZE);

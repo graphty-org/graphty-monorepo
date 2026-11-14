@@ -1,7 +1,7 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions.js";
-import { RandomNumberGenerator } from "../utils/random.js";
+import { Lcg } from "../simulation/seed.js";
 import { type CommonLayoutOptions, resolve, result } from "./common.js";
 
 /**
@@ -11,14 +11,14 @@ import { type CommonLayoutOptions, resolve, result } from "./common.js";
  * @param dim - components per row
  * @param scale - the side of the cell
  * @param center - `dim` components: the cell's lowest corner
- * @param seed - the generator seed, or null for a random one
+ * @param seed - the generator seed (an integer >= 0), or null for a random one
  * @returns `n * dim` values
  */
 function randomRows(n: number, dim: number, scale: number, center: readonly number[], seed: number | null): F64 {
-    const rng = new RandomNumberGenerator(seed ?? undefined);
+    const rng = new Lcg(seed);
     const rows = new Float64Array(n * dim);
     for (let i = 0; i < n * dim; i++) {
-        rows[i] = (rng.rand() as number) * scale + center[i % dim];
+        rows[i] = rng.next() * scale + center[i % dim];
     }
     return rows;
 }

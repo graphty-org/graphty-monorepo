@@ -208,10 +208,16 @@ describe("Label Golden Masters - Advanced Features", () => {
             assert.deepEqual(fills(), ["#00FF00"]);
         });
 
-        test("a numeric notification badge over 999 is abbreviated", () => {
+        test("a numeric notification badge over 999 is capped at 999+", () => {
             build({ text: "1500", badge: "notification" });
 
-            assert.deepEqual(drawnText(), ["1k"]);
+            assert.deepEqual(drawnText(), ["999+"]);
+        });
+
+        test("a notification badge honors maxNumber and overflowSuffix for counts in the thousands", () => {
+            build({ text: "1000000", badge: "notification", maxNumber: 99, overflowSuffix: "++" });
+
+            assert.deepEqual(drawnText(), ["99++"]);
         });
 
         test("a non-numeric notification badge is left alone", () => {
@@ -382,16 +388,20 @@ describe("Label Golden Masters - Advanced Features", () => {
 
         test("startAnimation is idempotent", () => {
             const built = build({ text: "Twice", animation: "pulse", animationSpeed: 1 });
+            const control = build({ text: "Twice", animation: "pulse", animationSpeed: 1 });
 
             built.label.startAnimation();
             built.label.startAnimation();
+            control.label.startAnimation();
             ctx.scene.render();
-            const once = built.label.labelMesh?.scaling.x;
             ctx.scene.render();
 
-            // Two registrations would advance the clock twice per frame, so the second frame would
-            // land somewhere a single registration never reaches.
-            assert.isNumber(once);
+            // Two registrations would advance the clock twice per frame, so after two frames the
+            // label started twice would sit where the control started once has not reached.
+            const twice = built.label.labelMesh?.scaling.x;
+            assert.isNumber(twice);
+            assert.notEqual(twice, 1);
+            assert.strictEqual(twice, control.label.labelMesh?.scaling.x);
         });
     });
 

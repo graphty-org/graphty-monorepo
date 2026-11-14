@@ -12,7 +12,7 @@ import { isWebGpuGraphError } from "../../src/errors.js";
 import { Lcg, LCG_A, LCG_C, LCG_M, seedPositions } from "../../src/layouts/seed.js";
 import { pathEdges, snapshotOf } from "../helpers/graphs.js";
 
-/** The port's generator, transcribed (layout/src/utils/random.ts), so expectations come from a second copy. */
+/** The LCG recurrence, transcribed, so expectations come from a second copy. */
 function referenceLcg(seed: number): () => number {
     const m = 2 ** 35 - 31;
     let state = seed % m;
@@ -77,21 +77,23 @@ describe("Lcg", () => {
         }
     });
 
-    it("preserves the port's quirks: a negative or fractional seed is used as given", () => {
-        expect(new Lcg(-3).next()).toBe(-0.00001622698620494445);
-        expect(new Lcg(42.5).next()).toBe(0.00022988274597814204);
+    it("refuses a negative, fractional or non-finite seed with E_INVALID_ARGUMENT", () => {
+        for (const seed of [-3, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+            expect(() => new Lcg(seed), `seed ${seed}`).toThrow(/seed must be null or an integer >= 0/);
+        }
     });
 
-    it("seed 0 and null draw a random integer seed below 1e6 (the `seed || random` quirk)", () => {
-        for (const seed of [0, null, -0]) {
-            const lcg = new Lcg(seed);
-            expect(Number.isInteger(lcg.seed)).toBe(true);
-            expect(lcg.seed).toBeGreaterThanOrEqual(0);
-            expect(lcg.seed).toBeLessThan(1000000);
-            const v = lcg.next();
-            expect(v).toBeGreaterThanOrEqual(0);
-            expect(v).toBeLessThan(1);
+    it("seed 0 is an ordinary seed; null draws a random integer seed below 1e6", () => {
+        const zero = new Lcg(0);
+        expect(zero.seed).toBe(0);
+        const ref = referenceLcg(0);
+        for (let k = 0; k < 10; k++) {
+            expect(zero.next()).toBe(ref());
         }
+        const lcg = new Lcg(null);
+        expect(Number.isInteger(lcg.seed)).toBe(true);
+        expect(lcg.seed).toBeGreaterThanOrEqual(0);
+        expect(lcg.seed).toBeLessThan(1000000);
     });
 });
 

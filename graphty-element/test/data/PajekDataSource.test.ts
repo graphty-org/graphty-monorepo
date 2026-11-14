@@ -33,7 +33,7 @@ describe("PajekDataSource", () => {
                 error = err as Error;
             }
             assert.ok(error);
-            assert.match(error.message, /requires data, file, or url/i);
+            assert.propertyVal(error, "code", "E_OPTION_RANGE");
         });
     });
 

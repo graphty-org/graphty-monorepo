@@ -15,7 +15,8 @@ describe("smartOverflow", () => {
     // `maxNumber` as `99+`. It used to take effect only on a count or notification badge.
     it("shortens a plain label that asks for it", () => {
         assert.strictEqual(shortened({ text: "150", smartOverflow: true, maxNumber: 99 }), "99+");
-        assert.strictEqual(shortened({ text: "1500", smartOverflow: true, maxNumber: 99 }), "1k");
+        assert.strictEqual(shortened({ text: "1500", smartOverflow: true, maxNumber: 99 }), "99+");
+        assert.strictEqual(shortened({ text: "1000000", smartOverflow: true, maxNumber: 99 }), "99+");
         assert.strictEqual(
             shortened({ text: "150", smartOverflow: true, maxNumber: 99, overflowSuffix: "++" }),
             "99++",
@@ -38,5 +39,38 @@ describe("smartOverflow", () => {
             }),
             "99+",
         );
+    });
+
+    it("caps every count above maxNumber with the suffix, however large", () => {
+        assert.strictEqual(shortened({ text: "1500", smartOverflow: true }), "999+");
+        assert.strictEqual(shortened({ text: "1500", smartOverflow: true, maxNumber: 9999 }), "1500");
+        assert.strictEqual(
+            shortened({ text: "25000", smartOverflow: true, maxNumber: 9999, overflowSuffix: " more" }),
+            "9999 more",
+        );
+    });
+
+    it("reads the text as one number and leaves anything but a whole number alone", () => {
+        assert.strictEqual(shortened({ text: "1e5", smartOverflow: true, maxNumber: 99 }), "99+");
+        assert.strictEqual(shortened({ text: "150.5", smartOverflow: true, maxNumber: 99 }), "150.5");
+        assert.strictEqual(shortened({ text: "", smartOverflow: true, maxNumber: 99 }), "");
+        assert.strictEqual(shortened({ text: "12abc", smartOverflow: true, maxNumber: 9 }), "12abc");
+    });
+});
+
+describe("badge margins", () => {
+    function margins(userOptions: RichTextLabelOptions): number[] {
+        const options: RichTextLabelOptions = { fontSize: 10, _paddingRatio: 0.5, ...userOptions };
+        BadgeStyleManager.applyBadgeBehaviors(options, userOptions);
+        return [options.marginTop, options.marginRight, options.marginBottom, options.marginLeft].map(Number);
+    }
+
+    it("gives every unset side the badge padding", () => {
+        assert.deepEqual(margins({}), [5, 5, 5, 5]);
+    });
+
+    it("keeps a side the caller set, including 0", () => {
+        assert.deepEqual(margins({ marginTop: 0 }), [0, 5, 5, 5]);
+        assert.deepEqual(margins({ marginLeft: 2, marginBottom: 0 }), [5, 5, 0, 2]);
     });
 });

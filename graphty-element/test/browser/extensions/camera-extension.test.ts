@@ -250,11 +250,18 @@ describe("a third party's camera view", () => {
     }
 
     /**
-     * Where the element currently has every node, which is the box a view frames by default.
+     * The box every node is drawn in, which is what a view framing the whole graph is handed by
+     * default (issue #6804): each node out to its drawn box, not only its centre.
      * @returns The centre of the graph and its longest side.
      */
     function graphBox(): { center: Coords; maxDimension: number } {
-        return boxAround(graph.getNodes().map((node) => placedPosition(node)));
+        return boxAround(
+            graph.getNodes().flatMap((node) => {
+                placedPosition(node);
+                const { min, max } = node.framingBounds();
+                return [min, max];
+            }),
+        );
     }
 
     /**

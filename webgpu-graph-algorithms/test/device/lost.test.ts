@@ -29,7 +29,7 @@ import { bindingOf, scratchBuffer } from "../helpers/device.js";
 import { KARATE_EDGES, pathEdges, snapshotOf } from "../helpers/graphs.js";
 import { runKernel } from "../helpers/kernel.js";
 import { outDegreeOracle } from "../oracle/degree.js";
-import { acquire, acquireRaw, requireGpu, uncapturedErrors } from "../setup/gpu.js";
+import { acquire, acquireRaw, requireGpu, takeUncapturedErrors, uncapturedErrors } from "../setup/gpu.js";
 
 /** Undirected 0-1, 1-2, 2-3, 0-2, 0-3 on five nodes; node 4 isolated. */
 function smallGraph(): GraphSnapshot {
@@ -171,6 +171,8 @@ describe("installUncapturedErrorSink", () => {
         brokenBindGroup(device, "after-uninstall");
         await device.queue.onSubmittedWorkDone();
         expect(seen).toHaveLength(1);
+        // the setup's own sink on every acquireRaw() device saw both errors; draining them keeps afterEach clean
+        expect(takeUncapturedErrors().map((e) => e.code)).toEqual(["E_VALIDATION", "E_VALIDATION"]);
     });
 
     it("stores the error in the slot when onError is null; take() empties it", async (t) => {
@@ -186,6 +188,7 @@ describe("installUncapturedErrorSink", () => {
         expect(String(pending?.details.message)).toMatch(/1024|binding/i);
         expect(slot.take()).toBeNull();
         uninstall();
+        expect(takeUncapturedErrors().map((e) => e.code)).toEqual(["E_VALIDATION"]);
     });
 });
 

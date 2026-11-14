@@ -645,6 +645,10 @@ export interface NodeStyleValues {
     readonly chartBorderColor: StyleColor;
     /** How wide a bar's and a box's outline is (a length); unset, none. */
     readonly chartBorderWidth: number;
+    /** The color filling the chart's plot box under its bars, cells or lines; unset, no fill. */
+    readonly chartBackgroundColor: StyleColor;
+    /** The opacity of `chartBackgroundColor`, 0 to 1; unset, 1. */
+    readonly chartBackgroundOpacity: number;
     /**
      * How far a group drawn round its members (a node other nodes name as their parent, with no box of its own) reaches
      * past their box on every side (a length; Cytoscape.js `padding` on a compound parent). Unset, the reader's own.
@@ -691,6 +695,13 @@ export interface EdgeStyleValues {
     readonly sourceArrowColor: StyleColor;
     /** The color of the arrow at the target end. */
     readonly targetArrowColor: StyleColor;
+    /**
+     * The color a hollow arrow at the source end is filled with, inside its outline in `sourceArrowColor` (yEd's framed
+     * edges); absent, its inside is empty.
+     */
+    readonly sourceArrowFillColor: StyleColor;
+    /** The color a hollow arrow at the target end is filled with, as `sourceArrowFillColor` says. */
+    readonly targetArrowFillColor: StyleColor;
     /** The label's text color. */
     readonly labelColor: StyleColor;
     /** The opacity of the whole edge, 0..1. */

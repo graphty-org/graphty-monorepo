@@ -371,16 +371,23 @@ const ROWS: readonly Row[] = [
         optimismOnly: "an edge is a sequential scan and costs a fraction of the node visit n(n + m) prices it at",
     },
     // Eigenvector's model charges every pass of its 1,000-pass bound, so it is held to both bounds
-    // where the graph runs them all: a small grid (never converges, and throws) and a star (979).
+    // where the graph runs them all: a small grid and a sparse random graph, whose many small
+    // components keep it from converging (both throw).
     { key: "eigenvector", sizes: [10_000], shape: grid, shapeName: "grid", run: eigenvector },
-    { key: "eigenvector", sizes: [50_000], shape: star, shapeName: "star", run: eigenvector },
+    {
+        key: "eigenvector",
+        sizes: [100_000],
+        shape: random(1.2),
+        shapeName: "random, m = 1.2n",
+        run: eigenvector,
+    },
     // Shapes that converge early, which nothing the estimate can see predicts.
     ...(
         [
-            [random(5), "random, m = 5n", [50_000], "about 11"],
-            [random(1.2), "random, m = 1.2n", [100_000], "about 210"],
-            [scaleFree, "scale-free", [100_000], "about 63"],
-            [path, "path", [100_000], "1 or 2"],
+            [random(5), "random, m = 5n", [50_000], "about 25"],
+            [scaleFree, "scale-free", [100_000], "about 125"],
+            [path, "path", [100_000], "about 124"],
+            [star, "star", [50_000], "about 14"],
         ] as const
     ).map(([shape, shapeName, sizes, passes]): Row => ({
         key: "eigenvector",

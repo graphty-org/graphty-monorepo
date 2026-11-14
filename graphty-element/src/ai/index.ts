@@ -102,6 +102,7 @@ export type {
     ToolDefinition,
     VercelProviderType,
     WebLlmModelInfo,
+    WebLlmProgressStage,
     WebLlmProviderOptions,
 } from "./providers";
 export {

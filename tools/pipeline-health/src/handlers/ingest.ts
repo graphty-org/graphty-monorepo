@@ -92,7 +92,9 @@ const refuse = (status: number, code: string, params: Record<string, string | nu
 };
 
 const ssm = new SSMClient({});
-let localTokenHash: Promise<string | undefined> | undefined;
+// The local token's hash, re-read after LOCAL_TOKEN_TTL_MS so a rotation reaches warm containers.
+const LOCAL_TOKEN_TTL_MS = 5 * 60_000;
+let localTokenHash: { hash: string; until: number } | undefined;
 let store: Store | undefined;
 
 /**
@@ -143,7 +145,7 @@ async function ingest(
     }
     let who: Who;
     if (local) {
-        if (!(await localTokenOk(event.headers?.authorization))) {
+        if (!(await localTokenOk(event.headers?.authorization, now))) {
             refuse(401, "unauthorized");
         }
         who = { kind: "local", claims: {} };
@@ -721,23 +723,32 @@ function slotWait(r: Record<string, unknown>): ObservationItem {
 
 // ---------------------------------------------------------------------------------------------------------------
 
-async function localTokenOk(authorization: string | undefined): Promise<boolean> {
+async function localTokenOk(authorization: string | undefined, now: number): Promise<boolean> {
     const token = /^Bearer (\S+)$/.exec(authorization ?? "")?.[1];
     if (!token) {
         return false;
     }
-    localTokenHash ??= ssm
-        .send(new GetParameterCommand({ Name: LOCAL_TOKEN_PARAMETER, WithDecryption: true }))
-        .then((r) => r.Parameter?.Value?.trim().toLowerCase())
-        .catch((error: unknown) => {
-            localTokenHash = undefined; // retry on the next request
-            console.error(JSON.stringify({ route: "local", error: String(error) }));
-            return undefined;
-        });
-    const expected = await localTokenHash;
-    if (!expected) {
-        return false;
+    if (!localTokenHash || now >= localTokenHash.until) {
+        localTokenHash = undefined;
+        // Any SSM failure but a missing parameter throws on to the handler's 500: an outage is not a bad token.
+        const value = await ssm
+            .send(new GetParameterCommand({ Name: LOCAL_TOKEN_PARAMETER, WithDecryption: true }))
+            .then(
+                (r) => r.Parameter?.Value,
+                (error: unknown) => {
+                    if ((error as { name?: unknown } | null)?.name === "ParameterNotFound") {
+                        return undefined;
+                    }
+                    throw error;
+                },
+            );
+        const hash = value?.trim().toLowerCase();
+        if (!hash) {
+            return false; // not cached: the next request reads SSM again
+        }
+        localTokenHash = { hash, until: now + LOCAL_TOKEN_TTL_MS };
     }
+    const expected = localTokenHash.hash;
     const actual = createHash("sha256").update(token).digest("hex");
     return actual.length === expected.length && timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 }

@@ -232,7 +232,8 @@ export class MeshCache {
      *
      * Every creator handed to get() builds a fresh material for its mesh, so the material dies
      * with it; `mesh.dispose()` alone would leave it in `scene.materials` for good. Textures are
-     * kept: node gradient textures are shared across materials per scene. A batch of the mesh goes
+     * kept: node gradient textures are shared across materials per scene, and NodeMesh disposes
+     * one when the last material drawing it is disposed. A batch of the mesh goes
      * first, as it draws with that material.
      * @param mesh - The cached source mesh
      */

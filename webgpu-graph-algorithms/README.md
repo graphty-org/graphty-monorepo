@@ -311,8 +311,8 @@ seedPositions(s, positions, 42, 2, 1, null, "fa2");
 ```
 
 The arguments are positional and all required: the snapshot, the owner's stride-3 scene-unit array (modified
-in place, length `3 * nodeCount`), the LCG seed (`0` or `null` draws a random one, the CPU port's quirk kept
-bit for bit), `dim` (`2` or `3`), the scene `scale` (> 0), the scene `center` (an `ArrayLike<number>`, or
+in place, length `3 * nodeCount`), the LCG seed (an integer >= 0, or `null` for a random one; any other value
+throws `E_INVALID_ARGUMENT`), `dim` (`2` or `3`), the scene `scale` (> 0), the scene `center` (an `ArrayLike<number>`, or
 `null` for the origin), and the draw range: `"fa2"` is `[-1, 1)` in layout units, `"fr"` is `[0, 1)`.
 ForceAtlas2 and the spring preset seed with `"fa2"`, Fruchterman-Reingold with `"fr"`.
 
@@ -525,9 +525,9 @@ ctx.release(s); // when the graph goes away; ctx.dispose() at the end of the pro
 
 | Option          | Default | Meaning                                                                                                              |
 | --------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
-| `dampingFactor` | `0.85`  | the probability of following an arc; the rest teleports                                                              |
+| `dampingFactor` | `0.85`  | the probability of following an arc, in [0, 1]; the rest teleports. Anything else is `E_INVALID_ARGUMENT`            |
 | `maxIterations` | `100`   | an integer >= 1; anything else is `E_INVALID_ARGUMENT`                                                               |
-| `tolerance`     | `1e-6`  | converged when the L1 change of the whole vector falls below `tolerance * nodeCount` (NetworkX's rule)               |
+| `tolerance`     | `1e-6`  | a finite number >= 0; converged when the L1 change falls below `tolerance * nodeCount` (NetworkX's rule)             |
 | `weighted`      | `true`  | arc weights are the transition mass; `false` weighs every arc 1. A snapshot with no weights is unweighted either way |
 
 `GpuPageRankResult` comes back: `scores` (one f32 per node, summing to 1 up to f32 rounding), `iterations`
@@ -603,8 +603,11 @@ const r = await eigenvectorCentrality(ctx, s, { maxIterations: 100, tolerance: 1
 console.log(r.scores, r.converged); // f32, index-aligned, L2 norm 1
 ```
 
-The options are `maxIterations` (`100`), `tolerance` (`1e-6`) and `weighted` (`true`); convergence is
-PageRank's L1 rule, a delta below `tolerance * nodeCount`. It returns `GpuScoresResult` -- `scores`,
+The options are `maxIterations` (`100`), `tolerance` (`1e-6`) and `weighted` (`true`). A run stops at the first
+pass whose summed (L1) change is below `tolerance` times the summed size of the pass, so the error it leaves does
+not grow with the node count. On an undirected graph each pass adds a multiple of the scores themselves (at least
+1, larger around a hub), which leaves the eigenvector alone and lets stars and other bipartite graphs converge; it
+stops at the same pass as `@graphty/algorithms`' `eigenvectorCentrality` on a graph without parallel edges. It returns `GpuScoresResult` -- `scores`,
 `iterations`, `converged`, `precision` -- which is PageRank's result without `danglingMass`.
 
 Directed or undirected both work. When a graph's components have different spectral radii the power iteration

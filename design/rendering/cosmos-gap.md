@@ -296,6 +296,15 @@ build on one are follow-on pull requests after its last pull request merges, nev
 - Depends on: G1, G2, G8.
 - Proving test: Every row clean (no void or dirty rows), GPU lock held, load average recorded before and after.
 - Measured target: 1M + 10k typed: first frame at most 14.5 s; decides G10 (still frame over 10 ms) and G11 (heap over 800 MB).
+- Measured (2026-11-12, `benchmarks/results/cosmos-gap/`, `batched` with `limits` of 2,000,000 rows and edges drawn, 3 runs
+  each, 12 rows, 0 void, working tree clean, load average 2.1-6.9): 1M + 10k typed first frame 5.28-5.42 s (met); 1M + 10k
+  records 5.66-6.50 s; 1M + 1M typed 10.7-12.5 s, records 11.8-12.1 s. Still frame, 1M + 10k: 4.5-5.0 ms serial, GPU
+  timer 95th percentile 3.5 ms (its median reads 0: most of the 60 queries come back 0 at this size), so **G10 is not
+  needed**. 1M + 1M still frame 75.2-75.7 ms, GPU 73.2-74.0 ms (the lines, as in G5). Heap after a forced collection:
+  1M + 10k 753-776 MB, 1M + 1M 1,296-1,308 MB, so **G11 is needed** (target 800 MB). Before this run every million-row
+  run crashed the page with a V8 out-of-memory in the harness's lasso stage: a region selection on the batched path
+  built a `Node` for every covered row. It now reads the row's id without building one (`DataManager.nodeIdAtRow`);
+  the lasso takes 71-98 ms at a million rows, cut at the 5,000-node selection cap.
 
 **G10. Conditional: cheaper node batch.** On top of stage 28's 20-byte instance stream (landed before G9), in 2D only, a front-face-only box family (2D boxes are unlit and seen straight on).
 

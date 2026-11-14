@@ -685,27 +685,25 @@ describe("AiController", () => {
     });
 
     describe("dispose", () => {
-        it("disposes cleanly", () => {
+        it("leaves the status ready", () => {
             controller.dispose();
-            // Should not throw
+            assert.strictEqual(controller.getStatus().state, "ready");
         });
 
-        it("clears listeners on dispose", async () => {
+        it("refuses a message sent after dispose with AI_DISPOSED, asking the provider nothing", async () => {
             const states: string[] = [];
             controller.onStatusChange((status) => states.push(status.state));
-
             controller.dispose();
+            const seen = states.length;
 
             mockProvider.setResponse("after", { text: "After", toolCalls: [] });
-            // This might throw or not work after dispose
-            try {
-                await controller.execute("after dispose");
-            } catch {
-                // Expected to possibly fail after dispose
-            }
+            const result = await controller.execute("after dispose");
 
-            // States should be minimal or empty after dispose
-            // This test verifies dispose doesn't crash and clears state
+            assert.strictEqual(result.success, false);
+            assert.strictEqual(result.code, "AI_DISPOSED");
+            assert.strictEqual(states.length, seen, "no status change after dispose");
+            assert.strictEqual(mockProvider.getCallHistory().length, 0);
+            assert.strictEqual(controller.getStatus().state, "ready");
         });
     });
 });

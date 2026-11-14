@@ -1,4 +1,5 @@
-import { formatDescriptor, SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+import type { ExportResult } from "@graphty/graphty-element";
+import { FORMAT_DESCRIPTORS, formatDescriptor, SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
 import {
@@ -7,16 +8,63 @@ import {
     dataExportOptions,
     DEFAULT_IMAGE,
     exportScope,
+    failureWords,
     fileName,
     formatRows,
     presetChoices,
     presetOf,
+    previewOf,
+    refusalWords,
     screenshotOptions,
     slug,
     writerOptions,
 } from "../choices";
 
 describe("the Export dialog's choices", () => {
+    it("lists one row per file type the element writes, Graphty JSON first", () => {
+        const rows = formatRows(FORMAT_DESCRIPTORS);
+        assert.equal(rows[0]?.plainName, "Graphty JSON");
+        for (const format of FORMAT_DESCRIPTORS) {
+            const own = rows.filter((row) => row.format === format.id);
+            const expected = format.canExport ? (format.exportVariants?.length ?? 1) : 0;
+            assert.lengthOf(own, expected, format.id);
+        }
+        assert.include(
+            rows.map((row) => row.plainName),
+            "Gephi CSV",
+        );
+    });
+
+    it("previews the first six lines from the first chunks, never the whole text", async () => {
+        const encoder = new TextEncoder();
+        let pulled = 0;
+        /**
+         * A file far longer than the preview, one line per chunk.
+         * @yields each line's bytes.
+         */
+        async function* manyLines(): AsyncIterable<Uint8Array> {
+            for (let i = 0; i < 10_000; i++) {
+                pulled++;
+                await Promise.resolve();
+                yield encoder.encode(`line ${String(i)}\n`);
+            }
+        }
+        let whole = 0;
+        const result: ExportResult = {
+            format: "csv",
+            losses: [],
+            lossNotes: [],
+            text: () => {
+                whole++;
+                return Promise.reject(new Error("read the whole file"));
+            },
+            bytes: manyLines(),
+        };
+        assert.equal(await previewOf(result), ["line 0", "line 1", "line 2", "line 3", "line 4", "line 5"].join("\n"));
+        assert.equal(whole, 0);
+        assert.equal(pulled, 6, "stops at the chunk that ends the sixth line");
+    });
+
     it("names the preset the choices match, and none after an edit", () => {
         assert.equal(presetOf(DEFAULT_IMAGE)?.id, "web-share");
         assert.equal(presetOf({ ...DEFAULT_IMAGE, size: "4x" })?.id, "print");
@@ -134,5 +182,30 @@ describe("the Export dialog's choices", () => {
         assert.equal(still.cameraMode, "stationary");
         assert.isUndefined(still.tour);
         assert.isUndefined(still.download);
+    });
+
+    it("words a capture's codes as being about the image, and the same codes elsewhere as before", () => {
+        assert.equal(failureWords({ code: "E_TOO_LARGE" }, true), "The image is too large for this browser.");
+        assert.equal(failureWords({ code: "E_TOO_LARGE" }), "The graph is too large for this format.");
+        assert.equal(
+            failureWords({ code: "E_UNSUPPORTED", details: { reason: "format", format: "mp4" } }),
+            "This browser cannot write this image format.",
+        );
+        assert.equal(
+            failureWords({ code: "E_UNSUPPORTED", details: { reason: "other" } }),
+            "This browser cannot do this.",
+        );
+        assert.equal(
+            failureWords({ code: "E_CAPTURE_FAILED", details: { media: "video" } }),
+            "The drawing could not be captured.",
+        );
+        assert.equal(
+            refusalWords({ code: "E_TOO_LARGE", params: { of: "pixels" } }),
+            "this browser cannot make an image this size",
+        );
+        assert.equal(
+            refusalWords({ code: "E_UNSUPPORTED", params: { reason: "format", format: "webp" } }),
+            "this browser cannot write this image format",
+        );
     });
 });

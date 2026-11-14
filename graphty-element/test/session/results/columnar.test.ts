@@ -7,9 +7,11 @@
 import { assert, describe, it } from "vitest";
 
 import type { FieldDescriptor, NodeId } from "../../../src/catalog/types";
+import { createGraphSession } from "../../../src/session";
 import { createRunResult, retentionOf, shareNodeIndex } from "../../../src/session/results/RunResult";
 import { rankEntries, topOfRanking } from "../../../src/session/results/statistics";
 import type { RunResult } from "../../../src/session/results/types";
+import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import type { Caveats } from "../../../src/session/runs/types";
 import { fixtureSession } from "../history/fixture-session";
 
@@ -162,5 +164,77 @@ describe("a columnar run result", () => {
         await session.undo();
         assert.strictEqual(runStep(), shared, "undoing the edit made its snapshot resident again");
         session.dispose();
+    });
+});
+
+describe("a result's ids", () => {
+    /**
+     * Pair every column position with the id at the same position, as a consumer would.
+     * @param result - The result.
+     * @param name - The field.
+     * @returns Each id's value.
+     */
+    function paired(result: RunResult, name: string): Map<NodeId, number> {
+        const ids = result.ids(name);
+        const column = result.column(name);
+        assert.strictEqual(ids.length, column.length);
+
+        return new Map(ids.map((id, position) => [id, column.get(position)]));
+    }
+
+    it("names the element at each column position, nodes and edges, across a re-freeze that renumbers nodes", async () => {
+        // Each element's value is a function of its own id, so a value read beside the wrong id shows.
+        const valueOf = (id: NodeId): number => {
+            const text = String(id);
+            let value = text.length;
+            for (let at = 0; at < text.length; at++) {
+                value = value * 31 + text.charCodeAt(at);
+            }
+            return value;
+        };
+        const execute = (context: RunExecutionContext): Promise<RunOutcome> =>
+            Promise.resolve({
+                result: createRunResult({
+                    runId: context.runId,
+                    shape: "node-metric",
+                    fields: [
+                        { ...field("value", "number"), path: `results.${context.runId}.value` },
+                        { ...field("weight", "number", "edge"), path: `results.${context.runId}.weight` },
+                    ],
+                    measured: { nodes: context.scope.nodeCount, edges: context.scope.edgeCount },
+                    // Reversed, so the result's order is not the snapshot's.
+                    nodes: [...context.scope.nodes].reverse().map((id) => ({ id, values: { value: valueOf(id) } })),
+                    edges: [...context.scope.edges].map((id) => ({ id, values: { weight: valueOf(id) } })),
+                    caveats: CAVEATS,
+                    durationMs: 1,
+                }),
+            });
+        const session = createGraphSession({ runs: { execute } });
+        await session.data.addNodes(["a", "b", "c", "d"].map((id) => ({ id })));
+        await session.data.addEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+            { source: "c", target: "d" },
+        ]);
+        const result = await session.runs.start("degree", undefined, { as: "deg", style: false });
+
+        // Removing the first node renumbers every node after it in the next snapshot.
+        await session.data.removeNodes(["a"]);
+        await session.data.addNodes([{ id: "z" }]);
+
+        for (const name of ["value", "weight"]) {
+            const pairs = paired(result, name);
+            assert.strictEqual(pairs.size, name === "value" ? 4 : 3);
+            for (const [id, value] of pairs) {
+                assert.strictEqual(value, valueOf(id), `${name} of ${String(id)}`);
+            }
+        }
+        assert.deepStrictEqual(result.ids("value"), ["d", "c", "b", "a"]);
+        session.dispose();
+    });
+
+    it("refuses a field the run did not publish", () => {
+        const result = degreeResult(["a"], () => 1);
+        assert.throws(() => result.ids("nope"), /no field named "nope"/);
     });
 });

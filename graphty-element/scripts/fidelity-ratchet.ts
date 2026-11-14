@@ -3,11 +3,14 @@
  *
  * - takes off the known failures every element that passes now (one that is not measurable any more stays listed);
  * - with `--prune`, also takes off a known failure that is not measurable because its element is gone from both
- *   drawings (no property judges or fails it any more); one whose element is still drawn, or still fails, stays;
+ *   drawings (no property judges or fails it any more), or because its property is judged only on the drawing as a
+ *   whole now (an own-layout sample's `edge.curve`); one whose element is still drawn and judged one by one, or still
+ *   fails, stays;
  * - raises every recorded pass rate (the informational floors) to what the run measured, never lowering one;
  * - with `--add "<reason>"`, adds every element failing that the known failures do not list, and records the reason,
  *   the date and how many came from the drawing or from the comparator (`--keys` and `--properties` limit what is
- *   added to those keys and properties). Nothing is added without a reason;
+ *   added to those keys and properties). Nothing is added without a reason, and the reason names the issue tracking
+ *   it (`#1234`);
  * - for the oracle scorecard, takes off an accepted drop (`drops` in the floors file) whose rate is back at its floor,
  *   and with `--add "<reason>"` accepts every rate below its floor at the rate measured, with the reason. The floor
  *   itself stays: it is the best the property has measured.
@@ -18,9 +21,11 @@
  * `test/fidelity/fidelity.test.ts`) into `test/fidelity/baseline-scores.json`.
  *
  *     npm run fidelity:ratchet
- *     npm run fidelity:ratchet -- --add "why these elements fail now" [--keys <key>,<key>] [--properties <p>,<p>]
+ *     npm run fidelity:ratchet -- --add "why these elements fail now (#1234)" [--keys <key>,<key>] [--properties <p>,<p>]
  *         [--suite oracle|drawn]
- *     npm run fidelity:ratchet -- --prune
+ *     npm run fidelity:ratchet -- --prune [--keys <key>,<key>]
+ *
+ * `--keys` limits `--prune` to those keys too.
  */
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -49,10 +54,12 @@ const { values } = parseArgs({
 });
 
 const today = new Date().toISOString().slice(0, 10);
+const keys = values.keys?.split(",");
+const prune = values.prune === true && (keys ?? true);
 const add =
     values.add === undefined
         ? undefined
-        : { reason: values.add, date: today, keys: values.keys?.split(","), properties: values.properties?.split(",") };
+        : { reason: values.add, date: today, keys, properties: values.properties?.split(",") };
 
 /** A run's verdicts, as the tests write them. */
 interface GateFile {
@@ -116,7 +123,7 @@ if (suite === "all" || suite === "oracle") {
             FloorSection,
             Floors
         >;
-        const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add, values.prune);
+        const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add, prune);
         const drops = ratchetDrops(floors.drops ?? {}, gate.keys, add);
         let raised = 0;
         const sectionOf = new Map(gate.keys.map((g) => [g.key, g.section]));
@@ -174,7 +181,7 @@ if (suite === "all" || suite === "drawn") {
             { about: file.about, known: file.known, reasons: file.reasons },
             gate.keys,
             add,
-            values.prune,
+            prune,
         );
         let raised = 0;
         for (const g of gate.keys) {

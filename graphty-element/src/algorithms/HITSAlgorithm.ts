@@ -191,7 +191,7 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
             phase: "iterating",
             completed: 0,
             total: nodeIds.length,
-            message: `Hub and authority scores refine each other, up to ${String(maxIterations)} passes.`,
+            params: { maxIterations },
         });
         const { value: results, precision } = await run((dispatch, s) =>
             dispatch.hits(s, { maxIterations, tolerance, normalized }),
@@ -200,7 +200,7 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
 
         const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+        await walkInChunks(nodeIds, context, "reading-scores", (nodeId) => {
             const index = ids.indexOf(nodeId);
 
             if (index === INVALID_INDEX) {

@@ -292,6 +292,7 @@ export function exactFromBlock(
                               width: block("node", "width"),
                               height: block("node", "height"),
                               borderWidth: block("node", "borderWidth"),
+                              shape: block("node", "shape"),
                           }),
                           ...(created === undefined ? {} : { created }),
                       },

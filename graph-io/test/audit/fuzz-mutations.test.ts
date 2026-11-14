@@ -11,16 +11,15 @@
  *
  * Part 2 is the structural attack list: JSON nested 10k deep, XML with an internal DTD entity
  * expansion attempt, a 16 MB attribute value in every format, declared counts beyond MAX_COUNT,
- * deep DOT nesting, `__proto__` keys, huge and non-finite numbers, repeated ids. The tests marked
- * FAILS pin the defects found: a repeated edge id in GEXF, Gephi CSV and three JSON dialects is
- * pushed without an issue and the core's freeze() then throws a raw E_DUPLICATE_EDGE_ID (the
- * fast-check runs over the GEXF and Cytoscape corpus files find it through the duplicated-line
- * mutation); a declared count beyond MAX_COUNT lets reserve()'s E_TOO_LARGE escape GEXF and
- * GraphML import() as a raw GraphFormatError; the DOT parser recurses per nesting level and
- * overflows the stack (a RangeError escapes); the Pajek importer keeps materialising vertices
- * after reserve() refused the declared count; JSON merges repeated node ids silently; GEXF keeps
- * an undefined entity reference as literal id text without an issue; and the GraphML tokenizer
- * accepts literal control characters XML forbids.
+ * deep DOT nesting, `__proto__` keys, huge and non-finite numbers, repeated ids. Several of these
+ * once found defects, and the tests now guard the fixed behavior: a repeated edge id in GEXF, Gephi
+ * CSV and three JSON dialects is skipped with an E_DUPLICATE_EDGE_ID issue (the sink still
+ * freezes); a declared count beyond MAX_COUNT is a W_COUNT_HINT in GEXF and GraphML, never a raw
+ * GraphFormatError; DOT nested 10k deep is an ImportError, never a stack overflow; a Pajek
+ * `*Vertices` count that is not a usable count is fatal (E_PAJEK_VERTICES_COUNT) before any vertex
+ * is made; JSON reports a repeated node id with W_DUPLICATE_NODE; GEXF refuses an undefined entity
+ * reference (E_XML_SYNTAX); and the GraphML tokenizer refuses literal control characters XML
+ * forbids.
  */
 
 import { GraphBuilder, GraphFormatError, type GraphSink, type NodeId } from "@graphty/graph-format";
@@ -712,10 +711,8 @@ describe("fuzz audit: structural attacks", () => {
         });
 
         it("DOT subgraphs nested 10k deep are an ImportError, never a stack overflow", async () => {
-            // FAILS: statementList -> statement -> subgraph -> statementList recurses once per
-            // nesting level with no depth limit (src/formats/dot/importer.ts), so ~3000 levels
-            // exhaust the default Node stack and a RangeError ("Maximum call stack size exceeded")
-            // escapes import() instead of an ImportError; browsers with smaller stacks fail sooner.
+            // A recursive descent with no depth limit exhausts the default Node stack at ~3000
+            // levels (browsers sooner); a RangeError escaping import() fails classify().
             await expectSnapshotOrImportError(
                 "dot",
                 `digraph { ${"subgraph { ".repeat(10_000)} a -> b ${"}".repeat(10_000)} }`,
@@ -735,29 +732,23 @@ describe("fuzz audit: structural attacks", () => {
             }
         });
 
-        it("GEXF: the entity is not expanded", async () => {
+        it("GEXF: the entity reference is refused (E_XML_SYNTAX), nothing is expanded", async () => {
             const doc = `<?xml version="1.0"?>${BILLION_LAUGHS}<gexf xmlns="http://www.gexf.net/1.2draft" version="1.2"><graph><nodes><node id="&lol9;" label="&lol9;"/></nodes><edges/></graph></gexf>`;
-            const { outcome, sink } = await classify("gexf", doc);
-            if (outcome.kind === "snapshot") {
-                const snapshot = sink.freeze();
-                for (const id of snapshot.ids.toArray()) {
-                    expect(String(id).length).toBeLessThan(100);
-                }
+            const outcome = await expectSnapshotOrImportError("gexf", doc);
+            expect(outcome.kind).toBe("error");
+            if (outcome.kind === "error") {
+                expect(outcome.error.report.issues[0].code).toBe("E_XML_SYNTAX");
             }
         });
 
-        it("GEXF: an undefined entity reference is not silently kept as literal id text", async () => {
-            // FAILS: processEntities is off and decodeXmlEntities() leaves an unknown named entity
-            // as written, so the node id becomes the six characters "&lol9;" with no issue in the
-            // report; the same document is E_XML_SYNTAX ("unknown entity") for the GraphML importer.
+        it("GEXF: an undefined entity reference is an E_XML_SYNTAX ImportError, never literal id text", async () => {
+            // decodeXmlEntities() throws "unknown entity" for any named entity outside the five XML
+            // predefines, as the GraphML importer does for the same document
             const doc = `<?xml version="1.0"?>${BILLION_LAUGHS}<gexf xmlns="http://www.gexf.net/1.2draft" version="1.2"><graph><nodes><node id="&lol9;" label="x"/></nodes><edges/></graph></gexf>`;
-            const { outcome, sink } = await classify("gexf", doc);
-            if (outcome.kind === "snapshot") {
-                expect(
-                    outcome.report.issues.length,
-                    "an undefined entity kept as text must at least be reported",
-                ).toBeGreaterThan(0);
-                expect(sink.freeze().ids.toArray()).not.toContain("&lol9;");
+            const outcome = await expectSnapshotOrImportError("gexf", doc);
+            expect(outcome.kind).toBe("error");
+            if (outcome.kind === "error") {
+                expect(outcome.error.report.issues[0].code).toBe("E_XML_SYNTAX");
             }
         });
     });
@@ -804,12 +795,9 @@ describe("fuzz audit: structural attacks", () => {
 
     describe("declared counts and numbers beyond what the sink can hold", () => {
         it("Pajek: after reserve() refuses the declared vertex count the importer creates no vertex", async () => {
-            // FAILS: `*Vertices 4294967295` makes sink.reserve() throw E_TOO_LARGE, which the
-            // importer records as a per-element issue and then continues with vertexCount set, so
-            // finishVertices() materialises implicit vertices one addNode() at a time. With a real
-            // GraphBuilder that runs for ~9 s and >1 GB until V8's Map limit throws RangeError
-            // ("Map maximum size exceeded", recorded as E_PARSE) and the later freeze() throws the
-            // same RangeError; a 40-byte file is enough. The declared count must be fatal.
+            // `*Vertices 4294967295` is beyond what reserve() accepts; if the importer carried on
+            // with the count it would materialise implicit vertices one addNode() at a time (~9 s
+            // and >1 GB until V8's Map limit throws, from a 40-byte file). The count is fatal.
             const inner = new GraphBuilder({ directed: true, weightDtype: "f64" });
             let reserveRefused = false;
             let addedAfterRefusal = 0;
@@ -856,21 +844,27 @@ describe("fuzz audit: structural attacks", () => {
         it("Pajek: a vertex count that is not a safe integer, negative or non-numeric is an ImportError", async () => {
             for (const count of ["1e10", "-1", "0x10", "NaN", "Infinity", "3.5", "2 3 4", ""]) {
                 const outcome = await expectSnapshotOrImportError("pajek", `*Vertices ${count}\n1 "a"\n*Edges\n1 1\n`);
-                if (outcome.kind === "snapshot") {
-                    expect(outcome.report.issues.length, `*Vertices ${count} accepted silently`).toBeGreaterThan(0);
+                expect(outcome.kind, `*Vertices ${count}`).toBe("error");
+                if (outcome.kind === "error") {
+                    expect(
+                        outcome.error.report.issues.map((i) => i.code),
+                        `*Vertices ${count}`,
+                    ).toContain("E_PAJEK_VERTICES_COUNT");
                 }
             }
         });
 
         it("GEXF: a declared count beyond MAX_COUNT is an issue or an ImportError, never a raw GraphFormatError", async () => {
-            // FAILS: `<nodes count="4294967296">` reaches sink.reserve() unchecked; the E_TOO_LARGE
-            // GraphFormatError it throws escapes import() as is (no ImportError, no report).
+            // a count hint reaching sink.reserve() unchecked would let its E_TOO_LARGE
+            // GraphFormatError escape import() with no report; it is a W_COUNT_HINT instead
             const gexf = xmlGexf(
                 '<nodes count="4294967296"><node id="a" label="a"/></nodes><edges count="99999999999999999999"/>',
             );
             const a = await expectSnapshotOrImportError("gexf", gexf);
+            expect(a.kind).toBe("snapshot");
             if (a.kind === "snapshot") {
                 expect(a.report.counts.nodes).toBe(1);
+                expect(a.report.issues.map((i) => i.code)).toEqual(["W_COUNT_HINT", "W_COUNT_HINT"]);
             }
         });
 
@@ -880,8 +874,10 @@ describe("fuzz audit: structural attacks", () => {
                 '<graph parse.nodes="4294967296" parse.edges="-5" ',
             );
             const b = await expectSnapshotOrImportError("graphml", graphml);
+            expect(b.kind).toBe("snapshot");
             if (b.kind === "snapshot") {
                 expect(b.report.counts.nodes).toBe(1);
+                expect(b.report.issues.map((i) => i.code)).toEqual(["W_COUNT_HINT", "W_COUNT_HINT"]);
             }
         });
 
@@ -926,11 +922,9 @@ describe("fuzz audit: structural attacks", () => {
     });
 
     describe("duplicate ids the file repeats", () => {
-        // FAILS for gexf, csv and the JSON Cytoscape / graphology / vis dialects: the importer
-        // declares the edge id column `unique` but pushes the second edge with the same id without
-        // an issue, so the core's freeze() throws a raw E_DUPLICATE_EDGE_ID GraphFormatError (no
-        // ImportError, nothing in the report); through importGraph() the caller gets that
-        // GraphFormatError with no partial report at all. GraphML records the issue and skips.
+        // Every importer that reads edge ids skips the repeat with an E_DUPLICATE_EDGE_ID issue. An
+        // edge pushed with a repeated id would make the core's freeze() throw a raw GraphFormatError
+        // with no report (classify() freezes the sink, so that fails here too).
         const duplicateEdgeIds: Readonly<Record<string, string>> = {
             gexf: xmlGexf(
                 '<nodes><node id="a" label="a"/><node id="b" label="b"/></nodes><edges><edge id="0" source="a" target="b"/><edge id="0" source="b" target="a"/></edges>',
@@ -950,20 +944,21 @@ describe("fuzz audit: structural attacks", () => {
             const format = name.split(" ")[0];
             it(`${name}: a repeated edge id is an issue or an ImportError, and the sink still freezes`, async () => {
                 const outcome = await expectSnapshotOrImportError(format, text);
+                expect(outcome.kind).toBe("snapshot");
                 if (outcome.kind === "snapshot") {
-                    expect(outcome.report.issues.map((i) => i.code)).toContain("E_DUPLICATE_EDGE_ID");
+                    expect(outcome.report.issues.map((i) => i.code)).toEqual(["E_DUPLICATE_EDGE_ID"]);
+                    expect(outcome.report.counts).toMatchObject({ edges: 1, skippedEdges: 1 });
                 }
             });
         }
 
         it("JSON: a repeated node id is reported, as every other importer does (W_ / E_DUPLICATE_NODE)", async () => {
-            // FAILS: node-link and Cytoscape documents with two nodes of the same id import to one
-            // node with an empty report; GraphML, GML, CSV, Neo4j and Pajek all record the merge.
             for (const text of [
                 '{"nodes":[{"id":"a","v":1},{"id":"a","v":2}],"links":[]}',
                 '{"elements":{"nodes":[{"data":{"id":"a"}},{"data":{"id":"a"}}],"edges":[]}}',
             ]) {
                 const outcome = await expectSnapshotOrImportError("json", text);
+                expect(outcome.kind).toBe("snapshot");
                 if (outcome.kind === "snapshot") {
                     // the shared convention (GEXF, GraphML, CSV, Neo4j): a repeated declaration is merged into
                     // the existing node and counted as neither a node nor a skipped node, with a W_DUPLICATE_NODE
@@ -1035,9 +1030,8 @@ describe("fuzz audit: structural attacks", () => {
         });
 
         it("GraphML: a literal U+0000 in an attribute value is not well-formed XML (an ImportError)", async () => {
-            // FAILS: the tokenizer checks character REFERENCES against the XML Char production
-            // (&#0; and &#xD800; are E_XML_SYNTAX) but never the literal characters of the input,
-            // so a raw NUL or U+0001 in an id or a data value is accepted and lands in the snapshot.
+            // the tokenizer checks literal characters, not only character references, against the
+            // XML Char production
             const nul = String.fromCharCode(0);
             const outcome = await expectSnapshotOrImportError("graphml", xmlGraphml(`<node id="a${nul}b"/>`));
             expect(outcome.kind).toBe("error");

@@ -225,7 +225,9 @@ draw();
 ```
 
 `accelerator` applies to simulations only and overrides `gpu`. `layout.backend` is then
-`{ ran: "gpu", reason: null, device: "webgpu" }`.
+`{ ran: "gpu", reason: null, device: "webgpu" }`. An accelerator that does not implement the layout's simulation
+(its `forceAtlas2`, `fruchtermanReingold` or `springElectrical` method) runs it on the CPU, with `ran: "cpu"` and
+the missing method as the `reason`; spring-electrical, which has no CPU simulation, then emits `layouterror`.
 
 ## Try it
 

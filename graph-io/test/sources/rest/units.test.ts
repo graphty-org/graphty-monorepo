@@ -234,6 +234,25 @@ describe("paging", () => {
         expect(nextPosition(cursor, "*", page({ body: { meta: { next: null } } }), endpoint, report())).toBeNull();
     });
 
+    it("refuses a next page that is the page just read", () => {
+        const advancing = { origin: "https://api.example.com", expected: "advancing-cursor", contentType: null };
+        const cursor = { style: "cursor", param: "c", first: "*", next: "meta.next" } as const;
+        const same = page({ body: { meta: { next: "abc" } } });
+        expect(thrown(() => nextPosition(cursor, "abc", same, endpoint, report()))).toEqual({
+            code: "E_SOURCE_RESPONSE",
+            params: advancing,
+        });
+        const self = page({ body: { n: "/items" } });
+        expect(thrown(() => nextPosition({ style: "next-url", next: "n" }, null, self, endpoint, report()))).toEqual({
+            code: "E_SOURCE_RESPONSE",
+            params: advancing,
+        });
+        const loop = new Headers({ link: '<https://api.example.com/items>; rel="next"' });
+        expect(
+            thrown(() => nextPosition({ style: "link-header" }, null, page({ headers: loop }), endpoint, report())),
+        ).toEqual({ code: "E_SOURCE_RESPONSE", params: advancing });
+    });
+
     it("follows a Link header, and refuses a hidden one in a browser", () => {
         const link = { style: "link-header" } as const;
         const headers = new Headers({

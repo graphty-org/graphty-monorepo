@@ -10,6 +10,7 @@ import { assert, describe, it } from "vitest";
 
 import {
     type Baseline,
+    citedIssues,
     gateMessages,
     gateReportText,
     judgeKey,
@@ -22,6 +23,7 @@ import {
     ratchetKnown,
     recordableScores,
     sourceOf,
+    untrackedKnown,
 } from "./floors";
 
 const run = (
@@ -222,6 +224,36 @@ describe("style fidelity gate", () => {
         );
         const kept = ratchetDrops(added.drops, [back]);
         assert.deepEqual([kept.drops, kept.removed], [{}, 1]);
+    });
+
+    it("reads an issue number in a reason, never a color or an HTML entity", () => {
+        assert.deepEqual(
+            citedIssues("fill #C8C8C8, outline #505050, band #5F809D; see #5785-#5787 and (#42)"),
+            [5785, 5787, 42],
+        );
+        assert.deepEqual(citedIssues("drawn &#123; as #1234abc"), []);
+        const gate = judgeKey("s", run({ "node.fill": ["a"] }), undefined, undefined);
+        assert.throws(
+            () => ratchetKnown(records({}), [gate], { reason: "the fill is #505050 here", date: "2026-11-13" }),
+            /names the issue/,
+        );
+    });
+
+    it("finds the known failures no open issue tracks: no reason, a reason citing none, or only closed issues", () => {
+        const listed: KnownRecords = {
+            about: "",
+            known: { s: { "node.fill": ["open", "mixed", "closed", "none", "bare"] } },
+            reasons: [
+                { date: "", reason: "tracked (#2)", added: { s: { "node.fill": ["open", "mixed"] } }, sources: {} },
+                { date: "", reason: "fixed in #1", added: { s: { "node.fill": ["mixed", "closed"] } }, sources: {} },
+                { date: "", reason: "outline #505050", added: { s: { "node.fill": ["none"] } }, sources: {} },
+            ],
+        };
+        assert.deepEqual(untrackedKnown(listed, new Set([2])), [
+            { key: "s", property: "node.fill", id: "closed", cited: [1] },
+            { key: "s", property: "node.fill", id: "none", cited: [] },
+            { key: "s", property: "node.fill", id: "bare", cited: [] },
+        ]);
     });
 
     it("adds only the properties named, so a drop is accepted without the key's other failures", () => {

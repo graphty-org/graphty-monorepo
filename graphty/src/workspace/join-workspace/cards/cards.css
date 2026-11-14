@@ -46,6 +46,7 @@
 }
 
 .jr-row-controls > .mantine-Select-root,
+.jr-row-controls > .mantine-MultiSelect-root,
 .jr-row-controls > .mantine-TextInput-root {
     flex: 1;
     min-width: 0;

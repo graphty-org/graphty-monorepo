@@ -1312,6 +1312,19 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   `test/managers/DataManager.test.ts` ("reads each row's end rows from the store's edge, looking up no end id": 4
   id lookups before, 0 after) and `test/data/RowMap.test.ts`. Profiled, one 100k + 1M typed load each, load average
   21-25: `unbuiltEdgeEnds` 228-255 ms and `storeUnbuiltEdge` 233-293 ms self before, neither in the top 25 after.
+- **The first frame's `readPixels` (stage 120): the harness's, not the element's.** Correction to the notes above
+  that list "the first frame's `readPixels` 0.4-0.5 s" as left in the element's load: graphty-element makes no
+  synchronous readback in a load (its only `readPixels` calls are the shader guard's fenced pixel-buffer read, the
+  shader runtime's test frame, the group outline pass and screenshots, none on the load path). Every profiled
+  `readPixels` sample sat under the comparison page's `finish` (`benchmarks/compare/main.js`), a blocking 1-pixel
+  read the page made after every frame the element drew, because its still-frame flag was on during the load too. A
+  batched load spans several frames, so each one waited for the GPU on the main thread, which the element's own fence
+  pacing (`RenderManager.gpuBehind`) would have overlapped with ingest. The page now turns that flag off for the
+  load and reads one pixel after the first complete frame only, as its cosmos.gl load does, so `firstFrameMs` still
+  includes that frame's GPU work. Profiled, 100k + 1M typed, two loads each, load average 20-39: `readPixels` self
+  378 and 491 ms, all under `finish`, before; after, 270 and 311 ms under the one first-frame read (the GPU drawing
+  and uploading the first complete frame: 1M pulled lines) and 75-78 ms under `finish` for still frames drawn after
+  the load returned, inside the profile window.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

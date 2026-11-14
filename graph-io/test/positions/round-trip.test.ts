@@ -121,3 +121,42 @@ describe("positions survive import, export, import", () => {
         }
     });
 });
+
+/** The Cytoscape family's writers, each writing y down from the neutral form. */
+const CYTOSCAPE_WRITERS = [
+    { name: "CX", format: "cx", options: { sanitizeIds: "mangle" } },
+    { name: "CX2", format: "cx2", options: { sanitizeIds: "mangle" } },
+    { name: "Cytoscape session", format: "cys", options: { sanitizeIds: "mangle" } },
+    { name: "Cytoscape.js JSON", format: "json", options: { dialect: "cytoscape" } },
+    { name: "XGMML", format: "xgmml", options: {} },
+] as const;
+
+describe("a y-down drawing written to a Cytoscape format reads back the same way up", () => {
+    // the sources whose position column declares its spelling (a GML column does not: its importer's hook does)
+    const cases = FILES.filter((f) => f.format !== "gml").flatMap((source) =>
+        CYTOSCAPE_WRITERS.map((writer) => ({
+            ...source,
+            writer: writer.name,
+            to: writer.format,
+            options: writer.options,
+        })),
+    );
+    it.each(cases)("$name to $writer", async ({ file, format, to, options }) => {
+        const { snapshot, report } = await registry.importGraph(readFileSync(file), { format });
+        const first = (extractPositions(registry.importer(format), snapshot, report) as FilePositions).coords;
+        const blob = await registry.exportGraphToBlob(snapshot, to, options);
+        const back = await registry.importGraph(new Uint8Array(await blob.arrayBuffer()), { format: to });
+        const again = (extractPositions(registry.importer(to), back.snapshot, back.report) as FilePositions).coords;
+        expect(back.snapshot.nodeCount).toBe(snapshot.nodeCount);
+        let compared = 0;
+        for (let i = 0; i < snapshot.nodeCount; i++) {
+            if (Number.isNaN(first[3 * i]) || Number.isNaN(again[3 * i])) {
+                continue;
+            }
+            compared++;
+            expect(again[3 * i], `${i} x`).toBeCloseTo(first[3 * i], 6);
+            expect(again[3 * i + 1], `${i} y`).toBeCloseTo(first[3 * i + 1], 6);
+        }
+        expect(compared).toBeGreaterThan(0);
+    });
+});

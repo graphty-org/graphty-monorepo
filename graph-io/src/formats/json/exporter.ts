@@ -30,6 +30,7 @@ import { agree, plural } from "../../common/plural.js";
 import { jsonText } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
+import { neutralPositions } from "../../positions/convert.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -1784,6 +1785,8 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
     const c: Cursor = { w: new JsonWriter(resolved.indent), ids: snapshot.ids, nonfinite: { count: 0 } };
     const { w } = c;
     const parentSlots: ReadonlySet<Slot> = new Set(["parent"]);
+    const position = snapshot.nodes.byRole("position");
+    const neutral = position === null ? null : neutralPositions(snapshot, position);
     w.open("{");
     w.key("elements");
     w.open("{");
@@ -1799,7 +1802,7 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
         writeSlots(c, p.nodes, i, parentSlots);
         writeSlots(c, p.nodes, i, ATTRIBUTE_SLOTS);
         w.close("}");
-        writeCytoscapePosition(c, p, i);
+        writeCytoscapePosition(c, p, i, neutral);
         writeSlots(c, p.nodes, i, ELEMENT_SLOTS);
         w.close("}");
         yield w.take();
@@ -1843,16 +1846,18 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
 }
 
 /**
- * Write a Cytoscape.js node's position: stored y-up, written with Cytoscape's y growing downward.
+ * Write a Cytoscape.js node's position: read through the column's spelling into the neutral form (y up), written
+ * with Cytoscape's y growing downward.
  * @param c - the cursor
  * @param p - the plan
  * @param i - the node
+ * @param neutral - the position column's rows in the neutral form, or null without one
  */
-function writeCytoscapePosition(c: Cursor, p: Plan, i: number): void {
+function writeCytoscapePosition(c: Cursor, p: Plan, i: number, neutral: Float64Array | null): void {
     const { w } = c;
     for (const item of p.nodes) {
-        if (item.slot === "cytoscapePosition" && item.column.isSet(i)) {
-            const value = item.column.value(i) as ArrayLike<number>;
+        if (item.slot === "cytoscapePosition" && item.column.isSet(i) && neutral !== null) {
+            const value = neutral.subarray(3 * i, 3 * i + 3);
             const f32 = item.column.dtype === "f32";
             w.key("position");
             w.open("{");

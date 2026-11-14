@@ -48,6 +48,7 @@ import { type ResolvedExportOptions, resolveExportOptions } from "../../common/o
 import { plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { neutralPositions } from "../../positions/convert.js";
 import { cytoscapeCxAspect, type CytoscapeEmitted } from "../../styles/cytoscape/emit.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
@@ -274,6 +275,8 @@ interface Plan {
     readonly edgeAttrs: readonly AttributePlan[];
     readonly graphAttrs: readonly AttributePlan[];
     readonly position: Column | null;
+    /** The position column's rows in the neutral form (center, y up), x, y, z per node; null without one. */
+    readonly neutral: Float64Array | null;
     readonly positionZ: boolean;
     readonly z: Column | null;
     readonly bypass: {
@@ -607,6 +610,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
         edgeAttrs,
         graphAttrs,
         position,
+        neutral: position === null ? null : neutralPositions(snapshot, position),
         positionZ,
         z,
         bypass: {
@@ -1137,15 +1141,15 @@ function rewriteView(element: Record<string, unknown>): Record<string, unknown> 
  * @yields the entries
  */
 function* layoutElements(p: Plan, ids: WrittenIds, rows: readonly number[]): Generator<unknown, void, undefined> {
-    const { position } = p;
-    if (position === null) {
+    const { position, neutral } = p;
+    if (position === null || neutral === null) {
         return;
     }
     for (const row of rows) {
         if (!position.isSet(row)) {
             continue;
         }
-        const point = position.value(row) as ArrayLike<number>;
+        const point = neutral.subarray(3 * row, 3 * row + 3);
         if (!Number.isFinite(point[0]) || !Number.isFinite(point[1])) {
             continue;
         }

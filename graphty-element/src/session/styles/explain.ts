@@ -867,6 +867,34 @@ function shareKey(layerId: LayerId, value: unknown): string {
 }
 
 /**
+ * Count one element's answer on one channel into its tally.
+ * @param tally - The channel's tally.
+ * @param winner - The deciding layer and the value it painted.
+ * @param winner.layerId - The deciding layer.
+ * @param winner.value - The value it painted.
+ * @param covered - Whether a shader draws in place of the channel on this element.
+ * @param own - The layers of the row being read over, if any.
+ */
+function tallyOne(
+    tally: Tally,
+    winner: { readonly layerId: LayerId; readonly value: unknown },
+    covered: boolean,
+    own: ReadonlySet<LayerId> | undefined,
+): void {
+    const { layerId, value } = winner;
+    tally.painted++;
+    tally.covered += covered ? 1 : 0;
+    tally.overridden += covered || own?.has(layerId) === false ? 1 : 0;
+    const key = shareKey(layerId, value);
+    const share = tally.shares.get(key);
+    if (share === undefined) {
+        tally.shares.set(key, { value, layerId, count: 1 });
+    } else {
+        share.count++;
+    }
+}
+
+/**
  * Answer how several elements look, channel by channel.
  *
  * ONE PASS over the elements, and each one is read through the same walk {@link explainStyle}
@@ -925,24 +953,14 @@ export function styleAgreement(
                 rankOf,
             );
 
-            for (const [channel, { layerId, value }] of winners) {
+            for (const [channel, winner] of winners) {
                 let tally = tallies.get(channel);
                 if (tally === undefined) {
                     tally = { shares: new Map(), painted: 0, covered: 0, overridden: 0 };
                     tallies.set(channel, tally);
                 }
 
-                tally.painted++;
-                const covered = covering?.covers.includes(channel) === true;
-                tally.covered += covered ? 1 : 0;
-                tally.overridden += covered || own?.has(layerId) === false ? 1 : 0;
-                const key = shareKey(layerId, value);
-                const share = tally.shares.get(key);
-                if (share === undefined) {
-                    tally.shares.set(key, { value, layerId, count: 1 });
-                } else {
-                    share.count++;
-                }
+                tallyOne(tally, winner, covering?.covers.includes(channel) === true, own);
             }
         }
     };

@@ -774,7 +774,6 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
     switch (resolved.kind) {
         case "graph":
             return graphHeader(session, doors);
-        // A node is named by its id until graphty-element publishes its name (#895).
         case "node":
             return {
                 // A node is called by its label, else its id.
@@ -785,11 +784,12 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             };
         // The center node's own header: its name and the color it is drawn in.
         case "neighborhood":
-            return { name: String(resolved.node), swatch: swatchOf(session, { node: resolved.node }) };
+            return { name: nodeName(session, resolved.node), swatch: swatchOf(session, { node: resolved.node }) };
         case "edge": {
             const edge = session.data.edge(resolved.edge);
             return {
-                name: edge === undefined ? resolved.edge : edgeName(session, edge),
+                // An edge the data no longer holds has no ends to name; its id is the element's counter.
+                name: edge === undefined ? "Edge" : edgeName(session, edge),
                 swatch: swatchOf(session, { edge: resolved.edge }),
             };
         }

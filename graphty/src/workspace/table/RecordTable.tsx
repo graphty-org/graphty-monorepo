@@ -52,7 +52,7 @@ function cellValue(
     const value = column.structure === true ? session.data.structureValue(record.id, key) : record[key];
     if (kind === "edge" && (key === "source" || key === "target")) {
         const id = value as NodeId;
-        return session.data.name(id) ?? String(id);
+        return session.data.nodeName(id).name;
     }
     return tableValue(timeValue(session, value, column.descriptor?.type === "time"));
 }

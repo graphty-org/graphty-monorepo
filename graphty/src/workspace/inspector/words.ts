@@ -509,26 +509,26 @@ export function directionNote(statistics: GraphStatistics): string {
 }
 
 /**
- * An edge by its two ends' names (the element's `data.name`, else the id): "Ava -> Kofi" on a
- * directed graph, "Ava -- Kofi" otherwise.
+ * An edge by its two ends' names (the element's `data.edgeName`): "Ava -> Kofi" on a directed
+ * graph, "Ava -- Kofi" otherwise.
  * @param session - the session, which names the ends and says whether the graph is directed.
  * @param edge - the edge's record.
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    const end = (id: EdgeRecord["source"]): string => session.data.name(id) ?? String(id);
-    return `${end(edge.source)}${edgeJoiner(session)}${end(edge.target)}`;
+    const { source, target } = session.data.edgeName(edge);
+    return `${source.name}${edgeJoiner(session)}${target.name}`;
 }
 
 /**
  * What the status line calls one selected node: the label graphty-element gives it
- * (`session.data.name`, the label column's value), else its id.
+ * (`session.data.nodeName`, the label column's value), else its id.
  * @param session - the session.
  * @param id - the node id.
  * @returns such as "Nebraska", or "74" when the graph has no label column.
  */
 export function nodeName(session: GraphSession, id: EdgeRecord["source"]): string {
-    return session.data.name(id) ?? String(id);
+    return session.data.nodeName(id).name;
 }
 
 /**

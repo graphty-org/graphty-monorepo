@@ -513,7 +513,8 @@ describe("the window's rule", () => {
         await time.setField({ nodes: { start: "t" } });
         await visibility.set({ kind: "range", attribute: "data.w", min: 0, max: 2 });
         const gap = await time.window({ from: 15, to: 25, step: 10 });
-        assert.deepEqual(gap.unresolvedPaths, ["data.w"], "no edge got past its ends");
+        // The window narrows nothing visible, so the filter reads the edge whatever the window says.
+        assert.deepEqual(gap.unresolvedPaths, []);
 
         const adopted = await time.window({ from: 0, to: 10, step: 10 });
         assert.strictEqual(adopted.visible.edges, 1);

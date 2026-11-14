@@ -473,7 +473,8 @@ describe("session.time: the window", () => {
         assert.strictEqual(windowCount(visibility).edges, 5);
         await time.window({ from: T0, to: T0 + 10 * DAY, missing: "outside" });
         assert.strictEqual(windowCount(visibility).edges, 4);
-        assert.isFalse(visibility.isVisible("f"));
+        assert.notInclude(windowNodeIds(harness.session), "f");
+        assert.isTrue(visibility.isVisible("f"), "left out of the window, never out of the data");
         harness.session.dispose();
     });
 

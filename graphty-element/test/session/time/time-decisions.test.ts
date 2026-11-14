@@ -356,11 +356,12 @@ describe("the window, its step and playback", () => {
         session.dispose();
     });
 
-    it("measures the visible graph when asked", async () => {
+    it("measures the visible graph when asked, which a time window does not narrow", async () => {
         const { session } = await open();
         await session.time.window({ from: T0, to: T0 + DAY, step: "day" });
         const visible = session.data.statistics({ scope: "visible" });
-        assert.strictEqual(visible.edgeCount, windowCount(session.visibility).edges);
+        assert.isBelow(windowCount(session.visibility).edges, 6, "the window leaves edges out");
+        assert.strictEqual(visible.edgeCount, 6);
         assert.strictEqual(session.data.statistics().edgeCount, 6);
         session.dispose();
     });

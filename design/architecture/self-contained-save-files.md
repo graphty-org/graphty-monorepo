@@ -360,7 +360,10 @@ limited to `saved-format-lists.json`, the shader-library snapshot, lines added t
 `notSaved` key or `volatile` field, a removed `selfContained` kind, a deleted test, or a changed
 snapshot. Removing exceptions while adding their kinds' rows, and adding kinds or tests, merges on
 agent review (owner, 2026-11-13: "a change that only removes save-file exceptions merges on agent
-review"); an edited test still meets PR Integrity's test-integrity rule. Any other change under
+review"). An edited test is free here, as it is for the trailer check (#7588 edits the scan in
+`clean-room.test.ts` to accept what a file carries): the fresh agent review is what judges whether an
+edit quietly exempts a built-in, and the test-integrity rule only catches a lost test or assertion.
+Any other change under
 `test/saved-format/`, to `tools/check-saved-format-allowlist.mjs`, to the lint rule's switch in
 `graphty-element/eslint.config.js`, or to the shipped and revoked hash lists always needs him.
 `tools/pr-integrity.test.mjs` has a case per path. `GUARD_PATHS` in `pr-open.sh` holds

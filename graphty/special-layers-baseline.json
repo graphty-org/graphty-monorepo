@@ -174,14 +174,6 @@
         {
             "file": "graphty-element/src/session/styles/StylesApi.ts",
             "rule": "named",
-            "detail": "restoreStartingRows",
-            "count": 2,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/StylesApi.ts",
-            "rule": "named",
             "detail": "protectedLayer",
             "count": 5,
             "reason": "refuses a change because of which layer it is",
@@ -215,16 +207,16 @@
             "file": "graphty-element/src/session/styles/StylesApi.ts",
             "rule": "template-id",
             "detail": "templateId",
-            "count": 7,
-            "reason": "singles out a starting row by its template id",
+            "count": 4,
+            "reason": "editableBase's legend finds the Everything row by its template id",
             "issue": "#5905"
         },
         {
             "file": "graphty-element/src/session/styles/StylesApi.ts",
             "rule": "template-id",
             "detail": "graphty:starting-everything",
-            "count": 3,
-            "reason": "singles out a starting row by its template id",
+            "count": 1,
+            "reason": "editableBase's legend finds the Everything row by its template id",
             "issue": "#5905"
         },
         {
@@ -238,81 +230,9 @@
         {
             "file": "graphty-element/src/session/styles/StylesApi.ts",
             "rule": "named",
-            "detail": "StartingRow",
-            "count": 2,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/StylesApi.ts",
-            "rule": "named",
-            "detail": "startingRowOf",
-            "count": 7,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/StylesApi.ts",
-            "rule": "template-id",
-            "detail": "graphty:starting-hovered",
-            "count": 3,
-            "reason": "singles out a starting row by its template id",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/StylesApi.ts",
-            "rule": "named",
-            "detail": "StartingRowsWork",
-            "count": 7,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/StylesApi.ts",
-            "rule": "named",
-            "detail": "addStartingRow",
-            "count": 4,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/StylesApi.ts",
-            "rule": "named",
-            "detail": "dropStartingRow",
-            "count": 3,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/StylesApi.ts",
-            "rule": "named",
-            "detail": "syncStartingRow",
-            "count": 2,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/StylesApi.ts",
-            "rule": "template-id",
-            "detail": "graphty:starting-selected",
-            "count": 2,
-            "reason": "singles out a starting row by its template id",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/StylesApi.ts",
-            "rule": "named",
-            "detail": "planStartingRows",
-            "count": 2,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/StylesApi.ts",
-            "rule": "named",
             "detail": "startingRows",
             "count": 1,
-            "reason": "the starting rows are remembered after they are created",
+            "reason": "writes the default rows once when startingRows turns on",
             "issue": "#5905"
         },
         {
@@ -399,8 +319,8 @@
             "file": "graphty-element/src/session/styles/rows.ts",
             "rule": "named",
             "detail": "StartingRowId",
-            "count": 5,
-            "reason": "the starting rows are remembered after they are created",
+            "count": 3,
+            "reason": "names the default rows written once when startingRows turns on; their template ids stay on as saved data",
             "issue": "#5905"
         },
         {
@@ -408,7 +328,7 @@
             "rule": "template-id",
             "detail": "graphty:starting-everything",
             "count": 3,
-            "reason": "singles out a starting row by its template id",
+            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
             "issue": "#5905"
         },
         {
@@ -416,7 +336,7 @@
             "rule": "template-id",
             "detail": "graphty:starting-selected",
             "count": 3,
-            "reason": "singles out a starting row by its template id",
+            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
             "issue": "#5905"
         },
         {
@@ -424,7 +344,7 @@
             "rule": "template-id",
             "detail": "graphty:starting-hovered",
             "count": 3,
-            "reason": "singles out a starting row by its template id",
+            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
             "issue": "#5905"
         },
         {
@@ -432,7 +352,7 @@
             "rule": "template-id",
             "detail": "graphty:starting-pinned",
             "count": 1,
-            "reason": "singles out a starting row by its template id",
+            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
             "issue": "#5905"
         },
         {
@@ -440,7 +360,7 @@
             "rule": "named",
             "detail": "StartingRow",
             "count": 2,
-            "reason": "the starting rows are remembered after they are created",
+            "reason": "names the default rows written once when startingRows turns on; their template ids stay on as saved data",
             "issue": "#5905"
         },
         {
@@ -448,7 +368,7 @@
             "rule": "named",
             "detail": "startingRows",
             "count": 1,
-            "reason": "the starting rows are remembered after they are created",
+            "reason": "names the default rows written once when startingRows turns on; their template ids stay on as saved data",
             "issue": "#5905"
         },
         {
@@ -456,39 +376,23 @@
             "rule": "template-id",
             "detail": "graphty:timeline-ghost",
             "count": 1,
-            "reason": "singles out a starting row by its template id",
+            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
             "issue": "#5905"
         },
         {
             "file": "graphty-element/src/session/styles/rows.ts",
             "rule": "source-by",
             "detail": "template",
-            "count": 2,
-            "reason": "treats a layer differently because its source is \"template\"",
+            "count": 1,
+            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
             "issue": "#5905"
         },
         {
             "file": "graphty-element/src/session/styles/rows.ts",
             "rule": "template-id",
             "detail": "templateId",
-            "count": 3,
-            "reason": "singles out a starting row by its template id",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/rows.ts",
-            "rule": "named",
-            "detail": "startingRowOf",
             "count": 1,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/rows.ts",
-            "rule": "template-id",
-            "detail": "graphty:starting-",
-            "count": 1,
-            "reason": "singles out a starting row by its template id",
+            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
             "issue": "#5905"
         }
     ],

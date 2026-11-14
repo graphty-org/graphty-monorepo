@@ -1449,6 +1449,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "config.set", values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } } },
             ]),
             labelDeclutter: VIEW_SETTING,
+            minimap: VIEW_SETTING,
+            minimapLabel: VIEW_SETTING,
             renderOnDemand: VIEW_SETTING,
             shaderSettings: exempt(
                 "The reader's shader preferences and trust, never saved in a project file and never read from one.",

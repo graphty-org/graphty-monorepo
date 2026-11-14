@@ -3530,6 +3530,10 @@ export class Graphty extends LitElement {
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    get minimap(): boolean;
+    set minimap(value: boolean);
+    get minimapLabel(): string;
+    set minimapLabel(value: string);
     modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     newAiConversation(): Promise<AiConversationSnapshot | null>;
     get nodeData(): Record<string, unknown>[] | undefined;

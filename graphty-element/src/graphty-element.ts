@@ -97,6 +97,7 @@ import type {
     TransactionScope,
 } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
+import { Minimap } from "./ui/Minimap";
 import { downloadBlob } from "./utils/download";
 
 /**
@@ -192,6 +193,21 @@ export class Graphty extends LitElement {
            anywhere on the page; see the constructor. */
         [data-pointer-focus] canvas:focus-visible {
             outline: none;
+        }
+
+        /* The minimap's defaults: small, in a corner, plain. Restyle it from the page with
+           ::part(minimap); its points and viewport rectangle are drawn in its color. */
+        [part="minimap"] {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            width: 160px;
+            height: 160px;
+            box-sizing: border-box;
+            border: 1px solid #888;
+            background: rgb(255 255 255 / 75%);
+            color: #444;
+            touch-action: none;
         }
     `;
 
@@ -779,6 +795,10 @@ export class Graphty extends LitElement {
 
         this.#wired = true;
         this.renderRoot.appendChild(this.#element);
+        if (this.#minimapOn) {
+            this.#minimapView.attach(this.renderRoot);
+        }
+
         this.#reportStrayObjectAttributes();
 
         // Autosave reads its key and options in the task after connecting, so a script that sets
@@ -3081,6 +3101,91 @@ export class Graphty extends LitElement {
         const oldValue = this.labelDeclutter;
         this.#graph.setLayoutBehavior({ labels: { declutter: value } });
         this.requestUpdate("labelDeclutter", oldValue);
+    }
+
+    /** Whether the minimap is shown; see {@link Graphty.minimap}. */
+    #minimapOn = false;
+
+    /** The minimap overlay, built on first use. */
+    #minimapDrawn: Minimap | undefined;
+
+    /** The accessible name the minimap carries; see {@link Graphty.minimapLabel}. */
+    #minimapName = "minimap";
+
+    /**
+     * The minimap overlay, built on first use.
+     * @returns The overlay.
+     */
+    get #minimapView(): Minimap {
+        if (this.#minimapDrawn === undefined) {
+            this.#minimapDrawn = new Minimap(this);
+            this.#minimapDrawn.setLabel(this.#minimapName);
+        }
+
+        return this.#minimapDrawn;
+    }
+
+    /**
+     * Whether a minimap is drawn over the graph: every node seen from where the camera looks (a
+     * density heatmap above 5,000 nodes) and the rectangle the view shows. A click on it centres
+     * the view there, a drag scrubs, and with it focused the arrow keys step the view.
+     * @remarks
+     * A preference of this view, not part of the project: switching it, and moving the camera with
+     * it, records no undo step. Off by default. It is a canvas in the shadow root, exposed as
+     * `::part(minimap)`: set its size, place, border and background from the page, and the color
+     * its points and rectangle are drawn in with `color`. To draw a minimap of your own instead,
+     * see {@link Graphty.getOverview}.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element minimap></graphty-element>
+     * <style>
+     *     graphty-element::part(minimap) { left: 8px; right: auto; width: 200px; color: teal; }
+     * </style>
+     * ```
+     * @returns True when the minimap is shown
+     */
+    @property({ attribute: "minimap", type: Boolean, reflect: true })
+    get minimap(): boolean {
+        return this.#minimapOn;
+    }
+    /**
+     * Shows or hides the minimap.
+     */
+    set minimap(value: boolean) {
+        const oldValue = this.#minimapOn;
+        this.#minimapOn = value;
+        if (!value) {
+            this.#minimapDrawn?.detach();
+        } else if (this.#wired) {
+            this.#minimapView.attach(this.renderRoot);
+        }
+
+        this.requestUpdate("minimap", oldValue);
+    }
+
+    /**
+     * The minimap's accessible name, which a screen reader announces. `"minimap"` unless set;
+     * a page in another language sets its own word.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element minimap minimap-label="Carte"></graphty-element>
+     * ```
+     * @returns The name
+     */
+    @property({ attribute: "minimap-label" })
+    get minimapLabel(): string {
+        return this.#minimapName;
+    }
+    /**
+     * Sets the minimap's accessible name.
+     */
+    set minimapLabel(value: string) {
+        const oldValue = this.#minimapName;
+        this.#minimapName = value;
+        this.#minimapDrawn?.setLabel(value);
+        this.requestUpdate("minimapLabel", oldValue);
     }
 
     /**
@@ -5746,8 +5851,8 @@ export class Graphty extends LitElement {
     /**
      * Everything a minimap needs: every placed node seen along the current view direction, laid
      * flat in a unit frame (x right, y down, 0 to 1, the same scale on both axes), and `viewport`,
-     * the part of that frame the camera shows. The element draws no minimap; a consumer draws one
-     * from this and redraws it on `overview-changed`.
+     * the part of that frame the camera shows. {@link Graphty.minimap} draws a minimap from this; to
+     * draw your own, read it and redraw on `overview-changed`.
      *
      * Up to `maxPoints` placed nodes (default 5000) it returns one point per node; above that a
      * `gridSize` by `gridSize` density grid (default 64) instead, so the result stays small.

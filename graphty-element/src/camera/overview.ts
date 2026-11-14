@@ -1,7 +1,7 @@
 /**
  * @file The overview of a graph: every placed node seen along the current view direction, laid
- * flat in a unit frame, plus the part of that frame the camera shows. A consumer draws a minimap
- * from it; the element draws none itself (issue #293).
+ * flat in a unit frame, plus the part of that frame the camera shows. The element's own minimap
+ * draws from it, and so can a consumer's (issue #293).
  *
  * NOTHING HERE NAMES A BABYLON TYPE: the caller passes the view as plain numbers, so the
  * arithmetic runs and is tested in Node.

@@ -152,6 +152,14 @@ export interface GraphtyElementJSXProps {
      */
     labelDeclutter?: Graphty["labelDeclutter"];
     /**
+     * Shows or hides the minimap.
+     */
+    minimap?: Graphty["minimap"];
+    /**
+     * Sets the minimap's accessible name.
+     */
+    minimapLabel?: Graphty["minimapLabel"];
+    /**
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */
     autoRotate?: Graphty["autoRotate"];
@@ -384,6 +392,10 @@ export interface GraphtyElementJSXProps {
      * Switches label decluttering on or off.
      */
     "label-declutter"?: boolean;
+    /**
+     * Sets the minimap's accessible name.
+     */
+    "minimap-label"?: string;
     /**
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */

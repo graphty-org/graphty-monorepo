@@ -1,7 +1,7 @@
 /**
  * @file In a headset, input moves things in the reader's own frame: once the scene has been turned,
  * the right stick still pans along the reader's right, and a grab follows the hand wherever the
- * reader's head is turned.
+ * reader's head is turned, and its depth is amplified along the reader's depth, not the scene's Z.
  *
  * Runs in a real immersive session on an emulated Meta Quest 3 (IWER), whose thumbsticks, hands and
  * headset pose the tests set.
@@ -44,6 +44,16 @@ async function panRight(): Promise<Vector3> {
     return driver.pivot.pivot.position.subtract(before);
 }
 
+/** Turn the scene a quarter turn or more with the left stick. */
+async function turnScene(): Promise<void> {
+    driver.setStick("left", 1, 0);
+    await vi.waitFor(() => {
+        assert.isAbove(Math.abs(yaw()), Math.PI / 2, "the left stick does not turn the scene");
+    });
+    driver.setStick("left", 0, 0);
+    await driver.frame();
+}
+
 test("the right stick pans along the reader's right before and after the left stick turns the scene", async () => {
     driver = await createXRInputDriver("controller");
 
@@ -56,13 +66,7 @@ test("the right stick pans along the reader's right before and after the left st
         "the pan is not along the reader's right",
     );
 
-    // Turn the scene a quarter turn or more with the left stick.
-    driver.setStick("left", 1, 0);
-    await vi.waitFor(() => {
-        assert.isAbove(Math.abs(yaw()), Math.PI / 2, "the left stick does not turn the scene");
-    });
-    driver.setStick("left", 0, 0);
-    await driver.frame();
+    await turnScene();
 
     const turned = await panRight();
     assert.isAbove(turned.length(), 0.01, "the right stick did not pan");
@@ -97,4 +101,37 @@ test("with the reader's head turned, a grab follows the hand, not the head", asy
     await hand(new Vector3(0.1, 0.1, 0), 0.1);
 
     assert.isBelow(Vector3.Distance(moved, new Vector3(0, 0.1, 0)), 1e-3, `the node moved ${moved.toString()}`);
+});
+
+test("after the scene is turned, a sideways drag moves the node sideways, unamplified", async () => {
+    driver = await createXRInputDriver("controller");
+    await turnScene();
+
+    const controller = driver.iwer.device.controllers.right;
+    assert.exists(controller, "no right controller");
+    const at = new Vector3(0.2, 1, -0.3);
+    const hold = async (offset: Vector3, trigger: number): Promise<void> => {
+        // The scene's z runs opposite to WebXR's.
+        controller.position.set(at.x + offset.x, at.y + offset.y, -(at.z + offset.z));
+        controller.updateButtonValue("trigger", trigger);
+        await driver.frame();
+    };
+    await hold(Vector3.Zero(), 0);
+    const node = await driver.putNodeOnRay("right", "r", 3);
+
+    // Press, move past the drag threshold (where the drag begins), then move 10 cm to the right.
+    await hold(Vector3.Zero(), 1);
+    await hold(new Vector3(0.1, 0, 0), 1);
+    assert.isTrue(driver.handler.isDragging(), "the trigger did not take the node");
+    const start = node.drawnPosition.clone();
+    await hold(new Vector3(0.2, 0, 0), 1);
+    const moved = node.drawnPosition.subtract(start);
+    await hold(new Vector3(0.2, 0, 0), 0);
+
+    const expected = readerRight().scale(0.1);
+    assert.isBelow(
+        Vector3.Distance(moved, expected),
+        1e-3,
+        `the node moved ${moved.toString()}, not ${expected.toString()} along the reader's right`,
+    );
 });

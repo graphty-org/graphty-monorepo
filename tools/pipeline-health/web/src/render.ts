@@ -21,6 +21,7 @@ import type {
     Cell,
     ChannelTile,
     Episode,
+    GroupRow,
     IssueRange,
     IssuesSummary,
     JobsSection,
@@ -1023,7 +1024,46 @@ function shards(s: ShardsSection): string {
         ["shard", "runs", "median", "p90", "budget"],
         s.rows.map((r) => [r.shard, r.runs, mins(r.medianS), mins(r.p90S), mins(r.budgetS)]),
     );
-    return `<div class="shards">${head}${rows}${more}</div>${table}`;
+    return `<div class="shards">${head}${rows}${more}</div>${table}${groups(s.groups ?? [])}`;
+}
+
+/**
+ * The test groups of a full run: each group's members summed per run against its test step's deadline, and the
+ * members slower than their measured time in tools/ci-test-matrix.mjs.
+ * @param gs The groups.
+ * @returns HTML, or nothing without groups.
+ */
+function groups(gs: GroupRow[]): string {
+    if (!gs.length) {
+        return "";
+    }
+    const mins = (x: number): string => fmtN(Math.round((x / 60) * 10) / 10);
+    const maxS = Math.max(...gs.map((g) => Math.max(g.limitS, g.worst.totalS)));
+    const head =
+        `<div class="srow thead"><span class="nm">group</span><span class="num">runs</span><span class="num">newest</span><span class="num">slowest</span>` +
+        `<span>0 to ${fmtN(Math.round(maxS / 60))} min; line = deadline</span><span></span><span></span></div>`;
+    const rows = gs
+        .map((g) => {
+            const bar = { shard: g.group, runs: g.runs, minRuns: 1, medianS: g.newest.totalS, p90S: g.worst.totalS };
+            const { svg } = budgetBar({ ...bar, budgetS: g.limitS }, maxS);
+            const over = g.newest.pct > g.warnPct;
+            const note = `${fmtN(g.newest.pct)}% of ${mins(g.limitS)} min deadline${over ? `, over ${fmtN(g.warnPct)}%` : ""}`;
+            const stale = g.members.filter((m) => m.stale);
+            const tail = stale.length
+                ? `<p class="more">${stale.map((m) => `${esc(m.member)} <small class="tag">${mins(m.maxS)} min, table ${m.tableS === null ? "none" : `${mins(m.tableS)} min`}</small>`).join(", ")}</p>`
+                : "";
+            return (
+                `<div class="srow"><span class="nm">${esc(g.group)}</span><span class="num">${fmtN(g.runs)}</span><span class="num">${mins(g.newest.totalS)}</span><span class="num">${mins(g.worst.totalS)}</span>` +
+                `<span>${svg}</span><span class="note2">${esc(note)}</span><span></span></div>${tail}`
+            );
+        })
+        .join("");
+    const table = hiddenTable(
+        "test group times in minutes",
+        ["group", "runs", "newest", "slowest", "deadline", "newest %"],
+        gs.map((g) => [g.group, g.runs, mins(g.newest.totalS), mins(g.worst.totalS), mins(g.limitS), g.newest.pct]),
+    );
+    return `${h3("Test groups")}<div class="shards">${head}${rows}</div>${table}`;
 }
 
 function tree(s: TreeSection): string {

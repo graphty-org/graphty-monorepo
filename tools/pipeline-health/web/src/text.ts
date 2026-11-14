@@ -677,6 +677,12 @@ export const MEMBER: Record<MemberId, MemberText> = {
         def: "Full-run test shards whose 7-day median time is over their own time budget. Shard times below shows each shard's median against its budget (the line in its bar). While CI test results sends too little, this row says NO DATA rather than count from data that may be missing.",
         red: "3 or more: full runs are slowing down and may hit their timeouts. Agents speed up or split the shards listed over budget in Shard times.",
     },
+    "ci.group_deadline": {
+        name: "Test group near its deadline",
+        short: "test group near its deadline",
+        def: "A full run's test group runs its members one after another in one step, stopped at a deadline. This is the slowest group's newest full run: its members' times added up (with 10 s between members) as a % of that deadline. Test groups in Shard times below lists every group and the members slower than their measured time in tools/ci-test-matrix.mjs.",
+        red: "Over 90%: the next slow runner cancels the group before its last members run. Agents move a member out of the group or speed it up; a member marked slower than its entry gets its GROUP_MEMBER_SECONDS remeasured.",
+    },
     "ci.runner_minutes": {
         name: "Runner-minutes per merge",
         short: "runner-minutes per merge",

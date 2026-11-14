@@ -743,6 +743,41 @@ describe("the simulation layout bridge", () => {
         assert.isFalse(rig.engine.isSettled, "so the layout has work to do again");
     });
 
+    it("session.layout.motion follows a pause, a resume, coming to rest and a re-run, and publishes each change", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator({ settleAfter: 2 });
+        graph.acceleration.setAccelerator(fake);
+
+        const rig = await bridge(graph);
+        const session = graph.getSession();
+        const heard: string[] = [];
+        session.on("layout:motion-changed", ({ motion }) => heard.push(motion));
+        assert.strictEqual(session.layout.motion, "running", "a layout just set runs");
+        assert.isTrue(graph.isRunning(), "as isRunning() says");
+
+        graph.setRunning(false);
+        assert.strictEqual(session.layout.motion, "paused", "stopped before it came to rest");
+        assert.isFalse(graph.isRunning());
+
+        graph.setRunning(true);
+        assert.strictEqual(session.layout.motion, "running");
+
+        rig.step();
+        rig.step();
+        await drain(fake);
+        assert.isTrue(rig.engine.isSettled, "two landed batches settle this fake");
+        // What the frame loop does on the first frame that finds the layout settled; the loop is
+        // stopped in this fixture.
+        graph.getLayoutManager().running = false;
+        assert.strictEqual(session.layout.motion, "settled");
+
+        await session.layout.rerun();
+        assert.strictEqual(session.layout.motion, "running", "a re-run starts it again");
+        assert.strictEqual(session.history.steps.at(-1)?.fact.code, "layout.rerun");
+
+        assert.deepStrictEqual(heard, ["paused", "running", "settled", "running"], "one event per change");
+    });
+
     it("a consumer pause holds through a load, a freeze and an accelerator attaching: nothing is submitted or reheated", async () => {
         const graph = await pathGraph(5);
         const fake = createFakeAccelerator({ settleAfter: 1 });

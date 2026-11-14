@@ -133,6 +133,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_SOFTWARE_ONLY",
     "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
+    "E_RENDER_LOST",
     "E_NO_WEBGL",
     "E_SHADER_REFUSED",
     // an immersive session the browser or headset would not start (issue #7236)
@@ -222,6 +223,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SOFTWARE_ONLY":
         case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
+        case "E_RENDER_LOST":
         case "E_NO_WEBGL":
         case "E_SHADER_REFUSED":
         case "E_XR_SESSION_FAILED":

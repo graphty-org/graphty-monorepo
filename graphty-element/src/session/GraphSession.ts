@@ -101,7 +101,15 @@ import {
     type TransactionOptions as DispatchOptions,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
-import { EDGES_ADDED, forEachEdgeOfKey, namesEdges, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
+import {
+    EDGES_ADDED,
+    forEachEdgeOfKey,
+    graphDiffOf,
+    namesEdges,
+    nodeOfKey,
+    NODES_ADDED,
+    ROWS_MOVED,
+} from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
@@ -214,6 +222,7 @@ import type {
     HistoryClearOptions,
     HistoryOutcome,
     HistoryRestoreOptions,
+    LayoutMotion,
     LocationColumns,
     ModelChange,
     PositionEntry,
@@ -593,6 +602,8 @@ class Session implements ElementSession {
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
+    /** The renderer's layout motion; a session that draws nothing stays `settled`. */
+    private motion: LayoutMotion = "settled";
     /** The settings; identity-stable, every member read live. */
     readonly config: SessionConfig;
     private readonly sessionData: SessionData;
@@ -694,6 +705,7 @@ class Session implements ElementSession {
                 cause: change.cause,
             });
             beside?.(change);
+            tellData(this.watchers, change);
         };
         this.dispatcher.events.caughtUp = (change) => {
             publish(this.watchers, "project:derived", {
@@ -739,6 +751,7 @@ class Session implements ElementSession {
             this.dispatcher,
             (command) => this.dispatcher.dispatch(command),
             () => locationColumns(this.planning),
+            () => this.motion,
         );
         // What an import asking for a recommended layout chooses, for the graph it loaded.
         const fileGraph = (): FileGraphValue | undefined =>
@@ -985,6 +998,7 @@ class Session implements ElementSession {
                     this.dispatcher,
                     (command) => scope.dispatch(command),
                     () => locationColumns(this.planning),
+                    () => this.motion,
                 ),
             },
             transaction: {
@@ -1243,6 +1257,17 @@ class Session implements ElementSession {
     }
 
     /**
+     * Records the layout's motion and publishes `layout:motion-changed` when it changed.
+     * @param motion - The motion now.
+     */
+    layoutMotion(motion: LayoutMotion): void {
+        if (motion !== this.motion) {
+            this.motion = motion;
+            publish(this.watchers, "layout:motion-changed", { motion });
+        }
+    }
+
+    /**
      * Publishes `canvas:group-outline-click`.
      * @param target - The outline's layer, shader and group.
      */
@@ -1496,12 +1521,14 @@ function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionP
  * @param dispatcher - The session's dispatcher, whose state is read.
  * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
  * @param locate - The columns the location map reads unless its options name some.
+ * @param motion - Whether the renderer's layout is moving.
  * @returns The layout surface.
  */
 function layoutOf(
     dispatcher: Dispatcher,
     dispatch: (command: SessionCommand) => Promise<unknown>,
     locate: () => LocationColumns,
+    motion: () => LayoutMotion,
 ): SessionLayout {
     const choice = (): LayoutChoice => dispatcher.state.layout ?? DEFAULT_LAYOUT;
     return Object.freeze({
@@ -1520,6 +1547,9 @@ function layoutOf(
         get arrangedDimension() {
             return arrangedDimension(choice());
         },
+        get motion() {
+            return motion();
+        },
         set: async (
             id: LayoutId,
             options?: { readonly engine?: string; readonly options?: Readonly<Record<string, unknown>> },
@@ -1533,6 +1563,9 @@ function layoutOf(
         },
         setDimension: async (dimension: "2d" | "3d") => {
             await dispatch({ op: "view.dimension", dimension });
+        },
+        rerun: async () => {
+            await dispatch({ op: "layout.rerun" });
         },
         optionInEffect: (id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect => {
             const drawn =
@@ -4731,6 +4764,53 @@ function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, 
             });
         }
     }
+}
+
+/**
+ * Publish `data:changed` for a project change that applied graph op logs, when anyone listens and
+ * the change added, removed or rewrote a node or edge. A rollback publishes nothing: what it reverts
+ * was never told.
+ * @param watchers - The session's watchers.
+ * @param change - The project change.
+ * @param change.cause - What made it.
+ * @param change.graph - The op logs it applied, in order.
+ */
+function tellData(
+    watchers: Watchers,
+    change: {
+        readonly cause: SessionEventMap["data:changed"]["cause"];
+        readonly graph?: Parameters<typeof graphDiffOf>[0];
+    },
+): void {
+    if (change.graph === undefined || change.cause === "rollback" || (watchers.get("data:changed")?.size ?? 0) === 0) {
+        return;
+    }
+
+    const diff = graphDiffOf(change.graph);
+    const count = (ids: { readonly nodes: unknown[]; readonly edges: unknown[] }): number =>
+        ids.nodes.length + ids.edges.length;
+    if (count(diff.added) + count(diff.removed) + count(diff.updated) === 0) {
+        return;
+    }
+
+    const frozen = <T extends object>(ids: T): Readonly<T> => {
+        for (const list of Object.values(ids)) {
+            Object.freeze(list);
+        }
+
+        return Object.freeze(ids);
+    };
+    publish(
+        watchers,
+        "data:changed",
+        Object.freeze({
+            added: frozen(diff.added),
+            removed: frozen(diff.removed),
+            updated: frozen(diff.updated),
+            fields: frozen(diff.fields),
+            cause: change.cause,
+        }),
+    );
 }
 
 /**

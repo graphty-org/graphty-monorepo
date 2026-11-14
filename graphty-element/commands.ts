@@ -83,6 +83,7 @@ export const COMMANDS = Object.freeze({
     "positions.set": { undo: "undoable" },
     "positions.pin": { undo: "undoable" },
     "layout.set": { undo: "undoable" },
+    "layout.rerun": { undo: "undoable" },
     "layout.scope": { undo: "undoable" },
     "view.dimension": { undo: "undoable" },
     "layout.transport": {

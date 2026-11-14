@@ -142,6 +142,8 @@ import {
     EventOfType,
     EventType,
     type LimitsWarningEvent,
+    type RenderLostEvent,
+    type RenderRestoredEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
@@ -298,7 +300,7 @@ import {
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
-import { createLazyShaderHost } from "./shaders/chunk";
+import { createLazyShaderHost, disposedError } from "./shaders/chunk";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import { downloadBlob } from "./utils/download";
@@ -888,6 +890,12 @@ export class Graph implements GraphContext {
     });
     /** What shutdown has to free, set just before it disposes the managers. */
     #releaseAcceleration: (() => void) | null = null;
+    /** Set from a `render-lost` until the device is back; see {@link Graph.restartRenderer}. */
+    #renderLost = false;
+    /** The restart waited on, settled when the device is back or the browser refuses it. */
+    #restart: { promise: Promise<void>; resolve: () => void; reject: (error: unknown) => void } | null = null;
+    /** WebGL's `WEBGL_lose_context`, taken while the context lives: a lost context hands out none. */
+    #loseContext: { restoreContext(): void } | null = null;
     private readonly dataManager: DataManager;
     private readonly layoutManager: LayoutManager;
     private readonly statsManager: StatsManager;
@@ -1368,6 +1376,9 @@ export class Graph implements GraphContext {
         // way to the array, a new snapshot reloads the layout without starting it.
         this.layoutManager.onRest = () => {
             dispatcherOf(this.session).arrangement.rest();
+        };
+        this.layoutManager.onMotion = (motion) => {
+            this.session.layoutMotion(motion);
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
@@ -2160,6 +2171,49 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Gets the graph drawn again after `render-lost`: asks the browser for the WebGL context or
+     * a WebGPU device again, and rebuilds every buffer, texture and shader from the graph held in
+     * memory. The data, the styles, the camera and the undo history stay as they are; nothing is
+     * loaded again. The element already asks once by itself, so this is for when the browser has
+     * not given the device back. Resolves at once while nothing is lost.
+     * @returns A promise that resolves when the graph is drawn again (after `render-restored`).
+     * @throws A `GraphtyError` with `E_RENDER_LOST` when the browser cannot give a WebGL context
+     *     back, `E_DEVICE_LOST` when no new WebGPU device can be opened, or `E_DISPOSED` when the
+     *     graph is shut down first.
+     * @since 3.53.0
+     */
+    restartRenderer(): Promise<void> {
+        if (!this.#renderLost) {
+            return Promise.resolve();
+        }
+
+        if (this.#restart === null) {
+            let resolve: () => void = () => undefined;
+            let reject: (error: unknown) => void = () => undefined;
+            const promise = new Promise<void>((yes, no) => {
+                resolve = yes;
+                reject = no;
+            });
+            this.#restart = { promise, resolve, reject };
+        }
+
+        const { engine } = this;
+        if (engine instanceof RecoveringWebGPUEngine) {
+            engine.retryRestore();
+        } else {
+            // In a task of its own: called from a `render-lost` listener, this runs while the
+            // browser is still dispatching `webglcontextlost`, before it has seen the event
+            // cancelled, and a restore asked for then is refused.
+            const loseContext = this.#loseContext;
+            setTimeout(() => {
+                loseContext?.restoreContext();
+            }, 0);
+        }
+
+        return this.#restart.promise;
+    }
+
+    /**
      * Promises that {@link Graph.init} is on its way, so an accelerator looked for from now on
      * waits for the device the renderer opens. Whoever calls this must call init or shut down.
      * @internal
@@ -2449,7 +2503,95 @@ export class Graph implements GraphContext {
             recoverable: false,
             cause,
         });
+        this.settleRestart(error);
         this.eventManager.emitGraphError(this, error, "other");
+    }
+
+    /**
+     * Publishes the loss and the return of the drawing device as `render-lost` and
+     * `render-restored`. Babylon already rebuilds every buffer, texture and shader from the scene
+     * it holds when the device comes back (the WebGPU engine through {@link RecoveringWebGPUEngine}),
+     * so the graph, its styles, its camera and its history never leave memory; this only tells the
+     * consumer, and keeps `rendererStatus.drawing` true to what is on screen. The observers are
+     * removed on shutdown: Babylon never clears these observables, so one left there would keep a
+     * disposed graph alive.
+     */
+    private watchRenderLoss(): void {
+        const { engine, canvas } = this;
+        if (engine instanceof NullEngine) {
+            return;
+        }
+
+        const renderer = engine instanceof WebGPUEngine ? "webgpu" : "webgl";
+        if (engine instanceof Engine) {
+            this.#loseContext = engine._gl.getExtension("WEBGL_lose_context");
+        }
+
+        const setDrawing = (drawing: boolean): void => {
+            if (this.#rendererStatus !== null) {
+                this.#rendererStatus = { ...this.#rendererStatus, drawing };
+            }
+        };
+        const lost = engine.onContextLostObservable.add(() => {
+            this.#renderLost = true;
+            setDrawing(false);
+            this.eventManager.emit("render-lost", {
+                code: "E_RENDER_LOST",
+                params: { renderer },
+            } satisfies Omit<RenderLostEvent, "type">);
+        });
+        const restored = engine.onContextRestoredObservable.add(() => {
+            this.#renderLost = false;
+            setDrawing(true);
+            this.settleRestart(null);
+            this.eventManager.emit("render-restored", { renderer } satisfies Omit<RenderRestoredEvent, "type">);
+        });
+        const { signal } = this.#teardown;
+        // The browser tried to give a WebGL context back and could not make one.
+        canvas.addEventListener(
+            "webglcontextcreationerror",
+            () => {
+                if (this.#renderLost) {
+                    this.settleRestart(
+                        new GraphtyError({
+                            code: "E_RENDER_LOST",
+                            message: "the browser could not give the WebGL context back",
+                            source: "view",
+                            recoverable: true,
+                            details: { renderer },
+                        }),
+                    );
+                }
+            },
+            { signal },
+        );
+        signal.addEventListener(
+            "abort",
+            () => {
+                engine.onContextLostObservable.remove(lost);
+                engine.onContextRestoredObservable.remove(restored);
+                this.settleRestart(disposedError());
+            },
+            { once: true },
+        );
+    }
+
+    /**
+     * Settles the restart waited on, if any.
+     * @param error - Why it failed, or null when the graph is drawn again.
+     */
+    private settleRestart(error: unknown): void {
+        const restart = this.#restart;
+        this.#restart = null;
+        if (restart === null) {
+            return;
+        }
+
+        if (error === null) {
+            restart.resolve();
+        } else {
+            restart.reject(error);
+        }
     }
 
     /**
@@ -2553,6 +2695,7 @@ export class Graph implements GraphContext {
                 return;
             }
 
+            this.watchRenderLoss();
             this.#renderPathOpen = true;
             this.#applyRenderPath();
 
@@ -2698,6 +2841,8 @@ export class Graph implements GraphContext {
 
                     this.reportSettlementChange();
                 }
+
+                this.layoutManager.checkMotion();
             });
         });
 

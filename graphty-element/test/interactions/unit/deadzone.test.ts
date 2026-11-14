@@ -11,7 +11,6 @@ import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { applyDeadzone, isPinching, XR_THUMBSTICK_DEADZONE } from "../../../src/cameras/InputUtils";
 import type { PivotController } from "../../../src/cameras/PivotController";
-import type { Graph } from "../../../src/Graph";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 import { createXRInputDriver, type XRInputDriver } from "../helpers/xr-input-driver";
 
@@ -40,28 +39,21 @@ function getPivotPosition(pivot: PivotController): Vector3 {
 
 describe("Deadzone and Threshold Behavior", () => {
     describe("XR Thumbstick Deadzone", () => {
-        let graph: Graph;
         let pivotController: PivotController;
         let driver: XRInputDriver;
 
         beforeEach(async () => {
-            // Create a test graph to get a valid scene
-            graph = await createTestGraph();
-
-            // Drive the real XRInputHandler
-
-            driver = createXRInputDriver(graph.scene);
+            driver = await createXRInputDriver("controller");
 
             pivotController = driver.pivot;
         });
 
-        afterEach(() => {
-            driver.dispose();
+        afterEach(async () => {
+            await driver.dispose();
             vi.restoreAllMocks();
-            cleanupTestGraph(graph);
         });
 
-        test("XR thumbstick deadzone filters inputs below threshold (0.15)", () => {
+        test("XR thumbstick deadzone filters inputs below threshold (0.15)", async () => {
             // Record initial state
             const initialEuler = getPivotEuler(pivotController);
             const initialScale = getPivotScale(pivotController);
@@ -73,7 +65,7 @@ describe("Deadzone and Threshold Behavior", () => {
 
             // Process several frames
             for (let i = 0; i < 10; i++) {
-                driver.frame();
+                await driver.frame();
             }
 
             // Get final state
@@ -108,7 +100,7 @@ describe("Deadzone and Threshold Behavior", () => {
             );
         });
 
-        test("XR thumbstick values above deadzone are applied", () => {
+        test("XR thumbstick values above deadzone are applied", async () => {
             // Record initial state
             const initialEuler = getPivotEuler(pivotController);
 
@@ -117,7 +109,7 @@ describe("Deadzone and Threshold Behavior", () => {
 
             // Process several frames
             for (let i = 0; i < 10; i++) {
-                driver.frame();
+                await driver.frame();
             }
 
             // Get final state
@@ -128,21 +120,21 @@ describe("Deadzone and Threshold Behavior", () => {
             assert.isAbove(yawDiff, 0.001, "Inputs above deadzone should be processed (yaw changed)");
         });
 
-        test("XR deadzone is 0.15: 0.149 is ignored, 0.151 moves the scene", () => {
+        test("XR deadzone is 0.15: 0.149 is ignored, 0.151 moves the scene", async () => {
             assert.strictEqual(XR_THUMBSTICK_DEADZONE, 0.15);
 
             const initialEuler = getPivotEuler(pivotController);
 
             driver.setStick("left", 0.149, 0);
-            driver.frame();
+            await driver.frame();
             assert.closeTo(getPivotEuler(pivotController).y, initialEuler.y, 1e-12, "0.149 is inside the deadzone");
 
             driver.setStick("left", 0.2, 0);
-            driver.frame();
+            await driver.frame();
             assert.notEqual(getPivotEuler(pivotController).y, initialEuler.y, "0.2 is outside the deadzone");
         });
 
-        test("deadzone applies per-axis, not radially", () => {
+        test("deadzone applies per-axis, not radially", async () => {
             // Record initial state
             const initialEuler = getPivotEuler(pivotController);
 
@@ -154,7 +146,7 @@ describe("Deadzone and Threshold Behavior", () => {
 
             // Process several frames
             for (let i = 0; i < 10; i++) {
-                driver.frame();
+                await driver.frame();
             }
 
             // Get final state

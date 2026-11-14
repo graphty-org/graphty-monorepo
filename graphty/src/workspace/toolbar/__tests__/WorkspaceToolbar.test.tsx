@@ -130,6 +130,29 @@ describe("the canvas toolbar", () => {
         assert.notInclude(menu.textContent, "Table");
     });
 
+    it("shows the Switch between 2D and 3D key on the Mode menu row it would switch to", async () => {
+        const { unmount } = render(<Workspace store={createWorkspaceStore({ ...OPEN, dialog: "view" })} />);
+        const menu = await screen.findByRole("menu", { name: /^Mode/ });
+        // With no element the canvas reads 3D, so the key sits on 2D.
+        const twoD = within(menu).getByRole("menuitemradio", { name: /^2D/ });
+        assert.equal(twoD.getAttribute("aria-keyshortcuts"), "5");
+        assert.isNull(within(menu).getByRole("menuitemradio", { name: /^3D/ }).getAttribute("aria-keyshortcuts"));
+        unmount();
+
+        // The row reads the command's binding, so a rebinding moves the shown key with it.
+        const rebound = REGISTRATIONS.map((registration) => ({
+            ...registration,
+            commands: registration.commands.map((command) =>
+                command.id === "view.toggle-dimension" ? { ...command, keys: ["Shift+5"] } : command,
+            ),
+        }));
+        render(<Workspace store={createWorkspaceStore({ ...OPEN, dialog: "view" })} registrations={rebound} />);
+        const reboundMenu = await screen.findByRole("menu", { name: /^Mode/ });
+        const reboundRow = within(reboundMenu).getByRole("menuitemradio", { name: /^2D/ });
+        assert.equal(reboundRow.getAttribute("aria-keyshortcuts"), "Shift+5");
+        assert.include(reboundRow.textContent, "Shift+5");
+    });
+
     it("opens Quick actions with Ctrl+K, listing built commands by their homes", async () => {
         render(<Workspace initialState={OPEN} registrations={[...REGISTRATIONS, LATER]} />);
 

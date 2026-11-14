@@ -243,11 +243,8 @@ describe("an opaque color another program wrote over a translucent one graphty w
         ["graphml", undefined, /<y:Fill color="#CCCCFF00"/, '<y:Fill color="#CCCCFF"'],
         ["gexf", undefined, /r="204" g="204" b="255" a="0"/, 'r="204" g="204" b="255"'],
         ["json", "graphology", /rgba\(204,204,255,0\)/, "#CCCCFF"],
+        ["json", "vis", /rgba\(204,204,255,0\)/, "#CCCCFF"],
     ];
-
-    // known failure: the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs
-    // below it, so labelOffsetY comes back as exceptions too (ISSUES.md, Specimen sheets: vis-network)
-    const known: typeof slots = [["json", "vis", /rgba\(204,204,255,0\)/, "#CCCCFF"]];
 
     const check = async (format: string, dialect: string | undefined, slot: RegExp, opaque: string): Promise<void> => {
         const registry = createRegistry();
@@ -269,7 +266,6 @@ describe("an opaque color another program wrote over a translucent one graphty w
         ).toEqual([]);
     };
     it.each(slots)("is read as opacity 1 in %s %s, as one exception over the same rules", check);
-    it.fails.each(known)("is read as opacity 1 in %s %s, as one exception over the same rules (known failure)", check);
 });
 
 describe("a block graphty writes that its reader would refuse", () => {

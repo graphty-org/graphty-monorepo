@@ -102,6 +102,7 @@ import {
 } from "./project/Dispatcher";
 import { EDGES_ADDED, forEachEdgeOfKey, namesEdges, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
+import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { type RecipeDocument, recipeOf } from "./recipe";
@@ -3421,6 +3422,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, event, detail);
         },
         ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
+        asDates: (kind, name) => {
+            const column = data.attributes().find((each) => each.kind === kind && each.name === name);
+            if (column?.type !== "string" || data.previewType({ kind, name }, "date").fails > 0) {
+                return undefined;
+            }
+
+            return data.setType({ kind, name }, "date");
+        },
     });
     timeInternals = time.internals;
     dispatcher.services.timeFieldChanged = () => {
@@ -3943,7 +3952,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // airline routes rebuilt every edge's paint in one frame, about 5.8 seconds on a phone-class
     // CPU, for a run that colours nodes alone.
     dispatcher.lane.register("runs", async (rendered, target, dirty) => {
-        const changed = new Set([...dirty].filter((id) => rendered.runs.get(id) !== target.runs.get(id)));
+        // By result: an entry that changed only around its columns (a rename) repaints nothing.
+        const changed = new Set(
+            [...dirty].filter((id) => rendered.runs.get(id)?.result !== target.runs.get(id)?.result),
+        );
         if (changed.size === 0) {
             return;
         }
@@ -4309,6 +4321,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
             fileStyles: fileStylesOn,
+            // The timeline experiment gates detection, as `session.time.candidates()` is gated.
+            timeCandidates: () => (timelineOn() ? time.api.candidates() : []),
+            query: {
+                unresolvedPathsOf: (where) => engine.unresolvedPathsOf(where),
+                answerablePaths: () => [
+                    ...(paths.candidates?.("", "node") ?? []),
+                    ...(paths.candidates?.("", "edge") ?? []),
+                ],
+            },
         }),
         features: settleFeatures,
         timelineOn,
@@ -4670,7 +4691,8 @@ function requireQuery(held: QueryEngine | null): QueryEngine {
  *
  * A copy of the subscriber set is walked, so that a handler unsubscribing itself -- which a
  * "tell me once" listener does -- cannot change the set under the loop it is in. A throwing
- * handler is contained: one broken status chip must not stop the next one being told.
+ * handler is contained: one broken status chip must not stop the next one being told, and its
+ * error still reaches the console and `window.onerror`.
  * @param watchers - Every subscriber, by event.
  * @param event - Which event.
  * @param detail - What to tell them.
@@ -4685,8 +4707,13 @@ function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, 
     for (const handler of [...subscribers]) {
         try {
             (handler as (value: SessionEventMap[K]) => void)(detail);
-        } catch {
-            // A watcher's failure is the watcher's. The session carries on.
+        } catch (error) {
+            // A watcher's failure is the watcher's: the session carries on, and the error is
+            // reported and rethrown unhandled, as an EventTarget listener's is.
+            reportCaught(error);
+            queueMicrotask(() => {
+                throw error;
+            });
         }
     }
 }

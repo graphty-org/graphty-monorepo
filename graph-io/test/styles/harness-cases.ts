@@ -40,30 +40,6 @@ export const FORMATS = [...registered, ...unregistered];
  */
 const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
     [
-        "json/fidelity/vis-siblings.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-synth.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-transparency.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-unix.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-world.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/vis-dot-to-graph-softmaint.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
         "json/generated/cytoscape-graphty-written.json plans",
         "the Cytoscape.js writer rounds a label offset to 5 decimals (4.33333) where the rules give 4.333333333333334",
     ],

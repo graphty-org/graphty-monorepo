@@ -69,6 +69,7 @@
         "bench:readme": "node scripts/bench-readme-tables.js",
         "benchmark": "tsx benchmarks/run.ts",
         "gpu:report": "node scripts/gpu-report.js",
+        "demo": "vite demo",
         "ready:commit": "npm run build:all && npm run lint && npm run test:node"
     },
     "repository": {
@@ -116,6 +117,7 @@
     "devDependencies": {
         "@graphty/algorithms": "workspace:^",
         "@graphty/layout": "workspace:^",
+        "@graphty/remote-logger": "workspace:^",
         "@vitest/browser-playwright": "catalog:",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",

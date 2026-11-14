@@ -21,12 +21,7 @@ test("captureScreenshot returns valid ScreenshotResult with blob", async () => {
     expect(result.metadata.byteSize > 0, "byteSize should be positive").toBeTruthy();
     expect(result.metadata.captureTime >= 0, "captureTime should be non-negative").toBeTruthy();
     expect(typeof result.downloaded, "downloaded should be boolean").toBe("boolean");
-    expect(
-        ["success", "not-supported", "permission-denied", "not-secure-context", "failed"].includes(
-            result.clipboardStatus,
-        ),
-        "clipboardStatus should be a valid status",
-    ).toBeTruthy();
+    expect(result.clipboardStatus, "the default destination is a blob, not the clipboard").toBe("not-requested");
 });
 
 test("captureScreenshot supports PNG format", async () => {

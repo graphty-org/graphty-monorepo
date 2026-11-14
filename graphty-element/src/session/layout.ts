@@ -73,7 +73,7 @@ export interface LayoutRecommendation {
  * | --- | --- |
  * | `recommend.fixed` | Every node already carries a coordinate, so the arrangement the data arrived with is kept |
  * | `recommend.location-map` | The nodes carry geographic locations (`locations` was true), so they are drawn on a map (since 3.31.0) |
- * | `recommend.random` | The graph is larger than `largeGraphThreshold`, so it is scattered from a seed instead of settling a force simulation |
+ * | `recommend.random` | The graph is larger than `largeGraphThreshold`, so it is scattered at random instead of settling a force simulation |
  * | `recommend.circular` | Nothing is connected, so a ring puts the nodes in a readable order where a force layout has no pull to work with |
  * | `recommend.force` | Connected nodes pulled together and unconnected ones pushed apart shows the graph's structure |
  * | `recommend.first-servable` | No rule named an arrangement the catalogue can serve, so this is the first one that can place a graph this size |
@@ -207,7 +207,7 @@ const LAYOUT_RULES: readonly LayoutRule[] = [
         fires: ({ statistics, largeGraphThreshold }) => statistics.nodeCount > largeGraphThreshold,
         reason:
             "This graph is large enough that settling a force simulation would hold the frame for " +
-            "a long time, so it is scattered from a seed instead: instant, and the same every time.",
+            "a long time, so it is scattered at random instead, which is instant.",
     },
     {
         id: "circular",

@@ -66,7 +66,7 @@ export interface CurveSpan {
     readonly radius: number | null;
     /**
      * For a center arc, the angle it turns through from the source to the target, negative clockwise: set by the
-     * radius alone, so the shader needs no arc tangent and turns a half circle the way `centerArc` did; null otherwise.
+     * radius alone; null otherwise. Its cut path goes in the route table ({@link routed}), not to the shader.
      */
     readonly turn: number | null;
     /**
@@ -424,15 +424,16 @@ function along(src: Xyz, dst: Xyz, t: number): Xyz {
 }
 
 /**
- * The span's shape as the shader's three numbers: (bow, turn or where an uncut curve starts; 0 for a lone curve,
- * 1 for a fanned arc, 2 for a center arc, 3 for a lone curve between two points of the chord, 4 for a raised arc
+ * The span's shape as the shader's three numbers: (bow or where an uncut curve starts; 0 for a lone curve,
+ * 1 for a fanned arc, 3 for a lone curve between two points of the chord, 4 for a raised arc
  * (its height first), 5 for a great-circle arc (its height first), or for a self-loop's teardrop (its controls'
  * mean x first) 6 plus its share k, under tan(pi / 5), 7 for a curve through a support point (its share along
- * first), 8 for a straight line through bends (the texel its cut path starts at in the route table first); where that
+ * first), 8 for a straight line through bends or a center arc (the texel its cut path starts at in the route table
+ * first); where that
  * curve stops, a great-circle arc's angle, the teardrop's mean y, or the support point's share across), the last three
  * of a curve piece's fourth texel.
  * @param span - The span, or null.
- * @param route - For a line through bends, the route table texel its cut path starts at, one point to a texel.
+ * @param route - For a routed path ({@link routed}), the route table texel its cut path starts at, one point to a texel.
  * @returns The three numbers.
  */
 export function curveShape(span: Shape | null, route = 0): [number, number, number] {
@@ -465,13 +466,24 @@ export function curveShape(span: Shape | null, route = 0): [number, number, numb
         return [height, 4, 0];
     }
 
-    const turn = span?.turn ?? null;
-    if (turn !== null) {
-        return [turn, 2, 0];
+    // a center arc is routed too: the shader's float32 sine and cosine put its points a last bit off the object
+    // path's, which flips a multisample on its edge (#6392)
+    if ((span?.turn ?? null) !== null) {
+        return [route, 8, 0];
     }
 
     const bow = span?.bow ?? null;
     return bow === null ? [0, 0, 0] : [bow, 1, 0];
+}
+
+/**
+ * Whether a span's cut path is read from the batch's route table, placed in doubles, rather than worked out by the
+ * shader: a line through bends and a center arc ({@link curveShape} kind 8).
+ * @param span - The span.
+ * @returns True when its points go in the route table.
+ */
+export function routed(span: Shape): boolean {
+    return curveShape(span)[1] === 8;
 }
 
 /**
@@ -799,22 +811,6 @@ vec2 pulledSinCos(float x) {
     return vec2(x * s, c);
 }
 
-vec3 pulledCircleSample(vec3 src, vec3 dst, float i, float samples, float turn) {
-    float t = i / samples;
-    if (turn == 0.0 || i <= 0.0 || i >= samples) {
-        return turn == 0.0 ? mix(src, dst, t) : (i <= 0.0 ? src : dst);
-    }
-    // The radius from the center (to the chord's right) to the source, turned through its share of the turn, as the
-    // chord it sweeps: (R - I) v = 2 sin(h) (-sin(h) v + cos(h) perp(v)), h half the angle. Turning v itself puts a
-    // float's error times the radius on the point, and the radius grows without bound as the arc flattens.
-    vec2 d = dst.xy - src.xy;
-    vec2 halfTurn = pulledSinCos(abs(turn) * 0.5);
-    vec2 v = -(d * 0.5 + vec2(d.y, -d.x) * (0.5 * halfTurn.y / halfTurn.x));
-    vec2 h = pulledSinCos(turn * t * 0.5);
-    vec2 p = src.xy + 2.0 * h.x * (-h.x * v + h.y * vec2(-v.y, v.x));
-    return vec3(p, mix(src.z, dst.z, t));
-}
-
 vec3 pulledRaisedSample(vec3 src, vec3 dst, float i, float samples, float height) {
     float t = i / samples;
     vec3 p = src + (dst - src) * t;
@@ -871,9 +867,6 @@ vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut, flo
     }
     if (cut.w > 3.5) {
         return pulledRaisedSample(src, dst, i, samples, cut.z);
-    }
-    if (cut.w > 1.5) {
-        return pulledCircleSample(src, dst, i, samples, cut.z);
     }
     return cut.w > 0.5 ? pulledArcSample(src, dst, i, samples, cut.z) : pulledLoneSample(src, dst, i, samples);
 }

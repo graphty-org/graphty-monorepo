@@ -14,6 +14,7 @@ import { z } from "zod";
 import { defineOptions, type OptionsSchema } from "../config";
 import { clusterByOption, clusterStrengthOption } from "./clusterForce";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
+import { seedSchema } from "./seedOption";
 import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
 
 /**
@@ -91,7 +92,7 @@ const springElectricalLayoutOptionsSchema = defineOptions({
     nodeGap: nodeGapOption,
     nodeGapFront: nodeGapFrontOption,
     seed: {
-        schema: z.number().nullable().default(null),
+        schema: seedSchema,
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible layout",

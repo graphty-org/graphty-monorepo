@@ -14,9 +14,6 @@ const config = defineConfig({
                     globals: true,
                     environment: "happy-dom",
                     pool: "forks",
-                    // see test/setup/yield-to-event-loop.ts -- without it a file of long synchronous
-                    // tests holds the worker past vitest's fixed 60 s RPC timeout and fails a green run
-                    setupFiles: ["./test/setup/yield-to-event-loop.ts"],
                     exclude: [
                         // Browser-specific tests
                         "test/browser/**/*.test.ts",

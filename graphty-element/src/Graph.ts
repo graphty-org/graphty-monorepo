@@ -547,6 +547,7 @@ interface Reservation {
     readonly generation: number;
     readonly replace: boolean;
     readonly turn: LoadTurn;
+    readonly signal?: AbortSignal;
 }
 
 /** Each graph's operation queue; see {@link operationQueueOf}. */
@@ -1693,6 +1694,7 @@ export class Graph implements GraphContext {
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
             visibleEdges: () => this.session.visibility.edges,
+            playing: () => this.session.time.playing,
             detached: (scope) => {
                 try {
                     const { freshness } = this.session.sets.status(scope);
@@ -1719,6 +1721,11 @@ export class Graph implements GraphContext {
             if (cause !== "restore" && cause !== "rollback") {
                 this.layoutManager.relayoutForVisibility();
             }
+        });
+        // Under `layout.visibleOnlyWhilePlaying: "hold"` a play's window moves lay nothing out:
+        // the pause lays out what it stopped on.
+        this.session.on("time:pause", () => {
+            this.layoutManager.relayoutForVisibility();
         });
 
         // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.
@@ -3104,14 +3111,16 @@ export class Graph implements GraphContext {
      * @param options - How to load
      * @param options.replace - Replace the graph with what the source holds, but only once all of
      *     it has parsed: a malformed or empty source rejects and leaves the graph as it was
+     * @param options.signal - Cancels the load: it rejects with the signal's reason (an
+     *     `AbortError` by default) and adds nothing, leaving the graph as it was
      * @returns Promise that resolves to the load's id when data is loaded
      */
     async addDataFromSource(
         type: string,
         opts: object = {},
-        options?: { replace?: boolean },
+        options?: { replace?: boolean; signal?: AbortSignal },
     ): Promise<{ loadId: number }> {
-        return this.loadReserved(type, opts, this.reserveLoad(options?.replace));
+        return this.loadReserved(type, opts, this.reserveLoad(options?.replace, options?.signal));
     }
 
     /**
@@ -3125,9 +3134,11 @@ export class Graph implements GraphContext {
      * #3382). A replacing load supersedes this graph's earlier loads, which will never dispatch,
      * so it takes their places in the line at once rather than waiting for their reads.
      * @param replace - Whether the load replaces the graph
+     * @param signal - Cancels the load
      * @returns The reservation to hand to `loadReserved`, which gives the place up
      */
-    private reserveLoad(replace = false): Reservation {
+    private reserveLoad(replace = false, signal?: AbortSignal): Reservation {
+        signal?.throwIfAborted();
         if (replace) {
             for (const superseded of this.turns) {
                 superseded.leave();
@@ -3136,7 +3147,13 @@ export class Graph implements GraphContext {
         }
         const turn = loadLineOf(dispatcherOf(this.session)).join();
         this.turns.add(turn);
-        return { loadId: ++this.loadCount, generation: this.dataManager.beginLoad(replace), replace, turn };
+        return {
+            loadId: ++this.loadCount,
+            generation: this.dataManager.beginLoad(replace),
+            replace,
+            turn,
+            ...(signal === undefined ? {} : { signal }),
+        };
     }
 
     /**
@@ -3157,6 +3174,7 @@ export class Graph implements GraphContext {
      * @param load.generation - The load's place in line
      * @param load.replace - Whether the load replaces the graph
      * @param load.turn - Its place in the session's load line
+     * @param load.signal - Cancels the load
      * @param pair - What a pair load adds; set only for the call that made it, so a door that reads
      *     first passes what it found before its first await
      * @returns The load's id
@@ -3190,6 +3208,7 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
+     * @param options.signal - Cancels the load, its read included; see `addDataFromSource`
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
      * @param options.graphName - Which graph to read, by name, from a file that holds several
@@ -3215,9 +3234,10 @@ export class Graph implements GraphContext {
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
+            signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
-        const load = this.reserveLoad(options?.replace);
+        const load = this.reserveLoad(options?.replace, options?.signal);
         try {
             const { detectFormat } = await import("./data/format-detection.js");
 
@@ -3228,6 +3248,7 @@ export class Graph implements GraphContext {
                 // Read first 2KB for format detection
                 const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
                 this.dataManager.throwIfSuperseded(load.generation, file.name);
+                options?.signal?.throwIfAborted();
                 const detected = detectFormat(file.name, sample);
 
                 if (!detected) {
@@ -3240,9 +3261,10 @@ export class Graph implements GraphContext {
             // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
             // declaration), and a binary format such as a zip would not survive a text read.
             const content = new Uint8Array(await file.arrayBuffer());
+            options?.signal?.throwIfAborted();
 
             // Load using appropriate DataSource
-            const { replace: _replace, ...sourceOptions } = options ?? {};
+            const { replace: _replace, signal: _signal, ...sourceOptions } = options ?? {};
             return await this.loadReserved(
                 format,
                 {
@@ -3274,6 +3296,7 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
+     * @param options.signal - Cancels the load, its fetch included; see `addDataFromSource`
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
@@ -3309,14 +3332,15 @@ export class Graph implements GraphContext {
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
+            signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
-        const load = this.reserveLoad(options?.replace);
+        const load = this.reserveLoad(options?.replace, options?.signal);
         const pair = pairImports.get(this);
         try {
             const { format, fetchedContent } = options?.format
                 ? { format: options.format, fetchedContent: undefined }
-                : await this.urlFormat(url, load.generation).catch((error: unknown) => {
+                : await this.urlFormat(url, load.generation, options?.signal).catch((error: unknown) => {
                       pair?.readFailed(error);
                       throw error;
                   });
@@ -3325,13 +3349,18 @@ export class Graph implements GraphContext {
             // A key is only carried when there is something to say. `edgeSource: undefined` would
             // reach the load as a declared-and-empty override and turn the probe off for a file that
             // named nothing, which is the failure this release exists to remove.
+            // The configured id path rides along only when it says something: the schema's default
+            // "id" would turn off the JSON reader's own-shape reading (Cytoscape.js, graphology,
+            // vis, JGF and node-link documents) and load nothing, as loadFromFile never did.
             const configured = this.styles.config.data.knownFields;
             const edgeSource = options?.edgeSource ?? configured.edgeSrcIdPath;
             const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
+            const nodeIdPath =
+                options?.nodeIdPath ?? (configured.nodeIdPath === "id" ? undefined : configured.nodeIdPath);
             const { graphIndex, graphName, styles, styleOptions } = options ?? {};
             const mergedOptions = {
-                nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
                 ...presentOnly({
+                    nodeIdPath,
                     edgeSource,
                     edgeTarget,
                     graphIndex,
@@ -3358,11 +3387,13 @@ export class Graph implements GraphContext {
      * The format of a file at a URL: from its extension, else from its content, which is fetched for it.
      * @param url - The URL
      * @param generation - The load's generation, to stop when another load superseded it
+     * @param signal - Cancels the fetch
      * @returns The format, and the content when it was fetched
      */
     private async urlFormat(
         url: string,
         generation: number,
+        signal?: AbortSignal,
     ): Promise<{ format: string; fetchedContent: Uint8Array | undefined }> {
         const { detectFormat } = await import("./data/format-detection.js");
         // First try extension-based detection (no fetch needed)
@@ -3372,7 +3403,7 @@ export class Graph implements GraphContext {
         }
 
         // Extension didn't match - fetch content for detection
-        const response = await fetch(url);
+        const response = await fetch(url, signal === undefined ? undefined : { signal });
         if (!response.ok) {
             throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
         }
@@ -5964,10 +5995,14 @@ export class Graph implements GraphContext {
      * not a step -- it is a device session -- but VR and AR draw in 3D, so asking for one from 2D
      * switches to 3D first, and the switch and the entry are one step. When entry fails, because
      * the browser has no WebXR or the session is refused, nothing is recorded, the graph stays in
-     * the dimension it was in, and the failure is logged rather than thrown.
+     * the dimension it was in, the failure is reported as `graph-error` with context `"xr"`, and
+     * the returned promise rejects with it.
      * @param mode - The view mode to set: "2d", "3d", "ar", or "vr"
      * @param options - Optional queueing options; `skipQueue` switches at once.
      * @returns Promise that resolves when view mode is set
+     * @throws A `GraphtyError` (as a rejection) for VR or AR: `E_UNSUPPORTED` when XR is off
+     *     (`xr.enabled`) or the browser has no WebXR, `E_XR_SESSION_FAILED` when the browser or
+     *     headset refuses the session.
      * @example
      * ```typescript
      * // Switch to 2D orthographic view
@@ -6003,12 +6038,8 @@ export class Graph implements GraphContext {
             return;
         }
 
-        try {
-            // From 2D the op switches to 3D itself, in the same step.
-            await this.session.execute({ op: "view.immersive", mode });
-        } catch (error) {
-            console.warn(`[Graph] Cannot switch to ${mode} mode:`, error);
-        }
+        // From 2D the op switches to 3D itself, in the same step.
+        await this.session.execute({ op: "view.immersive", mode });
     }
 
     /**
@@ -6202,8 +6233,8 @@ export class Graph implements GraphContext {
      * session is not the document. From 2D, `session.execute` switches to 3D first, in the same
      * step. A failed entry is also reported as `graph-error` with context `"xr"`.
      * @param mode - VR, AR, or null to leave.
-     * @throws A `GraphtyError` with `E_UNSUPPORTED` without WebXR; whatever the browser rejects
-     *     the session with otherwise.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` without WebXR, or `E_XR_SESSION_FAILED` when
+     *     the session cannot start.
      */
     private async setImmersive(mode: "vr" | "ar" | null): Promise<void> {
         if (mode === null) {
@@ -6309,8 +6340,11 @@ export class Graph implements GraphContext {
     /**
      * Set XR configuration.
      * Merges the partial into the configuration in force, so `{ ui: { enabled: false } }` leaves
-     * the rest as it was. After init the XR session manager and the canvas buttons are rebuilt
-     * from it, ending an immersive session first, and `capabilities:changed` fires.
+     * the rest as it was. After init the canvas buttons are redrawn from it and
+     * `capabilities:changed` fires. A running VR or AR session keeps going: `input` drag settings
+     * apply at once, and the session settings (`vr`, `ar`, `input.handTracking`,
+     * `input.nearInteraction`) from the next session. Only turning `xr.enabled` on or off rebuilds
+     * XR, ending a running session first.
      * @param config - Partial XR configuration to apply
      */
     setXRConfig(config: PartialXRConfig): void {
@@ -6325,9 +6359,18 @@ export class Graph implements GraphContext {
             input: { ...current.input, ...patch.input },
         });
         this.graphContext.updateConfig({ xr: fullConfig });
-        if (this.initialized) {
-            void this.reinitializeXR();
+        if (!this.initialized) {
+            return;
         }
+
+        if (fullConfig.enabled !== current.enabled) {
+            void this.reinitializeXR();
+            return;
+        }
+
+        this.xrSessionManager?.configure(this.xrSessionConfig());
+        this.drawXRButtons();
+        this.xrAvailability.changed();
     }
 
     /**
@@ -8524,7 +8567,10 @@ export class Graph implements GraphContext {
         return nodes;
     }
 
-    private boundsToFrame(nodeIds?: Iterable<string | number>, extent: CameraViewExtent = "centers"): GraphBounds {
+    private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {
+        // The whole graph is framed by what is drawn, so no node at the rim is cut off; a subset by
+        // its centres unless the caller asks otherwise.
+        const extent = extentOption ?? (nodeIds === undefined ? "drawn" : "centers");
         const nodes =
             nodeIds === undefined
                 ? this.getNodes()
@@ -8603,8 +8649,9 @@ export class Graph implements GraphContext {
      * @param options - What to frame and how to configure the view.
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
-     * @param options.extent - What each node counts as in the box: `"centers"` (the default) its
-     *   centre, `"drawn"` the box it is drawn in.
+     * @param options.extent - What each node counts as in the box: `"centers"` its centre,
+     *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
+     *   `"centers"` when `nodes` names a subset.
      * @returns The camera state the view computed.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` when nothing answers to the name,
      * `E_UNSUPPORTED` when the view does not work in the drawing mode the element is in, or
@@ -8651,7 +8698,8 @@ export class Graph implements GraphContext {
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
-     *   (the default) its centre, `"drawn"` the box it is drawn in.
+     *   its centre, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
+     *   and `"centers"` when `scope` names a subset.
      * @returns A promise that resolves once the camera has arrived.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
      * `E_OPTION_RANGE`, exactly as `resolveCameraPreset` does.
@@ -8697,8 +8745,27 @@ export class Graph implements GraphContext {
     saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): void {
         assertViewName(name);
         // Checked above, so the immediate lane records it before this returns; a refusal from
-        // here on would be a defect, and is left unhandled on purpose.
-        void this.session.views.save([{ name, camera: camera ?? this.getCameraState() }]);
+        // here on would be a defect, reported as `graph-error`.
+        this.reportUnawaited(this.session.views.save([{ name, camera: camera ?? this.getCameraState() }]), {
+            op: "views.save",
+        });
+    }
+
+    /**
+     * Report a failure of work nobody awaits as `graph-error` (context `"other"`), instead of
+     * leaving it to the page's unhandled-rejection channel.
+     * @param work - The promise nobody holds.
+     * @param details - What the work was.
+     */
+    private reportUnawaited(work: Promise<unknown>, details: Record<string, unknown>): void {
+        work.catch((error: unknown) => {
+            this.eventManager.emitGraphError(
+                this,
+                error instanceof Error ? error : new Error(String(error)),
+                "other",
+                details,
+            );
+        });
     }
 
     /**
@@ -8839,7 +8906,8 @@ export class Graph implements GraphContext {
         }
 
         if (views.length > 0) {
-            void this.session.views.save(views);
+            // A name the views refuse rejects; nobody holds this promise, so it is reported.
+            this.reportUnawaited(this.session.views.save(views), { op: "views.save" });
         }
     }
 
@@ -9643,17 +9711,7 @@ export class Graph implements GraphContext {
     private initializeXR(): void {
         const xrConfig = this.xrConfig();
         if (xrConfig.enabled) {
-            // The headset can end the session itself; the view then leaves VR or AR as it would
-            // for `view.immersive` with `null` (`xrSessionEnded`).
-            this.xrSessionManager = new XRSessionManager(this.scene, {
-                vr: xrConfig.vr,
-                ar: xrConfig.ar,
-                handTracking: xrConfig.input.handTracking,
-                nearInteraction: xrConfig.input.nearInteraction,
-                onSessionEnded: ({ mode, cause }) => {
-                    this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
-                },
-            });
+            this.xrSessionManager = new XRSessionManager(this.scene, this.xrSessionConfig());
         }
 
         this.#unwatchXrButtons ??= this.xrAvailability.onChange(() => {
@@ -9689,6 +9747,25 @@ export class Graph implements GraphContext {
                 .catch((error: unknown) => {
                     console.error("Failed to enter XR mode:", error);
                 });
+        };
+    }
+
+    /**
+     * What the XR session manager starts sessions with, from the configuration in force.
+     * @returns The session manager's configuration.
+     */
+    private xrSessionConfig(): ConstructorParameters<typeof XRSessionManager>[1] {
+        const { vr, ar, input } = this.xrConfig();
+        return {
+            vr,
+            ar,
+            handTracking: input.handTracking,
+            nearInteraction: input.nearInteraction,
+            // The headset can end the session itself; the view then leaves VR or AR as it would
+            // for `view.immersive` with `null` (`xrSessionEnded`).
+            onSessionEnded: ({ mode, cause }) => {
+                this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+            },
         };
     }
 
@@ -9735,10 +9812,17 @@ export class Graph implements GraphContext {
     /**
      * Enter XR mode (VR or AR)
      * @param mode - The XR mode to enter ('immersive-vr' or 'immersive-ar')
+     * @throws A `GraphtyError`: `E_UNSUPPORTED` when XR is off or the browser has no WebXR,
+     *     `E_XR_SESSION_FAILED` when the session cannot start. Nothing is left running.
      */
     public async enterXR(mode: "immersive-vr" | "immersive-ar"): Promise<void> {
         if (!this.xrSessionManager) {
-            throw new Error("XR is not initialized");
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "XR is off for this graph (xr.enabled).",
+                source: "view",
+                details: { mode: immersiveOf(mode), reason: "xr-disabled" },
+            });
         }
 
         // Inside the click that entered, before anything waits: a headset asks for the microphone
@@ -9752,9 +9836,28 @@ export class Graph implements GraphContext {
             await this.xrSessionManager.enterAR(previousCamera ?? undefined);
         }
         this.immersiveSince = `${mode === "immersive-vr" ? "vr" : "ar"}:${new Date().toISOString()}`;
+        try {
+            await this.bindXRSession();
+        } catch (error) {
+            // The session started but cannot be driven: end it rather than leave it running.
+            await this.exitXR().catch((exitError: unknown) => {
+                graphLogger.warn("Could not end the XR session that failed to start", { error: exitError });
+            });
+            throw GraphtyError.wrap(error, {
+                code: "E_XR_SESSION_FAILED",
+                source: "view",
+                recoverable: true,
+                details: { mode: immersiveOf(mode) },
+            });
+        }
+    }
 
-        // Phase 3: Set up XR camera controller and input handler
-        const xrHelper = this.xrSessionManager.getXRHelper();
+    /**
+     * Drive the session just entered: the XR camera controller, its per-frame update, and the
+     * assistant's controls.
+     */
+    private async bindXRSession(): Promise<void> {
+        const xrHelper = this.xrSessionManager?.getXRHelper();
         if (!xrHelper) {
             throw new Error("XR helper not available after session creation");
         }

@@ -48,7 +48,10 @@ describe("a run over a set", () => {
         assert.strictEqual(result.column("value").length, 20);
         assert.isDefined(result.node("n0"));
         assert.isUndefined(result.node("n30"));
-        assert.include(run.record.caveats.notes, "Computed on the induced subgraph of 20 nodes.");
+        assert.deepInclude(run.record.caveats.facts, {
+            code: "scope.induced-subgraph",
+            params: { nodes: 20 },
+        });
         assert.notInclude(run.record.caveats.notes, WHOLE_GRAPH_CAVEAT);
         assert.strictEqual(run.record.scope.nodes, 20);
         assert.strictEqual(run.record.scope.reading, "induced");

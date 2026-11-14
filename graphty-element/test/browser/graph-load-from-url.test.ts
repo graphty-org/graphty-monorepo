@@ -202,3 +202,114 @@ describe("Graph.loadFromUrl", () => {
         assert.isTrue(graph.getDataManager().nodes.has("y"));
     });
 });
+
+describe("Graph.loadFromUrl: whole-document JSON, cancel and progress", () => {
+    beforeEach(() => {
+        document.body.innerHTML = '<canvas id="test-canvas"></canvas>';
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    function newGraph(): Graph {
+        const graph = new Graph(document.getElementById("test-canvas") as HTMLCanvasElement);
+        graphs.push(graph);
+        return graph;
+    }
+
+    test("loads a Cytoscape.js document under the default config (issue #7017)", async () => {
+        const json = JSON.stringify({
+            elements: {
+                nodes: [{ data: { id: "a" } }, { data: { id: "b" } }],
+                edges: [{ data: { id: "ab", source: "a", target: "b" } }],
+            },
+        });
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(json, { status: 200 }));
+        const graph = newGraph();
+
+        await graph.loadFromUrl("https://example.com/network.cyjs.json");
+
+        assert.strictEqual(graph.getDataManager().nodes.size, 2);
+        assert.strictEqual(graph.getDataManager().edges.size, 1);
+    });
+
+    test("loads a graphology document under the default config (issue #7017)", async () => {
+        const json = JSON.stringify({
+            attributes: {},
+            options: { type: "directed", multi: false, allowSelfLoops: true },
+            nodes: [{ key: "a" }, { key: "b" }, { key: "c" }],
+            edges: [{ source: "a", target: "b" }],
+        });
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(json, { status: 200 }));
+        const graph = newGraph();
+
+        await graph.loadFromUrl("https://example.com/graphology.json");
+
+        assert.strictEqual(graph.getDataManager().nodes.size, 3);
+        assert.isTrue(graph.getDataManager().nodes.has("c"));
+    });
+
+    test("a signal aborted while the source fetches rejects with AbortError and keeps the graph (issue #296)", async () => {
+        const graph = newGraph();
+        await graph.addDataFromSource("json", { data: JSON.stringify({ nodes: [{ id: "kept" }], edges: [] }) });
+
+        let fetched!: () => void;
+        const called = new Promise<void>((resolve) => {
+            fetched = resolve;
+        });
+        let respond!: (response: Response) => void;
+        vi.spyOn(globalThis, "fetch").mockImplementation(
+            () =>
+                new Promise<Response>((resolve) => {
+                    respond = resolve;
+                    fetched();
+                }),
+        );
+
+        const controller = new AbortController();
+        const load = graph.loadFromUrl("https://example.com/big.json", { replace: true, signal: controller.signal });
+        await called;
+        controller.abort();
+
+        const error = await load.then(
+            () => null,
+            (reason: unknown) => reason,
+        );
+        respond(new Response(JSON.stringify({ nodes: [{ id: "late" }], edges: [] }), { status: 200 }));
+        assert.instanceOf(error, DOMException);
+        assert.strictEqual(error.name, "AbortError");
+        assert.deepEqual([...graph.getDataManager().nodes.keys()], ["kept"]);
+    });
+
+    test("a signal aborted before the call rejects at once and loads nothing (issue #296)", async () => {
+        const graph = newGraph();
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+        const error = await graph
+            .addDataFromSource("json", { url: "https://example.com/a.json" }, { signal: AbortSignal.abort() })
+            .then(
+                () => null,
+                (reason: unknown) => reason,
+            );
+
+        assert.strictEqual((error as DOMException).name, "AbortError");
+        assert.strictEqual(fetchSpy.mock.calls.length, 0);
+        assert.strictEqual(graph.getDataManager().nodes.size, 0);
+    });
+
+    test("progress counts the bytes read and reaches 100 percent for a URL (issue #296)", async () => {
+        const json = JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ source: "a", target: "b" }] });
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(json, { status: 200 }));
+        const graph = newGraph();
+        const heard: { bytesProcessed: number; totalBytes?: number; percentage?: number }[] = [];
+        graph.addListener("data-loading-progress", (event) => {
+            heard.push(event);
+        });
+
+        await graph.loadFromUrl("https://example.com/small.json");
+
+        const size = new TextEncoder().encode(json).byteLength;
+        assert.deepInclude(heard.at(-1), { bytesProcessed: size, totalBytes: size, percentage: 100 });
+    });
+});

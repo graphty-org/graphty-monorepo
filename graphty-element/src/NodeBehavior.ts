@@ -9,8 +9,10 @@ import {
     PointerEventTypes,
     type PointerInfo,
     type PointerInfoPre,
+    Quaternion,
     Ray,
     Scene,
+    TransformNode,
     Vector3,
 } from "@babylonjs/core";
 
@@ -22,7 +24,12 @@ import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 import { filterPointerPicks, hoverNodeId, pickNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
-import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
+import {
+    cancelReasonOf,
+    type Dispatcher,
+    type DispatchFunction,
+    type TransactionScope,
+} from "./session/project/Dispatcher";
 import { sourceLoadsOf } from "./session/sources/ids";
 
 /**
@@ -598,9 +605,15 @@ export class NodeDragHandler {
         // Calculate delta from drag start
         const delta = worldPosition.subtract(this.dragState.dragStartWorldPosition);
 
-        // Amplify depth only: in XR, reaching forward and back is what the arm cannot do far.
+        // Amplify depth only: in XR, reaching forward and back is what the arm cannot do far. In XR
+        // depth is the reader's, along the Z of the pivot the camera is parented to: once the reader
+        // turns the scene, scene Z is sideways to them.
         if (isXR || this.enableZAmplificationInDesktop) {
+            const parent = isXR ? this.scene.activeCamera?.parent : null;
+            const frame = parent instanceof TransformNode ? parent.absoluteRotationQuaternion : Quaternion.Identity();
+            delta.rotateByQuaternionToRef(Quaternion.Inverse(frame), delta);
             delta.z *= this.zAxisAmplification;
+            delta.rotateByQuaternionToRef(frame, delta);
         }
 
         // Calculate new position
@@ -639,7 +652,9 @@ export class NodeDragHandler {
         const context = this.getContext();
         const { gesture } = this;
         this.gesture = null;
-        const pins = this.node.pinOnDrag && this.placedByPointer();
+        // `layoutBehavior.node.pinOnDrag` read at the drop, so a change reaches nodes already drawn
+        const pins =
+            this.node.pinOnDrag && context.getStyles().config.behavior.node.pinOnDrag && this.placedByPointer();
         // An undo during the drag already released the node, put everything back and stopped
         // the layout: the drop of that gesture does nothing.
         if (gesture?.aborted !== true) {
@@ -788,7 +803,23 @@ export class NodeDragHandler {
 
         if (gesture.moved) {
             const { x, y, z } = this.node.drawnPosition;
-            scope.dispatch({ op: "positions.set", entries: [{ id: this.node.id, x, y, z }] }).catch(() => undefined);
+            scope
+                .dispatch({ op: "positions.set", entries: [{ id: this.node.id, x, y, z }] })
+                .catch((error: unknown) => {
+                    // An undo during the drag aborts it; that ends the drag, and is no failure.
+                    if (gesture.aborted || cancelReasonOf(error) !== undefined) {
+                        return;
+                    }
+
+                    this.getContext()
+                        .getEventManager?.()
+                        ?.emitGraphError(
+                            this.getContext(),
+                            error instanceof Error ? error : new Error(String(error)),
+                            "other",
+                            { op: "positions.set", node: this.node.id },
+                        );
+                });
         }
 
         if (pins) {

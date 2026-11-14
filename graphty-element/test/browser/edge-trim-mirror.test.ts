@@ -292,10 +292,11 @@ function shaderEnds(inputs: EdgeTrimInput[]): TrimmedEnds[] {
     const program = trimProgram(gl);
     gl.useProgram(program);
 
-    const floats = inputs.flatMap(({ src, dst, source, target, capBack }) => [
+    // the shader takes the gap and the head as one distance
+    const floats = inputs.flatMap(({ src, dst, source, target, capBack, capGap = 0 }) => [
         ...[src.x, src.y, src.z, 0],
         ...[dst.x, dst.y, dst.z, 0],
-        ...[capBack, 0, 0, 0],
+        ...[capGap + capBack, 0, 0, 0],
         ...packEnd(source),
         ...packEnd(target),
     ]);

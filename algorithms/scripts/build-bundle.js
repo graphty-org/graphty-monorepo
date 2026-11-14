@@ -10,7 +10,8 @@
 import { build } from "vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
+
+import { writeDeclarationShims } from "../../tools/build-bundle.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,16 +51,7 @@ async function buildBundle() {
 
         console.log("Successfully built dist/algorithms.js");
 
-        // Bundle TypeScript declarations to match the bundle
-        const result = spawnSync("node", [path.resolve(__dirname, "bundle-types.js")], {
-            stdio: "inherit",
-            shell: true,
-        });
-
-        if (result.error) {
-            console.error("Warning: Could not bundle TypeScript declarations:", result.error);
-            console.error('Make sure to run "npm run build" before "npm run build:bundle"');
-        }
+        writeDeclarationShims({ packageRoot: path.resolve(__dirname, ".."), entries: { algorithms: "src/index.ts" } });
     } catch (error) {
         console.error("Error building bundle:", error);
         process.exit(1);

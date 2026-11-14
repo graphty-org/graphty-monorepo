@@ -7,9 +7,11 @@
  * the `"batched"` path a row the batches draw comes back with none, so the speed was 0 and every
  * batch was the floor, a 32nd of the graph: a 100,000-node load took 32 frames, half of each idle.
  *
- * The count decides the second batch, not this machine's speed: with the speed counted, the second
- * batch is the floor (128 rows) only if 128 rows took longer than a whole 48 ms budget, a hundred
- * times slower than any machine paints them; with the defect it is the floor every time.
+ * The test reads the speed the first batch left for the second, not the second batch's size: the
+ * size is that speed times what is left of a 48 ms budget, so it falls back to the floor whenever
+ * the first batch -- which also builds the batches' meshes -- takes longer than the budget, as it
+ * did on a loaded CI runner. The speed is rows over time: above 0 once the rows are counted
+ * however slow the machine, and 0 with the defect however fast.
  */
 
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
@@ -45,12 +47,17 @@ describe("a held batched load's node batches", () => {
         container.remove();
     });
 
-    it("grow past the floor once the first batch has been timed", async () => {
+    it("are sized from the first batch's timed speed", async () => {
         const painter = graph.getStylePainter();
+        const manager = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+        const speedOf = (): number => (manager as unknown as { nodePaintRate: number }).nodePaintRate;
         const limits: number[] = [];
+        // the speed each batch starts from: the last batch's rows a millisecond
+        const speeds: number[] = [];
         const takeNodes = painter.takeNodes.bind(painter);
         vi.spyOn(painter, "takeNodes").mockImplementation((limit?: number) => {
             limits.push(limit ?? Number.POSITIVE_INFINITY);
+            speeds.push(speedOf());
             return takeNodes(limit);
         });
 
@@ -59,7 +66,6 @@ describe("a held batched load's node batches", () => {
         await operationQueueOf(graph).waitForCompletion();
         await dispatcherOf(graph.getSession()).lane.settled();
 
-        const manager = (graph as unknown as { updateManager: UpdateManager }).updateManager;
         let frames = 0;
         while (painter.hasPending && frames < COUNT) {
             manager.update(16);
@@ -69,6 +75,6 @@ describe("a held batched load's node batches", () => {
 
         assert.isAtLeast(limits.length, 2, "the paint took more than one batch");
         assert.strictEqual(limits[0], FLOOR, "the first batch, untimed, is the floor");
-        assert.isAbove(limits[1], FLOOR, "the second batch is sized by the first one's speed");
+        assert.isAbove(speeds[1], 0, "the second batch is sized by the first one's speed, which counted its rows");
     });
 });

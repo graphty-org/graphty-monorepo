@@ -993,6 +993,9 @@ importers:
       ajv-formats:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
+      axe-core:
+        specifier: ^4.13.0
+        version: 4.13.0
       draco3dgltf:
         specifier: ^1.5.9
         version: 1.5.9

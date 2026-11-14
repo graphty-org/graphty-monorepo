@@ -214,6 +214,7 @@
         "@vitest/browser-playwright": "catalog:",
         "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
+        "axe-core": "^4.13.0",
         "draco3dgltf": "^1.5.9",
         "encrypt-storage": "^2.14.7",
         "esbuild": "^0.28.2",

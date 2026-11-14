@@ -4,8 +4,11 @@
  */
 
 import { type SourceDescriptor } from "../types.js";
+import { CROSSREF_MAPPING } from "./examples/crossref.js";
 import { DEPS_DEV_MAPPING } from "./examples/deps-dev.js";
+import { REACTOME_MAPPING } from "./examples/reactome.js";
 import { STRING_MAPPING } from "./examples/string.js";
+import { WIKIPEDIA_MAPPING } from "./examples/wikipedia.js";
 
 /**
  * The descriptor of the generic `rest` source. Experimental.
@@ -34,6 +37,27 @@ export const REST_DESCRIPTOR: SourceDescriptor = Object.freeze({
             params: { mapping: DEPS_DEV_MAPPING, system: "npm", package: "webpack", version: "5.90.0" },
             endpoint: DEPS_DEV_MAPPING.endpoint,
             counts: { nodes: 84, edges: 121 },
+        },
+        {
+            id: "reactome-tp53",
+            plainName: "Reactome: TP53's interactors",
+            params: { mapping: REACTOME_MAPPING, accession: "P04637" },
+            endpoint: REACTOME_MAPPING.endpoint,
+            counts: { nodes: 249, edges: 249 },
+        },
+        {
+            id: "crossref-watts-strogatz",
+            plainName: "Crossref: Watts-Strogatz paper's references",
+            params: { mapping: CROSSREF_MAPPING, doi: "10.1038/30918" },
+            endpoint: CROSSREF_MAPPING.endpoint,
+            counts: { nodes: 21, edges: 20 },
+        },
+        {
+            id: "wikipedia-eulerian-path",
+            plainName: "Wikipedia: links from Eulerian path",
+            params: { mapping: WIKIPEDIA_MAPPING, title: "Eulerian path" },
+            endpoint: WIKIPEDIA_MAPPING.endpoint,
+            counts: { nodes: 101, edges: 100 },
         },
     ],
 });

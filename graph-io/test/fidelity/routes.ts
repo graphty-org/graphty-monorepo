@@ -64,7 +64,9 @@ const ROUTES: Record<RouteId, RouteLedger> = {
             fillOpacity: no("Gephi's preview ignores viz:color alpha"),
             edgeOpacity: no("Gephi's preview ignores viz:color alpha"),
             edgeColor: altered("Gephi's preview blends the endpoint colors unless the edge color mode is original"),
-            edgePath: altered("Gephi's preview draws curved edges by default"),
+            // edgePath is carried: graph-io reads a GEXF file under Gephi's preview settings (curved edges by
+            // default, gexf/preview.ts), so Gephi's curves are the paths the file asks for; sigma, after it,
+            // draws every GEXF edge straight.
             edgeWidth: altered("viz:thickness is rescaled by the preview's edge thickness setting"),
             fontSize: altered("the font family depends on the machine, so label metrics vary"),
             // GEXF has no node border: the outline in Gephi's drawing is the preview's own default

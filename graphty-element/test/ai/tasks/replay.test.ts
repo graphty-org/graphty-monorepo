@@ -17,6 +17,33 @@ describe("assistant tasks, replayed", () => {
         assert.strictEqual(new Set(TASKS.map((task) => task.id)).size, TASKS.length);
     });
 
+    it("minimum-spanning-tree takes the tree shown by a filter as shown", async () => {
+        // A real model's answer (#7699): show only the tree's roads instead of painting them.
+        const task = TASKS.find((each) => each.id === "minimum-spanning-tree")!;
+        const session = await taskSession(task.dataset);
+        const assistant = new ScriptedAssistant(session, { graph: STAND_IN_RENDERER });
+        const calls = [
+            { tool: "run_algorithm", args: { name: "kruskal", options: { weight: "data.weight" } } },
+            { tool: "filter", args: { action: "show_only", on: "edge", where: "results.kruskal.in == true" } },
+        ];
+        const driver: Driver = async (prompt) => {
+            const { result } = await assistant.say(prompt, ...calls.map((call) => [call]));
+            return {
+                prompt,
+                calls,
+                results: [],
+                text: "",
+                code: result.code ?? "",
+                inputTokens: 0,
+                outputTokens: 0,
+                turns: calls.length + 1,
+            };
+        };
+        const metrics = await runTask(task, driver, session);
+        assert.isTrue(metrics.success, metrics.failure);
+        assert.strictEqual(metrics.wrongTools, 0, metrics.calls.join(", "));
+    });
+
     for (const task of TASKS) {
         it(task.id, async () => {
             const session = await taskSession(task.dataset);
@@ -28,11 +55,14 @@ describe("assistant tasks, replayed", () => {
                 );
                 const { result } = await assistant.say(prompt, ...batches);
                 const request = assistant.engine.requests.at(-1);
+                const results = request === undefined ? [] : resultsOf(request.messages);
                 return {
                     prompt,
                     calls: batches.flat(),
-                    results: request === undefined ? [] : resultsOf(request.messages),
-                    text: "",
+                    results,
+                    // A scripted engine has no words of its own: its answer is what its calls read,
+                    // so an answer check passes only when the reference calls fetch the right value.
+                    text: results.map((result) => JSON.stringify(result.body)).join("\n"),
                     code: result.code ?? "",
                     inputTokens: 0,
                     outputTokens: 0,

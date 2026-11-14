@@ -194,7 +194,7 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
         const targetIndex = this.nodeIndex(snapshot, "target", target);
 
-        context.report({ phase: "Searching for the route", total: null });
+        context.report({ phase: "searching-for-the-route", total: null });
         const { value, precision } = await searchFollowing(
             this.graph,
             directed && direction === "in",
@@ -212,7 +212,7 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
         path.forEach((index, position) => orderOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Marking the route", nodeIds, (nodeId) => {
+        await forEachChunked(context, "marking-the-route", nodeIds, (nodeId) => {
             const index = ids.indexOf(nodeId);
             const order = index === INVALID_INDEX ? undefined : orderOf.get(index);
 
@@ -230,7 +230,7 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
         const scoped = scopeEdges(input);
         const onRoute = routeEdgeRows(input, scoped, edgeRemap, routeEdges);
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Marking the route", scoped, (edge) => {
+        await forEachChunked(context, "marking-the-route", scoped, (edge) => {
             // The id PUBLISHED is the element's own, which a style layer can name.
             edges.push({ id: edge.id, values: { onPath: onRoute.has(edge.row) } });
         });

@@ -31,12 +31,15 @@ import type { EdgeStyleConfig } from "../../src/config";
 import { EdgeStyle } from "../../src/config/EdgeStyle";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
-import { edgeLineFor } from "../helpers/edgeLine";
+import { batchLineFor, edgeLineFor } from "../helpers/edgeLine";
 import { create2DMeshScene, createMeshScene, type MeshTestScene } from "./real-mesh-harness";
 
 /** The eight line types that are drawn as a run of small meshes rather than as one line. */
-const PATTERNED_TYPES = ["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"] as const;
-const ALL_LINE_TYPES = ["solid", ...PATTERNED_TYPES] as const;
+/** The patterns drawn as a run of elements, each a slot of its own. */
+const PATTERNED_TYPES = ["dash-dot", "sinewave", "zigzag"] as const;
+/** The patterns a joined line's shader draws, one slot per piece of the route (issue #7404). */
+const SHADER_PATTERN_TYPES = ["dot", "star", "box", "dash", "diamond"] as const;
+const ALL_LINE_TYPES = ["solid", ...SHADER_PATTERN_TYPES, ...PATTERNED_TYPES] as const;
 
 let ctx: MeshTestScene;
 let counter = 0;
@@ -56,6 +59,21 @@ function makeEdge(args: EdgeArgs): Mesh | InstancedMesh | PatternedLineMesh {
         args.style,
         ctx.scene,
     ) as Mesh | InstancedMesh | PatternedLineMesh;
+}
+
+/**
+ * Build the line of a style drawn by a line batch, the way `Edge` builds it.
+ * @param args - The style, and optionally the appearance id, width and colour.
+ * @returns The batch's mesh.
+ */
+function makeBatchEdge(args: EdgeArgs): Mesh | InstancedMesh {
+    counter += 1;
+    return batchLineFor(
+        ctx.cache,
+        { styleId: args.styleId ?? `edge-${counter}`, width: args.width ?? 20, color: args.color ?? "#FF0000" },
+        args.style,
+        ctx.scene,
+    ) as Mesh | InstancedMesh;
 }
 
 describe("Edge Golden Masters", () => {
@@ -100,9 +118,17 @@ describe("Edge Golden Masters", () => {
             });
         });
 
+        SHADER_PATTERN_TYPES.forEach((lineType) => {
+            test(`${lineType} is drawn by a joined line batch whose shader draws its elements`, () => {
+                const mesh = makeBatchEdge({ style: { line: { type: lineType } } });
+
+                assert.strictEqual((mesh.metadata as { pattern?: { kind: string } }).pattern?.kind, lineType);
+            });
+        });
+
         test("patterned lines are not cached -- each edge owns its own run of meshes", () => {
-            makeEdge({ style: { line: { type: "dot" } }, styleId: "shared-pattern" });
-            makeEdge({ style: { line: { type: "dot" } }, styleId: "shared-pattern" });
+            makeEdge({ style: { line: { type: "dash-dot" } }, styleId: "shared-pattern" });
+            makeEdge({ style: { line: { type: "dash-dot" } }, styleId: "shared-pattern" });
 
             assert.equal(ctx.cache.size(), 0);
         });
@@ -132,7 +158,7 @@ describe("Edge Golden Masters", () => {
 
         [0, 0.25, 0.5, 0.75, 1].forEach((opacity) => {
             test(`line opacity ${opacity} reaches mesh.visibility`, () => {
-                const mesh = makeEdge({ style: { line: { type: "solid", opacity } } });
+                const mesh = makeBatchEdge({ style: { line: { type: "solid", opacity } } });
 
                 assert.equal(mesh.visibility, opacity);
             });
@@ -149,7 +175,7 @@ describe("Edge Golden Masters", () => {
         });
 
         test("without patternCount the element count follows the line's length", () => {
-            const mesh = makeEdge({ style: { line: { type: "dot" } } }) as PatternedLineMesh;
+            const mesh = makeEdge({ style: { line: { type: "dash-dot" } } }) as PatternedLineMesh;
             const initial = mesh.elements.length;
 
             mesh.update(new Vector3(0, 0, 0), new Vector3(50, 0, 0));
@@ -162,7 +188,7 @@ describe("Edge Golden Masters", () => {
             // element-widths apart, so a long edge at a small line width can reach tens of thousands
             // of meshes and the frame rate collapses. A pinned count that drifted under update()
             // would give the caller no way to stop that.
-            const mesh = makeEdge({ style: { line: { type: "dot", patternCount: 5 } } }) as PatternedLineMesh;
+            const mesh = makeEdge({ style: { line: { type: "dash-dot", patternCount: 5 } } }) as PatternedLineMesh;
 
             assert.equal(mesh.elements.length, 5);
             mesh.update(new Vector3(0, 0, 0), new Vector3(50, 0, 0));
@@ -171,7 +197,7 @@ describe("Edge Golden Masters", () => {
 
         [2, 3, 8, 20].forEach((patternCount) => {
             test(`patternCount ${patternCount} produces exactly that many elements`, () => {
-                const mesh = makeEdge({ style: { line: { type: "dash", patternCount } } }) as PatternedLineMesh;
+                const mesh = makeEdge({ style: { line: { type: "dash-dot", patternCount } } }) as PatternedLineMesh;
 
                 assert.equal(mesh.elements.length, patternCount);
             });
@@ -234,6 +260,14 @@ describe("Edge Golden Masters", () => {
                 assert.instanceOf(mesh, PatternedLineMesh);
             });
         });
+
+        SHADER_PATTERN_TYPES.forEach((lineType) => {
+            test(`2D ${lineType} is drawn by a joined line batch`, () => {
+                const mesh = makeBatchEdge({ style: { line: { type: lineType } } });
+
+                assert.strictEqual((mesh.metadata as { pattern?: { kind: string } }).pattern?.kind, lineType);
+            });
+        });
     });
 
     describe("Bezier curves", () => {
@@ -269,7 +303,7 @@ describe("Edge Golden Masters", () => {
         });
 
         test("bezier opacity reaches the mesh", () => {
-            const mesh = makeEdge({ style: { line: { type: "solid", bezier: true, opacity: 0.3 } } });
+            const mesh = makeBatchEdge({ style: { line: { type: "solid", bezier: true, opacity: 0.3 } } });
 
             assert.equal(mesh.visibility, 0.3);
         });
@@ -312,16 +346,16 @@ describe("Edge Golden Masters", () => {
         });
 
         test("the line is centred between its endpoints and scaled to their distance", () => {
-            const mesh = makeEdge({ style: { line: { type: "solid" } } });
-            EdgeMesh.transformMesh(mesh as Mesh, new Vector3(0, 0, 0), new Vector3(0, 0, 10));
+            const mesh = makeBatchEdge({ style: { line: { type: "solid" } } });
+            EdgeMesh.transformMesh(mesh, new Vector3(0, 0, 0), new Vector3(0, 0, 10));
 
             assert.closeTo(mesh.position.z, 5, 1e-6);
             assert.closeTo(mesh.scaling.z, 10, 1e-6);
         });
 
         test("a diagonal line lands on the midpoint too", () => {
-            const mesh = makeEdge({ style: { line: { type: "solid" } } });
-            EdgeMesh.transformMesh(mesh as Mesh, new Vector3(-3, -4, 0), new Vector3(3, 4, 0));
+            const mesh = makeBatchEdge({ style: { line: { type: "solid" } } });
+            EdgeMesh.transformMesh(mesh, new Vector3(-3, -4, 0), new Vector3(3, 4, 0));
 
             assert.closeTo(mesh.position.x, 0, 1e-6);
             assert.closeTo(mesh.position.y, 0, 1e-6);

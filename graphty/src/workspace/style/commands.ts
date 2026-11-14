@@ -4,7 +4,7 @@ import { type CommandContext, defineRegistration } from "../commands/registry";
 import { nodeModelsOn } from "../features";
 import { DEFAULT_NAME_KEY, selectionName } from "./cards";
 import { addLabelLine, labelRow, selectionRow, topmostRow } from "./row";
-import { CUSTOM_MODEL, madeWords } from "./words";
+import { CUSTOM_MODEL, logUnexpected, madeWords } from "./words";
 
 /**
  * The node attribute the inspector shows, when it shows one: the attribute kind's id is the
@@ -148,7 +148,8 @@ export const registration = defineRegistration({
                 const column = inspectedAttribute(ctx);
                 try {
                     await labelLine(ctx.session, ctx.workspace, column);
-                } catch {
+                } catch (error) {
+                    logUnexpected("style.add-label-line", error);
                     ctx.workspace.set({
                         notice: { message: `${column?.name ?? "That attribute"} could not label the nodes` },
                     });
@@ -171,7 +172,8 @@ export const registration = defineRegistration({
                 }
                 try {
                     await layerFromSelection(session, workspace);
-                } catch {
+                } catch (error) {
+                    logUnexpected("style.layer-from-selection", error);
                     workspace.set({ notice: { message: "The layer could not be made", error: true } });
                 }
             },

@@ -267,15 +267,17 @@ async function remember(store: WorkspaceStore, session: GraphSession, handle?: F
 }
 
 /**
- * Hands the header's name to the element before a save, so the file holds it (the name is part
- * of the project file).
+ * Names the project in the element before a save, so the file holds a name: `name` when given
+ * (Save as), else the shown name when the element holds none yet (a project named by its data).
+ * A name the element already holds is kept, since an Undo or the assistant may have set it.
  * @param store - the workspace store.
  * @param session - the project's session.
+ * @param name - the name Save as gave, or null.
  */
-async function nameTheProject(store: WorkspaceStore, session: GraphSession): Promise<void> {
-    const name = headerName(store);
-    if (session.project.name !== name) {
-        await session.project.rename(name);
+async function nameTheProject(store: WorkspaceStore, session: GraphSession, name: string | null): Promise<void> {
+    const wanted = name ?? session.project.name ?? headerName(store);
+    if (session.project.name !== wanted) {
+        await session.project.rename(wanted);
     }
 }
 
@@ -303,9 +305,14 @@ export function saveProblemSentence(name: string, error: unknown): string {
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the project's session.
  * @param target - the `browserProjects` id to write again, or null for a new record.
+ * @param newName - the name Save as gives the project, or null to keep its name.
  * @returns false when the reader cancelled the question about files from the web.
  */
-async function writeProject({ workspace, session }: CommandContext, target: string | null): Promise<boolean> {
+async function writeProject(
+    { workspace, session }: CommandContext,
+    target: string | null,
+    newName: string | null = null,
+): Promise<boolean> {
     if (session === null) {
         return true;
     }
@@ -313,8 +320,8 @@ async function writeProject({ workspace, session }: CommandContext, target: stri
     if (assets === null) {
         return false;
     }
-    await nameTheProject(workspace, session);
-    const name = headerName(workspace);
+    await nameTheProject(workspace, session, newName);
+    const name = session.project.name ?? headerName(workspace);
     const saved = await browserProjects.save(session, {
         ...(target === null ? {} : { id: target }),
         ...(Object.keys(assets).length === 0 ? {} : { assets }),
@@ -350,21 +357,15 @@ export async function saveProject(ctx: CommandContext): Promise<void> {
  */
 export async function saveProjectAs(ctx: CommandContext, name: string): Promise<void> {
     const { workspace, session } = ctx;
-    const before = { header: headerName(workspace), element: session?.project.name ?? null };
-    workspace.set((now) => ({ project: now.project && { ...now.project, name } }));
+    const before = session?.project.name ?? null;
     try {
-        if (!(await writeProject(ctx, null))) {
-            // Cancelled: nothing was saved, so the project keeps the name it had.
-            workspace.set((now) => ({ project: now.project && { ...now.project, name: before.header } }));
-        }
+        // Cancelled, it returns before naming the project, which keeps the name it had.
+        await writeProject(ctx, null, name);
     } catch (error) {
+        workspace.set({ notice: { message: saveProblemSentence(name, error), error: true } });
         // Nothing was saved, so the project keeps the name it had.
-        workspace.set((now) => ({
-            project: now.project && { ...now.project, name: before.header },
-            notice: { message: saveProblemSentence(name, error), error: true },
-        }));
-        if (session !== null && session.project.name !== before.element) {
-            await session.project.rename(before.element).catch(() => undefined);
+        if (session !== null && session.project.name !== before) {
+            await session.project.rename(before).catch(() => undefined);
         }
     }
 }

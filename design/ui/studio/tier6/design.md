@@ -527,6 +527,7 @@ Finished or Failed by `success`.
 | `AI_ANSWER_INVALID`                                                          | That is not one of the choices.                                      | --             |
 | `AI_HISTORY_UNAVAILABLE`, `AI_STORAGE_FAILED`                                | This conversation is not being saved.                                | --             |
 | `AI_HISTORY_NEWER_FORMAT`                                                    | Saved by a newer version of graphty, so it was left as it is.        | --             |
+| `AI_NO_PREVIOUS_COMMAND`                                                     | There is no message to send again.                                   | --             |
 
 `{cause}` is worded from `params.status`: 401 or 403 "the key was refused", 429 "too many requests
 or the spend limit was reached", 5xx "the service is unavailable", otherwise "error {status}". With

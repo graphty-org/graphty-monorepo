@@ -47,11 +47,11 @@ export class ClusteringCoefficientAlgorithm extends DeclaredAlgorithm {
         const { snapshot, run } = this.accelerated("triangleCount", "undirected");
         const { ids } = snapshot;
 
-        context.report({ phase: "Counting triangles", total: null });
+        context.report({ phase: "counting-triangles", total: null });
         const { value, precision } = await run((dispatch, s) => dispatch.triangleCount(s));
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Reading coefficients", nodeIds, (nodeId) => {
+        await forEachChunked(context, "reading-coefficients", nodeIds, (nodeId) => {
             const index = ids.indexOf(nodeId);
             nodes.push({
                 id: nodeId,

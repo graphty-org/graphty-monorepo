@@ -748,8 +748,9 @@ export interface GraphStatistics {
     /** Edges in the snapshot, self-loops and repeats included. */
     readonly edgeCount: number;
     /**
-     * Edges as a fraction of the pairs that could carry one, self-loops excluded from both
-     * halves. Zero for a graph with fewer than two nodes.
+     * Pairs of nodes joined by an edge as a fraction of the pairs that could be, so never above 1:
+     * self-loops are excluded and repeated edges between the same pair count once. Zero for a
+     * graph with fewer than two nodes.
      */
     readonly density: number;
     /**
@@ -3654,6 +3655,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | --- | --- |
  * | `algo.run`, `algo.legacy` | `algorithm`: the algorithm's key |
  * | `algo.remove`, `algo.move` | `run`: the run's id; `algorithm`: its algorithm, or null when unknown |
+ * | `algo.rename` | `run`, `algorithm` as above; `name`: the new name, or null when the reader's name was taken away |
  * | `algo.batch` | `label`: the name `runs.batch` was given, or null; `count`: how many runs |
  * | `algo.template` | none: the runs a style template asks for |
  * | `batch` | `label`: the batch's own `label`, or null; `steps`: how many commands |
@@ -3733,6 +3735,7 @@ export type HistoryCode =
     | "algo.legacy"
     | "algo.remove"
     | "algo.move"
+    | "algo.rename"
     | "algo.batch"
     | "algo.template"
     | "batch"
@@ -4000,6 +4003,8 @@ export interface CommandOutcomeMap {
     "algo.remove": Promise<RunRemoval>;
     /** Settles once the run's layers have moved, as one step. */
     "algo.move": Promise<void>;
+    /** Settles once the run's new name is recorded, as one step. */
+    "algo.rename": Promise<void>;
     /** Settles once every member is recorded as one step and the pass that draws it has run. */
     batch: Promise<void>;
     /** Settles once the change is recorded and the pass that draws it has run. */

@@ -227,13 +227,19 @@ const ELEMENT_DEPENDENCIES = [
 /** Everything the browser projects pre-bundle up front. */
 const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...AI_FRAMEWORKS, ...GRAPHVIZ, ...MODEL_CHUNK];
 
-/** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
+/** The tests that run real immersive sessions: the "xr" project runs them, "browser" and "interactions" do not. */
 const XR_BROWSER_TESTS = [
     "test/browser/node-batch-xr.test.ts",
     "test/browser/xr-session.test.ts",
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",
     "test/interactions/xr/xr-voice.test.ts",
+    "test/interactions/xr/xr-thumbstick.test.ts",
+    "test/interactions/xr/xr-gestures.test.ts",
+    "test/interactions/xr/xr-hand-tracking.test.ts",
+    "test/interactions/unit/xr-direction.test.ts",
+    "test/interactions/unit/deadzone.test.ts",
+    "test/browser/xr-drag-amplification.test.ts",
 ];
 
 /** The files "forced-batched" leaves out, each with its reason. */

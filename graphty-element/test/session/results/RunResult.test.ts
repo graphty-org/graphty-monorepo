@@ -812,7 +812,6 @@ describe("the top of a ranking, cut only between tie groups", () => {
             "the twelve nodes of degree 3 would make fifteen, so none of them is taken",
         );
         assert.deepStrictEqual(top.leftOut, { value: 3, count: 12 });
-        assert.match(top.reason ?? "", /12 tie at 3/);
         assert.strictEqual(top.threshold, 3, "above 3 selects exactly the three taken");
     });
 
@@ -827,14 +826,14 @@ describe("the top of a ranking, cut only between tie groups", () => {
 
         assert.deepStrictEqual(top.entries, []);
         assert.deepStrictEqual(top.leftOut, { value: 3, count: 6 });
-        assert.isString(top.reason);
+        assert.notProperty(top, "reason", "the tie group is the fact; an application words it");
     });
 
     it("takes a tie group that ends exactly at n, and everything when n covers the ranking", () => {
         assert.strictEqual(metricResult(CAT_DEGREES).top("value", 15).entries.length, 15);
         assert.strictEqual(metricResult(CAT_DEGREES).top("value", 15).leftOut, null);
         assert.strictEqual(metricResult([3, 3, 3, 3]).top("value", 50).entries.length, 4);
-        assert.strictEqual(metricResult([3, 3, 3, 3]).top("value", 50).reason, null);
+        assert.strictEqual(metricResult([3, 3, 3, 3]).top("value", 50).leftOut, null);
     });
 
     it("refuses an n that is not a whole number of entries", () => {

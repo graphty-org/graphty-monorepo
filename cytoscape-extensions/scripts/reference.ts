@@ -574,13 +574,13 @@ const FORMAT_SUMMARY: Readonly<Record<string, string>> = {
 // The members of a result type whose declaration has no doc comment of its own.
 const MEMBER_DOCS: Readonly<Record<string, string>> = {
     "LinkPredictionMetrics.precision":
-        "The precision at the score threshold with the best F1. Every metric ranks a held-out edge ahead of a non-edge with the same score, so a score that ties every pair reports 1 for all four.",
+        "The precision at the score threshold with the best F1. A threshold never splits pairs with the same score, so a score that ties every pair reports the share of held-out edges among all pairs.",
     "LinkPredictionMetrics.recall": "The recall at that threshold.",
     "CutResult.cut":
         "The edges that cross the cut. In `graphtyMaxFlow` and `graphtyMinSTCut` with `directed: true`, only the arcs from `partitionFirst` to `partitionSecond`, whose capacities sum to `value`.",
     "LinkPredictionMetrics.f1Score": "The best F1 over every threshold.",
     "LinkPredictionMetrics.auc":
-        "The chance that a held-out edge scores above a non-edge, a tie counting as the edge scoring higher; 0.5 when either list is empty.",
+        "The chance that a held-out edge scores above a non-edge, a tie counting half; 0.5 when either list is empty.",
 };
 
 /**

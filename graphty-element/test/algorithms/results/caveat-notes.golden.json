@@ -51,13 +51,6 @@
         "Iteration stops at a tolerance of 0.000001 or after 100 passes, whichever comes first.",
         "Edge weights are not read."
     ],
-    "katz capped": [
-        "Every node starts with a base influence of 1, and a path of length k contributes 0.1 to the power k.",
-        "Paths were counted over the graph read as undirected, so an edge carries influence both ways.",
-        "Iteration stops at a tolerance of 0.000001 or after 1 passes, whichever comes first.",
-        "It stopped at the 1-pass cap without reaching the tolerance.",
-        "Edge weights are not read."
-    ],
     "hits": [
         "The published value is the average of this node's hub score and its authority score.",
         "The hub and authority vectors each have unit length, which is how the iteration leaves them.",

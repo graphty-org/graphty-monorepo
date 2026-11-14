@@ -536,13 +536,13 @@ Influence counted over walks of every length, the shorter walks counting more.
 
 Returns `ScoreResult & { iterations: number; converged: boolean; }`. Reads edge weights from `weight`. Async twin, which can run on the GPU: `graphtyKatzCentralityAsync`.
 
-| Option          | Type      | Default    | Meaning                                                  |
-| --------------- | --------- | ---------- | -------------------------------------------------------- |
-| `maxIterations` | `number`  | `100`      | Iteration cap.                                           |
-| `tolerance`     | `number`  | `0.000001` | Convergence tolerance on the largest single-node change. |
-| `normalized`    | `boolean` | `true`     | Rescale the scores to [0, 1] by min-max.                 |
-| `alpha`         | `number`  | `0.1`      | Attenuation factor applied to a neighbor's score.        |
-| `beta`          | `number`  | `1`        | Base score every node starts with and keeps.             |
+| Option          | Type      | Default    | Meaning                                                                                                                                                                                                                                                                                                         |
+| --------------- | --------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxIterations` | `number`  | `100`      | Iteration cap.                                                                                                                                                                                                                                                                                                  |
+| `tolerance`     | `number`  | `0.000001` | Convergence tolerance on the largest single-node change.                                                                                                                                                                                                                                                        |
+| `normalized`    | `boolean` | `true`     | Rescale the scores to [0, 1] by min-max.                                                                                                                                                                                                                                                                        |
+| `alpha`         | `number`  | `0.1`      | Attenuation factor applied to a neighbor's score. Must be at least 0 and below 1 / lambda_max, the reciprocal of the graph's largest adjacency eigenvalue, or the series diverges and the call throws `ConvergenceError`: a complete graph on 11 nodes, or a star with 100 leaves, already needs less than 0.1. |
+| `beta`          | `number`  | `1`        | Base score every node starts with and keeps.                                                                                                                                                                                                                                                                    |
 
 ### `graphtyKruskalMST`
 
@@ -935,12 +935,12 @@ A predicted link.
 
 The best-F1 threshold's precision and recall, that F1, and the ranking AUC.
 
-| Member      | Type     | Meaning                                                                                                                                                                                    |
-| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `precision` | `number` | The precision at the score threshold with the best F1. Every metric ranks a held-out edge ahead of a non-edge with the same score, so a score that ties every pair reports 1 for all four. |
-| `recall`    | `number` | The recall at that threshold.                                                                                                                                                              |
-| `f1Score`   | `number` | The best F1 over every threshold.                                                                                                                                                          |
-| `auc`       | `number` | The chance that a held-out edge scores above a non-edge, a tie counting as the edge scoring higher; 0.5 when either list is empty.                                                         |
+| Member      | Type     | Meaning                                                                                                                                                                                         |
+| ----------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `precision` | `number` | The precision at the score threshold with the best F1. A threshold never splits pairs with the same score, so a score that ties every pair reports the share of held-out edges among all pairs. |
+| `recall`    | `number` | The recall at that threshold.                                                                                                                                                                   |
+| `f1Score`   | `number` | The best F1 over every threshold.                                                                                                                                                               |
+| `auc`       | `number` | The chance that a held-out edge scores above a non-edge, a tie counting half; 0.5 when either list is empty.                                                                                    |
 
 <!-- generated:resultTypes:end -->
 

@@ -12,6 +12,7 @@ import { AddressForm, FileInput, SectionHeading } from "./ModelsPopover";
 import { chipLine, modelChip } from "./modelWords";
 import { roveTiles, tileStop } from "./tileRoving";
 import { useStillOpen } from "./useStillOpen";
+import { logUnexpected } from "./words";
 
 /** The files the chooser offers; a drop is not filtered, and the element says what arrived. */
 const ACCEPT = assetFileExtensions("image").join(",");
@@ -239,6 +240,7 @@ export function PicturePopover({
         const live = start();
         settle(source, given, live)
             .catch((error: unknown) => {
+                logUnexpected("assets.add", error, []);
                 if (live()) {
                     refuse({ code: "E_MODEL_PARSE", params: { message: String(error) } });
                 }

@@ -15,7 +15,7 @@
         "nodes": 3,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/all_array.json",
@@ -30,7 +30,7 @@
         "nodes": 3,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/all_fields.json",
@@ -45,7 +45,7 @@
         "nodes": 3,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/all_id_as_keys.json",
@@ -60,7 +60,7 @@
         "nodes": 3,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/all_withoutNodeProps_withoutRelProps.json",
@@ -75,7 +75,7 @@
         "nodes": 3,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/multiLabels.json",
@@ -90,7 +90,7 @@
         "nodes": 16,
         "edges": 4
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/nodes_without_labels.json",
@@ -105,7 +105,7 @@
         "nodes": 1,
         "edges": 0
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/relationship_type_injection.json",
@@ -120,7 +120,7 @@
         "nodes": 2,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/importPointValues.json",
@@ -135,7 +135,7 @@
         "nodes": 4,
         "edges": 0
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/query_nodes.json",
@@ -150,7 +150,7 @@
         "nodes": 3,
         "edges": 0
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/query_nodes_path.json",
@@ -165,7 +165,7 @@
         "nodes": 2,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-json/MapPath.json",
@@ -180,7 +180,7 @@
         "nodes": 4,
         "edges": 2
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4) (#303)"
     },
     {
       "file": "apoc-csv/export-all.csv",
@@ -195,7 +195,7 @@
         "edges": 1,
         "directed": true
       },
-      "knownFailure": "APOC CSV exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC CSV exports are not read (sources.md 9.4) (#304)"
     },
     {
       "file": "apoc-csv/multi-labels.csv",
@@ -210,7 +210,7 @@
         "edges": 2,
         "directed": true
       },
-      "knownFailure": "APOC CSV exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC CSV exports are not read (sources.md 9.4) (#304)"
     },
     {
       "file": "apoc-csv/quotes-none.csv",
@@ -225,7 +225,7 @@
         "edges": 1,
         "directed": true
       },
-      "knownFailure": "APOC CSV exports are not read (sources.md 9.4)"
+      "knownFailure": "APOC CSV exports are not read (sources.md 9.4) (#304)"
     },
     {
       "file": "admin/manual-movies-actors.csv",
@@ -355,7 +355,7 @@
       "license": "Neo4j documentation example (CC BY-NC-SA 4.0), test only",
       "version": "Operations Manual 2026.09, retrieved 2026-09-23",
       "oracle": "neo4j-admin-manual",
-      "knownFailure": "vector{...} property type not parsed as a list of numbers (sources.md 9.4)"
+      "knownFailure": "vector{...} property type not parsed as a list of numbers (sources.md 9.4) (#7653)"
     },
     {
       "file": "admin/manual-composite-id.csv",
@@ -370,7 +370,7 @@
       "license": "Neo4j documentation example (CC BY-NC-SA 4.0), test only",
       "version": "Operations Manual 2026.09, retrieved 2026-09-23",
       "oracle": "neo4j-admin-manual",
-      "knownFailure": "several :ID columns (composite key) rejected (sources.md 9.4)"
+      "knownFailure": "several :ID columns (composite key) rejected (sources.md 9.4) (#7653)"
     },
     {
       "file": "admin/all-property-types.csv",
@@ -500,7 +500,7 @@
       "license": "authored from the Neo4j operations manual",
       "version": "Operations Manual 2026.09, retrieved 2026-09-23",
       "oracle": "neo4j-admin-manual",
-      "knownFailure": "an unreadable typed cell drops the whole row instead of warning and leaving it unset (sources.md 9.4)"
+      "knownFailure": "an unreadable typed cell drops the whole row instead of warning and leaving it unset (sources.md 9.4) (#7653)"
     },
     {
       "file": "admin/empty-vs-quoted.csv",
@@ -564,7 +564,7 @@
         "edges": 1,
         "directed": true
       },
-      "knownFailure": "Duplicate node: later row wins, Neo4j keeps the first (sources.md 9.4)",
+      "knownFailure": "Duplicate node: later row wins, Neo4j keeps the first (sources.md 9.4) (#7653)",
       "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
       "license": "authored from the Neo4j operations manual",
       "version": "Operations Manual 2026.09, retrieved 2026-09-23",

@@ -1436,10 +1436,13 @@ export const DEFAULT_COST_GATE_LIMITS: Readonly<CostGateLimits> = Object.freeze(
 
 /** A scope that would bring a refused run back under the cap. */
 interface FittingScope {
-    /** The scope specification, which a caller passes straight back to the run it was refused. */
+    /**
+     * The scope specification, which a caller passes straight back to the run it was refused. It
+     * also says what kind of scope this is: `"largest-component"`, or `{ set }` for a kept set.
+     */
     readonly scope: Scope;
-    /** What to call it on a button. */
-    readonly label: string;
+    /** A kept set's name, as the reader gave it; absent for the largest component. */
+    readonly label?: string;
     /** How many nodes it would cover. */
     readonly nodes: number;
     /** How many edges it would cover. */
@@ -1495,7 +1498,7 @@ export type CostGateDecision =
 export interface ScopeCandidate {
     /** The scope specification. */
     readonly scope: Scope;
-    /** What to call it on a button: the set's name. */
+    /** The set's name, as the reader gave it. */
     readonly label: string;
     /** How many nodes it covers. */
     readonly nodes: number;
@@ -1618,7 +1621,6 @@ function fittingScopes(
             fitting.push(
                 Object.freeze({
                     scope: "largest-component",
-                    label: "The largest connected piece",
                     nodes: largestSize,
                     edges,
                     seconds: estimate.seconds,

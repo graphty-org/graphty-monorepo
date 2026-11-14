@@ -85,7 +85,7 @@
           "q"
         ]
       },
-      "roundTripFailure": "the DOT export writes subgraph members before the other nodes, so node order changes on re-import"
+      "roundTripFailure": "the DOT export writes subgraph members before the other nodes, so node order changes on re-import (#7640)"
     },
     {
       "file": "graphviz-graphs/b22.gv",
@@ -1427,7 +1427,7 @@
           "node2"
         ]
       },
-      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4)"
+      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4) (#7638)"
     },
     {
       "file": "graphviz-issues/2801.dot",
@@ -2476,7 +2476,7 @@
           "b4"
         ]
       },
-      "knownFailure": "an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4)"
+      "knownFailure": "an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4) (#7639)"
     },
     {
       "file": "pydot/html_labels.dot",
@@ -2498,7 +2498,7 @@
           "<more <b>html</b>>"
         ]
       },
-      "knownFailure": "an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4)"
+      "knownFailure": "an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4) (#7639)"
     },
     {
       "file": "pydot/numeric_ids_unicode.dot",
@@ -3002,7 +3002,7 @@
           "b"
         ]
       },
-      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4)"
+      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4) (#7638)"
     },
     {
       "file": "authored/hash-midline.gv",
@@ -3022,7 +3022,7 @@
           "c"
         ]
       },
-      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4)"
+      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4) (#7638)"
     },
     {
       "file": "authored/hash-line-directive.gv",
@@ -3319,7 +3319,7 @@
           "W_DOT_EDGE_OPERATOR"
         ]
       },
-      "roundTripFailure": "a mixed-direction graph is refused by the DOT exporter under the default onMixedDirection \"error\""
+      "roundTripRefusal": "E_MIXED_DIRECTION"
     },
     {
       "file": "authored/edge-default-scope.gv",

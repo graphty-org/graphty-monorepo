@@ -259,7 +259,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const graph1 = await createMockGraph({ dataPath: "./data4.json" });
                 const graph2 = await createMockGraph({ dataPath: "./data4.json" });
 
-                const katz1 = new KatzCentralityAlgorithm(graph1, { alpha: 0.1 });
+                // Both below 1 / lambda_max of data4, where the default 0.1 diverges.
+                const katz1 = new KatzCentralityAlgorithm(graph1, { alpha: 0.02 });
                 await katz1.run();
 
                 const katz2 = new KatzCentralityAlgorithm(graph2, { alpha: 0.01 });
@@ -279,10 +280,10 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
                 // Use normalized=false to see the actual beta effect
                 // (normalization can wash out beta differences)
-                const katz1 = new KatzCentralityAlgorithm(graph1, { beta: 1.0, normalized: false });
+                const katz1 = new KatzCentralityAlgorithm(graph1, { alpha: 0.02, beta: 1.0, normalized: false });
                 await katz1.run();
 
-                const katz2 = new KatzCentralityAlgorithm(graph2, { beta: 2.0, normalized: false });
+                const katz2 = new KatzCentralityAlgorithm(graph2, { alpha: 0.02, beta: 2.0, normalized: false });
                 await katz2.run();
 
                 const [firstNodeId] = nodeIdsOf(graph1);

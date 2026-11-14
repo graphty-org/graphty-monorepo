@@ -4,7 +4,7 @@
 
 import { assert } from "vitest";
 
-import { assertAnswered, defineTask, runOf } from "./kit";
+import { assertAffirmed, assertAnswered, defineTask, runOf } from "./kit";
 
 /** Every algorithm that finds groups. */
 export const COMMUNITY_ALGORITHMS = [
@@ -57,17 +57,8 @@ export const FIRST_LOOK_TASKS = [
         tools: [],
         reference: [[[{ tool: "query", args: { action: "statistics" } }]]],
         check: ({ messages }) => {
-            assertAnswered(
-                messages,
-                "that it is directed",
-                '"directed"',
-                "is directed",
-                "are directed",
-                "directed network",
-                "directed graph",
-                "yes",
-            );
-            assertAnswered(messages, "that it is weighted", '"weighted":true', "weighted");
+            assertAffirmed(messages, "directed");
+            assertAffirmed(messages, "weighted");
         },
     }),
     defineTask({

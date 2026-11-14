@@ -160,8 +160,10 @@ reader's side: what to call and what happens, never how the package is built or 
 Detail (oracles, sniffing, the generative, differential and schema layers): the agent reference above.
 
 - An expectation states the RIGHT behavior. Where graph-io misses it, the fixture carries `knownFailure` (or
-  `roundTripFailure`) and runs as an expected failure; remove the marker in the same change as the fix, and never
-  weaken an expectation to make it pass.
+  `roundTripFailure`) naming its tracking issue (`#N`, a test checks it) and runs as an expected failure; remove
+  the marker in the same change as the fix, and never weaken an expectation to make it pass. An export the format
+  refuses by design under default options (an id that needs `sanitizeIds: "mangle"`) is `roundTripRefusal`: the
+  E\_ note check() must announce and export() must throw.
 - Fixtures under GPL / LGPL / EPL / CDDL / CC-BY-NC licenses are test-only and are never published (`test/` is not
   in the package's `files`).
 - In the generative layer a round-trip difference is allowed only when a `check()` note announced it, and an export

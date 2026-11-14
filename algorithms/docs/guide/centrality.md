@@ -288,6 +288,13 @@ const result = katzCentrality(graph, {
 console.log(Array.from(result.scores, (x) => x.toFixed(3))); // ["0.000", "0.476", "1.000"]
 ```
 
+`alpha` must be below 1 / lambda_max, the reciprocal of the largest eigenvalue of the graph's adjacency matrix. Above
+it the series diverges and `katzCentrality` throws a `ConvergenceError` (code `E_NOT_CONVERGED`) instead of returning
+scores. The default of 0.1 is already too large for a graph where a node has ten or more well-connected neighbours: a
+complete graph on 11 nodes, or a star with 100 leaves, has lambda_max 10. Lower `alpha` for dense or hub-heavy graphs.
+The same error is thrown when `maxIterations` runs out before the scores settle, and an `alpha`, `maxIterations` or
+`tolerance` out of range throws a RangeError with code `E_BAD_OPTION`.
+
 ## Practical Example: Social Network Analysis
 
 <!-- doc-check -->

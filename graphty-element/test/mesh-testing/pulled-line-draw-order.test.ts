@@ -59,6 +59,18 @@ describe("pulled line batch draw order", () => {
         assert.deepEqual(drawn(), [2, 1, 3, 0]);
     });
 
+    it("draws a piece handed out after a sort even when no new sort follows", () => {
+        batch.acquire(2);
+        batch.acquire(1);
+        drawn();
+        batch.release(1);
+        assert.equal(batch.acquire(2), 1, "the freed piece is taken again");
+        drawn();
+        // its key is its own number, the key its slot already held, so nothing asks for another sort
+        assert.equal(batch.acquire(2), 2);
+        assert.deepEqual(drawn(), [0, 1, 2]);
+    });
+
     it("keeps plain piece order for one width, freed pieces included, with no order table", () => {
         [3, 3, 3, 3].forEach((width) => batch.acquire(width));
         batch.release(1);

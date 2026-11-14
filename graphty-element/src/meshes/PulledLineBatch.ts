@@ -692,6 +692,11 @@ export class PulledLineBatch {
             const size = Math.ceil(capacity / ORDER_PER_LINE) * ORDER_PER_LINE;
             const order = this.order?.length === size ? this.order : new Float32Array(size);
             order.set(drawn);
+            // a piece handed out later whose key is its own number asks for no sort, so its slot must already name it
+            for (let slot = highWater; slot < size; slot++) {
+                order[slot] = slot;
+            }
+
             if (order === this.order) {
                 this.orderTable.update(order);
                 this.uploadedBytes += order.byteLength;

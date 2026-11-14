@@ -1237,7 +1237,8 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   holding records as columns and building them on demand, which is stage 29's "records into columns", conditional
   on stage 30's harness run. Stage 28 builds nothing more for it.
   Records into columns (stage 29, built): under `"batched"`, `importColumns` copies its columns into a row source
-  (`session/project/recordMap.ts`) and builds no record at load. The journal's `add-nodes` and `add-edges` commands
+  (`session/project/recordMap.ts`) and keeps no record from the load: the load still builds each row's record
+  (short-lived, some rows two or three times) as the record doors read it, and drops it. The journal's `add-nodes` and `add-edges` commands
   hold an array view that builds each record when read; the graph slice's maps are a `RecordMap` (a `Map` subclass)
   holding a row number per column record, as do the op log's `nodes` and `edges` ranges; rows stored with no `Node`
   or `Edge` keep a marker and read the record from the slice. Corrections to this section and to the stage note:
@@ -1246,7 +1247,13 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   something reads every record after a load, so keeping what was built held the whole 90 MB (859 MB after GC
   against 874 MB on master); built per read it is 775 MB, under the 800 MB target (1M + 1M, RTX, 2026-11-14). A
   built `Node` still keeps its own record as `Node.data`; a second read of a column row's slice record is an equal
-  object, not the same one. The objects path keeps its records as before.
+  object, not the same one. The objects path keeps its records as before. Correction to the section 13 row's
+  proving tests: the load builds records, so "records built during an eligible file import counted at 0" is
+  proven as records kept after it counted at 0 (`RecordMap.heldRecords`, every build counted beside it), and
+  the digest-and-fingerprint half compares both on every corpus file, generator and sample dataset. The first
+  pull request is the heap half; `columnsEligible`, routing record arrays through the column door, the counted
+  ineligible-load test and the import report (`importColumns` resolving to a `LoadReport`) are the stage's
+  second pull request.
 - **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
   one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
   whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the

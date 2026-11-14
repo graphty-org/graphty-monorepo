@@ -5,7 +5,9 @@ import type { CameraState } from "../screenshot/types.js";
  * (see {@link ViewWaypoint}); without, it plays exactly as it always has.
  */
 export interface CameraWaypoint {
+    /** Where the camera stands, in world units. */
     position: { x: number; y: number; z: number };
+    /** What the camera looks at, in world units. */
     target: { x: number; y: number; z: number };
     /** Time to reach this waypoint from the previous one (ms) */
     duration?: number;

@@ -7545,12 +7545,8 @@ export class Graph implements GraphContext {
     ): { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[] {
         const flat = this.getViewMode() === "2d";
         return path.map((stop, index) => {
-            const view = "view" in stop ? stop.view : undefined;
-            const state = orbitAnglesToPosition(
-                typeof view === "string"
-                    ? this.resolveCameraPreset(view)
-                    : (view ?? ("position" in stop ? { position: stop.position, target: stop.target } : {})),
-            );
+            const view = "view" in stop ? stop.view : { position: stop.position, target: stop.target };
+            const state = orbitAnglesToPosition(typeof view === "string" ? this.resolveCameraPreset(view) : view);
             if (flat ? state.zoom === undefined && !state.pan : !state.position || !state.target) {
                 throw new GraphtyError({
                     code: "E_UNSUPPORTED",

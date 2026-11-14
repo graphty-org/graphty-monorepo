@@ -117,5 +117,15 @@ describe("oracle nodes no id or label names", () => {
         assert.strictEqual(nameDrawnNodes([server], below)[0].hint, null);
         assert.strictEqual(nameDrawnNodes([body(6, 100, 135, "#000000")], below)[0].hint?.id, "d");
         assert.strictEqual(nameDrawnNodes([server], inside)[0].hint?.id, "b");
+        // json-vis-synth: 29's three-line label inside its box, the outer lines off its center
+        const lines = [text(7, 100, 125, "multi"), text(8, 100, 135, "line"), text(9, 100, 145, "label")];
+        const tall = {
+            nodes: [{ id: "m", x: 100, y: 135, w: 60, h: 46, box: { x0: 70, y0: 112, x1: 130, y1: 158 } }],
+        };
+        assert.deepEqual(
+            nameDrawnNodes(lines, tall).map((p) => p.hint?.id),
+            ["m", "m", "m"],
+        );
+        assert.strictEqual(nameDrawnNodes([text(10, 100, 150, "Server")], below)[0].hint, null);
     });
 });

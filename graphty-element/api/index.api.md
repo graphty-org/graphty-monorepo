@@ -3408,6 +3408,7 @@ export class Graphty extends LitElement {
     getCameraState(): CameraState;
     getDataManager(): DataManager;
     getEdgeCount(): number;
+    getEdges(): Edge[];
     getEventManager(): EventManager;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
@@ -3888,6 +3889,13 @@ export type GraphtyErrorCode =
 * caller refreshes the id it holds.
 */
 | "E_UNKNOWN_ELEMENT"
+/**
+* A graph was constructed with the id of a page element that the document does not hold, so
+* there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
+* or passes the element itself.
+* @since 3.40.0
+*/
+| "E_HOST_NOT_FOUND"
 /**
 * A saved document's content is malformed: not the kind it claims, a required member missing
 * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
@@ -5813,6 +5821,7 @@ export const NodeStyle: z.ZodObject<{
         }, z.core.$strict>>;
         outline: z.ZodOptional<z.ZodObject<{
             color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            width: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>>;
         halo: z.ZodOptional<z.ZodObject<{
             enabled: z.ZodOptional<z.ZodBoolean>;
@@ -7644,6 +7653,15 @@ export interface SavedProject {
 }
 
 // @public
+export interface ScreenshotLegendOptions {
+    position?: ScreenshotLegendPosition;
+    title?: string;
+}
+
+// @public
+export type ScreenshotLegendPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+// @public
 export interface ScreenshotLegendSection {
     note?: string;
     ramp?: {
@@ -7678,7 +7696,7 @@ export interface ScreenshotOptions {
     format?: "png" | "jpeg" | "webp";
     // (undocumented)
     height?: number;
-    legend?: readonly ScreenshotLegendSection[];
+    legend?: boolean | "auto" | ScreenshotLegendOptions | readonly ScreenshotLegendSection[];
     // (undocumented)
     multiplier?: number;
     // (undocumented)

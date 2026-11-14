@@ -170,6 +170,15 @@ APIs, you can make them without getting my approval."
   packages (owner, 2026-11-10): see "Public API and breaking changes". Ask him again only when a
   real outside consumer appears.
 
+### Owner's standing rules (2026-11-13)
+
+Act on these without asking him, and tell him in one line: (1) a recorded decision or standing rule releases an
+owner label; (2) additive work whose default leaves the graphty app unchanged is ux-safe and ordered; (3) his issue
+stating the expected result is the order; (4) invisible accessibility and default-contrast fixes are ordered; (5)
+free CI and dev-tooling changes go ahead; (6) save files carry small built-ins and name large ones; (7) a superseded
+branch is folded into its successor and kept; (8) an outside pull request is re-filed as our own issue.
+Full wording: design/owner-standing-rules.md.
+
 ### Why
 
 The failure mode this prevents is silent and expensive: a capability lands "in the product"

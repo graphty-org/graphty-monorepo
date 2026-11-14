@@ -535,6 +535,16 @@ export class PatternedLineRenderer {
     }
 
     /**
+     * How far a glyph pattern's element reaches along its line on either side of its center.
+     * @param pattern - The pattern type
+     * @returns The reach in units of the line's width, or undefined for a pattern that is not drawn as glyphs
+     */
+    static glyphReach(pattern: PatternType): number | undefined {
+        const glyph = GLYPHS[this.getDefaultShapeType(pattern)] as readonly GlyphPolygon[] | undefined;
+        return glyph === undefined ? undefined : Math.max(...glyph.flat().map(([x]) => Math.abs(x)));
+    }
+
+    /**
      * Get geometry for a pattern type
      * @param pattern - The pattern type
      * @returns VertexData for the pattern

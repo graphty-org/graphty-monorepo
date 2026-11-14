@@ -197,6 +197,56 @@ export function discreteMeshOffsets(totalLength: number, meshWidth: number, mesh
 }
 
 /**
+ * How far apart Cytoscape desktop lays the glyphs of the edge line types it strokes with `ShapeStroke`, in world
+ * units: one glyph centered on the line's start, then one every advance while its center is still on the line, so the
+ * last lands wherever the line's length puts it (issue #7768). Measured on the cx-syn-mappings oracle (Cytoscape
+ * 3.10.5): CONTIGUOUS_ARROW every 3 line widths at all nine widths (edge 387->402: 41 chevrons 15.95 px apart at
+ * 5.32 px wide), SEPARATE_ARROW every 20 px whatever the width (all eight edges 14.37 px apart at the export's
+ * 0.7187 scale). Every other pattern spreads its elements to both ends of the line, and has no advance.
+ * @param pattern - The line's pattern.
+ * @param width - The line's width, in world units.
+ * @returns The advance in world units, or undefined for a pattern Cytoscape does not lay at a fixed advance.
+ */
+export function cytoscapeAdvance(pattern: PatternType, width: number): number | undefined {
+    switch (pattern) {
+        case "contiguous-arrow":
+            return 3 * width;
+        case "separate-arrow":
+            // 20 of the line's width units, at the 1/40 world units per width unit EdgeMesh converts widths by
+            return 20 / 40;
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * How many glyphs a line laid at a fixed advance from its start holds ({@link cytoscapeAdvance}): one at the start,
+ * then one every advance while its center is on the line, up to {@link MAX_PATTERN_PIECES}.
+ * @param lineLength - The line's length, already trimmed for the node surface and the arrowhead
+ * @param advance - The distance between two glyphs' centers
+ * @returns The count, at least 1
+ */
+export function fixedAdvanceCount(lineLength: number, advance: number): number {
+    if (!Number.isFinite(lineLength) || Number.isNaN(advance) || advance <= 0) {
+        return 1;
+    }
+    return Math.min(MAX_PATTERN_PIECES, Math.floor(lineLength / advance) + 1);
+}
+
+/**
+ * Where the glyphs of a line laid at a fixed advance sit: the first centered on the line's start, each next one
+ * advance on. A line longer than {@link MAX_PATTERN_PIECES} advances spreads them out to fit the cap.
+ * @param lineLength - The line's length, already trimmed for the node surface and the arrowhead
+ * @param advance - The distance between two glyphs' centers
+ * @param count - How many glyphs
+ * @returns Centre offsets from the line start, in order, one per glyph
+ */
+export function fixedAdvanceOffsets(lineLength: number, advance: number, count: number): number[] {
+    const step = count >= MAX_PATTERN_PIECES ? Math.max(advance, lineLength / (MAX_PATTERN_PIECES - 1)) : advance;
+    return Array.from({ length: count }, (_unused, i) => i * step);
+}
+
+/**
  * How many elements of a pattern whose shapes alternate in length (a dash-dot's dash and dot) a line holds: the
  * spacing rule of {@link discreteMeshCount}, each element taken at its own length rather than all at the first
  * shape's. Taken at the dash's, a dash-dot held one element too few and opened gaps three times its own (issue
@@ -604,7 +654,8 @@ export class PatternedLineMesh {
     /**
      * Where along the route each element's centre sits, as a distance from the route's start: a discrete pattern's
      * (dot, star, box, dash, diamond, dash-dot) first and last elements touch the route's two ends and the rest share
-     * the room between them evenly ({@link discreteMeshOffsets}); a connected pattern's (sinewave, zigzag) segments
+     * the room between them evenly ({@link discreteMeshOffsets}); a Cytoscape glyph pattern's (separate-arrow,
+     * contiguous-arrow) sit a fixed advance apart from the start ({@link cytoscapeAdvance}); a connected pattern's (sinewave, zigzag) segments
      * sit a fixed 0.75 apart (the last clipped, see clipLastSegment), or a wave's own period apart.
      *
      * IMPORTANT: the route's ends are ALREADY adjusted by the edge for the node surfaces and the arrowheads; nothing
@@ -618,10 +669,25 @@ export class PatternedLineMesh {
             return this.elements.map((_unused, i) => i * step);
         }
 
+        const advance = this.advance();
+        if (advance !== undefined) {
+            return fixedAdvanceOffsets(totalLength, advance, this.elements.length);
+        }
+
         const sizes = this.shapeSizes();
         return sizes.length > 1
             ? alternatingMeshOffsets(totalLength, sizes, this.elements.length)
             : discreteMeshOffsets(totalLength, this.getRenderedMeshSize(), this.elements.length);
+    }
+
+    /**
+     * The fixed advance this line's glyphs are laid at from its start, as Cytoscape desktop lays its pattern
+     * ({@link cytoscapeAdvance}); undefined for a pattern spread to both ends, or when `line.patternCount` sets the
+     * count, which spreads that many evenly whatever the pattern.
+     * @returns The advance in world units, or undefined
+     */
+    private advance(): number | undefined {
+        return this.patternCount === undefined ? cytoscapeAdvance(this.pattern, this.width) : undefined;
     }
 
     /**
@@ -707,6 +773,11 @@ export class PatternedLineMesh {
             return Math.min(MAX_PATTERN_PIECES, Math.max(1, segments));
         }
 
+        const advance = this.advance();
+        if (advance !== undefined) {
+            return fixedAdvanceCount(lineLength, advance);
+        }
+
         // lineLength is ALREADY adjusted for node surface and arrow
         // (done by Edge.transformArrowCap()), so nothing is subtracted for those here.
         const sizes = this.shapeSizes();
@@ -785,18 +856,20 @@ export class PatternedLineMesh {
     /**
      * Where a wave with a period of its own runs, end to end along its line as it was last laid: from
      * the near end of its first piece to the far end of its last, as drawn (a sine wave's first period
-     * is centered on the line's start; a zigzag's last piece stops at its last turn, capped).
+     * is centered on the line's start; a zigzag's last piece stops at its last turn, capped), or of a glyph pattern
+     * laid at a fixed advance from the near end of its first glyph to the far end of its last.
      * @returns The two ends, or null for any other line.
      * @internal
      */
     drawnEnds(): [Vector3, Vector3] | null {
-        const span = this.waveSpan();
+        const span = this.drawnSpan();
         return span === null ? null : [this.onRoute(span[0]).point, this.onRoute(span[1]).point];
     }
 
     /**
      * The route this line is drawn along, as it was last laid: the route's points from end to end, or for a wave
-     * with a period of its own from where its first piece starts to where its last ends ({@link drawnEnds}).
+     * with a period of its own or glyphs laid at a fixed advance from where its first piece starts to where its last
+     * ends ({@link drawnEnds}).
      * @returns The points, in order, as fresh vectors; null before the line was laid.
      * @internal
      */
@@ -806,12 +879,12 @@ export class PatternedLineMesh {
         }
 
         const { points, along } = this.laid;
-        const span = this.waveSpan();
+        const span = this.drawnSpan();
         if (span === null) {
             return points.map((p) => p.clone());
         }
 
-        // the route's corners the wave runs through; its two ends are the wave's own
+        // the route's corners the pieces run through; its two ends are the pieces' own
         const [from, to] = span;
         const inside = points.slice(1, -1).filter((_p, i) => along[i + 1] > from && along[i + 1] < to);
         return [this.onRoute(from).point, ...inside.map((p) => p.clone()), this.onRoute(to).point];
@@ -827,10 +900,20 @@ export class PatternedLineMesh {
     }
 
     /**
-     * How far along its route a wave with a period of its own starts and ends, as drawn.
+     * How far along its route a wave with a period of its own, or glyphs laid at a fixed advance, start and end, as
+     * drawn.
      * @returns The two distances from the route's start, or null for any other line.
      */
-    private waveSpan(): [number, number] | null {
+    private drawnSpan(): [number, number] | null {
+        const advance = this.advance();
+        const reach = PatternedLineRenderer.glyphReach(this.pattern);
+        if (advance !== undefined && reach !== undefined && this.laid !== null) {
+            // glyphs laid at a fixed advance run from the first's near end to the last's far end, which falls short
+            // of the line's end or runs past it as the line's length puts it (issue #7768)
+            const offsets = fixedAdvanceOffsets(this.laid.along.at(-1) ?? 0, advance, this.elements.length);
+            return [-reach * this.width, (offsets.at(-1) ?? 0) + reach * this.width];
+        }
+
         const first = this.stretches.at(0);
         const last = this.stretches.at(-1);
         if (this.wave === undefined || this.laid === null || first === undefined || last === undefined) {

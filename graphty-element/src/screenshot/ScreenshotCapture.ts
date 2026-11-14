@@ -17,18 +17,20 @@ import { type Graph, operationQueueOf } from "../Graph.js";
 import { CustomLineRenderer } from "../meshes/CustomLineRenderer.js";
 import { RichTextLabel } from "../meshes/RichTextLabel.js";
 import { SELECTION_HALO_MESH } from "../Node.js";
+import type { LegendBlock } from "../session/styles/legend.js";
 import { downloadBlob } from "../utils/download.js";
 import { captureError } from "./captureError.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
-import { drawLegend, legendBox } from "./drawLegend.js";
+import { drawLegend, legendBox, legendSections } from "./drawLegend.js";
 import { resolvePreset } from "./presets.js";
 import { enableTransparentBackground, restoreBackground } from "./transparency.js";
 import type {
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendPosition,
     ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
@@ -45,6 +47,12 @@ export class ScreenshotCapture {
      */
     private readonly skyboxMeshNames = ["testdome", "skybox", "skyBox", "Skybox"];
 
+    /** The key this capture draws and its corner, settled once the capture's waits are over. */
+    private legend: { sections: readonly ScreenshotLegendSection[]; position: ScreenshotLegendPosition } = {
+        sections: [],
+        position: "top-left",
+    };
+
     /**
      * Creates a new ScreenshotCapture instance
      * @param engine - The Babylon.js rendering engine
@@ -53,6 +61,7 @@ export class ScreenshotCapture {
      * @param graph - The graph instance for accessing layout and camera state
      * @param requestFrame - Asks the render loop to draw the next frame, even when the picture
      *     looks final: a graph drawn on demand draws none for a background cleared for a moment
+     * @param readLegend - The element's legend (`session.styles.legend()`), for `legend: true`
      */
     constructor(
         private readonly engine: Engine | WebGPUEngine,
@@ -60,6 +69,7 @@ export class ScreenshotCapture {
         private readonly canvas: HTMLCanvasElement,
         private readonly graph: Graph,
         private readonly requestFrame: () => void = () => undefined,
+        private readonly readLegend: () => readonly LegendBlock[] = () => [],
     ) {}
 
     /**
@@ -118,16 +128,44 @@ export class ScreenshotCapture {
 
     /**
      * The view insets that keep the key's own box clear: on the side that costs the canvas the
-     * smaller share, left of a tall key or above a wide one.
-     * @param legend - The key the capture draws.
+     * smaller share, beside a tall key or above or below a wide one, on the key's own corner.
      * @returns The insets to frame the capture with, in CSS pixels.
      */
-    private reserveLegend(legend: readonly ScreenshotLegendSection[]): ViewInsets {
-        const { right, bottom } = legendBox(legend);
+    private reserveLegend(): ViewInsets {
+        const { sections, position } = this.legend;
+        const { right, bottom } = legendBox(sections);
         const width = this.canvas.clientWidth || this.canvas.width;
         const height = this.canvas.clientHeight || this.canvas.height;
+        const side = position.endsWith("left") ? "left" : "right";
+        const edge = position.startsWith("top") ? "top" : "bottom";
 
-        return right / width <= bottom / height ? { left: right } : { top: bottom };
+        return right / width <= bottom / height ? { [side]: right } : { [edge]: bottom };
+    }
+
+    /**
+     * Settle what `options.legend` asks for: the caller's sections as given, or the element's own
+     * legend for `true`, `"auto"` and an options object.
+     * @param legend - The capture's `legend` option.
+     * @returns The sections to draw (none for no key) and their corner.
+     */
+    private resolveLegend(legend: ScreenshotOptions["legend"]): ScreenshotCapture["legend"] {
+        if (legend === undefined || legend === false) {
+            return { sections: [], position: "top-left" };
+        }
+        // Array.isArray does not narrow a readonly array out of a union.
+        if (typeof legend === "object" && "length" in legend) {
+            return { sections: legend, position: "top-left" };
+        }
+
+        const options = typeof legend === "object" ? legend : {};
+        const bound = legendSections(this.readLegend());
+        // "auto" draws only when a layer binds a value; true draws the heading even when none does.
+        const sections =
+            legend === "auto" && bound.length === 0
+                ? []
+                : [...(options.title === undefined ? [] : [{ title: options.title }]), ...bound];
+
+        return { sections, position: options.position ?? "bottom-right" };
     }
 
     /**
@@ -169,6 +207,9 @@ export class ScreenshotCapture {
         if (timing.waitForSettle) {
             await this.waitForLayoutSettle(timing.settleTimeoutMs ?? SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
         }
+
+        // The legend is read once the queued edits have landed, so the key matches the picture.
+        this.legend = this.resolveLegend(options.legend);
 
         // 3. Handle camera override
         const cameraOverride = options.camera ? await this.overrideCamera(options, options.camera) : undefined;
@@ -249,8 +290,7 @@ export class ScreenshotCapture {
         options: ScreenshotOptions,
         camera: Extract<NonNullable<ScreenshotOptions["camera"]>, { preset: string }>,
     ): CameraState {
-        const legend = options.legend ?? [];
-        this.graph.setViewInsets(legend.length > 0 ? this.reserveLegend(legend) : {});
+        this.graph.setViewInsets(this.legend.sections.length > 0 ? this.reserveLegend() : {});
         const { params } = camera;
         return this.graph.resolveCameraPreset(camera.preset, params === undefined ? undefined : { params });
     }
@@ -424,10 +464,12 @@ export class ScreenshotCapture {
             dimensions.height,
         );
         // The key goes on after any downscale, sized as on the canvas: output pixels per CSS pixel.
-        const legend = finalOptions.legend ?? [];
+        const { sections, position } = this.legend;
         const scale = dimensions.width / (this.canvas.clientWidth || this.canvas.width);
         const blobPromise =
-            legend.length === 0 ? captured : captured.then((blob) => drawLegend(blob, legend, scale, quality));
+            sections.length === 0
+                ? captured
+                : captured.then((blob) => drawLegend(blob, sections, scale, quality, position));
 
         // If clipboard is requested, start clipboard write immediately (before blob is ready)
         // This preserves the user gesture context

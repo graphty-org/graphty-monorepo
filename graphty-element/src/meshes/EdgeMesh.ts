@@ -32,7 +32,7 @@ import {
 } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
-import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
+import { FilledArrowRenderer, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
 import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
@@ -216,6 +216,16 @@ function openLook(
     const fillKey = fill === undefined ? "" : `|f${fill}`;
     return { stroke, fill, key: `${widthKey}${strokeKey}${fillKey}` };
 }
+
+/**
+ * How far back from its tip the line under a half barb stops, as a share of the cap: where Cytoscape 3.10.5 stops the
+ * line under its HALF_TOP and HALF_BOTTOM (`HalfTopArrow.getTOffset()` 0.5 of the arrow's size from the node, its
+ * barb's tip 0.3 from the node and the barb 1.135 long: ding SVG export `M -0.3 0.1 L -1.3 1.1 L -1.435 1.1 L -0.535
+ * 0.2`; every half arrow on the cx-syn-mappings oracle stops its line there, issue #7769). Cytoscape's other arrows
+ * the element draws already stop their lines at Cytoscape's offsets: a diamond (`getTOffset()` 2, its back) and a
+ * crossed delta (2, its delta's back, 2/3 of the cap).
+ */
+const CYTOSCAPE_HALF_TOP_STOP = (0.5 - 0.3) / 1.135;
 
 interface ArrowGeometry {
     /** Whether arrow uses center positioning (sphere-like) or tip positioning (triangular) */
@@ -1518,14 +1528,20 @@ void main() {
                 return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: 0 };
 
             // A half arrow's line runs on under it to where its arm meets the line, so no break shows between them
-            // (Graphviz's halfopen meets its line at its back, Cytoscape's HALF_TOP near its tip): half-open's arm
-            // meets it 0.4 of the cap back from the tip, the half barb's stroke its own length back
+            // (Graphviz's halfopen meets its line at its back): half-open's arm meets it 0.4 of the cap back from the
+            // tip
             case "half-open":
             case "half-open-flipped":
                 return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: HALF_OPEN_MEETS };
+            // The half barb is Cytoscape's HALF_TOP, whose line Cytoscape stops at the arrow's own offset (#7769)
             case "half-barb":
             case "half-barb-flipped":
-                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: HALF_BARB };
+                return {
+                    positioningMode: "tip",
+                    needsRotation: false,
+                    positionOffset: 0,
+                    lineStop: CYTOSCAPE_HALF_TOP_STOP,
+                };
 
             // Filled arrows using FilledArrowRenderer (billboard shaders, no rotation)
             // These arrows have tip/front edge at origin

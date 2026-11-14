@@ -1340,8 +1340,9 @@ describe("StatsManager - Profiling", () => {
                 // Verify derived metrics are calculated
                 assert.isDefined(tableData);
 
-                const hitsRow = tableData.find((row: any) => row.Label === "cache.hits");
-                assert.equal(hitsRow.Value, 90);
+                const rows = tableData as { Label?: unknown; Value?: unknown }[];
+                const hitsRow = rows.find((row) => row.Label === "cache.hits");
+                assert.equal(hitsRow?.Value, 90);
 
                 tableSpy.mockRestore();
             });

@@ -13,7 +13,6 @@ import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
-import { UsageDataCard } from "../privacy/UsageDataCard";
 import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
@@ -707,10 +706,6 @@ export function StartScreen(): React.JSX.Element {
             ) : null}
 
             <SampleLibrary />
-
-            <div className="ws-land-usage">
-                <UsageDataCard />
-            </div>
 
             <PageFoot />
 

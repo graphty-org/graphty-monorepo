@@ -22,8 +22,14 @@ const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "effects"])
 /** How far a glow reaches at strength 1: the blur width of the glow layer, in glow-map texels. */
 const GLOW_SPREAD = 2;
 
-/** The name every outline ring's source mesh and instances start with; the color follows. */
+/**
+ * The name every outline ring's source mesh and instances start with; the color follows, then
+ * {@link OUTLINE_WIDTH_MARK} and the width for a ring a style gives a width of its own.
+ */
 const OUTLINE_RING_PREFIX = "graphty-node-outline-";
+
+/** What separates a ring's color from the width a style gave it, in the ring's name. */
+const OUTLINE_WIDTH_MARK = "-w";
 
 /**
  * The ring's inner radius, in radii of the node's outline as the camera sees it: a little inside
@@ -179,31 +185,58 @@ export class NodeEffects {
     }
 
     /**
-     * Set how wide every outline in a scene is drawn (`layoutBehavior.node.outlineWidth`): the
-     * ring's band, as a multiple of its own width, on every ring now drawn and every ring made
-     * later.
+     * Set how wide an outline is drawn when its style sets no width
+     * (`layoutBehavior.node.outlineWidth`): the ring's band, as a multiple of its own width, on
+     * every such ring now drawn and every one made later. A ring whose style sets
+     * `effect.outline.width` keeps its own.
      * @param scene - The Babylon.js scene.
      * @param width - The width as a multiple of the ring's own, or undefined for that.
      */
     static setOutlineWidth(scene: Scene, width: number | undefined): void {
         scene.metadata = scene.metadata ?? {};
         scene.metadata.outlineWidth = width;
+        const outer = this.ringOuterOf(this.outlineWidthOf(scene, undefined));
         for (const mesh of scene.meshes) {
-            if (mesh instanceof Mesh && mesh.name.startsWith(OUTLINE_RING_PREFIX)) {
-                this.ringVertexData(scene).applyToMesh(mesh, true);
+            if (
+                mesh instanceof Mesh &&
+                mesh.name.startsWith(OUTLINE_RING_PREFIX) &&
+                !mesh.name.includes(OUTLINE_WIDTH_MARK)
+            ) {
+                this.ringVertexData(outer).applyToMesh(mesh, true);
             }
         }
     }
 
     /**
-     * The outer radius of a scene's rings: the inner radius plus the band, widened by the scene's
-     * outline width.
+     * How wide a node's outline is drawn: its style's width, else the scene's
+     * (`layoutBehavior.node.outlineWidth`), else 1, the ring's own.
      * @param scene - The Babylon.js scene.
+     * @param width - The width the node's style sets, if any.
+     * @returns The width, as a multiple of the ring's own.
+     */
+    static outlineWidthOf(scene: Scene, width: number | undefined): number {
+        const shared: unknown = scene.metadata?.outlineWidth;
+        return width ?? (typeof shared === "number" ? shared : 1);
+    }
+
+    /**
+     * Whether a node's style draws an outline: it names one, and not a width alone (a width with
+     * no colour draws nothing, as a glow strength with no colour draws nothing).
+     * @param effect - The effect configuration from the node style.
+     * @returns True when an outline is drawn.
+     */
+    static outlineDrawn(effect: NodeStyleConfig["effect"] | undefined): boolean {
+        const outline = effect?.outline;
+        return outline !== undefined && (outline.color !== undefined || outline.width === undefined);
+    }
+
+    /**
+     * The outer radius of a ring: the inner radius plus the band, widened by the outline width.
+     * @param width - The width, as a multiple of the ring's own.
      * @returns The outer radius.
      */
-    private static ringOuterOf(scene: Scene): number {
-        const width: unknown = scene.metadata?.outlineWidth;
-        return OUTLINE_RING_INNER + (OUTLINE_RING_OUTER - OUTLINE_RING_INNER) * (typeof width === "number" ? width : 1);
+    private static ringOuterOf(width: number): number {
+        return OUTLINE_RING_INNER + (OUTLINE_RING_OUTER - OUTLINE_RING_INNER) * width;
     }
 
     /**
@@ -217,7 +250,7 @@ export class NodeEffects {
      * at the node's front surface, a nearer node or label covers the ring, a label beside it is
      * drawn over it, and the node's own edges pass behind it.
      *
-     * ONE SOURCE MESH PER OUTLINE COLOR, cached in the mesh cache, and one instance of it per
+     * ONE SOURCE MESH PER OUTLINE COLOR AND WIDTH, cached in the mesh cache, and one instance of it per
      * outlined node. The instance is a CHILD of the node's mesh, so it moves, hides and is
      * disposed with it (a restyle that rebuilds the mesh takes the old ring with it, and this is
      * called again for the new mesh). Its scaling is the node's own largest half-extent, and the
@@ -233,7 +266,8 @@ export class NodeEffects {
     ): void {
         const existing = mesh.getChildMeshes(true).find((child) => child.name.startsWith(OUTLINE_RING_PREFIX));
 
-        if (!effect?.outline) {
+        const outline = effect?.outline;
+        if (outline === undefined || !this.outlineDrawn(effect)) {
             existing?.dispose();
 
             return;
@@ -241,18 +275,24 @@ export class NodeEffects {
 
         // THE ALPHA IS DROPPED: an outline is drawn opaque. The layer check reports it as
         // W_ALPHA_IGNORED, so the drop is said rather than silent.
-        const { rgb } = readColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
-        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}`;
+        const { rgb } = readColor(this.extractColorValue(outline.color), DEFAULT_OUTLINE_COLOR);
+        // ONE SOURCE PER COLOR AND WIDTH. A ring with no width of its own is named by its color
+        // alone and drawn at the scene's width, which setOutlineWidth rewrites in place.
+        const own = outline.width;
+        const widthPart = own === undefined ? "" : OUTLINE_WIDTH_MARK + String(own);
+        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}${widthPart}`;
+        const scene = mesh.getScene();
         const ring =
             existing?.name === name && !existing.isDisposed()
                 ? existing
-                : cache.get(name, () => this.createOutlineRingSource(name, rgb, mesh.getScene()));
+                : cache.get(name, () =>
+                      this.createOutlineRingSource(name, rgb, scene, this.outlineWidthOf(scene, own)),
+                  );
 
         if (ring !== existing) {
             existing?.dispose();
             ring.isPickable = false;
             ring.parent = mesh;
-            const scene = mesh.getScene();
             const observer = scene.onBeforeCameraRenderObservable.add((camera) => {
                 this.followCamera(ring, camera);
             });
@@ -263,7 +303,7 @@ export class NodeEffects {
 
         const extent = mesh.getBoundingInfo().boundingBox.extendSize;
         ring.metadata = { outlineRadius: Math.max(extent.x, extent.y, extent.z, MIN_RING_RADIUS) };
-        const camera = mesh.getScene().activeCamera;
+        const camera = scene.activeCamera;
         if (camera) {
             this.followCamera(ring, camera);
         }
@@ -323,13 +363,12 @@ export class NodeEffects {
     }
 
     /**
-     * A ring's geometry: a flat band from {@link OUTLINE_RING_INNER} to the scene's outer radius
-     * in the XY plane, facing +z.
-     * @param scene - The scene whose outline width sets the outer radius.
+     * A ring's geometry: a flat band from {@link OUTLINE_RING_INNER} to an outer radius in the XY
+     * plane, facing +z.
+     * @param outer - The outer radius.
      * @returns The vertex data.
      */
-    private static ringVertexData(scene: Scene): VertexData {
-        const outer = this.ringOuterOf(scene);
+    private static ringVertexData(outer: number): VertexData {
         const positions: number[] = [];
         const indices: number[] = [];
         for (let i = 0; i <= OUTLINE_RING_SEGMENTS; i++) {
@@ -352,17 +391,18 @@ export class NodeEffects {
     }
 
     /**
-     * Build the source mesh of one outline color: a flat ring of inner radius
-     * {@link OUTLINE_RING_INNER} and the scene's outer radius in the XY plane;
+     * Build the source mesh of one outline color and width: a flat ring of inner radius
+     * {@link OUTLINE_RING_INNER} in the XY plane, its band widened by the width;
      * followCamera places and sizes it.
      * @param name - The mesh name, which is also its cache key.
      * @param color - The ring's color.
      * @param scene - The scene to build it in.
+     * @param width - The band's width, as a multiple of its own.
      * @returns The source mesh.
      */
-    private static createOutlineRingSource(name: string, color: Color3, scene: Scene): Mesh {
+    private static createOutlineRingSource(name: string, color: Color3, scene: Scene, width: number): Mesh {
         const source = new Mesh(name, scene);
-        this.ringVertexData(scene).applyToMesh(source, true);
+        this.ringVertexData(this.ringOuterOf(width)).applyToMesh(source, true);
 
         const material = new StandardMaterial(`${name}-material`, scene);
         // Unlit: a ring is a mark on the node, the same color from every side.

@@ -255,6 +255,7 @@ export const MUTATING: readonly string[] = [
     "SessionDataApi.renameSource",
     "SessionDataApi.refresh",
     "SessionDataApi.reloadSource",
+    "SessionDataApi.remap",
     "SessionDataApi.replaceSource",
     "SessionDataApi.runPendingSourceLoad",
     "SessionDataApi.setHidden",

@@ -16,8 +16,6 @@ import { dispatcherOf } from "../../../src/session/GraphSession";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 
-type Hook = (...args: unknown[]) => unknown;
-
 /**
  * A run that gives every node its number of edges as `value`.
  * @param session - Read when the run starts.
@@ -76,18 +74,15 @@ describe("project:derived", () => {
     it("every derivation hook that runs is followed by a project:derived", async () => {
         const s: GraphSession = createGraphSession({ runs: { execute: (context) => degree(() => s, context) } });
         const { lane } = dispatcherOf(s);
-        // Every hook the session registered, wrapped to note when it finished.
-        const { hooks } = lane as unknown as { hooks: Map<string, Hook[]> };
+        // A marker hook per slice, registered after the session's own: hooks of one slice run in the order
+        // registered, so the marker finishing means that slice's hooks have all finished.
         let seq = 0;
         const finished: { slice: string; at: number }[] = [];
         const published: number[] = [];
-        for (const [slice, list] of hooks) {
-            for (const [index, hook] of list.entries()) {
-                list[index] = async (...args: unknown[]): Promise<void> => {
-                    await hook(...args);
-                    finished.push({ slice, at: seq++ });
-                };
-            }
+        for (const slice of ["graph", "runs", "notes", "styles", "visibility"] as const) {
+            lane.register(slice, () => {
+                finished.push({ slice, at: seq++ });
+            });
         }
         s.on("project:derived", () => published.push(seq++));
 

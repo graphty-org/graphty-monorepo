@@ -132,8 +132,9 @@ const CameraBehaviorOpts = z
          */
         autoRotate: z.number().min(0).default(0),
         /*
-         * How long `autoRotate` waits after the reader last moved the camera -- a drag, a pinch,
-         * a wheel, a key -- before it turns again, in milliseconds of frames drawn, or "never".
+         * How long `autoRotate` waits after the reader last moved the camera -- a press or drag on
+         * the canvas, a pinch, a wheel, a camera key, a node drag -- before it turns again, in
+         * milliseconds of frames drawn, or "never".
          *
          * 0 BY DEFAULT, so the turning carries on as soon as the reader lets go. A number waits
          * that long once they stop, and every move of theirs starts the wait again. "never" stops

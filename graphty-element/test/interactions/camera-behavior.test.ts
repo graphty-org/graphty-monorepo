@@ -192,9 +192,10 @@ describe("camera.autoRotate speed and resume", () => {
         });
         await drawnFrames(element.graph.getScene(), 2);
 
+        // Counted from before the wheel, so the count is never behind the element's own wait.
+        const elapsed = frameTime(element);
         await wheel(element, EMPTY, 100);
         await drawnFrames(element.graph.getScene(), 2);
-        const elapsed = frameTime(element);
         const held = camera(element);
         const samples: { ms: number; camera: string }[] = [];
         while (elapsed().raw < 700) {
@@ -209,11 +210,14 @@ describe("camera.autoRotate speed and resume", () => {
     });
 
     it("stops for good at a key press with autoRotateResume never, until the setting changes", async () => {
-        const element = await mounted("3d", (el) => {
-            el.layoutBehavior = { camera: { autoRotate: 1, autoRotateResume: "never" } };
-        });
+        const element = await mounted("3d");
+        // Focus for the key, before the turning starts: the click is a press of the reader's too.
         await click(element, EMPTY);
+        element.layoutBehavior = { camera: { autoRotate: 1, autoRotateResume: "never" } };
         await drawnFrames(element.graph.getScene(), 2);
+        const turning = camera(element);
+        await drawnFrames(element.graph.getScene(), 2);
+        assert.notStrictEqual(camera(element), turning, "turning before the key");
 
         await userEvent.keyboard("{ArrowLeft}");
         await drawnFrames(element.graph.getScene(), 12);

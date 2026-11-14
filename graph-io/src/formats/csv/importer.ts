@@ -480,22 +480,22 @@ function idCell(text: string, quoted: boolean | undefined): string {
     // index scans, not a regex: a trailing-run pattern backtracks quadratically on a long run of spaces
     let start = 0;
     let end = text.length;
-    while (start < end && isSpaceOrTab(text.charCodeAt(start))) {
+    while (start < end && isSpaceOrTab(text[start])) {
         start++;
     }
-    while (end > start && isSpaceOrTab(text.charCodeAt(end - 1))) {
+    while (end > start && isSpaceOrTab(text[end - 1])) {
         end--;
     }
     return start === 0 && end === text.length ? text : text.slice(start, end);
 }
 
 /**
- * Whether a character code is a space or a tab.
- * @param code - the UTF-16 code unit
+ * Whether a character is a space or a tab.
+ * @param char - the character
  * @returns true for U+0020 and U+0009
  */
-function isSpaceOrTab(code: number): boolean {
-    return code === 0x20 || code === 0x09;
+function isSpaceOrTab(char: string): boolean {
+    return char === " " || char === "\t";
 }
 
 /**

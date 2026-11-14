@@ -454,6 +454,83 @@ class RecordingLayout extends LayoutEngine {
 
 LayoutEngine.register(RecordingLayout);
 
+describe("Graphviz over the working graph", () => {
+    it("adds no node for the edges to hidden nodes: a ring filtered to a path is laid out as a path", async () => {
+        // A ring of twelve shown as n0..n5. Laid out alone the path is long; a stand-in node for the
+        // hidden ends (the graph-version audit's n4294967295) would close it into a 7-cycle, where
+        // n0 and n5 sit about 1.8 edge lengths apart.
+        const { graph, container } = await emptyGraph(true);
+        try {
+            const ring = IDS.slice(0, 12);
+            await graph.addNodes(ring.map((id) => ({ id })));
+            await graph.addEdges(ring.map((id, index) => ({ src: id, dst: ring[(index + 1) % ring.length] })));
+            await operationQueueOf(graph).waitForCompletion();
+            const path = ring.slice(0, 6);
+            await show(graph, path);
+            await graph.setLayout("graphviz-neato");
+            await graph.waitForSettled();
+            await graph.waitForStableFrame();
+
+            const at = positionsOf(graph);
+            const point = (id: string): [number, number, number] => at.get(id) ?? [Number.NaN, Number.NaN, Number.NaN];
+            const gap = (a: string, b: string): number => Math.hypot(...point(a).map((v, i) => v - point(b)[i]));
+            const edge = path.slice(1).reduce((sum, id, index) => sum + gap(path[index], id), 0) / (path.length - 1);
+            assert.isAbove(gap("n0", "n5") / edge, 3, "the ends of the path lie far apart, as on a path alone");
+        } finally {
+            graph.dispose();
+            container.remove();
+        }
+    });
+});
+
+describe("a location map over the working graph", () => {
+    it("frames only the shown nodes' places, after an undo brings the map back as well", async () => {
+        // Three cities in Europe, shown, and three in Australia, hidden by the filter.
+        const { graph, container } = await emptyGraph(true);
+        try {
+            const session = graph.getSession();
+            await graph.setViewMode("2d");
+            const europe = [
+                ["paris", 48.85, 2.35],
+                ["berlin", 52.52, 13.4],
+                ["rome", 41.9, 12.5],
+            ] as const;
+            const australia = [
+                ["sydney", -33.87, 151.2],
+                ["perth", -31.95, 115.86],
+                ["darwin", -12.46, 130.84],
+            ] as const;
+            await graph.addNodes(
+                [...europe, ...australia].map(([id, latitude, longitude]) => ({ id, latitude, longitude })),
+            );
+            await operationQueueOf(graph).waitForCompletion();
+            await show(
+                graph,
+                europe.map(([id]) => id),
+            );
+            await graph.setLayout("location-map", { extent: "data" });
+            await graph.waitForSettled();
+            await graph.waitForStableFrame();
+            type MapEngine = { geoFrame: { bounds: [[number, number], [number, number]] } | null };
+            const framed = (graph.getLayoutManager().layoutEngine as unknown as MapEngine).geoFrame?.bounds;
+            assert.isDefined(framed);
+            const lats = framed.map(([lat]) => lat);
+            assert.isAbove(Math.min(...lats), 0, "the map holds the shown European cities, not Australia");
+
+            await graph.setLayout("circular", { dim: 2 });
+            await graph.waitForSettled();
+            await session.undo();
+            await graph.waitForSettled();
+            await graph.waitForStableFrame();
+            const back = (graph.getLayoutManager().layoutEngine as unknown as MapEngine).geoFrame?.bounds;
+            assert.deepEqual(back, framed, "the undone map frames what is shown, as the run did");
+        } finally {
+            graph.dispose();
+            container.remove();
+        }
+    });
+});
+
 describe("a third party's engine over the working graph", () => {
     it("is handed only the shown nodes and edges, and not a node added later that the filter hides", async () => {
         const { graph, container } = await emptyGraph(true);

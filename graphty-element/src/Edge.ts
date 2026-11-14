@@ -5227,62 +5227,7 @@ export class Edge {
                 );
             }
         } else {
-            // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
-            // graph used to do this, once a frame, whether or not the edge had moved.
-            freshenWorldMatrix(srcMesh);
-            freshenWorldMatrix(dstMesh);
-
-            // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
-            // meshes' world geometry, so the ray runs between their world centres; the line is
-            // drawn under graph-root, so each hit is carried back as how far along the centre
-            // line it is, which a move, turn or scale of graph-root (an XR gesture) leaves alone.
-            const srcWorld = srcMesh.getAbsolutePosition();
-            const dstWorld = dstMesh.getAbsolutePosition();
-            this.ray.origin.copyFrom(srcWorld);
-            dstWorld.subtractToRef(srcWorld, this.ray.direction);
-            const worldSpan = this.ray.direction.length();
-
-            const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
-            // THE SOURCE IS MET FROM THE FAR END TOO. A ray cast from inside a node meets the nearest wall,
-            // which for a figure with arms (Pajek's man) is its body's, and the line would then run on
-            // across its own arm; coming in from the destination, the first wall is where the line
-            // finally leaves the outline, as it is for the destination.
-            this.ray.origin.copyFrom(dstWorld);
-            srcWorld.subtractToRef(dstWorld, this.ray.direction);
-            const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
-            // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
-            const along = (hits: typeof srcHitInfo, node: Node, toward: Node): Vector3 | null => {
-                // a node whose surface is its box (a glyph of pieces) is met at its box, not at a piece the ray crosses
-                const hit = node.surfaceIsBox ? null : hits[0]?.pickedPoint;
-                if (hit) {
-                    // signed, so a wall met behind the source's centre (one node inside the other) stays behind it
-                    return Vector3.Lerp(
-                        srcMesh.position,
-                        dstMesh.position,
-                        Vector3.Dot(hit.subtract(srcWorld), dstWorld.subtract(srcWorld)) / (worldSpan * worldSpan),
-                    );
-                }
-
-                return node.shapeType === "none" || node.surfaceIsBox
-                    ? this.leaveNode(node, node.drawnPosition, toward.drawnPosition)
-                    : null;
-            };
-
-            if (worldSpan > 0) {
-                srcPoint = along(srcHitInfo, this.srcNode, this.dstNode);
-                dstPoint = along(dstHitInfo, this.dstNode, this.srcNode);
-            }
-
-            // Two nodes that overlap meet the line in the wrong order: the source's wall lies past the target's, and a
-            // line between them would run backwards across both (#7759). Like two round nodes, they have no line.
-            if (
-                srcPoint !== null &&
-                dstPoint !== null &&
-                Edge.crossed(srcPoint, dstPoint, srcMesh.position, dstMesh.position)
-            ) {
-                srcPoint = null;
-                dstPoint = null;
-            }
+            [srcPoint, dstPoint] = this.rayEnds(srcMesh, dstMesh);
         }
 
         if (srcPoint !== null && dstPoint !== null) {
@@ -5307,6 +5252,74 @@ export class Edge {
             dstPoint,
             newEndPoint,
         };
+    }
+
+    /**
+     * Where the line meets two nodes that are not both round, by a ray cast against each one's mesh.
+     * @param srcMesh - The source's mesh.
+     * @param dstMesh - The target's mesh.
+     * @returns The two ends, or nulls where the line has none.
+     */
+    private rayEnds(srcMesh: AbstractMesh, dstMesh: AbstractMesh): [Vector3 | null, Vector3 | null] {
+        // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
+        // graph used to do this, once a frame, whether or not the edge had moved.
+        freshenWorldMatrix(srcMesh);
+        freshenWorldMatrix(dstMesh);
+
+        // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
+        // meshes' world geometry, so the ray runs between their world centres; the line is
+        // drawn under graph-root, so each hit is carried back as how far along the centre
+        // line it is, which a move, turn or scale of graph-root (an XR gesture) leaves alone.
+        const srcWorld = srcMesh.getAbsolutePosition();
+        const dstWorld = dstMesh.getAbsolutePosition();
+        this.ray.origin.copyFrom(srcWorld);
+        dstWorld.subtractToRef(srcWorld, this.ray.direction);
+        const worldSpan = this.ray.direction.length();
+
+        const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
+        // THE SOURCE IS MET FROM THE FAR END TOO. A ray cast from inside a node meets the nearest wall,
+        // which for a figure with arms (Pajek's man) is its body's, and the line would then run on
+        // across its own arm; coming in from the destination, the first wall is where the line
+        // finally leaves the outline, as it is for the destination.
+        this.ray.origin.copyFrom(dstWorld);
+        srcWorld.subtractToRef(dstWorld, this.ray.direction);
+        const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
+        // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
+        const along = (hits: typeof srcHitInfo, node: Node, toward: Node): Vector3 | null => {
+            // a node whose surface is its box (a glyph of pieces) is met at its box, not at a piece the ray crosses
+            const hit = node.surfaceIsBox ? null : hits[0]?.pickedPoint;
+            if (hit) {
+                // signed, so a wall met behind the source's centre (one node inside the other) stays behind it
+                return Vector3.Lerp(
+                    srcMesh.position,
+                    dstMesh.position,
+                    Vector3.Dot(hit.subtract(srcWorld), dstWorld.subtract(srcWorld)) / (worldSpan * worldSpan),
+                );
+            }
+
+            return node.shapeType === "none" || node.surfaceIsBox
+                ? this.leaveNode(node, node.drawnPosition, toward.drawnPosition)
+                : null;
+        };
+
+        if (worldSpan === 0) {
+            return [null, null];
+        }
+
+        const srcPoint = along(srcHitInfo, this.srcNode, this.dstNode);
+        const dstPoint = along(dstHitInfo, this.dstNode, this.srcNode);
+
+        // Two nodes that overlap meet the line in the wrong order: the source's wall lies past the target's, and a
+        // line between them would run backwards across both (#7759). Like two round nodes, they have no line.
+        if (
+            srcPoint !== null &&
+            dstPoint !== null &&
+            Edge.crossed(srcPoint, dstPoint, srcMesh.position, dstMesh.position)
+        ) {
+            return [null, null];
+        }
+
+        return [srcPoint, dstPoint];
     }
 
     /**

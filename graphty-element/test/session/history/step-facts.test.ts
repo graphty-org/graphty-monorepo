@@ -101,6 +101,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "visibility.window": ["visibility.window", "visibility.clear-window"],
     "visibility.context": ["visibility.show-context", "visibility.hide-context"],
     "visibility.playback": ["visibility.playback"],
+    "visibility.hide": ["visibility.hide-nodes", "visibility.show-nodes"],
     "visibility.steps": [
         "visibility.step-add",
         "visibility.step-edit",
@@ -220,6 +221,8 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "visibility.condition-remove": ["effect", "id"],
     "visibility.steps": [],
     "visibility.playback": [],
+    "visibility.hide-nodes": ["count"],
+    "visibility.show-nodes": ["count"],
     "time.field": ["column"],
     "time.clear-field": [],
     "set.create": ["name"],

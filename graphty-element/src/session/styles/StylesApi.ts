@@ -2028,10 +2028,11 @@ export interface StyleRefusal {
 /**
  * What a repaint the element started on its own was for, as `style:repaint-failed` names it:
  * `selection`, `hover` and `peek` follow the reader's state, `sets` a set whose members changed,
- * `branches` a branches view, and `layer` a layer a pass could not paint at all.
+ * `branches` a branches view, `hidden` nodes hidden or shown (`session.hidden`), and `layer` a
+ * layer a pass could not paint at all.
  * @since 3.52.0
  */
-export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "layer";
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer";
 
 /**
  * A repaint nobody awaited that failed, or a layer a pass could not paint, as

@@ -198,6 +198,14 @@ export interface EdgeRecord {
     readonly [attribute: string]: unknown;
 }
 
+/** How {@link SessionDataApi.mergeNodes} merges. */
+export interface MergeNodesOptions {
+    /** The node the others merge into; it may be one of the ids or another node. Default: the first id. */
+    readonly into?: NodeId;
+    /** Values the kept node takes, patched onto its record. Default: it keeps its record as it is. */
+    readonly values?: Readonly<Record<string, unknown>>;
+}
+
 /** The attribute bag one record arrived with, as the session reads it. */
 export type SessionAttributes = Readonly<Record<string, unknown>>;
 
@@ -1746,6 +1754,22 @@ export interface SessionDataApi {
      * @returns Settles once they are gone from the graph and the picture.
      */
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
+    /**
+     * Merge nodes into one, as one undoable step. Every edge of a merged node moves to the kept
+     * node, with its record and weight (an edge between two merged nodes becomes a loop on the
+     * kept node, and the moved edges get new edge ids); the kept node keeps its record, patched by
+     * `options.values`; the other nodes are removed. Undo puts back every node and edge as it was.
+     * @example
+     * ```ts
+     * // "Ann" and "Ann B." are one person: keep "ann", give it the full name.
+     * await session.data.mergeNodes(["ann", "ann-b"], { into: "ann", values: { name: "Ann Baker" } });
+     * ```
+     * @param ids - The nodes to merge; an integer id may be written either way, `34` or `"34"`.
+     * @param options - Which node is kept, and the values it takes.
+     * @returns Settles once the merge is drawn; at once, with no step, when fewer than two nodes are named.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when an id is not a node the graph holds.
+     */
+    mergeNodes(ids: readonly NodeId[], options?: MergeNodesOptions): Promise<void>;
     /**
      * Remove every node, edge, record and graph-level value, as one undoable step.
      * @returns Settles once the graph and the picture are empty.
@@ -3745,6 +3769,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.ignore-issues` | `issues`: the issues' ids; `ignored`: true when ignored, false when listed again |
  * | `data.issues` | none: the issue state a project file restored |
  * | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges` | none |
+ * | `data.merge-nodes` | `count`: how many nodes became one |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
  * | `data.expand` | `node`: the id expanded |
@@ -3831,6 +3856,7 @@ export type HistoryCode =
     | "data.set"
     | "data.replace-nodes"
     | "data.replace-edges"
+    | "data.merge-nodes"
     | "data.import"
     | "data.import-source"
     | "data.expand"

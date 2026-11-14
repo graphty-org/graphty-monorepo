@@ -8567,7 +8567,10 @@ export class Graph implements GraphContext {
         return nodes;
     }
 
-    private boundsToFrame(nodeIds?: Iterable<string | number>, extent: CameraViewExtent = "centers"): GraphBounds {
+    private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {
+        // The whole graph is framed by what is drawn, so no node at the rim is cut off; a subset by
+        // its centres unless the caller asks otherwise.
+        const extent = extentOption ?? (nodeIds === undefined ? "drawn" : "centers");
         const nodes =
             nodeIds === undefined
                 ? this.getNodes()
@@ -8646,8 +8649,9 @@ export class Graph implements GraphContext {
      * @param options - What to frame and how to configure the view.
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
-     * @param options.extent - What each node counts as in the box: `"centers"` (the default) its
-     *   centre, `"drawn"` the box it is drawn in.
+     * @param options.extent - What each node counts as in the box: `"centers"` its centre,
+     *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
+     *   `"centers"` when `nodes` names a subset.
      * @returns The camera state the view computed.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` when nothing answers to the name,
      * `E_UNSUPPORTED` when the view does not work in the drawing mode the element is in, or
@@ -8694,7 +8698,8 @@ export class Graph implements GraphContext {
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
-     *   (the default) its centre, `"drawn"` the box it is drawn in.
+     *   its centre, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
+     *   and `"centers"` when `scope` names a subset.
      * @returns A promise that resolves once the camera has arrived.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
      * `E_OPTION_RANGE`, exactly as `resolveCameraPreset` does.

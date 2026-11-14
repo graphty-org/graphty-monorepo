@@ -466,9 +466,6 @@ function isPadded(text: string, quoted: boolean | undefined): boolean {
     return quoted !== true && text.trim().length !== text.length;
 }
 
-/** Spaces and tabs at either end of a cell. */
-const ID_PADDING = /^[ \t]+|[ \t]+$/g;
-
 /**
  * The id an id cell names: an unquoted cell without the spaces and tabs around it (CSVW's trim,
  * so `a, b` names `a` and `b`); a quoted cell as written.
@@ -477,7 +474,28 @@ const ID_PADDING = /^[ \t]+|[ \t]+$/g;
  * @returns the id text
  */
 function idCell(text: string, quoted: boolean | undefined): string {
-    return quoted === true ? text : text.replace(ID_PADDING, "");
+    if (quoted === true) {
+        return text;
+    }
+    // index scans, not a regex: a trailing-run pattern backtracks quadratically on a long run of spaces
+    let start = 0;
+    let end = text.length;
+    while (start < end && isSpaceOrTab(text.charCodeAt(start))) {
+        start++;
+    }
+    while (end > start && isSpaceOrTab(text.charCodeAt(end - 1))) {
+        end--;
+    }
+    return start === 0 && end === text.length ? text : text.slice(start, end);
+}
+
+/**
+ * Whether a character code is a space or a tab.
+ * @param code - the UTF-16 code unit
+ * @returns true for U+0020 and U+0009
+ */
+function isSpaceOrTab(code: number): boolean {
+    return code === 0x20 || code === 0x09;
 }
 
 /**

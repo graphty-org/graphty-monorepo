@@ -1,4 +1,5 @@
 tools/acceptance.test.mjs
+tools/assemble-pages-site.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs

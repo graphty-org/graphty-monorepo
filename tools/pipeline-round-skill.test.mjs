@@ -240,3 +240,36 @@ describe("issues are read only through tools/issue-queue.mjs (#5719)", () => {
         assert.match(issueRound, /node tools\/issue-queue\.mjs list/);
     });
 });
+
+describe("the issue loop's throughput rules (#7810)", () => {
+    it("names the record and contract checks that sent pull requests back, and regenerates rather than picks a side", () => {
+        for (const check of [
+            "test/session/history/door-surface.test.ts",
+            "test/ai/tools/coverage.test.ts",
+            "test/managers/pending-work-inventory.test.ts",
+            "npm run test:run",
+            "lossWords.test.ts",
+            "pnpm run check:special-layers",
+            "pnpm run lint:knip",
+            "CONFORMANCE_REPORT=1",
+        ]) {
+            assert.ok(flatShared.includes(check), `shared.md names ${check}`);
+        }
+        assert.match(flatShared, /npm run docs:reference` in graph-io and in cytoscape-extensions/);
+        assert.match(flatShared, /rerunning its generator or test after the merge, never by taking one side/);
+        assert.match(flatShared, /`git grep` the error codes/);
+    });
+
+    it("has every job stop its servers, and the round stop servers of finished worktrees but never the protected ones", () => {
+        assert.match(flatShared, /`servherd_stop` then `servherd_remove` every server you started/);
+        assert.match(flat, /worktree-prune\.sh --dry-run/);
+        assert.match(flat, /Never stop one in the main checkout, a live tool/);
+    });
+
+    it("sets the slot count in the shared .count file by measured memory, keeping the 10 GB stop rule", () => {
+        const flatIssue = issueRound.replace(/\s*\n\s*>?\s*/g, " ");
+        assert.match(flatIssue, /tmp\/test-slots\/\.count/);
+        assert.match(flatIssue, /at least 22 GB available/);
+        assert.match(flatIssue, /under 10 GB available/);
+    });
+});

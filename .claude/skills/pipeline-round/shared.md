@@ -129,7 +129,8 @@ base nobody has tested.
   rules"); while master is red it stops after its commit, its push and `pipeline-round: ready <branch> <sha>`, and runs
   no `pr-open.sh`.
 - **Master's fix and its reverts open at once**, and a fix job for a red master or a red full run takes a test slot
-  before any issue job: issue-round starts no job while one waits for a slot.
+  before any issue job: issue-round starts no job while one waits for a slot. That holds whatever the slot count
+  (`tmp/test-slots/.count`).
 - **When master is green**, each pipeline-round opens the queued `ready` branches (its step 9), oldest first, one
   after another while CI's runners allow (the `pipeline-health` MCP tool `runners`, checked again after each), each
   through `tools/pr-open.sh`, which merges master first. Queued branches can conflict with each other as master moves:
@@ -240,12 +241,28 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > `pnpm run test:changed --dry-run --base origin/master` names the candidates). Also run the repository-wide
 > contract tests of each package you changed, which a narrow run misses and which sent a third of 2026-11-01's pull
 > requests back from CI: graphty-element `test/cost-coverage/`, `test/contracts/`, `test/packaging/` and the
-> `doors` tests; webgpu-graph-algorithms `test/run-twice.test.ts` and its other top-level `test/*.test.ts`;
-> `pnpm run test:ci-workflows` for anything under tools/ or .github/. (Not `pnpm run check:quick`: it runs whole
-> browser shards.) Then run `node tools/sonar-gate.mjs` on the merged code and commit. A change that adds a graphty-element channel or a
+> `doors` tests, `test/session/history/door-surface.test.ts`, `test/ai/tools/coverage.test.ts` and
+> `test/managers/pending-work-inventory.test.ts` (a public member or async entry point added or changed: classify it
+> in doors.ts, reach it from an assistant tool or list it in `src/ai/tools/exclusions.ts`, recount the inventory),
+> and for a reader change `test/data/reader-parity.test.ts` (`UPDATE_READER_KEYS=1` rewrites it) and
+> `test/data/old-style-paths.test.ts` (`UPDATE_OLD_STYLE_DIGESTS=1`); graph-io its whole suite, `npm run test:run`
+> (one node-only shard: the no-styles baseline `test/styles/no-styles-baseline.json`, edited by hand, conformance,
+> robustness, the fidelity matrix); for a new graph-io warning code the graphty app's
+> `src/workspace/export/__tests__/lossWords.test.ts`; webgpu-graph-algorithms `test/run-twice.test.ts` and its other
+> top-level `test/*.test.ts`; `pnpm run test:ci-workflows` for anything under tools/ or .github/; and on every job
+> `pnpm run lint:knip` and `pnpm run check:special-layers`. Regenerate every generated record your change affects and
+> commit what it rewrites: any change under graph-io or algorithms runs `npm run docs:reference` in graph-io and in
+> cytoscape-extensions; a graph-io importer or exporter change, or a merge of master that touched one, runs
+> `CONFORMANCE_REPORT=1 npx vitest run test/conformance/conformance.test.ts` in graph-io. Settle a conflict in a
+> generated or record file by rerunning its generator or test after the merge, never by taking one side. Then
+> `git grep` the error codes, labels, defaults and strings your change altered across `*/test`, `*/src/**/__tests__`
+> and `graphty/src`, and run every test file it hits: a third of 2026-11-13's red pull requests were tests in another
+> file or package still pinning the old behavior. (Not `pnpm run check:quick`: it runs whole browser shards.) Then
+> run `node tools/sonar-gate.mjs` on the merged code and commit. A check failing on something your branch did not
+> touch (Docs, knip, a push guard) is master's: merge origin/master, which clears it. A commit pushed after
+> `pr-open.sh` ran needs `tools/pr-open.sh` run again, since PR Integrity reviews the head. A change that adds a graphty-element channel or a
 > graph-io style property also lists it in the graphty app's channel records (`graphty/src/workspace/style/words.ts`,
-> `style/coverage.ts`, `inspector/words.ts`), regenerates graph-io's docs (`npm run docs:reference`) and runs
-> `pnpm run lint:knip` and `npm run api:report` before its pull request. A long-lived branch (open more than about two days,
+> `style/coverage.ts`, `inspector/words.ts`) and runs `npm run api:report` before its pull request. A long-lived branch (open more than about two days,
 > more than a day of work, or a merge of master that brought app or graphty-element changes or conflicts), or any
 > branch after a large change (a refactor of a shared component, a dependency or lockfile upgrade, a change to
 > graphty-element's styling, layout or rendering), whose change reaches the graphty app also runs
@@ -261,7 +278,9 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > start each long run once and end your turn; do not re-check it again and again. When you stop, done or not, write
 > where the work stands on the branch's issue:
 > `node tools/branch-note.mjs update --done "<what is done>" --left "<what is left>" --next "<the next step>"`.
-> Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL. A change to the graphty app's
+> Before you stop, `servherd_stop` then `servherd_remove` every server you started (name each after your branch;
+> check `servherd_info` first, since servherd keys a server by name plus directory) and list them in your report;
+> leave one running only when the owner must open it, named in the report. Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL. A change to the graphty app's
 > UI follows the owner's UI rules: no sentences as UI in the data screens (use Figma patterns: property rows, chips,
 > dropdowns, + sections, pop-overs, context menus); every hotkey has a visible button showing its key; never remove
 > or restyle owner-approved UI; compact-mantine's look stays locked to Figma. A guard or hook that refuses a command

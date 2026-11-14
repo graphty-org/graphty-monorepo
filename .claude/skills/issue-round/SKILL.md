@@ -67,10 +67,18 @@ Otherwise start jobs for the free issues or clusters that pass step 4, with no f
 conditions above, checked again before each start, and a start rate: in one round start at most as many new fix jobs
 as there are free test slots now plus the jobs (of any session) that finished since the last round. A job reaches its
 tests 10 to 20 minutes after it starts, so a slot wait shows up too late to stop a round from starting dozens at
-once; the rate follows what the machine measurably drained, and grows with `GRAPHTY_TEST_SLOTS`. A rule like "about 6 to 8 jobs" or "up to the free slots" is
+once; the rate follows what the machine measurably drained, and grows with the slot count. A rule like "about 6 to 8 jobs" or "up to the free slots" is
 the kind of fixed cap the owner rejected on 2026-10-30 ("three jobs is an arbitrary limit, we should push fixes
 through at the rate that the system allows"). Measured on 2026-11-13: all 4 slots were full only 14% of the time,
 while 1.5 jobs ran on average.
+
+**Set the slot count each round** in `tmp/test-slots/.count` (main checkout; every run on the machine reads it, and
+`GRAPHTY_TEST_SLOTS` still overrides it). A browser-heavy slot holder uses about 5 GB (21 GB for 4, measured
+2026-11-13), and memory, not cores, is the limit. Write 6 only while all 4 slots are held and `free -g` shows at
+least 22 GB available (the 10 GB floor, 2 x 5 GB, 2 GB margin), swap is not full and `some avg300` in
+`/proc/pressure/memory` is under 1; write 4 the first time available memory drops below 15 GB while 6 are held, or
+whenever the 10 GB stop rule above trips. Never above 6 without measuring again. Lowering takes effect as runs end.
+The round's last line names the count.
 
 **Never leave a slot idle for want of a startable issue.** When free test slots exist but the free list (step 4)
 has nothing startable, start the read-only diagnosis jobs below at once, without waiting for a later round; one
@@ -290,7 +298,8 @@ shared file verbatim:
 > information shown, user guides), unless a comment on it says `ordered by owner rule 3` or `rule 4` (2026-11-13), commit nothing for it:
 > relabel it (`gh issue edit <n> --remove-label ux-safe --add-label ux-owner --remove-label in-progress`) and
 > comment `pipeline-round: released -- ux-owner: <what would change>`. Then find the root cause and fix it there;
-> look for sibling bugs with the same cause in the same package. Follow CLAUDE.md and the package's CLAUDE.md. Run the affected packages' lint, build and tests.
+> look for sibling bugs with the same cause in the same package. Follow CLAUDE.md and the package's CLAUDE.md. Run the affected packages' lint, build and tests,
+> and regenerate the records and run the contract tests the rules below name.
 > Commit with one `Fixes #N` line per issue the change finishes (`Refs #N` for one that must stay open). Then comment
 > `pipeline-round: ready <branch> <full sha>` on every issue still in the group; while master is red, stop there (see
 > the rules below); otherwise open the pull request with

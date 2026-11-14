@@ -82,20 +82,31 @@ import { logWait } from "./wait-log.mjs";
 export const HELD = "GRAPHTY_TEST_SLOT_HELD";
 
 /**
- * How many runs may hold a slot at once.
- * @param env the environment (GRAPHTY_TEST_SLOTS)
+ * How many runs may hold a slot at once: GRAPHTY_TEST_SLOTS, else the whole number in the ticket
+ * directory's `.count` file (tmp/test-slots/.count, shared by every worktree, so writing it changes the
+ * limit for every run on the machine at once), else one per 8 cores (at least 2).
+ * @param env the environment (GRAPHTY_TEST_SLOTS, GRAPHTY_TEST_SLOTS_DIR)
  * @param cores the machine's cores: cpus(), not availableParallelism(), which follows this process's CPU
  *   affinity, and every process must count the same slots (#6001)
  * @returns the slot count; 0 means no limit
  */
 export function slotCount(env = process.env, cores = cpus().length) {
-    const set = env.GRAPHTY_TEST_SLOTS;
+    let set = env.GRAPHTY_TEST_SLOTS;
+    let from = "GRAPHTY_TEST_SLOTS";
     if (set === undefined || set === "") {
+        from = join(env.GRAPHTY_TEST_SLOTS_DIR || slotDir("test"), ".count");
+        try {
+            set = readFileSync(from, "utf8").trim();
+        } catch {
+            set = "";
+        }
+    }
+    if (set === "") {
         return Math.max(2, Math.floor(cores / 8));
     }
     const n = Number(set);
     if (!Number.isInteger(n) || n < 0) {
-        throw new Error(`GRAPHTY_TEST_SLOTS must be a whole number (0 turns the limit off), not "${set}"`);
+        throw new Error(`${from} must be a whole number (0 turns the limit off), not "${set}"`);
     }
     return n;
 }

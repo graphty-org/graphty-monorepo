@@ -162,7 +162,7 @@ export const columnsTool: ToolDefinition = {
                 const column = text(args.column);
                 const groupBy = column.includes(".") ? column : `data.${column}`;
                 await coded(() => tx.groups.expand({ groupBy, group: args.group as GroupValue }));
-                return ok(undefined);
+                return ok();
             },
         },
         {

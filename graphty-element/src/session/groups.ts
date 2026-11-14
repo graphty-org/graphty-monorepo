@@ -185,6 +185,33 @@ function aggregateRecords(aggregates: Map<string, Aggregate>): Record<string, un
 }
 
 /**
+ * The step adding edges, when there are any.
+ * @param records - The edge records, `source` and `target` naming their ends.
+ * @returns The step, or none.
+ */
+function addEdgesStep(records: readonly Record<string, unknown>[]): SessionCommand[] {
+    return records.length === 0
+        ? []
+        : [{ op: "data.apply", mutation: { kind: "add-edges", records, source: "source", target: "target" } }];
+}
+
+/**
+ * The step placing a collapsed node at the centre of its members, when any was placed.
+ * @param node - The collapsed node.
+ * @param positions - The members' coordinates.
+ * @returns The step, or none.
+ */
+function centreStep(node: NodeId, positions: readonly PositionEntry[]): SessionCommand[] {
+    if (positions.length === 0) {
+        return [];
+    }
+
+    const mean = (axis: "x" | "y" | "z"): number =>
+        positions.reduce((sum, each) => sum + (each[axis] ?? 0), 0) / positions.length;
+    return [{ op: "positions.set", entries: [{ id: node, x: mean("x"), y: mean("y"), z: mean("z") }] }];
+}
+
+/**
  * Build `session.groups`.
  * @param session - The session it reads.
  * @param edit - Dispatches a step in line with the loads, built once they have landed.
@@ -213,24 +240,16 @@ export function createGroupsApi(
         return held;
     };
 
-    const collapseCommand = async (groupBy: Path, group: GroupValue): Promise<GroupStep> => {
-        const node = nodeIdOf(groupBy, group);
-        if (session.data.node(node) !== undefined) {
-            throw refusal(`The group ${String(group)} of ${groupBy} is collapsed already.`, { groupBy, group });
-        }
-
-        const resolved = await session.scope.resolve({
-            define: {
-                kind: "rule",
-                where: { kind: "categories", attribute: groupBy, values: [String(group)] },
-                reading: "induced",
-            },
-        });
-        const members = new Set(resolved.nodes);
-        if (members.size === 0) {
-            throw refusal(`The group ${String(group)} of ${groupBy} has no node in the graph.`, { groupBy, group });
-        }
-
+    /**
+     * The members' edges: the ones to keep for the expand, and one aggregate per outside end.
+     * @param members - The members.
+     * @param node - The node standing in for them.
+     * @returns The kept edges and the aggregates.
+     */
+    const outsideEdges = (
+        members: ReadonlySet<NodeId>,
+        node: NodeId,
+    ): { edges: Record<string, unknown>[]; aggregates: Map<string, Aggregate> } => {
         // ponytail: walks every edge per call; read each member's neighbours when graphs outgrow it.
         const edges: Record<string, unknown>[] = [];
         const aggregates = new Map<string, Aggregate>();
@@ -250,7 +269,15 @@ export function createGroupsApi(
                 addTo(aggregates, fromInside ? node : edge.source, toInside ? node : edge.target, edge);
             }
         }
+        return { edges, aggregates };
+    };
 
+    /**
+     * The members' records, coordinates and pins.
+     * @param members - The members.
+     * @returns What an expand puts back of them.
+     */
+    const memberState = (members: ReadonlySet<NodeId>): Omit<Restore, "edges"> => {
         const nodes: NodeRecord[] = [];
         const positions: PositionEntry[] = [];
         const point = { x: 0, y: 0, z: 0 };
@@ -266,9 +293,86 @@ export function createGroupsApi(
                 positions.push({ id, x: point.x, y: point.y, z: point.z });
             }
         }
+        return { nodes, positions, pinned: [...members].filter((id) => session.positions.pinned.has(id)) };
+    };
 
-        const pinned = [...members].filter((id) => session.positions.pinned.has(id));
-        const restore: Restore = { nodes, edges, positions, pinned };
+    /**
+     * The stored edges of a group being expanded: those whose ends are all in the graph again, and
+     * those to a member of another collapsed group, summed into an edge to that group's node and
+     * moved into its record.
+     * @param restore - The group's record.
+     * @param held - The collapsed node holding each node still hidden.
+     * @returns The plain edges, the aggregates and the moved edges by keeper.
+     */
+    const storedEdgesBack = (
+        restore: Restore,
+        held: ReadonlyMap<NodeId, NodeId>,
+    ): {
+        plain: Record<string, unknown>[];
+        aggregates: Map<string, Aggregate>;
+        moved: Map<NodeId, Record<string, unknown>[]>;
+    } => {
+        const at = (id: NodeId): NodeId => held.get(id) ?? id;
+        const plain: Record<string, unknown>[] = [];
+        const aggregates = new Map<string, Aggregate>();
+        const moved = new Map<NodeId, Record<string, unknown>[]>();
+        for (const edge of restore.edges) {
+            const source = edge.source as NodeId;
+            const target = edge.target as NodeId;
+            const keeper = held.get(source) ?? held.get(target);
+            if (keeper === undefined) {
+                plain.push(edge);
+                continue;
+            }
+
+            addTo(aggregates, at(source), at(target), edge);
+            moved.set(keeper, [...(moved.get(keeper) ?? []), edge]);
+        }
+        return { plain, aggregates, moved };
+    };
+
+    /**
+     * Another collapsed node's edges to a member that is back, summed into an edge to that member.
+     * @param back - The members coming back.
+     * @param held - The collapsed node holding each node still hidden.
+     * @param into - The aggregates to sum into.
+     */
+    const othersEdgesBack = (
+        back: ReadonlySet<NodeId>,
+        held: ReadonlyMap<NodeId, NodeId>,
+        into: Map<string, Aggregate>,
+    ): void => {
+        for (const other of new Set(held.values())) {
+            for (const edge of restoreOf(session.data.node(other))?.edges ?? []) {
+                const source = edge.source as NodeId;
+                const target = edge.target as NodeId;
+                if (back.has(source) || back.has(target)) {
+                    addTo(into, back.has(source) ? source : other, back.has(target) ? target : other, edge);
+                }
+            }
+        }
+    };
+
+    const collapseCommand = async (groupBy: Path, group: GroupValue): Promise<GroupStep> => {
+        const node = nodeIdOf(groupBy, group);
+        if (session.data.node(node) !== undefined) {
+            throw refusal(`The group ${String(group)} of ${groupBy} is collapsed already.`, { groupBy, group });
+        }
+
+        const resolved = await session.scope.resolve({
+            define: {
+                kind: "rule",
+                where: { kind: "categories", attribute: groupBy, values: [String(group)] },
+                reading: "induced",
+            },
+        });
+        const members = new Set(resolved.nodes);
+        if (members.size === 0) {
+            throw refusal(`The group ${String(group)} of ${groupBy} has no node in the graph.`, { groupBy, group });
+        }
+
+        const { edges, aggregates } = outsideEdges(members, node);
+        const restore: Restore = { ...memberState(members), edges };
         const steps: SessionCommand[] = [
             { op: "data.apply", mutation: { kind: "remove-nodes", ids: [...members] } },
             {
@@ -287,24 +391,9 @@ export function createGroupsApi(
                     ],
                 },
             },
+            ...addEdgesStep(aggregateRecords(aggregates)),
+            ...centreStep(node, restore.positions),
         ];
-        if (aggregates.size > 0) {
-            steps.push({
-                op: "data.apply",
-                mutation: {
-                    kind: "add-edges",
-                    records: aggregateRecords(aggregates),
-                    source: "source",
-                    target: "target",
-                },
-            });
-        }
-
-        if (positions.length > 0) {
-            const mean = (axis: "x" | "y" | "z"): number =>
-                positions.reduce((sum, each) => sum + (each[axis] ?? 0), 0) / positions.length;
-            steps.push({ op: "positions.set", entries: [{ id: node, x: mean("x"), y: mean("y"), z: mean("z") }] });
-        }
 
         return {
             label: `Collapsed group ${String(group)}`,
@@ -328,74 +417,25 @@ export function createGroupsApi(
 
         // An end is back, in the graph, or held by another collapsed node: then the edge is summed
         // into an edge to that node, and kept in its record for its own expand.
-        const at = (id: NodeId): NodeId => held.get(id) ?? id;
-        const plain: Record<string, unknown>[] = [];
-        const aggregates = new Map<string, Aggregate>();
-        const moved = new Map<NodeId, Record<string, unknown>[]>();
-        for (const edge of restore.edges) {
-            const source = edge.source as NodeId;
-            const target = edge.target as NodeId;
-            if (at(source) === source && at(target) === target) {
-                plain.push(edge);
-                continue;
-            }
-
-            addTo(aggregates, at(source), at(target), edge);
-            const keeper = held.get(source) ?? held.get(target);
-            if (keeper !== undefined) {
-                moved.set(keeper, [...(moved.get(keeper) ?? []), edge]);
-            }
-        }
-
-        // Another collapsed node's edges to a member: summed into an edge to the member that is back.
-        for (const other of new Set(held.values())) {
-            for (const edge of restoreOf(session.data.node(other))?.edges ?? []) {
-                const source = edge.source as NodeId;
-                const target = edge.target as NodeId;
-                if (back.has(source) || back.has(target)) {
-                    addTo(aggregates, back.has(source) ? source : other, back.has(target) ? target : other, edge);
-                }
-            }
-        }
-
+        const { plain, aggregates, moved } = storedEdgesBack(restore, held);
+        othersEdgesBack(back, held, aggregates);
+        const rows = [...moved].map(([keeper, edges]) => {
+            const kept = restoreOf(session.data.node(keeper)) as Restore;
+            return { id: keeper, values: { [RESTORE]: { ...kept, edges: [...kept.edges, ...edges] } } };
+        });
         const steps: SessionCommand[] = [
             { op: "data.apply", mutation: { kind: "remove-nodes", ids: [node] } },
             { op: "data.apply", mutation: { kind: "add-nodes", idPath: "id", records: restore.nodes } },
+            ...addEdgesStep(plain),
+            ...addEdgesStep(aggregateRecords(aggregates)),
+            ...(rows.length === 0
+                ? []
+                : [{ op: "data.apply", mutation: { kind: "update-rows", target: "node", rows } } as const]),
+            ...(restore.positions.length === 0 ? [] : [{ op: "positions.set", entries: restore.positions } as const]),
+            ...(restore.pinned.length === 0
+                ? []
+                : [{ op: "positions.pin", ids: restore.pinned, pinned: true } as const]),
         ];
-        if (plain.length > 0) {
-            steps.push({
-                op: "data.apply",
-                mutation: { kind: "add-edges", records: plain, source: "source", target: "target" },
-            });
-        }
-
-        if (aggregates.size > 0) {
-            steps.push({
-                op: "data.apply",
-                mutation: {
-                    kind: "add-edges",
-                    records: aggregateRecords(aggregates),
-                    source: "source",
-                    target: "target",
-                },
-            });
-        }
-
-        if (moved.size > 0) {
-            const rows = [...moved].map(([keeper, edges]) => {
-                const kept = restoreOf(session.data.node(keeper)) as Restore;
-                return { id: keeper, values: { [RESTORE]: { ...kept, edges: [...kept.edges, ...edges] } } };
-            });
-            steps.push({ op: "data.apply", mutation: { kind: "update-rows", target: "node", rows } });
-        }
-
-        if (restore.positions.length > 0) {
-            steps.push({ op: "positions.set", entries: restore.positions });
-        }
-
-        if (restore.pinned.length > 0) {
-            steps.push({ op: "positions.pin", ids: restore.pinned, pinned: true });
-        }
 
         return {
             label: `Expanded group ${String(group)}`,

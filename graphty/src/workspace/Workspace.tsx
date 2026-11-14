@@ -15,6 +15,7 @@ import { NoticeSlot } from "./frame/NoticeSlot";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
+import { UsageDataCard } from "./privacy/UsageDataCard";
 import { openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { notReadWords } from "./project/words";
@@ -398,6 +399,8 @@ export function Workspace({
             <CustomModelHost />
             <SettingsDialog />
             <ReportDialog />
+            {/* The usage data question, on whatever page a first visit lands, until it is answered. */}
+            <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
             <ProjectDialogs />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a

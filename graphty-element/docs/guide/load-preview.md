@@ -288,6 +288,35 @@ const unmatched = await draft.rows("edges", { only: "unmatched", choices, limit:
 A rejected row here is one the mapping cannot turn into a node or an edge; a row the format's own
 reader refused is not one, and is in `errors` instead.
 
+### Why a row was rejected or unmatched
+
+Each row `only: "rejected"` or `only: "unmatched"` reads carries a `reason`, `{ code, params }`,
+with no words in it, so you can word it for your reader. The same rows stay readable after the
+load, in `session.data.lastImport().rows`:
+
+```ts
+await draft.load();
+const report = element.session.data.lastImport();
+for (const row of report?.rows?.rejected ?? []) {
+    console.log(row.line, row.reason?.code, row.reason?.params); // 3 "refused-row" { rowsAre: "nodes" }
+}
+for (const row of report?.rows?.unmatched ?? []) {
+    console.log(row.line, row.reason?.params); // 4 { ends: ["target"], ids: ["z"] }
+}
+const more = (report?.counts.rejected ?? 0) - (report?.rows?.rejected.length ?? 0);
+```
+
+| `reason.code`   | The row                                                                   | `params`                                                    |
+| --------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `"refused-row"` | Its id, or an edge row's end, is absent, blank, or not a string or number | `rowsAre` (`"nodes"` or `"edges"`); for an edge row, `ends` |
+| `"unknown-end"` | An edge row names a node no node row holds (nor the graph, for a merge)   | `ends` (`"source"`, `"target"`) and the `ids` they name     |
+
+`report.rows` keeps the first `IMPORT_ROWS_KEPT` (100) rows of each kind; `counts.rejected` and
+`unmatched.rows` count them all, so the difference is how many more there were. To page through
+every one, read them from the draft before the load. A row's `line` is the line `draft.rows`
+gives it for a load from a draft, and its position among the load's node (or edge) records
+otherwise. `rows` is absent when the load rejected nothing and every edge end matched.
+
 ## Joining onto the graph
 
 A second file often describes the graph already loaded: an expression table with one row per

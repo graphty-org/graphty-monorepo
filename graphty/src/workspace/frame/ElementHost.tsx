@@ -77,12 +77,11 @@ export function ElementHost({ onReady, autosave = false, loadElement }: Readonly
     const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
-    const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
     const layoutShownOnly = useWorkspaceState((state) => state.layoutShownOnly);
     const layoutBehavior = useMemo<NonNullable<GraphtyElement["layoutBehavior"]>>(
         () => ({
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
-            node: { depthIndependentSize: sameSize, ...(outlineWidth === null ? {} : { outlineWidth }) },
+            node: { depthIndependentSize: sameSize },
             rendering: { onDemand: true },
             layout: { visibleOnly: layoutShownOnly },
             // A pick moves the camera; a filter card's Select or an undo does not. The inspector
@@ -90,7 +89,7 @@ export function ElementHost({ onReady, autosave = false, loadElement }: Readonly
             // framing again on a resize draws the same picture either way (#5097).
             camera: { pivotOnSelection: true, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
         }),
-        [allLabelsShown, labelsAvoid, sameSize, outlineWidth, layoutShownOnly],
+        [allLabelsShown, labelsAvoid, sameSize, layoutShownOnly],
     );
     // The map's credits sit above the canvas toolbar, measured from its dock; and a reader who
     // prefers less motion gets camera moves without the glide; and the globe is drawn as the earth

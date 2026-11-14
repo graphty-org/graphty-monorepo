@@ -3002,7 +3002,8 @@ export class Graphty extends LitElement {
      * default) draws every node in the 3D view as if it stood at the depth the camera turns about,
      * so a node with a larger size is never drawn smaller because it is farther away -- turn it on
      * when node size shows a value readers compare. `node.outlineWidth` (unset by default) draws
-     * every outline's band at that multiple of its own width. `camera.pivotOnSelection` (off by
+     * the band of every outline whose style sets no width (the `node.outlineWidth` channel) at
+     * that multiple of its own width. `camera.pivotOnSelection` (off by
      * default) makes the selection the camera's pivot: one selected node, or the average position
      * of several, is what the camera turns and zooms about, in 2D, 3D, VR and AR.
      *
@@ -5606,14 +5607,14 @@ export class Graphty extends LitElement {
      * `setRunning(true)` on a layout that has already settled restarts it, so "play" is
      * something the reader can see; `setRunning(false)` stops the per-frame stepping and nothing
      * else -- work already handed to an accelerator lands, the scene keeps rendering, and the
-     * camera, picking and styling stay live. There is no event for this: `isRunning()` reports
-     * the state and `graph-settled` reports the arrangement coming to rest.
+     * camera, picking and styling stay live. `session.layout.motion` reads whether the layout is
+     * `running`, `paused` or `settled`, and the session's `layout:motion-changed` event publishes
+     * each change, this call's included.
      *
      * A pause holds until `setRunning(true)`. Loading more nodes, a freeze, an accelerator
      * attaching, setting another layout and dragging a node all still happen -- new nodes are
      * placed and a dragged node moves -- but none of them resumes the layout. To tell a paused,
-     * half-finished arrangement from a converged one, read `getLayoutManager().isPaused` and
-     * `isSettled`.
+     * half-finished arrangement from a converged one, read `session.layout.motion`.
      * @param running - True to run the layout, false to pause it.
      * @since 2.0.0
      * @example
@@ -6739,6 +6740,35 @@ export class Graphty extends LitElement {
      */
     get rendererStatus(): RendererStatus | null {
         return this.#graph.rendererStatus;
+    }
+
+    /**
+     * Gets the graph drawn again after the browser took away its graphics device.
+     *
+     * When the WebGL context or the WebGPU device is lost (a driver reset, a GPU process crash),
+     * the element fires `render-lost` and asks for the device back by itself; `render-restored`
+     * follows once the graph is drawn again. The data, the styles, the camera and the undo
+     * history are never touched. Call this when the device has not come back -- from a "Restart
+     * viewer" button, say: it asks the browser again and rebuilds the picture from the graph in
+     * memory, with nothing loaded again. It resolves at once while nothing is lost.
+     * @returns A promise that resolves when the graph is drawn again.
+     * @throws A `GraphtyError` with `E_RENDER_LOST` when the browser cannot give a WebGL context
+     *     back, or `E_DEVICE_LOST` when no new WebGPU device can be opened.
+     * @since 3.53.0
+     * @example
+     * ```js
+     * const element = document.querySelector("graphty-element");
+     * element.addEventListener("render-lost", () => {
+     *     restartButton.hidden = false;
+     * });
+     * element.addEventListener("render-restored", () => {
+     *     restartButton.hidden = true;
+     * });
+     * restartButton.addEventListener("click", () => element.restartRenderer());
+     * ```
+     */
+    restartRenderer(): Promise<void> {
+        return this.#graph.restartRenderer();
     }
 
     /**

@@ -237,6 +237,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "positions.release": (p) => `releasing ${counted(p, "node")}`,
     "node.drag": (p) => `moving ${text(p, "node", "a node")}`,
     "layout.set": () => "changing the layout",
+    "layout.rerun": () => "re-running the layout",
     "layout.behavior": () => "changing how the layout runs",
     "layout.scope": () => "laying out part of the graph",
     "layout.whole-graph": () => "laying out the whole graph",

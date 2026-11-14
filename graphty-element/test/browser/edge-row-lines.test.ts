@@ -452,6 +452,29 @@ describe("a masked edge stored with no Edge", () => {
         assert.equal(lines.count, 0, "a row line carries no age");
         assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
     });
+
+    it("hides and shows the row lines a time window slides over, building no Edge", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1, t: 0 },
+                { src: 1, dst: 2, t: 5 },
+            ],
+            true,
+            { features: ["timeline"] },
+        );
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        const { time } = element.session;
+        await time.setField({ edges: { start: "t", unit: "ordinal" } });
+        await time.ready;
+        await time.window({ from: 0, to: 1, step: 1, nodes: "all" });
+        await settled(element);
+        assert.deepEqual([lines.isHidden(0), lines.isHidden(1)], [false, true], "the window shows the first row");
+        await time.seek(5, { commit: false });
+        await settled(element);
+        assert.deepEqual([lines.isHidden(0), lines.isHidden(1)], [true, false], "the slide swaps the rows");
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0, "no Edge is built");
+    });
 });
 
 // A force engine is handed an edge stored with no `Edge` as an edge row (`addEdgeRows`), so the edge pulls its nodes

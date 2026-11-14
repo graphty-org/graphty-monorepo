@@ -72,6 +72,8 @@ export type {
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
+    DataChange,
+    DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
     DraftColumn,
@@ -80,6 +82,7 @@ export type {
     DraftRowOptions,
     DraftTable,
     EdgeEnd,
+    EdgeName,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
@@ -100,6 +103,10 @@ export type {
     GraphSettingKey,
     GraphStatistics,
     GroupOutlineClick,
+    GroupSummary,
+    GroupTable,
+    GroupTableOptions,
+    GroupTableRow,
     HistoryCause,
     HistoryClearOptions,
     HistoryCode,
@@ -122,6 +129,7 @@ export type {
     JoinShape,
     JoinSuggestion,
     JoinWarning,
+    LayoutMotion,
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
@@ -142,6 +150,7 @@ export type {
     NeighborOptions,
     NeighborPage,
     NeighborSort,
+    NodeName,
     NodeRecord,
     NodeRecordInput,
     OverRepresentedGroup,
@@ -165,6 +174,8 @@ export type {
     ResultColumn,
     ResultColumnDescriptor,
     ResultSort,
+    RowReason,
+    RowReasonCode,
     RowUpdate,
     RunPlacement,
     SessionAttributes,
@@ -207,6 +218,7 @@ export { createGraphSession } from "./src/session";
 export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { EndpointSpelling } from "./src/data/endpoints";
 export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export { IMPORT_ROWS_KEPT } from "./src/data/report";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 export type {
     RecipeColumn,

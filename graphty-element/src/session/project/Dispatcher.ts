@@ -56,7 +56,7 @@ import {
     touchedBy,
     withoutNoOps,
 } from "./draft";
-import { createdNodes, GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
+import { createdNodes, GraphOps, type GraphPass, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
 import { frozenFact, History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { retainedVersion } from "./retained";
 import { createProjectState, type ProjectState } from "./state";
@@ -336,6 +336,8 @@ interface ProjectChange {
      * when the change does not say (an undo, a redo, a restore, a rollback): compare the slice.
      */
     readonly notes?: readonly string[];
+    /** The graph op logs the change applied, in order, for the `data:changed` publisher. */
+    readonly graph?: readonly GraphPass[];
 }
 
 /** Why the history, or what the next undo will do, changed. */
@@ -742,13 +744,30 @@ function slicesOf(patch: Patch): readonly Slice[] {
 }
 
 /**
- * The note ids a patch wrote, each once, for a change; nothing when it wrote no note.
+ * What a command's change says beyond its slices: the note ids its patch wrote, each once (absent
+ * when it wrote no note), and its op log, for `data:changed`.
  * @param patch - The patch.
- * @returns The change's `notes`, or an empty object.
+ * @returns The change's `notes` and `graph`.
  */
-function notesOf(patch: Patch): Pick<ProjectChange, "notes"> {
+function detailsOf(patch: Patch): Pick<ProjectChange, "notes" | "graph"> {
     const notes = [...new Set(patch.entries.filter((entry) => entry.slice === "notes").map((entry) => entry.key))];
-    return notes.length === 0 ? {} : { notes };
+    return {
+        ...(notes.length === 0 ? {} : { notes }),
+        ...graphOf(
+            patch.log.some((entry) => entry.slice === "graph"),
+            [{ log: patch.log, undo: false }],
+        ),
+    };
+}
+
+/**
+ * A change's `graph`, only when it wrote the graph slice.
+ * @param wrote - Whether it did.
+ * @param passes - The op logs it applied.
+ * @returns The change's `graph`, or an empty object.
+ */
+function graphOf(wrote: boolean, passes: readonly GraphPass[]): Pick<ProjectChange, "graph"> {
+    return wrote ? { graph: passes } : {};
 }
 
 /**
@@ -891,6 +910,8 @@ export class Dispatcher {
     private emitting = 0;
     /** The ids the steps passed by the history call under way touched; null outside one. */
     private touching: TouchedIds | null = null;
+    /** The op logs the history call under way applied, in order. */
+    private passing: GraphPass[] = [];
     /** What an immediate command threw synchronously, for {@link Dispatcher.dispatchNow}. */
     private syncFailure: { error: unknown } | null = null;
     /** Whether commits still become the baseline rather than steps (design section 3.3). */
@@ -954,10 +975,12 @@ export class Dispatcher {
         this.history = new History<Patch>({
             forward: (patch) => {
                 this.store.applyForward(patch);
+                this.passing.push({ log: patch.log, undo: false });
                 this.collect(patch);
             },
             backward: (patch) => {
                 this.store.applyBackward(patch);
+                this.passing.push({ log: patch.log, undo: true });
                 this.collect(patch);
             },
             merge: mergePatches,
@@ -1438,6 +1461,7 @@ export class Dispatcher {
             this.lane.restore(direction);
             this.arrangement.stop();
             this.touching = this.startTouching();
+            this.passing = [];
             const moved = direction === "undo" ? this.history.undo() : this.history.redo();
             if (moved !== null) {
                 this.arrangement.restore(this.history.takeArrangement());
@@ -1451,7 +1475,11 @@ export class Dispatcher {
         }
 
         this.markUndone(direction, [step]);
-        const change = { slices: step.slices, cause: direction };
+        const change = {
+            slices: step.slices,
+            cause: direction,
+            ...graphOf(step.slices.includes("graph"), this.passing),
+        };
         this.emit(change, [change]);
         this.selectTouched();
         return { kind: direction === "undo" ? "undone" : "redone", steps: Object.freeze([step]) };
@@ -1538,6 +1566,7 @@ export class Dispatcher {
             this.lane.restore();
             this.arrangement.stop();
             this.touching = this.startTouching();
+            this.passing = [];
             const steps = this.history.restoreTo(id);
             this.arrangement.restore(this.history.takeArrangement());
             return steps;
@@ -1545,7 +1574,7 @@ export class Dispatcher {
         this.markUndone(target < position ? "undo" : "redo", passed);
         const slices = [...new Set(passed.flatMap((step) => step.slices))];
         this.emit(
-            { slices, cause: "restore" },
+            { slices, cause: "restore", ...graphOf(slices.includes("graph"), this.passing) },
             passed.map((step) => ({ slices: step.slices, cause: "restore" as const })),
         );
         this.selectTouched();
@@ -2387,7 +2416,7 @@ export class Dispatcher {
         }
 
         if (baseline) {
-            const change = { slices: slicesOf(patch), cause: "command" as const, ...notesOf(patch) };
+            const change = { slices: slicesOf(patch), cause: "command" as const, ...detailsOf(patch) };
             this.emit(change, [change]);
             this.release(group, true);
             this.startDeferred(group, null);
@@ -2454,7 +2483,7 @@ export class Dispatcher {
         // else is a pin no step records.
         this.arrangement.checkPins();
 
-        const change = { slices, cause: "command" as const, ...notesOf(patch) };
+        const change = { slices, cause: "command" as const, ...detailsOf(patch) };
         this.emit(change, [change]);
         return id;
     }

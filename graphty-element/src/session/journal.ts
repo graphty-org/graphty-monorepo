@@ -103,6 +103,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.columns": "data",
     "layout.scope": "layout",
     "layout.set": "layout",
+    "layout.rerun": "layout",
     "layout.transport": "layout",
     "note.add": "note",
     "note.merge": "note",

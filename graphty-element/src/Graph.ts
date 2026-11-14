@@ -1423,6 +1423,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = action === "play";
             },
             immersive: (mode) => this.setImmersive(mode),
+            followsFilters: () => this.followsShown(workingGraphOfSession(this.session)),
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;

@@ -3786,6 +3786,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...VISIBILITY_API,
             masks: READ,
+            keptMasks: READ,
             restoreConditions: calls(
                 [[{ id: "c1", on: true, effect: "select", rule: { kind: "degree", min: 1 } }]],
                 [

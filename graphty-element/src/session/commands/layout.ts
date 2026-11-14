@@ -115,6 +115,13 @@ export interface LayoutService {
      * @returns Settles once the device session has started or ended; rejects when it cannot.
      */
     immersive(mode: "vr" | "ar" | null): Promise<void>;
+    /**
+     * Whether the layout runs again when the filters change what is shown: the session reads the
+     * working graph, or `layout.visibleOnly` is on. A filter edit then takes the arrangement it
+     * began from, so its undo puts every node back.
+     * @returns True when it does.
+     */
+    followsFilters?(): boolean;
 }
 
 /**

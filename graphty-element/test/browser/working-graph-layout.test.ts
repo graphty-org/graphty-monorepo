@@ -171,6 +171,24 @@ describe("a one-pass layout over the working graph", () => {
         }
     });
 
+    it("puts every node back on undo of a filter, and redo brings the filtered layout back", async () => {
+        await graph.setLayout("circular", { dim: 2 });
+        await graph.waitForSettled();
+        const before = positionsOf(graph);
+
+        await show(graph, FIVE);
+        const filtered = positionsOf(graph);
+        assert.closeTo(smallestGap(filtered, FIVE), 72, 0.5, "five shown nodes on a circle of their own");
+
+        await graph.getSession().undo();
+        await graph.waitForSettled();
+        assert.deepEqual(positionsOf(graph), before, "undone, every node is where it was before the filter");
+
+        await graph.getSession().redo();
+        await graph.waitForSettled();
+        assert.deepEqual(positionsOf(graph), filtered, "redone, the filtered layout is back");
+    });
+
     it("gives a later layout only the shown nodes", async () => {
         await show(graph, FIVE);
         const hidden = positionsOf(graph);

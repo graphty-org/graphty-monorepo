@@ -5,17 +5,13 @@
  * open, it never comes twice, and a project saved with its older name (Ghost) opens with that row.
  */
 
-import { afterAll, assert, beforeAll, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 
 beforeAll(() => {
     setDefaultFeatures(["timeline"]);
-});
-
-afterAll(() => {
-    setDefaultFeatures([]);
 });
 
 /**

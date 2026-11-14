@@ -78,7 +78,7 @@ export interface ScreenshotOptions {
         waitForOperations?: boolean;
         /**
          * How long `waitForSettle` waits for a moving layout to come to rest before the capture
-         * fails with `LAYOUT_SETTLE_TIMEOUT`, in milliseconds. Default 30,000.
+         * fails with `E_NOT_SETTLED`, in milliseconds. Default 30,000.
          */
         settleTimeoutMs?: number;
     };

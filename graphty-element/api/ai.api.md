@@ -1089,6 +1089,7 @@ export class TextInputAdapter implements InputAdapter {
 export interface ToolCall {
     arguments: Record<string, unknown>;
     id: string;
+    invalidArguments?: true;
     name: string;
 }
 

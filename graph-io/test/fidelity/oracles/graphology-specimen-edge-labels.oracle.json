@@ -1,7 +1,7 @@
 {
     "sample": "graphology-specimen-edge-labels",
     "program": "sigma.js",
-    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "version": "sigma 4.0.6, graphology 0.26.0, @sigma/export-image 4.0.0",
     "command": "graph.import(file); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
     "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
     "svgKind": "raster",

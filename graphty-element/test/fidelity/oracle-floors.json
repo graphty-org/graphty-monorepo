@@ -28208,7 +28208,7 @@
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0,
+            "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
@@ -28231,7 +28231,7 @@
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.93,
             "raster.edge": 0.92,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.95,
             "raster.label": 0.95,
             "raster.canvas": 0.98,
             "edge.outline": 1
@@ -28282,7 +28282,7 @@
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0,
+            "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
@@ -39361,7 +39361,7 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.878,
+            "edge.arrowShape": 0.902,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
@@ -39408,7 +39408,7 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.878,
+            "edge.arrowShape": 0.902,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
@@ -56593,22 +56593,6 @@
                 "to": 0.992,
                 "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
-            }
-        },
-        "yed-graphml-specimen-edges-lines": {
-            "edge.arrowColor": {
-                "floor": 1,
-                "to": 0.976,
-                "reason": "yEd fills a framed edge's arrowhead with FramedEdgePainter.fillColor and outlines it in the line color; graphty-element has no head with a fill and an outline in two colors, so it draws the head in the line color. These heads became readable when the comparator learned to read a framed outline that starts at the head's wing",
-                "date": "2026-11-07"
-            }
-        },
-        "yed-graphml-specimen-edges-lines@matched": {
-            "edge.arrowColor": {
-                "floor": 1,
-                "to": 0.976,
-                "reason": "yEd fills a framed edge's arrowhead with FramedEdgePainter.fillColor and outlines it in the line color; graphty-element has no head with a fill and an outline in two colors, so it draws the head in the line color. These heads became readable when the comparator learned to read a framed outline that starts at the head's wing",
-                "date": "2026-11-07"
             }
         },
         "yed-graphml-specimen-images-charts": {

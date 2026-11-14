@@ -360,12 +360,8 @@ Minimal cases (`fixtures/generative/cases.json`):
 - `pajek-numeric-text-parameter` (1 configuration(s)): a string parameter holding -3 reads back as a number; check() must announce W_TEXT_INFERRED. fixed, regression
 - `pajek-infinite-weight` (1 configuration(s)): an infinite edge weight is written as `Infinity` and read back as that weight. fixed, regression
 - `csv-one-column-node-table-pipe` (1 configuration(s)): a node table with the Id column only, an id holding `|`, is written with that id quoted (the bare `|` won the importer's delimiter sniff and split the rows). fixed, regression
-- `gml-list-marker-text` (1 configuration(s)): a text cell holding "[]". known failure: gml: a text cell equal to NetworkX's list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing. Either note it (the NetworkX convention makes the text ambiguous) or write such a text so it cannot be taken for a marker (#7649)
+- `gml-list-marker-text` (1 configuration(s)): text cells and a string id equal to NetworkX's list markers ("[]", "()", "_networkx_list_start"), which the exporter escapes so they read back as text (#7649). fixed, regression
 - `neo4j-tab-in-quoted-id` (1 configuration(s)): an id holding tabs, on a node with three self-loops (the tabs once won the importer's delimiter sniff over the comma). fixed, regression
-
-Graphs the properties skip until the known failure is fixed:
-
-- gml: a text cell equal to NetworkX's list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing (#7649)
 
 ## Schema validation
 

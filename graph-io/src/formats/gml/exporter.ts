@@ -49,6 +49,7 @@ import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, 
 import { GML_STYLE_CAPABILITIES, gmlStyledExport } from "./styles.js";
 import {
     EMPTY_LIST_TEXT,
+    EMPTY_TUPLE_TEXT,
     isGmlKey,
     KEY_MANGLED_CODE,
     LIST_START_MARKER,
@@ -1020,6 +1021,22 @@ function numberText(value: number, meta: ColumnMeta): string {
     }
 }
 
+/** The texts NetworkX's list conventions give a meaning: a data text equal to one is escaped. */
+const LIST_MARKER_TEXTS: ReadonlySet<string> = new Set([EMPTY_LIST_TEXT, EMPTY_TUPLE_TEXT, LIST_START_MARKER]);
+
+/**
+ * Quote a data text so it is never taken for a NetworkX list marker: a text equal to `"[]"`,
+ * `"()"` or `"_networkx_list_start"` has its first character written as a character reference,
+ * which the importer (comparing a string as written) reads back as that text, not a list.
+ * @param text - the text
+ * @returns the quoted GML string
+ */
+function dataText(text: string): string {
+    const quoted = quoteGmlString(text);
+    // the markers are ASCII, so the quoted form is `"` + text + `"`
+    return LIST_MARKER_TEXTS.has(text) ? `"&#${String(text.codePointAt(0))};${quoted.slice(2)}` : quoted;
+}
+
 /**
  * The GML text of a JSON scalar inside a record: integers as int, other numbers as real, strings
  * quoted, booleans as 1 / 0.
@@ -1033,7 +1050,7 @@ function jsonScalarText(value: number | string | boolean): string {
         case "boolean":
             return value ? "1" : "0";
         default:
-            return quoteGmlString(value);
+            return dataText(value);
     }
 }
 
@@ -1064,7 +1081,7 @@ function itemText(item: unknown, itemDtype: string, meta: ColumnMeta): string {
         case "boolean":
             return item ? "1" : "0";
         case "string":
-            return quoteGmlString(item);
+            return dataText(item);
         default:
             throw new GraphFormatError(
                 "E_COLUMN_TYPE",
@@ -1149,7 +1166,7 @@ class GmlWriter {
                 return;
             case "dict":
             case "string":
-                this.line(indent, key, quoteGmlString(column.value(row) ?? ""));
+                this.line(indent, key, dataText(column.value(row) ?? ""));
                 return;
             case "list":
                 this.list(indent, key, column.sliceOf(row), meta.itemDtype ?? "string", meta);
@@ -1388,7 +1405,7 @@ function contextOf(
  */
 function originalIdText(id: NodeId): string {
     if (typeof id === "string") {
-        return quoteGmlString(id);
+        return dataText(id);
     }
     return Number.isSafeInteger(id) ? formatInteger(id) : formatGmlReal(id, "f64");
 }

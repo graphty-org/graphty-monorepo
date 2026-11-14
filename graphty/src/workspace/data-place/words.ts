@@ -320,6 +320,7 @@ const JOIN_SHAPE_WORDS: Readonly<Record<JoinShape, string>> = {
     replace: "Replaced data",
     merge: "Merged nodes",
     link: "Linked by shared values",
+    "row-nodes": "Nodes with edges",
 };
 
 /**
@@ -328,7 +329,7 @@ const JOIN_SHAPE_WORDS: Readonly<Record<JoinShape, string>> = {
  * @returns "node", "edge" or "row".
  */
 function matchedUnit(shape: JoinShape): "node" | "edge" | "row" {
-    if (shape === "node-values" || shape === "merge" || shape === "link") {
+    if (shape === "node-values" || shape === "merge" || shape === "link" || shape === "row-nodes") {
         return "node";
     }
     return shape === "edge-values" ? "edge" : "row";

@@ -11,9 +11,9 @@ import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey, isTypingTarget, matchesKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { JoinBody } from "./Body";
+import { cardTitle } from "./cards/outcomes";
 import { type JoinSide, type JoinWorkspaceApi, JoinWorkspaceContext } from "./context";
 import { keepRule } from "./keeps";
-import { stepTitle } from "./recipe/ops";
 import { JOIN_KEYS } from "./words";
 
 /** Where a key belongs to an open list or menu, which closes itself on Escape. */
@@ -87,10 +87,14 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
             select,
             side,
             setSide,
-            addTable: async (file) => {
-                const read = await session.data.prepare({ config: { file }, name: file.name });
+            addTable: async (from) => {
+                const read =
+                    typeof from === "string"
+                        ? await session.data.prepare({ config: { url: from } })
+                        : await session.data.prepare({ config: { file: from }, name: from.name });
                 try {
-                    const key = draft.hold({ ...read.lookup(), name: file.name });
+                    const table = read.lookup();
+                    const key = draft.hold(typeof from === "string" ? table : { ...table, name: from.name });
                     setVersion((count) => count + 1);
                     return key;
                 } finally {
@@ -128,9 +132,14 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
         // The regions a compare step keeps become a keep filter on its membership column, once
         // the join has written it.
         const keep = keepRule(draft.steps, keeps);
-        // Each joined source goes by its card's title, so two steps from one table differ.
+        // Each joined source goes by its card's title, numbered when two cards would share it.
+        const titles = new Map<string, number>();
         for (const each of draft.steps) {
-            draft.change(each.id, { from: each.from, choices: each.choices, name: stepTitle(each, draft.inputs) });
+            const title = cardTitle(each, draft.inputs);
+            const seen = (titles.get(title) ?? 0) + 1;
+            titles.set(title, seen);
+            const name = seen === 1 ? title : `${title} ${String(seen)}`;
+            draft.change(each.id, { from: each.from, choices: each.choices, name });
         }
         void draft
             .commit()

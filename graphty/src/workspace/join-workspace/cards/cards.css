@@ -1,0 +1,170 @@
+/* The join cards: one card per join on the left (CardList), each asking what every row of its
+   table becomes, then its match rows, its options and its result. */
+.jr-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.jr-head {
+    min-height: 24px;
+    flex-wrap: wrap;
+}
+
+.jr-card[data-selected] {
+    box-shadow: 0 0 0 1px var(--mantine-color-blue-5);
+}
+
+.jr-card-glyph {
+    flex: none;
+    color: var(--cm-text-secondary, var(--mantine-color-dimmed));
+}
+
+.jr-sum {
+    flex: none;
+}
+
+.jr-body {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-block: 4px;
+}
+
+.jr-row {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    align-items: center;
+    gap: 4px;
+}
+
+.jr-row-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.jr-row-controls > .mantine-Select-root,
+.jr-row-controls > .mantine-TextInput-root {
+    flex: 1;
+    min-width: 0;
+}
+
+.jr-more {
+    margin-inline-start: 3px;
+    color: var(--mantine-color-green-7);
+    font-weight: 600;
+}
+
+.jr-loose {
+    flex: none;
+}
+
+.jr-cols,
+.jr-fates {
+    flex-wrap: wrap;
+}
+
+.jr-error {
+    padding-block: 2px;
+}
+
+.jr-empty {
+    display: grid;
+    place-items: center;
+    padding: 18px 0 8px;
+    color: var(--cm-text-disabled, var(--mantine-color-dimmed));
+}
+
+.jr-add {
+    border-style: dashed;
+}
+
+.jr-venn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.jr-venn svg {
+    width: 168px;
+    height: 80px;
+    flex: none;
+}
+
+.jr-venn-region {
+    cursor: pointer;
+}
+
+.jr-venn-region:focus-visible {
+    outline: 2px solid var(--mantine-color-blue-5);
+}
+
+.jr-venn-count {
+    font-size: 10px;
+}
+
+.jr-venn-side {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.jr-venn-set {
+    align-self: flex-start;
+}
+
+.jr-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex: none;
+}
+
+.jr-venn-region:focus:not(:focus-visible) {
+    outline: none;
+}
+
+.jc-outcomes {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.jc-outcome-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.jc-match {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 4px;
+}
+
+.jc-match-eq {
+    color: var(--cm-text-secondary, var(--mantine-color-dimmed));
+}
+
+.jc-match-tail {
+    grid-column: 2 / -1;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-wrap: wrap;
+}
+
+.jc-option {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.jc-option-samples {
+    font-family: var(--mantine-font-family-monospace);
+}

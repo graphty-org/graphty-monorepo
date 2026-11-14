@@ -39,11 +39,11 @@ export interface JoinWorkspaceApi {
      */
     readonly setSide: (side: JoinSide) => void;
     /**
-     * Reads a file and holds it in the recipe as a table, apart from the graph.
-     * @param file - the file.
+     * Reads a file, or the file at a URL, and holds it in the recipe as a table, apart from the graph.
+     * @param from - the file, or its URL.
      * @returns the held table's key, an input of the draft.
      */
-    readonly addTable: (file: File) => Promise<string>;
+    readonly addTable: (from: File | string) => Promise<string>;
     /** The row fate the rows pane shows only, or null for every row. */
     readonly fate: JoinRowFate | null;
     /**

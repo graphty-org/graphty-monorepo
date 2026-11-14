@@ -92,8 +92,9 @@ describe("FlatMap", () => {
         // past the far end of the depth range is clamped there, and a globe's far side then ties
         // with its near side and draws over it in bands.
         expect((mesh.material as StandardMaterial).zOffsetUnits).toBe(0);
-        expect(map.attribution).toEqual(["Natural Earth"]);
-        expect(map.credits).toEqual([{ text: "Natural Earth", url: "https://www.naturalearthdata.com/" }]);
+        // Natural Earth is public domain: the bundled world is drawn without a credit.
+        expect(map.attribution).toEqual([]);
+        expect(map.credits).toEqual([]);
     });
 
     it("loads finer tiles as the camera comes closer", async () => {
@@ -313,7 +314,7 @@ describe("FlatMap", () => {
         map.update();
         await tiles.answerAll();
         map.update();
-        expect(map.attribution).toEqual(["Natural Earth", "(c) OpenStreetMap contributors"]);
+        expect(map.attribution).toEqual(["(c) OpenStreetMap contributors"]);
         const offsets = shownMeshes(scene).map((m) => m.material?.zOffsetUnits ?? 0);
         expect(offsets).toEqual([...offsets].sort((a, b) => b - a));
         expect(new Set(offsets).size).toBe(3);

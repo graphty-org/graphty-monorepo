@@ -7128,9 +7128,16 @@ export class Graph implements GraphContext {
      * ```
      */
     async captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
-        const screenshotCapture = new ScreenshotCapture(this.engine, this.scene, this.canvas, this, () => {
-            this.renderManager.requestFrame();
-        });
+        const screenshotCapture = new ScreenshotCapture(
+            this.engine,
+            this.scene,
+            this.canvas,
+            this,
+            () => {
+                this.renderManager.requestFrame();
+            },
+            () => this.session.styles.legend(),
+        );
         return screenshotCapture.captureScreenshot(options);
     }
 

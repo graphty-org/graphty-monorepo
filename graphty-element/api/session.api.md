@@ -3370,7 +3370,7 @@ export interface LegendBlock {
 export type LegendFact = CodedFact<LegendFactCode>;
 
 // @public
-export type LegendFactCode = "legend.clamped" | "legend.not-plottable" | "legend.none-plottable" | "legend.no-value-in-domain" | "legend.nothing-measured" | "legend.unreadable" | "legend.lumped" | "legend.not-measured" | "legend.painted-over";
+export type LegendFactCode = "legend.clamped" | "legend.not-plottable" | "legend.none-plottable" | "legend.no-value-in-domain" | "legend.nothing-measured" | "legend.unreadable" | "legend.lumped" | "legend.not-measured" | "legend.painted-over" | "legend.no-spread";
 
 // @public
 export interface LegendReading {

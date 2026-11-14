@@ -383,6 +383,8 @@ export type {
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendOptions,
+    ScreenshotLegendPosition,
     ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,

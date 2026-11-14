@@ -2640,10 +2640,20 @@ function heldLayers(state: "ghosted" | "outsideWindow", show: boolean): LayerSpe
 }
 
 /**
- * The layers a branches view hides what lies outside the time window with, while the stack hides it.
- * @returns The node layer and the edge layer.
+ * The layers a branches view draws what lies outside the time window with: the view suspends the
+ * stack's layers, so what draws it faint, or hides it, is put back in their place.
+ * @param stack - The stack.
+ * @returns The layers; none while no layer of the stack draws or hides it.
  */
-function hiddenOutside(): LayerSpec[] {
+function outsideInView(stack: readonly CompiledLayer[]): LayerSpec[] {
+    if (drawsOutsideWindow(stack)) {
+        return heldLayers("outsideWindow", true);
+    }
+
+    if (!hidesOutsideWindow(stack)) {
+        return [];
+    }
+
     return (["node", "edge"] as const).map((target) => ({
         name: "Held",
         target,
@@ -2943,15 +2953,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         // drawn over the ghosts.
         const restLayers = view.rest === "faint" ? 2 : 0;
         const ghostAt = view.base === "full" ? restLayers : specs.length;
-        // What lies outside the window stays drawn: the view suspends the layers that draw it.
-        // A layer that hides it is suspended too, so the view hides it in its place.
-        let outside: LayerSpec[] = [];
-        if (drawsOutsideWindow(current())) {
-            outside = heldLayers("outsideWindow", true);
-        } else if (hidesOutsideWindow(current())) {
-            outside = hiddenOutside();
-        }
-
+        const outside = outsideInView(current());
         specs.splice(ghostAt, 0, ...heldLayers("ghosted", false), ...outside);
 
         const layers = specs.map((spec, at) => {

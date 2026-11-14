@@ -2135,6 +2135,24 @@ async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Pro
         return;
     }
 
+    const older = await ghostedLayersOutside(tx);
+    ghostedSetsOutside(tx);
+
+    // Saved before the drawing lived in the layers, when what lay outside was hidden unless the
+    // playback said "ghost": the layers selecting it are written to draw it that way.
+    const saved =
+        typeof playback === "object" && playback !== null && "outside" in playback ? playback.outside : undefined;
+    if (older || saved !== undefined) {
+        await tx.time.setSettings({ outside: saved === "ghost" ? "ghost" : "hide" });
+    }
+}
+
+/**
+ * Rewrite every layer reading `"ghosted"` to read `"outsideWindow"`.
+ * @param tx - The transaction.
+ * @returns Whether any layer read it, which only a project saved before the state existed does.
+ */
+async function ghostedLayersOutside(tx: TransactionScope): Promise<boolean> {
     let older = false;
     for (const layer of tx.styles.list()) {
         const selector = layer.source.by === "element" ? layer.selector : outsideSelector(layer.selector);
@@ -2144,6 +2162,14 @@ async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Pro
         }
     }
 
+    return older;
+}
+
+/**
+ * Rewrite every rule set reading `"ghosted"` to read `"outsideWindow"`.
+ * @param tx - The transaction.
+ */
+function ghostedSetsOutside(tx: TransactionScope): void {
     for (const set of tx.sets.list()) {
         const { definition } = set;
         if (definition.kind === "rule" && typeof definition.where === "object") {
@@ -2152,14 +2178,6 @@ async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Pro
                 tx.sets.redefine(set.id, { ...definition, where });
             }
         }
-    }
-
-    // Saved before the drawing lived in the layers, when what lay outside was hidden unless the
-    // playback said "ghost": the layers selecting it are written to draw it that way.
-    const saved =
-        typeof playback === "object" && playback !== null && "outside" in playback ? playback.outside : undefined;
-    if (older || saved !== undefined) {
-        await tx.time.setSettings({ outside: saved === "ghost" ? "ghost" : "hide" });
     }
 }
 

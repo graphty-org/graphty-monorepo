@@ -226,7 +226,7 @@ export function cytoscapeAdvance(pattern: PatternType, width: number): number | 
  * @returns The count, at least 1
  */
 export function fixedAdvanceCount(lineLength: number, advance: number): number {
-    if (!Number.isFinite(lineLength) || !(advance > 0)) {
+    if (!Number.isFinite(lineLength) || Number.isNaN(advance) || advance <= 0) {
         return 1;
     }
     return Math.min(MAX_PATTERN_PIECES, Math.floor(lineLength / advance) + 1);

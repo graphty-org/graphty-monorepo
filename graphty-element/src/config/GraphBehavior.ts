@@ -292,6 +292,9 @@ const GraphLayoutOpts = z.strictObject({
      * frame, thrown away by the next one. "hold": the layout keeps the nodes where they are while
      * time plays and runs again once, over what is shown, when the play pauses or ends. Unset means
      * "follow". A layout over the whole graph ignores it.
+     *
+     * The time window now hides by style and never changes what `visibleOnly` lays out, so a play
+     * moves nothing this option governs; it is kept so existing configurations stay valid.
      */
     visibleOnlyWhilePlaying: z.enum(["hold", "follow"]).optional(),
 });

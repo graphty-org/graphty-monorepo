@@ -1,8 +1,7 @@
 /**
- * @file `behavior.layout.visibleOnlyWhilePlaying`: what a layout over only what the filter shows
- * does while time plays and the moving window changes what is shown at every step. "follow", the
- * default, lays out again during the play; "hold" lays nothing out during the play and lays out
- * once at the pause.
+ * @file `behavior.layout.visibleOnlyWhilePlaying`: a layout over only what the filters keep never
+ * follows the time window: the window hides by style, so a play lays nothing out, during it or at
+ * the pause, whatever this option says.
  */
 
 import "../../src/graphty-element";
@@ -96,25 +95,19 @@ describe("a layout over only what the filter shows while time plays", () => {
         });
     }
 
-    it("holds the layout while time plays under hold, and lays out once at the pause", async () => {
-        const { made, layouts } = await element("hold");
-        const shownBefore = [...made.session.visibility.nodes];
+    it.each([["hold"], ["follow"], ["unset"]] as const)(
+        "lays nothing out while time plays or at the pause under %s",
+        async (whilePlaying) => {
+            const { made, layouts } = await element(whilePlaying === "unset" ? undefined : whilePlaying);
+            const shownBefore = [...made.session.visibility.nodes];
 
-        made.session.time.play({ motion: "steps", interval: 0, loop: true });
-        await steps(made, 5);
-        assert.notDeepEqual([...made.session.visibility.nodes], shownBefore, "the play moved the filter");
-        assert.strictEqual(layouts(), 0, "no layout while time plays");
+            made.session.time.play({ motion: "steps", interval: 0, loop: true });
+            await steps(made, 5);
+            assert.notDeepEqual([...made.session.visibility.nodes], shownBefore, "the play moved the window");
 
-        made.session.time.pause();
-        await made.waitForSettled();
-        assert.strictEqual(layouts(), 1, "one layout over what the pause shows");
-    });
-
-    it.each([["follow"], ["unset"]] as const)("lays out again while time plays under %s", async (whilePlaying) => {
-        const { made, layouts } = await element(whilePlaying === "unset" ? undefined : whilePlaying);
-
-        made.session.time.play({ motion: "steps", interval: 0, loop: true });
-        await vi.waitUntil(() => layouts() > 0);
-        assert.isTrue(made.session.time.playing, "the layout ran while time was still playing");
-    });
+            made.session.time.pause();
+            await made.waitForSettled();
+            assert.strictEqual(layouts(), 0, "the time window hides by style and never moves the layout");
+        },
+    );
 });

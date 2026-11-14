@@ -150,19 +150,17 @@ describe("the location map layout", () => {
         );
     });
 
-    it("draws the map under the nodes with its credits, and removes it with another layout", async () => {
+    it("draws the map under the nodes with no credit for the public-domain world, and removes it with another layout", async () => {
         await placeAirports({ latitude: "latitude", longitude: "longitude" });
         // a hang guard for the bundled picture loading, not a pass/fail timing
         await vi.waitFor(() => {
             assert.equal(graph.basemapStatus.state, "ready");
         });
         assert.equal(graph.basemapStatus.source, "natural-earth");
-        assert.include(graph.basemapStatus.attribution, "Natural Earth");
+        // Natural Earth is public domain: nothing to credit, so no strip over the canvas.
+        assert.deepEqual(graph.basemapStatus.attribution, []);
         const strip = container.querySelector<HTMLElement>("[data-graphty-attribution]");
-        assert.isNotNull(strip);
-        // the credit, after the "(c)" button it folds into when it does not fit
-        assert.include(strip?.textContent, "Natural Earth");
-        assert.notEqual(strip?.style.display, "none");
+        assert.equal(strip?.style.display, "none");
 
         await graph.setLayout("circular");
         await settled();

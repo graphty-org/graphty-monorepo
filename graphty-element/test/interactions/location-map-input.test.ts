@@ -1090,8 +1090,7 @@ describe("the location map's history and map", () => {
         // is still on its way.
         await commands.holdRequests("natural-earth.jpg");
         await commands.holdRequests("127.0.0.1:9");
-        // The credits drawn when each state is told: a fallback is told once the world it falls back
-        // to is drawn, so its credit is already on screen then, not a frame or a picture later.
+        // The credits drawn when each state is told: the failed service's credit must never show.
         const states: { state: string; error?: { code: string }; credit: string | null }[] = [];
         element.addEventListener("basemap-status", (event) => {
             states.push({ ...event.detail, credit: creditLink(element) });
@@ -1110,9 +1109,9 @@ describe("the location map's history and map", () => {
         assert.strictEqual(element.basemapStatus.state, "fallback");
         const fallback = states.find((s) => s.state === "fallback");
         assert.deepInclude(fallback?.error, { code: "E_BASEMAP_UNREACHABLE" });
-        assert.strictEqual(fallback?.credit, "https://www.naturalearthdata.com/", "the credit is a link when told");
+        assert.strictEqual(fallback?.credit, null, "the public-domain world has no credit, and the failed tiles none");
         assert.notInclude(element.basemapStatus.attribution, "Bad Tiles Co");
         await applied(element);
-        assert.strictEqual(creditLink(element), "https://www.naturalearthdata.com/", "the credit is a link");
+        assert.strictEqual(creditLink(element), null, "nothing is credited");
     });
 });

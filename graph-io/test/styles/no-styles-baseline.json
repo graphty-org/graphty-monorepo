@@ -1,8 +1,8 @@
 {
     "csv": {
         "csv-spectrum/comma_in_quotes.csv": "import 5761cdedd81d616b check 4f53cda18c2baa0c export adf29b74ef2fc253",
-        "csv-spectrum/empty.csv": "import e7d3ad512d738219 check 4f53cda18c2baa0c export 07a788e1b7e43e6f",
-        "csv-spectrum/empty_crlf.csv": "import e7d3ad512d738219 check 4f53cda18c2baa0c export 07a788e1b7e43e6f",
+        "csv-spectrum/empty.csv": "import 194d3157684291a5 check 4f53cda18c2baa0c export 4deb012ffbaf7647",
+        "csv-spectrum/empty_crlf.csv": "import 194d3157684291a5 check 4f53cda18c2baa0c export 4deb012ffbaf7647",
         "csv-spectrum/escaped_quotes.csv": "import e7d3ad512d738219 check 4f53cda18c2baa0c export 3d4abc9bd69870a1",
         "csv-spectrum/json.csv": "import 5761cdedd81d616b check 4f53cda18c2baa0c export 6b4306192ba615bc",
         "csv-spectrum/location_coordinates.csv": "import 57185ea7cfc70ae6 check 4f53cda18c2baa0c export 71ce8fce99c2b13b",
@@ -30,7 +30,7 @@
         "encoding/windows-1252-explicit.csv": "import 5761cdedd81d616b check 4f53cda18c2baa0c export 400f58d70825808d",
         "encoding/utf8-no-bom.csv": "import 5761cdedd81d616b check 4f53cda18c2baa0c export 400f58d70825808d",
         "dialect/excel-sep-line.csv": "import d5e18ee0e5da1a0b check 4f53cda18c2baa0c export 9bf3db6f7ce53fb9",
-        "dialect/whitespace-around-fields.csv": "import b0b4aa3806d03640 check 4f53cda18c2baa0c export d8e7f65f7b1af17e",
+        "dialect/whitespace-around-fields.csv": "import d5e18ee0e5da1a0b check 4f53cda18c2baa0c export 9bf3db6f7ce53fb9",
         "dialect/unknown-header-text.csv": "import fea9f3fbffd56381 check 4f53cda18c2baa0c export 2c69f5794c96650b",
         "dialect/comment-lines-anywhere.csv": "import 37ae8f8f19e1c022 check 4f53cda18c2baa0c export 054797742c7ea7ac",
         "dialect/leading-zero-ids.csv": "import 57635cce56be6b0b check 4f53cda18c2baa0c export 555e6adbc2fa8472",

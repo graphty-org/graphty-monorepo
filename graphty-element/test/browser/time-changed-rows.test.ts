@@ -80,6 +80,14 @@ async function slidingElement(
     await element.waitForSettled();
     await element.session.time.ready;
     await prepare?.(element);
+    // What lies outside the window is hidden by a layer selecting it, unless the test drew one.
+    const selectsOutside = element.session.styles
+        .list()
+        .some((layer) => layer.selector.match === "state" && layer.selector.state === "outsideWindow");
+    if (!selectsOutside) {
+        await element.session.time.setSettings({ outside: "hide" });
+    }
+
     await element.session.time.window({ from: 0, to: 100, step: 10, nodes: "ends" });
     await element.session.time.seek(5, { commit: false });
     await drawn(element);
@@ -96,19 +104,38 @@ async function drawn(element: Graphty): Promise<void> {
 }
 
 /**
- * Assert every node and edge is drawn as the session's visibility says.
+ * Whether a node or an edge is drawn: visible, and not hidden for lying outside the window.
+ * @param element - The element.
+ * @param id - The node or edge id.
+ * @returns True when it is drawn.
+ */
+function inWindow(element: Graphty, id: string | number): boolean {
+    const { visibility } = element.session as ElementSession;
+    const dm = element.graph.getDataManager();
+    const node = dm.nodes.get(id);
+    const outside =
+        node === undefined
+            ? visibility.outsideWindow("edge", dm.edges.get(String(id))?.index ?? -1)
+            : visibility.outsideWindow("node", node.index);
+    return visibility.isVisible(id) && !outside;
+}
+
+/**
+ * Assert every node and edge is drawn as the session's visibility and the hidden window say.
  * @param element - The element.
  * @param when - What just happened, for the message.
  */
 function assertDrawnAsVisible(element: Graphty, when: string): void {
-    const { visibility } = element.session;
+    const { visibility } = element.session as ElementSession;
     const dm = element.graph.getDataManager();
     for (const node of dm.nodes.values()) {
-        assert.strictEqual(node.mesh.isEnabled(), visibility.isVisible(node.id), `${when}: node ${String(node.id)}`);
+        const shown = visibility.isVisible(node.id) && !visibility.outsideWindow("node", node.index);
+        assert.strictEqual(node.mesh.isEnabled(), shown, `${when}: node ${String(node.id)}`);
     }
 
     for (const edge of dm.edges.values()) {
-        assert.strictEqual(edge.isRenderVisible(), visibility.isVisible(edge.id), `${when}: edge ${edge.id}`);
+        const shown = visibility.isVisible(edge.id) && !visibility.outsideWindow("edge", edge.index);
+        assert.strictEqual(edge.isRenderVisible(), shown, `${when}: edge ${edge.id}`);
     }
 }
 
@@ -130,11 +157,11 @@ function assertEdgesOnNodes(element: Graphty, when: string): void {
 }
 
 /**
- * Draw what is outside the window as ghosts, with the starting Ghost row.
+ * Draw what is outside the window as ghosts, with the Timeline Hidden row in its ghost look.
  * @param element - The element.
  */
 async function drawGhosts({ session }: Graphty): Promise<void> {
-    await session.config.set({ startingRows: true });
+    await session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
     await session.time.setSettings({ outside: "ghost" });
 }
 
@@ -234,8 +261,7 @@ describe("changed rows on real nodes and edges", () => {
         const element = await slidingElement();
         await element.session.time.seek(500, { commit: false });
         await drawn(element);
-        const { visibility } = element.session;
-        const shown = (id: string): boolean => visibility.isVisible(id);
+        const shown = (id: string): boolean => inWindow(element, id);
         const away = ["n0", "n1", "n2", "n3", "n4"].filter((id) => !shown(id));
         assert.isNotEmpty(away, "nodes out of the window");
         await element.session.positions.set(away.map((id, at) => ({ id, x: 33 + at, y: -21, z: 0 })));
@@ -248,9 +274,8 @@ describe("changed rows on real nodes and edges", () => {
 
     it("puts back the edges a jump reveals without placing them again when their nodes did not move", async () => {
         const element = await slidingElement();
-        const { visibility } = element.session;
         const edges = [...element.graph.getDataManager().edges.values()];
-        const shownAtStart = edges.filter((edge) => visibility.isVisible(edge.id));
+        const shownAtStart = edges.filter((edge) => inWindow(element, edge.id));
         await element.session.time.seek(500, { commit: false });
         await drawn(element);
         assert.isTrue(
@@ -275,9 +300,8 @@ describe("changed rows on real nodes and edges", () => {
 
     it("places the edges a jump reveals again when they were restyled while hidden", async () => {
         const element = await slidingElement();
-        const { visibility } = element.session;
         const edges = [...element.graph.getDataManager().edges.values()];
-        const shownAtStart = edges.filter((edge) => visibility.isVisible(edge.id));
+        const shownAtStart = edges.filter((edge) => inWindow(element, edge.id));
         await element.session.time.seek(500, { commit: false });
         await drawn(element);
         await element.session.styles.add({
@@ -438,10 +462,9 @@ describe("changed rows on real nodes and edges", () => {
         // Each moved node enables or disables its anchor, which draws nothing, and nothing else.
         assert.isAtMost(toggle.mock.calls.length, moved, "no mesh beyond the moved nodes' anchors was toggled");
         assert.strictEqual(graph.rowCounts.objectNodes, 0, "every node is still drawn by a batch");
-        const { visibility } = session;
         for (const node of graph.getDataManager().nodes.values()) {
             const state = node.getRenderState();
-            assert.strictEqual(state === "visible", visibility.isVisible(node.id), `node ${String(node.id)}`);
+            assert.strictEqual(state === "visible", inWindow(element, node.id), `node ${String(node.id)}`);
         }
     });
 
@@ -502,9 +525,8 @@ describe("changed rows on real nodes and edges", () => {
             });
         });
         const { graph } = element;
-        const { visibility } = element.session;
         const edges = [...graph.getDataManager().edges.values()];
-        const hidden = edges.filter((edge) => !visibility.isVisible(edge.id));
+        const hidden = edges.filter((edge) => !inWindow(element, edge.id));
         const walk = vi.spyOn(graph.getUpdateManager(), "forceEdgeWalk");
 
         const step = await element.session.time.seek(25, { commit: false });
@@ -549,9 +571,8 @@ describe("changed rows on real nodes and edges", () => {
         await drawn(element);
 
         assert.isAbove(step.left.edges, 0);
-        const { visibility } = element.session;
-        const gone = kept.filter((edge) => !visibility.isVisible(edge.id));
-        const stayed = kept.filter((edge) => visibility.isVisible(edge.id));
+        const gone = kept.filter((edge) => !inWindow(element, edge.id));
+        const stayed = kept.filter((edge) => inWindow(element, edge.id));
         assert.isNotEmpty(gone);
         assert.isNotEmpty(stayed);
         for (const edge of gone) {

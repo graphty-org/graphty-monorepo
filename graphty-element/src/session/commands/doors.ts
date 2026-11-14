@@ -3651,6 +3651,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinnedStyle: READ,
             startingRows: READ,
             editableBase: READ,
+            timelineHiddenLook: READ,
             runPlacement: READ,
             layoutBehavior: READ,
             layoutTransition: READ,
@@ -3785,6 +3786,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             keptIds: READ,
             outsideWindow: READ,
             outsideWindowBytes: READ,
+            windowMasks: READ,
+            windowCounts: READ,
             hold: exempt(
                 "Draws a condition's removals as ghosts while a reader edits it; the conditions are unchanged.",
             ),

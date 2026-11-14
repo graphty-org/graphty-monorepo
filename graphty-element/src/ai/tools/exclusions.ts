@@ -365,7 +365,16 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionVisibilityApi", members: ["restoreConditions"], reason: "mechanism", kind: BY_DESIGN },
     {
         root: "SessionVisibilityApi",
-        members: ["drawnMasks", "ghosted", "ghosts", "keptIds", "outsideWindow", "outsideWindowBytes"],
+        members: [
+            "drawnMasks",
+            "ghosted",
+            "ghosts",
+            "keptIds",
+            "outsideWindow",
+            "outsideWindowBytes",
+            "windowMasks",
+            "windowCounts",
+        ],
         reason: "raw-data",
         kind: BY_DESIGN,
     },

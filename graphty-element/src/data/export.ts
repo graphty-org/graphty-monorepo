@@ -88,7 +88,8 @@ export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 /**
  * Which nodes and edges an export writes, beside the whole graph (no `scope`):
  *
- * - `"shown"`: what the visibility filter and the time window leave showing.
+ * - `"shown"`: what the visibility filter leaves showing; a time window, which only changes how
+ *   elements are drawn, narrows nothing.
  * - `"selection"`: the selected nodes and the edges between them.
  * - `{ set }`: a kept set's members.
  * - `{ nodes }`: these nodes and the edges between them.

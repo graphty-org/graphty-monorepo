@@ -269,7 +269,7 @@ export interface TimeIds {
 }
 
 /**
- * What entered and left the visible graph on the last move.
+ * What entered and left the window on the last move.
  * @experimental timeline
  * @beta
  */
@@ -298,6 +298,7 @@ export interface TimeStepEvent {
     readonly index: number;
     readonly from: number;
     readonly to: number;
+    /** What every filter keeps inside the window: what is drawn as in it, never a visibility count. */
     readonly visible: TimeCountPair;
     readonly entered: TimeCountPair;
     readonly left: TimeCountPair;
@@ -379,10 +380,11 @@ export interface TimeSettings {
     readonly missing: "inside" | "outside";
     /**
      * Whether elements outside the window are hidden or drawn as ghosts. Read from the style
-     * layers selecting `{ match: "state", state: "outsideWindow" }`, and written to them: the
-     * element's own hide what lies outside, and `"ghost"` sets `visible: true` on every layer of
-     * the stack that selects the state (adding one when none does). Never a layout input: what
-     * lies outside the window keeps its place.
+     * layers selecting `{ match: "state", state: "outsideWindow" }`, and written to them:
+     * `"ghost"` sets `visible: true` and `"hide"` sets `visible: false` on every layer of the stack
+     * that selects the state (adding one when none does and it is not drawn that way). With no
+     * such layer nothing is hidden, which reads `"ghost"`. Never a layout input: what lies outside
+     * the window keeps its place.
      */
     readonly outside: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in, unless a call or the window names its own. */
@@ -1712,7 +1714,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     /**
      * The style writes that make what lies outside the window draw one way: for nodes and for
      * edges, `visible` on every painting layer a reader or a template put in the stack selecting
-     * that state, or a new layer when none does and it is to draw.
+     * that state, or a new layer when none does and it is not drawn the way asked.
      * @param outside - How it draws.
      * @returns The commands.
      */
@@ -1720,10 +1722,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const drawn = outside === "ghost";
         const painted = paintedStack(dispatcher.state.styles);
         return (["node", "edge"] as const).flatMap((target): StylePatchCommand[] => {
-            const own = outsideLayers(target).filter(({ layer }) => layer.source.by !== "element");
+            const own = outsideLayers(target);
             if (own.length === 0) {
                 // A kind already drawn the way asked needs no layer of its own.
-                return drawn && !drawsOutsideWindowOf(painted, target)
+                return drawsOutsideWindowOf(painted, target) !== drawn
                     ? [
                           {
                               op: "style.patch",
@@ -1732,7 +1734,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                                   name: "Outside the time window",
                                   target,
                                   selector: { match: "state", state: "outsideWindow" },
-                                  set: { [`${target}.visible`]: true },
+                                  set: { [`${target}.visible`]: drawn },
                               },
                           },
                       ]
@@ -2093,12 +2095,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const extent = extentNow();
         const untimedOf = (kind: TimeCounts | undefined): number =>
             kind === undefined ? 0 : kind.untimed + kind.unparsed;
-        const { summary } = visibility;
+        const inside = visibility.windowCounts();
         const event: TimeStepEvent = Object.freeze({
             index: window === null ? 0 : stepIndexOf(window),
             from: window === null ? Number.NEGATIVE_INFINITY : boundOf(window, "from"),
             to: window === null ? Number.POSITIVE_INFINITY : boundOf(window, "to"),
-            visible: Object.freeze({ nodes: summary.visibleNodes, edges: summary.visibleEdges }),
+            visible: Object.freeze({ nodes: inside.nodes, edges: inside.edges }),
             entered: Object.freeze({ nodes: counts?.entered.nodes ?? 0, edges: counts?.entered.edges ?? 0 }),
             left: Object.freeze({ nodes: counts?.left.nodes ?? 0, edges: counts?.left.edges ?? 0 }),
             untimed: Object.freeze({ nodes: untimedOf(extent?.nodes), edges: untimedOf(extent?.edges) }),
@@ -2117,10 +2119,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * The masks as they stand, for a move that does not go through a slide.
      * @returns Both masks.
      */
-    const masksNow = (): { readonly nodes: Uint8Array; readonly edges: Uint8Array } => ({
-        nodes: visibility.nodeMask(),
-        edges: visibility.edgeMask(),
-    });
+    const masksNow = (): { readonly nodes: Uint8Array; readonly edges: Uint8Array } => visibility.windowMasks();
 
     /**
      * Publish a move that did not go through a slide, from the masks before it.

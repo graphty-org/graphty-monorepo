@@ -281,8 +281,9 @@ export interface VisibilityApi {
     /** The visible edge ids, on the same terms as {@link VisibilityApi.nodes}. */
     readonly edges: ReadonlySet<EdgeId>;
     /**
-     * How much of the graph is showing: the one shown-versus-total count, after the filter, every
-     * step that is on and the time window.
+     * How much of the graph is showing: the one shown-versus-total count, after the filter and
+     * every step that is on. A time window with the `timeline` experiment on changes only how
+     * elements are drawn (style layers selecting the `outsideWindow` state), never this count.
      */
     readonly summary: VisibilitySummary;
     /**
@@ -326,10 +327,11 @@ export interface VisibilityApi {
      * Apply a time window, or clear it with null: one undoable step, on the same terms as
      * {@link VisibilityApi.set}.
      *
-     * The SAME masks as {@link VisibilityApi.set}, produced the same way, composed with whatever
-     * filter is in force. Moving the window never re-layouts, rebuilds or removes data, which is
-     * a structural fact here rather than a promise: a window writes bytes into a mask, and
-     * positions are somewhere else entirely.
+     * With the `timeline` experiment on, a window changes only how elements are drawn: what lies
+     * outside it is in the element state `outsideWindow`, which style layers select, and the
+     * visible masks, every count, run, selection and export stay as the filter leaves them. With
+     * it off, a window narrows the same masks as {@link VisibilityApi.set}. Moving the window
+     * never re-layouts, rebuilds or removes data.
      * @param window - The stretch of the timeline to keep, or null to stop windowing.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns The run, which resolves with the counts.
@@ -518,13 +520,25 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     holdsInstants(window: TimeWindow): boolean;
     /**
-     * Move the time window without recording it, writing only the rows whose membership changes:
-     * every move of `session.time`. Recording the same window afterwards (`setWindow`, or a
-     * `visibility.window` command) adopts the masks; any other evaluates in full.
+     * Move the time window without recording it, writing only the rows whose membership of the
+     * window changes: every move of `session.time`. Only the in-window masks and the
+     * `outsideWindow` state follow it; what is visible does not. Recording the same window
+     * afterwards (`setWindow`, or a `visibility.window` command) keeps the masks as they are.
      * @param window - The window to show, or null to put back the window the slice records.
-     * @returns What came into view and went out of it; null when put back.
+     * @returns What came into the window and went out of it; null when put back.
      */
     slideWindow(window: TimeWindow | null): SlideCounts | null;
+    /**
+     * What every filter keeps inside the time window shown now, one byte per element: the visible
+     * masks while no timeline window is in force.
+     * @returns Each kind's bytes.
+     */
+    windowMasks(): { readonly nodes: Uint8Array; readonly edges: Uint8Array };
+    /**
+     * How many elements {@link SessionVisibilityApi.windowMasks} holds, by kind.
+     * @returns The counts.
+     */
+    windowCounts(): { readonly nodes: number; readonly edges: number };
     /**
      * A run that moves windows of its own, so nothing on screen, in the project or in history moves. It describes the graph and the filter as they stand when `work` opens the walk.
      * @param algorithm - What the run is.
@@ -567,9 +581,9 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     commitWindow(window: TimeWindow): Run<FilterResult>;
     /**
-     * Whether the renderer draws more than is visible now: a time window is in force (what lies
-     * outside it stays drawn, for the style layers to hide or ghost), or a held condition's
-     * removals stay drawn.
+     * Whether the renderer draws more than is visible now: a held condition's removals stay
+     * drawn. A time window never narrows what is visible, so what lies outside it is drawn
+     * anyway, for the style layers selecting `outsideWindow` to hide or ghost.
      */
     readonly ghosting: boolean;
     /**
@@ -592,8 +606,9 @@ export interface SessionVisibilityApi extends VisibilityApi {
     ghosts(): { readonly node: Uint8Array; readonly edge: Uint8Array } | null;
     /**
      * Whether an element is outside the time window: every filter keeps it, but the window does
-     * not, so it is not visible. It stays drawn, and style layers selecting
-     * `{ match: "state", state: "outsideWindow" }` decide how (the element's own hide it).
+     * not. It stays visible and drawn, and style layers selecting
+     * `{ match: "state", state: "outsideWindow" }` decide how; with none it looks as it would
+     * with no window.
      * @param target - Nodes or edges.
      * @param index - The element's row.
      * @returns True outside the window; always false while no window is in force.
@@ -1024,11 +1039,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     /** Which API the last conditions edit came through, until its pass announces it. */
     let editedBy: "steps" | "conditions" | null = null;
     let lastDurationMs = 0;
-    /** The time window a cursor slid through the masks, which the masks hold until the next pass. */
+    /** Moves the in-window masks a frame at a time. */
     const slider = new WindowSlider();
     let recordsRead: { readonly key: readonly unknown[]; readonly reads: boolean } | null = null;
     let slid = false;
-    /** What the last slide wrote the masks from, so recording that window can adopt them. */
+    /** The window the last slide showed, which the in-window masks hold until the next pass. */
     let slidTo: (MaskTag & { readonly snapshot: GraphSnapshot; readonly window: TimeWindow }) | null = null;
     /** The last pass's filter tests, and the filter, graph and inputs they were compiled from. */
     let lastCompiled: { readonly key: readonly unknown[]; readonly filter: CompiledVisibility["filter"] } | null = null;
@@ -1186,6 +1201,14 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         };
     };
 
+    /**
+     * Whether a time window hides by style: with the timeline on it never reaches the visible
+     * masks, and only the in-window masks and the `outsideWindow` state follow it. With the
+     * timeline off a window narrows what is visible, as a filter does.
+     * @returns True with the timeline on.
+     */
+    const byStyle = (): boolean => sources.timeline?.() === true;
+
     /** The window a project restored as instants, as text: undo brings back a copy of it. */
     let savedInstants: string | null = null;
 
@@ -1336,25 +1359,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * The paths a slide's masks leave unresolved. A full pass tests an edge only past its ends, so
-     * what it sees depends on the window; a slide has read every row of the filter, which does not.
-     * @param window - The window.
-     * @param instants - The window's index.
-     * @returns The filter's unresolved paths, and the window's own when no row holds a time.
-     */
-    const unresolvedOfSlide = (window: TimeWindow, instants: SlideTarget["instants"]): readonly Path[] => {
-        const filterPaths = filterCache?.unresolved ?? NO_PATHS;
-        const timed = (instants?.node?.timed ?? 0) + (instants?.edge?.timed ?? 0);
-
-        return timed > 0 || filterPaths.includes(window.attribute) ? filterPaths : [...filterPaths, window.attribute];
-    };
-
-    /**
      * The tag of the masks the slice and the graph call for now.
      * @returns The tag.
      */
     const wantedTag = (): MaskTag => {
-        const { window } = dispatcher.state.visibility;
+        const window = byStyle() ? null : dispatcher.state.visibility.window;
         const filter = ruleNow();
 
         return { token: dispatcher.state.graph.token, filter, window, inputs: inputsFor(filter, window) };
@@ -1398,31 +1407,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * Whether the slid masks are the masks a tag calls for. A slid window must never pass for the
-     * recorded one by mistake, so every part the masks depend on is compared.
-     * @param tag - The tag.
-     * @param graph - The snapshot.
-     * @returns True when the masks can stay as they are.
-     */
-    const holdsSlide = (tag: MaskTag, graph: GraphSnapshot): boolean => {
-        const at = slidTo;
-        const { window } = tag;
-
-        return (
-            at !== null &&
-            window !== null &&
-            at.snapshot === graph &&
-            at.filter === tag.filter &&
-            sameInputs(at.inputs, tag.inputs) &&
-            at.window.attribute === window.attribute &&
-            at.window.from === window.from &&
-            at.window.to === window.to &&
-            at.window.nodes === window.nodes &&
-            at.window.missing === window.missing
-        );
-    };
-
-    /**
      * Write the masks a tag calls for: from the owning step's copy when its tag matches, by
      * evaluating the filter otherwise.
      * @param graph - The snapshot.
@@ -1451,22 +1435,18 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const sync = (): VisibilityFrame => {
         const active = currentFrame();
         const tag = wantedTag();
-        if (shown !== null && shown.snapshot === active.graph && sameTag(shown, tag) && !slid) {
+        // A pass shows the window the slice records: a slide, if one was showing, is over.
+        slid = false;
+        if (shown !== null && shown.snapshot === active.graph && sameTag(shown, tag)) {
             return active;
         }
 
         const step = ownerStep();
-        // Slid masks belong to no step: copying them would hand the last step a window it never had.
-        if (shown !== null && shown.step !== null && shown.step !== step && !slid) {
+        if (shown !== null && shown.step !== null && shown.step !== step) {
             keepCopy({ ...shown, step: shown.step });
         }
 
-        const adopted = slid && holdsSlide(tag, active.graph);
-        slid = false;
-
-        if (!adopted) {
-            restoreMasks(active.graph, tag, step);
-        }
+        restoreMasks(active.graph, tag, step);
 
         shown = { ...tag, step, snapshot: active.graph };
         follow(tag.filter);
@@ -1523,8 +1503,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * Whether a time window is in force: what lies outside it stays drawn, for the style layers.
      * @returns True while the timeline is on and a window is recorded or slid to.
      */
-    const windowInForce = (): boolean =>
-        sources.timeline?.() !== false && (dispatcher.state.visibility.window !== null || slid);
+    const windowInForce = (): boolean => byStyle() && (dispatcher.state.visibility.window !== null || slid);
 
     /** The condition a reader is editing, whose removals stay drawn as ghosts (`hold`). */
     let held: string | null = null;
@@ -1570,7 +1549,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         return heldRule.rule;
     };
 
-    const ghostingNow = (): boolean => windowInForce() || drawnRuleNow() !== ruleNow();
+    const ghostingNow = (): boolean => drawnRuleNow() !== ruleNow();
 
     /**
      * Bring the drawn masks up to date: what the filter keeps with no window.
@@ -1613,6 +1592,66 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let outsideCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
     /** What {@link outsideCache} was last answered under this turn, or null in a new turn. */
     let outsideStamp: readonly unknown[] | null = null;
+
+    // What every filter keeps inside the time window: what `outsideWindow` is read against, and
+    // what a play moves, a frame at a time. Never what is visible: a timeline window hides by
+    // style, so the visible masks, and every count, run and export over them, ignore it.
+    const inNodes = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1);
+    const inEdges = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1);
+    /** The graph, filter, window and inputs the in-window masks were last moved to. */
+    let inTag: readonly unknown[] | null = null;
+
+    /**
+     * Move the in-window masks to a window, writing only the rows that change when the last move
+     * left them on the same graph and filter.
+     * @param graph - The snapshot.
+     * @param rule - The filter's rule.
+     * @param window - The window.
+     * @returns What came into the window and went out of it.
+     */
+    const moveInside = (graph: GraphSnapshot, rule: RuleTree | null, window: TimeWindow): SlideCounts => {
+        const counts = slider.move(
+            slideTarget(graph, rule, inNodes, inEdges, windowInstants(window, sources), (moved) => {
+                slideCounters.full++;
+                inNodes.grow(graph.nodeCount);
+                inEdges.grow(graph.edgeCount);
+                inNodes.clear();
+                inEdges.clear();
+                const compiled = compileVisibility(graph, rule, moved, passSources(graph));
+                runPass({ compiled, edges: inEdges, graph, nodes: inNodes });
+            }),
+            window,
+        );
+        inTag = [graph, rule, JSON.stringify(window), ...inputsFor(rule, window)];
+
+        return counts;
+    };
+
+    /**
+     * Bring the in-window masks to the window shown now: the slid one, else the recorded one.
+     * @returns False while no window is in force, when the masks say nothing.
+     */
+    const insideUpToDate = (): boolean => {
+        if (!windowInForce()) {
+            return false;
+        }
+
+        const active = upToDate();
+        const rule = ruleNow();
+        const window = slid && slidTo !== null ? slidTo.window : dispatcher.state.visibility.window;
+        if (window === null) {
+            return false;
+        }
+
+        if (
+            inTag === null ||
+            !sameInputs(inTag, [active.graph, rule, JSON.stringify(window), ...inputsFor(rule, window)])
+        ) {
+            moveInside(active.graph, rule, window);
+        }
+
+        return true;
+    };
 
     /**
      * One byte per element, 1 for what a held condition would remove but is drawn, or null while
@@ -1691,19 +1730,19 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return null;
         }
 
-        const nodeRows = nodeMaskValue.changedSince(outsideCache.key[0] as number);
-        const edgeRows = edgeMaskValue.changedSince(outsideCache.key[1] as number);
+        const nodeRows = inNodes.changedSince(outsideCache.key[0] as number);
+        const edgeRows = inEdges.changedSince(outsideCache.key[1] as number);
         const { node, edge } = outsideCache.bytes;
         if (nodeRows === null || edgeRows === null || node.length !== graph.nodeCount) {
             return null;
         }
 
         for (const row of nodeRows) {
-            node[row] = outsideAt(passing.nodes, nodeMaskValue, row);
+            node[row] = outsideAt(passing.nodes, inNodes, row);
         }
 
         for (const row of edgeRows) {
-            edge[row] = outsideAt(passing.edges, edgeMaskValue, row);
+            edge[row] = outsideAt(passing.edges, inEdges, row);
         }
 
         return { node, edge };
@@ -1716,7 +1755,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns The bytes, or null.
      */
     const outsideNow = (): ElementBytes | null => {
-        if (!windowInForce()) {
+        if (!insideUpToDate()) {
             return null;
         }
 
@@ -1725,8 +1764,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         // ponytail: per turn, since a set a filter names can move with no command; stamp the set
         // signatures too if a pass spanning turns ever costs.
         const stamp = (): readonly unknown[] => [
-            nodeMaskValue.version,
-            edgeMaskValue.version,
+            inNodes.version,
+            inEdges.version,
             dispatcher.state,
             sources.snapshot(),
         ];
@@ -1736,12 +1775,12 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         const active = upToDate();
         filterBytesOf(active.graph);
-        const key = [nodeMaskValue.version, edgeMaskValue.version, filterCache];
+        const key = [inNodes.version, inEdges.version, filterCache];
         if (outsideCache === null || !sameInputs(outsideCache.key, key)) {
             const passing = passingOf(active.graph);
             const bytes = outsideAfterSlide(passing, active.graph) ?? {
-                node: outsideRows(active.graph.nodeCount, passing.nodes, nodeMaskValue),
-                edge: outsideRows(active.graph.edgeCount, passing.edges, edgeMaskValue),
+                node: outsideRows(active.graph.nodeCount, passing.nodes, inNodes),
+                edge: outsideRows(active.graph.edgeCount, passing.edges, inEdges),
             };
             outsideCache = { key, bytes };
         }
@@ -2710,7 +2749,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         slideWindow(window: TimeWindow | null): SlideCounts | null {
             if (window === null) {
                 if (slid) {
-                    sync();
+                    slid = false;
+                    sources.onSlide?.();
                 }
 
                 return null;
@@ -2729,23 +2769,29 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             };
 
             const startedAt = performance.now();
-            const instants = windowInstants(window, sources);
-            let passed = false;
-            const counts = slider.move(
-                slideTarget(active.graph, rule, nodeMaskValue, edgeMaskValue, instants, (moved) => {
-                    passed = true;
-                    evaluate(active.graph, rule, moved);
-                }),
-                window,
-            );
+            const counts = moveInside(active.graph, rule, window);
             lastDurationMs = Math.round(performance.now() - startedAt);
-            if (!passed) {
-                unresolvedValue = unresolvedOfSlide(window, instants);
-            }
-
             sources.onSlide?.(counts);
 
             return { ...counts, graph: active.graph };
+        },
+
+        windowMasks() {
+            if (!insideUpToDate()) {
+                upToDate();
+                return { nodes: nodeMaskValue.bytes(), edges: edgeMaskValue.bytes() };
+            }
+
+            return { nodes: inNodes.bytes(), edges: inEdges.bytes() };
+        },
+
+        windowCounts() {
+            if (!insideUpToDate()) {
+                upToDate();
+                return { nodes: nodeMaskValue.size, edges: edgeMaskValue.size };
+            }
+
+            return { nodes: inNodes.size, edges: inEdges.size };
         },
 
         windowRun<T>(

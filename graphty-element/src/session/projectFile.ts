@@ -2048,9 +2048,7 @@ async function readProject(
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
-    if (visibility?.outsideByLayers !== true) {
-        await attempt(opening, "styles", () => outsideWindowLayers(tx, visibility?.playback));
-    }
+    await attempt(opening, "styles", () => outsideWindowLayers(tx, visibility));
 
     for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
         await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
@@ -2135,13 +2133,18 @@ function outsideSelector(selector: Selector): Selector {
  * unless it says `"ghost"`; hidden when absent, as that was the default) is written to the style
  * layers the way `time.setSettings` writes it, as the window hid them then.
  * @param tx - The transaction.
- * @param playback - The saved timeline settings.
+ * @param visibility - The session member's `visibility`.
  */
-async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Promise<void> {
-    // With the timeline off its layers stay as saved.
-    if (!timelineOn(tx) || tx.time.field === null) {
+async function outsideWindowLayers(
+    tx: TransactionScope,
+    visibility: Readonly<Record<string, unknown>> | undefined,
+): Promise<void> {
+    // Saved since, or with the timeline off: its layers stay as saved.
+    if (visibility?.outsideByLayers === true || !timelineOn(tx) || tx.time.field === null) {
         return;
     }
+
+    const playback = visibility?.playback;
 
     await ghostedLayersOutside(tx);
     ghostedSetsOutside(tx);

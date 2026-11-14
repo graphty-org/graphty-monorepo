@@ -185,7 +185,7 @@ const ENDPOINT_KEYS = ["source", "target", "src", "dst", "from", "to"] as const;
  * @param reason - The first condition the load failed.
  * @returns The path.
  */
-export function recordsPath(reason: LoadPathReason): LoadPath {
+function recordsPath(reason: LoadPathReason): LoadPath {
     return Object.freeze({ code: "PATH_RECORDS", params: Object.freeze({ reason }) });
 }
 

@@ -734,6 +734,20 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
 }
 
 /**
+ * Remember, for a reader, what its file recorded under `meta.extra` and the import its records came from.
+ * @param reader - the data source
+ * @param imported - the import
+ * @param mapping - the format's mapping from rows to record keys
+ */
+function rememberReader(reader: object, imported: SourceGraph, mapping: RecordMapping): void {
+    rememberMetaExtra(reader, imported.snapshot);
+    const { importer } = imported;
+    if (importer !== undefined) {
+        rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
+    }
+}
+
+/**
  * Rebuild the element's node and edge records from an imported graph.
  *
  * Only declared nodes become records, in declaration order. Each logical edge of the file becomes one record: when the importer expanded an edge into
@@ -753,11 +767,7 @@ export function toRecords(
 ): { nodes: AdHocData[]; edges: AdHocData[] } {
     const { importer } = imported;
     if (reader !== undefined) {
-        rememberMetaExtra(reader, imported.snapshot);
-    }
-
-    if (reader !== undefined && importer !== undefined) {
-        rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
+        rememberReader(reader, imported, mapping);
     }
 
     const { snapshot, declared } = imported;

@@ -949,6 +949,16 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * Record a node as made by the load in progress.
+     * @param id - The node's id.
+     */
+    private noteMade(id: NodeIdType): void {
+        if (isStorableId(id)) {
+            this.supplied?.made.add(id);
+        }
+    }
+
+    /**
      * The id the graph holds a row under, for an id that may be the other spelling of an integer.
      * @param target - Node or edge.
      * @param id - The id as given.
@@ -1119,10 +1129,7 @@ export class Ingest<K extends KnownEdge> {
             // Frozen once, here, so the render object holds the record the graph slice holds.
             const record = frozenRecord(node);
             const { index } = writer.addNode(nodeId, record, readSeedPosition(node));
-            if (isStorableId(nodeId)) {
-                this.supplied?.made.add(nodeId);
-            }
-
+            this.noteMade(nodeId);
             this.host.nodeStored(nodeId, record, index);
         }
 

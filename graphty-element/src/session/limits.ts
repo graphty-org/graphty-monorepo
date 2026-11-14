@@ -1,16 +1,14 @@
 /**
  * @file The ceilings and caps the element runs under when nothing has measured this machine.
  *
- * `Capabilities.limits` is documented as MEASURED: `session.calibrate()` times the host and fills
- * it in. That probe does not exist yet, and until it does every consumer that needs one of these
- * numbers has to invent it -- which is how the one shipped consumer ended up carrying a
- * large-graph threshold of its own, ten times the element's, with nothing between the two to
- * notice they disagreed.
+ * These are SHIPPED DEFAULTS, not measurements of the machine this code is running on. Before
+ * they were published every consumer that needed one of these numbers had to invent it -- which is
+ * how the one shipped consumer ended up carrying a large-graph threshold of its own, ten times the
+ * element's, with nothing between the two to notice they disagreed.
  *
- * So these are published as what they are: SHIPPED DEFAULTS, not measurements of the machine this
- * code is running on. When `calibrate()` lands it replaces them and `Capabilities.calibration.basis`
- * turns from `"defaults"` into `"probe"`, which is how a consumer can tell which kind of number it
- * is holding.
+ * `session.calibrate()` measures this machine's THROUGHPUT, which the cost estimates read; it does
+ * not change these ceilings. `capabilities.calibration` says whether and when that probe ran, and
+ * its `basis` says whether it measured (`"probe"`) or fell back to the shipped rates (`"defaults"`).
  *
  * TWO OF THEM ARE ENFORCED, AND WERE MEASURED. `renderCeiling` and `edgesDrawn` were once the
  * design table's figures, 200,000 nodes and 500,000 edges, and nothing checked them. The renderer
@@ -59,22 +57,19 @@
  * gives every dot and dash a mesh and a ShaderMaterial of its own (`PatternedLineRenderer`), and
  * an animated line is never batched. Under either, the heap runs out earlier than this says.
  *
- * ONE OF THE SIX FIELDS IS ABSENT, and it is worth saying why the other five are not.
+ * THE NAMES CARRY THEIR UNITS. Two used to collide with `CostGateLimits` and mean different
+ * things on each side: `exactComputationCap` was a node count here and seconds there, and
+ * `memoryBudgetBytes` was one graph's memory here and one run's published columns there. They are
+ * now `approximateAboveNodes` and `graphMemoryBudgetBytes` here, `exactComputationSeconds` and
+ * `runColumnBudgetBytes` on the gate.
  *
- * Two names used to collide with `CostGateLimits` and mean different things on each side, so
- * neither could be published without teaching a consumer the wrong unit: `exactComputationCap`
- * was a node count here and seconds there, and `memoryBudgetBytes` was one graph's memory here
- * and one run's published columns there. Both now carry their unit in the name --
- * `approximateAboveNodes` and `graphMemoryBudgetBytes` here, `exactComputationSeconds` and
- * `runColumnBudgetBytes` on the gate -- so the collision is gone and with it the reason to
- * withhold a number.
- *
- * `graphMemoryBudgetBytes` is still absent, for the one reason that survives the rename: the
- * element API design's defaults table names no figure for it. There is nothing measured and
- * nothing designed to publish, and inventing one here is exactly what this file exists to stop a
- * consumer doing. It is omitted from the TYPE as well as from the value, so a reader cannot
- * reach a field that has no defensible answer. A consumer who wants the per-run budget already
- * has `DEFAULT_COST_GATE_LIMITS.runColumnBudgetBytes`.
+ * `graphMemoryBudgetBytes` IS DERIVED, NOT MEASURED. Its anchor is the 49 % row above: the
+ * largest graph the ceilings allow held about 2 GB of heap ({@link GRAPH_MEMORY_BUDGET_CAP_BYTES}),
+ * so no graph the element will load is expected to need more. A device that reports less memory
+ * (`navigator.deviceMemory`, in gigabytes) gets a quarter of what it reports, so a 2 GB phone is
+ * not promised a budget it cannot hold. A host that reports nothing gets the cap. Nothing in the
+ * element enforces it; it is what a consumer reads when deciding whether a graph will fit. The
+ * per-run budget is a different number, `DEFAULT_COST_GATE_LIMITS.runColumnBudgetBytes`.
  */
 
 import type { Limits } from "../acceleration";
@@ -82,12 +77,27 @@ import { GraphtyError } from "../errors/GraphtyError";
 import { DEFAULT_SELECTION_CAP } from "./selection";
 
 /**
- * The fields of {@link Limits} the element can state a defensible default for.
+ * The fields of {@link Limits} the element states a default for: all of them.
  *
- * The one it cannot is `graphMemoryBudgetBytes`, for which the design names no figure; see the
- * file comment.
+ * It once left out `graphMemoryBudgetBytes`, which now has a derived default; see the file comment.
  */
-export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
+export type DefaultableLimits = Limits;
+
+/** The heap the largest graph the ceilings allow was measured to hold: 2 GiB. See the file comment. */
+export const GRAPH_MEMORY_BUDGET_CAP_BYTES = 2 * 1024 ** 3;
+
+/**
+ * The memory one graph may hold on a device that reports how much it has.
+ * @param deviceMemoryGb - `navigator.deviceMemory`, or undefined where the host does not report it.
+ * @returns A quarter of the device's memory, at most {@link GRAPH_MEMORY_BUDGET_CAP_BYTES}.
+ */
+export function graphMemoryBudgetFor(deviceMemoryGb: number | undefined): number {
+    if (deviceMemoryGb === undefined || !Number.isFinite(deviceMemoryGb) || deviceMemoryGb <= 0) {
+        return GRAPH_MEMORY_BUDGET_CAP_BYTES;
+    }
+
+    return Math.min(GRAPH_MEMORY_BUDGET_CAP_BYTES, Math.floor((deviceMemoryGb * 1024 ** 3) / 4));
+}
 
 /**
  * What the element runs under until something measures this machine.
@@ -105,6 +115,13 @@ export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
     renderCeiling: 100_000,
     /** The most elements one selection will hold before it refuses to grow. A shipped default, not measured. */
     selectionCap: DEFAULT_SELECTION_CAP,
+    /**
+     * How much memory the element is willing to hold for one graph. Derived from the measured
+     * ceiling and the memory the device reports (see the file comment), not enforced.
+     */
+    graphMemoryBudgetBytes: graphMemoryBudgetFor(
+        (globalThis.navigator as { readonly deviceMemory?: number } | undefined)?.deviceMemory,
+    ),
     /**
      * The most edges the element will hold. Enforced: a load past it fails with `E_TOO_LARGE`.
      * Measured (see the file comment), on one machine; not this machine's figure.

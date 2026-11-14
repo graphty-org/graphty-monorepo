@@ -11,7 +11,12 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../src/session";
 import { DEFAULT_COST_GATE_LIMITS } from "../../src/session/cost";
-import { DEFAULT_LIMITS, RenderLimits } from "../../src/session/limits";
+import {
+    DEFAULT_LIMITS,
+    GRAPH_MEMORY_BUDGET_CAP_BYTES,
+    graphMemoryBudgetFor,
+    RenderLimits,
+} from "../../src/session/limits";
 import { DEFAULT_SELECTION_CAP } from "../../src/session/selection";
 
 describe("the limits the element ships with", () => {
@@ -72,11 +77,15 @@ describe("the limits the element ships with", () => {
         assert.isAbove(DEFAULT_COST_GATE_LIMITS.runColumnBudgetBytes, 0);
     });
 
-    it("still withholds the one budget the design names no figure for", () => {
-        // Not a naming problem any more -- graphMemoryBudgetBytes is unambiguous. There is simply
-        // nothing measured or designed to publish, and inventing a number here is what this
-        // module exists to stop a consumer doing.
-        assert.notProperty(DEFAULT_LIMITS, "graphMemoryBudgetBytes");
+    it("states a memory budget for one graph, derived from the measured ceiling and the device", () => {
+        // The ceiling pair held about 2 GB of heap, so that is the most any loadable graph needs.
+        assert.strictEqual(GRAPH_MEMORY_BUDGET_CAP_BYTES, 2 * 1024 ** 3);
+        assert.isAtMost(DEFAULT_LIMITS.graphMemoryBudgetBytes, GRAPH_MEMORY_BUDGET_CAP_BYTES);
+        assert.strictEqual(graphMemoryBudgetFor(undefined), GRAPH_MEMORY_BUDGET_CAP_BYTES, "nothing reported");
+        assert.strictEqual(graphMemoryBudgetFor(8), GRAPH_MEMORY_BUDGET_CAP_BYTES, "a quarter of 8 GB is the cap");
+        assert.strictEqual(graphMemoryBudgetFor(2), 512 * 1024 ** 2, "a quarter of a small device");
+        assert.strictEqual(graphMemoryBudgetFor(0.25), 64 * 1024 ** 2);
+        assert.strictEqual(graphMemoryBudgetFor(Number.NaN), GRAPH_MEMORY_BUDGET_CAP_BYTES);
     });
 });
 

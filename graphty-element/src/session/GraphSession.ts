@@ -17,6 +17,7 @@ import {
     ACCELERATION_POLICY_DEFAULT,
     AccelerationController,
     type AccelerationPolicy,
+    type CalibrationRecord,
     type GraphAccelerator,
     type XrCapability,
 } from "../acceleration";
@@ -66,13 +67,19 @@ import { readProjectConfig } from "./commands/config";
 import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
-import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
+import {
+    calibrateOnce,
+    type CostEstimate,
+    currentCalibration,
+    DEFAULT_COST_GATE_LIMITS,
+    type MachineCalibration,
+} from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { dispatcherOf, registerDispatcher } from "./dispatchers";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
-import { RenderLimits } from "./limits";
+import { type DefaultableLimits, RenderLimits } from "./limits";
 import { loadLineOf } from "./loadLine";
 import { createNetworkApi, type NetworkApiInternal } from "./network";
 import { createNoteFacts } from "./notes/countIndex";
@@ -608,6 +615,10 @@ class Session implements ElementSession {
     private readonly unwatchCeilings: () => void;
     /** The capability document last composed, kept while neither of its parts changes. */
     private composed: SessionCapabilities | null = null;
+    /** The page's calibration the record below was made from, so the record keeps its identity. */
+    private calibrationSource: MachineCalibration | undefined;
+    /** What `capabilities.calibration` reports: the page's calibration without its rates. */
+    private calibrationRecord: CalibrationRecord | null = null;
     /** Stops the controller subscription `capabilities:changed` is published from. */
     private readonly unwatchController: () => void;
     /** Stops the XR subscription `capabilities:changed` is also published from. */
@@ -1100,15 +1111,59 @@ class Session implements ElementSession {
         const { acceleration } = this.controller.capabilities;
         const xr = this.xr.capability;
         const limits = this.ceilings.effective;
+        const measured = currentCalibration();
+        if (measured !== this.calibrationSource) {
+            this.calibrationSource = measured;
+            this.calibrationRecord =
+                measured === undefined
+                    ? null
+                    : Object.freeze({ at: measured.at, machine: measured.machine, basis: measured.basis });
+        }
+
+        const calibration = this.calibrationRecord;
         if (
             this.composed?.acceleration !== acceleration ||
             this.composed.xr !== xr ||
-            this.composed.limits !== limits
+            this.composed.limits !== limits ||
+            this.composed.calibration !== calibration
         ) {
-            this.composed = Object.freeze({ acceleration, xr, limits });
+            this.composed = Object.freeze({ acceleration, xr, calibration, limits });
         }
 
         return this.composed;
+    }
+
+    /**
+     * Measure this machine's throughput once per page, for the cost estimates.
+     * @param options - `signal` stops waiting; the shared measurement still finishes.
+     * @returns The limits in force.
+     */
+    async calibrate(options: Pick<RunOptions, "signal"> = {}): Promise<Readonly<DefaultableLimits>> {
+        const { signal } = options;
+        signal?.throwIfAborted();
+        const before = this.document();
+        const measuring = calibrateOnce();
+        if (signal !== undefined) {
+            await new Promise<void>((resolve, reject) => {
+                const stop = (): void => {
+                    reject(signal.reason as Error);
+                };
+                signal.addEventListener("abort", stop, { once: true });
+                void measuring.then(() => {
+                    signal.removeEventListener("abort", stop);
+                    resolve();
+                });
+            });
+        } else {
+            await measuring;
+        }
+
+        const after = this.document();
+        if (after !== before && !this.disposed) {
+            publish(this.watchers, "capabilities:changed", { capabilities: after });
+        }
+
+        return after.limits;
     }
 
     /**
@@ -4795,7 +4850,8 @@ function planningContext(
         // threshold at which the element bothers to use it, so an algorithm that needs one can run.
         acceleratorAvailable: () => ACCELERATOR_ATTACHED.has(acceleration.capabilities.acceleration.state),
         keptSets,
-        ...(runsOptions.calibration === undefined ? {} : { calibration: runsOptions.calibration }),
+        // The page's own calibration unless the host supplies its measured throughput.
+        calibration: runsOptions.calibration ?? currentCalibration,
         ...(runsOptions.measurements === undefined ? {} : { measurements: runsOptions.measurements }),
     };
 }

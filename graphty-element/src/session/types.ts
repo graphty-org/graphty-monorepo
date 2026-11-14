@@ -130,11 +130,12 @@ import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
 import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
- * What `session.capabilities` reports: acceleration and XR, and the limits a load is refused above
- * on this element's render path (`limits`, honored under `render-path="batched"`; the shipped
- * `DEFAULT_LIMITS` otherwise). `graphMemoryBudgetBytes` is absent: nothing can report it.
+ * What `session.capabilities` reports: acceleration and XR, the last calibration of this machine
+ * (`calibration`, null until `session.calibrate()` has run on the page), and the limits a load is
+ * refused above on this element's render path (`limits`, honored under `render-path="batched"`;
+ * the shipped `DEFAULT_LIMITS` otherwise).
  */
-export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
+export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr" | "calibration"> & {
     /**
      * The limits in force.
      * @experimental cosmograph
@@ -4544,6 +4545,21 @@ export interface GraphSession {
      * @param accelerator - The accelerator to attach, or null to detach.
      */
     setAccelerator(accelerator: GraphAccelerator | null): void;
+    /**
+     * Measure how fast this machine runs the element's work, once per page, so that later
+     * estimates report `confidence: "calibrated"` instead of `"modelled"`.
+     *
+     * The probe takes about a quarter of a second and hands the thread back between its pieces.
+     * Every session on the page shares one measurement: a second call, from this session or
+     * another, resolves with the first one's answer. When it resolves, `capabilities.calibration`
+     * says when it ran and whether it measured (`basis: "probe"`) or could not and kept the
+     * shipped rates (`"defaults"`), and `capabilities:changed` reports the change.
+     * @param options - `signal` stops waiting: the call rejects with the signal's reason (an
+     *     `AbortError` unless it says otherwise). The shared measurement still finishes and is kept.
+     * @returns The limits in force, the same document `capabilities.limits` returns.
+     * @since 3.40.0
+     */
+    calibrate(options?: Pick<RunOptions, "signal">): Promise<Readonly<DefaultableLimits>>;
     /**
      * The current snapshot. Its structure, id map and attribute columns are the graph's own,
      * shared rather than copied; its `position` and `graphty.pinned` columns are copies taken

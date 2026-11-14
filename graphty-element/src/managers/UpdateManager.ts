@@ -4450,7 +4450,8 @@ export class UpdateManager implements Manager {
      * @param radius - The globe's radius.
      */
     private frameGlobe(orbit: OrbitCameraController, box: FramingBox, radius: number): void {
-        orbit.zoomToSphere(Vector3.Zero(), radius * GLOBE_FRAMING);
+        // Where the bare sphere just fits: data that needs the camera as far out as that spans the earth.
+        orbit.zoomToSphere(Vector3.Zero(), radius);
         const whole = orbit.cameraDistance;
         this.frameBox(box, null);
         if (orbit.cameraDistance + orbit.pivot.position.length() >= whole) {

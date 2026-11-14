@@ -377,7 +377,8 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
 - **Extent.** `extent: "data"` (the default) fits the map to the located nodes; `"world"` shows
   the whole world. `size` is the map's width in scene units; a globe's radius is `size`, or more
   when the data spans a small part of it, so it is drawn `size` across. The camera opens framed on
-  the whole globe, which fills the view.
+  the data, turned to face it; data that spans most of the earth opens on the whole globe, which
+  fills the view.
 - **Map scale.** `mapScale` (default 1) draws the map, flat or globe, that many times larger
   than `size` makes it while nodes and edges keep their size in scene units, so a dense region (an airline network over the United States or
   Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives

@@ -2954,6 +2954,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             structureValue: READ,
             histogram: READ,
             valueCounts: READ,
+            overRepresented: READ,
             // The column commands, each one batch.
             setRole: {
                 kind: "dispatches",

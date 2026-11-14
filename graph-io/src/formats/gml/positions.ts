@@ -54,8 +54,7 @@ function gmlYAxis(snapshot: Pick<GraphSnapshot, "meta" | "graph">): { tool: Grap
  * @returns x, y, z per node, or null to write the column as stored
  */
 export function gmlWrittenPositions(snapshot: GraphSnapshot): Float64Array | null {
-    const column = snapshot.nodes.byRole("position");
-    return column === null ? null : respelledPositions(snapshot, column, { yAxis: gmlYAxis(snapshot).yAxis });
+    return respelledPositions(snapshot, snapshot.nodes.byRole("position"), { yAxis: gmlYAxis(snapshot).yAxis });
 }
 
 /**
@@ -88,7 +87,8 @@ export function gmlYAxisOf(
     version: unknown,
 ): { tool: GraphTool | null; yAxis: YAxis } {
     const gv2gml = isGv2gml(creator, graphCreator, version);
-    const tool = gv2gml ? "graphviz" : toolOf(creator ?? (typeof graphCreator === "string" ? graphCreator : null));
+    const inGraph = typeof graphCreator === "string" ? graphCreator : null;
+    const tool = gv2gml ? "graphviz" : toolOf(creator ?? inGraph);
     // gv2gml writes Graphviz's own coordinates, y up
     return { tool, yAxis: tool === "gephi" || tool === "tulip" || gv2gml ? "up" : "down" };
 }

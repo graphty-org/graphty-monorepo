@@ -100,15 +100,18 @@ export function neutralPositions(snapshot: GraphSnapshot, column: Column): Float
  * rows are read into the neutral form (`neutralPositions`) and written in `target`'s spelling.
  * A column that declares no spelling is neutral (center, y up).
  * @param snapshot - the graph, for the width and height columns a top-left anchor names
- * @param column - the position column
+ * @param column - the position column, or null without one
  * @param target - the spelling the writer writes
  * @returns x, y, z per node in `target`'s spelling (NaN for an unset row), or null to write the column as stored
  */
 export function respelledPositions(
     snapshot: GraphSnapshot,
-    column: Column,
+    column: Column | null,
     target: PositionColumnExtra,
 ): Float64Array | null {
+    if (column === null) {
+        return null;
+    }
     const extra = column.meta.extra as PositionColumnExtra;
     const same =
         (extra.yAxis ?? "up") === (target.yAxis ?? "up") &&

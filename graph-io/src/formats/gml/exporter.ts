@@ -1398,7 +1398,7 @@ function contextOf(
         topColumns: selectColumns(snapshot.graph, topReserved, "top-level", plan, null, isTopLevel),
         position,
         // the file's Creator is written back, and the GML importer reads y up or down by it
-        spelled: position === null ? null : gmlWrittenPositions(snapshot),
+        spelled: gmlWrittenPositions(snapshot),
         graphics: graphicsColumn(snapshot),
         originalIds,
         edgeIds,

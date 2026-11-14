@@ -882,7 +882,7 @@ function* writeVertices(
     const slots = vertexSlots(nodePlan);
     const writeZ = slots.position !== null && needsZ(slots.position);
     // Pajek draws y downward with depth centered on 0.5: a column spelled another way is converted
-    const spelled = slots.position === null ? null : respelledPositions(snapshot, slots.position, PAJEK_SPELLING);
+    const spelled = respelledPositions(snapshot, slots.position, PAJEK_SPELLING);
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const parts = vertexParts(slots, i, writeZ, spelled);
         if (mangle && ids.isChanged(i)) {

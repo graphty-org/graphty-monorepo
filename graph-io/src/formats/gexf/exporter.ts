@@ -323,7 +323,7 @@ function planExport(
         notes,
         nodeRoles,
         // a column read from a y-down or top-left file (Pajek, yEd, GML) is written the way up Gephi draws it
-        nodePositions: nodeRoles.position === null ? null : respelledPositions(snapshot, nodeRoles.position, {}),
+        nodePositions: respelledPositions(snapshot, nodeRoles.position, {}),
         edgeRoles,
         nodeAttrs,
         edgeAttrs,

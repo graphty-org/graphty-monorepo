@@ -576,7 +576,7 @@ class ExportPlan {
         this.position = nodes.byRole("position");
         this.positionDims = positionDims(this.position);
         // a column read from a y-down or top-left file (Pajek, yEd, GML) is written the way up Graphviz draws it
-        this.spelled = this.position === null ? null : respelledPositions(snapshot, this.position, {});
+        this.spelled = respelledPositions(snapshot, this.position, {});
         this.parent = nodes.byRole("parent");
         const cluster = nodes.get(CLUSTER_COLUMN);
         this.cluster = cluster !== null && cluster.dtype === "bool" ? cluster : null;

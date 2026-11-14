@@ -1253,9 +1253,23 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   proving tests: the load builds records, so "records built during an eligible file import counted at 0" is
   proven as records kept after it counted at 0 (`RecordMap.heldRecords`, every build counted beside it), and
   the digest-and-fingerprint half compares both on every corpus file, generator and sample dataset. The first
-  pull request is the heap half; `columnsEligible`, routing record arrays through the column door, the counted
-  ineligible-load test and the import report (`importColumns` resolving to a `LoadReport`) are the stage's
-  second pull request.
+  pull request is the heap half.
+  Second pull request (built): `columnsEligible(load)` in `session/project/ingest.ts` decides, with a test table
+  (`test/session/records-into-columns.test.ts`). Under `"batched"`, an `addNodes` or `addEdges` whose records
+  qualify is read once into columns (`recordsSource` in `recordMap.ts`: one array per key and, per row, which keys
+  it has, in its order) and dispatched as a `rowsView`, so the slice, the op log and the journal keep no record of
+  it, as for `importColumns`; one that does not qualify is dispatched as it came, whole. Correction to cosmos-gap.md
+  section 6: the column form keeps every key a record has, so it reproduces each record exactly and needs no typed
+  endpoint or weight column; the endpoint, weight and repeat conditions are kept as specified, so the reasons are
+  the ones documented, but none is needed for the graph to come out the same. `nodeData`/`edgeData` and
+  `session.data.import` are not routed: they are loads from a data source and keep their own route (above). The
+  report: a batched push of edge records (`addEdges`, and `importColumns`' edge add) seals its `LoadReport` with
+  `path`, `PATH_COLUMNS` when its records came through columns, else `PATH_RECORDS` with the first failed
+  condition (`"records"` when they qualify but came through a door that does not read columns). Under
+  `"objects"` the report has no `path` (rollback: the objects path's report is unchanged), so reason `"objects"`
+  is returned by `columnsEligible` but never written. `importColumns` resolves to that report, deep-equal to the
+  one `addNodes` and `addEdges` give for the same rows on either path. The headless session's ingest host now
+  reports `batched`, as the element's always did.
 - **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
   one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
   whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the

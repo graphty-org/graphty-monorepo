@@ -29,6 +29,8 @@ import {
     keepRejectedRow,
     keepUnmatchedRow,
     loadErrorOf,
+    type LoadPath,
+    type LoadPathReason,
     type LoadReport,
     newImportTally,
     sealImportReport,
@@ -54,6 +56,7 @@ import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/prov
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
 import type { DataSourceDescriptor, EdgeEnd, LeftOutEdge, LoadedSource, LoadedSourceKind } from "../types";
 import { frozenRecord } from "./draft";
+import { isRowsView } from "./recordMap";
 
 /** The two ends of an edge, in the order a record names them. */
 const EDGE_ENDS = ["source", "target"] as const;
@@ -157,6 +160,123 @@ function inputOf(command: { readonly input?: string }): { readonly input?: strin
  */
 export function isStorableId(id: unknown): id is string | number {
     return typeof id === "string" || (typeof id === "number" && Number.isFinite(id));
+}
+
+/** One load as `columnsEligible` judges it. */
+export interface ColumnsLoad {
+    /** Whether the element draws on the `"batched"` render path. */
+    readonly batched: boolean;
+    /** The load's records, nodes or edges. */
+    readonly records: readonly unknown[];
+    /** `session.data.import`'s `duplicateIds` choice; the record doors always use `"first"`. */
+    readonly duplicateIds?: string;
+    /** For a load of edges: the repeat policy and the weight path in force. */
+    readonly edges?: { readonly repeated: string; readonly weight: string | null };
+}
+
+/** The column path's answer. */
+const PATH_COLUMNS: LoadPath = Object.freeze({ code: "PATH_COLUMNS", params: Object.freeze({}) });
+
+/** The keys an edge record may name its endpoints with (`data/endpoints.ts`). */
+const ENDPOINT_KEYS = ["source", "target", "src", "dst", "from", "to"] as const;
+
+/**
+ * The records path's answer, with its reason.
+ * @param reason - The first condition the load failed.
+ * @returns The path.
+ */
+export function recordsPath(reason: LoadPathReason): LoadPath {
+    return Object.freeze({ code: "PATH_RECORDS", params: Object.freeze({ reason }) });
+}
+
+/**
+ * The reason one record keeps a load off the column path, or null.
+ * @param record - The record.
+ * @param edges - The edge load's choices, for an edge record.
+ * @param seen - The endpoint spelling and weight keys the load's records gave so far.
+ * @param seen.spelling - The endpoint keys the first record named.
+ * @param seen.weights - The weight keys records gave.
+ * @returns The reason, or null.
+ */
+function recordReason(
+    record: unknown,
+    edges: ColumnsLoad["edges"],
+    seen: { spelling?: string; weights: Set<string> },
+): LoadPathReason | null {
+    const proto: unknown = typeof record === "object" && record !== null ? Object.getPrototypeOf(record) : undefined;
+    if (proto !== Object.prototype && proto !== null) {
+        return "records";
+    }
+
+    if (edges === undefined) {
+        return null;
+    }
+
+    const row = record as object;
+    const spelling = ENDPOINT_KEYS.filter((key) => key in row).join("/");
+    seen.spelling ??= spelling;
+    if (seen.spelling !== spelling) {
+        return "endpoints";
+    }
+
+    for (const key of [edges.weight, "value"]) {
+        if (key !== null && key in row) {
+            seen.weights.add(key);
+        }
+    }
+
+    return seen.weights.size > 1 ? "weights" : null;
+}
+
+/**
+ * Whether a load can take the column path (design/rendering/cosmos-gap.md section 6, G8, built
+ * in row-renderer.md stage 29): only under `"batched"`, when every choice it uses has a column
+ * form and every record is a plain object naming its endpoints, and its weight, the same way.
+ * Anything else takes the records path as a whole load, never row by row.
+ * @param load - The load.
+ * @returns The path, with the first failed condition as the reason.
+ */
+export function columnsEligible(load: ColumnsLoad): LoadPath {
+    if (!load.batched) {
+        return recordsPath("objects");
+    }
+
+    if (load.duplicateIds !== undefined && load.duplicateIds !== "first" && load.duplicateIds !== "refuse") {
+        return recordsPath("duplicateIds");
+    }
+
+    const { edges } = load;
+    if (edges !== undefined && edges.repeated !== "keep" && edges.repeated !== "sum") {
+        return recordsPath("repeatedEdges");
+    }
+
+    const seen = { weights: new Set<string>() };
+    for (const record of load.records) {
+        const reason = recordReason(record, edges, seen);
+        if (reason !== null) {
+            return recordsPath(reason);
+        }
+    }
+
+    return PATH_COLUMNS;
+}
+
+/**
+ * The path a batched push of edge records took, for its report: the column path when the records
+ * came through columns, else the reason they could not.
+ * @param edges - The records.
+ * @param repeated - The repeat policy in force.
+ * @param weight - The weight path in force.
+ * @returns The path.
+ */
+function edgesPath(edges: readonly unknown[], repeated: string, weight: string | null): LoadPath {
+    if (isRowsView(edges)) {
+        return PATH_COLUMNS;
+    }
+
+    const path = columnsEligible({ batched: true, records: edges, edges: { repeated, weight } });
+    // Records that qualify but reached the load as records (a door that does not read columns).
+    return path.code === "PATH_COLUMNS" ? recordsPath("records") : path;
 }
 
 /**
@@ -338,7 +458,7 @@ export interface IngestHost<K extends KnownEdge> {
      * path; absent, or undefined, reads `DEFAULT_LIMITS`.
      */
     ceilings?(): Readonly<Ceilings> | undefined;
-    /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. Nothing reads it yet. */
+    /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. */
     batched?(): boolean;
 }
 
@@ -1324,14 +1444,18 @@ export class Ingest<K extends KnownEdge> {
             // A push of records rather than a file, so there is no enclosing load to seal the
             // report. Seal one here, or `session.data.lastImport()` would answer about the last
             // FILE for a graph whose edges came from a consumer's own array.
+            const sealed = sealImportReport(tally, {
+                format: "records",
+                endpoints,
+                policy,
+                idPath: recordIdPath,
+                ...this.heldCounts(),
+            });
             writer.setGraphValues({
-                importReport: sealImportReport(tally, {
-                    format: "records",
-                    endpoints,
-                    policy,
-                    idPath: recordIdPath,
-                    ...this.heldCounts(),
-                }),
+                importReport:
+                    this.host.batched?.() === true
+                        ? Object.freeze({ ...sealed, path: edgesPath(edges, policy, weightPath) })
+                        : sealed,
             });
         }
 

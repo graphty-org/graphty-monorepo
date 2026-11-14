@@ -1873,10 +1873,10 @@ export interface SessionDataApi {
      * });
      * ```
      * @param columns - The columns; see {@link ImportColumnsInput}.
-     * @returns Settles once the rows are in the graph and drawn.
+     * @returns The load's report (as `lastImport()` then answers), once the rows are in the graph and drawn.
      * @throws `E_BAD_COMMAND` when the columns do not line up; nothing is added.
      */
-    importColumns(columns: ImportColumnsInput): Promise<void>;
+    importColumns(columns: ImportColumnsInput): Promise<LoadReport>;
     /**
      * Change some attributes of existing nodes, as one undoable step. Keys not named are kept; an
      * id the graph does not hold is skipped.

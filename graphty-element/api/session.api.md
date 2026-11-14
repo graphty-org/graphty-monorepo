@@ -975,6 +975,7 @@ export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" |
 export interface DraftRow {
     readonly line: number;
     readonly missingEnds?: readonly EdgeEnd[];
+    readonly reason?: RowReason;
     readonly values: Readonly<Record<string, unknown>>;
 }
 
@@ -2916,6 +2917,9 @@ export interface HopsLeaf {
 }
 
 // @public
+export const IMPORT_ROWS_KEPT = 100;
+
+// @public
 export interface ImportColumnsInput {
     readonly attributes?: {
         readonly nodes?: Readonly<Record<string, ArrayLike<unknown>>>;
@@ -3555,6 +3559,10 @@ export interface LoadReport extends ImportReport {
     readonly kinds?: {
         readonly sharedIds: number;
         readonly byKind: Readonly<Record<string, number>>;
+    };
+    readonly rows?: {
+        readonly rejected: readonly DraftRow[];
+        readonly unmatched: readonly DraftRow[];
     };
     readonly styles?: LoadStyleReport;
     readonly tooLarge: TooLargeDetails | null;
@@ -4998,6 +5006,15 @@ export interface RowParts {
     readonly node?: LayerId;
     readonly target: RowTarget;
 }
+
+// @public
+export interface RowReason {
+    readonly code: RowReasonCode;
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export type RowReasonCode = "refused-row" | "unknown-end";
 
 // @public
 export interface RowSpec extends Omit<LayerSpec, "target" | "set" | "encode" | "row"> {

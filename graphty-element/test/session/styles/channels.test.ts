@@ -282,6 +282,7 @@ const DECLARED = [
     "edge.arrowHeadGap",
     "edge.arrowHeadStack",
     "edge.arrowHeadColor",
+    "edge.arrowHeadFillColor",
     "edge.arrowHeadOpacity",
     "edge.arrowHeadImage",
     "edge.arrowHeadText",
@@ -305,6 +306,7 @@ const DECLARED = [
     "edge.arrowTailGap",
     "edge.arrowTailStack",
     "edge.arrowTailColor",
+    "edge.arrowTailFillColor",
     "edge.arrowTailOpacity",
     "edge.arrowTailImage",
     "edge.arrowTailText",
@@ -326,6 +328,7 @@ const DECLARED = [
     "edge.arrowMiddleHeadOutlineWidth",
     "edge.arrowMiddleHeadPosition",
     "edge.arrowMiddleHeadColor",
+    "edge.arrowMiddleHeadFillColor",
     "edge.arrowMiddleHeadOpacity",
     "edge.arrowMiddleHeadImage",
     "edge.arrowMiddleTail",
@@ -335,6 +338,7 @@ const DECLARED = [
     "edge.arrowMiddleTailOutlineWidth",
     "edge.arrowMiddleTailPosition",
     "edge.arrowMiddleTailColor",
+    "edge.arrowMiddleTailFillColor",
     "edge.arrowMiddleTailOpacity",
     "edge.arrowMiddleTailImage",
     "edge.animationSpeed",
@@ -424,9 +428,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and four node channels and one hundred and sixty-five edge channels", () => {
+    it("splits into two hundred and four node channels and one hundred and sixty-nine edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 204);
-        assert.strictEqual(channelsFor("edge").length, 165);
+        assert.strictEqual(channelsFor("edge").length, 169);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -750,6 +754,11 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, an end cap is drawn alone, with no row of caps behind it.
         "edge.arrowHeadStack",
         "edge.arrowTailStack",
+        // Unset, an open cap's inside is left empty.
+        "edge.arrowHeadFillColor",
+        "edge.arrowTailFillColor",
+        "edge.arrowMiddleHeadFillColor",
+        "edge.arrowMiddleTailFillColor",
         // Unset, a cap is drawn whole.
         "edge.arrowHeadSide",
         "edge.arrowTailSide",
@@ -965,7 +974,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the thirty-seven that carry a colour, and the type says the same thirty-seven", () => {
+    it("are the forty-one that carry a colour, and the type says the same forty-one", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -993,11 +1002,15 @@ describe("colour channels", () => {
             "edge.underlayColor",
             "edge.overlayColor",
             "edge.arrowHeadColor",
+            "edge.arrowHeadFillColor",
             "edge.arrowHeadTextColor",
             "edge.arrowTailColor",
+            "edge.arrowTailFillColor",
             "edge.arrowTailTextColor",
             "edge.arrowMiddleHeadColor",
+            "edge.arrowMiddleHeadFillColor",
             "edge.arrowMiddleTailColor",
+            "edge.arrowMiddleTailFillColor",
             "node.tooltipColor",
             "node.tooltipBackground",
             "edge.labelColor",

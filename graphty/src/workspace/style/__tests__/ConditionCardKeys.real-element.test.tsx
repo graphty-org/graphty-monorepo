@@ -5,8 +5,8 @@
  * undone value in the open card; letters typed and Tab take the attribute they highlight; Enter on
  * a ticked value presses Done; a chip opens its card with focus drawn on its first field; Highest
  * hands focus to its number box, as Starts with does to its text box; a single layer's count names
- * its noun, a number committed with Enter says the new count, and typing says the count once, when
- * it pauses; Escape in a text card's box keeps the text and the picker open.
+ * its noun, a number committed with Enter says the new count, and typing says the count when it
+ * pauses, never one for text already typed past; Escape in a text card's box keeps the text and the picker open.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -271,7 +271,7 @@ describe("keys in the condition cards, on the real element", () => {
         });
     });
 
-    it("Starts with hands focus to the text box: the letters land there, and the count is spoken once", async () => {
+    it("Starts with hands focus to the text box: the letters land there, and the count said is the text's", async () => {
         const { session, store, id } = await openLayer("Names", { match: "everything" });
         const region = await openCards();
         const card = await addCard(region, "name");
@@ -281,20 +281,35 @@ describe("keys in the condition cards, on the real element", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, box, "focus is in the text box");
         });
-        const spoken: string[] = [];
+        // Each count said, with the text in the box when it was said. The count is said when typing
+        // pauses: a fast typist hears it once, and a machine slow enough to leave a pause between
+        // two letters hears it there too -- so the test asserts what each count says, not how many.
+        const spoken: { words: string; text: string }[] = [];
         const stop = store.subscribe(() => {
             const words = store.get().announcement ?? "";
-            if (/ of 77 nodes$/.test(words) && spoken.at(-1) !== words) {
-                spoken.push(words);
+            if (/ of 77 nodes$/.test(words) && spoken.at(-1)?.words !== words) {
+                spoken.push({ words, text: box.value });
             }
         });
         await userEvent.keyboard("Mlle");
         assert.strictEqual(box.value, "Mlle", "the letters are in the box");
         await waitFor(() => {
             assert.strictEqual(textOf(session, id), "Mlle");
-            assert.deepEqual(spoken, ["3 of 77 nodes"], "one count, once typing paused");
+            assert.strictEqual(spoken.at(-1)?.words, "3 of 77 nodes", "the settled count is the last said");
         });
         stop();
+        // No count said was for text already typed past: each is the count of the text it was said over.
+        const selector = session.styles.get(id)?.selector;
+        assert.isTrue(selector?.match === "rule" && selector.where.kind === "text");
+        if (selector?.match !== "rule" || selector.where.kind !== "text") {
+            return;
+        }
+        for (const { words, text } of spoken) {
+            const counted = await session.scope.count({
+                define: { kind: "rule", where: { ...selector.where, text }, reading: "clipped" },
+            });
+            assert.strictEqual(words, `${String(counted.nodes)} of 77 nodes`, `the count said over "${text}"`);
+        }
     });
 
     it("Escape in a text card's box keeps the text and the picker open", async () => {

@@ -230,8 +230,13 @@ elif [ "$author" != "$agent" ]; then
     hold="it was opened by $author, not by $agent"
 fi
 if [ -n "$hold" ]; then
-    # On a re-run auto-merge may be on from before; it must not stay on.
-    gh pr merge "$url" --disable-auto >/dev/null 2>&1 || true
+    # On a re-run auto-merge may be on from before; it must not stay on. gh also fails when auto-merge was
+    # never on, so a failure is checked against the pull request itself: still armed, or unknown, stops here.
+    if ! gh pr merge "$url" --disable-auto >/dev/null 2>&1; then
+        on=$(gh pr view "$url" --json autoMergeRequest --jq '.autoMergeRequest != null' 2>/dev/null) || on=unknown
+        [ "$on" = false ] ||
+            die "auto-merge could not be turned off for $url and may still be on (gh says: $on), yet the owner must merge it: $hold. Turn it off by hand: gh pr merge $url --disable-auto"
+    fi
     echo "pr-open: auto-merge is NOT on for $url: $hold. The owner merges it when he gives the go" >&2
 else
     gh pr merge "$url" --auto --merge || die "auto-merge could not be turned on for $url"

@@ -263,6 +263,7 @@ export interface AiControllerOptions {
     apiKeys?: Partial<Record<AiProviderId, string>>;
     approvals?: AiApprovalsSetting;
     commandRegistry: CommandRegistry;
+    datasetBaseUrl?: string;
     emitEvent?: AiEventEmitter;
     gate?: Partial<AssistantGateLimits> | false;
     graph: CommandContext["graph"];
@@ -418,6 +419,7 @@ export interface AiManagerConfig {
     apiKey?: string;
     apiKeys?: Partial<Record<AiProviderId, string>>;
     approvals?: AiApprovalsSetting;
+    datasetBaseUrl?: string;
     gate?: Partial<AssistantGateLimits> | false;
     history?: "none" | "memory" | "browser" | AiHistoryOptions;
     instructions?: string;

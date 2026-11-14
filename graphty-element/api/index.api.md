@@ -330,7 +330,7 @@ export interface AnimationOptions {
         preset: string;
     };
     cameraMode: "stationary" | "animated";
-    cameraPath?: CameraWaypoint[];
+    cameraPath?: (CameraWaypoint | ViewWaypoint)[];
     download?: boolean;
     downloadFilename?: string;
     duration: number;
@@ -651,16 +651,15 @@ export interface CameraStateChangedEvent {
 // @public
 export type CameraViewExtent = "centers" | "drawn";
 
-// @public (undocumented)
+// @public
 export interface CameraWaypoint {
     duration?: number;
-    // (undocumented)
+    hold?: number;
     position: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     target: {
         x: number;
         y: number;
@@ -2995,6 +2994,9 @@ export class Graph implements GraphContext {
     // (undocumented)
     pinOnDrag?: boolean;
     get pixelRatio(): PixelRatio;
+    playTour(path: readonly (CameraWaypoint | ViewWaypoint)[], options?: {
+        easing?: CameraAnimationOptions["easing"];
+    }): Promise<void>;
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
@@ -3583,6 +3585,9 @@ export class Graphty extends LitElement {
     get pinnedNodes(): ReadonlySet<string | number>;
     get pixelRatio(): PixelRatio;
     set pixelRatio(value: PixelRatio);
+    playTour(path: readonly (CameraWaypoint | ViewWaypoint)[], options?: {
+        easing?: "linear" | "easeIn" | "easeOut" | "easeInOut";
+    }): Promise<void>;
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
@@ -8389,6 +8394,13 @@ export interface ViewInsets {
 
 // @public
 export type ViewMode = (typeof VIEW_MODE_VALUES)[number];
+
+// @public
+export interface ViewWaypoint {
+    duration?: number;
+    hold?: number;
+    view: string | CameraState;
+}
 
 // @public
 export const VIRIDIS_COLORS: readonly ["#440154", "#482878", "#3e4989", "#31688e", "#26828e", "#1f9e89", "#35b779", "#6ece58", "#b5de2b", "#fde724"];

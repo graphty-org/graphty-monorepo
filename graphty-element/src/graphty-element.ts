@@ -4277,12 +4277,45 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Stop the camera's animated moves: the one under way stops where the camera is now, and
-     * moves still waiting their turn are dropped. Every caller awaiting one of them resolves.
-     * @returns True if a camera move was cancelled, false if none was under way or waiting
+     * Stop the camera's animated moves: the one under way stops where the camera is now, moves
+     * still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
+     * awaiting one of them resolves.
+     * @returns True if a camera move or tour was cancelled, false if none was under way or waiting
      */
     cancelCameraAnimation(): boolean {
         return this.#graph.cancelCameraAnimation();
+    }
+
+    /**
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
+     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
+     * `position` and `target`; `duration` is the flight to it and `hold` the time spent there, in
+     * milliseconds. Every stop is checked before the camera moves. `cameraTransitionDuration`,
+     * when set, replaces each flight's duration. `cancelCameraAnimation` ends the tour. To record
+     * the same tour, pass it as `cameraPath` to `captureAnimation`.
+     * @param path - The stops, in order.
+     * @param options - How to fly.
+     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
+     * @returns Settles when the last stop's hold is over, or the tour is ended.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
+     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @example
+     * ```typescript
+     * const el = document.querySelector("graphty-element");
+     * await el.session.views.save([{ name: "cluster-a", camera: el.getCameraState() }]);
+     * await el.playTour([
+     *     { view: "fitToGraph", hold: 2000 },
+     *     { view: "cluster-a", duration: 1500, hold: 3000 },
+     * ]);
+     * ```
+     */
+    async playTour(
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+        options?: { easing?: "linear" | "easeIn" | "easeOut" | "easeInOut" },
+    ): Promise<void> {
+        return this.#graph.playTour(path, options);
     }
 
     /**

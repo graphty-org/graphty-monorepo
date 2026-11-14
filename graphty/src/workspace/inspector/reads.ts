@@ -171,7 +171,7 @@ export function measuredNoun(run: Run): "node" | "edge" {
 export function swatchOf(session: GraphSession, target: ExplainTarget): string | undefined {
     const channel: Channel = "node" in target ? "node.color" : "edge.color";
     try {
-        return hexOf(session.styles.explain(target).merged[channel]);
+        return paintedHex(session.styles.explain(target).merged[channel]);
     } catch (error) {
         // E_BAD_COMMAND: the element is gone.
         hidden("styles.explain", error, "E_BAD_COMMAND");
@@ -180,12 +180,13 @@ export function swatchOf(session: GraphSession, target: ExplainTarget): string |
 }
 
 /**
- * The `#rrggbb` of a color value as graphty-element paints it (a `ColorValue`, whose `hex` it
- * keeps beside the numbers).
+ * The hex of a color value exactly as graphty-element paints it (a `ColorValue`, whose `hex` it
+ * keeps beside the numbers), alpha digits included, for a swatch. The paint field's `#RRGGBB`
+ * (no alpha, upper case) is style/words.ts `hexOf`.
  * @param value - a painted value.
  * @returns the hex, or undefined when the value is not a color.
  */
-export function hexOf(value: unknown): string | undefined {
+export function paintedHex(value: unknown): string | undefined {
     if (typeof value === "object" && value !== null && "hex" in value && typeof value.hex === "string") {
         return value.hex;
     }

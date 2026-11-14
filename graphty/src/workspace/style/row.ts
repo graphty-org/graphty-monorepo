@@ -729,8 +729,7 @@ export function layerWord(session: GraphSession, id: LayerId): string | undefine
     if (layer === undefined) {
         return id;
     }
-    // graphty-element's own base layers: its look, and what hides what lies outside a time window.
-    if (layer.source.by === "element" && (layer.source.reason === "default" || layer.source.reason === "time")) {
+    if (layer.source.by === "element" && layer.source.reason === "default") {
         return undefined;
     }
     return findTreeRow(session.styles.tree(), layer.row ?? layer.id)?.row.name ?? layer.name;

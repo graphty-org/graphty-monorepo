@@ -7180,10 +7180,23 @@ export class Graph implements GraphContext {
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
         const { MediaRecorderCapture, holdCameraForCapture } = await import("./video/MediaRecorderCapture.js");
 
+        // A frame reaches the recorder once the engine has ended it: WebGPU submits the frame's
+        // work only in endFrame(), so a copy made from the scene's after-render would read a canvas
+        // that does not hold the frame yet. A tick that ends with no scene drawn is no frame.
         const capture = new MediaRecorderCapture((onFrame) => {
-            const observer = this.scene.onAfterRenderObservable.add(onFrame);
+            let drawn = false;
+            const afterRender = this.scene.onAfterRenderObservable.add(() => {
+                drawn = true;
+            });
+            const endFrame = this.engine.onEndFrameObservable.add(() => {
+                if (drawn) {
+                    drawn = false;
+                    onFrame();
+                }
+            });
             return () => {
-                this.scene.onAfterRenderObservable.remove(observer);
+                this.scene.onAfterRenderObservable.remove(afterRender);
+                this.engine.onEndFrameObservable.remove(endFrame);
             };
         });
 

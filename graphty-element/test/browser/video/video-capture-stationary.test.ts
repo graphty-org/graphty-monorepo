@@ -129,6 +129,20 @@ test("records at the size asked for", async () => {
     graph.dispose();
 });
 
+test("a resized recording holds the frames the graph draws", async () => {
+    const graph = await createTestGraph();
+    graph.setBackground({ backgroundType: "color", color: "#ff0000" });
+
+    await graph.captureAnimation({ duration: 500, cameraMode: "stationary", width: 200, height: 100 });
+
+    // The middle of the recorded picture is the graph's red background, not the black the
+    // recording's canvas starts as.
+    const [red, green, blue] = recordedCanvas().getContext("2d")?.getImageData(100, 50, 1, 1).data ?? [];
+    assert.ok(red > 200 && green < 60 && blue < 60, `recorded pixel: ${String([red, green, blue])}`);
+
+    cleanupTestGraph(graph);
+});
+
 test("a width alone keeps the canvas's aspect", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
@@ -154,7 +168,9 @@ test("counts the frames the graph draws while recording, at most one per 1/fps",
         if (!drawn) {
             drawn = true;
             for (let i = 0; i < 5; i++) {
+                graph.engine.beginFrame();
                 graph.scene.render();
+                graph.engine.endFrame();
             }
         }
     });

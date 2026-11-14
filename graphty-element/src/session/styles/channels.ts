@@ -1410,6 +1410,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             shortName: `${end} caption size`,
             group: "arrows",
             accepts: "number",
+            min: 1,
             stylePath: `arrow${end}.text.fontSize`,
             renderable: true,
             caveat: ARROW_CAPTION_CAVEAT,
@@ -1739,8 +1740,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
     });
     const rows = [
         row("Color", "Color", { accepts: "color" }),
-        // No minimum: a channel takes exactly the numbers its schema path (`label.fontSize`) takes.
-        row("Size", "Size", { accepts: "number" }),
+        row("Size", "Size", { accepts: "number", min: 1 }),
         row("LetterSize", "Letter Size", { accepts: "number", min: 0 }),
         row("Font", "Font", { accepts: "text" }),
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
@@ -2146,8 +2146,7 @@ function textLookChannels<Base extends string>(
             shortName: `${shortName} size`,
             default: LABEL_SIZE_PER_WORLD_UNIT,
             accepts: "number",
-            // No min: the channel takes every number its style schema takes. A size under 1 draws
-            // no text (MIN_DRAWN_FONT_SIZE), and a layer that writes one is told W_TEXT_TOO_SMALL.
+            min: 1,
             perWorldUnit: LABEL_SIZE_PER_WORLD_UNIT,
             stylePath: `${block}.fontSize`,
         },

@@ -480,7 +480,7 @@ as choosing it again would. It is one undoable step of its own: its history fact
 "Undo re-running the layout", and undo puts the nodes back where they were.
 
 ```typescript
-const session = element.getSession();
+const session = element.session;
 await session.layout.rerun();
 await session.undo(); // the nodes go back
 ```
@@ -493,7 +493,7 @@ rest. The session's `layout:motion-changed` event fires on every change: a pause
 layout coming to rest and a layout starting again.
 
 ```typescript
-const session = element.getSession();
+const session = element.session;
 const chip = document.querySelector("#motion")!;
 const button = document.querySelector<HTMLButtonElement>("#pause")!;
 

@@ -314,6 +314,8 @@ async function openLeidenFolder(): Promise<HTMLElement> {
     await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
     await userEvent.type(await page().findByRole("combobox", { name: "Filter analyses" }), "Leiden");
     await userEvent.click(await page().findByRole("option", { name: /^Leiden/ }));
+    // Leiden is unseeded by default: a fixed seed gives every render the same groups and colors.
+    await userEvent.type(await page().findByRole("textbox", { name: /^Random seed/ }), "42");
     await userEvent.click(await page().findByRole("button", { name: /^Run\b/ }));
     const tree = await page().findByRole("tree", { name: "Style layers" });
     const folder = await within(tree).findByRole("treeitem", { name: /^Leiden, folder, / });

@@ -1,17 +1,14 @@
-import {
-    Color3,
-    Constants,
-    Effect,
-    type IShaderMaterialOptions,
-    Mesh,
-    MeshBuilder,
-    Scene,
-    ShaderMaterial,
-    StandardMaterial,
-    Vector2,
-    Vector3,
-    VertexData,
-} from "@babylonjs/core";
+import type { IShaderMaterialOptions } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { Effect } from "@babylonjs/core/Materials/effect.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import {
     EDGE_JOIN_FRAGMENT_SHADER,

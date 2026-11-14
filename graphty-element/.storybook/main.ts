@@ -46,15 +46,10 @@ const config: StorybookConfig = {
                 // makes Vite reload the page under the test that is running.
                 include: [
                     "lit/directives/ref.js",
-                    // The element's Babylon side-effect imports (test/packaging/babylon-side-effects.test.ts).
-                    "@babylonjs/core/Meshes/instancedMesh.js",
-                    "@babylonjs/core/Culling/ray.js",
-                    "@babylonjs/core/Animations/animatable.js",
-                    // The shaders src/meshes/bundledStandardShaders.ts loads with the element.
-                    "@babylonjs/core/Shaders/default.vertex.js",
-                    "@babylonjs/core/Shaders/default.fragment.js",
-                    "@babylonjs/core/ShadersWGSL/default.vertex.js",
-                    "@babylonjs/core/ShadersWGSL/default.fragment.js",
+                    // No @babylonjs/core subpath here: vite.config.ts excludes @babylonjs/core, so
+                    // Vite never discovers its subpaths mid-run, and pre-bundling one gives it a
+                    // second copy of Babylon -- an InstancedMesh the element's deep imports fail
+                    // `instanceof` against, so every node reads as uncoloured.
                     // Imported only by the Graphviz layouts' Worker, which a Layout/Graphviz story
                     // starts after the page has loaded.
                     "@hpcc-js/wasm-graphviz",

@@ -294,10 +294,10 @@ export const sourcesTool: ToolDefinition = {
             },
             effect: "write",
             reaches: [{ door: "SessionDataApi.loadDataset" }, { op: "data.import" }],
-            run: async ({ tx, message }, args) => {
+            run: async ({ tx, message, host }, args) => {
                 const name = text(args.name);
                 holdFetch(message, name);
-                await coded(() => tx.data.loadDataset(name, { mode: "merge" }));
+                await coded(() => tx.data.loadDataset(name, { mode: "merge", baseUrl: host.datasetBaseUrl }));
                 return loaded(tx, name);
             },
         },

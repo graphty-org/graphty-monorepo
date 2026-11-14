@@ -1214,13 +1214,18 @@ export class SessionData implements SessionDataApi {
         this.requireLive("loadDataset");
         const send = this.writes.importer();
         const { baseUrl, signal, ...load } = options;
-        // A mirror may serve any name; only graphty.app's own list is checked.
-        if (baseUrl === undefined && !DATASET_NAMES.includes(name)) {
+        // The element names no host of its own: the caller says where the files are published
+        // (graph-samples exports its own default as `DEFAULT_DATASET_BASE_URL`).
+        if (baseUrl === undefined || baseUrl === "") {
             throw new GraphtyError({
-                code: "E_UNKNOWN_DATASET",
-                message: `There is no dataset named "${name}".`,
+                code: "E_OPTION_RANGE",
+                message: "loadDataset needs a baseUrl.",
                 source: "data",
-                details: { name, available: DATASET_NAMES },
+                details: {
+                    option: "baseUrl",
+                    name,
+                    suggestion: { package: "@graphty/graph-samples", export: "DEFAULT_DATASET_BASE_URL" },
+                },
             });
         }
         // Its place in line is taken now, so a load asked for later waits for this download; an
@@ -1243,7 +1248,7 @@ export class SessionData implements SessionDataApi {
             const sample = this.sampleLoad(snapshot, name, load);
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
-                facts: { dataset: name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+                facts: { dataset: name, baseUrl },
             });
         } finally {
             turn.leave();

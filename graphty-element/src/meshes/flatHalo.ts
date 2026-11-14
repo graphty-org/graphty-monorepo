@@ -1,4 +1,8 @@
-import { type AbstractMesh, InstancedMesh, type Mesh, VertexBuffer, VertexData } from "@babylonjs/core";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 
 /**
  * How far in front of the plane the edges lie on a 2D halo is drawn, in scene units, at most

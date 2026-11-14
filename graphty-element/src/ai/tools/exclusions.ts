@@ -723,7 +723,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         }),
         ...coveredBy(root, { "immersive.exit": ["exitXR"], "immersive.enter": ["setXRConfig"] }),
         { root, members: [...ASSISTANT_VERBS], reason: "assistant-config", kind: BY_DESIGN },
-        { root, members: ["on", "addListener", "shutdown", "render"], reason: "lifecycle", kind: BY_DESIGN },
+        {
+            root,
+            members: ["on", "addListener", "shutdown", "render", "restartRenderer"],
+            reason: "lifecycle",
+            kind: BY_DESIGN,
+        },
         {
             root,
             members: ["setRunning", "setRenderSettings", "setInputEnabled", "enableDetailedProfiling"],

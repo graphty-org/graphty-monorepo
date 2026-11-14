@@ -22,7 +22,6 @@ export default {
                 "graphty",
                 "visual-review",
                 "githerd",
-                "gpu-3d-force-layout",
                 "deps",
                 "release",
                 "ci",

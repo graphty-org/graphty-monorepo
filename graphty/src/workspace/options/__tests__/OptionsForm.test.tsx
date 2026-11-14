@@ -118,12 +118,15 @@ describe("the options form", () => {
         await renderFor("leiden");
         // The selection workspace gives one name per idea across the forms (OptionsForm.tsx, ONE_NAME).
         const names = selectionWorkspaceOn(session)
-            ? [/^Resolution(,|$)/, /^Seed(,|$)/, /^Max iterations(,|$)/, /^Tolerance(,|$)/]
-            : [/^Resolution(,|$)/, /^Random seed(,|$)/, /^Max iterations(,|$)/, /^Threshold(,|$)/];
+            ? [/^Resolution(,|$)/, /^Max iterations(,|$)/, /^Tolerance(,|$)/]
+            : [/^Resolution(,|$)/, /^Max iterations(,|$)/, /^Threshold(,|$)/];
+        const seed = selectionWorkspaceOn(session) ? /^Seed(,|$)/ : /^Random seed(,|$)/;
 
         for (const name of names) {
             assert.isNotNull(screen.getByRole("spinbutton", { name }));
         }
+        // Leiden is unseeded by default, so its seed is an empty box (a text box until it holds a number).
+        assert.strictEqual(screen.getByRole<HTMLInputElement>("textbox", { name: seed }).value, "");
         assert.isNull(screen.queryByRole("button", { name: /Advanced/ }));
         assert.isNull(screen.queryByRole("dialog"));
     });

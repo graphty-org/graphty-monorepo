@@ -2778,6 +2778,7 @@ export class Graph implements GraphContext {
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
     cancelAnimationCapture(): boolean;
+    cancelCameraAnimation(): boolean;
     // (undocumented)
     canvas: HTMLCanvasElement;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
@@ -3326,6 +3327,7 @@ export class Graphty extends LitElement {
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
     cancelAnimationCapture(): boolean;
+    cancelCameraAnimation(): boolean;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
     clearAiHistory(options?: {
@@ -3614,7 +3616,7 @@ export class Graphty extends LitElement {
     }): void;
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
-    }): void;
+    }): Promise<void>;
     setInputEnabled(enabled: boolean): void;
     setLayout(type: string, opts?: object, options?: SetLayoutOptions): Promise<void>;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;

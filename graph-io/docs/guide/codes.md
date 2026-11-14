@@ -67,7 +67,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="E_GML_FLAG_TYPE"></a>`E_GML_FLAG_TYPE`: A `directed` / `multigraph` flag that is not an integer. Import: [gml](./formats/gml.md).
 - <a id="E_GML_GRAPHICS_CONFLICT"></a>`E_GML_GRAPHICS_CONFLICT`: A graphics record that cannot hold the position. Save: [gml](./formats/gml.md).
 - <a id="E_GML_ID_TYPE"></a>`E_GML_ID_TYPE`: A node id, source or target that is neither an integer nor a string. Import: [gml](./formats/gml.md).
-- <a id="E_GML_INVALID_KEY"></a>`E_GML_INVALID_KEY`: An attribute name GML cannot use as a key (keys are letters and digits, starting with a letter). The save fails unless `sanitizeKeys` is "mangle". Save: [gml](./formats/gml.md).
+- <a id="E_GML_INVALID_KEY"></a>`E_GML_INVALID_KEY`: An attribute name GML cannot use as a key (keys are letters, digits and `_`, starting with a letter or `_`). The save fails unless `sanitizeKeys` is "mangle". Save: [gml](./formats/gml.md).
 - <a id="E_GML_MISSING_LABEL"></a>`E_GML_MISSING_LABEL`: A node without a `label` under nodeIdFrom "label". Import: [gml](./formats/gml.md).
 - <a id="E_GML_NESTED_ARRAY"></a>`E_GML_NESTED_ARRAY`: An attribute holds an array inside an array, which GML cannot write; the save fails. Save: [gml](./formats/gml.md).
 - <a id="E_GML_REPEATED_KEY"></a>`E_GML_REPEATED_KEY`: A structural key repeated in one element. Import: [gml](./formats/gml.md).
@@ -92,7 +92,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="E_JSON_DIALECT"></a>`E_JSON_DIALECT`: No dialect matches the document's top-level shape. The import stops. Import: [json](./formats/json.md).
 - <a id="E_JSON_SHAPE"></a>`E_JSON_SHAPE`: A section (nodes, edges, elements, graph) has the wrong JSON type. Import: [json](./formats/json.md).
 - <a id="E_MISSING_ENDPOINT"></a>`E_MISSING_ENDPOINT`: An edge has no source or no target. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- <a id="E_MISSING_ID"></a>`E_MISSING_ID`: The element (node, attribute, key, ...) has no id where the format requires one. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="E_MISSING_ID"></a>`E_MISSING_ID`: The element (node, attribute, key, ...) has no id where the format requires one. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
 - <a id="E_MIXED_DIRECTION"></a>`E_MIXED_DIRECTION`: The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a format that holds one direction per file fails with `E_DIRECTED`. Pass "directed" or "undirected" to read or write it anyway. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md). Save: any format.
 - <a id="E_NEO4J_COLUMN_COUNT"></a>`E_NEO4J_COLUMN_COUNT`: A row with a different field count than the header. Import: [neo4j](./formats/neo4j.md).
 - <a id="E_NEO4J_ENDPOINT_SPACE"></a>`E_NEO4J_ENDPOINT_SPACE`: A spaced relationship endpoint `Space:id` that names a node declared without a space; the row is skipped. Import: [neo4j](./formats/neo4j.md).
@@ -158,7 +158,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_CSV_NODE_TABLE"></a>`W_CSV_NODE_TABLE`: Node attributes are written by a `table: "nodes"` export only. Save: [csv](./formats/csv.md).
 - <a id="W_CSV_NONFINITE"></a>`W_CSV_NONFINITE`: NaN / Infinity in a numeric column read back as text. Save: [csv](./formats/csv.md).
 - <a id="W_CSV_NO_DATA_ROWS"></a>`W_CSV_NO_DATA_ROWS`: A header and no data rows. Import: [csv](./formats/csv.md).
-- <a id="W_CSV_PADDED_ID"></a>`W_CSV_PADDED_ID`: An id that is not quoted has spaces at its start or end; they are kept, so it is a different id from the trimmed text. Reported once per import. Import: [csv](./formats/csv.md).
+- <a id="W_CSV_PADDED_ID"></a>`W_CSV_PADDED_ID`: An id that is not quoted starts or ends in whitespace other than spaces and tabs (a no-break space); it is kept, so it is a different id from the trimmed text. Spaces and tabs around an id that is not quoted are trimmed. Reported once per import. Import: [csv](./formats/csv.md).
 - <a id="W_CSV_POSSIBLE_HEADER"></a>`W_CSV_POSSIBLE_HEADER`: The first row was read as data, but every cell is a word of three or more characters that no other row repeats, so it may be a header of names graph-io does not know. Pass `header: true` if it is one. Import: [csv](./formats/csv.md).
 - <a id="W_CSV_RESERVED_NAME"></a>`W_CSV_RESERVED_NAME`: An attribute column named like a reserved header is not written. Save: [csv](./formats/csv.md).
 - <a id="W_CSV_ROLE_NAME"></a>`W_CSV_ROLE_NAME`: A role column (id, label) whose name the importer does not recognize; the role is lost. Save: [csv](./formats/csv.md).
@@ -252,6 +252,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GEXF_VIZ_VALUE"></a>`W_GEXF_VIZ_VALUE`: A viz value that could not be read. Import: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_WEIGHT_IGNORED"></a>`W_GEXF_WEIGHT_IGNORED`: The XML weight attribute ignored under weightFrom null. Import: [gexf](./formats/gexf.md).
 - <a id="W_GML_FLAG_VALUE"></a>`W_GML_FLAG_VALUE`: A `directed` / `multigraph` flag outside 0 / 1, or repeated. Import: [gml](./formats/gml.md).
+- <a id="W_GML_GENERATED_ID"></a>`W_GML_GENERATED_ID`: A node without an `id` was given the next integer above every integer id, source and target of the graph, as igraph does. Reported once per file. Import: [gml](./formats/gml.md).
 - <a id="W_GML_GRAPHICS"></a>`W_GML_GRAPHICS`: A node's graphics value that cannot give a position as written; kept in the graphics json column. Import: [gml](./formats/gml.md).
 - <a id="W_GML_GRAPHICS_OVERRIDDEN"></a>`W_GML_GRAPHICS_OVERRIDDEN`: A graphics record whose x / y / z the position column overrides. Save: [gml](./formats/gml.md).
 - <a id="W_GML_GROUPS"></a>`W_GML_GROUPS`: A yEd `gid` that names no other node; it stays a plain column value and puts the node in no group. Import: [gml](./formats/gml.md).
@@ -282,6 +283,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GRAPHML_KEY_IN_GRAPH"></a>`W_GRAPHML_KEY_IN_GRAPH`: A `<key>` declared inside `<graph>` instead of `<graphml>`; it is read as if declared in `<graphml>`. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_LOCATOR_DROPPED"></a>`W_GRAPHML_LOCATOR_DROPPED`: A `<locator>` element. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_NAMESPACE"></a>`W_GRAPHML_NAMESPACE`: The `<graphml>` root is in a namespace other than GraphML's; it is read as GraphML. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_NAMESPACE_DROPPED"></a>`W_GRAPHML_NAMESPACE_DROPPED`: A kept namespace prefix that is not an XML NCName, or is `xml` or `xmlns`, is not written on the root tag. Save: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_NESTED_GRAPH_DATA"></a>`W_GRAPHML_NESTED_GRAPH_DATA`: Data of a nested `<graph>`; only the top-level graph has attributes. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_ORIGINAL_ID_IGNORED"></a>`W_GRAPHML_ORIGINAL_ID_IGNORED`: A `graphty:originalId` value that is not text, or arrives after the node was added (after its nested graph). Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_PARENT_CYCLE"></a>`W_GRAPHML_PARENT_CYCLE`: Nodes whose parent chain never reaches a root are written at the top level. Save: [graphml](./formats/graphml.md).

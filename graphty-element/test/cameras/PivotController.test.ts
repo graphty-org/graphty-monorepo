@@ -1,6 +1,5 @@
 import { NullEngine, type Quaternion, Scene, TransformNode, Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { PivotController } from "../../src/cameras/PivotController";
 

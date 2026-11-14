@@ -28,6 +28,7 @@ import {
 } from "../../common/codes.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { LOSS } from "../../common/export.js";
+import { setOwn } from "../../common/json-elements.js";
 import {
     compactOboIri,
     OBO_IN_OWL,
@@ -177,7 +178,7 @@ function keptOf(snapshot: GraphSnapshot): Kept {
     if (isJsonObject(r.properties)) {
         for (const [iri, entry] of Object.entries(r.properties)) {
             if (isJsonObject(entry)) {
-                properties[iri] = entry;
+                setOwn(properties, iri, entry);
             }
         }
     }
@@ -877,9 +878,9 @@ class ObographsExport {
         if (isJsonObject(extra)) {
             for (const [key, value] of Object.entries(extra)) {
                 if (key.startsWith("meta.")) {
-                    meta[key.slice(5)] = value;
+                    setOwn(meta, key.slice(5), value);
                 } else {
-                    node[key] = value;
+                    setOwn(node, key, value);
                 }
             }
         }
@@ -1000,7 +1001,7 @@ class ObographsExport {
         for (const column of this.edgeColumns) {
             const v = cellOf(column, e);
             if (v !== undefined) {
-                meta[column.meta.name] = v;
+                setOwn(meta, column.meta.name, v);
             }
         }
         if (this.weights.weighted && this.weights.isExplicit(e)) {
@@ -1049,7 +1050,7 @@ class ObographsExport {
         const rest: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(this.kept.graph)) {
             if (key !== "id" && key !== "lbl" && key !== "meta" && key !== "nodes" && key !== "edges") {
-                rest[key] = value;
+                setOwn(rest, key, value);
             }
         }
         const text = json(rest, this.nonfinite);

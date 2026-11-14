@@ -444,6 +444,14 @@ const ROWS: Record<string, Row> = {
     "columns.group_table": {
         args: { action: "group_table", column: "team", summaries: { "data.load": ["mean"] } },
     },
+    "columns.collapse_group": { args: { action: "collapse_group", column: "team", group: "red" } },
+    "columns.expand_group": {
+        args: { action: "expand_group", column: "team", group: "red" },
+        setup: async (s) => {
+            await s.groups.collapse({ groupBy: "data.team", group: "red" });
+        },
+    },
+    "columns.collapsed_groups": { args: { action: "collapsed_groups" } },
     "columns.preview_type": { args: { action: "preview_type", column: "load", type: "text" } },
     "columns.rename": { args: { action: "rename", column: "team", name: "squad" } },
     "columns.set_type": { args: { action: "set_type", column: "load", type: "text" } },

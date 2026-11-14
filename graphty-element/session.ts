@@ -262,6 +262,7 @@ export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
  * the data, a reopened project's network-source loads -- waiting for the reader's answer
  * (`session.network`).
  */
+export type { CollapsedGroup, GroupRef, GroupsApi, GroupValue } from "./src/session";
 export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------

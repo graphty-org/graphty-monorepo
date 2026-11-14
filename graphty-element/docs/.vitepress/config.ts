@@ -88,6 +88,7 @@ export default defineConfig({
                         { text: "Selections Built From Steps", link: "/guide/selection-steps" },
                         { text: "Rectangle and Lasso Selection", link: "/guide/region-select" },
                         { text: "Sets", link: "/guide/sets" },
+                        { text: "Collapsing Groups", link: "/guide/collapse-groups" },
                         { text: "Notes", link: "/guide/notes" },
                         { text: "Finding", link: "/guide/find" },
                         { text: "Neighbors", link: "/guide/neighbors" },

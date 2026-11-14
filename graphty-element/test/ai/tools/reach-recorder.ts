@@ -20,6 +20,7 @@ const SESSION_PARTS: Readonly<Record<string, string>> = {
     scope: "ScopeApi",
     sets: "SetsApi",
     notes: "NotesApi",
+    groups: "GroupsApi",
     selection: "SelectionApi",
     visibility: "VisibilityApi",
     styles: "StylesApi",

@@ -70,6 +70,7 @@ import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { dispatcherOf, registerDispatcher } from "./dispatchers";
 import { englishRunLabel } from "./english";
+import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
 import { RenderLimits } from "./limits";
@@ -389,6 +390,7 @@ const TX_PARTS = [
     "scope",
     "sets",
     "notes",
+    "groups",
     "selection",
     "visibility",
     "styles",
@@ -571,6 +573,7 @@ class Session implements ElementSession {
     readonly notes: NotesApi;
     readonly assets: AssetsApiInternal;
     readonly network: NetworkApiInternal;
+    readonly groups: GroupsApi;
     readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
@@ -697,6 +700,26 @@ class Session implements ElementSession {
         this.unwatchCeilings = this.ceilings.onChange(changed);
         let version = 0;
         this.dispatcher = parts.dispatcher;
+        // A collapse is worked out from the graph once the loads ahead of it have landed.
+        // Inside a transaction (`tx.groups`) the steps join it; on their own they are one step.
+        this.groups = createGroupsApi(this, (build) => {
+            const joining = this.dispatcher.routing;
+            const send = this.dispatcher.capturedDispatch();
+            return loadLineOf(this.dispatcher).edit(async () => {
+                const { label, fact, steps } = await build();
+                const all = async (via: (command: SessionCommand) => Promise<unknown>): Promise<void> => {
+                    for (const command of steps) {
+                        await via(command);
+                    }
+                };
+                await (joining
+                    ? all(send)
+                    : this.dispatcher.transaction(label, (tx) => all((command) => tx.dispatch(command)), {
+                          fact,
+                          moves: true,
+                      }));
+            }, undefined);
+        });
         // Chained: the kept sets hear each change after it, to tell `set:changed`.
         const beside = this.dispatcher.events.project;
         this.dispatcher.events.project = (change) => {

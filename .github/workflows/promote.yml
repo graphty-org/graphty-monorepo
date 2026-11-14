@@ -49,11 +49,96 @@ env:
     FC_FONTATIONS: "1"
 
 jobs:
+    # The production smoke test of the candidate, before the owner's approval and before anything moves (a dry
+    # run too): every dry-run route on the candidate's build, in a software-drawn Chromium, with no console error
+    # and a drawing on the canvas, and graphty-element from its npm tarball in a blank page
+    # (graphty/acceptance/smoke.mjs). Its own job, with read-only permissions and no environment: it installs the
+    # dependencies and runs the candidate's route code, so none of that runs beside npm's OIDC credential in the
+    # promote job. A red one stops the promotion. A rollback, or a candidate from before graphty/acceptance existed,
+    # gets it as advisory only: master's runner may not walk an old build's routes, and a rollback must not be
+    # blocked by that. The smoke-published job runs it again on what was published.
+    smoke-candidate:
+        name: Smoke test the candidate
+        if: ${{ github.ref == 'refs/heads/master' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 40 # the smoke test takes up to about 20 of these
+        permissions:
+            contents: read
+            issues: read # gather reads the publish hold
+        outputs:
+            site_sha256: ${{ steps.gather.outputs.site_sha256 }}
+        steps:
+            - run: echo "WORK=$RUNNER_TEMP/promote" >> "$GITHUB_ENV"
+            - uses: actions/checkout@v7
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+            # Before any install: the token is in this step only. No RESULTS_URL, so the store is not asked: the
+            # promote job's check does that.
+            - name: Gather the candidate
+              id: gather
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  NIGHTLY: ${{ inputs.nightly }}
+              run: |
+                  set -euo pipefail
+                  node tools/channel/promote.mjs gather --nightly "$NIGHTLY" --channel "$CHANNEL" \
+                      $([ "$CONFIG_ONLY" = true ] && echo --config-only) --out "$WORK"
+                  echo "site_sha256=$(jq -r .hashes.site "$WORK/facts.json")" >> "$GITHUB_OUTPUT"
+            - uses: pnpm/action-setup@v6
+            - name: Restore the pnpm store
+              uses: ./.github/actions/restore-pnpm-store
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+            - uses: ./.github/actions/drop-microsoft-apt-source
+            - name: Install Chromium and its system packages
+              run: pnpm exec playwright install --with-deps chromium
+            - name: Smoke test the candidate
+              run: |
+                  set -euo pipefail
+                  mkdir -p "$WORK/candidate"
+                  tar --zstd -xf "$WORK/site.tar.zst" -C "$WORK/candidate"
+                  cp "$SITE_CONFIG" "$WORK/candidate/site.json" # what the site deploy adds
+                  commit=$(jq -r .nightly.commit "$WORK/facts.json")
+                  rollback=$(jq -r '.ancestry == "older"' "$WORK/facts.json")
+                  git fetch --no-tags --depth 1 origin "$commit"
+                  if ! git cat-file -e "$commit:graphty/acceptance/routes.mjs" 2>/dev/null; then
+                      echo "::warning::$commit predates graphty/acceptance: its routes cannot be walked, so the candidate is not smoke tested"
+                      exit 0
+                  fi
+                  # the routes as they were at the candidate's commit: master's may walk a newer UI
+                  git checkout "$commit" -- graphty/acceptance/routes.mjs graphty/acceptance/readers.mjs design/ui/studio/tool/files
+                  # the candidate's graphty-element, unless release-hold.json kept it off npm
+                  element=$(jq -r '.nightly.versions["graphty-element"] // empty' "$WORK/facts.json")
+                  args=(--dist "$WORK/candidate")
+                  if [ -n "$element" ] && npm view "@graphty/graphty-element@$element" version | grep -q .; then
+                      args+=(--element "@graphty/graphty-element@$element")
+                  else
+                      echo "::notice::graphty-element ${element:-(none)} is not on npm: only the app's routes are tested"
+                  fi
+                  if [ "$rollback" = true ]; then
+                      node graphty/acceptance/smoke.mjs "${args[@]}" ||
+                          echo "::warning::the smoke test of rollback target $commit failed: advisory only, the rollback goes on"
+                  else
+                      node graphty/acceptance/smoke.mjs "${args[@]}"
+                  fi
+            - uses: actions/upload-artifact@v7
+              if: ${{ always() }}
+              with:
+                  name: smoke-candidate-${{ github.run_id }}
+                  path: tmp/smoke
+                  if-no-files-found: ignore
+
     promote:
         name: Promote (owner approval)
         if: ${{ github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 90 # the smoke test of the candidate takes up to about 20 of these
+        needs: smoke-candidate
+        timeout-minutes: 60
         environment: production
         permissions:
             actions: read # the run's approvals: who approved is promotedBy
@@ -116,49 +201,17 @@ jobs:
                   echo "rollback=$(jq -r .rollback "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
                   echo "tag=$(jq -r '.tag // empty' "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
 
-            # The production smoke test of the candidate, before anything moves (a dry run too): every dry-run
-            # route on the candidate's build, in a software-drawn Chromium, with no console error and a drawing
-            # on the canvas, and graphty-element from its npm tarball in a blank page (graphty/acceptance/smoke.mjs).
-            # A red one stops the promotion here. The smoke-published job runs it again on what was published.
-            - uses: pnpm/action-setup@v6
-
-            - name: Restore the pnpm store
-              uses: ./.github/actions/restore-pnpm-store
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
+            # The build the smoke-candidate job passed is the one promoted: "newest" may have moved since.
+            - name: Check this is the build the smoke test passed
               env:
-                  HUSKY: "0"
-
-            - uses: ./.github/actions/drop-microsoft-apt-source
-
-            - name: Install Chromium and its system packages
-              run: pnpm exec playwright install --with-deps chromium
-
-            - name: Smoke test the candidate
+                  SMOKED: ${{ needs.smoke-candidate.outputs.site_sha256 }}
               run: |
                   set -euo pipefail
-                  mkdir -p "$WORK/candidate"
-                  tar --zstd -xf "$WORK/site.tar.zst" -C "$WORK/candidate"
-                  cp "$SITE_CONFIG" "$WORK/candidate/site.json" # what the site deploy adds
-                  # the routes as they were at the candidate's commit: master's may walk a newer UI
-                  commit=$(jq -r .commit "$WORK/plan.json")
-                  git fetch --no-tags --depth 1 origin "$commit"
-                  git checkout "$commit" -- graphty/acceptance/routes.mjs graphty/acceptance/readers.mjs design/ui/studio/tool/files
-                  # the candidate's graphty-element, unless release-hold.json kept it off npm
-                  element=$(jq -r '.versions["graphty-element"] // empty' "$WORK/channel.json")
-                  if [ -n "$element" ] && npm view "@graphty/graphty-element@$element" version | grep -q .; then
-                      node graphty/acceptance/smoke.mjs --dist "$WORK/candidate" --element "@graphty/graphty-element@$element"
-                  else
-                      echo "::notice::graphty-element ${element:-(none)} is not on npm: only the app's routes are tested"
-                      node graphty/acceptance/smoke.mjs --dist "$WORK/candidate"
-                  fi
-
-            - uses: actions/upload-artifact@v7
-              if: ${{ failure() }}
-              with:
-                  name: smoke-candidate-${{ github.run_id }}
-                  path: tmp/smoke
+                  got=$(jq -r .hashes.site "$WORK/facts.json")
+                  [ "$got" = "$SMOKED" ] || {
+                      echo "::error::the smoke test passed site.tar.zst $SMOKED, this promotion gathered $got: run it again"
+                      exit 1
+                  }
 
             # Before anything moves (a dry run too): re-sets each moved package's tag to the version it already has,
             # so a package whose trusted publisher is missing or lacks "Allow npm dist-tag" fails with nothing moved.
@@ -296,6 +349,12 @@ jobs:
                   set -euo pipefail
                   commit=$(jq -r .commit "$RUNNER_TEMP/promote/plan.json")
                   git fetch --no-tags --depth 1 origin "$commit"
+                  if ! git cat-file -e "$commit:graphty/acceptance/routes.mjs" 2>/dev/null; then
+                      echo "::warning::$commit predates graphty/acceptance: only the package is smoke tested"
+                      node graphty/acceptance/smoke.mjs --no-routes --element "@graphty/graphty-element@$ELEMENT" \
+                          2>&1 | tee "$RUNNER_TEMP/smoke.log"
+                      exit 0
+                  fi
                   git checkout "$commit" -- graphty/acceptance/routes.mjs graphty/acceptance/readers.mjs design/ui/studio/tool/files
                   node graphty/acceptance/smoke.mjs --url "$SITE_URL" --element "@graphty/graphty-element@$ELEMENT" \
                       2>&1 | tee "$RUNNER_TEMP/smoke.log"

@@ -7772,18 +7772,35 @@ describe("promote.yml", () => {
         assert.match(trust, /if: \$\{\{ inputs.config_only != true \}\}/, "a dry run checks the trust too");
     });
 
-    it("smoke tests the candidate before anything moves, and what was published after, filing an issue and never reverting", () => {
+    it("smoke tests the candidate before anything moves, in its own job with no credential", () => {
+        const smoke = job(promote, "smoke-candidate");
+        assert.match(smoke, /\n {8}permissions:\n {12}contents: read\n {12}issues: read[^\n]*\n {8}outputs:/);
+        assert.doesNotMatch(
+            smoke,
+            /environment:|id-token|contents: write|secrets\./,
+            "nothing to steal beside the install",
+        );
+        assert.ok(smoke.indexOf("promote.mjs gather") < smoke.indexOf("pnpm install"), "the token step runs first");
+        assert.doesNotMatch(main, /pnpm install|playwright|smoke\.mjs/, "nothing installed beside npm's OIDC");
+        assert.match(main, /\n {8}needs: smoke-candidate\n/, "a red smoke test blocks the move, dry run too");
         const at = (s) => main.indexOf(s);
-        const smoke = at("node graphty/acceptance/smoke.mjs --dist");
-        assert.ok(smoke > at("promote.mjs check"), "the smoke test reads the checked plan");
-        assert.ok(smoke < at("promote.mjs trust") && smoke < at("promote.mjs move"), "it blocks before any move");
-        const candidate = steps(main).find((s) => s.includes("smoke.mjs --dist"));
+        assert.ok(at("SMOKED") > at("promote.mjs check") && at("SMOKED") < at("promote.mjs trust"), "the smoked build");
+        const candidate = steps(smoke).find((s) => s.includes("smoke.mjs"));
         assert.doesNotMatch(candidate, /\n {14}if:|continue-on-error/, "it runs in a dry run too, and blocks");
         assert.match(
             candidate,
             /git checkout "\$commit" -- graphty\/acceptance\/routes\.mjs/,
             "the candidate's own routes",
         );
+        assert.match(
+            candidate,
+            /git cat-file -e "\$commit:graphty\/acceptance\/routes\.mjs"/,
+            "an old build is skipped",
+        );
+        assert.match(candidate, /\.ancestry == "older"/, "a rollback is advisory");
+    });
+
+    it("smoke tests what was published, filing an issue and never reverting", () => {
         const after = job(promote, "smoke-published");
         assert.match(after, /\n {8}needs: \[promote, nightly-site\]\n/);
         assert.match(after, /inputs.dry_run != true && needs.promote.result == 'success'/);

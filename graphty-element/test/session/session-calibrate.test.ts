@@ -49,12 +49,13 @@ describe("session.calibrate()", () => {
         const { session } = chain();
         const before = session.estimate({ op: "algo.run", algorithm: "degree" });
         assert.strictEqual(before.confidence, "modelled");
-        assert.isNull(session.capabilities.calibration);
+        assert.strictEqual(session.capabilities.calibration, null, "nothing measured yet");
 
         const limits = await session.calibrate();
 
-        assert.strictEqual(limits, session.capabilities.limits, "it resolves with the limits in force");
-        assert.strictEqual(session.capabilities.calibration?.basis, "probe");
+        const { capabilities } = session;
+        assert.strictEqual(limits, capabilities.limits, "it resolves with the limits in force");
+        assert.strictEqual(capabilities.calibration?.basis, "probe");
         const after = session.estimate({ op: "algo.run", algorithm: "degree" });
         assert.strictEqual(after.confidence, "calibrated");
         assert.include(after.basis, "calibrated");

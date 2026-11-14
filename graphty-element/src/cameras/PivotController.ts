@@ -55,8 +55,9 @@ export class PivotController {
     rotate(yawDelta: number, pitchDelta: number): void {
         this.frameCount++;
 
-        const hasYaw = Math.abs(yawDelta) > 0.0001;
-        const hasPitch = Math.abs(pitchDelta) > 0.0001;
+        // Any angle turns: an arrow key near a globe's surface turns by millionths of a radian.
+        const hasYaw = yawDelta !== 0;
+        const hasPitch = pitchDelta !== 0;
 
         if (!hasYaw && !hasPitch) {
             return;
@@ -90,12 +91,14 @@ export class PivotController {
 
     /**
      * Rotate the pivot around an arbitrary axis.
-     * Used for two-hand gesture rotation in XR.
+     * Used for two-hand gesture rotation in XR and for turning a globe under a drag. Any angle
+     * turns, however small: near a globe's surface a drag's whole turn is millionths of a radian,
+     * and so is the axis from the cross product of the two points it grabbed.
      * @param axis - The axis to rotate around (will be normalized)
      * @param angle - The rotation angle in radians
      */
     rotateAroundAxis(axis: Vector3, angle: number): void {
-        if (Math.abs(angle) < 0.0001 || axis.length() < 0.0001) {
+        if (angle === 0 || axis.lengthSquared() === 0) {
             return;
         }
 

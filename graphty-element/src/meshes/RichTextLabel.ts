@@ -1,4 +1,4 @@
-import type { Camera } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";

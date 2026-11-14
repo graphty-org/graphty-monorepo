@@ -1,10 +1,16 @@
-import type { AbstractMesh, Camera, Engine, Mesh, RenderTargetTexture, Scene, WebGPUEngine } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
+import type { Engine } from "@babylonjs/core/Engines/engine.js";
+import type { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import type { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { EncodeImageAsync } from "@babylonjs/core/Misc/dumpTools.js";
 import { CreateScreenshotAsync, CreateScreenshotUsingRenderTarget } from "@babylonjs/core/Misc/screenshotTools.js";
 import { EncodeArrayBufferToBase64 } from "@babylonjs/core/Misc/stringTools.js";
 import { FxaaPostProcess } from "@babylonjs/core/PostProcesses/fxaaPostProcess.js";
 import { DefaultRenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ViewInsets } from "../camera/types.js";
 import { type Graph, operationQueueOf } from "../Graph.js";

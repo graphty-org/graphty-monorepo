@@ -1,8 +1,8 @@
-import type { Scene } from "@babylonjs/core";
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { earClip, fansFromOrigin, type Point2, type RingPiece } from "./shapeOutlines";
 

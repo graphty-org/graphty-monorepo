@@ -2,10 +2,11 @@
 // here so any path that reaches a batch has them. See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import type { Mesh, Scene } from "@babylonjs/core";
 import { BoundingBox } from "@babylonjs/core/Culling/boundingBox.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
 import { batchUploadFrames, type RangedUploads } from "./FrameRoster";

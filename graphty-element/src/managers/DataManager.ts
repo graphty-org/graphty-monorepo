@@ -1,5 +1,6 @@
-import type { AbstractActionManager, Node as SceneNode, Scene } from "@babylonjs/core";
+import type { AbstractActionManager, Node as SceneNode } from "@babylonjs/core";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import {
     type DerivedGraph,
     GraphFormatError,

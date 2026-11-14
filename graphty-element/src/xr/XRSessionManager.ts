@@ -1,4 +1,7 @@
-import type { Camera, Scene, WebXRDefaultExperience, WebXRDefaultExperienceOptions } from "@babylonjs/core";
+import type { WebXRDefaultExperienceOptions } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import type { Scene } from "@babylonjs/core/scene.js";
+import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 
 import { GraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger, type Logger } from "../logging";

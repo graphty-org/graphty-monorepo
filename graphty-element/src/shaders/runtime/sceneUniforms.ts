@@ -11,9 +11,11 @@
  * With only still shaders nothing is claimed, no frame observer is added and the loop rests.
  */
 
-import type { AbstractEngine, Effect, Observer, Scene } from "@babylonjs/core";
+import type { AbstractEngine, Observer } from "@babylonjs/core";
+import type { Effect } from "@babylonjs/core/Materials/effect.js";
 import { UniformBuffer } from "@babylonjs/core/Materials/uniformBuffer.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { animatesEveryFrame } from "../../managers/everyFrameAnimations";
 import { SCENE_BLOCK, SCENE_MEMBERS } from "./wrap";

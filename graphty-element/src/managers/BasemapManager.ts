@@ -1,6 +1,7 @@
-import type { AbstractMesh, Scene } from "@babylonjs/core";
 import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import type { FlatMap, Globe, MapCredit, MapSource } from "babylonjs-map";
 
 import type { BasemapConfig, BasemapStatus, GlobeLook } from "../config/Basemap";

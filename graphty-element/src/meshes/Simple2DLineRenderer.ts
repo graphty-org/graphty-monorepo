@@ -1,4 +1,5 @@
-import type { Mesh, Scene } from "@babylonjs/core";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { CustomLineRenderer, type JoinedLineOptions } from "./CustomLineRenderer";
 

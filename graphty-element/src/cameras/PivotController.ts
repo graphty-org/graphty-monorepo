@@ -1,7 +1,7 @@
-import type { Scene } from "@babylonjs/core";
 import { Axis, Space } from "@babylonjs/core/Maths/math.axis.js";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { GraphtyLogger, type Logger } from "../logging";
 

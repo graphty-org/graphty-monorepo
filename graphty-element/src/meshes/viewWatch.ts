@@ -1,4 +1,5 @@
-import type { Camera, Plane } from "@babylonjs/core";
+import type { Plane } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Frustum } from "@babylonjs/core/Maths/math.frustum.js";
 import { Matrix } from "@babylonjs/core/Maths/math.vector.js";
 

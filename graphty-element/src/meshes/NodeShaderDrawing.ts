@@ -27,10 +27,14 @@
  * the rest show the end state.
  */
 
-import type { AbstractMesh, InstancedMesh, Mesh, Plane, Scene } from "@babylonjs/core";
+import type { Plane } from "@babylonjs/core";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
 import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 import { Frustum } from "@babylonjs/core/Maths/math.frustum.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import {
     drawingOf,

@@ -1,7 +1,10 @@
-import type { Camera, Mesh, Observer, Scene } from "@babylonjs/core";
+import type { Observer } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Viewport } from "@babylonjs/core/Maths/math.viewport.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { LabelDeclutterOrder } from "../catalog/label-style";
 import type { Edge } from "../Edge";

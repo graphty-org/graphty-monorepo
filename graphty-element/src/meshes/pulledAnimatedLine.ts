@@ -1,4 +1,3 @@
-import type { Scene } from "@babylonjs/core";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
 import { Effect } from "@babylonjs/core/Materials/effect.js";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
@@ -6,6 +5,7 @@ import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 

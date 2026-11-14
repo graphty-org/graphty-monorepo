@@ -1,4 +1,6 @@
-import type { Scene, TransformNode, WebXRDefaultExperience } from "@babylonjs/core";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
+import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 
 import { GraphtyLogger, type Logger } from "../logging";

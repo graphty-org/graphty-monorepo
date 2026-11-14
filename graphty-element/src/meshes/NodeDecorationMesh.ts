@@ -4,13 +4,15 @@
  * node's mesh so they move, hide and go with it. Each is a source mesh cached under the node's
  * style key, so every node of one style shares it and pays for one instance.
  */
-import type { AbstractMesh, InstancedMesh, Scene } from "@babylonjs/core";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { NodeStyleConfig } from "../config";
 import { fontFamilies, noteLabelFont } from "./labelFonts";

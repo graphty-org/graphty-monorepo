@@ -1,7 +1,9 @@
-import type { Engine, Scene, WebGPUEngine } from "@babylonjs/core";
+import type { Engine } from "@babylonjs/core/Engines/engine.js";
+import type { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { EngineInstrumentation } from "@babylonjs/core/Instrumentation/engineInstrumentation.js";
 import { SceneInstrumentation } from "@babylonjs/core/Instrumentation/sceneInstrumentation.js";
 import { PerfCounter } from "@babylonjs/core/Misc/perfCounter.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { StatsUpdateEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";

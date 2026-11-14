@@ -1,8 +1,10 @@
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import type { AbstractMesh, RawTexture, TransformNode } from "@babylonjs/core";
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import isEqual from "lodash/isEqual.js";
 

@@ -13,13 +13,13 @@
  * its material and its buffers are disposed with the transition.
  */
 
-import type { Scene } from "@babylonjs/core";
 import { Buffer } from "@babylonjs/core/Buffers/buffer.js";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
 import { ShaderStore } from "@babylonjs/core/Engines/shaderStore.js";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import { mulberry32 } from "@graphty/algorithms";
 
 import type { Vec3 } from "../camera/types";

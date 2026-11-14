@@ -35,10 +35,12 @@
  * a pause is not.
  */
 
-import type { AbstractEngine, Effect, Observer, RenderTargetWrapper, Scene } from "@babylonjs/core";
+import type { AbstractEngine, Observer, RenderTargetWrapper } from "@babylonjs/core";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
+import type { Effect } from "@babylonjs/core/Materials/effect.js";
 import { EffectRenderer } from "@babylonjs/core/Materials/effectRenderer.js";
 import { Viewport } from "@babylonjs/core/Maths/math.viewport.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { drawingOf, type ShaderParamDescriptor, type ShaderParams, type ShaderProblem } from "../../catalog/shaders";
 import type { GraphtyError } from "../../errors/GraphtyError";

@@ -19,7 +19,9 @@
  * first model only (./loadModel).
  */
 
-import type { BaseTexture, Mesh, Observer, Scene } from "@babylonjs/core";
+import type { BaseTexture, Observer } from "@babylonjs/core";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { LayerId } from "../catalog/types";
 import type { NodeStyleConfig } from "../config";

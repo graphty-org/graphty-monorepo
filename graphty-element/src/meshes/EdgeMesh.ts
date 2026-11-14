@@ -1,9 +1,10 @@
-import type { BaseTexture, Scene, ShaderMaterial } from "@babylonjs/core";
+import type { BaseTexture } from "@babylonjs/core";
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { Effect } from "@babylonjs/core/Materials/effect.js";
 import { GreasedLineMeshColorMode } from "@babylonjs/core/Materials/GreasedLine/greasedLineMaterialInterfaces.js";
+import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
@@ -15,6 +16,7 @@ import { GreasedLineBaseMesh } from "@babylonjs/core/Meshes/GreasedLine/greasedL
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";

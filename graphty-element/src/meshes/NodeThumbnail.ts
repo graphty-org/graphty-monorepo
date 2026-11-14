@@ -1,7 +1,9 @@
-import type { Engine, Scene, WebGPUEngine } from "@babylonjs/core";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera.js";
+import type { Engine } from "@babylonjs/core/Engines/engine.js";
+import type { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { Color4 } from "@babylonjs/core/Maths/math.color.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { Channel, ChannelValue } from "../catalog/types";
 import type { NodeStyleConfig } from "../config";

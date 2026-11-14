@@ -1,10 +1,10 @@
-import type { AbstractMesh } from "@babylonjs/core";
 import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
 import { Effect } from "@babylonjs/core/Materials/effect.js";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial.js";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";

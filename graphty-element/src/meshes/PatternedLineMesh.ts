@@ -20,8 +20,8 @@
  * - Phase 4: Connected patterns (sinewave, zigzag) positioning
  */
 
-import type { Scene } from "@babylonjs/core";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ArrowCap } from "./ArrowCapBatch";
 import {

@@ -1,8 +1,10 @@
 import "@babylonjs/core/Rendering/outlineRenderer.js";
 
-import type { AbstractMesh, Scene, StandardMaterial } from "@babylonjs/core";
 import { FresnelParameters } from "@babylonjs/core/Materials/fresnelParameters.js";
+import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { DEFAULT_LIGHTING, isLighting, type Lighting } from "../config/Lighting";
 

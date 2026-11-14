@@ -5,12 +5,14 @@
  * Loaded with the shader runtime, never by a graph that names no shader.
  */
 
-import type { AbstractEngine, Effect, Scene } from "@babylonjs/core";
+import type { AbstractEngine } from "@babylonjs/core";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
+import type { Effect } from "@babylonjs/core/Materials/effect.js";
 import { EffectWrapper } from "@babylonjs/core/Materials/effectRenderer.js";
 import { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
 import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ShaderParamDescriptor, ShaderParams } from "../catalog/shaders";
 import type { SceneProgram } from "../shaders/runtime/scenePrograms";

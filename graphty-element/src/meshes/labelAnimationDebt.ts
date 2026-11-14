@@ -1,4 +1,4 @@
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /**
  * Scenes holding a label whose animation has not been started yet.

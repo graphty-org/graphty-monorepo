@@ -1,5 +1,5 @@
-import type { ShaderMaterial } from "@babylonjs/core";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
+import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
 
 import { NodeBillboardBatch } from "./NodeBillboardBatch";
 

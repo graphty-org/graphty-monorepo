@@ -1,9 +1,13 @@
-import type { AbstractMesh, InstancedMesh, Mesh, RawTexture, Scene } from "@babylonjs/core";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 import { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
 import { Color4 } from "@babylonjs/core/Maths/math.color.js";
 import { Vector2 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { isRowBatch, isUnscaledRowBatch } from "../meshes/RowPullPlugin";
 

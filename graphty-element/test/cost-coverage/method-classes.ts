@@ -799,6 +799,7 @@ export const READ_ONLY: readonly string[] = [
     "GraphView.groupBy",
     "GraphView.node",
     "GraphView.nodes",
+    "Graphty.accessibleFacts",
     "Graphty.addEventListener",
     "Graphty.addListener",
     "Graphty.aiTalk",

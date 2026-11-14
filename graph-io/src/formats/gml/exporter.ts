@@ -1033,7 +1033,7 @@ const LIST_MARKER_TEXTS: ReadonlySet<string> = new Set([EMPTY_LIST_TEXT, EMPTY_T
 function dataText(text: string): string {
     const quoted = quoteGmlString(text);
     // the markers are ASCII, so the quoted form is `"` + text + `"`
-    return LIST_MARKER_TEXTS.has(text) ? `"&#${text.charCodeAt(0)};${quoted.slice(2)}` : quoted;
+    return LIST_MARKER_TEXTS.has(text) ? `"&#${text.codePointAt(0)};${quoted.slice(2)}` : quoted;
 }
 
 /**

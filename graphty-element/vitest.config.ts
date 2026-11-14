@@ -237,6 +237,8 @@ const XR_BROWSER_TESTS = [
     "test/interactions/xr/xr-thumbstick.test.ts",
     "test/interactions/xr/xr-gestures.test.ts",
     "test/interactions/xr/xr-hand-tracking.test.ts",
+    "test/interactions/xr/xr-input-switching.test.ts",
+    "test/interactions/xr/xr-local-space.test.ts",
     "test/interactions/unit/xr-direction.test.ts",
     "test/interactions/unit/deadzone.test.ts",
     "test/browser/xr-drag-amplification.test.ts",

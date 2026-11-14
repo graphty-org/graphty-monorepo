@@ -73,6 +73,29 @@ describe("the shape of the graph", () => {
         harness.session.dispose();
     });
 
+    it("counts repeated edges between the same pair once, so a multigraph's density stays at most 1", () => {
+        const undirected = makeSession({ directed: false });
+        undirected.add(graph(2, []).nodes, [
+            { src: "n0", dst: "n1" },
+            { src: "n0", dst: "n1" },
+            { src: "n1", dst: "n0" },
+        ]);
+        assert.strictEqual(undirected.session.data.statistics().density, 1);
+        undirected.session.dispose();
+
+        // Directed: n0->n1 three times is one ordered pair of the two, and n1->n0 never appears.
+        const directed = makeSession({ directed: true });
+        const three = graph(3, [
+            [0, 1],
+            [0, 1],
+            [0, 1],
+            [1, 2],
+        ]);
+        directed.add(three.nodes, three.edges);
+        assert.strictEqual(directed.session.data.statistics().density, 2 / 6);
+        directed.session.dispose();
+    });
+
     it("says directed or undirected as a fact about the graph rather than about one edge", () => {
         const pair = graph(2, [[0, 1]]);
         const directed = makeSession({ directed: true });

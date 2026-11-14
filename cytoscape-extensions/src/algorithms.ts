@@ -661,21 +661,31 @@ function partition<T extends object>(c: Ctx, labels: ArrayLike<number>, extra: T
  * @param r.parent - parent node index per node
  * @param r.depth - depth per node
  * @param r.visitedCount - number of visited nodes
+ * @param r.predArc - the arc each node was reached through; absent from a GPU BFS result
  * @param target - the target index, if any
  * @returns the search result
  */
 function search(
     c: Ctx,
-    r: { order: Uint32Array; parent: Uint32Array; depth: Uint32Array; visitedCount: number },
+    r: {
+        order: Uint32Array;
+        parent: Uint32Array;
+        depth: Uint32Array;
+        visitedCount: number;
+        predArc?: Uint32Array;
+    },
     target: number | undefined,
 ): SearchResult {
     const out: (NodeSingular | EdgeSingular)[] = [];
     for (let k = 0; k < r.visitedCount; k++) {
         const v = r.order[k];
         const p = r.parent[v];
-        if (p !== INVALID_INDEX) {
-            // The walk records the parent node, not the arc, so the tree edge is looked up: the first edge of the
-            // collection joining the two (CPU BFS/DFS results have no `predArc`, unlike Dijkstra's).
+        if (p !== INVALID_INDEX && r.predArc !== undefined) {
+            // the exact tree edge, even among parallel edges
+            out.push(c.cs.edges[c.s.arcToEdge[r.predArc[v]]]);
+        } else if (p !== INVALID_INDEX) {
+            // A GPU BFS records only the parent node, so the tree edge is looked up: the first edge of the
+            // collection joining the two.
             const from = c.cs.nodes[p];
             const to = c.cs.nodes[v];
             const joining = c.s.directed ? from.edgesTo(to) : from.edgesWith(to);
@@ -1347,13 +1357,8 @@ const IMPLS = {
         const sources = o.sources === undefined ? undefined : indicesOf(c.cs, o.sources);
         return then(c.call("betweennessCentrality", c.s, { ...c.rest, sources }), (r) => {
             // Cytoscape's `betweenness` counts ordered pairs, so on an undirected graph it is twice the NetworkX
-            // convention `score` follows. The result does not say which scale it is in, so the factor is rebuilt here
-            // from the rules in @graphty/algorithms' BetweennessOptions.normalized.
-            const n = c.s.nodeCount;
-            const pairs = o.endpoints === true ? n * (n - 1) : (n - 1) * (n - 2);
-            const unordered = c.s.directed ? 1 : 2;
-            const toOrderedPairs = o.normalized === true && pairs > 0 ? pairs : unordered;
-            const raw = Float64Array.from(r.scores, (x) => x * toOrderedPairs);
+            // convention `score` follows; `divisor` is what the ordered-pair counts were divided by.
+            const raw = Float64Array.from(r.scores, (x) => x * r.divisor);
             const max = raw.reduce((m, x) => Math.max(m, x), 0);
             return scored(c, r.scores, {
                 betweenness: accessor(c, raw),

@@ -1,5 +1,5 @@
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets.js";
-import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
+import { captureError } from "./captureError.js";
 import type { ScreenshotOptions } from "./types.js";
 
 // The settings live in the catalogue, which publishes them as plain data.
@@ -20,7 +20,11 @@ const SCREENSHOT_PRESETS: Record<string, Partial<ScreenshotOptions>> = Object.fr
 export function resolvePreset(preset: string, overrides?: Partial<ScreenshotOptions>): ScreenshotOptions {
     const presetConfig = SCREENSHOT_PRESETS[preset] as Partial<ScreenshotOptions> | undefined;
     if (!presetConfig) {
-        throw new ScreenshotError(`Unknown screenshot preset: ${preset}`, ScreenshotErrorCode.PRESET_NOT_FOUND);
+        throw captureError("E_OPTION_RANGE", `Unknown screenshot preset: ${preset}`, {
+            option: "preset",
+            value: preset,
+            available: Object.keys(SCREENSHOT_PRESETS),
+        });
     }
 
     // Merge preset with overrides (overrides take precedence)

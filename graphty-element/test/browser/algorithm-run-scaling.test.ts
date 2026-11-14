@@ -379,6 +379,23 @@ const CASES: readonly Case[] = [
                 },
             }),
     },
+    {
+        methods: ["RunsApi.sweep"],
+        prepare: (element, size) =>
+            Promise.resolve({
+                call: async () => {
+                    const sweep = await element.graph
+                        .getSession()
+                        .runs.sweep("pagerank", "dampingFactor", [0.8, 0.9], { seed: 1 });
+                    assert.strictEqual(sweep.completed, 2, "both values finished");
+                },
+                check: () => {
+                    const { runs } = element.graph.getSession();
+                    assertMeasuredAll(runs.get("pagerank_dampingfactor_0_8")?.result, size);
+                    assertMeasuredAll(runs.get("pagerank_dampingfactor_0_9")?.result, size);
+                },
+            }),
+    },
 ];
 
 /**

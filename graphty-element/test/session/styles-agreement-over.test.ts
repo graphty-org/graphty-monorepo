@@ -156,3 +156,38 @@ describe("what lies beneath a row, read over the row's own elements", () => {
         assert.strictEqual(styles.get(layerId)?.source.by, "element", "the element's own floor");
     });
 });
+
+describe("how many of a row's elements a layer outside it decides", () => {
+    it("counts a folder's elements across all its layers once, and each painted-over element once", async () => {
+        const session = await lesMis();
+        const { styles } = session;
+        const first = await styles.add({
+            name: "Pair",
+            target: "node",
+            selector: { match: "ids", nodes: ["Valjean", "Javert"] },
+            set: { "node.size": 2 },
+        });
+        const second = await styles.add({
+            name: "Pair too",
+            target: "node",
+            selector: { match: "ids", nodes: ["Fantine", "Cosette"] },
+            set: { "node.size": 2 },
+        });
+        const folder = await styles.addFolder("Pairs");
+        await styles.moveRow(first.id, { parent: folder.id });
+        await styles.moveRow(second.id, { parent: folder.id });
+        const rowId = folder.id;
+        await styles.add({
+            name: "Above",
+            target: "node",
+            selector: { match: "ids", nodes: ["Valjean", "Fantine"] },
+            set: { "node.size": 5 },
+        });
+        await styles.settled();
+
+        const answer = styles.agreement("graph", "node.size", { over: rowId });
+        assert.strictEqual(answer.readOver, "row");
+        assert.deepStrictEqual(answer.elements, { nodes: 4, edges: 0 }, "both layers' nodes, each once");
+        assert.strictEqual(answer.channels[0]?.overridden, 2, "Valjean and Fantine, painted by the layer above");
+    });
+});

@@ -181,7 +181,8 @@ export interface GraphtyElementJSXProps {
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
-     * not a step, and from 2D it switches to 3D first in the same step.
+     * not a step, and from 2D it switches to 3D first in the same step. A switch that fails is
+     * reported as `graph-error`; `setViewMode` hands the caller the failure instead.
      */
     viewMode?: Graphty["viewMode"];
     /**
@@ -397,7 +398,8 @@ export interface GraphtyElementJSXProps {
     "render-on-demand"?: boolean;
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
-     * not a step, and from 2D it switches to 3D first in the same step.
+     * not a step, and from 2D it switches to 3D first in the same step. A switch that fails is
+     * reported as `graph-error`; `setViewMode` hands the caller the failure instead.
      */
     "view-mode"?: string;
     /**
@@ -559,6 +561,9 @@ export interface GraphtyElementJSXProps {
     "ondata-loaded"?: (event: CustomEvent<EventOfType<"data-loaded">>) => void;
     "ondata-loading-complete"?: (event: CustomEvent<EventOfType<"data-loading-complete">>) => void;
     "ondata-loading-error"?: (event: CustomEvent<EventOfType<"data-loading-error">>) => void;
+    /**
+     * Emitted when a load skipped records it could not read or store. It carries facts, not words: a reader writes its own message from `code`, `params` and `errors`.
+     */
     "ondata-loading-error-summary"?: (event: CustomEvent<EventOfType<"data-loading-error-summary">>) => void;
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;
     /**

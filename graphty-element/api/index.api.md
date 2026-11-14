@@ -656,7 +656,7 @@ export interface Capabilities {
 export interface CapabilityCheck {
     // (undocumented)
     estimatedMemoryMB: number;
-    reason?: CodedFact<ScreenshotErrorCode>;
+    reason?: CodedFact<GraphtyErrorCode>;
     // (undocumented)
     supported: boolean;
     warnings?: CodedFact<ScreenshotWarningCode>[];
@@ -790,20 +790,19 @@ export interface DataLoadingErrorEvent {
     type: "data-loading-error";
 }
 
-// @public (undocumented)
+// @public
 export interface DataLoadingErrorSummaryEvent {
-    // (undocumented)
-    detailedReport: string;
+    code: "load-errors";
+    errors: readonly LoadError[];
     // (undocumented)
     format: string;
     loadId?: number;
-    // (undocumented)
-    message: string;
-    // (undocumented)
+    params: {
+        totalErrors: number;
+        byCategory: Readonly<Record<string, number>>;
+        fields: readonly string[];
+    };
     primaryCategory?: string;
-    // (undocumented)
-    suggestion?: string;
-    // (undocumented)
     totalErrors: number;
     // (undocumented)
     type: "data-loading-error-summary";
@@ -956,13 +955,6 @@ export abstract class DataSource {
     edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
-    protected get errorMessages(): {
-        missingInput: () => string;
-        fetchFailed: (url: string, attempts: number, error: string) => string;
-        parseFailed: (error: string) => string;
-        invalidFormat: (reason: string) => string;
-        extractionFailed: (path: string, error: string) => string;
-    };
     protected fetchWithRetry(url: string, retries?: number, timeout?: number): Promise<Response>;
     // @internal
     fileStyles(options?: {
@@ -1291,6 +1283,7 @@ export const EdgeStyle: z.ZodObject<{
         gap: z.ZodOptional<z.ZodNumber>;
         stack: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         image: z.ZodOptional<z.ZodString>;
         text: z.ZodOptional<z.ZodObject<{
@@ -1568,6 +1561,7 @@ export const EdgeStyle: z.ZodObject<{
         gap: z.ZodOptional<z.ZodNumber>;
         stack: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         image: z.ZodOptional<z.ZodString>;
         text: z.ZodOptional<z.ZodObject<{
@@ -1845,6 +1839,7 @@ export const EdgeStyle: z.ZodObject<{
             right: "right";
         }>>;
         outlineWidth: z.ZodOptional<z.ZodNumber>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     }, z.core.$strict>>;
     arrowMiddleTail: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
@@ -1895,6 +1890,7 @@ export const EdgeStyle: z.ZodObject<{
             right: "right";
         }>>;
         outlineWidth: z.ZodOptional<z.ZodNumber>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     }, z.core.$strict>>;
     line: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{
@@ -2485,21 +2481,19 @@ export class ErrorAggregator {
     constructor(maxErrors?: number);
     addError(error: DataLoadingError): boolean;
     clear(): void;
-    getDetailedReport(): string;
     getErrorCount(): number;
     getErrorLimit(): number;
     getErrors(): DataLoadingError[];
     getSummary(): ErrorSummary;
-    getUserFriendlyMessage(): string;
     hasReachedLimit(): boolean;
 }
 
 // @public
 export interface ErrorSummary {
+    byCategory: Record<string, number>;
     categories: Map<string, DataLoadingError[]>;
-    message: string;
+    fields: string[];
     primaryCategory?: string;
-    suggestion?: string;
     totalErrors: number;
 }
 
@@ -2521,7 +2515,7 @@ export class EventManager implements Manager {
         canContinue: boolean;
         loadId?: number;
     }): void;
-    emitDataLoadingErrorSummary(format: string, totalErrors: number, message: string, detailedReport: string, primaryCategory?: string, suggestion?: string, loadId?: number): void;
+    emitDataLoadingErrorSummary(format: string, errors: ErrorAggregator, loadId?: number): void;
     emitDataLoadingProgress(format: string, bytesProcessed: number, totalBytes: number | undefined, nodeRecordsLoaded: number, edgeRecordsLoaded: number, chunksProcessed: number, loadId?: number): void;
     emitEdgeEvent(type: EdgeEvent["type"], eventData: object): void;
     emitElementsRemoved(nodes: NodeId[], edges: EdgeId[], cause?: HistoryCause): void;
@@ -4184,6 +4178,14 @@ export type GraphtyErrorCode =
 */
 | "E_SHADER_REFUSED"
 /**
+* The browser or the headset would not start an immersive (VR or AR) session: the reader
+* refused permission, the device was busy, or the session could not be set up. `details.mode`
+* is `"vr"` or `"ar"`, `details.reason` is `"active"` when another session was already running,
+* and `cause` carries what the browser rejected with. Nothing was left half built: the graph
+* stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
+*/
+| "E_XR_SESSION_FAILED"
+/**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
 * needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
@@ -4405,7 +4407,22 @@ export type GraphtyErrorCode =
 /**
 * A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
 */
-| "E_IMAGE_LOAD" | "E_INTERNAL";
+| "E_IMAGE_LOAD"
+/**
+* A screenshot, a video or a clipboard copy was started and could not be finished: the
+* renderer, the image encoder, the media recorder or the clipboard write failed, or there was
+* no camera to draw from. `details.media` is `"image"` or `"video"`, `details.destination` is
+* `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
+* @since 3.40.0
+*/
+| "E_CAPTURE_FAILED"
+/**
+* A screenshot waited for the layout to stop moving and it was still moving when the wait ran
+* out. `details.timeoutMs` is the wait. The caller captures again later, raises
+* `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
+* @since 3.40.0
+*/
+| "E_NOT_SETTLED" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -7622,51 +7639,6 @@ export interface SavedProject {
     // (undocumented)
     readonly report: ProjectSaveReport;
     readonly text: string;
-}
-
-// @public
-export class ScreenshotError extends Error {
-    constructor(message: string, code: ScreenshotErrorCode, details?: unknown | undefined);
-    // (undocumented)
-    code: ScreenshotErrorCode;
-    // (undocumented)
-    details?: unknown | undefined;
-}
-
-// @public (undocumented)
-export enum ScreenshotErrorCode {
-    // (undocumented)
-    ASPECT_RATIO_MISMATCH = "ASPECT_RATIO_MISMATCH",
-    // (undocumented)
-    CANVAS_ALLOCATION_FAILED = "CANVAS_ALLOCATION_FAILED",
-    // (undocumented)
-    CLIPBOARD_NOT_SECURE_CONTEXT = "CLIPBOARD_NOT_SECURE_CONTEXT",
-    // (undocumented)
-    CLIPBOARD_NOT_SUPPORTED = "CLIPBOARD_NOT_SUPPORTED",
-    // (undocumented)
-    CLIPBOARD_PERMISSION_DENIED = "CLIPBOARD_PERMISSION_DENIED",
-    // (undocumented)
-    CLIPBOARD_WRITE_FAILED = "CLIPBOARD_WRITE_FAILED",
-    // (undocumented)
-    DIMENSION_TOO_LARGE = "DIMENSION_TOO_LARGE",
-    // (undocumented)
-    ENGINE_NOT_CONFIGURED = "ENGINE_NOT_CONFIGURED",
-    // (undocumented)
-    INVALID_DIMENSIONS = "INVALID_DIMENSIONS",
-    // (undocumented)
-    LAYOUT_SETTLE_TIMEOUT = "LAYOUT_SETTLE_TIMEOUT",
-    // (undocumented)
-    PRESET_NOT_FOUND = "PRESET_NOT_FOUND",
-    // (undocumented)
-    RESOLUTION_TOO_HIGH = "RESOLUTION_TOO_HIGH",
-    // (undocumented)
-    SCREENSHOT_CAPTURE_FAILED = "SCREENSHOT_CAPTURE_FAILED",
-    // (undocumented)
-    TRANSPARENT_REQUIRES_PNG = "TRANSPARENT_REQUIRES_PNG",
-    // (undocumented)
-    UNSUPPORTED_FORMAT = "UNSUPPORTED_FORMAT",
-    // (undocumented)
-    VIDEO_CAPTURE_FAILED = "VIDEO_CAPTURE_FAILED"
 }
 
 // @public

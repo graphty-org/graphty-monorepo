@@ -160,7 +160,7 @@ describe("the test matrix", () => {
             plan(["graphty-element"])
                 .flatMap((e) => e.members ?? [e.shard])
                 .sort(),
-            SHARDS.filter((s) => s.package === "graphty-element")
+            SHARDS.filter((s) => s.package === "graphty-element" || s["affected-by"]?.includes("graphty-element"))
                 .map((s) => s.shard)
                 .sort(),
         );
@@ -249,6 +249,29 @@ describe("the test matrix", () => {
         assert.equal(plan(["graph-samples"])[0].lfs, "", "a group whose members read no LFS file pulls none");
         const bin = { name: "graph-io-storybook-9", shard: "graph-io-storybook-1", command: "true", files: [] };
         assert.equal(plan(["graph-io"], undefined, { bins: [bin] }).find((e) => e.shard === bin.name).lfs, oracles);
+    });
+
+    // graph-io's fidelity stories import graphty-element's source, a dependency graph-io/project.json negates
+    // (#7196): a graphty-element change runs them, and graph-io's own lint, whose typecheck covers them.
+    it("runs graph-io's fidelity stories and lints them when only graphty-element is affected", () => {
+        // only the stories: graph-io's own shards wait for graph-io to be affected
+        const graphIo = plan(["graphty-element"]).filter((e) => e.package.split(" ").includes("graph-io"));
+        assert.deepEqual(
+            graphIo.map((e) => e.shard),
+            ["graph-io-storybook-1", "graph-io-storybook-2"],
+        );
+        const whole = {
+            name: "graph-io-storybook-1",
+            shard: "graph-io-storybook-1",
+            whole: "graph-io",
+            command: "true",
+        };
+        assert.ok(plan(["graphty-element"], undefined, { bins: [whole] }).some((e) => e.shard === whole.name));
+        const lint = parseYaml(workflow("ci.yml")).jobs.lint.steps.find((s) =>
+            s.name?.startsWith("Lint graph-io's fidelity stories"),
+        );
+        assert.match(lint.if, /contains\(fromJSON\(needs\.packages\.outputs\.affected\), 'graphty-element'\)/u);
+        assert.match(lint.run, /nx run graph-io:lint\b/u);
     });
 
     it("runs every member of a group even after one fails, then fails naming it", () => {

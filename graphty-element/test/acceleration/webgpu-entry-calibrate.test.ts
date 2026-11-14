@@ -223,6 +223,18 @@ describe("the acceleration controller: measuring once the first work is done", (
         return { controller: new AccelerationController({ registry }), calibrate };
     }
 
+    /**
+     * Ends one piece of accelerated work and lets the controller react to it going idle. The
+     * controller starts a measurement one microtask after the work ends (`Promise.resolve().then`),
+     * so this resolves only after that microtask has run: a measurement it would start has started.
+     * The default case below proves that, so the configured case's zero is a real zero.
+     * @param controller - The controller whose work ends.
+     */
+    async function finishWork(controller: AccelerationController): Promise<void> {
+        controller.beginWork()();
+        await Promise.resolve();
+    }
+
     it("publishes the default, measures after the first work goes idle, and publishes the measurement", async () => {
         const { controller, calibrate } = setup("default");
         const attached = await controller.start();
@@ -237,7 +249,8 @@ describe("the acceleration controller: measuring once the first work is done", (
                 }
             });
         });
-        controller.beginWork()();
+        await finishWork(controller);
+        assert.strictEqual(calibrate.mock.calls.length, 1, "the measurement has started once the work is done");
         const status = await measured;
 
         assert.strictEqual(status.exactMaxNodes, 4096);
@@ -251,7 +264,7 @@ describe("the acceleration controller: measuring once the first work is done", (
         const { controller, calibrate } = setup("configured");
         await controller.start();
 
-        controller.beginWork()();
+        await finishWork(controller);
 
         assert.strictEqual(calibrate.mock.calls.length, 0);
         assert.strictEqual(controller.status.exactMaxNodesBasis, "configured");

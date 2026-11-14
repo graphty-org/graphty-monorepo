@@ -9,9 +9,9 @@ Some readers find moving pictures uncomfortable and ask their system for less mo
 <script type="module">
     import "@graphty/graphty-element";
 
-    const graph = document.getElementById("graph");
-    graph.nodeData = [{ id: "a" }, { id: "b" }, { id: "c" }];
-    graph.edgeData = [
+    const element = document.getElementById("graph");
+    element.nodeData = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    element.edgeData = [
         { source: "a", target: "b" },
         { source: "b", target: "c" },
     ];
@@ -30,7 +30,7 @@ Set it as the `reduced-motion` attribute (`reduced-motion` alone or `"true"` is 
 `"auto"` is `"auto"`) or as the `reducedMotion` property:
 
 ```javascript
-graph.reducedMotion = true;
+element.reducedMotion = true;
 ```
 
 The default is `false`, so a page that never sets it behaves as before. Choose `"auto"` to follow

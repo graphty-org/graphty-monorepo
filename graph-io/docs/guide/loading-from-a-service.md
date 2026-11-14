@@ -19,7 +19,8 @@ a repository of networks, a graph database, a REST API. It returns the same
 | `total`         | `{ nodes, edges }` the service holds for the load, when it said  |
 
 The built-in sources are `ndex` (NDEx, the repository of biological networks), `cypher` with its
-`neo4j` and `neptune` presets, `rest` with its `openalex` preset, and `sparql`: see
+`neo4j` and `neptune` presets, `rest` with its `openalex` preset, and `sparql`; `memgraphSource`
+(a Memgraph on your own computer) is imported and passed as the source: see
 [NDEx](./sources/ndex.md), [Cypher](./sources/cypher.md), [REST](./sources/rest.md) and
 [SPARQL](./sources/sparql.md). All of
 them are experimental. `listSources()` lists them with their descriptors and examples. To read from your own service, see
@@ -55,8 +56,8 @@ A browser hides why it refused a request: a CORS refusal, a page on `https:` ask
 a refused connection and a hidden 429 all look the same. graph-io checks what it can before
 sending and, after a refusal, sends one bodyless request to the origin's root to tell them apart.
 The error is `E_SOURCE_BLOCKED` with `params.cause`: `"cors"` (the service does not allow this page),
-`"unreachable"`, `"local-network"` (a public page asking for a local address, which Chrome asks the
-reader about) or `"unknown"`. An `https:` page cannot reach an `http:` service at all
+`"unreachable"`, `"local-network"` (a public page asking for a local address, which Chrome and
+Firefox ask the reader about, while the browser does not say the reader allowed it) or `"unknown"`. An `https:` page cannot reach an `http:` service at all
 (`E_SOURCE_RUNTIME`, `reason: "insecure-endpoint"`); the service needs TLS.
 
 [Writing a source](./writing-a-source.md#errors) lists every error code.

@@ -271,7 +271,7 @@ function saslPlain(username: string, password: string): string {
     const bytes = new TextEncoder().encode(`\u0000${username}\u0000${password}`);
     let text = "";
     for (const b of bytes) {
-        text += String.fromCharCode(b);
+        text += String.fromCodePoint(b);
     }
     return btoa(text);
 }

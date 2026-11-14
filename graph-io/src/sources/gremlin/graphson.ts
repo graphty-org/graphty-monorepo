@@ -20,6 +20,20 @@ const T_LABEL = "~label";
 const D_IN = "~in";
 const D_OUT = "~out";
 
+/** The typed numbers: integers, floats, and dates as epoch milliseconds. */
+const NUMBER_TYPES: ReadonlySet<string> = new Set([
+    "g:Int32",
+    "g:Int64",
+    "g:Float",
+    "g:Double",
+    "g:Date",
+    "g:Timestamp",
+    "gx:Byte",
+    "gx:Int16",
+    "gx:BigInteger",
+    "gx:BigDecimal",
+]);
+
 /** Each token's key, by `@type` and `@value`. */
 const TOKENS: ReadonlyMap<string, string> = new Map([
     ["g:T:id", T_ID],
@@ -171,39 +185,33 @@ export class Elements {
      * @returns the plain value
      */
     private typed(type: string, value: unknown): unknown {
+        if (NUMBER_TYPES.has(type)) {
+            return typeof value === "number" ? value : Number(value);
+        }
+        const list = Array.isArray(value) ? value : [];
+        const obj = isObj(value) ? value : null;
         switch (type) {
             case "g:List":
             case "g:Set":
-                return Array.isArray(value) ? value.map((x) => this.decode(x)) : [];
+                return list.map((x) => this.decode(x));
             case "g:BulkSet":
                 // item, count, item, count: each item once
-                return Array.isArray(value) ? value.filter((_, i) => i % 2 === 0).map((x) => this.decode(x)) : [];
+                return list.filter((_, i) => i % 2 === 0).map((x) => this.decode(x));
             case "g:Map":
-                return this.map(Array.isArray(value) ? value : []);
+                return this.map(list);
             case "g:Vertex":
-                return isObj(value) ? this.readVertex(value) : null;
+                return obj && this.readVertex(obj);
             case "g:Edge":
-                return isObj(value) ? this.readEdge(value) : null;
+                return obj && this.readEdge(obj);
             case "g:Path":
-                return isObj(value) ? this.decode(value.objects) : null;
+                return obj && this.decode(obj.objects);
             case "g:VertexProperty":
             case "g:Property":
             case "g:Traverser":
-                return isObj(value) ? this.decode(value.value) : null;
+                return obj && this.decode(obj.value);
             case "g:T":
             case "g:Direction":
                 return TOKENS.get(`${type}:${String(value)}`) ?? value;
-            case "g:Int32":
-            case "g:Int64":
-            case "g:Float":
-            case "g:Double":
-            case "g:Date":
-            case "g:Timestamp":
-            case "gx:Byte":
-            case "gx:Int16":
-            case "gx:BigInteger":
-            case "gx:BigDecimal":
-                return typeof value === "number" ? value : Number(value);
             default:
                 return this.decode(value);
         }
@@ -342,39 +350,59 @@ export function writeElements(els: Elements, sink: GraphSink, report: ImportRepo
         if (n++ % 64 === 0) {
             throwIfAborted(signal);
         }
-        try {
-            const fresh = sink.indexOf(v.id) === INVALID_INDEX;
-            if (v.stub && !fresh) {
-                continue;
-            }
-            const index = sink.addNodeRecord(v.id, v.properties);
-            if (v.label !== null) {
-                sink.setNodeValue(column(sink, LABELS_DECL, "node"), index, [v.label]);
-            }
-            if (fresh) {
-                report.counts.nodes++;
-            }
-        } catch (err) {
-            report.recordError(err, { element: String(v.id) });
-            report.counts.skippedNodes++;
-        }
+        writeVertex(v, sink, report);
     }
     for (const e of els.edges.values()) {
         if (n++ % 64 === 0) {
             throwIfAborted(signal);
         }
-        try {
-            const index = sink.addEdgeRecord(e.source, e.target, e.properties, null);
-            if (e.label !== null) {
-                sink.setEdgeValue(column(sink, TYPE_DECL, "edge"), index, e.label);
-            }
-            if (e.id !== null) {
-                sink.setEdgeValue(column(sink, EDGE_ID_DECL, "edge"), index, e.id);
-            }
-            report.counts.edges++;
-        } catch (err) {
-            report.recordError(err, { element: `${String(e.source)} -> ${String(e.target)}` });
-            report.counts.skippedEdges++;
+        writeEdge(e, sink, report);
+    }
+}
+
+/**
+ * Write one vertex; a stub of a vertex already in the sink writes nothing.
+ * @param v - the vertex
+ * @param sink - the sink
+ * @param report - the load's report
+ */
+function writeVertex(v: Vertex, sink: GraphSink, report: ImportReportBuilder): void {
+    try {
+        const fresh = sink.indexOf(v.id) === INVALID_INDEX;
+        if (v.stub && !fresh) {
+            return;
         }
+        const index = sink.addNodeRecord(v.id, v.properties);
+        if (v.label !== null) {
+            sink.setNodeValue(column(sink, LABELS_DECL, "node"), index, [v.label]);
+        }
+        if (fresh) {
+            report.counts.nodes++;
+        }
+    } catch (err) {
+        report.recordError(err, { element: String(v.id) });
+        report.counts.skippedNodes++;
+    }
+}
+
+/**
+ * Write one edge.
+ * @param e - the edge
+ * @param sink - the sink
+ * @param report - the load's report
+ */
+function writeEdge(e: Edge, sink: GraphSink, report: ImportReportBuilder): void {
+    try {
+        const index = sink.addEdgeRecord(e.source, e.target, e.properties, null);
+        if (e.label !== null) {
+            sink.setEdgeValue(column(sink, TYPE_DECL, "edge"), index, e.label);
+        }
+        if (e.id !== null) {
+            sink.setEdgeValue(column(sink, EDGE_ID_DECL, "edge"), index, e.id);
+        }
+        report.counts.edges++;
+    } catch (err) {
+        report.recordError(err, { element: `${String(e.source)} -> ${String(e.target)}` });
+        report.counts.skippedEdges++;
     }
 }

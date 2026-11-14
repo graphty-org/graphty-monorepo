@@ -167,6 +167,25 @@ export async function refreshSnapshot({ root, file, env = process.env, now = Dat
 }
 
 /**
+ * The store's plan for the variants, or why there is none.
+ * @param cfg config(), or null
+ * @param q the read
+ * @param [q.sha] the commit tested
+ * @param [q.base] the base commit
+ * @param q.variants variant names
+ * @param q.files the changed files
+ * @returns `{ plan, why }`; plan is null when why says why
+ */
+async function storePlan(cfg, { sha, base, variants, files }) {
+    if (variants.length === 0) return { plan: null, why: "no affected shard" };
+    if (!cfg) return { plan: null, why: "results store not configured" };
+    // the inputs key is per group and not known before the bins exist: no `passedWithInputs` reuse yet
+    const r = await fetchPlan(cfg, { sha, base, variants, inputs: variants.map(() => "-"), files });
+    if (r.ok && r.data) return { plan: r.data, why: "" };
+    return { plan: null, why: r.ok ? "the store answered with no plan" : r.why };
+}
+
+/**
  * Reads the plan and writes results-plan.json and durations.json.
  * @param o options
  * @param o.root the checkout
@@ -187,17 +206,7 @@ export async function planRead({ root, affected, out, sha, base, files = [], sna
         SHARDS.map((s) => s.package),
     );
     const variants = variantsOf(SHARDS, [...affected, ...readers], STORY_SHARDS);
-    const cfg = config(env, root);
-    let plan = null;
-    let why = "results store not configured";
-    if (cfg && variants.length > 0) {
-        // the inputs key is per group and not known before the bins exist: no `passedWithInputs` reuse yet
-        const r = await fetchPlan(cfg, { sha, base, variants, inputs: variants.map(() => "-"), files });
-        if (r.ok && r.data) plan = r.data;
-        else why = r.ok ? "the store answered with no plan" : r.why;
-    } else if (variants.length === 0) {
-        why = "no affected shard";
-    }
+    const { plan, why } = await storePlan(config(env, root), { sha, base, variants, files });
     // `families`: what the store was asked about; a group of another family keeps the committed quarantine list
     const families = [...new Set(variants.map((v) => v.split("|")[0]))];
     const snap = !plan && variants.length > 0 ? readSnapshot(snapshot) : null;
@@ -226,11 +235,9 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
     });
     if (values["refresh-snapshot"]) {
         const r = await refreshSnapshot({ root: process.cwd(), file: values["refresh-snapshot"] });
-        console.log(
-            r.refreshed || r.failed.length > 0
-                ? `durations snapshot: ${r.answered.length} families read${r.failed.length ? `, kept the previous durations of ${r.failed.join(", ")}` : ""}`
-                : "durations snapshot: under an hour old, not read again",
-        );
+        const kept = r.failed.length > 0 ? `, kept the previous durations of ${r.failed.join(", ")}` : "";
+        const read = `${r.answered.length} families read${kept}`;
+        console.log(`durations snapshot: ${r.refreshed || kept ? read : "under an hour old, not read again"}`);
         process.exit(r.refreshed ? 0 : 3);
     }
     const [affectedArg, out] = positionals;

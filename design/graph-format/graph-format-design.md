@@ -1025,6 +1025,35 @@ precedence rule to get wrong. An importer's position column is `f64`
 (issue #963): it holds the file's coordinates exactly, and the element
 narrows them to its own `f32` scene column when it stores them.
 
+Coordinate systems (issue #2002): a position column says what kind of
+coordinates it holds in `ColumnMeta.coordinates` (a `CoordinateSystem`,
+declared through `ColumnDecl.coordinates` on any numeric column of 2 or
+more components), so a consumer reads it without knowing the source
+format. `kind` is `"cartesian"` (x, y, z drawing coordinates) or
+`"geographic"` (longitude, latitude, altitude); `dims` is what the source
+stored (2 or 3); `units` is `"file"` or `"scene"` for cartesian and always
+`"degrees"` for geographic (altitude in meters); `yAxis` (`"up"` or
+`"down"`, cartesian only) says which way y grows; `datum` (geographic only,
+`"WGS84"` by default) and `crs` (the source's reference-system name when
+known, for example Neo4j's `wgs-84-3d`) name the reference; `order` states
+the component order and follows from `kind`. Undeclared fields take those
+defaults; `dims` defaults to `extra.sourceDims`, else 3 (2 for a
+2-component column). The field travels with the column through freeze,
+derived graphs, rename and the wire form; the manifest writes it only when
+it is not null, so a manifest without one is byte-identical to before.
+`coordinateSystemOf(meta)` returns the declared system, or for a column
+that declares none the default read from the older `extra` spelling
+(`sourceDims`, `units`, `yAxis`): cartesian, file units, y up. The y-up
+default matches what every importer's undeclared position column already
+holds and what graph-io's `extractPositions()` assumes.
+
+The `fixed` role is a node `bool` column: true where the source pins the
+node's position (Graphviz `pos="x,y!"`, a locked or fixed node in Gephi or
+Cytoscape), so a layout keeps that node where its position column puts it
+and places the rest; unset or false rows are free. It has the same bit
+layout as a `NodeMask` (section 5.3), so a kernel or a layout's `fixed`
+option reads it as is.
+
 ### 5.3 Nullability, validity bitmap and defaults (C13)
 
 Every column has `validity: U32 | null`. `null` means all rows are set
@@ -1115,6 +1144,7 @@ fields and their meaning:
 | `origin`         | `{ format, id, title, type, namespace }`: GEXF attribute id, GraphML key id, declared type text (`"long"`, `"anyURI"`, `"liststring"`, `"date"`, `"ShapeNode"`), namespace (`"viz"`, `"yfiles"`, `"neo4j"`) |
 | `dynamic`        | GEXF dynamic attribute: values live in the temporal extension table (section 5.10)                                                                                                                          |
 | `extra`          | anything an importer wants to survive (JSON-serialisable)                                                                                                                                                   |
+| `coordinates`    | `CoordinateSystem \| null`: what kind of coordinates a position column holds (section 5.2)                                                                                                                  |
 
 Roles are format-neutral tags so consumers find "the position column"
 without per-format knowledge and exporters map roles back to reserved
@@ -1131,7 +1161,7 @@ section 14.4). Known roles
 (list of u32, refersTo node), `kind`, `labels`, `classes`, `start`, `end`,
 `timestamp`, `timestamps`, `spells`, `open`, `spellsOpen`, `timeText`, `key`,
 `directed`, `pair` (u32, refersTo edge), `mutual`, `originalId`,
-`sourcePort`, `targetPort`, `idSpace`, `fixed`, `mass`, `subset`,
+`sourcePort`, `targetPort`, `idSpace`, `fixed` (node bool, section 5.2), `mass`, `subset`,
 `hidden`, `component`, `community`, `rank`.
 
 ### 5.6 Roles versus names, and namespacing
@@ -2915,6 +2945,20 @@ export interface ColumnOrigin {
 }
 export type ColumnOriginInput = Loose<ColumnOrigin>;
 
+export type CoordinateKind = "cartesian" | "geographic";
+export type CoordinateUnits = "file" | "scene" | "degrees";
+/** What kind of coordinates a position column holds (section 5.2); null where a field does not apply. */
+export interface CoordinateSystem {
+    readonly kind: CoordinateKind;
+    readonly dims: 2 | 3; // what the source stored
+    readonly units: CoordinateUnits; // "file" | "scene" for cartesian, "degrees" for geographic
+    readonly yAxis: "up" | "down" | null; // cartesian only
+    readonly datum: string | null; // geographic only, "WGS84" by default
+    readonly crs: string | null; // the source's reference-system name when known
+    readonly order: readonly ["x", "y", "z"] | readonly ["longitude", "latitude", "altitude"];
+}
+export type CoordinateSystemInput = Loose<Omit<CoordinateSystem, "order">>;
+
 /** Input shape for declaring a column. */
 export interface ColumnDecl {
     name: string;
@@ -2933,6 +2977,7 @@ export interface ColumnDecl {
     origin?: ColumnOriginInput | undefined;
     dynamic?: boolean | undefined;
     extra?: Readonly<Record<string, unknown>> | undefined;
+    coordinates?: CoordinateSystemInput | undefined; // numeric columns of 2+ components (section 5.2)
 }
 export type ColumnDeclPatch = Loose<ColumnDecl>;
 
@@ -2955,6 +3000,7 @@ export interface ColumnMeta {
     readonly origin: ColumnOrigin | null;
     readonly dynamic: boolean;
     readonly extra: Readonly<Record<string, unknown>>;
+    readonly coordinates: CoordinateSystem | null;
 }
 
 export interface ColumnInput {
@@ -3099,6 +3145,7 @@ export interface GraphMeta {
 export type GraphMetaPatch = Loose<GraphMeta>;
 
 // column helpers
+export function coordinateSystemOf(meta: ColumnMeta): CoordinateSystem; // the declared system, else the default (section 5.2)
 export function gpuEligibility(dtype: Dtype): GpuEligibility;
 // the text grammar of section 5.1 for one untyped cell (no trimming); graph-io's text importers call it (I15)
 export function inferTextDtype(text: string): "bool" | "i32" | "f64" | "string";

@@ -23,6 +23,8 @@ import {
     type ColumnOf,
     type ColumnOrigin,
     type ColumnOriginInput,
+    type CoordinateSystem,
+    type CoordinateSystemInput,
     type DictColumn,
     type Dtype,
     type DtypeValue,
@@ -567,7 +569,139 @@ export function resolveColumnMeta(name: string, domain: ColumnDomain, decl: Colu
         origin: resolveOrigin(decl.origin),
         dynamic: decl.dynamic ?? false,
         extra: Object.freeze(cloneJson({ ...extra })),
+        coordinates: resolveDeclaredCoordinates(name, dtype, components, decl),
     });
+}
+
+const CARTESIAN_ORDER = Object.freeze(["x", "y", "z"] as const);
+const GEOGRAPHIC_ORDER = Object.freeze(["longitude", "latitude", "altitude"] as const);
+
+/**
+ * Pick one field of a coordinate-system input, checked against its allowed values.
+ * @param input - the input object
+ * @param key - the field
+ * @param allowed - the allowed values, or null for any string
+ * @returns the value, or undefined when absent or null
+ */
+function coordinateField<T>(
+    input: CoordinateSystemInput,
+    key: keyof CoordinateSystemInput,
+    allowed: readonly T[] | null,
+): T | undefined {
+    const value = input[key] as unknown;
+    if (value === undefined || value === null) {
+        return undefined;
+    }
+    if (allowed === null ? typeof value !== "string" : !allowed.includes(value as T)) {
+        throw typeError(
+            "coordinates",
+            `coordinates.${key} is not one of ${allowed === null ? "string" : allowed.join(", ")}`,
+            {
+                found: value,
+            },
+        );
+    }
+    return value as T;
+}
+
+/**
+ * Resolve a coordinate system with its defaults (design section 5.2): cartesian, file units, y up,
+ * dims from `fallbackDims`; geographic is degrees on WGS84.
+ * @param input - the declared fields
+ * @param fallbackDims - the dims when none is declared
+ * @returns the resolved, frozen coordinate system
+ */
+export function resolveCoordinateSystem(input: CoordinateSystemInput, fallbackDims: 2 | 3): CoordinateSystem {
+    if (!isPlainObject(input)) {
+        throw typeError("coordinates", "coordinates must be a plain object");
+    }
+    const kind = coordinateField(input, "kind", ["cartesian", "geographic"] as const) ?? "cartesian";
+    const dims = coordinateField(input, "dims", [2, 3] as const) ?? fallbackDims;
+    const geographic = kind === "geographic";
+    const units = coordinateField(input, "units", geographic ? (["degrees"] as const) : (["file", "scene"] as const));
+    const yAxis = coordinateField(input, "yAxis", ["up", "down"] as const);
+    const datum = coordinateField<string>(input, "datum", null);
+    const crs = coordinateField<string>(input, "crs", null);
+    if (geographic ? yAxis !== undefined : datum !== undefined || crs !== undefined) {
+        throw typeError(
+            "coordinates",
+            geographic ? "a geographic system has no yAxis" : "a cartesian system has no datum or crs",
+        );
+    }
+    return Object.freeze({
+        kind,
+        dims,
+        units: units ?? (geographic ? "degrees" : "file"),
+        yAxis: geographic ? null : (yAxis ?? "up"),
+        datum: geographic ? (datum ?? "WGS84") : null,
+        crs: crs ?? null,
+        order: geographic ? GEOGRAPHIC_ORDER : CARTESIAN_ORDER,
+    });
+}
+
+/**
+ * The coordinate system of a position column (design section 5.2): the declared one, or the
+ * default read from the older `extra` spelling (`sourceDims`, `units`, `yAxis`) and otherwise
+ * cartesian, file units, y up, 3 dims (2 for a 2-component column).
+ * @param meta - the column's metadata
+ * @returns the resolved coordinate system; never null
+ */
+export function coordinateSystemOf(meta: ColumnMeta): CoordinateSystem {
+    if (meta.coordinates !== null) {
+        return meta.coordinates;
+    }
+    const { sourceDims, units, yAxis } = meta.extra;
+    return resolveCoordinateSystem(
+        {
+            units: units === "file" || units === "scene" ? units : undefined,
+            yAxis: yAxis === "up" || yAxis === "down" ? yAxis : undefined,
+        },
+        sourceDims === 2 || sourceDims === 3 ? sourceDims : defaultDims(meta.components),
+    );
+}
+
+/**
+ * The dims a column's components imply: 2 for a 2-component column, else 3.
+ * @param components - the column's components
+ * @returns 2 or 3
+ */
+function defaultDims(components: number): 2 | 3 {
+    return components === 2 ? 2 : 3;
+}
+
+/**
+ * Resolve a declared coordinate system: only numeric columns of 2 or more components may carry one.
+ * @param name - the column name
+ * @param dtype - the column dtype
+ * @param components - the column's components
+ * @param decl - the declaration
+ * @returns the resolved system, or null when none is declared
+ */
+function resolveDeclaredCoordinates(
+    name: string,
+    dtype: Dtype,
+    components: number,
+    decl: ColumnDeclPatch,
+): CoordinateSystem | null {
+    if (decl.coordinates === undefined) {
+        return null;
+    }
+    if (!NUMERIC_DTYPES.has(dtype) || components < 2) {
+        throw typeError(
+            "coordinates",
+            `column "${name}" has coordinates but is not a numeric column of 2+ components`,
+            {
+                name,
+                dtype,
+                components,
+            },
+        );
+    }
+    const sourceDims = decl.extra?.sourceDims;
+    return resolveCoordinateSystem(
+        decl.coordinates,
+        sourceDims === 2 || sourceDims === 3 ? sourceDims : defaultDims(components),
+    );
 }
 
 /**
@@ -594,6 +728,7 @@ export function metaToDecl(meta: ColumnMeta): ColumnDeclPatch {
         origin: meta.origin ?? undefined,
         dynamic: meta.dynamic,
         extra: meta.extra,
+        coordinates: meta.coordinates ?? undefined,
     };
 }
 

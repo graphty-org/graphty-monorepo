@@ -1,5 +1,5 @@
 /**
- * Audit (API conformance lens): the export list of src/index.ts must equal the 148 declarations of
+ * Audit (API conformance lens): the export list of src/index.ts must equal the 153 declarations of
  * design section 12.2, name for name and kind for kind. The design says the listing "is the shape
  * of dist/graph-format.d.ts: everything below is exported from src/index.ts and nothing else is".
  *
@@ -45,6 +45,7 @@ const DESIGN_12_2: Readonly<Record<Kind, readonly string[]>> = {
         "fromRecords",
         "fromWire",
         "gatherArray",
+        "coordinateSystemOf",
         "gatherColumn",
         "gpuEligibility",
         "inferTextDtype",
@@ -81,6 +82,7 @@ const DESIGN_12_2: Readonly<Record<Kind, readonly string[]>> = {
         "ColumnMeta",
         "ColumnOrigin",
         "ContractOptions",
+        "CoordinateSystem",
         "CooView",
         "CsrInput",
         "DegreeOrderOptions",
@@ -137,6 +139,9 @@ const DESIGN_12_2: Readonly<Record<Kind, readonly string[]>> = {
         "ColumnOriginInput",
         "ColumnReducer",
         "ColumnRole",
+        "CoordinateKind",
+        "CoordinateSystemInput",
+        "CoordinateUnits",
         "CoreArrayName",
         "Dtype",
         "DtypeValue",
@@ -233,14 +238,14 @@ function barrelExports(): Map<string, Kind | "other"> {
 describe("design section 12.2: the export list of src/index.ts", () => {
     const expectedAll = KINDS.flatMap((kind) => DESIGN_12_2[kind]).sort();
 
-    it("transcribes 148 distinct names (4 constants, 5 classes, 41 functions, 55 interfaces, 43 type aliases)", () => {
-        expect(expectedAll).toHaveLength(148);
-        expect(new Set(expectedAll).size).toBe(148);
+    it("transcribes 153 distinct names (4 constants, 5 classes, 42 functions, 56 interfaces, 46 type aliases)", () => {
+        expect(expectedAll).toHaveLength(153);
+        expect(new Set(expectedAll).size).toBe(153);
         expect(DESIGN_12_2.const).toHaveLength(4);
         expect(DESIGN_12_2.class).toHaveLength(5);
-        expect(DESIGN_12_2.function).toHaveLength(41);
-        expect(DESIGN_12_2.interface).toHaveLength(55);
-        expect(DESIGN_12_2.type).toHaveLength(43);
+        expect(DESIGN_12_2.function).toHaveLength(42);
+        expect(DESIGN_12_2.interface).toHaveLength(56);
+        expect(DESIGN_12_2.type).toHaveLength(46);
     });
 
     it("exports at runtime exactly the value declarations (classes, functions, constants) and no default", () => {
@@ -255,7 +260,7 @@ describe("design section 12.2: the export list of src/index.ts", () => {
         }
     });
 
-    it("exports through the type checker exactly the 148 names of the listing, with the same kinds", () => {
+    it("exports through the type checker exactly the 153 names of the listing, with the same kinds", () => {
         const actual = barrelExports();
         expect([...actual.keys()].sort()).toEqual(expectedAll);
         for (const kind of KINDS) {

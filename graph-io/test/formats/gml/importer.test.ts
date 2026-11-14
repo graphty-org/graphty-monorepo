@@ -11,11 +11,11 @@ import {
     ELEMENT_TYPE_CODE,
     FLAG_TYPE_CODE,
     FLAG_VALUE_CODE,
+    GENERATED_ID_CODE,
     gmlImporter,
     ID_DROPPED_CODE,
     ID_TYPE_CODE,
     MISSING_ENDPOINT_CODE,
-    MISSING_ID_CODE,
     MISSING_LABEL_CODE,
     NO_GRAPH_CODE,
     PRECISION_CODE,
@@ -225,7 +225,6 @@ describe("gmlImporter: malformed corpus", () => {
     const recoverable: Record<string, { code: string; skippedNodes: number; skippedEdges: number }> = {
         "invalid-value-type.gml": { code: ID_TYPE_CODE, skippedNodes: 1, skippedEdges: 0 },
         "missing-edge-target.gml": { code: MISSING_ENDPOINT_CODE, skippedNodes: 0, skippedEdges: 1 },
-        "missing-id.gml": { code: MISSING_ID_CODE, skippedNodes: 1, skippedEdges: 0 },
     };
 
     it("covers every malformed file", () => {
@@ -432,15 +431,24 @@ describe("gmlImporter: structure and flags", () => {
         expect(ids(snapshot)).toEqual([1]);
     });
 
-    it("skips a node without an id and a real or record id, and keeps a string id", async () => {
+    it("gives a node without an id the next integer above the file's ids, skips a real or record id, and keeps a string id", async () => {
         const { report, snapshot } = await importGml(
-            'graph [ node [ label "a" ] node [ id "n1" ] node [ id 1.5 ] node [ id [ x 1 ] ] node [ id 4 ] ]',
+            'graph [ node [ label "a" ] node [ id "n1" ] node [ id 1.5 ] node [ id [ x 1 ] ] node [ id 4 ] edge [ source 4 target 6 ] node [ ] ]',
         );
-        expect(codes(report)).toEqual([MISSING_ID_CODE, STRING_ID_CODE, ID_TYPE_CODE, ID_TYPE_CODE]);
-        expect(report.issues[0].category).toBe("missing-value");
+        expect(codes(report)).toEqual([GENERATED_ID_CODE, STRING_ID_CODE, ID_TYPE_CODE, ID_TYPE_CODE]);
+        expect(report.issues[0]).toMatchObject({ severity: "warning", category: "missing-value" });
         expect(report.issues[2].category).toBe("validation-error");
         expect(report.issues[2].message).toContain("the real 1.5");
-        expect(ids(snapshot)).toEqual(["n1", 4]);
+        // 6 is an edge's endpoint, so the generated ids start above it
+        expect(ids(snapshot)).toEqual([7, "n1", 4, 8, 6]);
+    });
+
+    it("reads bare-word ids and endpoints as string ids", async () => {
+        const { report, snapshot } = await importGml(
+            "graph [ node [ id A ] node [ id 2 ] edge [ source A target fooBar ] ]",
+        );
+        expect(codes(report)).toEqual([STRING_ID_CODE]);
+        expect(ids(snapshot)).toEqual(["A", 2, "fooBar"]);
     });
 
     it("keys string node ids and endpoints by their value with one warning for the whole file", async () => {
@@ -995,7 +1003,7 @@ describe("gmlImporter: direction with a caller's sink", () => {
 
 describe("gmlImporter: limits, cancellation and input handling", () => {
     it("aborts with E_IMPORT and a truncated report beyond the error limit", async () => {
-        const text = "graph [ node [ ] node [ ] node [ ] node [ id 1 ] ]";
+        const text = "graph [ node [ id 1.5 ] node [ id 2.5 ] node [ id 3.5 ] node [ id 1 ] ]";
         const error = await importError(text, { errorLimit: 1 });
         expect(error.report.truncated).toBe(true);
         expect(error.report.errorCount).toBe(2);

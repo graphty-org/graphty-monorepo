@@ -246,6 +246,20 @@ describe("csvExporter: check() loss notes", () => {
         expect(() => csvExporter.exportToString(s)).toThrow(/shares? their text/);
     });
 
+    it("refuses an edge table with an edge to the empty-string id, which reads back as a blank endpoint", async () => {
+        const s = fromRecords({
+            directed: true,
+            nodes: [{ id: "" }, { id: "b" }],
+            edges: [{ source: "", target: "b" }],
+        }).snapshot;
+        expect(csvExporter.check(s).map((n) => [n.code, n.count])).toEqual([[CSV_LOSS.ID_CHARSET, 1]]);
+        expect(() => csvExporter.export(s)).toThrow(/empty string/);
+        // the node table keeps the id
+        expect(csvExporter.check(s, { table: "nodes" })).toEqual([]);
+        const nodes = await csvExporter.exportToString(s, { table: "nodes" });
+        expect((await importCsv(nodes, { table: "nodes" })).ids.toArray()).toEqual(["", "b"]);
+    });
+
     it("reports ids whose type changes under the canonical re-read", () => {
         const s = fromRecords({
             directed: true,

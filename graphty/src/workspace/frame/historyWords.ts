@@ -149,6 +149,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.set": () => "replacing the data",
     "data.replace-nodes": () => "replacing the nodes",
     "data.replace-edges": () => "replacing the edges",
+    "data.merge-nodes": (p) => `merging ${counted(p, "node")}`,
     "data.import": (p) => `importing ${text(p, "name", "data")}`,
     "data.expand": (p) => `expanding ${text(p, "node", "a node")}`,
     "data.declare": (p) => `changing the column ${text(p, "column", "")}`.trimEnd(),

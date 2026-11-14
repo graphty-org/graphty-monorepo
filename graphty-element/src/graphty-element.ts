@@ -129,6 +129,24 @@ function antialiasFromAttribute(value: string | null): boolean {
 }
 
 /**
+ * Whether two property values are the same: identical, or equal as JSON.
+ * @param a - One value.
+ * @param b - The other.
+ * @returns True when they are the same.
+ */
+function sameValue(a: unknown, b: unknown): boolean {
+    if (Object.is(a, b)) {
+        return true;
+    }
+
+    try {
+        return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+        return false;
+    }
+}
+
+/**
  * A file name for an export in a format other than a project file: the project's name, or
  * "project" when it has none, and the format's extension.
  * @param name - the project's name.
@@ -220,6 +238,13 @@ export class Graphty extends LitElement {
      * element is shut down. A move reconnects while it still stands, so nothing is wired twice.
      */
     #wired = false;
+
+    /**
+     * Every reactive property's value, read off the graph when the element was shut down. Set from
+     * the shutdown until the element is inserted again, which builds a new graph and assigns it
+     * those that differ from what the new graph starts with.
+     */
+    #carried: Map<string, unknown> | undefined;
 
     /**
      * Creates a new Graphty element instance.
@@ -491,7 +516,7 @@ export class Graphty extends LitElement {
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
      * @returns Settles once the re-resolved layers are repainted; rejects when one could not be.
-     * @since 2.7.0
+     * @since 3.40.0
      * @example
      * ```ts
      * import { definePalette } from "@graphty/graphty-element/extend";
@@ -744,6 +769,13 @@ export class Graphty extends LitElement {
             return;
         }
 
+        // Inserted again after it was shut down: the old graph is gone for good, so everything
+        // below wires a new one, which the getter builds (#7130).
+        const carried = this.#carried;
+        if (carried !== undefined) {
+            this.#builtGraph = undefined;
+        }
+
         this.#wired = true;
         this.renderRoot.appendChild(this.#element);
         this.#reportStrayObjectAttributes();
@@ -776,9 +808,9 @@ export class Graphty extends LitElement {
         // Look for an accelerator. Nothing is registered unless the consumer imported
         // "@graphty/graphty-element/webgpu", in which case this probes, attaches and reports.
         //
-        // A Graph is built once, in this element's constructor, and never rebuilt, so an element
-        // that stayed disconnected is a shut-down element: its controller was disposed with the
-        // rest of the graph and re-attaching probes nothing. (A move does not get here.)
+        // The graph is built the first time anything needs it, and again when the element comes
+        // back after a shutdown; either way its controller is new and probes. (A move does not get
+        // here.) A controller already disposed starts nothing.
         const controller = this.#ensureAcceleration();
 
         if (!controller.disposed) {
@@ -849,6 +881,40 @@ export class Graphty extends LitElement {
 
             this.#mirrorHistoryChange(reason);
         });
+
+        if (carried !== undefined) {
+            this.#redeclare(carried);
+        }
+    }
+
+    /**
+     * Gives the new graph of an element inserted again after its shutdown what the page declared
+     * on the old one, as the first update does for a new element: assigned as setup, so none of it
+     * is an undoable step, then initialised and drawn.
+     * @param carried - Every reactive property's value, read off the old graph.
+     */
+    #redeclare(carried: Map<string, unknown>): void {
+        this.#carried = undefined;
+        // The records are the data as it stood, edits included, so the source they came from is
+        // not fetched again.
+        const records = carried.get("nodeData") !== undefined || carried.get("edgeData") !== undefined;
+        // The settings first, so records are read with the id paths and the rest they were read with.
+        const data = new Set(["nodeData", "edgeData"]);
+        const order = [...carried].sort(([a], [b]) => Number(data.has(a)) - Number(data.has(b)));
+        this.#settingUp = true;
+        for (const [name, value] of order) {
+            const source = name === "dataSource" || name === "dataSourceConfig";
+            if (!(records && source) && !sameValue(value, Reflect.get(this, name))) {
+                Reflect.set(this, name, value);
+            }
+        }
+        this.#settingUp = false;
+        for (const [name, value] of this.#heldTimeFields) {
+            this.#setTimeField(name, value);
+        }
+        this.#heldTimeFields.clear();
+        this.#releaseUrlPair?.();
+        void this.asyncFirstUpdated();
     }
 
     /**
@@ -1086,9 +1152,15 @@ export class Graphty extends LitElement {
         });
     }
 
-    /** Releases everything the connect path wired and shuts the graph down for good. */
+    /**
+     * Releases everything the connect path wired and shuts the graph down for good. What the page
+     * declared is kept, so the element can build a new graph if it is inserted again.
+     */
     #shutDown(): void {
         this.#wired = false;
+        this.#carried = new Map(
+            [...Graphty.elementProperties.keys()].map((name) => [String(name), Reflect.get(this, name) as unknown]),
+        );
         // Disconnect the resize observer
         if (this.#resizeObserver) {
             this.#resizeObserver.disconnect();
@@ -1122,12 +1194,29 @@ export class Graphty extends LitElement {
         this.#autosaveControl.depart();
 
         this.#graph.shutdown();
+
+        // Inserted again, the element starts autosave and loads its declaration afresh, as a new
+        // element would: a departed autosave and the old graph's loads say nothing about the new.
+        this.#autosaveTimer = undefined;
+        this.#autosaveControl = this.#newAutosave();
+        this.#capabilitiesMirrored = false;
+        this.#loadedPair = undefined;
+        this.#assigned = {};
+        this.#rowRecords = null;
+    }
+
+    /**
+     * A new autosave for this element.
+     * @returns It, off until the `autosave` attribute or property turns it on.
+     */
+    #newAutosave(): ElementAutosave {
+        return new ElementAutosave((type, detail) => {
+            this.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
+        });
     }
 
     /** Autosave for this element: off until the `autosave` attribute or property turns it on. */
-    readonly #autosaveControl = new ElementAutosave((type, detail) => {
-        this.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
-    });
+    #autosaveControl = this.#newAutosave();
     #autosaveTimer: ReturnType<typeof setTimeout> | undefined;
     #autosaveValue: string | null = null;
     #featuresValue: readonly string[] | undefined;
@@ -4877,6 +4966,20 @@ export class Graphty extends LitElement {
      */
     getNodes(): import("./Node").Node[] {
         return this.#graph.getNodes();
+    }
+
+    /**
+     * Get all edges in the graph. `session.data.edges()` lists the same edges as plain records.
+     * @returns Array of all edges
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * const edges = element.getEdges();
+     * console.log('Edges:', edges.map((edge) => `${edge.srcId} -> ${edge.dstId}`));
+     * ```
+     */
+    getEdges(): import("./Edge").Edge[] {
+        return this.#graph.getEdges();
     }
 
     /**

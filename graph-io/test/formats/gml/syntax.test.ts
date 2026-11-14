@@ -10,6 +10,7 @@ import {
     numberOfText,
     parseRecord,
     SYNTAX_BRACKET_CODE,
+    SYNTAX_DEPTH_CODE,
     SYNTAX_STRING_CODE,
     SYNTAX_STRUCTURE_CODE,
     SYNTAX_TOKEN_CODE,
@@ -182,9 +183,19 @@ describe("tokenizeGml: structure", () => {
         expect(dangling.message).toContain('"tail"');
     });
 
-    it("rejects a bare word at a value position unless it is INF or NAN", () => {
+    it("rejects a bare word at a value position unless it is INF or NAN, or the value of an id, source or target", () => {
         expect(syntaxError("This is not GML").code).toBe(SYNTAX_STRUCTURE_CODE);
         expect(() => tokenizeGml("a INF b NAN c nan")).not.toThrow();
+        const ids = tokenizeGml("id A source fooBar target B");
+        expect([ids.kind[1], ids.kind[3], ids.kind[5]]).toEqual([TOKEN_STRING, TOKEN_STRING, TOKEN_STRING]);
+    });
+
+    it("refuses records nested more than 1024 levels deep, and reads 1024", () => {
+        const nested = (depth: number): string => `${"a [ ".repeat(depth)}${"] ".repeat(depth)}`;
+        expect(() => tokenizeGml(nested(1024))).not.toThrow();
+        const deep = syntaxError(nested(1025));
+        expect(deep.code).toBe(SYNTAX_DEPTH_CODE);
+        expect(deep.message).toContain("nested more than 1024 levels deep");
     });
 
     it("accepts an empty text", () => {
@@ -232,7 +243,7 @@ describe("keys", () => {
     it("accepts NetworkX keys and rejects the rest", () => {
         expect(isGmlKey("id")).toBe(true);
         expect(isGmlKey("Label_2")).toBe(true);
-        expect(isGmlKey("_x")).toBe(false);
+        expect(isGmlKey("_x")).toBe(true);
         expect(isGmlKey("1a")).toBe(false);
         expect(isGmlKey("a.b")).toBe(false);
         expect(isGmlKey("")).toBe(false);

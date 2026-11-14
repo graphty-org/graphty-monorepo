@@ -14,6 +14,7 @@ import { AStarAlgorithm } from "../../src/algorithms/AStarAlgorithm";
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
 import { EdgeBetweennessCentralityAlgorithm } from "../../src/algorithms/EdgeBetweennessCentralityAlgorithm";
 import { HierarchicalClusteringAlgorithm } from "../../src/algorithms/HierarchicalClusteringAlgorithm";
+import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";
 import { MarkovClusteringAlgorithm } from "../../src/algorithms/MarkovClusteringAlgorithm";
 import { type AlgorithmOutput, type DeclaredAlgorithm, detachedRunContext } from "../../src/algorithms/results";
 import { SpectralClusteringAlgorithm } from "../../src/algorithms/SpectralClusteringAlgorithm";
@@ -112,6 +113,23 @@ describe("clustering splits two triangles at the bridge", () => {
             groupsOf(await run(TWO_TRIANGLES, (g) => new SpectralClusteringAlgorithm(g, { clusters: 2 }))),
             SPLIT,
         );
+    });
+
+    it("spectral clustering and Leiden run unseeded by default, report the seed drawn, and repeat a passed one", async () => {
+        for (const [make, seedOption] of [
+            [(g: Graph, o: object) => new SpectralClusteringAlgorithm(g, o), "seed"],
+            [(g: Graph, o: object) => new LeidenAlgorithm(g, o), "randomSeed"],
+        ] as const) {
+            const drawn = await run(TWO_TRIANGLES, (g) => make(g, {}));
+            assert.isNumber(drawn.caveats.seed);
+
+            // The drawn seed, passed back, gives the same partition; so does 0, a seed like any other.
+            const replay = await run(TWO_TRIANGLES, (g) => make(g, { [seedOption]: drawn.caveats.seed }));
+            assert.deepStrictEqual(groupsOf(replay), groupsOf(drawn));
+            assert.strictEqual(replay.caveats.seed, drawn.caveats.seed);
+            const zero = await run(TWO_TRIANGLES, (g) => make(g, { [seedOption]: 0 }));
+            assert.strictEqual(zero.caveats.seed, 0);
+        }
     });
 
     it("hierarchical clustering into two keeps each triangle's outer pair together", async () => {

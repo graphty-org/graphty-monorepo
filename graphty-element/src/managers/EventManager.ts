@@ -285,9 +285,8 @@ export class EventManager implements Manager {
 
     /**
      * Emits a graph or AI event on the graph channel, which `addListener` and the element's DOM
-     * forwarder both deliver. The name must be one the `GraphEvent` or `AiEvent` union declares
-     * (or one of the few legacy names in `UndeclaredEventType`), so a new undeclared name fails to
-     * compile here rather than reaching listeners untyped.
+     * forwarder both deliver. The name must be one the `GraphEvent` or `AiEvent` union declares,
+     * so a new undeclared name fails to compile here rather than reaching listeners untyped.
      * @param type - A declared graph or AI event type
      * @param data - The event's fields besides `type`
      */
@@ -297,14 +296,13 @@ export class EventManager implements Manager {
     }
 
     /**
-     * Emits a graph event under any name.
-     * @param type - Event type identifier
-     * @param data - Event data payload
-     * @deprecated Use {@link EventManager.emit}, which accepts only declared event names. This
-     * method will accept only those names in the next major release.
+     * Emits a graph or AI event: the same as {@link EventManager.emit}.
+     * @param type - A declared graph or AI event type
+     * @param data - The event's fields besides `type`
+     * @deprecated Use {@link EventManager.emit}.
      */
-    emitGraphEvent(type: string, data: Record<string, unknown>): void {
-        this.emit(type as EmittableEventType, data);
+    emitGraphEvent(type: EmittableEventType, data: Record<string, unknown>): void {
+        this.emit(type, data);
     }
 
     // Data Loading Events
@@ -531,12 +529,19 @@ export class EventManager implements Manager {
             case "selection-changed":
             case "graph-started":
             case "layout-changed":
+            case "layout-updated":
             case "layout-warning":
             case "limits-warning":
             case "basemap-status":
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
+            case "input-initialized":
+            case "input-config-updated":
+            case "input-pointer-lock-changed":
+            case "input-recording-started":
+            case "input-recording-stopped":
+            case "input-playback-completed":
             case "xr-session-started":
             case "xr-session-ended":
             case "input:pointer-down":

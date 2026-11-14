@@ -47,28 +47,8 @@ export type EdgeEventType = EdgeEvent["type"];
 /** The name of an event the AI assistant emits. OPEN UNION: event names may be added in a minor release. */
 export type AiEventType = AiEvent["type"];
 
-/**
- * Event names graphty-element still emits with no declared event type. Each is forwarded to the
- * DOM as before, as a plain `Event` to a TypeScript listener, and none can be subscribed through
- * `graph.on`. They wait on the next major release (issue #1577), which stops forwarding the six
- * input bookkeeping events and gives `layout-updated` its own name back: today its payload's
- * `type: "incremental"` overwrites the name, so it actually arrives as an event named
- * `incremental`.
- *
- * Listed here only so the element's own emit sites still compile; a new name does not belong here.
- * @internal
- */
-export type UndeclaredEventType =
-    | "layout-updated"
-    | "input-initialized"
-    | "input-config-updated"
-    | "input-pointer-lock-changed"
-    | "input-recording-started"
-    | "input-recording-stopped"
-    | "input-playback-completed";
-
 /** Every name the element's own emitter accepts: see `EventManager.emit`. */
-export type EmittableEventType = GraphEventType | AiEventType | UndeclaredEventType;
+export type EmittableEventType = GraphEventType | AiEventType;
 
 // graph events
 export type GraphEvent =
@@ -91,12 +71,14 @@ export type GraphEvent =
     | SelectionChangedEvent
     | GraphStartedEvent
     | LayoutChangedEvent
+    | LayoutUpdatedEvent
     | LayoutWarningEvent
     | LimitsWarningEvent
     | BasemapStatusEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
+    | InputBookkeepingEvent
     | XRSessionStartedEvent
     | XRSessionEndedEvent
     | InputPointerEvent
@@ -107,7 +89,8 @@ export type GraphEvent =
     | InputShortcutEvent;
 
 /** A graph event type that stays inside the element: see {@link INTERNAL_EVENT_TYPES}. */
-type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
+type InternalEventType =
+    GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"] | InputBookkeepingEvent["type"];
 
 /**
  * The unprefixed events `<graphty-element>` forwards to the DOM, by name: every graph and AI event
@@ -142,6 +125,12 @@ export type GraphtyForwardedEventMap = {
 export const INTERNAL_EVENT_TYPES: ReadonlySet<GraphEventType> = new Set<GraphEventType>([
     "snapshot-replaced",
     "snapshot-dropped",
+    "input-initialized",
+    "input-config-updated",
+    "input-pointer-lock-changed",
+    "input-recording-started",
+    "input-recording-stopped",
+    "input-playback-completed",
 ] satisfies InternalEventType[]);
 
 /**
@@ -480,6 +469,13 @@ export interface LayoutChangedEvent {
     options: Record<string, unknown>;
 }
 
+/** Emitted when the running layout has moved the nodes after nodes were added to the graph. */
+export interface LayoutUpdatedEvent {
+    type: "layout-updated";
+    /** How many nodes were added. */
+    nodeCount: number;
+}
+
 /**
  * Emitted when a layout could not do everything it was asked.
  * The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does
@@ -544,13 +540,6 @@ export interface OperationCancelledEvent {
      * this one operation was cancelled. Write the reader-facing words from this code.
      */
     code: "queue-cleared" | "cancelled";
-    /**
-     * Why it was aborted, as the queue words it: `"Queue cleared"` when the whole queue was
-     * cleared, `"Manual cancellation"` when this one operation was cancelled.
-     * @deprecated Read {@link OperationCancelledEvent.code} instead; this English text is removed
-     * in the next major release.
-     */
-    reason: string;
 }
 
 /** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
@@ -560,6 +549,22 @@ export interface StatsUpdateEvent {
     totalUpdates: number;
     /** The counters as they stand now. */
     stats: ReturnType<StatsManager["getStats"]>;
+}
+
+/**
+ * The input manager's own bookkeeping, ELEMENT-INTERNAL: listed in {@link INTERNAL_EVENT_TYPES},
+ * so it never reaches the DOM. `input-initialized` carries the live input manager, and the
+ * recording and playback events answer calls whose callers already hold the outcome.
+ */
+interface InputBookkeepingEvent {
+    type:
+        | "input-initialized"
+        | "input-config-updated"
+        | "input-pointer-lock-changed"
+        | "input-recording-started"
+        | "input-recording-stopped"
+        | "input-playback-completed";
+    [key: string]: unknown;
 }
 
 /** Emitted when user input on the canvas is switched on or off, by `setInputEnabled`. */

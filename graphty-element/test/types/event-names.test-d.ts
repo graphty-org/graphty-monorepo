@@ -10,7 +10,8 @@
 
 import { expectTypeOf } from "vitest";
 
-import type { AiEventType, InputPointerEvent } from "../../index";
+import type { AiEventType, InputPointerEvent, LayoutUpdatedEvent } from "../../index";
+import type { GraphtyForwardedEventMap } from "../../src/events";
 import type { Graph } from "../../src/Graph";
 import type { EventManager } from "../../src/managers/EventManager";
 
@@ -24,8 +25,20 @@ events.emit("ai-voice-start", {});
 // @ts-expect-error -- an undeclared name does not compile at an internal emit site.
 events.emit("custom-event", {});
 
-// The deprecated public emitter still takes any name, as its published signature promises.
+// The deprecated public emitter takes only declared names too.
+events.emitGraphEvent("graph-started", { timestamp: 0 });
+// @ts-expect-error -- an undeclared name does not compile at the deprecated emitter either.
 events.emitGraphEvent("custom-event", {});
+
+// The input manager's bookkeeping events are declared, and kept off the DOM event map.
+events.emit("input-initialized", {});
+// @ts-expect-error -- an element-internal event has no DOM event type.
+expectTypeOf<"input-initialized">().toExtend<keyof GraphtyForwardedEventMap>();
+
+// layout-updated arrives under its own name, with the count of nodes added.
+graph.on("layout-updated", (e) => {
+    expectTypeOf(e).toEqualTypeOf<LayoutUpdatedEvent>();
+});
 
 expectTypeOf<"ai-status-change">().toExtend<AiEventType>();
 

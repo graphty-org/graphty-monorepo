@@ -114,7 +114,7 @@ describe("InputManager", () => {
         // Wait for playback to complete; the one hang guard ends a playback that never does.
         await new Promise<void>((resolve) => {
             eventManager.onGraphEvent.add((event) => {
-                if ((event as { type: string }).type === "input-playback-completed") {
+                if (event.type === "input-playback-completed") {
                     resolve();
                 }
             });
@@ -233,7 +233,7 @@ describe("InputManager", () => {
 
         let configUpdated = false;
         eventManager.onGraphEvent.add((event) => {
-            if ((event as { type: string }).type === "input-config-updated") {
+            if (event.type === "input-config-updated") {
                 configUpdated = true;
             }
         });
@@ -281,9 +281,9 @@ describe("InputManager", () => {
             );
             const errors: Error[] = [];
             let initialized = false;
-            // "input-initialized" is an undeclared legacy name, so only the raw channel carries it.
+            // "input-initialized" is element-internal: the graph channel carries it, the DOM never does.
             eventManager.onGraphEvent.add((event) => {
-                initialized ||= (event.type as string) === "input-initialized";
+                initialized ||= event.type === "input-initialized";
             });
             eventManager.onGraphError.add((event) => errors.push(event.error));
             let thrown: unknown;

@@ -325,6 +325,7 @@ export type {
     InputTouchEvent,
     InputWheelEvent,
     LayoutChangedEvent,
+    LayoutUpdatedEvent,
     LayoutWarningEvent,
     NodeAddEvent,
     NodeClickEvent,

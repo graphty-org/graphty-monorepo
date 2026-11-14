@@ -7178,9 +7178,27 @@ export class Graph implements GraphContext {
     async captureAnimation(
         options: import("./video/VideoCapture.js").AnimationOptions,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const { MediaRecorderCapture } = await import("./video/MediaRecorderCapture.js");
+        const { MediaRecorderCapture, holdCameraForCapture } = await import("./video/MediaRecorderCapture.js");
 
-        const capture = new MediaRecorderCapture();
+        // A frame reaches the recorder once the engine has ended it: WebGPU submits the frame's
+        // work only in endFrame(), so a copy made from the scene's after-render would read a canvas
+        // that does not hold the frame yet. A tick that ends with no scene drawn is no frame.
+        const capture = new MediaRecorderCapture((onFrame) => {
+            let drawn = false;
+            const afterRender = this.scene.onAfterRenderObservable.add(() => {
+                drawn = true;
+            });
+            const endFrame = this.engine.onEndFrameObservable.add(() => {
+                if (drawn) {
+                    drawn = false;
+                    onFrame();
+                }
+            });
+            return () => {
+                this.scene.onAfterRenderObservable.remove(afterRender);
+                this.engine.onEndFrameObservable.remove(endFrame);
+            };
+        });
 
         // Store reference for cancellation
         this.activeCapture = capture;
@@ -7200,8 +7218,14 @@ export class Graph implements GraphContext {
                 return await this.captureAnimatedCameraVideo(options, capture, onProgress);
             }
 
-            // Capture stationary video
-            const result = await capture.captureRealtime(this.canvas, options, onProgress);
+            // Capture stationary video, from the camera asked for
+            const restoreCamera = options.camera ? await holdCameraForCapture(this, options.camera) : undefined;
+            let result: import("./video/VideoCapture.js").AnimationResult;
+            try {
+                result = await capture.captureRealtime(this.canvas, options, onProgress);
+            } finally {
+                await restoreCamera?.();
+            }
 
             // Handle download if requested
             this.handleVideoDownload(result, options);

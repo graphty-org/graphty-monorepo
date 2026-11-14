@@ -139,24 +139,31 @@ async function downloadScreenshotBlob() {
 Capture animated video of the visualization:
 
 ```typescript
-const blob = await graph.captureAnimation({
+const { blob, metadata } = await graph.captureAnimation({
     duration: 5000, // 5 seconds
+    cameraMode: "stationary", // the camera stays where it is
     fps: 30, // 30 frames per second
-    format: "webm", // Video format
 });
 
-// blob is a video Blob
+// blob is the video; metadata.format says which format the browser recorded
 ```
+
+`metadata.framesCaptured` counts the frames the graph drew while recording (at most one in each
+1/fps interval), and `framesDropped` and `dropRate` the frames expected that it did not draw in
+time, so a busy machine shows up as a drop rate above 0.
 
 ## Video Options
 
-| Option     | Type              | Default       | Description             |
-| ---------- | ----------------- | ------------- | ----------------------- |
-| `duration` | `number`          | `5000`        | Recording duration (ms) |
-| `fps`      | `number`          | `30`          | Frames per second       |
-| `format`   | `'webm' \| 'mp4'` | `'webm'`      | Video format            |
-| `width`    | `number`          | canvas width  | Output width            |
-| `height`   | `number`          | canvas height | Output height           |
+| Option         | Type                                | Default        | Description                                                                                  |
+| -------------- | ----------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `duration`     | `number`                            | required       | Recording duration (ms)                                                                      |
+| `cameraMode`   | `'stationary' \| 'animated'`        | required       | Hold the camera, or fly it along `cameraPath` or `tour`                                      |
+| `fps`          | `number`                            | `30`           | Frames per second                                                                            |
+| `format`       | `'webm' \| 'mp4' \| 'auto'`         | `'auto'`       | Video format; `'auto'` picks WebM where the browser records it, else MP4                     |
+| `videoBitrate` | `number`                            | `5000000`      | Bits per second                                                                              |
+| `width`        | `number`                            | canvas width   | Output width; alone, the height follows the canvas's aspect                                  |
+| `height`       | `number`                            | canvas height  | Output height; with `width`, the picture is fitted inside both, centered, with black margins |
+| `camera`       | `CameraState \| { preset: string }` | current camera | Stationary mode: where the camera stands while recording; it is put back afterwards          |
 
 ## Animation Capture Controls
 
@@ -178,8 +185,9 @@ graph.cancelAnimationCapture();
 
 ```typescript
 async function recordAndDownload() {
-    const blob = await graph.captureAnimation({
+    const { blob } = await graph.captureAnimation({
         duration: 10000,
+        cameraMode: "stationary",
         fps: 30,
     });
 
@@ -222,6 +230,7 @@ async function captureTour() {
     // Start recording
     const capturePromise = graph.captureAnimation({
         duration: 10000,
+        cameraMode: "stationary",
     });
 
     // Animate camera during recording
@@ -238,7 +247,7 @@ async function captureTour() {
     graph.zoomToFit();
 
     // Wait for recording to complete
-    const blob = await capturePromise;
+    const { blob } = await capturePromise;
 
     // Download
     downloadBlob(blob, "tour.webm");
@@ -306,12 +315,18 @@ Add a screenshot button to your UI:
 
         capturePromise = graph.captureAnimation({
             duration: 30000, // Max 30 seconds
+            cameraMode: "stationary",
             fps: 30,
         });
 
         try {
-            const blob = await capturePromise;
-            downloadBlob(blob, "recording.webm");
+            const { blob, metadata } = await capturePromise;
+            downloadBlob(blob, `recording.${metadata.format}`);
+        } catch (error) {
+            // Stop cancels the recording: a cancelled recording keeps no video
+            if (error.name !== "AnimationCancelledError") {
+                throw error;
+            }
         } finally {
             recordBtn.disabled = false;
             stopBtn.disabled = true;

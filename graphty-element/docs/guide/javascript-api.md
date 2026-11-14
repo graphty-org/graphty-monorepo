@@ -466,8 +466,9 @@ const result = await graph.captureScreenshot({
 await graph.captureScreenshot({ destination: { clipboard: true } });
 
 // Capture video animation
-const video = await graph.captureAnimation({
+const { blob: video } = await graph.captureAnimation({
     duration: 5000,
+    cameraMode: "stationary",
     fps: 30,
 });
 ```

@@ -1,20 +1,14 @@
 // Installs scene.createPickingRay; see test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Culling/ray.js";
 
-import {
-    type ActionEvent,
-    ActionManager,
-    ExecuteCodeAction,
-    Matrix,
-    PointerEventTypes,
-    type PointerInfo,
-    type PointerInfoPre,
-    Quaternion,
-    Ray,
-    Scene,
-    TransformNode,
-    Vector3,
-} from "@babylonjs/core";
+import type { ActionEvent, PointerInfoPre } from "@babylonjs/core";
+import { ActionManager } from "@babylonjs/core/Actions/actionManager.js";
+import { ExecuteCodeAction } from "@babylonjs/core/Actions/directActions.js";
+import { Ray } from "@babylonjs/core/Culling/ray.core.js";
+import { PointerEventTypes, type PointerInfo } from "@babylonjs/core/Events/pointerEvents.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
@@ -60,6 +54,8 @@ interface DragState {
     dragStartWorldPosition: Vector3 | null;
     /** Where the pointer was at the last drag update, for the XR tracking-glitch guard. */
     lastWorldPosition: Vector3 | null;
+    /** When the last drag update (or the drag start) came, in ms, for the same guard. */
+    lastUpdateTime: number;
     dragPlaneNormal: Vector3 | null;
     /** The pointer moved the node during this drag (set with or without a session). */
     moved: boolean;
@@ -450,11 +446,37 @@ function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): v
     session.data.expand([node.id], options).catch(() => undefined);
 }
 
-/**
- * The largest pointer move, in world units before amplification, one XR drag update may make. A
- * bigger jump is a controller losing and reacquiring tracking, not the reader's hand.
+/*
+ * The XR tracking-glitch guard: the largest move a reader's hand can make between two drag updates,
+ * in metres of the reader's own space, measured before `zAxisAmplification`. A bigger jump is a
+ * controller losing and reacquiring tracking (a snap of tens of centimetres in one frame), not a
+ * hand, and is ignored.
+ *
+ * - XR_MAX_HAND_SPEED: 10 m/s. Deliberate arm movement peaks well below it: fast reaching runs 1 to
+ *   3 m/s at the hand, the hardest VR rhythm-game swings and punches reach 6 to 10 m/s. A 30 cm
+ *   tracking snap inside one 72 Hz frame is 22 m/s.
+ * - The time is what passed since the previous update, so the bound holds at any frame rate. It is
+ *   never less than one frame of the fastest headset display (120 Hz), so updates that arrive
+ *   close together (an emulator, a script) still allow a hand's frame of movement.
+ * - XR_MAX_HAND_REACH: 2 m, about a standing adult's arm span. However long tracking was lost, a
+ *   hand comes back no further than that from where it went, so a long gap cannot excuse a bigger
+ *   snap.
  */
-const XR_MAX_REASONABLE_DELTA = 5;
+const XR_MAX_HAND_SPEED = 10;
+const XR_SHORTEST_FRAME_SECONDS = 1 / 120;
+const XR_MAX_HAND_REACH = 2;
+
+/**
+ * The longest pointer move one XR drag update may make. XRInputHandler moves the drag pointer by the
+ * hand's movement in the reader's own space (its position under the pivot, turned with the pivot
+ * but never scaled by zoom), so the pointer moves in metres.
+ * @param elapsedMs - Time since the previous update.
+ * @returns The limit, in metres.
+ */
+function xrMaxDragStep(elapsedMs: number): number {
+    const seconds = Math.max(elapsedMs / 1000, XR_SHORTEST_FRAME_SECONDS);
+    return Math.min(XR_MAX_HAND_SPEED * seconds, XR_MAX_HAND_REACH);
+}
 
 // Click detection thresholds
 const CLICK_MAX_DURATION_MS = 300; // Maximum time for a click (vs long press/drag)
@@ -486,6 +508,7 @@ export class NodeDragHandler {
             dragStartMeshPosition: null,
             dragStartWorldPosition: null,
             lastWorldPosition: null,
+            lastUpdateTime: 0,
             dragPlaneNormal: null,
             moved: false,
         };
@@ -533,6 +556,7 @@ export class NodeDragHandler {
         this.dragState.dragStartMeshPosition = this.node.drawnPosition.clone();
         this.dragState.dragStartWorldPosition = worldPosition.clone();
         this.dragState.lastWorldPosition = worldPosition.clone();
+        this.dragState.lastUpdateTime = performance.now();
         this.node.dragging = true;
 
         // Capture the drag plane orientation at drag start
@@ -594,10 +618,13 @@ export class NodeDragHandler {
 
         const isXR = this.isXRMode();
         const jump = worldPosition.subtract(this.dragState.lastWorldPosition ?? worldPosition);
+        const now = performance.now();
+        const elapsedMs = now - this.dragState.lastUpdateTime;
         this.dragState.lastWorldPosition = worldPosition.clone();
+        this.dragState.lastUpdateTime = now;
         // A controller that loses and reacquires tracking reports one huge jump. Absorb it into the
         // drag start, so the node stays where it is and later movement carries on from here.
-        if (isXR && jump.length() > XR_MAX_REASONABLE_DELTA) {
+        if (isXR && jump.length() > xrMaxDragStep(elapsedMs)) {
             this.dragState.dragStartWorldPosition.addInPlace(jump);
             return;
         }

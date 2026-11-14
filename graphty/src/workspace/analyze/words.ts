@@ -622,7 +622,7 @@ export function pathWords(session: GraphSession, run: Run): { from: string; to: 
         return null;
     }
     const name = (id: unknown): string =>
-        typeof id === "string" || typeof id === "number" ? (session.data.name(id) ?? String(id)) : "";
+        typeof id === "string" || typeof id === "number" ? session.data.nodeName(id).name : "";
     return {
         from: name(run.params.source),
         to: name(run.params.target),

@@ -1,4 +1,6 @@
-import { type AbstractActionManager, AbstractMesh, type Node as SceneNode, type Scene } from "@babylonjs/core";
+import type { AbstractActionManager, Node as SceneNode } from "@babylonjs/core";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import {
     type DerivedGraph,
     GraphFormatError,
@@ -9,14 +11,14 @@ import {
 
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
-import { createEdgeCounter, edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
+import { createEdgeCounter, edgeCounterOf, edgeIdOf, EdgeIdRows } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { GROUPS_VALUE, groupsOf, type NodeGroup, RANK_SETS_VALUE, type RankSet, rankSetsOf } from "../data/groups";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport, LoadReport } from "../data/report";
-import { RowMap } from "../data/RowMap";
+import { RowIdRecords, RowMap } from "../data/RowMap";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
@@ -381,6 +383,8 @@ export const dataManagerInternals = {} as {
     builtNodes(manager: DataManager): IterableIterator<Node>;
     /** The rows stored with no `Node` yet (see `LazyView`), by row number. */
     unbuiltRows(manager: DataManager): number[];
+    /** How many source nodes ingest's duplicate-pair index holds now (0 when it holds none). */
+    pairIndexSources(manager: DataManager): number;
     /**
      * How much of {@link DataManager.nodeVersion} came from building the `Node` of a row already
      * drawn with no `Node`: the set of rows did not change, so the applied view masks still hold.
@@ -625,10 +629,11 @@ class LazyView<K, V> extends Map<K, V> {
 export class DataManager implements Manager {
     // Node and edge collections: written only here, as commands add, remove and renumber rows.
     /**
-     * Rows stored under `"batched"` with no `Node`, by id: the record and row each `Node` is built
-     * from when one is asked for. The batches draw them from their paint (`NodeBatches.paintRow`).
+     * Rows stored under `"batched"` with no `Node`, by row: the id and record each `Node` is built
+     * from when one is asked for, in two arrays (no Map entry or object per row). The batches draw
+     * them from their paint (`NodeBatches.paintRow`).
      */
-    private readonly unbuilt = new Map<number, { id: NodeIdType; record: Record<string | number, unknown> }>();
+    private readonly unbuilt = new RowIdRecords<NodeIdType, Record<string | number, unknown>>();
     /** The rows of {@link unbuilt} by id, so a removal finds its row once the store has let it go. */
     private readonly unbuiltIds = new Map<NodeIdType, number>();
     /** {@link unbuilt} as the node maps read it. */
@@ -644,8 +649,8 @@ export class DataManager implements Manager {
      * Only while {@link storesWithoutEdge} says so.
      */
     private readonly unbuiltEdges = new RowMap<StoredEdge>();
-    /** The rows of {@link unbuiltEdges} by edge id. */
-    private readonly unbuiltEdgeIds = new Map<EdgeId, number>();
+    /** The rows of {@link unbuiltEdges} by edge id, held by the id's counter (no Map entry or id string per edge). */
+    private readonly unbuiltEdgeIds = new EdgeIdRows();
     /**
      * Whether an edge whose ends are stored is stored with no `Edge` (`dataManagerInternals.storeEdgesUnbuilt`),
      * or null for {@link storesWithoutEdge} to decide.
@@ -674,6 +679,7 @@ export class DataManager implements Manager {
         dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
+        dataManagerInternals.pairIndexSources = (manager) => manager.ingest.pairIndexSources;
         dataManagerInternals.lateNodeVersions = (manager) => manager.lateNodeVersions;
         dataManagerInternals.unpaintedKeys = (manager) => [...manager.unpainted];
         dataManagerInternals.storedIdOf = (manager, id) => {
@@ -1604,7 +1610,7 @@ export class DataManager implements Manager {
         }
 
         this.unbuiltEdges.set(row, { ...stored, record, edgeIndex: row });
-        this.unbuiltEdgeIds.set(id, row);
+        this.unbuiltEdgeIds.set(stored.edgeId, row);
 
         return true;
     }
@@ -1782,8 +1788,9 @@ export class DataManager implements Manager {
         // next freeze does not name it a second time.
         this.eventManager.emitSnapshotDropped();
         this.store.forgetSnapshot();
-        // Nothing that was waiting for its style is drawn any more.
+        // Nothing that was waiting for its style is drawn any more, and no row is held plain.
         this.unpainted.clear();
+        this.graphContext?.getUpdateManager?.().dataCleared();
         this.clearStoredUnpainted();
 
         // The layout lets go of them too, as it does of a node removed one at a time: an engine
@@ -2108,7 +2115,7 @@ export class DataManager implements Manager {
             const moved = remap[stored.edgeIndex] ?? INVALID_INDEX;
             if (moved !== INVALID_INDEX) {
                 this.unbuiltEdges.set(moved, { ...stored, edgeIndex: moved });
-                this.unbuiltEdgeIds.set(edgeIdOf(stored.edgeId), moved);
+                this.unbuiltEdgeIds.set(stored.edgeId, moved);
             }
         }
 
@@ -3088,7 +3095,7 @@ export class DataManager implements Manager {
     private storeUnbuiltEdge(stored: StoredEdge): void {
         const { edgeIndex, edgeId } = stored;
         this.unbuiltEdges.set(edgeIndex, stored);
-        this.unbuiltEdgeIds.set(edgeIdOf(edgeId), edgeIndex);
+        this.unbuiltEdgeIds.set(edgeId, edgeIndex);
         // ponytail: one hand-over per edge; buffer them as `arrivedRows` does if a profile shows the calls.
         this.layoutEdgeRows?.add([edgeRowOf(stored)]);
         this.storedUnpainted(edgeId, edgeIndex);
@@ -3193,8 +3200,8 @@ export class DataManager implements Manager {
         this.graphContext?.getEdgeRowLines?.()?.unpaintRow(row);
         // Only while the id still names this row; the layout lets its edge row go with it, before a
         // built `Edge` reaches the engine in its place.
-        if (stored !== undefined && this.unbuiltEdgeIds.get(edgeIdOf(stored.edgeId)) === row) {
-            this.unbuiltEdgeIds.delete(edgeIdOf(stored.edgeId));
+        if (stored !== undefined && this.unbuiltEdgeIds.at(stored.edgeId) === row) {
+            this.unbuiltEdgeIds.delete(stored.edgeId);
             if (leaves) {
                 this.layoutEdgeRows?.remove([edgeIdOf(stored.edgeId)]);
             }

@@ -4,9 +4,6 @@ import {
     ControlSection,
     FieldRow,
     FileSource,
-    PanelField,
-    PanelLabelsProvider,
-    ResetButton,
     TargetTooltip,
 } from "@graphty/compact-mantine";
 import {
@@ -15,15 +12,18 @@ import {
     type Lighting,
     LIGHTING_VALUES,
 } from "@graphty/graphty-element/schema";
-import type { GraphSession, GraphSettingKey, TransactionScope } from "@graphty/graphty-element/session";
-import { ActionIcon, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
+import {
+    type GraphSession,
+    type GraphSettingKey,
+    prepareBackgroundImage,
+    type TransactionScope,
+} from "@graphty/graphty-element/session";
+import { ActionIcon, Box, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { useSizeBound } from "../frame/useSizeBound";
 import { GLYPHS } from "../glyphs";
 import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
-import { readDataUrl } from "../start/open";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { BACKGROUND_SECTION_WORDS, BACKGROUND_WORDS } from "../style/words";
@@ -107,7 +107,7 @@ function useFocusPastHidden(
 
 /**
  * Graph settings, the right panel with no row selected (tier 3 design section 2.5): Background
- * (a color, an image and a shader, stacked), Lighting, Same size at any depth, Outline width, the
+ * (a color, an image and a shader, stacked), Lighting, Same size at any depth, the
  * Map while the layout draws one, and the label rules. The view (2D or 3D) and the layout live only
  * in the toolbar. A setting is shown only while the element
  * says it changes the drawing in this view. The background is the project's and goes through the
@@ -123,7 +123,6 @@ export function GraphSettings(): React.JSX.Element | null {
     const sameSizeChosen = useWorkspaceState((state) => state.sameSizeAtAnyDepth);
     const sameSize = sameSizeChosen ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
-    const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
     const hidden = useNotInEffect(session);
     const { ref, onFocus } = useFocusPastHidden(hidden, store);
     if (session === null) {
@@ -134,101 +133,76 @@ export function GraphSettings(): React.JSX.Element | null {
     return (
         <>
             <BackgroundSection session={session} />
-            <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
-                <Stack gap={6} ref={ref} onFocus={onFocus}>
-                    {shows("lighting") && (
-                        <div data-setting="lighting">
-                            <Select
-                                label="Lighting"
-                                size="xs"
-                                allowDeselect={false}
-                                value={lighting}
-                                data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
-                                onChange={(picked) => {
-                                    const next = LIGHTING_VALUES.find((value) => value === picked);
-                                    if (next !== undefined) {
-                                        store.set({ lighting: next });
-                                    }
-                                }}
-                            />
-                        </div>
-                    )}
-                    {shows("node.depthIndependentSize") && (
-                        <div data-setting="node.depthIndependentSize">
-                            <Switch
-                                size="xs"
-                                label="Same size at any depth"
-                                // Until the reader sets it, it follows the size binding: say why it
-                                // turned on, so the change is never a surprise.
-                                description={
-                                    sameSizeChosen === null && sizeBound ? "On while node size follows data" : undefined
-                                }
-                                checked={sameSize}
-                                onChange={(event) => {
-                                    store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });
-                                }}
-                            />
-                        </div>
-                    )}
-                    {shows("node.outlineWidth") && (
-                        <div data-setting="node.outlineWidth">
-                            <PanelLabelsProvider showLabels>
-                                <FieldRow
-                                    trailing={
-                                        outlineWidth !== null &&
-                                        outlineWidth !== undefined && (
-                                            <ResetButton
-                                                label="Outline width"
-                                                onClick={() => {
-                                                    store.set({ outlineWidth: null });
-                                                }}
-                                            />
-                                        )
-                                    }
-                                >
-                                    <PanelField
-                                        label="Outline width"
-                                        kind="number"
-                                        value={outlineWidth ?? 1}
-                                        min={0.1}
-                                        max={10}
-                                        step={0.1}
-                                        decimalScale={1}
-                                        onChange={(next) => {
-                                            store.set({ outlineWidth: Number(next) });
+            {/* One container for both sections' rows, so focus on a row hidden in this view moves
+                on to the next row shown, in Labels when Canvas has none left (2D). */}
+            <Box ref={ref} onFocus={onFocus} display="contents">
+                {(shows("lighting") || shows("node.depthIndependentSize")) && (
+                    <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
+                        <Stack gap={6}>
+                            {shows("lighting") && (
+                                <div data-setting="lighting">
+                                    <Select
+                                        label="Lighting"
+                                        size="xs"
+                                        allowDeselect={false}
+                                        value={lighting}
+                                        data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
+                                        onChange={(picked) => {
+                                            const next = LIGHTING_VALUES.find((value) => value === picked);
+                                            if (next !== undefined) {
+                                                store.set({ lighting: next });
+                                            }
                                         }}
                                     />
-                                </FieldRow>
-                            </PanelLabelsProvider>
-                            {!selectionWorkspaceOn(session) && (
-                                <Text size="xs" c="dimmed">
-                                    Every outline is drawn at this width. For a ring whose width a layer sets, use Halo.
-                                </Text>
+                                </div>
                             )}
+                            {shows("node.depthIndependentSize") && (
+                                <div data-setting="node.depthIndependentSize">
+                                    <Switch
+                                        size="xs"
+                                        label="Same size at any depth"
+                                        // Until the reader sets it, it follows the size binding: say why it
+                                        // turned on, so the change is never a surprise.
+                                        description={
+                                            sameSizeChosen === null && sizeBound
+                                                ? "On while node size follows data"
+                                                : undefined
+                                        }
+                                        checked={sameSize}
+                                        onChange={(event) => {
+                                            store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </Stack>
+                    </ControlSection>
+                )}
+                <ControlSection label="Labels" collapsible={false} headingLevel={3}>
+                    <Stack gap={6}>
+                        <div data-setting="labels.declutter">
+                            <Switch
+                                size="xs"
+                                label="Hide overlapping labels"
+                                checked={!allLabelsShown}
+                                onChange={(event) => {
+                                    store.set({ allLabelsShown: !event.currentTarget.checked });
+                                }}
+                            />
                         </div>
-                    )}
-                </Stack>
-            </ControlSection>
-            <ControlSection label="Labels" collapsible={false} headingLevel={3}>
-                <Stack gap={6}>
-                    <Switch
-                        size="xs"
-                        label="Hide overlapping labels"
-                        checked={!allLabelsShown}
-                        onChange={(event) => {
-                            store.set({ allLabelsShown: !event.currentTarget.checked });
-                        }}
-                    />
-                    <Switch
-                        size="xs"
-                        label="Move labels off nodes and edges"
-                        checked={labelsAvoid}
-                        onChange={(event) => {
-                            store.set({ labelsAvoid: event.currentTarget.checked });
-                        }}
-                    />
-                </Stack>
-            </ControlSection>
+                        <div data-setting="labels.avoidNodesAndEdges">
+                            <Switch
+                                size="xs"
+                                label="Move labels off nodes and edges"
+                                checked={labelsAvoid}
+                                onChange={(event) => {
+                                    store.set({ labelsAvoid: event.currentTarget.checked });
+                                }}
+                            />
+                        </div>
+                    </Stack>
+                </ControlSection>
+            </Box>
             <ShaderSection />
         </>
     );
@@ -442,7 +416,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
 
 /**
  * The background image: an address typed in (Enter), or an image from this computer, chosen or
- * dropped on the row, kept in the project as a `data:` address.
+ * dropped on the row, prepared by graphty-element and kept in the project as a `data:` address.
  * @param props - Component props
  * @param props.address - the image address in effect, or "" for none or an uploaded image
  * @param props.onCommit - writes a new address
@@ -452,6 +426,7 @@ function BackgroundImage({
     address,
     onCommit,
 }: Readonly<{ address: string; onCommit: (data: string) => void }>): React.JSX.Element {
+    const { store } = useWorkspace();
     return (
         <FileSource
             variant="row"
@@ -462,7 +437,16 @@ function BackgroundImage({
             label="Upload image"
             onUrl={onCommit}
             onFiles={([file]) => {
-                void readDataUrl(file).then(onCommit);
+                // graphty-element decodes, turns and scales it; one it cannot use is a failure notice.
+                void prepareBackgroundImage(file).then((prepared) => {
+                    if (prepared.ok) {
+                        onCommit(prepared.data);
+                    } else {
+                        store.set({
+                            notice: { message: BACKGROUND_SECTION_WORDS.notDrawn(prepared.problem), error: true },
+                        });
+                    }
+                });
             }}
         />
     );

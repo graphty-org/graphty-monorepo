@@ -1,17 +1,14 @@
-import {
-    Color3,
-    Constants,
-    Effect,
-    type IShaderMaterialOptions,
-    Mesh,
-    MeshBuilder,
-    Scene,
-    ShaderMaterial,
-    StandardMaterial,
-    Vector2,
-    Vector3,
-    VertexData,
-} from "@babylonjs/core";
+import type { IShaderMaterialOptions } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { Effect } from "@babylonjs/core/Materials/effect.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import {
     EDGE_JOIN_FRAGMENT_SHADER,
@@ -228,7 +225,7 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
         return [];
     }
 
-    const tables = ["rowPosition", "edgeRows", "edgeHidden"];
+    const tables = ["rowPosition", "edgeRows", "edgeHidden", "edgeOrder"];
     return options.pulledCurve === true ? [...tables, "edgeRoutes"] : tables;
 }
 
@@ -550,7 +547,10 @@ void main(void) {
         const mesh = new Mesh("joined-line", scene);
         const vertexData = new VertexData();
         vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
-        vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        // a pulled batch draws unindexed (`PulledLineBatch`)
+        if (options.pulled !== true) {
+            vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        }
         vertexData.applyToMesh(mesh);
 
         const { program, fade } = options;
@@ -578,6 +578,7 @@ void main(void) {
                     "color",
                     "opacity",
                     "pattern",
+                    ...(options.pulled === true ? ["edgeOrdered"] : []),
                     ...(widened ? ["edgeReach"] : []),
                     ...(fade === undefined ? [] : ["edgeFade"]),
                     ...(program?.uniforms ?? []),

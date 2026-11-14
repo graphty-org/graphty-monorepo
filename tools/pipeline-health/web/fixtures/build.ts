@@ -159,6 +159,7 @@ const SLA = {
     bins: { target: cmp("<=", 10, "pct"), red: cmp(">", 25, "pct"), needs6h: true } satisfies Sla,
     reruns: { target: cmp("<", 5, "pct"), red: cmp(">", 15, "pct"), needs6h: true } satisfies Sla,
     shardsOver: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
+    groupDeadline: { target: cmp("<=", 80, "pct"), red: cmp(">", 90, "pct") } satisfies Sla,
     runnerMinutes: { target: cmp("<=", 400, "min"), red: cmp(">", 600, "min") } satisfies Sla,
     blocked: { target: cmp("==", 0), red: f("sla.blocked") } satisfies Sla,
     noIssue: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
@@ -413,6 +414,14 @@ const ciMembers: Member[] = [
         state: "slow",
         value: num(1),
         sla: SLA.shardsOver,
+        link: "/ci/shards",
+    }),
+    member({
+        id: "ci.group_deadline",
+        window: "7d",
+        state: "slow",
+        value: num(96, "pct"),
+        sla: SLA.groupDeadline,
         link: "/ci/shards",
     }),
     member({
@@ -1297,6 +1306,30 @@ function shardsSection(range: SlowRange, runKind: "full" | "pr-bins"): Section {
             { shard: "graphty-element-lifecycle", runs: 4, minRuns: 5, medianS: s(9.1), p90S: s(10.2), budgetS: 900 },
         ],
         more: { count: 29, allWithin: true },
+        groups: [
+            {
+                group: "small-browser",
+                limitS: 1560,
+                runs: 11,
+                newest: { runId: 43547830976, totalS: 1498, pct: 96 },
+                worst: { runId: 43547830976, totalS: 1498, pct: 96 },
+                warnPct: 80,
+                members: [
+                    { member: "compact-mantine", maxS: 463, tableS: 342, stale: true },
+                    { member: "visual-review", maxS: 286, tableS: 158, stale: true },
+                    { member: "algorithms-storybook", maxS: 135, tableS: 135, stale: false },
+                ],
+            },
+            {
+                group: "small-node",
+                limitS: 1560,
+                runs: 11,
+                newest: { runId: 43547830976, totalS: 316, pct: 20.3 },
+                worst: { runId: 43527306776, totalS: 341, pct: 21.9 },
+                warnPct: 80,
+                members: [{ member: "graph-format", maxS: 78, tableS: 78, stale: false }],
+            },
+        ],
     };
 }
 

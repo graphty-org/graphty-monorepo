@@ -57,6 +57,36 @@ If the WebGPU device is lost, by a driver reset or a GPU process crash, the elem
 rebuilds and draws the same graph, with nothing for you to do. If no new device can be had,
 `rendererStatus.drawing` turns false and a `graph-error` event carries `E_DEVICE_LOST`.
 
+## When the graphics device is lost
+
+The browser can take the WebGL context or the WebGPU device away from a page: a driver reset, a GPU
+process crash, or a tab left in the background on a phone. The element fires `render-lost` (with
+the code `E_RENDER_LOST` and `params.renderer`), and `rendererStatus.drawing` is false until it is
+drawing again. Your data, styles, camera and undo history are never touched.
+
+The element asks for the device back by itself and fires `render-restored` once the same graph is
+drawn again. When the browser does not give it back, `restartRenderer()` asks again and rebuilds
+the picture from the graph in memory; nothing is loaded again:
+
+```js
+const graph = document.querySelector("graphty-element");
+const restart = document.querySelector("#restart-viewer");
+
+graph.addEventListener("render-lost", () => {
+    restart.hidden = false;
+});
+graph.addEventListener("render-restored", () => {
+    restart.hidden = true;
+});
+restart.addEventListener("click", async () => {
+    await graph.restartRenderer();
+});
+```
+
+`restartRenderer()` resolves at once when nothing is lost. It rejects with `E_RENDER_LOST` when the
+browser cannot give a WebGL context back, and with `E_DEVICE_LOST` when no new WebGPU device can be
+opened.
+
 ## What differs under WebGPU
 
 | Feature                               | Under WebGPU                                           |

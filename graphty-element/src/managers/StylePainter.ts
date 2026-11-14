@@ -13,6 +13,7 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
+import { drawnText } from "../config/RichTextStyle";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
 import {
     asColorValue,
@@ -44,6 +45,11 @@ export interface NodePaint {
     readonly style: NodeStyleConfig;
     /** The colour to write into this node's instance, or null when no layer painted one. */
     readonly color: Rgba | null;
+    /**
+     * Set on a plain paint ({@link plainNodePaint}) whose row's own paint draws a label: label sampling
+     * may still pick the row, and then builds it a `Node` for the label.
+     */
+    readonly labelled?: boolean;
 }
 
 /**
@@ -132,7 +138,26 @@ export function plainNodePaint(paint: NodePaint): NodePaint {
         texture: only(style.texture, PLAIN_TEXTURE_KEYS),
         effect: only(style.effect, BATCHABLE_EFFECT_KEYS),
     };
-    return { meshKey: `plain|${paint.meshKey}`, style: plain, color: paint.color };
+    const labelled = drawnText(style.label) !== undefined;
+    return {
+        meshKey: `${PLAIN_PREFIX}${paint.meshKey}`,
+        style: plain,
+        color: paint.color,
+        ...(labelled ? { labelled } : {}),
+    };
+}
+
+/** What a plain paint's mesh key starts with ({@link plainNodePaint}, {@link plainEdgePaint}). */
+const PLAIN_PREFIX = "plain|";
+
+/**
+ * Whether a paint is a plain one, drawn for a row past an object budget.
+ * @param paint - The paint.
+ * @param paint.meshKey - Its mesh key: a plain paint's starts with {@link PLAIN_PREFIX}.
+ * @returns True for {@link plainNodePaint}'s and {@link plainEdgePaint}'s.
+ */
+export function isPlainPaint(paint: { readonly meshKey: string }): boolean {
+    return paint.meshKey.startsWith(PLAIN_PREFIX);
 }
 
 /** The line keys a plain line keeps. */
@@ -151,7 +176,7 @@ export function plainEdgePaint(paint: EdgePaint): EdgePaint {
         ...(style.visible === undefined ? {} : { visible: style.visible }),
         line,
     } as EdgeStyleConfig;
-    return { meshKey: `plain|${paint.meshKey}`, style: plain };
+    return { meshKey: `${PLAIN_PREFIX}${paint.meshKey}`, style: plain };
 }
 
 /** The texture a plain body keeps: its color, never a picture. */
@@ -778,6 +803,39 @@ function rowColor(resolved: ResolvedStyle): Rgba | null {
     return painted === null ? bootstrapNodePaint().color : { r: painted.r, g: painted.g, b: painted.b, a: painted.a };
 }
 
+/** How many colors one look keeps a shared paint for; rows of further colors each get their own. */
+const ROW_COLOR_LIMIT = 1024;
+
+/**
+ * The paint of a row of a known look whose instance color is its own, shared with every row of the
+ * look painted the same color: rows hold it (`ColumnRow.paint`), so a paint and a color object per
+ * row was 52 MB at a million rows (G11).
+ * @param look - The look's shared paint, and its paints by color.
+ * @param look.paint - The paint the look was first made with.
+ * @param look.byHex - Its paints by color, filled here.
+ * @param resolved - Everything the stack painted this node.
+ * @returns The paint.
+ */
+function sharedColorPaint(
+    look: { readonly paint: NodePaint; readonly byHex: Map<string, NodePaint> },
+    resolved: ResolvedStyle,
+): NodePaint {
+    const painted = asColorValue(resolved["node.color"]);
+    const hex = painted?.hex ?? "";
+    const known = look.byHex.get(hex);
+    // The alpha is in the look's identity, but a paint is only shared when it matches.
+    if (known !== undefined && known.color?.a === (painted?.a ?? known.color?.a)) {
+        return known;
+    }
+
+    const made = { meshKey: look.paint.meshKey, style: look.paint.style, color: rowColor(resolved) };
+    if (look.byHex.size < ROW_COLOR_LIMIT) {
+        look.byHex.set(hex, made);
+    }
+
+    return made;
+}
+
 /**
  * The look a node row shares with every row of the same mesh key, or null when its paint does not
  * follow from the key: every channel it carries keys its mesh, or is the colour, the opacity or the
@@ -1162,7 +1220,10 @@ export class StylePainter {
     } | null = null;
 
     /** The look of each node key, for rows painted by their key alone; see {@link StylePainter.rowPaint}. */
-    private readonly nodeLooks = new Map<string, { mesh: ResolvedStyle | undefined; paint: NodePaint }>();
+    private readonly nodeLooks = new Map<
+        string,
+        { mesh: ResolvedStyle | undefined; paint: NodePaint; byHex: Map<string, NodePaint> }
+    >();
 
     /** The nodes whose paint the renderer has not applied yet. */
     private readonly pendingNodes = new PendingRows();
@@ -1456,8 +1517,7 @@ export class StylePainter {
         const mesh = paint.meshStyleOf("node", meshKey);
         const known = this.nodeLooks.get(identity);
         if (known !== undefined && known.mesh === mesh) {
-            const { meshKey: key, style, color } = known.paint;
-            return { meshKey: key, style, color: color === null ? null : rowColor(resolved) };
+            return known.paint.color === null ? known.paint : sharedColorPaint(known, resolved);
         }
 
         if (this.nodeLooks.size >= EDGE_PAINT_CACHE_LIMIT) {
@@ -1465,7 +1525,13 @@ export class StylePainter {
         }
 
         const made = make();
-        this.nodeLooks.set(identity, { mesh, paint: made });
+        // The first row's paint is the one later rows of its color share.
+        const byHex = new Map<string, NodePaint>();
+        if (made.color !== null) {
+            byHex.set(asColorValue(resolved["node.color"])?.hex ?? "", made);
+        }
+
+        this.nodeLooks.set(identity, { mesh, paint: made, byHex });
         return made;
     }
 

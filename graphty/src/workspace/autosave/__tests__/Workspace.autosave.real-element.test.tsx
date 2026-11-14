@@ -31,6 +31,7 @@ type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 /** The samples, and their node counts. */
 const FLORENTINE = { name: "Florentine families", nodes: 15 };
 const LES_MIS = { name: "Les Miserables", nodes: 77 };
+const MARVEL = { name: "Marvel films", nodes: 210 };
 
 /** What the element's mock model answers. */
 const MOCK_REPLY = "This is a mock response.";
@@ -331,6 +332,40 @@ describe("Workspace autosave with the real graphty-element", () => {
         assert.isNull(screen.queryByRole("region", { name: "Unsaved work" }));
         assert.notMatch(document.body.textContent ?? "", /Recovered work|Restored your work/);
         second.view.unmount();
+    });
+
+    it("reopens this tab's timed work after a reload with exactly the style layers it had", async () => {
+        resetSiteConfig();
+        await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features: ["timeline"] }))}`);
+        try {
+            const first = mountWorkspace();
+            await openBy(first.store, () => pickSample(MARVEL.name));
+            const { element, session } = openedElement();
+            // The reader times the films by release, which brings the Ghost row: a time field read
+            // back on reopening once brought every starting row back beside the saved ones (issue
+            // #7843).
+            await session.time.setField({ edges: { start: "released" } });
+            assert.include(
+                session.styles.tree().map((row) => row.name),
+                "Ghost",
+            );
+            const rows = session.styles.tree().map((row) => row.name);
+            const layers = JSON.stringify(session.styles.list());
+            await leave(element, first.view);
+
+            const second = mountWorkspace();
+            await openBy(second.store, () => Promise.resolve());
+            const reopened = openedElement();
+            assert.strictEqual(reopened.session.data.statistics().nodeCount, MARVEL.nodes);
+            assert.deepEqual(
+                reopened.session.styles.tree().map((row) => row.name),
+                rows,
+            );
+            assert.strictEqual(JSON.stringify(reopened.session.styles.list()), layers);
+            second.view.unmount();
+        } finally {
+            resetSiteConfig();
+        }
     });
 
     it("keeps a rail click made while this tab's work reopens after a reload", async () => {

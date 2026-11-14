@@ -1335,7 +1335,7 @@ export interface StylesApi {
     /**
      * Add back whichever of the three starting rows the tree lacks: Everything (nodes and edges,
      * pinned to the bottom, writing nothing), Selected (nodes and edges, pinned to the top,
-     * drawing a near-black node halo with a white glow and a near-black edge band) and Hovered (nodes, pinned to
+     * drawing a node halo and an edge band in the selection settings' colors) and Hovered (nodes, pinned to
      * the top, writing nothing). One undo step; nothing when all three are there. Setting the
      * project setting `startingRows` to true adds them the same way. While a time field is
      * designated (`session.time.setField`), the Ghost row comes too: nodes and edges in the state
@@ -2031,10 +2031,11 @@ export interface StyleRefusal {
 /**
  * What a repaint the element started on its own was for, as `style:repaint-failed` names it:
  * `selection`, `hover` and `peek` follow the reader's state, `sets` a set whose members changed,
- * `branches` a branches view, and `layer` a layer a pass could not paint at all.
+ * `branches` a branches view, `hidden` nodes hidden or shown (`session.hidden`), and `layer` a
+ * layer a pass could not paint at all.
  * @since 3.52.0
  */
-export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "layer";
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer";
 
 /**
  * A repaint nobody awaited that failed, or a layer a pass could not paint, as

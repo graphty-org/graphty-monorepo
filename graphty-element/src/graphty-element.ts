@@ -3,6 +3,7 @@ import { registry as sourceRegistry, SOURCE_FORMAT_PREFIX } from "@graphty/graph
 import { css, LitElement, type PropertyValues, ReactiveElement } from "lit";
 import { property } from "lit/decorators.js";
 
+import { type AccessibleAnnouncement, type AccessibleGraphFacts, graphFacts, ScreenReader } from "./a11y/ScreenReader";
 import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
 import { type AutosaveAtRisk, ElementAutosave, resolveAutosaveKey } from "./autosave/elementAutosave";
 import { type PageSource, sourceSlot } from "./autosave/recovery";
@@ -41,6 +42,7 @@ import type { ExportGraphOptions, ExportResult } from "./data/export";
 import type { GraphtyWarningCode } from "./errors/codes";
 import { isGraphtyError } from "./errors/GraphtyError";
 import {
+    type GraphEvent,
     type GraphtyForwardedEventMap,
     isDomForwardableEvent,
     NODE_EVENT_DOM_NAMES,
@@ -129,6 +131,24 @@ function antialiasFromAttribute(value: string | null): boolean {
 }
 
 /**
+ * Whether two property values are the same: identical, or equal as JSON.
+ * @param a - One value.
+ * @param b - The other.
+ * @returns True when they are the same.
+ */
+function sameValue(a: unknown, b: unknown): boolean {
+    if (Object.is(a, b)) {
+        return true;
+    }
+
+    try {
+        return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+        return false;
+    }
+}
+
+/**
  * A file name for an export in a format other than a project file: the project's name, or
  * "project" when it has none, and the format's extension.
  * @param name - the project's name.
@@ -212,6 +232,19 @@ export class Graphty extends LitElement {
     #unwatchProgress: (() => void) | null = null;
     /** Unsubscribes the three shader mirrors. */
     #unwatchShaders: (() => void) | null = null;
+    /** See {@link Graphty.accessibleDescription}. */
+    #accessibleDescription: ((facts: AccessibleGraphFacts) => string) | undefined;
+    /** See {@link Graphty.accessibleAnnouncement}. */
+    #accessibleAnnouncement: ((announcement: AccessibleAnnouncement) => string) | undefined;
+    /** See {@link Graphty.accessibleNodeList}. */
+    #accessibleNodeList = false;
+    /** The canvas's role and description, the selection's live region and the node list. */
+    readonly #screenReader = new ScreenReader({
+        session: () => this.#graph.getSession(),
+        canvas: () => this.#graph.canvas,
+        describe: () => this.#accessibleDescription,
+        announce: () => this.#accessibleAnnouncement,
+    });
     readonly #progressAt = new Map<string, number>();
     readonly #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
@@ -220,6 +253,13 @@ export class Graphty extends LitElement {
      * element is shut down. A move reconnects while it still stands, so nothing is wired twice.
      */
     #wired = false;
+
+    /**
+     * Every reactive property's value, read off the graph when the element was shut down. Set from
+     * the shutdown until the element is inserted again, which builds a new graph and assigns it
+     * those that differ from what the new graph starts with.
+     */
+    #carried: Map<string, unknown> | undefined;
 
     /**
      * Creates a new Graphty element instance.
@@ -491,7 +531,7 @@ export class Graphty extends LitElement {
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
      * @returns Settles once the re-resolved layers are repainted; rejects when one could not be.
-     * @since 2.7.0
+     * @since 3.40.0
      * @example
      * ```ts
      * import { definePalette } from "@graphty/graphty-element/extend";
@@ -727,6 +767,10 @@ export class Graphty extends LitElement {
                 this.#graph.canvas.setAttribute(name, value);
             }
 
+            if (this.#wired) {
+                this.#screenReader.refresh();
+            }
+
             return;
         }
 
@@ -742,6 +786,13 @@ export class Graphty extends LitElement {
         // `disconnectedCallback`). The graph, its observers and its mirrors are all still live.
         if (this.#wired) {
             return;
+        }
+
+        // Inserted again after it was shut down: the old graph is gone for good, so everything
+        // below wires a new one, which the getter builds (#7130).
+        const carried = this.#carried;
+        if (carried !== undefined) {
+            this.#builtGraph = undefined;
         }
 
         this.#wired = true;
@@ -776,9 +827,9 @@ export class Graphty extends LitElement {
         // Look for an accelerator. Nothing is registered unless the consumer imported
         // "@graphty/graphty-element/webgpu", in which case this probes, attaches and reports.
         //
-        // A Graph is built once, in this element's constructor, and never rebuilt, so an element
-        // that stayed disconnected is a shut-down element: its controller was disposed with the
-        // rest of the graph and re-attaching probes nothing. (A move does not get here.)
+        // The graph is built the first time anything needs it, and again when the element comes
+        // back after a shutdown; either way its controller is new and probes. (A move does not get
+        // here.) A controller already disposed starts nothing.
         const controller = this.#ensureAcceleration();
 
         if (!controller.disposed) {
@@ -805,6 +856,7 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
             this.#mirrorVisibilityChange(change);
         });
+        this.#screenReader.connect(this.renderRoot);
         // A note written from a panel, a console or an undo: plain values, as the other mirrors.
         this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
             this.dispatchEvent(
@@ -849,6 +901,40 @@ export class Graphty extends LitElement {
 
             this.#mirrorHistoryChange(reason);
         });
+
+        if (carried !== undefined) {
+            this.#redeclare(carried);
+        }
+    }
+
+    /**
+     * Gives the new graph of an element inserted again after its shutdown what the page declared
+     * on the old one, as the first update does for a new element: assigned as setup, so none of it
+     * is an undoable step, then initialised and drawn.
+     * @param carried - Every reactive property's value, read off the old graph.
+     */
+    #redeclare(carried: Map<string, unknown>): void {
+        this.#carried = undefined;
+        // The records are the data as it stood, edits included, so the source they came from is
+        // not fetched again.
+        const records = carried.get("nodeData") !== undefined || carried.get("edgeData") !== undefined;
+        // The settings first, so records are read with the id paths and the rest they were read with.
+        const data = new Set(["nodeData", "edgeData"]);
+        const order = [...carried].sort(([a], [b]) => Number(data.has(a)) - Number(data.has(b)));
+        this.#settingUp = true;
+        for (const [name, value] of order) {
+            const source = name === "dataSource" || name === "dataSourceConfig";
+            if (!(records && source) && !sameValue(value, Reflect.get(this, name))) {
+                Reflect.set(this, name, value);
+            }
+        }
+        this.#settingUp = false;
+        for (const [name, value] of this.#heldTimeFields) {
+            this.#setTimeField(name, value);
+        }
+        this.#heldTimeFields.clear();
+        this.#releaseUrlPair?.();
+        void this.asyncFirstUpdated();
     }
 
     /**
@@ -869,9 +955,7 @@ export class Graphty extends LitElement {
             new CustomEvent("graphty-features", { detail: this.session.features, bubbles: true, composed: true }),
         );
 
-        this.asyncFirstUpdated().catch((e: unknown) => {
-            throw e;
-        });
+        void this.asyncFirstUpdated();
     }
 
     /**
@@ -897,6 +981,7 @@ export class Graphty extends LitElement {
                     composed: true,
                 }),
             );
+            this.#announceSkybox(event);
         });
 
         // Node events reach the DOM too, and under a prefixed name with a reduced detail.
@@ -927,8 +1012,14 @@ export class Graphty extends LitElement {
         // so we don't need to check changedProperties here. The setters have
         // already been called by the time we reach this lifecycle method.
 
-        // Initialize the graph (only needs to happen once)
-        await this.#graph.init();
+        // Initialize the graph (only needs to happen once). A failed init is reported by the
+        // `graph-error` event Graph.init emits; nothing holds this promise, so rethrowing it here
+        // would only add an unhandled rejection.
+        try {
+            await this.#graph.init();
+        } catch {
+            return;
+        }
 
         // Wait for first render frame to ensure graph is visible
         await new Promise((resolve) =>
@@ -942,6 +1033,107 @@ export class Graphty extends LitElement {
         // drawn: a box resized in these two frames reached the ResizeObserver already at its new
         // size, which then saw nothing to draw, and the page painted an empty canvas (#4122).
         this.#graph.resize();
+    }
+
+    /**
+     * Words the drawing's accessible description from its facts, which a screen reader reads
+     * after the canvas's name (the host's `aria-label`). Called again whenever the data, the
+     * styling or the selection changes. Unset (the default), the canvas has no description: the
+     * words are the page's, in the page's language.
+     * @since 3.40.0
+     * @example
+     * ```ts
+     * element.setAttribute("aria-label", "Florentine families");
+     * element.accessibleDescription = ({ nodes, edges, legend }) =>
+     *     `${nodes} families, ${edges} marriages. ` + legend.map((block) => block.field?.technicalName ?? "").join(", ");
+     * ```
+     * @returns The wording function, or undefined
+     */
+    @property({ attribute: false })
+    get accessibleDescription(): ((facts: AccessibleGraphFacts) => string) | undefined {
+        return this.#accessibleDescription;
+    }
+    /**
+     * Sets the wording function and words the description again.
+     */
+    set accessibleDescription(value: ((facts: AccessibleGraphFacts) => string) | undefined) {
+        const oldValue = this.#accessibleDescription;
+        this.#accessibleDescription = value;
+        if (this.#wired) {
+            this.#screenReader.refresh();
+        }
+
+        this.requestUpdate("accessibleDescription", oldValue);
+    }
+
+    /**
+     * Words what a screen reader announces when the selection changes, from a code and its facts
+     * (the selected nodes by name, and a single selected node's neighbors). Unset (the default),
+     * the announcement is the selected nodes' names, separated by commas, and nothing once the
+     * selection is cleared.
+     * @since 3.40.0
+     * @example
+     * ```ts
+     * element.accessibleAnnouncement = ({ params }) =>
+     *     params.count === 1
+     *         ? `${params.nodes[0].name}, ${params.neighborCount} neighbors: ${params.neighbors.map((n) => n.name).join(", ")}`
+     *         : `${params.count} selected`;
+     * ```
+     * @returns The wording function, or undefined
+     */
+    @property({ attribute: false })
+    get accessibleAnnouncement(): ((announcement: AccessibleAnnouncement) => string) | undefined {
+        return this.#accessibleAnnouncement;
+    }
+    /**
+     * Sets the announcement's wording function.
+     */
+    set accessibleAnnouncement(value: ((announcement: AccessibleAnnouncement) => string) | undefined) {
+        const oldValue = this.#accessibleAnnouncement;
+        this.#accessibleAnnouncement = value;
+        this.requestUpdate("accessibleAnnouncement", oldValue);
+    }
+
+    /**
+     * Whether an off-screen list of the visible nodes, by name, follows the canvas for keyboard
+     * and screen reader users: one Tab stop, Up and Down (Home, End) move through the nodes, and
+     * Enter or Space selects the one reached. Off by default. The list is named by the host's
+     * `aria-label` and is never drawn; a page that wants it seen styles `::part(node-list)`.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element aria-label="Florentine families" accessible-node-list></graphty-element>
+     * ```
+     * @returns True when the list is there
+     */
+    @property({ attribute: "accessible-node-list", type: Boolean })
+    get accessibleNodeList(): boolean {
+        return this.#accessibleNodeList;
+    }
+    /**
+     * Adds or removes the node list.
+     */
+    set accessibleNodeList(value: boolean) {
+        const oldValue = this.#accessibleNodeList;
+        this.#accessibleNodeList = value;
+        this.#screenReader.setList(value, this.#wired ? this.renderRoot : undefined);
+        this.requestUpdate("accessibleNodeList", oldValue);
+    }
+
+    /**
+     * The facts a description of the drawing is phrased from, as numbers, the legend and the
+     * selection: what {@link Graphty.accessibleDescription} receives, for a page that words the
+     * drawing somewhere of its own.
+     * @since 3.40.0
+     * @example
+     * ```ts
+     * const { nodes, edges, selection } = element.accessibleFacts();
+     * summary.textContent = `${nodes} nodes, ${edges} edges, ${selection.count} selected`;
+     * ```
+     * @returns The facts now
+     */
+    accessibleFacts(): AccessibleGraphFacts {
+        return graphFacts(this.#graph.getSession());
     }
 
     /**
@@ -1086,9 +1278,15 @@ export class Graphty extends LitElement {
         });
     }
 
-    /** Releases everything the connect path wired and shuts the graph down for good. */
+    /**
+     * Releases everything the connect path wired and shuts the graph down for good. What the page
+     * declared is kept, so the element can build a new graph if it is inserted again.
+     */
     #shutDown(): void {
         this.#wired = false;
+        this.#carried = new Map(
+            [...Graphty.elementProperties.keys()].map((name) => [String(name), Reflect.get(this, name) as unknown]),
+        );
         // Disconnect the resize observer
         if (this.#resizeObserver) {
             this.#resizeObserver.disconnect();
@@ -1101,6 +1299,7 @@ export class Graphty extends LitElement {
         this.#unwatchSelection = null;
         this.#unwatchVisibility?.();
         this.#unwatchVisibility = null;
+        this.#screenReader.disconnect();
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
         this.#unwatchProjectStatus?.();
@@ -1122,12 +1321,29 @@ export class Graphty extends LitElement {
         this.#autosaveControl.depart();
 
         this.#graph.shutdown();
+
+        // Inserted again, the element starts autosave and loads its declaration afresh, as a new
+        // element would: a departed autosave and the old graph's loads say nothing about the new.
+        this.#autosaveTimer = undefined;
+        this.#autosaveControl = this.#newAutosave();
+        this.#capabilitiesMirrored = false;
+        this.#loadedPair = undefined;
+        this.#assigned = {};
+        this.#rowRecords = null;
+    }
+
+    /**
+     * A new autosave for this element.
+     * @returns It, off until the `autosave` attribute or property turns it on.
+     */
+    #newAutosave(): ElementAutosave {
+        return new ElementAutosave((type, detail) => {
+            this.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
+        });
     }
 
     /** Autosave for this element: off until the `autosave` attribute or property turns it on. */
-    readonly #autosaveControl = new ElementAutosave((type, detail) => {
-        this.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
-    });
+    #autosaveControl = this.#newAutosave();
     #autosaveTimer: ReturnType<typeof setTimeout> | undefined;
     #autosaveValue: string | null = null;
     #featuresValue: readonly string[] | undefined;
@@ -2909,7 +3125,8 @@ export class Graphty extends LitElement {
      * default) draws every node in the 3D view as if it stood at the depth the camera turns about,
      * so a node with a larger size is never drawn smaller because it is farther away -- turn it on
      * when node size shows a value readers compare. `node.outlineWidth` (unset by default) draws
-     * every outline's band at that multiple of its own width. `camera.pivotOnSelection` (off by
+     * the band of every outline whose style sets no width (the `node.outlineWidth` channel) at
+     * that multiple of its own width. `camera.pivotOnSelection` (off by
      * default) makes the selection the camera's pivot: one selected node, or the average position
      * of several, is what the camera turns and zooms about, in 2D, 3D, VR and AR.
      *
@@ -3376,8 +3593,10 @@ export class Graphty extends LitElement {
      * @remarks
      * A colour accepts anything CSS does -- a hex string, `rgb(...)`, or a name such as
      * `whitesmoke` -- and is normalised to hex. A skybox wraps the graph in a photo dome built
-     * from an image, given as a URL or a base64 PNG, and the element emits
-     * `graphty-skybox-loaded` once its texture has arrived. Either may carry a background
+     * from an image, given as a URL or a base64 PNG, and the element fires
+     * `graphty-skybox-loaded` (`detail.url`) once its texture has arrived, once per new image; an
+     * image that cannot be loaded fires `graphty-skybox-failed` instead, a coded failure
+     * `{ code: "E_IMAGE_LOAD", params: { url } }`. Either may carry a background
      * `shader`, drawn over the colour or the image; where its alpha is low, they show. With no
      * `color`, the element draws its default (`session.config.backgroundColor` says which).
      * @since 2.0.0
@@ -4062,12 +4281,45 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Stop the camera's animated moves: the one under way stops where the camera is now, and
-     * moves still waiting their turn are dropped. Every caller awaiting one of them resolves.
-     * @returns True if a camera move was cancelled, false if none was under way or waiting
+     * Stop the camera's animated moves: the one under way stops where the camera is now, moves
+     * still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
+     * awaiting one of them resolves.
+     * @returns True if a camera move or tour was cancelled, false if none was under way or waiting
      */
     cancelCameraAnimation(): boolean {
         return this.#graph.cancelCameraAnimation();
+    }
+
+    /**
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
+     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
+     * `position` and `target`; `duration` is the flight to it and `hold` the time spent there, in
+     * milliseconds. Every stop is checked before the camera moves. `cameraTransitionDuration`,
+     * when set, replaces each flight's duration. `cancelCameraAnimation` ends the tour. To record
+     * the same tour, pass it as `cameraPath` to `captureAnimation`.
+     * @param path - The stops, in order.
+     * @param options - How to fly.
+     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
+     * @returns Settles when the last stop's hold is over, or the tour is ended.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
+     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @example
+     * ```typescript
+     * const el = document.querySelector("graphty-element");
+     * await el.session.views.save([{ name: "cluster-a", camera: el.getCameraState() }]);
+     * await el.playTour([
+     *     { view: "fitToGraph", hold: 2000 },
+     *     { view: "cluster-a", duration: 1500, hold: 3000 },
+     * ]);
+     * ```
+     */
+    async playTour(
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+        options?: { easing?: "linear" | "easeIn" | "easeOut" | "easeInOut" },
+    ): Promise<void> {
+        return this.#graph.playTour(path, options);
     }
 
     /**
@@ -4880,6 +5132,20 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Get all edges in the graph. `session.data.edges()` lists the same edges as plain records.
+     * @returns Array of all edges
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * const edges = element.getEdges();
+     * console.log('Edges:', edges.map((edge) => `${edge.srcId} -> ${edge.dstId}`));
+     * ```
+     */
+    getEdges(): import("./Edge").Edge[] {
+        return this.#graph.getEdges();
+    }
+
+    /**
      * Get the number of nodes in the graph.
      * @returns Number of nodes
      * @since 1.5.0
@@ -5499,14 +5765,14 @@ export class Graphty extends LitElement {
      * `setRunning(true)` on a layout that has already settled restarts it, so "play" is
      * something the reader can see; `setRunning(false)` stops the per-frame stepping and nothing
      * else -- work already handed to an accelerator lands, the scene keeps rendering, and the
-     * camera, picking and styling stay live. There is no event for this: `isRunning()` reports
-     * the state and `graph-settled` reports the arrangement coming to rest.
+     * camera, picking and styling stay live. `session.layout.motion` reads whether the layout is
+     * `running`, `paused` or `settled`, and the session's `layout:motion-changed` event publishes
+     * each change, this call's included.
      *
      * A pause holds until `setRunning(true)`. Loading more nodes, a freeze, an accelerator
      * attaching, setting another layout and dragging a node all still happen -- new nodes are
      * placed and a dragged node moves -- but none of them resumes the layout. To tell a paused,
-     * half-finished arrangement from a converged one, read `getLayoutManager().isPaused` and
-     * `isSettled`.
+     * half-finished arrangement from a converged one, read `session.layout.motion`.
      * @param running - True to run the layout, false to pause it.
      * @since 2.0.0
      * @example
@@ -6559,6 +6825,22 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Re-dispatches a skybox's graph event under the element's own name, with plain values:
+     * `graphty-skybox-loaded` (`{ url }`) or `graphty-skybox-failed` (`E_IMAGE_LOAD`, `params.url`).
+     * @param event - Any graph event; only the skybox ones are announced.
+     */
+    #announceSkybox(event: GraphEvent): void {
+        if (event.type !== "skybox-loaded" && event.type !== "skybox-failed") {
+            return;
+        }
+
+        const url = typeof event.url === "string" ? event.url : "";
+        const detail: GraphtySkyboxLoadedDetail | CodedFact<"E_IMAGE_LOAD"> =
+            event.type === "skybox-loaded" ? { url } : { code: "E_IMAGE_LOAD", params: { url: url.slice(0, 256) } };
+        this.dispatchEvent(new CustomEvent(`graphty-${event.type}`, { detail, bubbles: true, composed: true }));
+    }
+
+    /**
      * Dispatches a warning as a `graphty-warning` event.
      * @param warning - The code and its parameters.
      */
@@ -6632,6 +6914,35 @@ export class Graphty extends LitElement {
      */
     get rendererStatus(): RendererStatus | null {
         return this.#graph.rendererStatus;
+    }
+
+    /**
+     * Gets the graph drawn again after the browser took away its graphics device.
+     *
+     * When the WebGL context or the WebGPU device is lost (a driver reset, a GPU process crash),
+     * the element fires `render-lost` and asks for the device back by itself; `render-restored`
+     * follows once the graph is drawn again. The data, the styles, the camera and the undo
+     * history are never touched. Call this when the device has not come back -- from a "Restart
+     * viewer" button, say: it asks the browser again and rebuilds the picture from the graph in
+     * memory, with nothing loaded again. It resolves at once while nothing is lost.
+     * @returns A promise that resolves when the graph is drawn again.
+     * @throws A `GraphtyError` with `E_RENDER_LOST` when the browser cannot give a WebGL context
+     *     back, or `E_DEVICE_LOST` when no new WebGPU device can be opened.
+     * @since 3.53.0
+     * @example
+     * ```js
+     * const element = document.querySelector("graphty-element");
+     * element.addEventListener("render-lost", () => {
+     *     restartButton.hidden = false;
+     * });
+     * element.addEventListener("render-restored", () => {
+     *     restartButton.hidden = true;
+     * });
+     * restartButton.addEventListener("click", () => element.restartRenderer());
+     * ```
+     */
+    restartRenderer(): Promise<void> {
+        return this.#graph.restartRenderer();
     }
 
     /**
@@ -6775,6 +7086,15 @@ export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields
  */
 export type GraphtyModelChangeDetail = ModelChange;
 
+/**
+ * The detail of `graphty-skybox-loaded`: the skybox image whose texture arrived. Fires once per new
+ * skybox image; one that cannot be loaded fires `graphty-skybox-failed` (`E_IMAGE_LOAD`) instead.
+ */
+export interface GraphtySkyboxLoadedDetail {
+    /** The image, as the background's `data` gave it: a URL or a `data:` address. */
+    readonly url: string;
+}
+
 /** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
 export interface GraphtyCapabilitiesChangeDetail {
     /** The acceleration and XR capabilities after the change. */
@@ -6827,6 +7147,8 @@ declare global {
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
         "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
+        "graphty-skybox-loaded": CustomEvent<GraphtySkyboxLoadedDetail>;
+        "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
     }
 
     // Every one bubbles and is composed, so a listener on the document is typed the same way.
@@ -6854,6 +7176,8 @@ declare global {
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
         "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
+        "graphty-skybox-loaded": CustomEvent<GraphtySkyboxLoadedDetail>;
+        "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
     }
 }
 

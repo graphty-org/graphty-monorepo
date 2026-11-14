@@ -1,23 +1,21 @@
-import {
-    Color3,
-    Color4,
-    DirectionalLight,
-    Engine,
-    EngineStore,
-    FloatingOriginCurrentScene,
-    HemisphericLight,
-    Logger,
-    Material,
-    NullEngine,
-    PhotoDome,
-    Quaternion,
-    Scene,
-    Tools,
-    TransformNode,
-    Vector3,
-    WebGPUEngine,
-    WebXRState,
-} from "@babylonjs/core";
+import "./babylonEngineExtensions";
+
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { EngineStore } from "@babylonjs/core/Engines/engineStore.js";
+import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
+import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { PhotoDome } from "@babylonjs/core/Helpers/photoDome.js";
+import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight.js";
+import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight.js";
+import { FloatingOriginCurrentScene } from "@babylonjs/core/Materials/floatingOriginMatrixOverrides.js";
+import { Material } from "@babylonjs/core/Materials/material.js";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Logger } from "@babylonjs/core/Misc/logger.js";
+import { Tools } from "@babylonjs/core/Misc/tools.js";
+import { Scene } from "@babylonjs/core/scene.js";
+import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 
 import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
 import { CameraManager } from "../cameras/CameraManager";
@@ -38,6 +36,7 @@ import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { isRowBatch } from "../meshes/RowPullPlugin";
+import { drawOnlyEnabledMeshes } from "../render/enabledMeshCandidates";
 import { reportCaught } from "../session/project/strict";
 import { idsNamedBy, shadersControllerOf } from "../session/shaders";
 import { placeOfUse } from "../session/styles/channels";
@@ -224,7 +223,7 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  */
 export async function openWebGPUEngine(
     canvas: HTMLCanvasElement,
-    sharesDevice: (adapter: unknown) => boolean = () => false,
+    sharesDevice: (adapter: unknown) => boolean | Promise<boolean> = () => false,
     antialias = true,
 ): Promise<RecoveringWebGPUEngine | string> {
     if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
@@ -253,7 +252,7 @@ export async function openWebGPUEngine(
         );
     }
 
-    const shared = sharesDevice(adapter);
+    const shared = await sharesDevice(adapter);
     const engine = new RecoveringWebGPUEngine(canvas, {
         antialias,
         ...(shared && { setMaximumLimits: true, enableAllFeatures: true, powerPreference: "high-performance" }),
@@ -981,6 +980,7 @@ export class RenderManager implements Manager {
         }
 
         useBundledStandardShaders(this.scene);
+        drawOnlyEnabledMeshes(this.scene);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
@@ -1919,9 +1919,10 @@ export class RenderManager implements Manager {
      * skybox already shown is left alone, so drawing the same background again (a redo, a repeat)
      * builds nothing.
      * @param background - The background, parsed.
-     * @param onSkyboxLoaded - Called with the image once a new skybox's texture has arrived.
+     * @param onSkybox - Called once per new skybox, with its image and whether its texture loaded
+     *     (true) or failed to (false).
      */
-    applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void {
+    applyBackground(background: GraphBackgroundConfig, onSkybox: (url: string, loaded: boolean) => void): void {
         const color = backgroundColorOf(background);
         this.setBackgroundColor(color);
         if (background.backgroundType === "skybox") {
@@ -1930,7 +1931,10 @@ export class RenderManager implements Manager {
                 this.dome?.dome.dispose();
                 const dome = new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
                 dome.texture.onLoadObservable.addOnce(() => {
-                    onSkyboxLoaded(url);
+                    onSkybox(url, true);
+                });
+                dome.onLoadErrorObservable.addOnce(() => {
+                    onSkybox(url, false);
                 });
                 this.dome = { url, dome };
             }

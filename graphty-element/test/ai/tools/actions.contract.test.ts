@@ -343,6 +343,8 @@ const ROWS: Record<string, Row> = {
     "view.camera": { args: { action: "camera", preset: "topView" }, code: "E_UNSUPPORTED" },
     "view.zoom_to": { args: { action: "zoom_to", where: "data.type == 'server'" } },
     "view.fit": { args: { action: "fit" } },
+    "hidden.hide": { args: { action: "hide", ids: ["a"] } },
+    "hidden.show": { args: { action: "show", ids: ["a"] }, setup: (s) => s.hidden.add(["a"]) },
     "view.save": { args: { action: "save", name: "overview" } },
     "view.restore": {
         args: { action: "restore", name: "kept" },
@@ -444,6 +446,10 @@ const ROWS: Record<string, Row> = {
     "conditions.set_steps": { args: { action: "set_steps", steps: [{ id: "s1", where: "data.load > `0.5`" }] } },
     "columns.list": { args: { action: "list" } },
     "columns.values": { args: { action: "values", column: "team" } },
+    "columns.over_represented": { args: { action: "over_represented", column: "team" } },
+    "columns.group_table": {
+        args: { action: "group_table", column: "team", summaries: { "data.load": ["mean"] } },
+    },
     "columns.preview_type": { args: { action: "preview_type", column: "load", type: "text" } },
     "columns.rename": { args: { action: "rename", column: "team", name: "squad" } },
     "columns.set_type": { args: { action: "set_type", column: "load", type: "text" } },
@@ -479,6 +485,7 @@ const ROWS: Record<string, Row> = {
         setup: withIssue,
     },
     "issues.ignore": { args: (s) => ({ action: "ignore", ids: [s.data.issues()[0]?.id ?? "none"] }), setup: withIssue },
+    "issues.merge_nodes": { args: { action: "merge_nodes", ids: ["e", "d"], values: { merged: true } } },
     "shaders.list": { args: { action: "list" }, setup: withShader },
     "shaders.get": { args: { action: "get", id: "user/tint" }, setup: withShader },
     "shaders.check": { args: { action: "check", text: TINT } },
@@ -925,6 +932,10 @@ const MORE: Record<string, Row[]> = {
         },
     ],
     "layout.unpin": [{ args: { action: "unpin", where: "all" }, setup: (s) => s.positions.pin(["a"]) }],
+    "hidden.show": [{ args: { action: "show", where: "all" }, setup: (s) => s.hidden.add(["a"]) }],
+    // The layout the session already has, so it is run again; a session with no renderer has no
+    // layout to run.
+    "layout.set": [{ args: { action: "set", name: "force" }, code: "E_UNSUPPORTED" }],
     "run_algorithm.run": [
         {
             // A class registered with no descriptor runs by its address, through the legacy op.

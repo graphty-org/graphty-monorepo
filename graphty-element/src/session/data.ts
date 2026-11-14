@@ -87,6 +87,7 @@ import {
     importCommand,
     importFact,
     type ImportSource,
+    mergeNodesCommand,
     NO_COLUMN_SETTINGS,
     SOURCE_VALUE,
     SOURCES_VALUE,
@@ -99,8 +100,10 @@ import {
     keyExpression,
     LABEL_COLUMNS,
     LOAD_ROLES,
+    type ReadSource,
     readSource,
 } from "./draft";
+import type { LaneStore } from "./GraphSession";
 import { columnMutations } from "./importColumns";
 import {
     type DataIssue,
@@ -116,6 +119,7 @@ import {
 import { frozen, type JoinGraph, type JoinPlan, joinReport, type JoinTable, planJoin } from "./join";
 import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
+import { overRepresentedValues } from "./overRepresented";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -132,7 +136,7 @@ import {
     resultCellRanks,
     resultSortValue,
 } from "./results/pageColumns";
-import { buildHistogram, resolveBinCount } from "./results/statistics";
+import { arrayColumn, buildHistogram, computeColumnStatistics, resolveBinCount } from "./results/statistics";
 import type { HistogramOptions } from "./results/types";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
@@ -182,6 +186,7 @@ import type {
     DatasetLoadOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    EdgeName,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
@@ -189,6 +194,10 @@ import type {
     FindOptions,
     FindResult,
     GraphStatistics,
+    GroupSummary,
+    GroupTable,
+    GroupTableOptions,
+    GroupTableRow,
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
@@ -200,15 +209,19 @@ import type {
     LoadedSourceKind,
     LoadedWeight,
     LoadMapping,
+    MergeNodesOptions,
     Neighbor,
     NeighborOptions,
     NeighborPage,
+    NodeName,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedValues,
     PageColumn,
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemapOptions,
     RemoveSourceResult,
     ReplaceReport,
     ReplaceUnboundCode,
@@ -230,6 +243,9 @@ import { valueLabelsAt } from "./valueLabels";
 
 /** A value a column holds that can be given a name (`data.label`) or counted. */
 type ColumnScalar = string | number | boolean;
+
+/** Every summary `groupTable` writes. */
+const GROUP_SUMMARIES: readonly GroupSummary[] = ["count", "sum", "min", "max", "mean", "median"];
 
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
@@ -786,7 +802,7 @@ export class SessionData implements SessionDataApi {
     readonly store: SessionGraphStore;
 
     /** The store itself, which the session's own readers read. */
-    private readonly graphStore: SessionGraphStore;
+    private readonly graphStore: LaneStore;
     private readonly records: SessionRecordSource | null;
     private readonly readConfig: () => SessionDataConfig;
     private readonly writes: DataWrites;
@@ -838,6 +854,12 @@ export class SessionData implements SessionDataApi {
      */
     private readonly kept = new Map<string, DataSourceInput>();
     private keptSerial = 0;
+    /**
+     * The rows a draft read from each source, so `remap` and `reloadSource` read a load again
+     * without opening its file or fetching its URL. ponytail: held as long as the source is,
+     * which `kept` never lets go of; drop rows of loads no longer listed if memory shows up.
+     */
+    private readonly reads = new WeakMap<DataSourceInput, ReadSource>();
     /** The loads whose rows carry each column, and what they were read from. */
     private columnSourcesMemo: {
         readonly described: readonly AttributeDescriptor[];
@@ -873,7 +895,7 @@ export class SessionData implements SessionDataApi {
      * @param pages - the revision and the scope resolver a page reads
      */
     constructor(
-        store: SessionGraphStore,
+        store: LaneStore,
         records: SessionRecordSource | null,
         readConfig: () => SessionDataConfig,
         writes: DataWrites,
@@ -919,7 +941,8 @@ export class SessionData implements SessionDataApi {
      */
     async importColumns(columns: ImportColumnsInput): Promise<void> {
         this.requireLive("importColumns");
-        const [nodes, edges] = columnMutations(columns);
+        // A batched graph keeps the records it builds, so the slice keeps them as they are, not a copy.
+        const [nodes, edges] = columnMutations(columns, this.pages.batched?.() === true);
         const send = this.writes.importer();
         await this.loadLine.edit(
             () =>
@@ -974,6 +997,83 @@ export class SessionData implements SessionDataApi {
     async removeEdges(ids: readonly EdgeId[]): Promise<void> {
         this.requireLive("removeEdges");
         await this.edit({ kind: "remove-edges", ids });
+    }
+
+    /**
+     * Merge nodes into one, as one undoable step: every edge of a merged node moves to the kept
+     * node, the kept node takes `options.values`, and the other nodes are removed.
+     * @param ids - the nodes to merge; an integer id may be written either way
+     * @param options - which node is kept, and the values it takes
+     * @returns settles once the merge is drawn
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when an id is not a node the graph holds.
+     */
+    async mergeNodes(ids: readonly NodeId[], options: MergeNodesOptions = {}): Promise<void> {
+        this.requireLive("mergeNodes");
+        if (!Array.isArray(ids)) {
+            throw mergeRefusal("ids is not an array");
+        }
+
+        const send = this.writes.importer();
+        await this.loadLine.edit(() => {
+            const command = this.mergeCommand(ids, options);
+            return command === null ? Promise.resolve() : send(command);
+        }, undefined);
+    }
+
+    /**
+     * The step `mergeNodes` dispatches, read from the graph as it is when its turn comes.
+     * @param ids - the nodes to merge
+     * @param options - which node is kept, and the values it takes
+     * @returns the command, or null when fewer than two nodes are named
+     */
+    private mergeCommand(ids: readonly NodeId[], options: MergeNodesOptions): BatchCommand | null {
+        const snapshot = this.current();
+        const rowOf = (id: NodeId): number => {
+            const row = rowOfEitherSpelling(snapshot.ids, id);
+            if (row === INVALID_INDEX) {
+                throw mergeRefusal(`${JSON.stringify(id)} is not a node the graph holds`);
+            }
+
+            return row;
+        };
+        const rows = new Set(ids.map(rowOf));
+        const keptRow = rowOf(options.into ?? ids[0]);
+        rows.delete(keptRow);
+        if (rows.size === 0) {
+            return null;
+        }
+
+        const kept = snapshot.ids.idOf(keptRow);
+        const endOf = (row: number): NodeId => (rows.has(row) ? kept : snapshot.ids.idOf(row));
+        const touching: { attributes: Readonly<Record<string, unknown>>; source: NodeId; target: NodeId }[] = [];
+        for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+            const from = snapshot.edgeSource(edge);
+            const to = snapshot.edgeTarget(edge);
+            if (rows.has(from) || rows.has(to)) {
+                touching.push({
+                    attributes: this.records?.edgeAttributes(edge) ?? {},
+                    source: endOf(from),
+                    target: endOf(to),
+                });
+            }
+        }
+
+        // A record is read without the keys naming its ends, so the moved one is written back with
+        // them under the keys the last load read ends from: that load's report keeps reading every
+        // other edge's record the same way. Ends read through a nested path are written as
+        // `source` and `target`.
+        const spelling = this.lastImport()?.endpoints ?? { source: "source", target: "target" };
+        const endpoints = {
+            source: BARE_KEY.test(spelling.source) ? spelling.source : "source",
+            target: BARE_KEY.test(spelling.target) ? spelling.target : "target",
+        };
+        const moved = touching.map((each) => ({
+            ...each.attributes,
+            [endpoints.source]: each.source,
+            [endpoints.target]: each.target,
+        }));
+        const merged = [...rows].map((row) => snapshot.ids.idOf(row));
+        return mergeNodesCommand(kept, options.values, merged, moved, endpoints);
     }
 
     /**
@@ -1131,13 +1231,18 @@ export class SessionData implements SessionDataApi {
         this.requireLive("loadDataset");
         const send = this.writes.importer();
         const { baseUrl, signal, ...load } = options;
-        // A mirror may serve any name; only graphty.app's own list is checked.
-        if (baseUrl === undefined && !DATASET_NAMES.includes(name)) {
+        // The element names no host of its own: the caller says where the files are published
+        // (graph-samples exports its own default as `DEFAULT_DATASET_BASE_URL`).
+        if (baseUrl === undefined || baseUrl === "") {
             throw new GraphtyError({
-                code: "E_UNKNOWN_DATASET",
-                message: `There is no dataset named "${name}".`,
+                code: "E_OPTION_RANGE",
+                message: "loadDataset needs a baseUrl.",
                 source: "data",
-                details: { name, available: DATASET_NAMES },
+                details: {
+                    option: "baseUrl",
+                    name,
+                    suggestion: { package: "@graphty/graph-samples", export: "DEFAULT_DATASET_BASE_URL" },
+                },
             });
         }
         // Its place in line is taken now, so a load asked for later waits for this download; an
@@ -1160,7 +1265,7 @@ export class SessionData implements SessionDataApi {
             const sample = this.sampleLoad(snapshot, name, load);
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
-                facts: { dataset: name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+                facts: { dataset: name, baseUrl },
             });
         } finally {
             turn.leave();
@@ -1819,6 +1924,26 @@ export class SessionData implements SessionDataApi {
             (change) => this.writes.progress?.(change),
             this.pages.timeline?.() === true,
         );
+        this.reads.set(source, read);
+        return this.draftOf(source, read, options);
+    }
+
+    /**
+     * A draft over rows already read: what `prepare` hands back once it has read them.
+     * @param source - What the rows were read from.
+     * @param read - The rows.
+     * @param options - As `prepare` takes them.
+     * @param options.signal - Abandons reading the file's styles.
+     * @param options.onto - `"graph"` holds the rows as a table to join onto the graph.
+     * @param options.guess - How the roles are guessed.
+     * @returns The draft.
+     */
+    private async draftOf(
+        source: DataSourceInput,
+        read: ReadSource,
+        options: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" } = {},
+    ): Promise<Draft> {
+        this.draft?.dispose();
         // With the file styles experiment off a draft does not say what styles the file carries.
         const styles = this.pages.fileStyles?.() === false ? null : await draftStyles(read, options.signal);
         const draft = new Draft(
@@ -1882,7 +2007,7 @@ export class SessionData implements SessionDataApi {
      */
     snapshot(): GraphSnapshot {
         this.requireLive("snapshot");
-        return consumerSnapshot(this.graphStore.getSnapshot());
+        return consumerSnapshot(this.graphStore);
     }
 
     /**
@@ -1934,6 +2059,50 @@ export class SessionData implements SessionDataApi {
         const { ids } = this.current();
         const index = rowOfEitherSpelling(ids, id);
         return index === INVALID_INDEX ? undefined : this.nameOf(index, ids.idOf(index));
+    }
+
+    /**
+     * What a node is called, never undefined: `SessionDataApi.nodeName`, which documents it.
+     * @param id - the node id; an integer id may be written either way, `34` or `"34"`
+     * @returns the name and the id; for a node the graph does not hold, the id as the name
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    nodeName(id: NodeId): NodeName {
+        const { ids } = this.current();
+        const index = rowOfEitherSpelling(ids, id);
+        if (index === INVALID_INDEX) {
+            return { id, name: String(id), labeled: false };
+        }
+        const held = ids.idOf(index);
+        const name = this.nameOf(index, held);
+        return { id: held, name, labeled: name !== String(held) };
+    }
+
+    /**
+     * What an edge is called, by its two ends.
+     * @param edge - the two ends' node ids
+     * @param edge.source - the end the edge leaves
+     * @param edge.target - the end the edge enters
+     * @returns the two ends' names
+     */
+    edgeName(edge: { readonly source: NodeId; readonly target: NodeId }): EdgeName;
+    /**
+     * What an edge is called, by its id.
+     * @param edge - the edge id
+     * @returns the two ends' names, or undefined when the graph has no such edge
+     */
+    edgeName(edge: EdgeId): EdgeName | undefined;
+    /**
+     * What an edge is called: `SessionDataApi.edgeName`, which documents it.
+     * @param edge - the edge id, or the two ends' node ids
+     * @returns the two ends' names, or undefined for an edge id the graph has no edge for
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    edgeName(edge: EdgeId | { readonly source: NodeId; readonly target: NodeId }): EdgeName | undefined {
+        const ends = typeof edge === "string" ? this.edge(edge) : edge;
+        return ends === undefined
+            ? undefined
+            : { source: this.nodeName(ends.source), target: this.nodeName(ends.target) };
     }
 
     /**
@@ -3149,7 +3318,9 @@ export class SessionData implements SessionDataApi {
         // The command a draft of the copy would load, held back here: its rows are the copy's rows.
         let captured: DataImportCommand | undefined;
         let config: SessionCommand | undefined;
-        const draft = await this.prepare(source);
+        // Rows a draft already read from this very source are read as they are, with no I/O.
+        const read = this.reads.get(source);
+        const draft = read === undefined ? await this.prepare(source) : await this.draftOf(source, read);
         await draft.loadVia((command) => {
             const steps = command.op === "batch" ? command.steps : [command];
             config = steps.find((step) => step.op === "config.set");
@@ -3550,6 +3721,40 @@ export class SessionData implements SessionDataApi {
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
         return this.afterLoads(() => this.reloadSourceNow(key, choices));
+    }
+
+    /**
+     * Change the column roles of a load, as one undoable step, reading its rows again from what
+     * the session already holds.
+     * @param options - The mapping, and the load (the only one when absent).
+     * @returns What was added, removed and changed.
+     */
+    async remap(options: RemapOptions): Promise<ReplaceReport> {
+        this.requireLive("remap");
+        const mapping = (options as Partial<RemapOptions> | undefined)?.mapping;
+        if (typeof mapping !== "object" || mapping === null) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "remap needs a mapping, as a load takes one.",
+                source: "data",
+                details: { reason: "no-mapping" },
+            });
+        }
+
+        return this.afterLoads(async () => {
+            const known = this.sources().map((each) => each.key);
+            const key = options.source ?? (known.length === 1 ? known[0] : undefined);
+            if (key === undefined) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: "The graph holds more than one load (or none): name the one to re-map.",
+                    source: "data",
+                    details: { reason: "which-source", known },
+                });
+            }
+
+            return await this.reloadSourceNow(key, { mapping });
+        });
     }
 
     /**
@@ -4340,8 +4545,9 @@ export class SessionData implements SessionDataApi {
      * @returns degree, and on a directed graph in-degree and out-degree
      */
     structureValues(): readonly StructureValue[] {
-        // In and out degree only on a directed graph, where they differ from degree.
-        return this.statistics().directedness === "directed"
+        // In and out degree only when some edge is directed, where they differ from degree.
+        const { directedness } = this.statistics();
+        return directedness === "directed" || directedness === "mixed"
             ? STRUCTURE_VALUES
             : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
     }
@@ -4377,7 +4583,7 @@ export class SessionData implements SessionDataApi {
 
         return readableValues({
             snapshot,
-            directed: this.statistics().directedness === "directed",
+            directed: ["directed", "mixed"].includes(this.statistics().directedness),
             attributes: this.attributes(),
             declarationOf: (column) => declarations.get(declarationKey(column)),
             runs,
@@ -5027,16 +5233,9 @@ export class SessionData implements SessionDataApi {
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
         const counts = new Map<ColumnScalar, number>();
         let missing = 0;
-        // Degree, in-degree and out-degree are read from the snapshot, not a column.
-        const structure = kind === "node" ? structureValuesOf(snapshot, path) : undefined;
+        const read = this.valueReader(kind, path);
         for (let index = 0; index < total; index++) {
-            let value: unknown;
-            if (structure !== undefined) {
-                value = structure[index];
-            } else {
-                value =
-                    path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
-            }
+            const value = read(index);
             if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
                 counts.set(value, (counts.get(value) ?? 0) + 1);
             } else {
@@ -5046,6 +5245,117 @@ export class SessionData implements SessionDataApi {
 
         const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
         return Object.freeze({ values: Object.freeze(values), missing, total });
+    }
+
+    /**
+     * How a path's value is read per element, as `valueCounts` counts it.
+     * @param kind - nodes or edges
+     * @param path - the value path, or `"id"` for the node id
+     * @returns the value of the element at a row
+     */
+    private valueReader(kind: "node" | "edge", path: Path): (index: number) => unknown {
+        const snapshot = this.current();
+        // Degree, in-degree and out-degree are read from the snapshot, not a column.
+        const structure = kind === "node" ? structureValuesOf(snapshot, path) : undefined;
+        if (structure !== undefined) {
+            return (index) => structure[index];
+        }
+        if (path === "id" && kind === "node") {
+            return (index) => snapshot.ids.idOf(index);
+        }
+        return (index) => this.pages.valueAt(kind, index, path);
+    }
+
+    /**
+     * Per group, the node values that occur in the group more often than chance.
+     * @param groupBy - the path holding each node's group
+     * @param options - which columns to test
+     * @param options.columns - the node column paths; by default every categorical one
+     * @returns every group, largest first, with its over-represented values
+     */
+    overRepresented(groupBy: Path, options: { readonly columns?: readonly Path[] } = {}): OverRepresentedValues {
+        const snapshot = this.current();
+        const paths =
+            options.columns ??
+            this.attributes()
+                .filter(
+                    (each) =>
+                        each.kind === "node" &&
+                        each.path !== groupBy &&
+                        each.holdsNodeIds !== true &&
+                        (each.measurement === "categorical" || each.measurement === "ordinal"),
+                )
+                .map((each) => each.path);
+        // ponytail: walked on every call; cache by data revision when a profile is read per frame.
+        return overRepresentedValues(
+            groupBy,
+            (index) => this.pages.valueAt("node", index, groupBy),
+            snapshot.nodeCount,
+            paths.map((path) => ({ path, valueAt: (index: number) => this.pages.valueAt("node", index, path) })),
+        );
+    }
+
+    /**
+     * One row per group of the nodes, with its size and the summaries asked for.
+     * @param groupBy - the path holding each node's group
+     * @param options - the summaries, by the node path they read
+     * @returns the table, largest group first
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for an unknown summary.
+     */
+    groupTable(groupBy: Path, options: GroupTableOptions = {}): GroupTable {
+        const summaries = Object.entries(options.summaries ?? {});
+        for (const [path, asked] of summaries) {
+            const unknown = (Array.isArray(asked) ? asked : [asked]).find(
+                (each) => !GROUP_SUMMARIES.includes(each as GroupSummary),
+            );
+            if (!Array.isArray(asked) || unknown !== undefined) {
+                throw new GraphtyError({
+                    code: "E_OPTION_RANGE",
+                    message: `summaries of ${path} must be a list of ${GROUP_SUMMARIES.join(", ")}`,
+                    source: "data",
+                    details: { option: "summaries", path, value: unknown, available: GROUP_SUMMARIES },
+                });
+            }
+        }
+
+        // The groups and their sizes are the value counts of the path, largest first.
+        const groups = this.valueCounts(groupBy, { kind: "node" }).values;
+        const labels = this.valueLabels(groupBy);
+        const members = new Map<ColumnScalar, number[]>(groups.map((each) => [each.value, []]));
+        const groupAt = this.valueReader("node", groupBy);
+        const count = this.current().nodeCount;
+        for (let index = 0; summaries.length > 0 && index < count; index++) {
+            members.get(groupAt(index) as ColumnScalar)?.push(index);
+        }
+
+        const columns = ["group", ...(labels.size > 0 ? ["label"] : []), "size"];
+        for (const [path, asked] of summaries) {
+            columns.push(...asked.map((summary) => `${path}.${summary}`));
+        }
+
+        const rows = groups.map(({ value, count: size }) => {
+            const row: Record<string, string | number | boolean | null> = { group: value };
+            if (labels.size > 0) {
+                row.label = labels.get(String(value)) ?? null;
+            }
+            row.size = size;
+            const indices = members.get(value) ?? [];
+            for (const [path, asked] of summaries) {
+                const read = this.valueReader("node", path);
+                const numbers = indices.map((index) => {
+                    const cell = read(index);
+                    return typeof cell === "number" ? cell : Number.NaN;
+                });
+                const statistics = computeColumnStatistics(arrayColumn(numbers));
+                for (const summary of asked) {
+                    const figure = summary === "count" ? statistics.measured : statistics[summary];
+                    row[`${path}.${summary}`] = summary === "count" || statistics.measured > 0 ? figure : null;
+                }
+            }
+            return Object.freeze<GroupTableRow>(row);
+        });
+
+        return Object.freeze({ groupBy, columns: Object.freeze(columns), rows: Object.freeze(rows) });
     }
 
     /**
@@ -6104,10 +6414,10 @@ export function headlessDataService(
  * @param store - The store.
  * @returns The read-only store.
  */
-function readonlyStore(store: SessionGraphStore): SessionGraphStore {
+function readonlyStore(store: LaneStore): SessionGraphStore {
     const positions = readonlyPositions(() => store.positions);
     return {
-        getSnapshot: () => consumerSnapshot(store.getSnapshot()),
+        getSnapshot: () => consumerSnapshot(store),
         undirected: (snapshot) => store.undirected(snapshot),
         positions,
         get seededNodeCount() {
@@ -6131,10 +6441,16 @@ function readonlyStore(store: SessionGraphStore): SessionGraphStore {
  * of them would change what compute runs over, or place and pin nodes, with no step and nothing
  * for undo to restore. A copy keeps the published type, so an exporter reading
  * `byRole("position").data` works unchanged, and whatever the consumer writes stays theirs.
- * @param resident - The store's snapshot.
+ *
+ * The resident snapshot lends the lane by reference and is handed back cached without touching the
+ * lane, so a layout's owed publish (design/rendering/row-renderer.md 4.5) is written first: the copy
+ * carries the latest landing, not the coordinates of the last settle.
+ * @param store - The store.
  * @returns The consumer's snapshot.
  */
-function consumerSnapshot(resident: GraphSnapshot): GraphSnapshot {
+function consumerSnapshot(store: LaneStore): GraphSnapshot {
+    store.positions.settle();
+    const resident = store.getSnapshot();
     // ponytail: copies the whole snapshot per call (O(nodes + edges)); cache a copy per freeze and
     // lane generation, handed out as read-only views, if a consumer calls this every frame.
     const copy = fromBytes(resident.toBytes(), { validate: "none" });
@@ -6467,5 +6783,22 @@ function datasetError(
         recoverable: !clientError,
         details: { name, ...mirror, ...(status === undefined ? {} : { status }) },
         cause: error,
+    });
+}
+
+/** An endpoint expression that is one top-level key, which a moved edge's record is rewritten under. */
+const BARE_KEY = /^[A-Za-z_]\w*$/;
+
+/**
+ * The refusal of a malformed `mergeNodes` call.
+ * @param field - What is wrong.
+ * @returns An `E_BAD_COMMAND` error.
+ */
+function mergeRefusal(field: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        source: "data",
+        message: `The mergeNodes argument is malformed: ${field}.`,
+        details: { door: "mergeNodes", field },
     });
 }

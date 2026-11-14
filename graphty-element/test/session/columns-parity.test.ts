@@ -17,7 +17,7 @@ import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "../../catalog";
 import type { GraphSession, ImportColumnsInput } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { dataDigest } from "../../src/session/project/digest";
-import { recordsBuilt } from "../../src/session/project/recordMap";
+import { RecordMap } from "../../src/session/project/recordMap";
 import type { GraphRecord } from "../../src/session/project/state";
 
 /** graph-io's committed corpus, one directory per format. */
@@ -56,6 +56,7 @@ const DATASETS = DATASET_DESCRIPTORS.map(({ name }) => name).filter((name) =>
 /** What a load leaves that the comparison reads. */
 interface Held {
     digest: string;
+    fingerprint: string;
     count: { nodes: number; edges: number };
     values: string;
 }
@@ -63,12 +64,13 @@ interface Held {
 /**
  * What a session holds.
  * @param session - The session.
- * @returns Its digest, counts and graph-level values.
+ * @returns Its digest, fingerprint, counts and graph-level values.
  */
 function held(session: GraphSession): Held {
     const { graph } = dispatcherOf(session).state;
     return {
         digest: dataDigest(graph, () => session.data.snapshot()),
+        fingerprint: session.data.fingerprint(),
         count: session.data.count(),
         values: JSON.stringify([...graph.values.keys()].sort()), // NOSONAR(S2871): code-unit order, the same in every locale
     };
@@ -162,10 +164,11 @@ async function bothDoors(
         },
     };
     const byColumns = createElementSession({}, { batched: () => batched });
-    const built = recordsBuilt.count;
     await byColumns.data.importColumns(columns);
-    // The load builds and keeps no record on either path (stage 29): the batched path holds rows.
-    assert.strictEqual(recordsBuilt.count, built, "records built by the typed load");
+    // The load keeps no record on the batched path (stage 29): the slice holds each row's place.
+    const slice = dispatcherOf(byColumns).state.graph;
+    const kept = [slice.nodes, slice.edges].map((map) => (map as RecordMap<unknown>).heldRecords());
+    assert.deepStrictEqual(kept, batched ? [0, 0] : [slice.nodes.size, slice.edges.size], "records the slice keeps");
 
     const out = { records: held(byRecords), columns: held(byColumns) };
     byRecords.dispose();

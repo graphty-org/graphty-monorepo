@@ -39,7 +39,11 @@ export function fromColumns(record: object): boolean {
     return ROW_TAG in record;
 }
 
-/** Records built from columns, counted: what the stage 29 test reads (no timing). */
+/**
+ * Every record built from columns, counted, whoever asked for it: the load's own reads through
+ * `rowsView` and every later read through a `RecordMap`. Each is short-lived; what the stage 29
+ * test proves is that none is kept (`RecordMap.heldRecords`), and this count shows they were built.
+ */
 export const recordsBuilt = { count: 0 };
 
 /**
@@ -49,6 +53,7 @@ export const recordsBuilt = { count: 0 };
  * @returns The record, frozen.
  */
 function taggedRecord(source: RowSource, row: number): GraphRecord {
+    recordsBuilt.count++;
     const record = source.build(row);
     const tagged: Record<string | number, unknown> = { ...record };
     Object.defineProperty(tagged, ROW_TAG, { value: { source, row } satisfies RowTag });
@@ -136,6 +141,21 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
         }
 
         return this.bases[at] + tag.row;
+    }
+
+    /**
+     * How many records this map keeps as objects; a record from columns is kept as its place.
+     * @returns The count.
+     */
+    heldRecords(): number {
+        let held = 0;
+        for (const value of super.values()) {
+            if (typeof value !== "number") {
+                held++;
+            }
+        }
+
+        return held;
     }
 
     /**

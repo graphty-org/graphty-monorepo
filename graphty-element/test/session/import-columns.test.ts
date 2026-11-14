@@ -13,7 +13,7 @@ import type { GraphStore } from "../../src/data/GraphStore";
 import type { GraphSession } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { dataDigest } from "../../src/session/project/digest";
-import { recordsBuilt } from "../../src/session/project/recordMap";
+import { RecordMap, recordsBuilt } from "../../src/session/project/recordMap";
 import { assertScalesLinearly } from "../helpers/cost";
 
 /**
@@ -145,8 +145,20 @@ describe("session.data.importColumns", () => {
             const session = createElementSession({}, { batched: () => batched });
             const before = recordsBuilt.count;
             await byColumns(session);
-            // No record is built by the load itself: the journal, the slice and the op log hold rows.
-            assert.strictEqual(recordsBuilt.count - before, 0, `records built by the load: ${String(batched)}`);
+            // The batched load builds short-lived records as it reads its rows (the objects path
+            // builds its records up front, untagged); none is kept: the slice holds places.
+            const built = recordsBuilt.count - before;
+            assert.strictEqual(built > 0, batched, `records built by the load: ${String(batched)}`);
+            const slice = dispatcherOf(session).state.graph;
+            assert.instanceOf(slice.nodes, RecordMap);
+            assert.instanceOf(slice.edges, RecordMap);
+            const keptNodes = (slice.nodes as RecordMap<unknown>).heldRecords();
+            const keptEdges = (slice.edges as RecordMap<unknown>).heldRecords();
+            assert.deepStrictEqual(
+                [keptNodes, keptEdges],
+                batched ? [0, 0] : [IDS.length, SOURCES.length],
+                `records the slice keeps: ${String(batched)}`,
+            );
             const added = (kind: string): readonly unknown[] => {
                 for (const { command } of session.journal.entries) {
                     if (
@@ -176,7 +188,9 @@ describe("session.data.importColumns", () => {
             assert.strictEqual(graph.nodes.get("b") === node, !batched, `slice keeps the record: ${String(batched)}`);
             assert.deepStrictEqual(graph.nodes.get("b"), node);
             assert.isTrue(Object.isFrozen(node));
-            assert.strictEqual(recordsBuilt.count - before, batched ? 3 + SOURCES.length : 0);
+            // Each read after the load builds the record again: four from the journal's view, three
+            // node reads and one edge iteration from the slice.
+            assert.strictEqual(recordsBuilt.count - before - built, batched ? 4 + 3 + SOURCES.length : 0);
         }
     });
 

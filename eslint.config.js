@@ -337,6 +337,8 @@ export default tseslint.config(
                 {
                     patterns: [
                         { regex: "^zod/v[34]", message: 'Import zod as "zod" (core types are z.core.*).' },
+                        // Tests assert with vitest's own assert, never a separate chai import (issue #7003).
+                        { regex: "^chai(/|$)", message: "import assert from vitest" },
                         // @babylonjs/* is "type": "module", so webpack 5 requires a fully specified
                         // deep import and refuses one without its extension (issue #3219).
                         {
@@ -397,29 +399,13 @@ export default tseslint.config(
     },
 
     // ============================================
-    // TEST FILES AN OPEN PULL REQUEST CHANGES, STILL USING `any`
-    // ============================================
-    // Test files are held to no-explicit-any like the rest of the code (issue #7283). These still
-    // use `any` and are changed by an open pull request, so they are fixed once it merges: remove
-    // each entry then.
-    {
-        files: [
-            // Pull request #7321 changes this file. Named twice: from the root, and from
-            // graphty-element, whose own config imports this one and resolves globs from there.
-            "graphty-element/test/browser/3d-camera-controls.test.ts",
-            "test/browser/3d-camera-controls.test.ts",
-        ],
-        rules: { "@typescript-eslint/no-explicit-any": "off" },
-    },
-
-    // ============================================
     // TESTS WAIT ON CONDITIONS, NOT ON THE CLOCK
     // ============================================
     // A wall-clock assertion, a fixed sleep, a hand-set timeout or any other local deadline passes on
     // an idle machine and fails when several test runs share it. There is one hang guard, set in
     // tools/test-wait-guard.mjs; nothing else may end a test on the clock. The rule and its reasons:
     // tools/eslint-rules/no-test-timing.mjs. Story play functions, their helpers, setup files and
-    // the vitest configs (a per-project testTimeout) are covered too.
+    // the vitest configs (a per-project testTimeout) and the graphty app's acceptance harnesses are covered too.
     // Benchmarks are where a timing check that must exist belongs, so they are left out, and so are
     // the scripts that drive the source programs to draw the fidelity oracles and reference scenes: they
     // are no tests, and a desktop program that offers no event to wait on is polled.
@@ -433,6 +419,7 @@ export default tseslint.config(
             "**/stories/**/*.{ts,tsx}",
             "**/.storybook/**/*.{ts,tsx}",
             "**/vitest*.config.{ts,mts,mjs,js}",
+            "**/acceptance/**/*.mjs",
         ],
         ignores: [
             "**/*.bench.test.ts",
@@ -442,6 +429,9 @@ export default tseslint.config(
             "graph-io/test/fidelity/oracles/tools/**",
             "graph-io/test/fidelity/generators/specimens/**",
             "graph-io/test/fidelity/references/*.mjs",
+            // Temporary: the dry run's check deadlines decide route outcomes, so tools/dry-run-check-guard.mjs
+            // lets them change only on a branch of their own. Remove this line when that change lands (#7622).
+            "**/acceptance/run.mjs",
         ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },
@@ -487,6 +477,21 @@ export default tseslint.config(
         files: ["graph-io/**/*.ts", "tools/pipeline-health/**/*.ts"],
         rules: {
             camelcase: ["error", { properties: "never" }],
+        },
+    },
+    // graph-io's sources and tests are plain ASCII (graph-io/CLAUDE.md). A raw non-ASCII
+    // character in a literal can be changed silently by an editor -- a stripped BOM turns the
+    // BOM test into a no-BOM test with no visible diff -- so literals spell it as a \uXXXX escape.
+    {
+        files: ["graph-io/src/**/*.ts", "graph-io/test/**/*.ts"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector: "Literal[raw=/[^\\x00-\\x7F]/], TemplateElement[value.raw=/[^\\x00-\\x7F]/]",
+                    message: "Write non-ASCII characters as \\uXXXX escapes (graph-io/CLAUDE.md: plain ASCII).",
+                },
+            ],
         },
     },
     {
@@ -640,6 +645,25 @@ export default tseslint.config(
             },
         },
     })),
+    // layout's tests use `assert`, never `expect` (CLAUDE.md, "Testing"). The typed rule is used so
+    // this does not replace the plain no-restricted-imports patterns (zod, Babylon.js) set above.
+    {
+        files: ["layout/test/**/*.ts"],
+        rules: {
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                {
+                    paths: [
+                        {
+                            name: "vitest",
+                            importNames: ["expect"],
+                            message: "layout tests use assert from vitest, not expect.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // tools/pipeline-health's page tests are type-checked with the page (web/tsconfig.json, DOM lib),
     // not with the package's Node project, which excludes them.
     {

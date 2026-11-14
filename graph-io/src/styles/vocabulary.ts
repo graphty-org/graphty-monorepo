@@ -4,7 +4,7 @@
  * planning; a value of the wrong kind is a note, never a style.
  */
 
-import type { StyleTarget } from "./types.js";
+import type { StyleProperty, StyleTarget } from "./types.js";
 
 /**
  * The kinds of style value: a canonical `#rrggbb` color, a number (lengths and factors at least 0), a signed number
@@ -200,6 +200,8 @@ export const STYLE_PROPERTIES: {
         ["chartLineWidth", "number"],
         ["chartBorderColor", "color"],
         ["chartBorderWidth", "number"],
+        ["chartBackgroundColor", "color"],
+        ["chartBackgroundOpacity", "opacity"],
         ["groupPadding", "number"],
         ["groupPaddingRatio", "number"],
         ["groupPaddingOf", "text"],
@@ -453,4 +455,14 @@ export function isStyleValue(target: StyleTarget | "graph", property: string, va
                     (OPEN_ENUMS.has(kind) && value.startsWith("other:") && value.length > "other:".length))
             );
     }
+}
+
+/**
+ * Whether a name is one of a target's properties: a neutral one or a `graphty:<channel>`.
+ * @param target - nodes or edges
+ * @param property - the name
+ * @returns true for a property in `STYLE_PROPERTIES` or a `graphty:` one
+ */
+export function isStyleProperty(target: StyleTarget, property: string): property is StyleProperty {
+    return property.startsWith("graphty:") || STYLE_PROPERTIES[target].has(property);
 }

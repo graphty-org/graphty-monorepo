@@ -119,6 +119,15 @@ function launch(entry) {
 }
 
 /**
+ * The ports above 1023 that fetch refuses to connect to (the Fetch standard's "bad port" list):
+ * the launcher's /health probe fails on them with "fetch failed" and no error code, so a daemon
+ * given one never answers and its start fails after the whole health wait.
+ */
+const FETCH_BAD_PORTS = new Set([
+    1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6679, 6697, 10080,
+]);
+
+/**
  * A free port below the kernel's ephemeral range. A port the kernel handed out for `listen(0)` and
  * then closed goes back into that range, where any other process's `listen(0)` or outgoing
  * connection can take it before the daemon binds it, and the daemon then dies on EADDRINUSE (issue
@@ -131,6 +140,7 @@ async function freePort() {
     const low = Number(readFileSync("/proc/sys/net/ipv4/ip_local_port_range", "utf8").split(/\s+/)[0]);
     for (;;) {
         const port = 1024 + Math.floor(Math.random() * (low - 1024));
+        if (FETCH_BAD_PORTS.has(port)) continue;
         const free = await new Promise((resolve) => {
             const server = createServer();
             server.once("error", () => resolve(false));

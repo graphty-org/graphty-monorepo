@@ -398,11 +398,8 @@ export type TemplatePosition = "top" | "aboveBase" | { readonly before: LayerId 
 export interface StyleUpdateOptions extends RunOptions {
     /**
      * Keep the layer when the patch takes its last value away: it stays in its place, painting
-     * nothing until something is written again, as a starting row that writes nothing does. A
-     * panel that removes properties one at a time sets it, so removing the last one does not
-     * remove the layer. Without it (the default), such an update is refused with `E_BAD_LAYER`,
-     * as `add` refuses a layer that writes nothing. A layer that already writes nothing (a row
-     * added with no look yet) may be renamed or given another selector without it.
+     * nothing until something is written again. Every layer may write nothing, so an update does
+     * this with or without the option, which is kept for callers that pass it.
      * @since 3.26.0
      */
     readonly keepEmpty?: boolean;
@@ -576,7 +573,8 @@ export interface StylesApi {
      * The patch is applied over the layer's current specification, one key deep. A key present
      * with `undefined` CLEARS it, so `{ set: undefined }` drops the literal values; a key absent
      * leaves what was there. The merged specification is checked exactly as a new one would be,
-     * so an update cannot leave a layer in a state `add` would have refused.
+     * so an update cannot leave a layer in a state `add` would have refused. A patch that takes
+     * the last value away leaves the layer in place, painting nothing.
      * @param id - The layer to change.
      * @param patch - What to change about it.
      * @param options - A signal to cancel with, a progress handler, and `keepEmpty`.
@@ -2601,10 +2599,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /** Edits written since the last pass, told once it has repainted them. */
     const announcements: Announcement[] = [];
     /** What the last pass changed and painted, which an undo, a redo or a rollback reports. */
-    let lastPass: { reason: RepaintReason; layers: readonly LayerId[]; painted: RepaintReport | null } = {
+    let lastPass: {
+        reason: RepaintReason;
+        layers: readonly LayerId[];
+        painted: RepaintReport | null;
+        failed: boolean;
+    } = {
         reason: "update",
         layers: [],
         painted: null,
+        failed: false,
     };
 
     /**
@@ -4918,7 +4922,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 settle = resolve;
                 refuse = reject;
             });
-            // Nobody may be awaiting it: a failed repaint is also reported where hooks report.
+            // Nobody may be awaiting it: the run's rejection is how a failed repaint is told.
             painted.catch(() => undefined);
             announcements.push({
                 change: {
@@ -4973,6 +4977,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             reason: request.reason,
             layers: request.edits.map((each) => (each.next ?? each.previous)?.layer.id ?? ""),
             painted,
+            failed: failure !== null,
         };
 
         let edit: Announcement[] = [];
@@ -4997,6 +5002,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             edit = [];
         }
         flushBatch();
+
+        // An undo, a redo, a restore or a rollback has no run to reject: the lane reports it.
+        if (failure !== null && told.length === 0) {
+            throw failure instanceof Error ? failure : new Error("The repaint failed", { cause: failure });
+        }
     });
 
     // An undo, a redo, a restore or a rollback is told once the pass deriving it has run, one
@@ -5004,7 +5014,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const previousDerived = dispatcher.events.derived;
     dispatcher.events.derived = (change) => {
         previousDerived?.(change);
-        if (change.cause !== "command" && change.slices.includes("styles")) {
+        // A failed repaint is not a change painted: the lane has reported it instead.
+        if (change.cause !== "command" && change.slices.includes("styles") && !lastPass.failed) {
             styleRevision++;
             const told: StyleChange = {
                 reason: lastPass.reason,
@@ -5088,7 +5099,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         const matched = { nodes: within("node", nodes), edges: within("edge", edges) };
         if (matched.nodes.length + matched.edges.length > 0) {
-            return { ...styleAgreement(matched, read, channel), readOver: "row" };
+            const own = new Set(parts.map(({ layer }) => layer.id));
+            return { ...styleAgreement(matched, read, channel, own), readOver: "row" };
         }
 
         // It matches nothing: read the row's kinds through the layers that match every element.

@@ -217,6 +217,14 @@ export class OrbitInputController {
             this.isMultiTouch = false;
         });
 
+        // Touches the browser cancels never end the gesture, and a gesture left open blocks every
+        // later drag. A cancel for another reason (a third pointer joining) leaves the fingers down.
+        this.hammer.on("pinchcancel rotatecancel", (ev: HammerInput) => {
+            if (ev.eventType === Hammer.INPUT_CANCEL) {
+                this.isMultiTouch = false;
+            }
+        });
+
         this.hammer.on("pinchmove rotatemove", (ev: HammerInput) => {
             // The distance follows the finger gap: spreading the fingers to twice the gap halves it
             this.controller.zoomBy(lastScale / ev.scale);

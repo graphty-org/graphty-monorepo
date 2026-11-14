@@ -22,7 +22,7 @@ import { type GraphSnapshot } from "@graphty/graph-format";
 import fc from "fast-check";
 
 import { importGraph } from "../../src/registry.js";
-import { buildSnapshot, exporterOf, graphArb } from "./generative.js";
+import { buildSnapshot, exporterOf, graphArb, isAnnouncedRefusal } from "./generative.js";
 import { loadManifests } from "./harness.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -61,6 +61,20 @@ export const SCHEMA_DEVIATIONS: readonly SchemaClass[] = [
         // only in a document with a nested graph (checked in classify())
         pattern: /More than one match found for key-sequence/,
         reason: "node_id_key selects .//node in EVERY graph, so a nested graph's keys reach its parent's table twice and libxml2 rejects an outer edge into a nested graph; the GraphML primer's own nested.graphml fails identically",
+    },
+    {
+        name: "GraphML nested-graph port key",
+        kind: "graphml",
+        // only in a document with a nested graph (checked in classify())
+        pattern: /Duplicate key-sequence \['[^']*'\] in key identity-constraint '\{[^}]*\}port_name_key'/,
+        reason: "port_name_key selects .//port, which also reaches the ports of the nodes of a node's nested graph, so two of those nodes with a port of the same name (DOT record fields f0, f1, ... in a cluster) collide in their container's table; its own documentation scopes the names to \"each <port> element within this <node>\", and graph-io never writes one name twice on one node",
+    },
+    {
+        name: "yFiles extension content",
+        kind: "graphml",
+        pattern:
+            /Element '\{http:\/\/www\.yworks\.com\/[^}]*\}\w+': This element is not expected|attribute '(\{http:\/\/www\.yworks\.com\/[^}]*\}attr\.uri|yfiles\.type)': The attribute '[^']*' is not allowed/,
+        reason: "yEd and yFiles extend GraphML the way the specification provides (an XSD that redefines data-extension.type and key.extra.attrib, yWorks' ygraphml.xsd); the stock XSD here does not load that extension, so the yFiles data and key attributes a yEd or yFiles file carried, which graph-io writes back as read, are rejected; the source file fails the stock XSD identically",
     },
     {
         name: "NMTOKEN character edition",
@@ -152,12 +166,19 @@ export async function validateExports(python: string): Promise<SchemaResult> {
         const write = async (snapshot: GraphSnapshot, prefix: string): Promise<void> => {
             for (const target of SCHEMA_EXPORTS) {
                 const file = `${prefix}-${n++}.${target.suffix}`;
+                const exporter = exporterOf(target.format);
+                const refusals = exporter
+                    .check(snapshot, target.options)
+                    .map((note) => note.code)
+                    .filter((code) => code.startsWith("E_"));
                 try {
-                    const text = await exporterOf(target.format).exportToString(snapshot, target.options);
-                    writeFileSync(join(dir, file), text);
-                } catch {
-                    // an export check() refuses is not a document; the round-trip layers cover it
-                    continue;
+                    writeFileSync(join(dir, file), await exporter.exportToString(snapshot, target.options));
+                } catch (err) {
+                    // an export check() refused is not a document; the round-trip layers cover it
+                    if (isAnnouncedRefusal(err, refusals)) {
+                        continue;
+                    }
+                    throw err;
                 }
                 if (target.format === "dot" && prefix === "generated") {
                     counts[file] = [snapshot.nodeCount, snapshot.edgeCount];
@@ -222,7 +243,7 @@ function classify(doc: InvalidDocument, message: string): SchemaClass | null {
         if (
             match !== null &&
             (c.name !== "NMTOKEN character edition" || isNmtoken5th(match[1])) &&
-            (c.name !== "GraphML nested-graph keyref" || doc.nested === true)
+            (!c.name.startsWith("GraphML nested-graph") || doc.nested === true)
         ) {
             return c;
         }

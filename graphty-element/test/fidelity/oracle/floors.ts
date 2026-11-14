@@ -33,6 +33,11 @@ export interface Judgement {
      * with no list here (a score and no list) counts every known failure of it as measured.
      */
     judged?: Partial<Record<string, string[]>>;
+    /**
+     * The elements judged as the drawing as a whole (the frame, the share of lines drawn bent): a property judging only
+     * these judges no element one by one, so a known failure of one element there can never pass or fail.
+     */
+    wholeDrawing?: string[];
     /** Pass rate per judged property (and the raster regions' similarity as `raster.<region>`). */
     scores: Record<string, number>;
 }
@@ -222,7 +227,9 @@ function measured(run: Judgement, property: string, ids: readonly string[]): str
 
 /**
  * The not-measurable elements that neither drawing has any more: no property of the run judges or fails them, under
- * either side's id. A run that names no judged elements at all (a sample that drew nothing) says nothing is gone.
+ * either side's id; and every one of a property the run judges only on the drawing as a whole (an own-layout sample's
+ * `edge.curve`, judged as the share of lines bent since comparator round 5), however drawn. A run that names no judged
+ * elements at all (a sample that drew nothing) says nothing is gone.
  * @param run - the judgement
  * @param notMeasurable - the known failures not judged now, by property
  * @returns those whose element is gone, by property
@@ -236,8 +243,13 @@ function goneFromBoth(run: Judgement, notMeasurable: Record<string, string[]>): 
     const bare = (id: string): string => (id.startsWith("graphty:") ? id.slice("graphty:".length) : id);
     const exists = (id: string): boolean => present.has(bare(id)) || present.has(`graphty:${bare(id)}`);
     const gone: Record<string, string[]> = {};
+    const whole = new Set(run.wholeDrawing ?? []);
+    const wholeOnly = (p: string): boolean => {
+        const ids = run.judged?.[p] ?? [];
+        return ids.length > 0 && ids.every((id) => whole.has(id));
+    };
     for (const [p, ids] of Object.entries(notMeasurable)) {
-        const left = ids.filter((id) => !exists(id));
+        const left = wholeOnly(p) ? ids : ids.filter((id) => !exists(id));
         if (left.length > 0) {
             gone[p] = left;
         }
@@ -379,13 +391,28 @@ const named = (add: { properties?: readonly string[] } | undefined, property: st
     add?.properties === undefined || add.properties.includes(property);
 
 /**
+ * Refuses a reason too short to say anything, or one that names no issue (`#1234`): a known failure or an accepted drop
+ * stays on the list until its issue is fixed, so each one must say which issue that is (#7015).
+ * @param reason - the reason given
+ * @param what - what the reason is for, for the error
+ */
+export function checkReason(reason: string, what: string): void {
+    if (reason.trim().length < 10) {
+        throw new Error(`${what} needs a reason of 10 or more characters`);
+    }
+    if (!/#\d+/.test(reason)) {
+        throw new Error(`${what} needs a reason that names the issue tracking it (#1234)`);
+    }
+}
+
+/**
  * The accepted drops after a run: a drop whose rate is back at its floor is taken off, and, with a reason, every rate
  * below its floor and its accepted drop is accepted at this run's rate, with the reason. Never accepts without a reason,
  * and never lowers a floor.
  * @param drops - the accepted drops as committed
  * @param gates - the run's verdicts by key
  * @param add - the reason and date to accept the drops with; omitted to accept none
- * @param add.reason - why the rates are lower
+ * @param add.reason - why the rates are lower, naming the issue that tracks them (`#1234`)
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
  * @param add.properties - only these properties (all when omitted)
@@ -396,8 +423,8 @@ export function ratchetDrops(
     gates: readonly KeyGate[],
     add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
 ): { drops: AcceptedDrops; removed: number; added: number; unaccepted: number } {
-    if (add !== undefined && add.reason.trim().length < 10) {
-        throw new Error("accepting a drop below a floor needs a reason of 10 or more characters");
+    if (add !== undefined) {
+        checkReason(add.reason, "accepting a drop below a floor");
     }
     const out: AcceptedDrops = structuredClone(drops);
     let removed = 0;
@@ -433,21 +460,22 @@ export function ratchetDrops(
  * @param records - the known failures as committed
  * @param gates - the run's verdicts by key
  * @param add - the reason and date to add the unlisted failures with; omitted to add nothing
- * @param add.reason - why they are added
+ * @param add.reason - why they are added, naming the issue that tracks them (`#1234`)
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
  * @param add.properties - only these properties (all when omitted)
- * @param prune - also take off the not-measurable ones whose element neither drawing has any more (`KeyGate.gone`)
+ * @param prune - also take off the not-measurable ones whose element neither drawing has any more (`KeyGate.gone`):
+ * `true` for every key, or a list of keys for only those
  * @returns the new known failures and what changed
  */
 export function ratchetKnown(
     records: KnownRecords,
     gates: readonly KeyGate[],
     add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
-    prune = false,
+    prune: boolean | readonly string[] = false,
 ): { records: KnownRecords; removed: number; added: number; unlisted: number } {
-    if (add !== undefined && add.reason.trim().length < 10) {
-        throw new Error("adding to the known failures needs a reason of 10 or more characters");
+    if (add !== undefined) {
+        checkReason(add.reason, "adding to the known failures");
     }
     const known: KnownFailures = structuredClone(records.known);
     let removed = 0;
@@ -456,7 +484,8 @@ export function ratchetKnown(
     const record: KnownReason = { date: add?.date ?? "", reason: add?.reason ?? "", added: {}, sources: {} };
     for (const gate of gates) {
         const now = known[gate.key] ?? {};
-        const takeOff = Object.entries(gate.nowPassing).concat(prune ? Object.entries(gate.gone ?? {}) : []);
+        const pruning = prune === true || (prune !== false && prune.includes(gate.key));
+        const takeOff = Object.entries(gate.nowPassing).concat(pruning ? Object.entries(gate.gone ?? {}) : []);
         for (const [p, ids] of takeOff) {
             const off = new Set(ids);
             const before = now[p] ?? [];
@@ -598,7 +627,7 @@ export function gateReportText(gates: readonly KeyGate[], gpu: string, baseline:
             listed((g) => g.notMeasurable),
         ),
         ...section(
-            "Of those, gone from both drawings (`npm run fidelity:ratchet -- --prune` takes them off)",
+            "Of those, gone from both drawings or judged only on the whole drawing now (`npm run fidelity:ratchet -- --prune` takes them off)",
             listed((g) => g.gone ?? {}),
         ),
         ...section("Scores below their recorded value (raster regions past 0.02 only)", changes("drop")),

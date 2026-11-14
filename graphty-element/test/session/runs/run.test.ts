@@ -333,6 +333,24 @@ describe("cancelling", () => {
     });
 });
 
+describe("the caller's signal after a run settles", () => {
+    it("keeps no abort listener, so a long-lived signal does not hold finished runs", async () => {
+        const controller = new AbortController();
+        const added = vi.spyOn(controller.signal, "addEventListener");
+        const removed = vi.spyOn(controller.signal, "removeEventListener");
+        const { run, queue } = makeRun(finishAtOnce, { signal: controller.signal });
+
+        run.start();
+        await queue.runLatest();
+        await run;
+
+        const listeners = (spy: typeof added): unknown[] =>
+            spy.mock.calls.filter(([type]) => type === "abort").map(([, listener]) => listener);
+        assert.isAbove(listeners(added).length, 0);
+        assert.sameMembers(listeners(removed), listeners(added));
+    });
+});
+
 describe("the time box", () => {
     it("publishes what was computed instead of failing", async () => {
         const { run, queue } = makeRun(

@@ -1,9 +1,4 @@
 {
-    "githerd": {
-        "worktree": ".worktrees/githerd",
-        "servers": ["githerd-dev"],
-        "test": "cd githerd && npm run lint && npx vitest run"
-    },
     "visual-review": {
         "worktree": ".worktrees/visual-review-server-v3",
         "servers": ["visual-review-v3"],

@@ -21,6 +21,7 @@ import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight.js";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader.js";
 import { SceneLoaderFlags } from "@babylonjs/core/Loading/sceneLoaderFlags.js";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Scene } from "@babylonjs/core/scene.js";
 import { afterEach, assert, describe, it, vi } from "vitest";
@@ -357,17 +358,20 @@ describe("the model chunk", () => {
         assertNoNetwork(urls);
     });
 
-    it("refuses Babylon's CDN while a model loads, and only then", async () => {
-        const { loadModelContainer } = await import("../../../src/models/chunk");
+    it("refuses a model's own reference to Babylon's CDN, and leaves the hooks alone after", async () => {
+        const { loadModel } = await import("../../../src/models/loadModel");
         const { Tools } = await import("@babylonjs/core/Misc/tools.js");
         const scene = makeScene();
         const cdn = "https://assets.babylonjs.com/environments/backgroundGround.png";
-        const mtlUrl = blobUrl(`newmtl paint\nmap_Kd ${cdn}\n`, "text/plain");
-        const obj = `mtllib ${mtlUrl}\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl paint\nf 1 2 3\n`;
+        const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
+        const files = new Map([
+            ["model.obj", encode("mtllib paint.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl paint\nf 1 2 3\n")],
+            ["paint.mtl", encode(`newmtl paint\nmap_Kd ${cdn}\n`)],
+        ]);
 
         const recording = recordRequests();
         try {
-            await loadModelContainer(scene, new TextEncoder().encode(obj), ".obj");
+            await loadModel(scene, files, "model.obj", "obj");
         } catch {
             // Refusing the texture may fail the whole load; either way nothing is fetched.
         }
@@ -377,5 +381,54 @@ describe("the model chunk", () => {
         // Outside a load, Babylon's URL hooks are the page's own again.
         assert.include(Tools.GetBabylonScriptURL("https://cdn.babylonjs.com/x.js"), "cdn.babylonjs.com");
         assert.strictEqual(Tools.PreprocessUrl(cdn), cdn);
+    });
+
+    it("lets a page's own babylonjs.com texture load while a model loads (issue #7437)", async () => {
+        const { loadModelFiles } = await import("../../../src/models/chunk");
+        const { guardRequests } = await import("../../../src/models/requestGuard");
+        const { Tools } = await import("@babylonjs/core/Misc/tools.js");
+        const scene = makeScene();
+        const png = await pngBytes();
+        const pageTexture = "https://assets.babylonjs.com/textures/grass.png";
+        const pngUrl = blobUrl(png, "image/png");
+
+        // No real network: the page texture's image is answered by a local PNG at the last step,
+        // below every Babylon hook, so whatever refuses it has already had its chance.
+        const requested: string[] = [];
+        const src = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "src");
+        assert.isDefined(src?.set, "images have a src setter to intercept");
+        Object.defineProperty(HTMLImageElement.prototype, "src", {
+            configurable: true,
+            get(this: HTMLImageElement): string {
+                return src.get?.call(this) as string;
+            },
+            set(this: HTMLImageElement, value: string): void {
+                requested.push(value);
+                src.set?.call(this, value === pageTexture ? pngUrl : value);
+            },
+        });
+        cleanups.push(() => {
+            Object.defineProperty(HTMLImageElement.prototype, "src", src);
+        });
+
+        const load = guardRequests(new Map([["model.glb", blobUrl(glbBytes(png), "model/gltf-binary")]]));
+        let texture: Texture;
+        let loading: Promise<unknown>;
+        try {
+            loading = loadModelFiles(scene, load.root, "model.glb", ".glb");
+            // The model load is running: Babylon's CDN scripts are refused ...
+            assert.throws(() => Tools.ScriptPreprocessUrl("https://cdn.babylonjs.com/draco.js"), /Babylon's CDN/);
+            // ... and the page's own texture from a babylonjs.com host is requested all the same.
+            texture = new Texture(pageTexture, scene);
+            await loading;
+        } finally {
+            load.release();
+        }
+
+        await vi.waitFor(() => {
+            assert.isTrue(texture.isReady() || texture.loadingError, "the page texture settled");
+        });
+        assert.isFalse(texture.loadingError, "the page texture was not refused");
+        assert.include(requested, pageTexture, "the page texture was requested from its own URL");
     });
 });

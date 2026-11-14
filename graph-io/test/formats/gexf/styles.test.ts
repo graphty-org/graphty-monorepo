@@ -578,6 +578,28 @@ describe("GEXF styles: writing", () => {
     });
 });
 
+describe("GEXF styles: escaping a picture's uri", () => {
+    it("writes a tab and a line break in a uri as character references, and refuses a control character", async () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addNode("a");
+        const snapshot = b.freeze();
+        const stylesOf = (uri: string) =>
+            planStyles(
+                {
+                    format: "test",
+                    node: { values: { shape: ["ellipse"], image: [uri] } },
+                    fingerprint: styleFingerprint(snapshot),
+                },
+                { node: featuresOf(snapshot, "node"), edge: [] },
+            );
+        const text = await registry.exportGraphToString(snapshot, "gexf", { styles: stylesOf("a\tb\nc.png") });
+        expect(text).toContain('uri="a&#9;b&#10;c.png"');
+        await expect(
+            registry.exportGraphToString(snapshot, "gexf", { styles: stylesOf("a\u0001b.png") }),
+        ).rejects.toMatchObject({ code: "E_COLUMN_TYPE" });
+    });
+});
+
 /** The block-tamper fixtures: a file graphty wrote, then edited outside as design 10.7 items 4 and 5 describe. */
 async function tamperFixtures(): Promise<Record<string, Uint8Array>> {
     const base = await load(new Uint8Array(readFileSync(join(CORPUS, "random-all-60.gexf"))));

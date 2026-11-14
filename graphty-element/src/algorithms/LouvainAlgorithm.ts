@@ -156,14 +156,14 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
         // communities, so this runs the index-based CPU port.
         const { snapshot, run } = this.accelerated("louvain", "undirected");
 
-        context.report({ phase: "Optimizing modularity", total: null });
+        context.report({ phase: "optimizing-modularity", total: null });
         const { value: result, precision } = await run((dispatch, s) =>
             dispatch.louvain(s, { resolution, maxIterations, tolerance }),
         );
 
         const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             nodes.push({ id: nodeId, values: { group: result.labels[ids.indexOf(nodeId)] ?? 0 } });
         });
 

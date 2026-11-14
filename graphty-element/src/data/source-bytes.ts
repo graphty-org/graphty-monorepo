@@ -101,6 +101,28 @@ export async function fetchBytes(url: string): Promise<Uint8Array> {
     return new Uint8Array(await response.arrayBuffer());
 }
 
+/**
+ * Read a URL as JSON, once.
+ * @param url - The URL.
+ * @returns The parsed value.
+ * @throws A `GraphtyError`: `E_FETCH_FAILED` when it cannot be read, `E_PARSE_FAILED` when it is
+ *     not JSON.
+ */
+export async function fetchJson(url: string): Promise<unknown> {
+    const text = new TextDecoder().decode(await fetchBytes(url));
+    try {
+        return JSON.parse(text) as unknown;
+    } catch (error) {
+        throw new GraphtyError({
+            code: "E_PARSE_FAILED",
+            message: `"${url}" is not JSON.`,
+            source: "data",
+            details: { url, format: "json" },
+            cause: error,
+        });
+    }
+}
+
 /** A file read structurally: a browser `File`, or anything with a name and its bytes. */
 interface FileLike {
     readonly name?: unknown;

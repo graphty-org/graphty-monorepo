@@ -165,8 +165,11 @@ function build(graph: TestGraph, ops: Session["ops"]): void {
     const tryWrite = (write: () => void): void => {
         try {
             write();
-        } catch {
-            // A refused door (a taken name, a no-op) leaves nothing behind, which is fine here.
+        } catch (error) {
+            // A refused door (a taken name, a no-op) leaves nothing behind, which is fine here; a crash is not.
+            if (!isGraphtyError(error)) {
+                throw error;
+            }
         }
     };
 

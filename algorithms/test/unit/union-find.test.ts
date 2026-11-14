@@ -131,6 +131,15 @@ describe("UnionFind", () => {
             expect(uf.connected("c", "a")).toBe(false);
         });
 
+        it("should count a repeated constructor element once", () => {
+            const uf = new UnionFind(["a", "a", "b"]);
+
+            expect(uf.getComponentCount()).toBe(2);
+            expect(uf.size()).toBe(2);
+            uf.union("a", "b");
+            expect(uf.getComponentCount()).toBe(1);
+        });
+
         it("should return false for non-existent elements", () => {
             const uf = new UnionFind(["a", "b"]);
 

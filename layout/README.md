@@ -277,7 +277,7 @@ import { kamadaKawai } from "@graphty/layout";
 const s = fromEdgeArrays(wheelGraph({ n: 8 }));
 const result = kamadaKawai(s, {
     dist: null, // node-to-node target distances; default the shortest-path lengths
-    pos: null, // start positions, `dim` values per node; default a circle in 2D, a seeded random cube in 3D
+    pos: null, // start positions, `dim` values per node; default a circle in 2D, a random cube drawn from `seed` in 3D
     weight: null, // true for the snapshot's weights, or an edge column name
 });
 console.log(result.n); // 8
@@ -432,9 +432,10 @@ Every layout takes these options besides its own. `arf` rescales only when it is
 them its result keeps the size the forces settle at, which its `scaling` option sets.
 
 - **dim** (`2 | 3`): values per node; default 2
-- **scale** (number): size of the layout around its centre; default 1
-- **center** (numbers): the centre; missing components are 0; default the origin
-- **seed** (number): seed of a layout that draws random numbers, for reproducible layouts
+- **scale** (number): size of the layout around its centre, a finite number > 0; default 1
+- **center** (numbers): the centre; missing components are 0, given ones must be finite; default the origin
+- **seed** (number): seed of a layout that draws random numbers, an integer >= 0 (0 included); the same seed gives
+  the same layout. Absent or `null`, a random seed: no layout is seeded by default. Any other value throws `E_BAD_OPTION`
 
 - **Nodes are indices or ids.** `root` and `start` take a node index or `{ id }` (for example
   `radial(s, { root: { id: "hub" } })`). `nlist`, `subsets` and `top` take node sets: an array of indices,
@@ -589,7 +590,8 @@ the facts. Switch on the code; the message is for people and may change:
 - `E_BAD_OPTION`: an option is out of range or not one of its values; `params` `{ option, value }`, or
   `{ option, length, expected }` for an array of the wrong length
 - `E_BAD_NODE`: `start`, `root`, `nlist` or `subsets` names a node index that is not a node; `{ option, index }`
-- `E_UNKNOWN_COLUMN`: `subsets`, `nlist` or `top` names a node column the snapshot does not hold; `{ option, column }`
+- `E_UNKNOWN_COLUMN`: an option (`subsets`, `nlist`, `top`, `nodeMass`, `weight`, `fixed`) names a node or edge column
+  the snapshot does not hold; `{ option, column }`
 - `E_COLUMN_TYPE`: that column has a dtype the layout cannot read; `{ option, column, dtype, expected }`
 - `E_BAD_WEIGHT`: a `kamadaKawai` weight is negative; `{ weight }`
 - `E_NOT_PLANAR`, `E_NOT_CONNECTED`, `E_TOO_LARGE`: see `planar`, `bfs` and `kamadaKawai`

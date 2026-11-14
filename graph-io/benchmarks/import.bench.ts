@@ -250,6 +250,11 @@ export async function runImportBenchmarks(args: readonly string[]): Promise<void
     } else {
         RUNS = runsArg >= 0 ? Number(args[runsArg + 1]) : 3;
     }
+    if (!Number.isInteger(RUNS) || RUNS < 1) {
+        throw new Error(
+            `--runs takes a whole number of at least 1, got ${String(args[runsArg + 1])}; usage: pnpm run benchmark -- [--runs N] [--quick]`,
+        );
+    }
     results.length = 0;
     console.log(
         `graph-io import benchmark: ${hostname()}, ${cpus()[0]?.model ?? "unknown cpu"}, Node ${process.version}, runs ${RUNS}${quick ? " (quick)" : ""}`,

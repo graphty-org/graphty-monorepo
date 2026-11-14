@@ -308,14 +308,6 @@ export class CameraManager {
     }
 
     /**
-     * Gets the input handler of the active camera.
-     * @returns The active input handler or null if no camera is active
-     */
-    public getActiveInputHandler(): InputHandler | null {
-        return this.activeInputHandler;
-    }
-
-    /**
      * Gets a registered camera controller, whether or not it is the active one.
      * @param key - The identifier the controller was registered under
      * @returns The controller, or undefined when nothing is registered under the key

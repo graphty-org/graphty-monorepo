@@ -75,9 +75,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { connect } from "node:net";
-import { dirname, extname, join, normalize, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { serveDist } from "./serve-dist.mjs";
 import { AXE_TAGS, axeViolations, bar6Gaps, LAUNCH, serious, tier4Gaps, tier5Gaps, wordsOnScreen } from "./measure.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -237,32 +238,8 @@ async function weightRuns(page) {
 
 // ---------- tier 1's screens and bar 7, in this script's own browser (inside a browser slot) ----------
 async function inner() {
-    const TYPES = {
-        ".html": "text/html",
-        ".js": "text/javascript",
-        ".css": "text/css",
-        ".json": "application/json",
-        ".svg": "image/svg+xml",
-        ".png": "image/png",
-        ".wasm": "application/wasm",
-        ".woff2": "font/woff2",
-        ".gml": "text/plain",
-    };
     const { chromium } = await import(join(repo, "node_modules/playwright/index.mjs"));
-    const http = createServer(async (req, res) => {
-        const f = join(
-            dist,
-            normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^[/\\]+/, ""),
-        );
-        if (!f.startsWith(dist)) return res.writeHead(403).end();
-        try {
-            const body = await readFile(f);
-            res.writeHead(200, { "content-type": TYPES[extname(f)] ?? "application/octet-stream" }).end(body);
-        } catch {
-            if (extname(f)) return res.writeHead(404).end();
-            res.writeHead(200, { "content-type": "text/html" }).end(await readFile(join(dist, "index.html")));
-        }
-    });
+    const http = createServer(serveDist(dist, { repo }));
     await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
     const origin = `http://127.0.0.1:${http.address().port}`;
     const browser = await chromium.launch(LAUNCH);

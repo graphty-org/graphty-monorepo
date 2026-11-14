@@ -54,7 +54,7 @@ export class KruskalAlgorithm extends DeclaredAlgorithm {
         // undirected view, whose edge space merged every reciprocal pair into one edge.
         const { edgeRemap, run } = this.accelerated("minimumSpanningTree", "undirected");
 
-        context.report({ phase: "Choosing edges", total: null });
+        context.report({ phase: "choosing-edges", total: null });
         const { value, precision } = await run((dispatch, s) => dispatch.minimumSpanningTree(s));
 
         // The chosen edges are indices into the UNDIRECTED view. Reading the remap in the other
@@ -63,7 +63,7 @@ export class KruskalAlgorithm extends DeclaredAlgorithm {
         const chosen = new Set<number>(value.edges);
 
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Marking the network", graphEdges, (edge) => {
+        await forEachChunked(context, "marking-the-network", graphEdges, (edge) => {
             const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
             edges.push({ id: edge.id, values: { in: chosen.has(merged) } });
         });

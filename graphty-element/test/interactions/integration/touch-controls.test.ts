@@ -1,228 +1,65 @@
 /**
- * Touch Controls Integration Tests
+ * @file Touch: pinching two fingers together zooms out in 2D and 3D, one finger dragged across the
+ * 3D view turns the camera, and two fingers turned spin it. Real touch input sent through the
+ * browser's own input pipeline (test/helpers/real-input.ts), the render loop running, the outcome
+ * read through the element's public API.
  *
- * These tests verify touch interactions in a real browser environment
- * by creating Graph instances directly and driving them with real touch and keyboard input
- * (test/helpers/real-input.ts).
+ * A finger panning the 2D view, two fingers spreading to zoom in, and two fingers turning the 2D
+ * view are in test/interactions/real-input.test.ts.
  */
 
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 
-import { OrbitCameraController } from "../../../src/cameras/OrbitCameraController";
-import { Graph, operationQueueOf } from "../../../src/Graph";
-import { holdKey, pinch, releaseHeldKeys, releaseKey, touchDrag } from "../../helpers/real-input";
-import { configureGraph } from "../../helpers/testSetup";
+import { pinch, touchDrag, twist } from "../../helpers/real-input";
+import { applied, camera, EMPTY, HEIGHT, mounted, spread, WIDTH } from "../helpers/mounted-element";
 
-const TEST_NODES = [{ id: 1 }, { id: 2 }, { id: 3 }];
+const CENTER = { x: WIDTH / 2, y: HEIGHT / 2 };
 
-const TEST_EDGES = [
-    { src: 1, dst: 2 },
-    { src: 2, dst: 3 },
-];
+describe("two fingers pinched together", () => {
+    it("zoom the 2D view out", async () => {
+        const element = await mounted("2d");
+        const gap = spread(element);
 
-describe("Touch Controls Integration", () => {
-    let graph: Graph;
-    let container: HTMLDivElement;
+        await pinch(element, CENTER, 180, 60);
+        await applied(element);
 
-    describe("2D Mode", () => {
-        beforeEach(async () => {
-            container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
-            document.body.appendChild(container);
-
-            graph = new Graph(container);
-            await graph.init();
-
-            // Set up 2D mode
-            await configureGraph(graph, { viewMode: "2d", layout: "circular", layoutOptions: { dim: 2 } });
-            await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // Wait for rendering to stabilize
-            await graph.waitForStableFrame();
-        });
-
-        afterEach(async () => {
-            await releaseHeldKeys();
-            graph.dispose();
-            document.body.removeChild(container);
-        });
-
-        test("single finger pan in 2D mode", async () => {
-            const cameraController = graph.camera.getActiveController();
-            if (!cameraController) {
-                throw new Error("Camera controller should be defined");
-            }
-
-            const { camera } = cameraController;
-            const initialX = camera.position.x;
-            const initialY = camera.position.y;
-
-            // A real one-finger drag from 100, 100 to 200, 150
-            await touchDrag(graph.canvas, { x: 100, y: 100 }, { x: 200, y: 150 });
-
-            // Camera should have moved
-            await expect
-                .poll(() => camera.position.x !== initialX || camera.position.y !== initialY, {
-                    message: "Camera position should have changed after pan",
-                })
-                .toBe(true);
-        });
-
-        test("pinch to zoom in 2D mode", async () => {
-            // Get the camera controller
-            const cameraController = graph.camera.getActiveController();
-            if (!cameraController) {
-                throw new Error("Camera controller should be defined");
-            }
-
-            const { camera } = cameraController;
-            const initialOrthoTop = camera.orthoTop ?? 10;
-            const initialOrthoBottom = camera.orthoBottom ?? -10;
-            const initialRange = initialOrthoTop - initialOrthoBottom;
-
-            // A real two-finger spread
-            await pinch(graph.canvas, { x: 200, y: 150 }, 40, 160);
-
-            // Zoom in (pinch spread) should decrease ortho range
-            await expect
-                .poll(() => (camera.orthoTop ?? 10) - (camera.orthoBottom ?? -10), {
-                    message: "Pinch spread should zoom in (decrease ortho range)",
-                })
-                .toBeLessThan(initialRange);
-        });
-
-        test("pinch to zoom out in 2D mode", async () => {
-            // Get the camera controller
-            const cameraController = graph.camera.getActiveController();
-            if (!cameraController) {
-                throw new Error("Camera controller should be defined");
-            }
-
-            const { camera } = cameraController;
-            const initialOrthoTop = camera.orthoTop ?? 10;
-            const initialOrthoBottom = camera.orthoBottom ?? -10;
-            const initialRange = initialOrthoTop - initialOrthoBottom;
-
-            // A real two-finger pinch together
-            await pinch(graph.canvas, { x: 200, y: 150 }, 160, 40);
-
-            // Zoom out (pinch together) should increase ortho range
-            await expect
-                .poll(() => (camera.orthoTop ?? 10) - (camera.orthoBottom ?? -10), {
-                    message: "Pinch together should zoom out (increase ortho range)",
-                })
-                .toBeGreaterThan(initialRange);
-        });
+        assert.isBelow(spread(element), gap / 1.5, "the drawing shrank with the fingers");
     });
 
-    describe("3D Mode", () => {
-        beforeEach(async () => {
-            container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
-            document.body.appendChild(container);
+    it("zoom the 3D view out", async () => {
+        const element = await mounted("3d");
+        const distance = (): number => element.getCameraState().cameraDistance ?? Number.NaN;
+        const before = distance();
 
-            graph = new Graph(container);
-            await graph.init();
+        await pinch(element, CENTER, 180, 60);
+        await applied(element);
 
-            // Set up 3D mode
-            await configureGraph(graph, { viewMode: "3d", layout: "circular", layoutOptions: { dim: 3 } });
-            await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await operationQueueOf(graph).waitForCompletion();
+        assert.isAbove(distance(), before, "the camera moved away");
+    });
+});
 
-            // Wait for rendering to stabilize
-            await graph.waitForStableFrame();
-        });
+describe("in 3D", () => {
+    it("one finger dragged across empty canvas turns the camera", async () => {
+        const element = await mounted("3d");
+        const before = camera(element);
 
-        afterEach(async () => {
-            await releaseHeldKeys();
-            graph.dispose();
-            document.body.removeChild(container);
-        });
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 100, y: EMPTY.y - 50 });
+        await applied(element);
 
-        test("single finger drag orbits in 3D mode via pointer events", async () => {
-            // 3D mode uses OrbitInputController with direct canvas events
-            // Touch drags use the same pointer handlers as mouse drags
-            const cameraController = graph.camera.getActiveController();
-            assert.isDefined(cameraController, "Camera controller should be defined");
+        assert.notStrictEqual(camera(element), before, "the camera turned");
+        assert.isNull(element.getSelectedNode(), "a drag on empty canvas selects nothing");
+    });
 
-            const orbitController = graph.camera.getActiveController();
-            const inputController = graph.camera.getActiveInputHandler();
+    it("two fingers turned spin the camera about the line of sight", async () => {
+        const element = await mounted("3d");
+        await element.setCameraState({ pivotRotation: { x: 0, y: 0, z: 0 } });
+        await applied(element);
 
-            assert.instanceOf(orbitController, OrbitCameraController, "Orbit camera controller should be defined");
-            assert.isNotNull(inputController, "Input controller should be defined");
+        await twist(element, CENTER, 120, 40);
+        await applied(element);
 
-            // Spy on the rotate method to verify it's called during drag
-            const rotateSpy = vi.spyOn(orbitController, "rotate");
-
-            const { canvas } = graph;
-
-            // A real one-finger drag
-            await touchDrag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 }, 1);
-
-            // Verify rotate was called during drag
-            assert.isAbove(rotateSpy.mock.calls.length, 0, "rotate() should be called during touch drag");
-        });
-
-        test("keyboard zoom in 3D mode (simulating pinch)", async () => {
-            // Note: In 3D mode, pinch gestures use Hammer.js which is difficult to simulate.
-            // However, keyboard W/S keys also control zoom in 3D mode.
-
-            const orbitController = graph.camera.getActiveController();
-            const inputController = graph.camera.getActiveInputHandler();
-
-            assert.instanceOf(orbitController, OrbitCameraController, "Orbit camera controller should be defined");
-            assert.isNotNull(inputController, "Input controller should be defined");
-
-            const initialDistance = orbitController.cameraDistance;
-
-            const { canvas } = graph;
-            canvas.focus();
-
-            // W key zooms in (decreases distance) - similar to pinch spread
-            await holdKey("w");
-            inputController.update();
-
-            assert.isBelow(
-                orbitController.cameraDistance,
-                initialDistance,
-                "W key (zoom in) should decrease camera distance (like pinch spread)",
-            );
-
-            await releaseKey("w");
-        });
-
-        test("keyboard zoom out 3D mode (simulating pinch)", async () => {
-            // Note: In 3D mode, pinch gestures use Hammer.js which is difficult to simulate.
-            // However, keyboard W/S keys also control zoom in 3D mode.
-
-            const orbitController = graph.camera.getActiveController();
-            const inputController = graph.camera.getActiveInputHandler();
-
-            assert.instanceOf(orbitController, OrbitCameraController, "Orbit camera controller should be defined");
-            assert.isNotNull(inputController, "Input controller should be defined");
-
-            const initialDistance = orbitController.cameraDistance;
-
-            const { canvas } = graph;
-            canvas.focus();
-
-            // S key zooms out (increases distance) - similar to pinch together
-            await holdKey("s");
-            inputController.update();
-
-            assert.isAbove(
-                orbitController.cameraDistance,
-                initialDistance,
-                "S key (zoom out) should increase camera distance (like pinch together)",
-            );
-
-            await releaseKey("s");
-        });
+        const rotation = element.getCameraState().pivotRotation;
+        assert.isDefined(rotation);
+        assert.isAbove(Math.abs(rotation.z), 0.1, "the camera spun");
     });
 });

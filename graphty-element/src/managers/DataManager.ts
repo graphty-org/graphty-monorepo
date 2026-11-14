@@ -1015,8 +1015,21 @@ export class DataManager implements Manager {
      * @internal
      */
     nodeAtRow(row: number): Node | undefined {
+        const id = this.nodeIdAtRow(row);
+        return id === undefined ? undefined : this.nodes.get(id);
+    }
+
+    /**
+     * The id of the node on a row of the snapshot, without building a `Node` for a row that has none
+     * yet: a region over a million batched rows built one per row and ran out of heap.
+     * @param row - The row.
+     * @returns The id, or undefined when the row holds no node.
+     * @internal
+     */
+    nodeIdAtRow(row: number): NodeIdType | undefined {
         try {
-            return this.nodes.get(this.store.builder.idOf(row));
+            const id = this.store.builder.idOf(row);
+            return this.nodeMap.has(id) ? id : undefined;
         } catch (error) {
             // A row past the end or removed holds no node: a hover read of the node ID target can
             // name one, and a pointer observer that throws stops delivering every later event.
@@ -1949,7 +1962,7 @@ export class DataManager implements Manager {
                 if (this.graphContext) {
                     this.eventManager.emitDataLoadingProgress(
                         progress.format,
-                        progress.chunks * 64 * 1024, // Approximate bytes (chunk size)
+                        progress.bytesRead,
                         progress.fileSize,
                         progress.nodeRecords,
                         progress.edgeRecords,
@@ -3429,6 +3442,7 @@ export class DataManager implements Manager {
      * @param load.generation - The place `beginLoad` reserved for this load when the caller's call
      *     was made; left unset, the load takes its place now
      * @param load.coalesce - The key imports coalesce under while the first waits its turn
+     * @param load.signal - Cancels the load: it rejects with the signal's reason and adds nothing
      * @param load.setup - Declared at construction: it becomes the baseline
      */
     async addDataFromSource(
@@ -3440,6 +3454,7 @@ export class DataManager implements Manager {
             generation?: number;
             coalesce?: string;
             setup?: boolean;
+            signal?: AbortSignal;
         } = {},
     ): Promise<void> {
         const replace = load.replace === true;
@@ -3453,12 +3468,12 @@ export class DataManager implements Manager {
         };
         if (load.generation !== undefined || this.dispatcher === null) {
             // Called by a door that already holds the load's place in line (Graph's loads).
-            await this.runLoad(command, generation, load.loadId);
+            await this.runLoad(command, generation, load.loadId, load.signal);
             return;
         }
 
         // Called directly: its place in the session's load line is taken now (issue #3604).
-        await loadLineOf(this.dispatcher).run(() => this.runLoad(command, generation, load.loadId));
+        await loadLineOf(this.dispatcher).run(() => this.runLoad(command, generation, load.loadId, load.signal));
     }
 
     /**
@@ -3468,22 +3483,38 @@ export class DataManager implements Manager {
      * @param command - The import.
      * @param generation - What `beginLoad` returned when the load was asked for.
      * @param loadId - The id its events carry.
+     * @param signal - The caller's cancel signal: it withdraws the load as a superseding load does.
      */
-    private async runLoad(command: DataImportCommand, generation: number, loadId?: number): Promise<void> {
+    private async runLoad(
+        command: DataImportCommand,
+        generation: number,
+        loadId?: number,
+        signal?: AbortSignal,
+    ): Promise<void> {
         const type = command.source.type ?? "data";
         this.throwIfSuperseded(generation, type);
+        signal?.throwIfAborted();
         if (loadId !== undefined && command.source.config !== undefined) {
             this.loadIds.set(command.source.config, loadId);
         }
 
         if (this.dispatcher === null) {
             await this.ingest.oneAtATime(() =>
-                this.ingest.addDataFromSource(type, command.source.config ?? {}, this.graph.writer(null, this.store)),
+                this.ingest.addDataFromSource(
+                    type,
+                    command.source.config ?? {},
+                    this.graph.writer(null, this.store),
+                    signal,
+                ),
             );
             return;
         }
 
         const load = { generation, controller: new AbortController(), type };
+        const cancel = (): void => {
+            load.controller.abort(signal?.reason);
+        };
+        signal?.addEventListener("abort", cancel, { once: true });
         this.inFlight.add(load);
         try {
             await this.dispatcher.dispatch(command, { signal: load.controller.signal });
@@ -3492,6 +3523,7 @@ export class DataManager implements Manager {
             this.throwIfSuperseded(generation, type);
             throw error;
         } finally {
+            signal?.removeEventListener("abort", cancel);
             this.inFlight.delete(load);
         }
     }

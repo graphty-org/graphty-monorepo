@@ -173,15 +173,19 @@ describe("style fidelity gate", () => {
             () => ratchetKnown(records({}), [gate], { reason: "", date: "2026-10-22" }),
             /reason of 10 or more/,
         );
+        assert.throws(
+            () => ratchetKnown(records({}), [gate], { reason: "a reason that names no issue", date: "2026-10-22" }),
+            /names the issue/,
+        );
         const added = ratchetKnown(records({ s: { "node.fill": ["a", "b", "gone"] } }), [gate], {
-            reason: "c fails since the comparator reads fills off the body",
+            reason: "c fails since the comparator reads fills off the body (#7015)",
             date: "2026-10-22",
         });
         assert.deepEqual(added.records.known.s, { "node.fill": ["b", "c", "gone"] });
         assert.deepEqual(added.records.reasons, [
             {
                 date: "2026-10-22",
-                reason: "c fails since the comparator reads fills off the body",
+                reason: "c fails since the comparator reads fills off the body (#7015)",
                 added: { s: { "node.fill": ["c"] } },
                 sources: { unclassified: 1 },
             },
@@ -199,7 +203,11 @@ describe("style fidelity gate", () => {
         const none = ratchetDrops({}, [low]);
         assert.deepEqual([none.drops, none.added, none.unaccepted], [{}, 0, 1]);
         assert.throws(() => ratchetDrops({}, [low], { reason: "", date: "2026-10-31" }), /reason of 10 or more/);
-        const reason = "the oracle now measures the face Graphviz means";
+        assert.throws(
+            () => ratchetDrops({}, [low], { reason: "a reason that names no issue", date: "2026-10-31" }),
+            /names the issue/,
+        );
+        const reason = "the oracle now measures the face Graphviz means (#7015)";
         const added = ratchetDrops({}, [low], { reason, date: "2026-10-31" });
         assert.deepEqual(added.drops, { s: { "node.position": { floor: 0.9, to: 0.5, reason, date: "2026-10-31" } } });
         const back = judgeKey(
@@ -229,7 +237,7 @@ describe("style fidelity gate", () => {
             { gateFloors: true },
         );
         const add = {
-            reason: "the comparator reads the place anew",
+            reason: "the comparator reads the place anew (#7015)",
             date: "2026-11-01",
             properties: ["node.position"],
         };
@@ -260,10 +268,36 @@ describe("style fidelity gate", () => {
         const pruned = ratchetKnown(records(known), [gate], undefined, true);
         assert.deepEqual(pruned.records.known.s, { "stray.present": ["x"], "node.fill": ["d"], "stray.extra": [] });
         assert.strictEqual(pruned.removed, 2);
+        // a list of keys prunes only those keys
+        assert.deepEqual(ratchetKnown(records(known), [gate], undefined, ["other"]).records.known.s, known.s);
+        assert.strictEqual(ratchetKnown(records(known), [gate], undefined, ["s"]).removed, 2);
         assert.include(gateReportText([gate], "none", null), "s stray.present: rect@1");
         // a run that judged no element (a sample that drew nothing) prunes nothing
         const blank = judgeKey("s", run({}, {}, {}), known.s, undefined);
         assert.deepEqual(blank.gone, {});
+    });
+
+    it("prunes a known failure of a property the sample now judges only on the drawing as a whole", () => {
+        // json-vis-siblings: edge.curve is judged once for the drawing ("edges"), so its per-edge entries can never pass
+        // or fail, though the edges are still drawn; node.fill still judges node a one by one, so drawn node b, not
+        // judged for its fill now, is kept
+        const judged = {
+            "edge.curve": ["edges"],
+            "edge.present": ["a->b", "c->d"],
+            "node.fill": ["a"],
+            "node.present": ["a", "b"],
+        };
+        const known = { s: { "edge.curve": ["a->b", "c->d"], "node.fill": ["b"] } };
+        const gate = judgeKey(
+            "s",
+            { ...run({}, { "edge.curve": 1 }, judged), wholeDrawing: ["edges"] },
+            known.s,
+            undefined,
+        );
+        assert.deepEqual(gate.gone, { "edge.curve": ["a->b", "c->d"] });
+        // a run that does not say what it judged as the whole drawing (a gate file written before) prunes none of them
+        const kept = judgeKey("s", run({}, { "edge.curve": 1 }, judged), known.s, undefined);
+        assert.deepEqual(kept.gone, {});
     });
 
     it("raises a floor and records a new one, and never lowers one", () => {

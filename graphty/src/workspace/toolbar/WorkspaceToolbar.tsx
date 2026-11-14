@@ -147,8 +147,10 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
         xr === undefined
             ? []
             : xrRows(xr).map((row) => ({ ...row, checked: row.mode !== "both" && row.mode === active }));
-    // Key 5 switches 2D and 3D; it is shown on the row it would switch to.
-    const keyOn = (mode: "2d" | "3d"): string | undefined => (mode === dimension ? undefined : "5");
+    // The Switch between 2D and 3D command's key, shown on the row it would switch to; that
+    // command has no button, so these rows are where its key is seen.
+    const toggleKey = useCommand("view.toggle-dimension")?.command.keys?.[0];
+    const keyOn = (mode: "2d" | "3d"): string | undefined => (mode === dimension ? undefined : toggleKey);
     return (
         <>
             {active === null || exit === null ? null : (

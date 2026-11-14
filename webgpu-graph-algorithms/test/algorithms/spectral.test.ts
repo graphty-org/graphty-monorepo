@@ -244,6 +244,21 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         }
     }
 
+    it("eigenvector stops at the pass @graphty/algorithms' eigenvectorCentrality stops at (karate 29, grid10 83)", async (t) => {
+        // algorithms/test/unit/indexed/eigenvector.test.ts pins the same two counts on the CPU port
+        const ctx = await context(t);
+        for (const [name, passes] of [
+            ["karate", 29],
+            ["grid10", 83],
+        ] as const) {
+            const { snapshot } = fixture(name, gpuScale());
+            const result = await eigenvectorCentrality(ctx, snapshot);
+            expect(result.iterations, name).toBe(passes);
+            expect(eigenvectorOracle(snapshot, OPTS).iterations, `${name} oracle`).toBe(passes);
+            ctx.release(snapshot);
+        }
+    });
+
     it("converging on the last allowed iteration reports converged: a cap at the first converged iteration is converged, one lower is not, for all three", async (t) => {
         const ctx = await context(t);
         const { snapshot } = fixture("karate", gpuScale());
@@ -389,7 +404,7 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         ctx.release(snapshot);
     });
 
-    it("HITS: hubs of s are the authorities of the reverse orientation (at an even and an odd pin); Katz with beta = 0 is the eigenvector direction", async (t) => {
+    it("HITS: hubs of s are the authorities of the reverse orientation (at an even and an odd pin); Katz with beta = 0 is the directed eigenvector direction", async (t) => {
         const ctx = await context(t);
         const edges = randomEdges(60, 200, 12);
         const forward = snapshotOf(edges, { directed: true, label: "forward" });
@@ -406,13 +421,13 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
             expectAllClose(f.hubs, o.hubs, PARITY, `hubs at ${maxIterations}`);
             expectAllClose(f.authorities, o.authorities, PARITY, `authorities at ${maxIterations}`);
         }
+        // directed, where eigenvector iterates A itself: Katz pulls the in-arcs of the reversed graph, which are the
+        // out-arcs eigenvector pulls (an undirected eigenvector adds the identity shift, which Katz does not)
+        const katz = await katzCentrality(ctx, backward, { beta: 0, maxIterations: 8 });
+        const eigen = await eigenvectorCentrality(ctx, forward, { maxIterations: 8 });
+        expectAllClose(katz.scores, eigen.scores, { rel: 1e-4, abs: 1e-7 }, "katz(beta = 0) = eigenvector");
         ctx.release(forward);
         ctx.release(backward);
-        const { snapshot: karate } = fixture("karate", gpuScale());
-        const katz = await katzCentrality(ctx, karate, { beta: 0, maxIterations: 8 });
-        const eigen = await eigenvectorCentrality(ctx, karate, { maxIterations: 8 });
-        expectAllClose(katz.scores, eigen.scores, { rel: 1e-4, abs: 1e-7 }, "katz(beta = 0) = eigenvector");
-        ctx.release(karate);
     });
 
     it("after release(s) every entry point uploads the snapshot again and returns the same scores bitwise (issue #623: Katz, which binds only the reverse view, threw E_RELEASED)", async (t) => {
@@ -535,6 +550,14 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         await expect(katzCentrality(ctx, snapshot, { maxIterations: 0 })).rejects.toMatchObject({
             code: "E_INVALID_ARGUMENT",
         });
+        for (const tolerance of [Number.NaN, -1e-6]) {
+            for (const run of [hits, eigenvectorCentrality, katzCentrality]) {
+                await expect(run(ctx, snapshot, { tolerance })).rejects.toMatchObject({
+                    code: "E_INVALID_ARGUMENT",
+                    details: { argument: "tolerance" },
+                });
+            }
+        }
         const dest = new Float32Array(n);
         const seen: number[] = [];
         const result = await hits(ctx, snapshot, {

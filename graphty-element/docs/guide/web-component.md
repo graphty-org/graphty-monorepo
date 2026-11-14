@@ -727,7 +727,7 @@ const result = await element.captureScreenshot({
 // Check capabilities before asking for a large one
 const capability = await element.canCaptureScreenshot({ multiplier: 4 });
 if (!capability.supported) {
-    console.warn(capability.reason);
+    console.warn(capability.reason?.code, capability.reason?.params);
 }
 ```
 

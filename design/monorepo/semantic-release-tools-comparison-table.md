@@ -1,5 +1,9 @@
 # Monorepo Release Tools - Quick Comparison
 
+> **Superseded.** This is research from before the release tool was chosen. Releases use Nx Release (`nx release`,
+> configured in `nx.json`); neither Changesets nor semantic-release is used. How releases work today:
+> `.github/workflows/README.md`.
+
 ## Tool Overview
 
 | Tool                       | Type                 | Monorepo Support     | Weekly Downloads | Versioning Method | Maintained By |

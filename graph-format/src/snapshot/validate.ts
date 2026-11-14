@@ -163,7 +163,7 @@ export function computeFlags(core: FlagSource): SnapshotFlags {
  * colIdx.length.
  * @param s - the snapshot
  */
-export function checkI1(s: GraphSnapshot): void {
+export function checkI1(s: Pick<GraphSnapshot, "rowPtr" | "colIdx" | "nodeCount" | "arcCount">): void {
     const { rowPtr, colIdx, nodeCount, arcCount } = s;
     if (rowPtr.length !== nodeCount + 1) {
         throw invariantViolation("I1", `rowPtr has ${rowPtr.length} entries, expected ${nodeCount + 1}`, {

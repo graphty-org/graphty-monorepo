@@ -669,7 +669,7 @@ export interface RankingEntry {
  * 4), a group of size `s` at rank `r` is in exactly when `r + s - 1 <= n`. So the top never holds
  * more than `n` elements and never splits a tie by an arbitrary order -- and it can hold FEWER
  * than `n`, or none at all on a graph whose top value is shared by more than `n` elements.
- * {@link TopRanking.leftOut} and {@link TopRanking.reason} say when that happened.
+ * {@link TopRanking.leftOut} says when that happened.
  */
 export interface TopRanking {
     /** The elements taken, best first: whole tie groups only, never more than the limit. */
@@ -679,8 +679,6 @@ export interface TopRanking {
      * value and its size. Null when nothing was left out on account of a tie.
      */
     readonly leftOut: { readonly value: number; readonly count: number } | null;
-    /** Why fewer elements were taken than the limit allowed, in a sentence; null when none were left out. */
-    readonly reason: string | null;
     /**
      * The value of the highest-ranked element left out, or null when every measured element is in
      * the top. An `{ above }` selection target or a `threshold` filter at this value selects
@@ -926,6 +924,21 @@ export interface RunResult {
      * @returns A view over the values, without an object per element.
      */
     column(field: string): NumericColumnView;
+    /**
+     * The element at each position of {@link RunResult.column}: `ids(field)[i]` is the node or edge
+     * whose value is `column(field).get(i)`. One array for the whole column, so a consumer pairs ids
+     * with values without a {@link RunResult.node} call per element.
+     *
+     * ```ts
+     * const ids = result.ids("value");
+     * const values = result.column("value");
+     * for (let i = 0; i < values.length; i++) scores.set(ids[i], values.get(i));
+     * ```
+     * @param field - The field name, as {@link RunResult.column} takes it.
+     * @returns The ids, in column order.
+     * @since 3.40.0
+     */
+    ids(field: string): readonly NodeId[];
     /**
      * The highest-ranked elements on one field.
      * @param field - The field to rank on.

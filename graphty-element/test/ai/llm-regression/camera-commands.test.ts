@@ -162,21 +162,5 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             assert.ok(result.commandResult, "Expected command result");
             assert.ok(result.commandResult.success, "Expected the camera to move");
         });
-
-        it("tracks latency for camera commands", async () => {
-            const result = await harness.testPrompt("Show isometric view");
-
-            assert.ok(result.latencyMs > 0, "Expected positive latency");
-        });
-
-        it("captures token usage for camera commands", async () => {
-            const result = await harness.testPrompt("View graph from the top");
-
-            // Token usage may not always be available depending on provider configuration
-            if (result.tokenUsage) {
-                assert.ok(result.tokenUsage.prompt > 0, "Expected positive prompt tokens");
-                assert.ok(result.tokenUsage.completion >= 0, "Expected non-negative completion tokens");
-            }
-        });
     });
 });

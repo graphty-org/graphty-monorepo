@@ -262,7 +262,10 @@ describe("neo4j corpus (design 16.5)", () => {
                 if (name === "too-many-bad-cells.csv") {
                     expect(err.report.truncated).toBe(true);
                     expect(err.report.errorCount).toBe(101);
-                    expect(err.report.counts.skippedNodes).toBe(100);
+                    // a bad cell leaves its property unset and keeps the node, as neo4j-admin does
+                    // the 101st node is in the sink when its bad cell ends the import, and is counted
+                    expect(err.report.counts.nodes).toBe(101);
+                    expect(err.report.counts.skippedNodes).toBe(0);
                 } else {
                     expect(err.report.truncated).toBe(false);
                 }

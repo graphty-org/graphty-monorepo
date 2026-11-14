@@ -786,7 +786,9 @@ ipsInput.addEventListener("change", () => {
 
 async function main(): Promise<void> {
     const session = installRemoteLog();
-    console.log(`remote log session ${session}`);
+    if (session !== undefined) {
+        console.log(`remote log session ${session}`);
+    }
     try {
         ctx = await requestGpuContext({ powerPreference: "high-performance" });
     } catch (error) {

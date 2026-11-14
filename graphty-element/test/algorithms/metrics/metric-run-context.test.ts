@@ -180,8 +180,8 @@ describe("a metric run through a run context", () => {
         await new BetweennessCentralityAlgorithm(graph).measureRun(recording.context);
 
         const phases = recording.reports.map((report) => report.phase);
-        assert.include(phases, "tracing shortest paths");
-        assert.include(phases, "reading scores");
+        assert.include(phases, "tracing-shortest-paths");
+        assert.include(phases, "reading-scores");
     });
 
     it("refuses to start once the run has been cancelled", async () => {

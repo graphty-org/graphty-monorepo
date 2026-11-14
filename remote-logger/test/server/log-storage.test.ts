@@ -465,6 +465,19 @@ describe("LogStorage", () => {
             vi.useFakeTimers();
         });
 
+        /**
+         * Add logs as if the server had received them at an earlier time.
+         * @param target - The storage
+         * @param when - The receive time
+         * @param args - The addLogs arguments
+         */
+        function addLogsReceivedAt(target: LogStorage, when: Date, ...args: Parameters<LogStorage["addLogs"]>): void {
+            const now = new Date();
+            vi.setSystemTime(when);
+            target.addLogs(...args);
+            vi.setSystemTime(now);
+        }
+
         afterEach(() => {
             vi.useRealTimers();
         });
@@ -477,7 +490,7 @@ describe("LogStorage", () => {
             const threeDaysAgo = new Date();
             threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
-            retentionStorage.addLogs("old-session", [
+            addLogsReceivedAt(retentionStorage, threeDaysAgo, "old-session", [
                 { time: threeDaysAgo.toISOString(), level: "INFO", message: "Old log" },
             ]);
 
@@ -564,7 +577,7 @@ describe("LogStorage", () => {
             // Add old log
             const twoDaysAgo = new Date();
             twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-            periodicStorage.addLogs("old-session", [
+            addLogsReceivedAt(periodicStorage, twoDaysAgo, "old-session", [
                 { time: twoDaysAgo.toISOString(), level: "INFO", message: "Old log" },
             ]);
 
@@ -586,7 +599,7 @@ describe("LogStorage", () => {
             // Add old log first
             const twoDaysAgo = new Date();
             twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-            retentionStorage.addLogs("mixed-session", [
+            addLogsReceivedAt(retentionStorage, twoDaysAgo, "mixed-session", [
                 { time: twoDaysAgo.toISOString(), level: "INFO", message: "Old log" },
             ]);
 
@@ -616,7 +629,7 @@ describe("LogStorage", () => {
             // Add old error log
             const twoDaysAgo = new Date();
             twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-            retentionStorage.addLogs("mixed-session", [
+            addLogsReceivedAt(retentionStorage, twoDaysAgo, "mixed-session", [
                 { time: twoDaysAgo.toISOString(), level: "ERROR", message: "Old error" },
             ]);
 
@@ -660,6 +673,33 @@ describe("LogStorage", () => {
             expect(periodicStorage.getSessions()).toHaveLength(1);
         });
 
+        test("expires by the server's receive time, not the client's clock", () => {
+            const retentionStorage = new LogStorage({ retentionDays: 1, cleanupIntervalMs: 0 });
+            const twoDaysAgo = new Date();
+            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+            const nextYear = new Date();
+            nextYear.setFullYear(nextYear.getFullYear() + 1);
+
+            // A device whose clock runs a year ahead, received two days ago: expired
+            addLogsReceivedAt(retentionStorage, twoDaysAgo, "future-clock", [
+                { time: nextYear.toISOString(), level: "INFO", message: "From the future" },
+            ]);
+            // A time that does not parse, received now: kept
+            retentionStorage.addLogs("bad-clock", [{ time: "not a time", level: "INFO", message: "Unparseable" }]);
+            // A device whose clock runs two days behind, received now: kept
+            retentionStorage.addLogs("slow-clock", [
+                { time: twoDaysAgo.toISOString(), level: "INFO", message: "From the past" },
+            ]);
+
+            expect(retentionStorage.cleanupExpiredLogs()).toBe(1);
+            expect(
+                retentionStorage
+                    .getSessions()
+                    .map((session) => session.sessionId)
+                    .sort(),
+            ).toEqual(["bad-clock", "slow-clock"]);
+        });
+
         test("cleanupExpiredLogs is idempotent", () => {
             const retentionStorage = new LogStorage({ retentionDays: 1 });
 
@@ -699,7 +739,9 @@ describe("LogStorage", () => {
             // Add old log
             const twoDaysAgo = new Date();
             twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-            retentionStorage.addLogs(
+            addLogsReceivedAt(
+                retentionStorage,
+                twoDaysAgo,
                 "old-session",
                 [{ time: twoDaysAgo.toISOString(), level: "INFO", message: "Old log" }],
                 { projectMarker: "old-project" },
@@ -719,8 +761,9 @@ describe("LogStorage", () => {
             expect(fs.existsSync(path.join(testBaseDir, "old-project"))).toBe(true);
             expect(fs.existsSync(path.join(testBaseDir, "new-project"))).toBe(true);
 
-            // Set old project directory mtime to 2 days ago
+            // Set old project's last write to 2 days ago
             const oldDir = path.join(testBaseDir, "old-project");
+            fs.utimesSync(path.join(oldDir, "logs.jsonl"), twoDaysAgo, twoDaysAgo);
             fs.utimesSync(oldDir, twoDaysAgo, twoDaysAgo);
 
             // Run cleanup
@@ -743,6 +786,81 @@ describe("LogStorage", () => {
             } catch {
                 // Ignore cleanup errors
             }
+        });
+    });
+
+    describe("Limits", () => {
+        /**
+         * Make log entries.
+         * @param count - How many
+         * @param prefix - Message prefix
+         * @param level - Log level
+         * @returns The entries
+         */
+        function makeLogs(count: number, prefix: string, level = "INFO"): LogEntry[] {
+            return Array.from({ length: count }, (_, i) => ({
+                time: new Date().toISOString(),
+                level,
+                message: `${prefix}${i}`,
+            }));
+        }
+
+        test("keeps only the newest logs of a session past its cap", () => {
+            const limited = new LogStorage({ maxLogsPerSession: 3, cleanupIntervalMs: 0 });
+            limited.addLogs("s", [...makeLogs(2, "error", "ERROR"), ...makeLogs(3, "info")]);
+
+            expect(limited.getLogsForSession("s").map((log) => log.message)).toEqual(["info0", "info1", "info2"]);
+            const metadata = limited.getSessionMetadata("s");
+            expect(metadata?.logCount).toBe(3);
+            expect(metadata?.errorCount).toBe(0);
+            expect(limited.getHealth().totalLogs).toBe(3);
+        });
+
+        test("drops the oldest received logs across sessions past the total cap", () => {
+            const limited = new LogStorage({ maxTotalLogs: 4, cleanupIntervalMs: 0 });
+            limited.addLogs("a", makeLogs(3, "a"));
+            limited.addLogs("b", makeLogs(3, "b"));
+
+            expect(limited.getHealth().totalLogs).toBe(4);
+            expect(limited.getLogsForSession("a").map((log) => log.message)).toEqual(["a2"]);
+            expect(limited.getLogsForSession("b")).toHaveLength(3);
+
+            limited.addLogs("b", makeLogs(1, "c"));
+            expect(limited.hasSession("a")).toBe(false);
+            expect(limited.getHealth()).toMatchObject({ sessionCount: 1, totalLogs: 4 });
+        });
+
+        test("drops the session idle longest past the session cap", () => {
+            vi.useFakeTimers();
+            try {
+                const limited = new LogStorage({ maxSessions: 2, cleanupIntervalMs: 0 });
+                limited.addLogs("first", makeLogs(1, "x"));
+                vi.advanceTimersByTime(1000);
+                limited.addLogs("second", makeLogs(1, "x"));
+                vi.advanceTimersByTime(1000);
+                limited.addLogs("first", makeLogs(1, "y"));
+                vi.advanceTimersByTime(1000);
+                limited.addLogs("third", makeLogs(1, "x"));
+
+                expect(
+                    limited
+                        .getSessions()
+                        .map((session) => session.sessionId)
+                        .sort(),
+                ).toEqual(["first", "third"]);
+                expect(limited.getHealth().totalLogs).toBe(3);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        test("clearing keeps the total in step", () => {
+            const limited = new LogStorage({ maxTotalLogs: 2, cleanupIntervalMs: 0 });
+            limited.addLogs("a", makeLogs(2, "a"));
+            limited.clearLogs({ sessionId: "a" });
+            limited.addLogs("b", makeLogs(2, "b"));
+
+            expect(limited.getLogsForSession("b")).toHaveLength(2);
         });
     });
 });

@@ -679,7 +679,7 @@ describe("the Overview and the import of time", () => {
         });
     });
 
-    it("draws the elements outside the window as ghosts with Outside: Ghost, and moves them as the window moves", async () => {
+    it("hides the elements outside the window through the Timeline Hidden row, which follows the window", async () => {
         const { session } = await open(PAPERS);
         await session.config.set({ startingRows: true });
         await pickField("year", "Node time");
@@ -694,7 +694,9 @@ describe("the Overview and the import of time", () => {
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
-        const outside = await (await timeCard()).findByRole("radiogroup", { name: "Outside" });
+        // How what lies outside draws is the row's style, edited like any other row: the Time card
+        // has no control of its own for it.
+        assert.isNull((await timeCard()).queryByRole("radiogroup", { name: "Outside" }));
         const graph = session.data.snapshot();
         const ghostLayer = session.styles
             .list()
@@ -702,42 +704,28 @@ describe("the Overview and the import of time", () => {
         assert.isDefined(ghostLayer);
         // What the Timeline Hidden layer selects: every node outside the window.
         const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").matched;
-        // Whether the layer draws them (Ghost) or leaves them out (Hide).
-        const drawn = (): boolean =>
-            session.styles.list().find((layer) => layer.id === ghostLayer?.id)?.set?.["node.visible"] !== false;
         // What lies outside the window: the window narrows only the drawing, never the visible count.
         const outsideCount = (): number => graph.nodeCount - (session.time.inside?.nodes ?? graph.nodeCount);
         // Hidden by default: the layer selects what lies outside and leaves it undrawn.
         assert.equal(session.time.settings.outside, "hide");
-        assert.isFalse(drawn(), "hidden, not ghosted, by default");
-        assert.equal(ghosts(), outsideCount());
-
-        await userEvent.click(within(outside).getByText("Ghost"));
+        assert.isFalse(ghostLayer?.set?.["node.visible"], "hidden, not ghosted, by default");
         await waitFor(() => {
-            assert.equal(session.time.settings.outside, "ghost");
-            assert.isTrue(drawn());
             assert.isAbove(ghosts(), 0);
             assert.equal(ghosts(), outsideCount());
         });
         // The window narrows nothing visible: every node stays in the visible count.
         assert.equal(session.visibility.summary.visibleNodes, graph.nodeCount);
 
-        // Scrub: step forward, and the ghosts follow the window.
+        // Scrub: step forward, and what the row selects follows the window.
         const first = Number(session.time.current?.from);
         await userEvent.keyboard(".");
         await waitFor(() => {
             assert.isAbove(Number(session.time.current?.from), first);
             assert.equal(ghosts(), outsideCount());
         });
-
-        await userEvent.click(within(outside).getByText("Hide"));
-        await waitFor(() => {
-            assert.equal(session.time.settings.outside, "hide");
-            assert.isFalse(drawn());
-        });
     });
 
-    it("plays the Marvel films with no layout running: no node and no camera moves, and Ghost draws the rest", async () => {
+    it("plays the Marvel films with no layout running: no node and no camera moves, and the Timeline Hidden row holds the rest", async () => {
         const { session } = await open(MARVEL, "graph");
         await session.config.set({ startingRows: true });
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
@@ -773,19 +761,13 @@ describe("the Overview and the import of time", () => {
         assert.equal(positions(session), before, "no node moved");
         assert.equal(JSON.stringify(element?.getCameraState()), camera, "the camera stayed");
 
-        // Outside: Ghost draws what lies outside through the Timeline Hidden layer, which counts it.
+        // The Timeline Hidden layer selects what lies outside the window, and counts it.
         const ghostLayer = session.styles
             .list()
             .find((layer) => layer.name === "Timeline Hidden" && layer.target === "node");
-        const outside = await (await timeCard()).findByRole("radiogroup", { name: "Outside" });
-        await userEvent.click(within(outside).getByText("Ghost"));
         await waitFor(() => {
-            assert.equal(session.time.settings.outside, "ghost");
             assert.isAbove(session.styles.counts(ghostLayer?.id ?? "").matched, 0);
         });
-        await element?.waitForSettled();
-        assert.equal(positions(session), before, "ghosting moved no node");
-        assert.equal(JSON.stringify(element?.getCameraState()), camera, "ghosting moved no camera");
     });
 
     it("shows an Untimed control for a file with blank times, and Hide leaves them out", async () => {

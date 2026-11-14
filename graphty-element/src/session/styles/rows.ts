@@ -344,7 +344,8 @@ export type TimelineHiddenLook = "hidden" | "ghost";
  * window), pinned to the top directly below Selected. An ordinary row: it hides or ghosts what lies
  * outside the window only because it selects that state, and deleting it draws those elements as
  * any other.
- * @param look - `"hidden"` sets `visible: false`; `"ghost"` draws them grey and faint.
+ * @param look - `"hidden"` sets `visible: false`; `"ghost"` sets `visible: true` and draws them grey
+ * and faint.
  * @returns The row.
  */
 export function timelineHiddenRow(look: TimelineHiddenLook): {
@@ -359,7 +360,12 @@ export function timelineHiddenRow(look: TimelineHiddenLook): {
             name: "Timeline Hidden",
             target: "both",
             selector: { match: "state", state: "outsideWindow" },
-            set: look === "ghost" ? { ...STARTING_GHOST_LOOK } : { "node.visible": false, "edge.visible": false },
+            // Ghost says it draws (visible: true), so what reads the look from the layers
+            // (`time.settings.outside`, a branches view) agrees with the row.
+            set:
+                look === "ghost"
+                    ? { ...STARTING_GHOST_LOOK, "node.visible": true, "edge.visible": true }
+                    : { "node.visible": false, "edge.visible": false },
             source: { by: "template", templateId: TIMELINE_HIDDEN_ROW_ID },
         },
     };

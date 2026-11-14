@@ -84,7 +84,8 @@ describe("the Timeline Hidden row", () => {
         const session = await timed({ look: "ghost" });
         const node = named(session, "Timeline Hidden").find((layer) => layer.target === "node");
         assert.deepInclude(node?.set ?? {}, { "node.color": "#9E9E9E", "node.opacity": 0.2 });
-        assert.isUndefined(node?.set?.["node.visible"]);
+        assert.strictEqual(node?.set?.["node.visible"], true);
+        assert.strictEqual(session.time.settings.outside, "ghost", "the look the row draws is the one it reports");
 
         await session.config.set({ timelineHiddenLook: "hidden" });
         const after = named(session, "Timeline Hidden").find((layer) => layer.target === "node");
@@ -125,6 +126,58 @@ describe("the Timeline Hidden row", () => {
         }
 
         assert.lengthOf(named(opened, "Timeline Hidden"), 0, "the older row selects the state already");
+        opened.dispose();
+    });
+
+    it("opens a reader's layer reading ghosted and a ghost-look row exactly as saved", async () => {
+        const session = await timed({ look: "ghost" });
+        await session.time.setField({ nodes: { start: "t" } });
+        await session.time.window({ from: 1, to: 3 });
+        await session.styles.add({
+            name: "Held tint",
+            target: "node",
+            selector: { match: "state", state: "ghosted" },
+            set: { "node.color": "#FF0000" },
+        });
+        const before = session.styles
+            .list()
+            .map((layer) => ({ name: layer.name, selector: layer.selector, set: layer.set }));
+
+        const opened = await reopen((await session.project.save()).text);
+        const after = opened.styles
+            .list()
+            .map((layer) => ({ name: layer.name, selector: layer.selector, set: layer.set }));
+        assert.deepEqual(after, before);
+        assert.strictEqual(opened.time.settings.outside, "ghost");
+        for (const each of [session, opened]) {
+            each.dispose();
+        }
+    });
+
+    it("opens an older timed file, saved with the default Hide and no Ghost row, hiding what lies outside", async () => {
+        const session = createGraphSession();
+        const nodes = Array.from({ length: 4 }, (_, i) => ({ id: `n${String(i)}`, t: i }));
+        await session.data.import({ type: "json", config: { data: JSON.stringify({ nodes, edges: [] }) } });
+        await session.time.setField({ nodes: { start: "t" } });
+        await session.time.window({ from: 1, to: 3 });
+        const saved = (await session.project.save()).text;
+        session.dispose();
+        // An older writer did not mark that the layers say how what lies outside draws.
+        const document = JSON.parse(saved) as { members: { kind: string; visibility?: Record<string, unknown> }[] };
+        const member = document.members.find((each) => each.kind === "graphty-session");
+        assert.isTrue(member?.visibility?.outsideByLayers);
+        delete member?.visibility?.outsideByLayers;
+        const older = JSON.stringify(document);
+
+        const opened = await reopen(older);
+        const hiding = opened.styles
+            .list()
+            .filter((layer) => layer.selector.match === "state" && layer.selector.state === "outsideWindow");
+        assert.sameMembers(
+            hiding.map((layer) => layer.set?.[`${layer.target}.visible`]),
+            [false, false],
+        );
+        assert.strictEqual(opened.time.settings.outside, "hide");
         opened.dispose();
     });
 

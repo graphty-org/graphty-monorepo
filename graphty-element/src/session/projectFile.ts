@@ -839,6 +839,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
             ...(dispatcher.state.visibility.playback === undefined || dispatcher.state.visibility.playback === null
                 ? {}
                 : { playback: dispatcher.state.visibility.playback }),
+            // Written while the timeline is on: what lies outside the time window draws only as
+            // its style layers say, so an open never brings these layers "up to date" again
+            // (`outsideWindowLayers`). A file without it was saved before, or with the timeline off.
+            ...(dispatcher.services.timeline?.() === true ? { outsideByLayers: true } : {}),
             // Written only when a node is hidden from the drawing, so a project without saves as before.
             ...((dispatcher.state.visibility.hidden ?? []).length === 0
                 ? {}
@@ -2044,7 +2048,9 @@ async function readProject(
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
-    await attempt(opening, "styles", () => outsideWindowLayers(tx, visibility?.playback));
+    if (visibility?.outsideByLayers !== true) {
+        await attempt(opening, "styles", () => outsideWindowLayers(tx, visibility?.playback));
+    }
 
     for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
         await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
@@ -2122,10 +2128,12 @@ function outsideSelector(selector: Selector): Selector {
 
 /**
  * Bring a timed project saved before what lies outside the time window had a state of its own up
- * to date. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant what
- * lay outside the window, so they read `"outsideWindow"` now, and the saved `outside` (hidden
- * unless it says `"ghost"`) is written to the style layers the way `time.setSettings` writes it.
- * A project brought up to date reads no `"ghosted"`, so this finds nothing the second time.
+ * to date: called only for a file without the session member's `outsideByLayers` mark, which every
+ * save with the timeline on writes, so a layer a reader points at `"ghosted"` today is never
+ * rewritten. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant
+ * what lay outside the window, so they read `"outsideWindow"` now, and the saved `outside` (hidden
+ * unless it says `"ghost"`; hidden when absent, as that was the default) is written to the style
+ * layers the way `time.setSettings` writes it, as the window hid them then.
  * @param tx - The transaction.
  * @param playback - The saved timeline settings.
  */
@@ -2135,34 +2143,27 @@ async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Pro
         return;
     }
 
-    const older = await ghostedLayersOutside(tx);
+    await ghostedLayersOutside(tx);
     ghostedSetsOutside(tx);
 
     // Saved before the drawing lived in the layers, when what lay outside was hidden unless the
     // playback said "ghost": the layers selecting it are written to draw it that way.
     const saved =
         typeof playback === "object" && playback !== null && "outside" in playback ? playback.outside : undefined;
-    if (older || saved !== undefined) {
-        await tx.time.setSettings({ outside: saved === "ghost" ? "ghost" : "hide" });
-    }
+    await tx.time.setSettings({ outside: saved === "ghost" ? "ghost" : "hide" });
 }
 
 /**
  * Rewrite every layer reading `"ghosted"` to read `"outsideWindow"`.
  * @param tx - The transaction.
- * @returns Whether any layer read it, which only a project saved before the state existed does.
  */
-async function ghostedLayersOutside(tx: TransactionScope): Promise<boolean> {
-    let older = false;
+async function ghostedLayersOutside(tx: TransactionScope): Promise<void> {
     for (const layer of tx.styles.list()) {
         const selector = layer.source.by === "element" ? layer.selector : outsideSelector(layer.selector);
         if (selector !== layer.selector) {
-            older = true;
             await tx.styles.update(layer.id, { selector });
         }
     }
-
-    return older;
 }
 
 /**

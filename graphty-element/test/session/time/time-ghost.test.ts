@@ -304,6 +304,7 @@ describe("timeline ghosts", () => {
         // row selects "ghosted" and sets no visible, and the playback says how it draws.
         const before = (outside: "hide" | "ghost"): string =>
             text
+                .replace(',"outsideByLayers":true', "")
                 .replaceAll('"state":"outsideWindow"', '"state":"ghosted"')
                 .replaceAll(',"node.visible":true', "")
                 .replaceAll(',"edge.visible":true', "")
@@ -452,7 +453,9 @@ describe("timeline ghosts", () => {
         await session.time.setSettings({ missing: "outside" });
         const { text } = await session.project.save();
         session.dispose();
+        // An older writer wrote no outsideByLayers mark.
         const before = text
+            .replace(',"outsideByLayers":true', "")
             .replaceAll('"state":"outsideWindow"', '"state":"ghosted"')
             .replace('"playback":{"missing":"outside"}', '"playback":{"missing":"outside","outside":"ghost"}');
         assert.include(before, '"outside":"ghost"');

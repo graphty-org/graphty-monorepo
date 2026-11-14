@@ -247,7 +247,7 @@ With the project setting `startingRows` on, the element adds one such row for yo
 directly below Selected. The project setting `timelineHiddenLook` picks how it starts:
 
 - `"hidden"` (the default): `visible: false`, so what lies outside the window is not drawn at all;
-- `"ghost"`: grey at low opacity, so it stays on screen as context.
+- `"ghost"`: `visible: true`, grey at low opacity, so it stays on screen as context.
 
 ```js
 await g.session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
@@ -273,6 +273,11 @@ adding one for nodes and one for edges when no layer selects it, and `outside: "
 `visible: true` on them the same way. `time.settings.outside` reads the layers: it
 says `"ghost"` only while layers selecting the state draw both nodes and edges outside the window,
 and `"hide"` otherwise.
+
+A project saved before what lies outside the window had a state of its own opens the way it
+looked then: its layers reading `"ghosted"` read `"outsideWindow"`, and what lies outside is hidden
+unless its timeline settings said `"ghost"`. A project saved since opens with its layers exactly
+as saved, including a layer of yours that reads `"ghosted"`.
 
 A play, a step or a jump moves no node and no camera, even with `layout.visibleOnly`, which lays
 out only what the filter keeps. A hidden element's halo, label and support point go with it.

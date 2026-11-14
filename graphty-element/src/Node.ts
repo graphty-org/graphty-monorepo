@@ -36,7 +36,7 @@ import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
 import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
-import { applyFlatHalo, flatHaloLift, haloFrontOf } from "./meshes/flatHalo";
+import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { labelFitExtent } from "./meshes/labelFit";
@@ -3386,20 +3386,13 @@ export class Node implements ModelUser {
             // moves out by the configured multiplier, so a box gets a box, a cylinder a
             // cylinder, and a node drawn wider than tall a halo wider than tall.
             overlay.scaling.copyFrom(this.#anchor.scaling).scaleInPlace(selection.scale);
-            const front = overlay instanceof InstancedMesh ? haloFrontOf(overlay.sourceMesh) : undefined;
-            this.haloLift = front === undefined ? 0 : flatHaloLift(front, this.#anchor.scaling.z);
+            this.haloLift = flatHaloLift(overlay, this.#anchor.scaling.z);
         } else {
             this.contextPoint = overlay;
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
         }
 
-        this.followRow();
-        overlay.position.copyFrom(this.#anchor.position);
-        if (kind === "halo") {
-            // the 2D camera looks along +z, so toward it is down z
-            overlay.position.z -= this.haloLift;
-        }
-
+        this.syncOverlayPositions();
         overlay.setEnabled(true);
         this.context.getNodeBatches?.()?.rewalk(this);
     }
@@ -3873,6 +3866,7 @@ export class Node implements ModelUser {
         this.followRow();
         if (this.halo && !this.halo.isDisposed()) {
             this.halo.position.copyFrom(this.#anchor.position);
+            // the 2D camera looks along +z, so toward it is down z
             this.halo.position.z -= this.haloLift;
         }
 

@@ -1,4 +1,4 @@
-import { type Mesh, VertexBuffer, VertexData } from "@babylonjs/core";
+import { type AbstractMesh, InstancedMesh, type Mesh, VertexBuffer, VertexData } from "@babylonjs/core";
 
 /**
  * How far in front of the plane the edges lie on a 2D halo is drawn, in scene units, at most
@@ -41,7 +41,7 @@ export function applyFlatHalo(source: Mesh, shape: Mesh): number {
 
     // A node behind the edges' plane (a negative `zIndex`) keeps its halo on its own front, where
     // the halo material's depth offset puts it just behind the node, as it is behind the edges.
-    const plane = front < 0 ? 0 : front;
+    const plane = Math.max(front, 0);
     const flat = Array.from(positions, (value, i) => (i % 3 === 2 ? plane : value));
     const data = new VertexData();
     data.positions = flat;
@@ -52,15 +52,17 @@ export function applyFlatHalo(source: Mesh, shape: Mesh): number {
 }
 
 /**
- * How far toward the 2D camera a flat halo is moved from its node's position: in front of the
- * edges' plane by {@link FLAT_HALO_LIFT}, or by half the node's own reach when that is less, so
- * the node's front stays nearer than its halo. A node behind the edges' plane lifts none.
- * @param front - The node's nearest depth, from {@link applyFlatHalo}.
+ * How far toward the 2D camera a halo is moved from its node's position: a flat halo
+ * ({@link applyFlatHalo}) in front of the edges' plane by {@link FLAT_HALO_LIFT}, or by half the
+ * node's own reach when that is less, so the node's front stays nearer than its halo. A node
+ * behind the edges' plane, and any other halo, lifts none.
+ * @param halo - The drawn halo, an instance of its source mesh.
  * @param depthScale - The node's scaling along the view.
  * @returns The lift, in scene units.
  */
-export function flatHaloLift(front: number, depthScale: number): number {
-    return front < 0 ? Math.min(FLAT_HALO_LIFT, (-front * Math.abs(depthScale)) / 2) : 0;
+export function flatHaloLift(halo: AbstractMesh, depthScale: number): number {
+    const front = halo instanceof InstancedMesh ? haloFrontOf(halo.sourceMesh) : undefined;
+    return front !== undefined && front < 0 ? Math.min(FLAT_HALO_LIFT, (-front * Math.abs(depthScale)) / 2) : 0;
 }
 
 /**
@@ -68,6 +70,6 @@ export function flatHaloLift(front: number, depthScale: number): number {
  * @param source - A halo's source mesh.
  * @returns The depth from {@link applyFlatHalo}, or undefined.
  */
-export function haloFrontOf(source: Mesh): number | undefined {
+function haloFrontOf(source: Mesh): number | undefined {
     return (source.metadata as { flatHaloFront?: number } | null)?.flatHaloFront;
 }

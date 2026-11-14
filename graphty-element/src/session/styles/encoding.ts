@@ -2897,9 +2897,12 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
     const descriptor = requireChannel(channel);
     const count = Math.max(0, Math.floor(options.count));
     const numeric = descriptor.accepts === "number";
-    // Items are groups for a colour or a list value, amounts for a number.
+    // Items are groups for a colour or a list value, amounts for a number. The scale is named here
+    // because a map keyed by item position would otherwise default a number to "passthrough".
     const binding: RuleBinding =
-        options.binding.scale === undefined && !numeric ? { ...options.binding, scale: "ordinal" } : options.binding;
+        options.binding.scale === undefined
+            ? { ...options.binding, scale: numeric ? "linear" : "ordinal" }
+            : options.binding;
     if (count === 0) {
         return { channel: descriptor.channel, values: [], cue: null, palette: null };
     }

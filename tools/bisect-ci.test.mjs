@@ -454,6 +454,30 @@ describe("runPoint", () => {
         // a whole-shard run of a name that no longer exists is still none
         assert.equal(await runArgs("graphty-element-default", []), null);
     });
+
+    it("runs an LLM target under the point's own shard name at a point from before the split", () => {
+        const root = mkdtempSync(join(tmpdir(), "bisect-old-point-"));
+        try {
+            execFileSync("mkdir", ["-p", join(root, "tools")]);
+            writeFileSync(
+                join(root, "tools", "ci-test-matrix.mjs"),
+                'export const SHARDS = [{ shard: "graphty-element-default" }];\n',
+            );
+            const url = new URL("./bisect-ci.mjs", import.meta.url).href;
+            const out = execFileSync(
+                process.execPath,
+                [
+                    "--input-type=module",
+                    "-e",
+                    `const { runArgs } = await import(${JSON.stringify(url)}); console.log(JSON.stringify(await runArgs("llm-regression", ["test/ai/a.test.ts"])));`,
+                ],
+                { env: { ...process.env, BISECT_ROOT: root }, encoding: "utf8" },
+            );
+            assert.equal(JSON.parse(out)[1], "graphty-element-default");
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
 });
 
 describe("a point's time limit", () => {

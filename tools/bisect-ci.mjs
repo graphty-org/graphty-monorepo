@@ -302,14 +302,18 @@ function shortPoints(s, results) {
  * @returns arguments for tools/run-tests.sh, or null when the shard does not exist at the point
  */
 export async function runArgs(shard, files) {
-    if (shard === "llm-regression")
-        return [
-            "--command",
-            "graphty-element-default-1",
-            `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.map(quote).join(" ")}`.trimEnd(),
-        ];
     const at = (f) => import(pathToFileURL(join(ROOT, f)).href).catch(() => ({}));
     const { SHARDS = [] } = await at("tools/ci-test-matrix.mjs");
+    if (shard === "llm-regression") {
+        // runs in a graphty-element-default shard under that point's own name (one shard before #7849, parts after)
+        const host = SHARDS.find((x) => familyOf(x.shard) === "graphty-element-default");
+        if (!host) return null;
+        return [
+            "--command",
+            host.shard,
+            `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.map(quote).join(" ")}`.trimEnd(),
+        ];
+    }
     const { selectedCommand } = await at("tools/test-select.mjs");
     // a test recorded under a shard since split into parts (graphty-element-default became -1 and -2, #7849) runs
     // its files in a part of the same family: a selection runs the family's files whatever the part

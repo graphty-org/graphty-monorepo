@@ -894,7 +894,12 @@ export function graphDiffOf(passes: readonly GraphPass[]): GraphDiff {
             map.set(id, [map.get(id)?.[0] ?? was, now]);
         };
         const ops = log.flatMap((entry) => (entry instanceof GraphEntry ? entry.ops : []));
-        for (const op of undo ? ops.toReversed() : ops) {
+        if (undo) {
+            // A fresh array from flatMap: reversing it in place touches nothing the log holds.
+            ops.reverse();
+        }
+
+        for (const op of ops) {
             diffOp(op, mark, fields);
         }
     }

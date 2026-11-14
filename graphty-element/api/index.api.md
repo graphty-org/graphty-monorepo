@@ -5380,6 +5380,8 @@ class Node_2 implements ModelUser {
     get batchLook(): string;
     // @internal
     get borderReach(): number;
+    // @internal
+    borderReachAlong(dir: Xyz): number;
     get data(): AdHocData<string | number>;
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];

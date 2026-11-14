@@ -15,6 +15,7 @@ import {
     engineOf,
     isDrawn,
     LAYOUT_SEED,
+    layoutDescription,
     layoutName,
     MAP_LAYOUT,
     randomSeed,
@@ -512,6 +513,7 @@ export function LayoutForm({
         .join("; ");
     const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => optionWords(descriptor.id, option);
 
+    const description = layoutDescription(descriptor);
     const takesSeed = descriptor.options.some((o) => o.name === "seed");
     const row = selectionWorkspaceOn(session);
     const seed = takesSeed ? (
@@ -541,9 +543,9 @@ export function LayoutForm({
         >
             <Stack gap={row ? 4 : 8} className={row ? "ws-options-rows" : undefined}>
                 {header}
-                {descriptor.description === "" || row ? null : (
+                {description === "" || row ? null : (
                     <Text size="xs" c="dimmed">
-                        {descriptor.description}
+                        {description}
                     </Text>
                 )}
                 {showShape ? <ShapeField id={descriptor.id} shape={shape} onPick={pickShape} row={row} /> : null}

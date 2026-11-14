@@ -6182,6 +6182,10 @@ export interface SessionEventMap {
     };
     "layout:motion-changed": {
         readonly motion: LayoutMotion;
+        readonly id: LayoutId;
+        readonly engine: string;
+        readonly kind: "live" | "batch";
+        readonly step: number;
     };
     "model:changed": ModelChange;
     "network:pending": NetworkRequest;
@@ -6311,19 +6315,38 @@ export interface SessionLayout {
     readonly motion: LayoutMotion;
     optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
     readonly options: Readonly<Record<string, unknown>>;
+    pause(): Promise<void>;
+    play(): Promise<void>;
     rerun(): Promise<void>;
     set(id: LayoutId, options?: {
         readonly engine?: string;
         readonly options?: Readonly<Record<string, unknown>>;
     }): Promise<void>;
     setDimension(dimension: "2d" | "3d"): Promise<void>;
+    settle(): Promise<boolean>;
+    readonly step: number;
+    tick(count?: number): void;
 }
 
 // @public
 export interface SessionPositions extends ReadonlyElementPositions {
+    get(id: NodeId_2): {
+        readonly x: number;
+        readonly y: number;
+        readonly z: number;
+    } | undefined;
     pin(ids: readonly NodeId_2[]): Promise<void>;
     readonly pinned: ReadonlySet<NodeId_2>;
+    pinnedMask(): Uint8Array;
+    restore(saved: {
+        readonly order: readonly NodeId_2[];
+        readonly xyz: Float32Array;
+    }): Promise<void>;
     set(entries: readonly PositionEntry[]): Promise<void>;
+    snapshot(): {
+        readonly order: readonly NodeId_2[];
+        readonly xyz: Float32Array;
+    };
     unpin(ids: readonly NodeId_2[]): Promise<void>;
 }
 

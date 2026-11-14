@@ -2152,8 +2152,9 @@ export function compareOracle(
         if (o.shape !== null) {
             j.add("node.shape", "node", id, o.shape === g.shape ? 0 : 1, o.shape, g.shape);
         }
-        const oFill = shownFill(o);
-        // graphty's fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across
+        // each fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across, on
+        // either side (yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size: graphml-stm32-func)
+        const oFill = Math.min(o.w, o.h) < 0.5 ? null : shownFill(o);
         const gFill = Math.min(g.w, g.h) * lengthScale < 0.5 ? null : g.fill;
         const gGradAngle = gFill?.gradient?.angle ?? null;
         const runAngles = {

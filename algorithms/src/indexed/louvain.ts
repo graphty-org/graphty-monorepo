@@ -1,6 +1,6 @@
 import { type GraphSnapshot, renumberPartition } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { checkNumber, checkWeights, withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
 
 /** Options of the index-based Louvain, matching the legacy `louvain`. @public */
@@ -416,6 +416,26 @@ function aggregate(level: Level, comm: Uint32Array, count: number): Level {
 }
 
 /**
+ * Refuse a directed snapshot (`E_NEEDS_UNDIRECTED`), options out of range (`E_BAD_OPTION`) and NaN, infinite or
+ * negative weights (`E_BAD_WEIGHT`).
+ * @param s - The snapshot
+ * @param o - Algorithm options
+ * @internal
+ */
+export function checkLouvainOptions(s: GraphSnapshot, o: LouvainOptions | undefined): void {
+    if (s.directed) {
+        throw withCode(
+            new Error("Louvain requires an undirected graph. Pass s.toUndirected().snapshot."),
+            "E_NEEDS_UNDIRECTED",
+        );
+    }
+    checkNumber("louvain", "resolution", o?.resolution ?? 1, { min: 0 });
+    checkNumber("louvain", "maxIterations", o?.maxIterations ?? 100, { min: 0, integer: true });
+    checkNumber("louvain", "tolerance", o?.tolerance ?? 1e-6, { min: 0 });
+    checkWeights("louvain", s.weights);
+}
+
+/**
  * Louvain community detection over a snapshot: local moving to the best modularity gain, then
  * collapse each community into a node and repeat, until a level stops paying for itself.
  *
@@ -426,15 +446,12 @@ function aggregate(level: Level, comm: Uint32Array, count: number): Level {
  * @param s - An undirected snapshot
  * @param o - Algorithm options
  * @returns The partition, its modularity, and the number of levels that improved it
+ * @throws Error (code `E_NEEDS_UNDIRECTED`) on a directed snapshot; RangeError (code `E_BAD_OPTION` or
+ *   `E_BAD_WEIGHT`) for an option or weight out of range
  * @public
  */
 export function louvain(s: GraphSnapshot, o: LouvainOptions = {}): LouvainResult {
-    if (s.directed) {
-        throw withCode(
-            new Error("Louvain requires an undirected graph. Pass s.toUndirected().snapshot."),
-            "E_NEEDS_UNDIRECTED",
-        );
-    }
+    checkLouvainOptions(s, o);
     const resolution = o.resolution ?? 1;
     const maxIterations = o.maxIterations ?? 100;
     const tolerance = o.tolerance ?? 1e-6;

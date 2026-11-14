@@ -14,7 +14,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { resolveEndpoints } from "../../src/data/endpoints";
+import { readEndpoint, resolveEndpoints } from "../../src/data/endpoints";
 import { isGraphtyError } from "../../src/errors";
 
 /** The code a call refused with, or null when it did not refuse. */
@@ -142,5 +142,34 @@ describe("choosing which keys name an edge's endpoints", () => {
 
         assert.strictEqual(resolved.source, "ends.source");
         assert.strictEqual(resolved.resolvedFrom, "declared");
+    });
+
+    it("refuses a declared expression that is not valid JMESPath, naming the option", () => {
+        // A typo used to read null on every record, so every edge was left out as "missing endpoint".
+        let thrown: unknown;
+        try {
+            resolveEndpoints([{ a: "one", b: "two" }], { source: "a[", target: "b" });
+        } catch (error) {
+            thrown = error;
+        }
+
+        assert.isTrue(isGraphtyError(thrown));
+        if (!isGraphtyError(thrown)) {
+            return;
+        }
+
+        assert.strictEqual(thrown.code, "E_OPTION_RANGE");
+        assert.strictEqual(thrown.details?.option, "edgeSrcIdPath");
+        assert.strictEqual(thrown.details?.value, "a[");
+        assert.strictEqual(
+            codeOf(() => resolveEndpoints([], { source: null, target: "[?x==]" })),
+            "E_OPTION_RANGE",
+        );
+    });
+
+    it("still takes a valid declared expression that a record fails at run time", () => {
+        // length() of a number fails on that record only; the record is left out, the batch is not refused.
+        assert.isNull(codeOf(() => resolveEndpoints([{ a: 1, b: 2 }], { source: "length(a)", target: "b" })));
+        assert.isNull(readEndpoint({ a: 1 }, "length(a)"));
     });
 });

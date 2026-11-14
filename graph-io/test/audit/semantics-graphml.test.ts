@@ -370,7 +370,7 @@ describe("GraphML quirks from GraphMLDataSource and research note 07", () => {
 
     it("reports a <data> with an undeclared key, a key used on the wrong element and an unparsable int", async () => {
         const undeclared = `<graphml ${NS}><graph edgedefault="directed"><node id="a"><data key="zz">1</data></node></graph></graphml>`;
-        expect((await parse(undeclared)).report.issues.map((i) => i.code)).toContain("E_GRAPHML_UNKNOWN_KEY");
+        expect((await parse(undeclared)).report.issues.map((i) => i.code)).toContain("W_GRAPHML_UNKNOWN_KEY");
         const wrongDomain = `<graphml ${NS}><key id="e" for="edge" attr.name="e" attr.type="string"/><graph edgedefault="directed"><node id="a"><data key="e">x</data></node></graph></graphml>`;
         expect((await parse(wrongDomain)).report.issues.map((i) => i.code)).toContain("W_GRAPHML_KEY_DOMAIN");
         const badInt = `<graphml ${NS}><key id="i" for="node" attr.name="i" attr.type="int"/><graph edgedefault="directed"><node id="a"><data key="i">abc</data></node></graph></graphml>`;

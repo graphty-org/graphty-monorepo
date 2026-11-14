@@ -5,9 +5,6 @@
 # "Refresh dependencies" job runs tools/dependency-refresh.mjs, which opens one grouped pull request (owner,
 # 2026-10-27). A security update targets master and merges like any other once CI is green
 # (dependabot-automerge.yml arms auto-merge, except for GitHub Actions, which the owner merges).
-# Dependabot cannot fix a vulnerable TRANSITIVE pnpm dependency: its `pnpm update <name> -r` moves only
-# direct dependencies, so the run fails with security_update_not_possible (issue #7704). Those fixes are
-# the `overrides` floors in pnpm-workspace.yaml (and tools/pipeline-health/pnpm-workspace.yaml).
 version: 2
 updates:
     - package-ecosystem: npm

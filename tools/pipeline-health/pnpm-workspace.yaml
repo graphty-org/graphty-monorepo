@@ -3,10 +3,3 @@
 packages:
     - "."
 minimumReleaseAge: 1440
-
-# Security floors for transitive packages: @modelcontextprotocol/sdk locked hono 4.13.13 and
-# @hono/node-server 2.1.5 (GHSA-4h7h-rv7c-7m2v, GHSA-3gg2-335m-rxc6 and the other fixes of hono
-# 4.13.16 and @hono/node-server 2.1.6). Delete them once the SDK's lock moves past the floor.
-overrides:
-    "hono@<4.13.16": ^4.13.16
-    "@hono/node-server@>=2.0.0 <2.1.6": ^2.1.6

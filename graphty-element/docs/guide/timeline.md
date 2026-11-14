@@ -239,7 +239,9 @@ outside it stays visible, so `visibility.summary`, the selection, an export of w
 algorithm runs and the layout are the same with or without a window. An element outside the window
 is in the `"outsideWindow"` element state, and style layers that select that state decide how it
 looks, as they decide how a selected or a pinned node looks. With no such layer, the window draws
-nothing differently.
+nothing differently. `time.inside` counts what every filter keeps inside the window, by kind
+(`{ nodes, edges }`, or `null` with no window), and each `time:step` event carries the same counts as
+`visible`.
 
 With the project setting `startingRows` on, the element adds one such row for you, Timeline Hidden,
 directly below Selected. The project setting `timelineHiddenLook` picks how it starts:

@@ -31,7 +31,7 @@ const on = z.enum(["node", "edge"]).optional().describe("Default node.");
  * @returns The facts.
  */
 function windowFacts(tx: TransactionScope): ActionResult {
-    return ok({ window: tx.time.current, atStart: tx.time.atStart, atEnd: tx.time.atEnd });
+    return ok({ window: tx.time.current, inside: tx.time.inside, atStart: tx.time.atStart, atEnd: tx.time.atEnd });
 }
 
 /** The `time` tool. */
@@ -58,6 +58,7 @@ export const timeTool: ToolDefinition = {
                 { door: "TimeApi.current" },
                 { door: "TimeApi.atStart" },
                 { door: "TimeApi.atEnd" },
+                { door: "TimeApi.inside" },
                 { door: "TimeApi.settings" },
                 { door: "TimeApi.mode" },
                 { door: "TimeApi.interval" },
@@ -73,6 +74,7 @@ export const timeTool: ToolDefinition = {
                     changes: tx.time.changes(),
                     notices: tx.time.notices(),
                     window: tx.time.current,
+                    inside: tx.time.inside,
                     atStart: tx.time.atStart,
                     atEnd: tx.time.atEnd,
                     settings: tx.time.settings,

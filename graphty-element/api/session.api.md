@@ -7397,6 +7397,7 @@ export interface TimeApi {
     readonly current: TimeWindow | null;
     extent(): TimeExtent | null;
     readonly field: TimeField | null;
+    readonly inside: TimeCountPair | null;
     readonly interval: number;
     readonly mode: TimePlayMode;
     notices(): readonly CodedFact<TimeNoticeCode>[];

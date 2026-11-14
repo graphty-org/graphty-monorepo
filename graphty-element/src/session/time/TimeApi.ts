@@ -521,6 +521,12 @@ export interface TimeApi {
      * the experiment off throws `E_FEATURE_OFF`.
      */
     readonly committed: TimeWindow | null;
+    /**
+     * What every filter keeps inside the window in force, by kind: what is drawn as in it, never a
+     * visibility count (the window narrows no `visibility.summary`). Null with no window.
+     * @since 3.40.0
+     */
+    readonly inside: TimeCountPair | null;
     /** Whether the window is the first one: a step back would leave the data. False with no window. */
     readonly atStart: boolean;
     /** Whether the window reaches the end of the data. False with no window. */
@@ -2863,6 +2869,14 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         get committed() {
             return visibility.window;
+        },
+
+        get inside() {
+            if ((cursor ?? visibility.window) === null) {
+                return null;
+            }
+            const { nodes, edges } = visibility.windowCounts();
+            return Object.freeze({ nodes, edges });
         },
 
         get atStart() {

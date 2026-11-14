@@ -140,7 +140,7 @@ import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { WRITABLE_LANE } from "./data/lane";
-import { sampleOf } from "./data/source-bytes";
+import { fetchBytes, sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import {
@@ -1010,7 +1010,12 @@ export class Graph implements GraphContext {
         if (typeof element === "string") {
             const e: Element | null = document.getElementById(element);
             if (!e) {
-                throw new Error(`getElementById() could not find element '${element}'`);
+                throw new GraphtyError({
+                    code: "E_HOST_NOT_FOUND",
+                    message: `No element with id "${element}" to draw the graph in.`,
+                    source: "config",
+                    details: { id: element },
+                });
             }
 
             this.element = e;
@@ -2607,8 +2612,8 @@ export class Graph implements GraphContext {
             // Clean up any partially initialized resources
             this.cleanup();
 
-            // Re-throw with context
-            throw new Error(`Failed to initialize graph: ${error instanceof Error ? error.message : String(error)}`);
+            // A coded failure (a renderer or WebGPU refusal) keeps its code, details and stack.
+            throw GraphtyError.wrap(error, { code: "E_INTERNAL", source: "view" });
         }
     }
 
@@ -3403,13 +3408,8 @@ export class Graph implements GraphContext {
         }
 
         // Extension didn't match - fetch content for detection
-        const response = await fetch(url, signal === undefined ? undefined : { signal });
-        if (!response.ok) {
-            throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
-        }
-
         // Bytes, decoded by the importer: see loadFromFile.
-        const fetchedContent = new Uint8Array(await response.arrayBuffer());
+        const fetchedContent = await fetchBytes(url, signal);
         this.dataManager.throwIfSuperseded(generation, url);
         const detectedFromContent = detectFormat(url, sampleOf(fetchedContent));
         if (!detectedFromContent) {

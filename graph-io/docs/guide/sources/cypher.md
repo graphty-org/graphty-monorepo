@@ -31,7 +31,7 @@ const { snapshot } = await loadFromSource(
 console.log(snapshot.nodeCount, snapshot.edgeCount); // 171 253
 ```
 
-A `bolt:` or `bolt+s:` endpoint uses Bolt instead, through the
+A `bolt:`, `bolt+s:`, `neo4j:` or `neo4j+s:` endpoint uses Bolt instead, through the
 [neo4j-driver](https://www.npmjs.com/package/neo4j-driver) package. It is an optional peer
 dependency: install it yourself (`npm install neo4j-driver`) only if you use Bolt. Without it, a
 Bolt load fails with `E_SOURCE_RUNTIME` and `params: { reason: "needs-peer-dependency", package:
@@ -210,17 +210,21 @@ endpoint.
 
 The Query API works from a page on `https:` (Neo4j allows any origin by default). Bolt works from
 such a page over `bolt+s:`, which the driver opens as `wss://`, so the server needs Bolt TLS; a
-plain `bolt:` endpoint is refused there (`reason: "insecure-endpoint"`).
+plain `bolt:` or `neo4j:` endpoint is refused there (`reason: "insecure-endpoint"`).
 
 ## Credentials and connections
 
 The Query API takes `credentials.basic` or `credentials.bearer`; Bolt takes the same two and hands
 them to the driver. A credential goes only to the endpoint (or its `origins`). Over Bolt:
 
-- only direct connections: a `neo4j:` or `neo4j+s:` endpoint is refused (`reason: "routing"`),
-  because a routing table could send the credential to other hosts;
-- `bolt+ssc:` accepts any certificate, so a credential is never sent over it
+- only direct connections: a `neo4j:`, `neo4j+s:` or `neo4j+ssc:` endpoint (the form Aura and
+  Neo4j's documentation give) connects straight to the host it names, as `bolt:`, `bolt+s:` or
+  `bolt+ssc:` with the same TLS setting, and never follows a routing table, which could send the
+  credential to other hosts;
+- `bolt+ssc:` and `neo4j+ssc:` accept any certificate, so a credential is never sent over them
   (`reason: "unverified-tls"`);
+- any other scheme is refused (`reason: "scheme"`), as is an endpoint with no host
+  (`reason: "type"`);
 - a credential goes over plain `bolt:` only to this machine, or with `allowInsecure: true`.
 
 ## Errors

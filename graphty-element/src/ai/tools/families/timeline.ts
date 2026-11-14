@@ -108,7 +108,7 @@ export const timeTool: ToolDefinition = {
                 outside: z.enum(["hide", "ghost"]).optional().describe("How elements outside the window draw."),
             },
             effect: "write",
-            reaches: [{ door: "TimeApi.setSettings" }, { op: "visibility.playback" }],
+            reaches: [{ door: "TimeApi.setSettings" }, { op: "visibility.playback" }, { op: "style.patch" }],
             run: async ({ tx }, args) => {
                 await coded(() => tx.time.setSettings(args as Partial<TimeSettings>));
                 return ok(tx.time.settings);

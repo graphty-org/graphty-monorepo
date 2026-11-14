@@ -28,6 +28,23 @@ const PRE_STEPS = 1000;
 const OFFICE_EMAIL = `${import.meta.env.BASE_URL}samples/office-email.json`;
 /** The paper citations sample: 159 papers, each with its `year`. */
 const PAPERS = `${import.meta.env.BASE_URL}samples/paper-citations.json`;
+/** The Marvel films sample: 210 films and people, each edge with its film's `released` date. */
+const MARVEL = `${import.meta.env.BASE_URL}samples/marvel-films.json`;
+
+/**
+ * Where every node is, as text to compare.
+ * @param session - the element's session.
+ * @returns each row's position.
+ */
+function positions(session: GraphSession): string {
+    const out = { x: 0, y: 0, z: 0 };
+    const all: number[] = [];
+    for (let i = 0; i < session.data.statistics().nodeCount; i++) {
+        session.positions.read(i, out);
+        all.push(out.x, out.y, out.z);
+    }
+    return JSON.stringify(all);
+}
 
 /**
  * Renders the workspace on a place and loads a sample.
@@ -679,7 +696,10 @@ describe("the Overview and the import of time", () => {
         const graph = session.data.snapshot();
         const ghostLayer = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
         assert.isDefined(ghostLayer);
-        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").matched;
+        // What the Ghost layer paints among what the drawing shows.
+        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").visible?.matched ?? -1;
+        // Hidden by default: the drawing shows none of them, so the Ghost layer paints none.
+        assert.equal(session.time.settings.outside, "hide");
         assert.equal(ghosts(), 0, "hidden, not ghosted, by default");
 
         await userEvent.click(within(outside).getByText("Ghost"));
@@ -702,8 +722,58 @@ describe("the Overview and the import of time", () => {
 
         await userEvent.click(within(outside).getByText("Hide"));
         await waitFor(() => {
+            assert.equal(session.time.settings.outside, "hide");
             assert.equal(ghosts(), 0);
         });
+    });
+
+    it("plays the Marvel films with no layout running: no node and no camera moves, and Ghost draws the rest", async () => {
+        const { session } = await open(MARVEL, "graph");
+        await session.config.set({ startingRows: true });
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        await userEvent.click(await inspector.findByRole("button", { name: "Set in Data" }));
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "released" } });
+        });
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        await element?.waitForSettled();
+        const before = positions(session);
+        const camera = JSON.stringify(element?.getCameraState());
+        const dock = await openDock();
+
+        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await waitFor(() => {
+            assert.isNotNull(session.time.current);
+        });
+        const first = Number(session.time.current?.from);
+        // Two steps on, the window has moved twice.
+        await waitFor(() => {
+            assert.isAbove(Number(session.time.current?.from), first);
+        });
+        const second = Number(session.time.current?.from);
+        await waitFor(() => {
+            assert.isAbove(Number(session.time.current?.from), second);
+        });
+        if (session.time.playing) {
+            await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        }
+        await element?.waitForSettled();
+        assert.isBelow(session.visibility.summary.visibleNodes, session.data.statistics().nodeCount);
+        assert.equal(positions(session), before, "no node moved");
+        assert.equal(JSON.stringify(element?.getCameraState()), camera, "the camera stayed");
+
+        // Outside: Ghost draws what lies outside through the Ghost layer, which counts it.
+        const ghostLayer = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
+        const outside = await (await timeCard()).findByRole("radiogroup", { name: "Outside" });
+        await userEvent.click(within(outside).getByText("Ghost"));
+        await waitFor(() => {
+            assert.equal(session.time.settings.outside, "ghost");
+            assert.isAbove(session.styles.counts(ghostLayer?.id ?? "").matched, 0);
+        });
+        await element?.waitForSettled();
+        assert.equal(positions(session), before, "ghosting moved no node");
+        assert.equal(JSON.stringify(element?.getCameraState()), camera, "ghosting moved no camera");
     });
 
     it("shows an Untimed control for a file with blank times, and Hide leaves them out", async () => {

@@ -24,7 +24,9 @@ import {
     type NodeId,
     PROJECT_FILE,
     type ResultShape,
+    type RuleTree,
     type RunId,
+    type Selector,
     type SetDefinitionInput,
     type StyleDocument,
 } from "../catalog/types";
@@ -1978,7 +1980,13 @@ async function readProject(
         // Read on their own, so a filter that cannot be read never loses them.
         await attempt(opening, "visibility", async () => {
             if (typeof visibility.playback === "object" && visibility.playback !== null) {
-                await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
+                // How what lies outside the window draws lives in the style layers now (below); with
+                // the timeline off the playback stays whole, as saved.
+                const { outside: _outside, ...playback } = visibility.playback as Record<string, unknown>;
+                const kept = timelineOn(tx) ? playback : visibility.playback;
+                await (tx.visibility as SessionVisibilityApi).restorePlayback(
+                    Object.keys(kept).length === 0 ? null : kept,
+                );
             }
 
             tx.visibility.showContext = visibility.showContext === true;
@@ -1986,6 +1994,7 @@ async function readProject(
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
+    await attempt(opening, "styles", () => outsideWindowLayers(tx, visibility?.playback));
 
     for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
         await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
@@ -1996,6 +2005,106 @@ async function readProject(
     const views = (state.views ?? []) as never[];
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
+    }
+}
+
+/**
+ * Whether the timeline experiment is on: with it off, every `session.time` member refuses.
+ * @param tx - The transaction.
+ * @returns True when it is on.
+ */
+function timelineOn(tx: TransactionScope): boolean {
+    return tx.features.enabled.includes("timeline");
+}
+
+/**
+ * A rule tree with every `"ghosted"` state leaf reading `"outsideWindow"`, however deep.
+ * @param rule - The rule.
+ * @returns The rule rewritten, or the same object when it reads no `"ghosted"` leaf.
+ */
+function ghostedLeavesOutside(rule: RuleTree): RuleTree {
+    switch (rule.kind) {
+        case "state":
+            return rule.state === "ghosted" ? { ...rule, state: "outsideWindow" } : rule;
+        case "all":
+        case "any": {
+            const of = rule.of.map(ghostedLeavesOutside);
+            return of.every((each, at) => each === rule.of[at]) ? rule : { ...rule, of };
+        }
+        case "not": {
+            const of = ghostedLeavesOutside(rule.of);
+            return of === rule.of ? rule : { ...rule, of };
+        }
+        case "union": {
+            let moved = false;
+            const branches = rule.branches.map((branch) => ({
+                ...branch,
+                steps: branch.steps.map((step) => {
+                    const next = ghostedLeavesOutside(step.rule);
+                    moved ||= next !== step.rule;
+                    return next === step.rule ? step : { ...step, rule: next };
+                }),
+            }));
+            return moved ? { ...rule, branches } : rule;
+        }
+        default:
+            return rule;
+    }
+}
+
+/**
+ * A layer's selector with what it read as `"ghosted"` reading `"outsideWindow"`.
+ * @param selector - The selector.
+ * @returns It rewritten, or the same object when it reads no `"ghosted"`.
+ */
+function outsideSelector(selector: Selector): Selector {
+    if (selector.match === "state" && selector.state === "ghosted") {
+        return { match: "state", state: "outsideWindow" };
+    }
+
+    if (selector.match === "rule") {
+        const where = ghostedLeavesOutside(selector.where);
+        return where === selector.where ? selector : { ...selector, where };
+    }
+
+    return selector;
+}
+
+/**
+ * Bring a timed project saved before what lies outside the time window had a state of its own up
+ * to date. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant what
+ * lay outside the window, so they read `"outsideWindow"` now, and a saved `outside: "ghost"` is
+ * written to the style layers the way `time.setSettings` writes it. A project brought up to date
+ * reads no `"ghosted"`, so this finds nothing the second time.
+ * @param tx - The transaction.
+ * @param playback - The saved timeline settings.
+ */
+async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Promise<void> {
+    // With the timeline off its layers stay as saved.
+    if (!timelineOn(tx) || tx.time.field === null) {
+        return;
+    }
+
+    for (const layer of tx.styles.list()) {
+        const selector = layer.source.by === "element" ? layer.selector : outsideSelector(layer.selector);
+        if (selector !== layer.selector) {
+            await tx.styles.update(layer.id, { selector });
+        }
+    }
+
+    for (const set of tx.sets.list()) {
+        const { definition } = set;
+        if (definition.kind === "rule" && typeof definition.where === "object") {
+            const where = ghostedLeavesOutside(definition.where);
+            if (where !== definition.where) {
+                tx.sets.redefine(set.id, { ...definition, where });
+            }
+        }
+    }
+
+    // Saved before the drawing lived in the layers: with no layer drawing it, one is added.
+    if (typeof playback === "object" && playback !== null && "outside" in playback && playback.outside === "ghost") {
+        await tx.time.setSettings({ outside: "ghost" });
     }
 }
 

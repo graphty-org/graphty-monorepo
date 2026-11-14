@@ -7,10 +7,16 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { ElementSession } from "../../src/session/types";
+
+// The timeline is an experiment: the time window's case switches it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /** Twenty nodes on a path. */
 const IDS = Array.from({ length: 20 }, (_, index) => `n${String(index)}`);
@@ -129,6 +135,68 @@ describe("a layout over only what the filter shows", () => {
         assert.closeTo(smallestGap(anglesOf(positionsOf(graph), five)), 72, 0.5);
     });
 
+    it("moves no node and no camera as a time window steps, and still follows the filter", async () => {
+        await session.data.updateNodes(IDS.map((id, index) => ({ id, values: { step: index } })));
+        await graph.setLayout("circular", { dim: 2 });
+        graph.setLayoutBehavior({ layout: { visibleOnly: true } });
+        await session.time.setField({ nodes: { start: "step" } });
+        await session.time.window({ from: 2, to: 6 });
+        await graph.waitForSettled();
+        const before = positionsOf(graph);
+        const camera = JSON.stringify(graph.getCameraState());
+        const runs = layoutsRun;
+
+        for (let step = 0; step < 5; step++) {
+            await session.time.stepBy(1);
+            await graph.waitForSettled();
+        }
+
+        assert.isBelow(session.visibility.summary.visibleNodes, IDS.length, "the window hides nodes");
+        assert.strictEqual(layoutsRun, runs, "no layout ran");
+        assert.deepEqual(positionsOf(graph), before, "no node moved");
+        assert.strictEqual(JSON.stringify(graph.getCameraState()), camera, "the camera stayed");
+
+        // A filter is still a layout input: the circle is laid out again over what it keeps.
+        await show(SHOWN);
+        assert.isAbove(layoutsRun, runs);
+    });
+
+    it("with the timeline off, lays out only what a plain window keeps, and again when it moves", async () => {
+        // Off for the whole case: a graph reads the page default until its features settle.
+        setDefaultFeatures([]);
+        const plain = await pathGraph();
+        try {
+            const plainSession = plain.graph.getSession() as ElementSession;
+            assert.notInclude(plainSession.features.enabled, "timeline");
+            let runs = 0;
+            plain.graph.addListener("layout-changed", () => {
+                runs++;
+            });
+            await plainSession.data.updateNodes(IDS.map((id, index) => ({ id, values: { step: index } })));
+            await plain.graph.setLayout("circular", { dim: 2 });
+            plain.graph.setLayoutBehavior({ layout: { visibleOnly: true } });
+            await plain.graph.waitForSettled();
+
+            // Five nodes inside the window: five slots on the circle, 72 degrees apart.
+            await plainSession.visibility.setWindow({ attribute: "data.step", from: 0, to: 5 });
+            await plain.graph.waitForSettled();
+            const five = IDS.slice(0, 5);
+            assert.strictEqual(plainSession.visibility.summary.visibleNodes, 5);
+            assert.closeTo(smallestGap(anglesOf(positionsOf(plain.graph), five)), 72, 0.5);
+
+            // Moving the window lays the circle out again: four nodes, 90 degrees apart.
+            const before = runs;
+            await plainSession.visibility.setWindow({ attribute: "data.step", from: 10, to: 14 });
+            await plain.graph.waitForSettled();
+            assert.isAbove(runs, before, "the layout ran again");
+            assert.closeTo(smallestGap(anglesOf(positionsOf(plain.graph), IDS.slice(10, 14))), 90, 0.5);
+        } finally {
+            setDefaultFeatures(["timeline"]);
+            plain.graph.dispose();
+            plain.container.remove();
+        }
+    });
+
     it("runs the whole graph by default, hidden nodes keeping their slots", async () => {
         await graph.setLayout("circular", { dim: 2 });
         const five = ["n0", "n1", "n2", "n3", "n4"];
@@ -174,7 +242,10 @@ describe("a layout over only what the filter shows", () => {
         );
         await Promise.all([building, ...changes]);
         await graph.waitForSettled();
-        assert.strictEqual(layoutsRun, 2, "the layout asked for, then one relayout for the four changes");
+        // The layout asked for reads what the filter keeps when it is built, so changes that land
+        // before then are already in it; the rest share one relayout.
+        assert.isAtLeast(layoutsRun, 1);
+        assert.isAtMost(layoutsRun, 2, "the layout asked for, then at most one relayout for the four changes");
         // The last filter's three nodes on a circle of their own, 120 degrees apart.
         assert.closeTo(smallestGap(anglesOf(positionsOf(graph), SHOWN.slice(0, 3))), 120, 0.5);
     });

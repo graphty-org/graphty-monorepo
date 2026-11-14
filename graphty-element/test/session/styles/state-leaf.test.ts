@@ -1,5 +1,5 @@
 /**
- * @file A `state` rule leaf: hovered, selected, pinned and ghosted as calculated values. A layer
+ * @file A `state` rule leaf: hovered, selected, pinned, ghosted and outsideWindow as calculated values. A layer
  * reading one follows the state live, and the leaf sits beside other conditions in a selection.
  */
 
@@ -55,17 +55,23 @@ async function matched(session: GraphSession, id: string): Promise<number> {
 const leaf = (state: ElementState): RuleTree => ({ kind: "state", state });
 
 describe("a state selector has a rule form", () => {
-    it.each(["selected", "hovered", "ghosted", "pinned"] as const)("reads %s as a state leaf when asked", (state) => {
-        assert.deepEqual(selectorRule({ match: "state", state }, { states: true }), {
-            match: "rule",
-            where: leaf(state),
-        });
-    });
+    it.each(["selected", "hovered", "ghosted", "outsideWindow", "pinned"] as const)(
+        "reads %s as a state leaf when asked",
+        (state) => {
+            assert.deepEqual(selectorRule({ match: "state", state }, { states: true }), {
+                match: "rule",
+                where: leaf(state),
+            });
+        },
+    );
 
-    it.each(["selected", "hovered", "ghosted", "pinned"] as const)("reads %s as no rule by default", (state) => {
-        assert.isUndefined(selectorRule({ match: "state", state }));
-        assert.isUndefined(selectorRule({ match: "state", state }, { comparisons: true }));
-    });
+    it.each(["selected", "hovered", "ghosted", "outsideWindow", "pinned"] as const)(
+        "reads %s as no rule by default",
+        (state) => {
+            assert.isUndefined(selectorRule({ match: "state", state }));
+            assert.isUndefined(selectorRule({ match: "state", state }, { comparisons: true }));
+        },
+    );
 
     it("names the states a selector reads, however deep", () => {
         const union: UnionLeaf = {
@@ -140,11 +146,10 @@ describe("a layer on a state leaf follows the state live", () => {
         session.dispose();
     });
 
-    it("ghosted: follows the time window, with no layer on the state selector", async () => {
+    it("outsideWindow: follows the time window, with no layer on the state selector", async () => {
         const session = await line();
         await session.time.setField({ nodes: { start: "step" }, edges: { start: "step" } });
-        await session.time.setSettings({ outside: "ghost" });
-        const { node } = await layersOn(session, leaf("ghosted"));
+        const { node } = await layersOn(session, leaf("outsideWindow"));
         await session.time.window({ from: 0, to: 2 });
         assert.strictEqual(await matched(session, node), 2, "steps 2 and 3 lie outside");
         await session.time.window({ from: 0, to: 3 });

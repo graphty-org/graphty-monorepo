@@ -415,7 +415,11 @@ const ROWS: Record<string, Row> = {
     "import_data.import": { args: { action: "import", format: "csv", text: "source,target\nx,y" } },
     "time.status": { session: timeSession, args: { action: "status" }, setup: withTime },
     "time.set_field": { session: timeSession, args: { action: "set_field", column: "load" } },
-    "time.settings": { session: timeSession, args: { action: "settings", mode: "cumulative" }, setup: withTime },
+    "time.settings": {
+        session: timeSession,
+        args: { action: "settings", mode: "cumulative", outside: "ghost" },
+        setup: withTime,
+    },
     "time.window": {
         session: timeSession,
         args: { action: "window", from: "2001-01-01", to: "2003-01-01" },

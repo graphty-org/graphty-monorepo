@@ -1262,6 +1262,22 @@ export class StylePainter {
     }
 
     /**
+     * Whether every pending node came from a time window's slide, without taking the answer.
+     * @returns True when they did.
+     */
+    get nodesFromRowsOnly(): boolean {
+        return this.nodesRowsOnly;
+    }
+
+    /**
+     * Whether every pending edge came from a time window's slide, without taking the answer.
+     * @returns True when they did.
+     */
+    get edgesFromRowsOnly(): boolean {
+        return this.edgesRowsOnly;
+    }
+
+    /**
      * Whether the nodes just drawn came only from a time window's slide, and so can skip the visit
      * to every edge that ends a repaint. Asked by the frame that drew the last of them.
      * @returns True when they did, once.

@@ -552,6 +552,14 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     passingBytes(): FilterBytes;
     /**
+     * What every filter leaves showing, as ids: what a layout over the shown graph lays out. A
+     * timeline window is left aside, as it hides by style, so a window step never moves the
+     * layout; a plain window (the timeline off) narrows it as a filter does. The same object until
+     * what it reads changes.
+     * @returns Each kind's ids, null when nothing narrows that kind.
+     */
+    keptIds(): KeptIds;
+    /**
      * Record the window a gesture ended at (`session.time.commit()`): as `setWindow`, but always
      * its own undoable step, never merged into a window step recorded just before it.
      * @param window - The window.
@@ -559,8 +567,9 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     commitWindow(window: TimeWindow): Run<FilterResult>;
     /**
-     * Whether elements outside the time window are drawn as ghosts now: the playback setting
-     * `outside` is `"ghost"` and a window is in force.
+     * Whether the renderer draws more than is visible now: a time window is in force (what lies
+     * outside it stays drawn, for the style layers to hide or ghost), or a held condition's
+     * removals stay drawn.
      */
     readonly ghosting: boolean;
     /**
@@ -569,17 +578,32 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     readonly drawnMasks: ScopeVisibilitySource;
     /**
-     * Whether an element is a ghost: drawn, but outside the time window, so not visible.
+     * Whether an element is a ghost: drawn while a reader edits a held condition, which would
+     * remove it.
      * @param target - Nodes or edges.
      * @param index - The element's row.
-     * @returns True for a ghost; always false while not ghosting.
+     * @returns True for a ghost; always false while no condition is held.
      */
     ghosted(target: "node" | "edge", index: number): boolean;
     /**
      * Every ghost at once: one byte per element, 1 for a ghost.
-     * @returns The bytes, or null while not ghosting.
+     * @returns The bytes, or null while no condition is held.
      */
     ghosts(): { readonly node: Uint8Array; readonly edge: Uint8Array } | null;
+    /**
+     * Whether an element is outside the time window: every filter keeps it, but the window does
+     * not, so it is not visible. It stays drawn, and style layers selecting
+     * `{ match: "state", state: "outsideWindow" }` decide how (the element's own hide it).
+     * @param target - Nodes or edges.
+     * @param index - The element's row.
+     * @returns True outside the window; always false while no window is in force.
+     */
+    outsideWindow(target: "node" | "edge", index: number): boolean;
+    /**
+     * Every element outside the time window at once: one byte per element, 1 outside.
+     * @returns The bytes, or null while no window is in force.
+     */
+    outsideWindowBytes(): { readonly node: Uint8Array; readonly edge: Uint8Array } | null;
     /**
      * Hold one filter condition while a reader edits it (`styles.showBranches` with `hold`): it
      * still decides what is visible, but what it would remove stays drawn, as ghosts. Records no
@@ -588,6 +612,12 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @param all - Lift every condition, not only this one: the view is drawn over the full graph.
      */
     hold(id: string | null, all?: boolean): void;
+}
+
+/** What every filter keeps, the window aside, by id; null for a kind nothing narrows. */
+export interface KeptIds {
+    readonly nodes: ReadonlySet<NodeId> | null;
+    readonly edges: ReadonlySet<EdgeId> | null;
 }
 
 /** What is drawn, one mask per kind. */
@@ -1011,6 +1041,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         /** {@link FilterBytes} with an edge also needing both its ends, once a reader asked. */
         passing: FilterBytes | null;
     } | null = null;
+
+    /** The ids {@link SessionVisibilityApi.keptIds} answered, and what they were read from. */
+    let keptCache: { readonly of: readonly unknown[]; readonly kept: KeptIds } | null = null;
 
     /**
      * The frame to answer from, rebuilt when the snapshot moves.
@@ -1487,13 +1520,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * Whether ghosts are drawn now.
-     * @returns True while the `outside` setting is `"ghost"` and a window is in force.
+     * Whether a time window is in force: what lies outside it stays drawn, for the style layers.
+     * @returns True while the timeline is on and a window is recorded or slid to.
      */
-    const timeGhosting = (): boolean =>
-        sources.timeline?.() !== false &&
-        dispatcher.state.visibility.playback?.outside === "ghost" &&
-        (dispatcher.state.visibility.window !== null || slid);
+    const windowInForce = (): boolean =>
+        sources.timeline?.() !== false && (dispatcher.state.visibility.window !== null || slid);
 
     /** The condition a reader is editing, whose removals stay drawn as ghosts (`hold`). */
     let held: string | null = null;
@@ -1539,7 +1570,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         return heldRule.rule;
     };
 
-    const ghostingNow = (): boolean => timeGhosting() || drawnRuleNow() !== ruleNow();
+    const ghostingNow = (): boolean => windowInForce() || drawnRuleNow() !== ruleNow();
 
     /**
      * Bring the drawn masks up to date: what the filter keeps with no window.
@@ -1548,8 +1579,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const drawnUpToDate = (): VisibilityFrame => {
         const active = upToDate();
         const filter = drawnRuleNow();
-        // Time ghosts are drawn whatever the window says; a held condition alone keeps the window.
-        const window = timeGhosting() ? null : dispatcher.state.visibility.window;
+        // What lies outside a time window stays drawn; a held condition alone keeps the window.
+        const window = windowInForce() ? null : dispatcher.state.visibility.window;
         const inputs = inputsFor(filter, window);
         if (
             drawnTag?.graph === active.graph &&
@@ -1577,81 +1608,152 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         return active;
     };
 
-    let ghostCache: { readonly key: readonly unknown[]; readonly node: Uint8Array; readonly edge: Uint8Array } | null =
-        null;
+    type ElementBytes = { readonly node: Uint8Array; readonly edge: Uint8Array };
+    let ghostCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
+    let outsideCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
+    /** What {@link outsideCache} was last answered under this turn, or null in a new turn. */
+    let outsideStamp: readonly unknown[] | null = null;
 
     /**
-     * Bring the kept ghosts forward by the rows a slide moved, in place: with the drawn masks
-     * unmoved, those are the only rows that can have become or stopped being ghosts.
-     * @param key - The key of what is asked for.
-     * @returns The ghosts, or null when more than that moved.
-     */
-    const ghostsAfterSlide = (key: readonly unknown[]): typeof ghostCache => {
-        if (ghostCache === null || key.slice(2).some((part, at) => part !== ghostCache?.key[at + 2])) {
-            return null;
-        }
-
-        const { key: kept, node, edge } = ghostCache;
-        const nodeRows = nodeMaskValue.changedSince(kept[0] as number);
-        const edgeRows = edgeMaskValue.changedSince(kept[1] as number);
-        if (nodeRows === null || edgeRows === null) {
-            return null;
-        }
-
-        for (const row of nodeRows) {
-            node[row] = nodeMaskValue.has(row) ? 0 : 1;
-        }
-
-        for (const row of edgeRows) {
-            edge[row] = edgeMaskValue.has(row) ? 0 : 1;
-        }
-
-        return { key, node, edge };
-    };
-
-    /**
-     * One byte per element, 1 for a ghost, or null while not ghosting. Kept until a mask, the
-     * graph, the filter or the runs it reads move, so a repaint asking per element walks once.
+     * One byte per element, 1 for what a held condition would remove but is drawn, or null while
+     * none is held. Kept until the graph, the filter, the held condition or the runs move.
      * @returns The bytes, or null.
      */
-    const ghostsNow = (): { readonly node: Uint8Array; readonly edge: Uint8Array } | null => {
-        if (!ghostingNow()) {
+    const ghostsNow = (): ElementBytes | null => {
+        if (drawnRuleNow() === ruleNow()) {
             return null;
         }
 
         const { state } = dispatcher;
         const key = [
-            nodeMaskValue.version,
-            edgeMaskValue.version,
             state.graph.token,
             ruleNow(),
             drawnRuleNow(),
-            state.visibility.window,
+            windowInForce() ? null : state.visibility.window,
             state.runs,
             sources.snapshot(),
         ];
-        if (ghostCache?.key.length === key.length && ghostCache.key.every((part, at) => part === key[at])) {
-            return ghostCache;
+        if (ghostCache !== null && sameInputs(ghostCache.key, key)) {
+            return ghostCache.bytes;
         }
 
-        const carried = ghostsAfterSlide(key);
-        if (carried !== null) {
-            ghostCache = carried;
-            return ghostCache;
-        }
-
+        // Drawn but not kept by every filter: the window aside, as what lies outside it is not a ghost.
         const active = drawnUpToDate();
+        const passing = passingOf(active.graph);
         const node = new Uint8Array(active.graph.nodeCount);
         const edge = new Uint8Array(active.graph.edgeCount);
         drawnNodes.forEachMember((index) => {
-            node[index] = nodeMaskValue.has(index) ? 0 : 1;
+            node[index] = passing.nodes === null || passing.nodes[index] === 1 ? 0 : 1;
         });
         drawnEdges.forEachMember((index) => {
-            edge[index] = edgeMaskValue.has(index) ? 0 : 1;
+            edge[index] = passing.edges === null || passing.edges[index] === 1 ? 0 : 1;
         });
-        ghostCache = { key, node, edge };
+        ghostCache = { key, bytes: { node, edge } };
 
-        return ghostCache;
+        return ghostCache.bytes;
+    };
+
+    /**
+     * 1 for a row every filter keeps that the window leaves out, else 0.
+     * @param kept - The filter's bytes for the kind, null when it keeps every row.
+     * @param shown - The kind's visible mask.
+     * @param row - The row.
+     * @returns The byte.
+     */
+    const outsideAt = (kept: Uint8Array | null, shown: ElementMask<unknown>, row: number): number =>
+        (kept === null || kept[row] === 1) && !shown.has(row) ? 1 : 0;
+
+    /**
+     * Every row's {@link outsideAt}.
+     * @param count - How many rows.
+     * @param kept - The filter's bytes for the kind.
+     * @param shown - The kind's visible mask.
+     * @returns The bytes.
+     */
+    const outsideRows = (count: number, kept: Uint8Array | null, shown: ElementMask<unknown>): Uint8Array => {
+        const out = new Uint8Array(count);
+        for (let row = 0; row < count; row++) {
+            out[row] = outsideAt(kept, shown, row);
+        }
+
+        return out;
+    };
+
+    /**
+     * The kept bytes brought forward, in place, by the rows the masks moved since: with the filter
+     * unmoved, those are the only rows that can have entered or left the state.
+     * @param passing - What every filter keeps.
+     * @param graph - The snapshot.
+     * @returns The bytes, or null when more than that moved.
+     */
+    const outsideAfterSlide = (passing: FilterBytes, graph: GraphSnapshot): ElementBytes | null => {
+        if (outsideCache?.key[2] !== filterCache) {
+            return null;
+        }
+
+        const nodeRows = nodeMaskValue.changedSince(outsideCache.key[0] as number);
+        const edgeRows = edgeMaskValue.changedSince(outsideCache.key[1] as number);
+        const { node, edge } = outsideCache.bytes;
+        if (nodeRows === null || edgeRows === null || node.length !== graph.nodeCount) {
+            return null;
+        }
+
+        for (const row of nodeRows) {
+            node[row] = outsideAt(passing.nodes, nodeMaskValue, row);
+        }
+
+        for (const row of edgeRows) {
+            edge[row] = outsideAt(passing.edges, edgeMaskValue, row);
+        }
+
+        return { node, edge };
+    };
+
+    /**
+     * One byte per element, 1 for what every filter keeps but the time window does not, or null
+     * while no window is in force. A slide brings the kept bytes forward by the rows it moved, in
+     * place, so a play step costs those rows and not the graph.
+     * @returns The bytes, or null.
+     */
+    const outsideNow = (): ElementBytes | null => {
+        if (!windowInForce()) {
+            return null;
+        }
+
+        // A repaint asks once per element: within one turn, with the state, the masks and the
+        // graph unmoved, the bytes are the ones just answered.
+        // ponytail: per turn, since a set a filter names can move with no command; stamp the set
+        // signatures too if a pass spanning turns ever costs.
+        const stamp = (): readonly unknown[] => [
+            nodeMaskValue.version,
+            edgeMaskValue.version,
+            dispatcher.state,
+            sources.snapshot(),
+        ];
+        if (outsideCache !== null && outsideStamp !== null && sameInputs(outsideStamp, stamp())) {
+            return outsideCache.bytes;
+        }
+
+        const active = upToDate();
+        filterBytesOf(active.graph);
+        const key = [nodeMaskValue.version, edgeMaskValue.version, filterCache];
+        if (outsideCache === null || !sameInputs(outsideCache.key, key)) {
+            const passing = passingOf(active.graph);
+            const bytes = outsideAfterSlide(passing, active.graph) ?? {
+                node: outsideRows(active.graph.nodeCount, passing.nodes, nodeMaskValue),
+                edge: outsideRows(active.graph.edgeCount, passing.edges, edgeMaskValue),
+            };
+            outsideCache = { key, bytes };
+        }
+
+        if (outsideStamp === null) {
+            queueMicrotask(() => {
+                outsideStamp = null;
+            });
+        }
+
+        outsideStamp = stamp();
+        return outsideCache.bytes;
     };
 
     /**
@@ -2683,6 +2785,44 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return passingOf(active.graph);
         },
 
+        keptIds(): KeptIds {
+            const active = upToDate();
+            // A plain window (the timeline off) still takes elements out of what is visible, so
+            // the layout follows it as it follows a filter; only a timeline window hides by style.
+            const plainWindow = !windowInForce() && dispatcher.state.visibility.window !== null;
+            const of: readonly unknown[] = plainWindow
+                ? [nodeMaskValue.version, edgeMaskValue.version, active.graph]
+                : [filterBytesOf(active.graph)];
+            if (keptCache === null || !sameInputs(keptCache.of, of)) {
+                const { nodes, edges } = plainWindow
+                    ? { nodes: nodeMaskValue.bytes(), edges: edgeMaskValue.bytes() }
+                    : passingOf(active.graph);
+                const idsOf = <T>(bytes: Uint8Array | null, space: MaskIdSpace<T>): ReadonlySet<T> | null => {
+                    if (bytes === null) {
+                        return null;
+                    }
+
+                    const ids = new Set<T>();
+                    for (let row = 0; row < bytes.length; row++) {
+                        if (bytes[row] === 1) {
+                            ids.add(space.idOf(row));
+                        }
+                    }
+
+                    return ids;
+                };
+                keptCache = {
+                    of,
+                    kept: Object.freeze({
+                        nodes: idsOf(nodes, active.nodeSpace),
+                        edges: idsOf(edges, active.edgeSpace),
+                    }),
+                };
+            }
+
+            return keptCache.kept;
+        },
+
         previewSteps(steps: readonly FilterStep[]): StepCounts {
             const admitted = admitSteps(steps);
             const active = upToDate();
@@ -2750,6 +2890,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         ghosted(target: "node" | "edge", index: number): boolean {
             const ghosts = ghostsNow();
             return ghosts !== null && ghosts[target][index] === 1;
+        },
+
+        outsideWindowBytes() {
+            return outsideNow();
+        },
+
+        outsideWindow(target: "node" | "edge", index: number): boolean {
+            const outside = outsideNow();
+            return outside !== null && outside[target][index] === 1;
         },
 
         hold(id: string | null, all = false): void {

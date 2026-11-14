@@ -592,10 +592,11 @@ interface LayoutScopeSource {
      */
     nodeValues?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
     /**
-     * The ids of the edges the filter shows now.
-     * @returns The ids.
+     * What every filter keeps now, a timeline window aside: it hides by style and never moves the
+     * layout. The same object until what it reads changes.
+     * @returns The node and edge ids, null for a kind nothing narrows.
      */
-    visibleEdges?(): ReadonlySet<string>;
+    kept?(): { readonly nodes: ReadonlySet<NodeIdType> | null; readonly edges: ReadonlySet<string> | null };
     /**
      * Whether time is playing now, moving the time window every frame.
      * @returns True while it plays.
@@ -816,6 +817,10 @@ export class LayoutManager implements Manager {
      * `LayoutEngine.setLeftOut`.
      */
     private visibleIds: Shown | null = null;
+    /** What the filter kept when the running layout was built, so a window step that keeps it costs one compare. */
+    #keptSeen: ReturnType<NonNullable<LayoutScopeSource["kept"]>> | null = null;
+    /** What the filter kept at the last capture, which a build commits as {@link LayoutManager.#keptSeen}. */
+    #keptCaptured: ReturnType<NonNullable<LayoutScopeSource["kept"]>> | null = null;
 
     /** The engine and the rows {@link syncFollowers} last handed it. */
     private followersOf: LayoutEngine | null = null;
@@ -1371,6 +1376,7 @@ export class LayoutManager implements Manager {
         // click, filter change or attribute edit does not move what the running layout holds.
         const members = this.captureMembers(scoped, explicitScope);
         const visible = this.captureVisible();
+        const keptAt = this.#keptCaptured;
 
         // The CONSUMER'S options are checked on their own, before the element adds anything: the
         // dimension options below are the element's to add and are not the layout's to declare,
@@ -1410,6 +1416,7 @@ export class LayoutManager implements Manager {
         const previousDimension = this.engineDimension;
         const previousMembers = this.members;
         const previousVisible = this.visibleIds;
+        const previousKept = this.#keptSeen;
         const previousDriver = this.runningDriver;
         const previousDriverOptions = this.driverOptions;
         // Where the nodes are drawn now, taken before the new engine can place any of them.
@@ -1452,6 +1459,7 @@ export class LayoutManager implements Manager {
             this.replayPins(engine, nodeArray);
             this.leaveOut(engine, visible);
             this.visibleIds = visible;
+            this.#keptSeen = keptAt;
             this.members = members;
             this.membersOwed = members !== null && nodeArray.length === 0;
             if (members !== null) {
@@ -1487,6 +1495,7 @@ export class LayoutManager implements Manager {
             this.engineDimension = previousDimension;
             this.members = previousMembers;
             this.visibleIds = previousVisible;
+            this.#keptSeen = previousKept;
             this.runningDriver = previousDriver;
             this.driverOptions = previousDriverOptions;
             this.dataManager.setLayoutEngine(previousEngine);
@@ -2445,14 +2454,17 @@ export class LayoutManager implements Manager {
      */
     private captureVisible(): Shown | null {
         const source = this.scopeSource;
+        this.#keptCaptured = null;
         if (this.styles.config.behavior.layout.visibleOnly !== true || source === null) {
             return null;
         }
 
-        const nodes = new Set(source.members("visible"));
-        const shownEdges = source.visibleEdges?.();
+        const kept = source.kept?.();
+        this.#keptCaptured = kept ?? null;
+        const nodes = new Set(kept?.nodes ?? this.dataManager.nodes.keys());
+        const shownEdges = kept?.edges ?? null;
         const hiddenEdges = new Set<Edge>();
-        for (const edge of shownEdges === undefined ? [] : this.dataManager.edges.values()) {
+        for (const edge of shownEdges === null ? [] : this.dataManager.edges.values()) {
             // An edge with a hidden end is left out with that end; only an edge filter's own pick is kept here.
             if (!shownEdges?.has(edge.id) && nodes.has(edge.srcNode.id) && nodes.has(edge.dstNode.id)) {
                 hiddenEdges.add(edge);
@@ -2493,6 +2505,15 @@ export class LayoutManager implements Manager {
         // pause, which calls this again.
         const { visibleOnlyWhilePlaying } = this.styles.config.behavior.layout;
         if (visibleOnlyWhilePlaying === "hold" && this.scopeSource?.playing?.() === true) {
+            return;
+        }
+
+        // A time window step leaves what the filter keeps as it was: one identity compare, no capture.
+        if (
+            this.styles.config.behavior.layout.visibleOnly === true &&
+            this.#keptSeen !== null &&
+            this.scopeSource?.kept?.() === this.#keptSeen
+        ) {
             return;
         }
 

@@ -1,16 +1,19 @@
 /**
- * @file Ghosts on a real canvas: with the timeline's `outside: "ghost"`, the elements outside the
- * time window stay drawn in the Ghost row's grey at low opacity, the ones inside keep their own
- * look, and moving the window moves which are which. Every look comes from the Ghost style layer.
+ * @file Ghosts on a real canvas: what lies outside the time window is hidden by style, never taken
+ * out of the graph, and with the timeline's `outside: "ghost"` it is drawn in the Ghost row's grey
+ * at low opacity, the elements inside keeping their own look; moving the window moves which are
+ * which, and moves no node and no camera. Every look comes from a style layer.
  */
 
 import "../../src/graphty-element";
 
+import type { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
+import type { ElementSession } from "../../src/session/types";
 import { readDrawn } from "../fidelity/drawn-scene";
 import { nextFrame } from "../helpers/real-input";
 
@@ -43,10 +46,11 @@ async function settle(element: Graphty): Promise<void> {
 
 /**
  * A process trace of five steps on a real element: node s<i> at step i, edge s<i> -> s<i+1> at
- * step i + 1, with the starting rows on and `step` designated.
+ * step i + 1, with `step` designated.
+ * @param startingRows - Whether the project draws the starting rows.
  * @returns The element.
  */
-async function trace(): Promise<Graphty> {
+async function trace(startingRows = true): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "400px";
@@ -57,7 +61,10 @@ async function trace(): Promise<Graphty> {
     });
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
-    await element.session.config.set({ startingRows: true });
+    if (startingRows) {
+        await element.session.config.set({ startingRows: true });
+    }
+
     await element.session.data.addNodes(
         Array.from({ length: 5 }, (_, i) => ({ id: `s${String(i)}`, step: i, position: { x: i * 3 - 6, y: 0, z: 0 } })),
     );
@@ -85,17 +92,34 @@ function fills(element: Graphty): Map<string, { shown: boolean; fill: string; op
     );
 }
 
+/**
+ * Whether a node draws its halo ring now (the mesh one, which a node not drawn by a shader batch uses).
+ * @param element - The element.
+ * @param id - The node.
+ * @returns True while the ring is on.
+ */
+function haloOn(element: Graphty, id: string): boolean {
+    const node = element.graph.getDataManager().nodes.get(id);
+    assert.isDefined(node, `node ${id}`);
+    const { halo } = node as unknown as { halo: AbstractMesh | null };
+    return halo?.isEnabled() === true;
+}
+
 describe("timeline ghosts on the canvas", () => {
     it("draws out-of-window nodes and edges in the Ghost row's look, and only them", async () => {
         const element = await trace();
         const { time } = element.session;
         await time.window({ from: 1, to: 3 });
         await settle(element);
-        // Hidden by default.
+        // Hidden by default, by style: still in the drawn masks.
         let now = fills(element);
         assert.isFalse(now.get("s0")?.shown);
         assert.isTrue(now.get("s1")?.shown);
+        const s0 = element.session.data.snapshot().ids.requireIndex("s0");
+        const { visibility } = element.session as ElementSession;
+        assert.isTrue(visibility.drawnMasks.nodes().has(s0), "s0 is hidden by style");
         const inWindowFill = now.get("s1")?.fill;
+        const camera = JSON.stringify(element.graph.getCameraState());
 
         await time.setSettings({ outside: "ghost" });
         await settle(element);
@@ -117,11 +141,83 @@ describe("timeline ghosts on the canvas", () => {
         // Ghosts are not visible: counts are the window's.
         assert.strictEqual(element.session.visibility.summary.visibleNodes, 2);
 
-        // Moving the window moves the ghosts.
+        // The Ghost row counts what it draws.
+        const ghostNode = element.session.styles
+            .list()
+            .find((layer) => layer.name === "Ghost" && layer.target === "node");
+        assert.strictEqual(element.session.styles.counts(ghostNode?.id ?? "").matched, 3);
+
+        // Moving the window moves the ghosts, and nothing else.
+        const positions = JSON.stringify(
+            [...readDrawn(element.graph).nodes].map(([id, node]) => [id, Math.round(node.x), Math.round(node.y)]),
+        );
         await time.stepBy(1);
         await settle(element);
         now = fills(element);
         assert.strictEqual(now.get("s1")?.fill, "#9e9e9e");
         assert.strictEqual(now.get("s3")?.fill, inWindowFill);
+        assert.strictEqual(
+            JSON.stringify(
+                [...readDrawn(element.graph).nodes].map(([id, node]) => [id, Math.round(node.x), Math.round(node.y)]),
+            ),
+            positions,
+        );
+        assert.strictEqual(JSON.stringify(element.graph.getCameraState()), camera);
+
+        // Back to hiding: not drawn.
+        await time.setSettings({ outside: "hide" });
+        await settle(element);
+        assert.isFalse(fills(element).get("s0")?.shown);
+    });
+
+    it("takes a selected node's halo away with it outside the window, and draws it again as a ghost", async () => {
+        // No starting rows: the selection draws a halo.
+        const element = await trace(false);
+        const { time } = element.session;
+        await element.session.selection.apply({ nodes: ["s0"] });
+        await settle(element);
+        assert.isTrue(haloOn(element, "s0"), "the selection rings s0");
+
+        await time.window({ from: 1, to: 3 });
+        await settle(element);
+        assert.isFalse(fills(element).get("s0")?.shown);
+        assert.isFalse(haloOn(element, "s0"), "a hidden node draws no halo");
+
+        await time.setSettings({ outside: "ghost" });
+        await settle(element);
+        assert.isTrue(fills(element).get("s0")?.shown);
+        assert.isTrue(haloOn(element, "s0"), "a ghost keeps its halo");
+    });
+
+    it("takes a pinned node's halo away with it outside the window, and draws it again as a ghost", async () => {
+        const element = await trace();
+        const { time } = element.session;
+        await element.session.config.set({ pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } });
+        await element.session.positions.pin(["s4"]);
+        await settle(element);
+        assert.isTrue(haloOn(element, "s4"), "the Pinned row rings s4");
+
+        await time.window({ from: 1, to: 3 });
+        await settle(element);
+        assert.isFalse(fills(element).get("s4")?.shown);
+        assert.isFalse(haloOn(element, "s4"), "a hidden node draws no halo");
+
+        await time.setSettings({ outside: "ghost" });
+        await settle(element);
+        assert.isTrue(fills(element).get("s4")?.shown);
+        assert.isTrue(haloOn(element, "s4"), "a ghost keeps its halo");
+    });
+
+    it("hides what lies outside the window with no starting rows, and ghosts it when asked", async () => {
+        const element = await trace(false);
+        const { time } = element.session;
+        await time.window({ from: 1, to: 3 });
+        await settle(element);
+        assert.isFalse(fills(element).get("s0")?.shown);
+        assert.isTrue(fills(element).get("s1")?.shown);
+
+        await time.setSettings({ outside: "ghost" });
+        await settle(element);
+        assert.isTrue(fills(element).get("s0")?.shown);
     });
 });

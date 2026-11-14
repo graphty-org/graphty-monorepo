@@ -251,6 +251,7 @@ import { selectorStates } from "./selector";
 import {
     arrange,
     documentRows,
+    drawsOutsideWindow,
     findRow,
     folderIdsOf,
     hiddenRowKeys,
@@ -531,6 +532,10 @@ export interface StylesApi {
      *
      * The index a layer happens to sit at is NOT its identity. Read {@link Layer.id} for that,
      * and pass the id to every other verb.
+     *
+     * With the timeline experiment on, the list holds two more of the element's own layers,
+     * `source: { by: "element", reason: "time" }`, which hide what lies outside a time window; with
+     * it off they are left out.
      * @returns The layers, bottom first.
      */
     list(): readonly Layer[];
@@ -1334,7 +1339,7 @@ export interface StylesApi {
      * the top, writing nothing). One undo step; nothing when all three are there. Setting the
      * project setting `startingRows` to true adds them the same way. While a time field is
      * designated (`session.time.setField`), the Ghost row comes too: nodes and edges in the state
-     * `"ghosted"`, grey at low opacity, pinned to the top directly below Selected; with
+     * `"outsideWindow"`, grey at low opacity, pinned to the top directly below Selected; with
      * `startingRows` on, designating a field adds it and clearing the field takes it away. While
      * the project setting `pinnedStyle` is set, the Pinned row comes too: nodes in the state
      * `"pinned"`, drawing that halo, pinned to the top directly below Selected (above Ghost); with
@@ -1624,6 +1629,13 @@ export interface StylesSources {
      * @returns What it resolves to now.
      */
     readonly resolveScope?: (spec: Scope) => ResolvedScope;
+    /**
+     * What the drawing shows, when it shows more than is visible: under a time window whose
+     * outside the stack draws (Outside: Ghost), what every filter keeps, so a layer styling what
+     * lies outside the window counts it. Absent or null, the visible elements.
+     * @returns The rows, or null.
+     */
+    readonly drawn?: () => AgreementElements | null;
     /** Which versions are doing the work. Defaults to the element's own. */
     readonly engine?: EngineVersions;
     /**
@@ -2620,6 +2632,29 @@ function layerIn(state: ProjectState, id: LayerId): Layer | undefined {
 }
 
 /**
+ * The faint layers a branches view draws a ghost with, a member keeping its branch's color.
+ * @param state - The state the ghosts are in.
+ * @param show - Whether the layers also draw the ghosts, which other layers hide.
+ * @returns The node layer and the edge layer.
+ */
+function heldLayers(state: "ghosted" | "outsideWindow", show: boolean): LayerSpec[] {
+    return [
+        {
+            name: "Held",
+            target: "node",
+            selector: { match: "state", state },
+            set: show ? { "node.visible": true, "node.opacity": 0.2 } : { "node.opacity": 0.2 },
+        },
+        {
+            name: "Held",
+            target: "edge",
+            selector: { match: "state", state },
+            set: show ? { "edge.visible": true, "edge.opacity": 0.15 } : { "edge.opacity": 0.15 },
+        },
+    ];
+}
+
+/**
  * Build the style stack one session holds.
  * @param sources - What a selector compiles against, the element's own layers, the scales, the
  *     repaint seam, the dispatcher and the change hook.
@@ -2679,6 +2714,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns True for a base layer.
      */
     const isBaseEntry = (entry: CompiledLayer): boolean => entry.layer.kind === "base";
+    /**
+     * Whether a stack entry is one of the element's base layers that give every element its look,
+     * which the Everything row holds while `editableBase` is on.
+     * @param entry - The entry.
+     * @returns True for one.
+     */
+    const isBaseLook = (entry: CompiledLayer): boolean =>
+        isBaseEntry(entry) && entry.layer.selector.match === "everything";
 
     /**
      * Everything a reading of the whole stack (`agreement`) depends on besides its own
@@ -2896,27 +2939,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
         }
 
-        // A ghost (what a held condition would remove, or what lies outside the time window) is
-        // drawn faint, a member keeping its branch's color. Over the full graph a ghost that a
-        // branch holds is a member like any other, so the branches are drawn over the ghosts.
+        // A ghost (what a held condition would remove, and what lies outside the time window
+        // while the stack draws it) is drawn faint, a member keeping its branch's color. Over the
+        // full graph a ghost that a branch holds is a member like any other, so the branches are
+        // drawn over the ghosts.
         const restLayers = view.rest === "faint" ? 2 : 0;
         const ghostAt = view.base === "full" ? restLayers : specs.length;
-        specs.splice(
-            ghostAt,
-            0,
-            {
-                name: "Held",
-                target: "node",
-                selector: { match: "state", state: "ghosted" },
-                set: { "node.opacity": 0.2 },
-            },
-            {
-                name: "Held",
-                target: "edge",
-                selector: { match: "state", state: "ghosted" },
-                set: { "edge.opacity": 0.15 },
-            },
-        );
+        // What lies outside the window stays drawn: the view suspends the layers that draw it.
+        const outside = drawsOutsideWindow(current()) ? heldLayers("outsideWindow", true) : [];
+        specs.splice(ghostAt, 0, ...heldLayers("ghosted", false), ...outside);
 
         const layers = specs.map((spec, at) => {
             const checked = check(spec, `graphty-branches-${String(at)}`);
@@ -2936,18 +2967,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /**
      * The stack as it paints without a branches view: a hidden row's layers read as disabled, and
-     * so do the element's own base layers while the Everything row holds the base look.
+     * so do the element's own base look layers while the Everything row holds the base look.
      * @param stack - The stack.
      * @returns The stack.
      */
     const basePainting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
         const painted = paintedStack(stack);
-        if (!editableBase() || !painted.some((entry) => isBaseEntry(entry) && entry.layer.enabled)) {
+        if (!editableBase() || !painted.some((entry) => isBaseLook(entry) && entry.layer.enabled)) {
             return painted;
         }
 
         return painted.map((entry) => {
-            if (!isBaseEntry(entry) || !entry.layer.enabled) {
+            if (!isBaseLook(entry) || !entry.layer.enabled) {
                 return entry;
             }
 
@@ -2968,7 +2999,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns The values, by channel.
      */
     const baseValues = (target: "node" | "edge"): StaticStyle =>
-        Object.assign({}, ...(sources.base ?? []).filter((spec) => spec.target === target).map((spec) => spec.set));
+        Object.assign(
+            {},
+            ...(sources.base ?? [])
+                .filter((spec) => spec.target === target && spec.selector.match === "everything")
+                .map((spec) => spec.set),
+        );
 
     /**
      * The layers of the stack by id, cached until the stack changes.
@@ -3006,6 +3042,32 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return listCache;
     };
     const listLayers = (): readonly Layer[] => listed().layers;
+
+    /** The list with the timeline off, by the list it was read from: see {@link StylesApi.list}. */
+    let untimedList: { readonly of: readonly Layer[]; readonly layers: readonly Layer[] } | null = null;
+    /**
+     * The list a consumer reads: with the timeline off, the element's own layers hiding what lies
+     * outside a time window stay in the stack, matching nothing, and are left out, as the tree
+     * leaves out a saved Ghost row.
+     * @returns The layers, bottom first.
+     */
+    const publicList = (): readonly Layer[] => {
+        const layers = listLayers();
+        if (dispatcher.services.timeline?.() !== false) {
+            return layers;
+        }
+
+        if (untimedList?.of !== layers) {
+            untimedList = {
+                of: layers,
+                layers: Object.freeze(
+                    layers.filter(({ source }) => !(source.by === "element" && source.reason === "time")),
+                ),
+            };
+        }
+
+        return untimedList.layers;
+    };
 
     /**
      * The first version of each edited layer, by every later version of it. An edit compiles a new
@@ -3114,7 +3176,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const amongDrawn = (id: LayerId): { readonly matched: number; readonly of: number } => {
         const compiled = byId().get(id);
         const edges = compiled?.layer.target === "edge";
-        const drawn = elementsOf(DRAWN);
+        const drawn = sources.drawn?.() ?? elementsOf(DRAWN);
         const test = compiled?.selector.test ?? null;
         let matched = 0;
         let of = 0;
@@ -3202,7 +3264,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
         const compiled = byId().get(id);
         const edges = compiled?.layer.target === "edge";
-        const drawn = elementsOf(DRAWN);
+        const drawn = sources.drawn?.() ?? elementsOf(DRAWN);
         const test = compiled?.selector.test ?? null;
         let count = 0;
         for (const index of edges ? drawn.edges : drawn.nodes) {
@@ -3643,11 +3705,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (at === "aboveBase") {
-            // Directly above the last of the element's own base layers, wherever it sits.
+            // Directly above the last of the element's own base layers (its look, and what hides
+            // what lies outside a time window), wherever it sits.
             let index = 0;
             stack.forEach((entry, position) => {
                 const { source } = entry.layer;
-                if (source.by === "element" && source.reason === "default") {
+                if (source.by === "element" && (source.reason === "default" || source.reason === "time")) {
                     index = position + 1;
                 }
             });
@@ -5166,7 +5229,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     const api: SessionStylesApi = {
         list(): readonly Layer[] {
-            return listLayers();
+            return publicList();
         },
 
         showBranches(view: BranchesView): { end(): void } {

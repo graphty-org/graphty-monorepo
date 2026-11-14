@@ -148,7 +148,7 @@ function nodeGhosts(element: Graphty): ReadonlyMap<Edge["srcNode"], boolean> {
     return new Map(
         [...element.graph.getDataManager().nodes.values()].map((node) => [
             node,
-            visibility.ghosted("node", node.index),
+            visibility.outsideWindow("node", node.index),
         ]),
     );
 }
@@ -190,7 +190,10 @@ function assertSupportPointsMatchStyle(element: Graphty, when: string): void {
 describe("changed rows on real nodes and edges", () => {
     it("draws seeded steps, three between frames, as the masks say, and writes only what moved", async () => {
         const element = await slidingElement();
-        const write = vi.spyOn(Edge.prototype, "setRenderVisible");
+        // Under Outside: Hide a step hides by style: an edge that moved is painted again, and no
+        // step walks every edge.
+        const paint = vi.spyOn(Edge.prototype, "applySessionPaint");
+        const walk = vi.spyOn(element.graph.getUpdateManager(), "forceEdgeWalk");
         let state = 11;
         const next = (): number => {
             state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296;
@@ -199,7 +202,8 @@ describe("changed rows on real nodes and edges", () => {
 
         let from = 5;
         for (let frame = 0; frame < 12; frame++) {
-            write.mockClear();
+            paint.mockClear();
+            walk.mockClear();
             let moved = 0;
             for (let slide = 0; slide < 3; slide++) {
                 from += Math.floor(next() * 20);
@@ -210,7 +214,8 @@ describe("changed rows on real nodes and edges", () => {
             await drawn(element);
             assertDrawnAsVisible(element, `frame ${String(frame)}`);
             assertEdgesOnNodes(element, `frame ${String(frame)}`);
-            assert.isAtMost(write.mock.calls.length, moved, `frame ${String(frame)} wrote only moved rows`);
+            assert.isAtMost(paint.mock.calls.length, moved, `frame ${String(frame)} painted only moved rows`);
+            assert.strictEqual(walk.mock.calls.length, 0, `frame ${String(frame)} walked no edge`);
         }
     });
 
@@ -322,7 +327,7 @@ describe("changed rows on real nodes and edges", () => {
 
         const painter = graph.getStylePainter();
         for (const edge of graph.getDataManager().edges.values()) {
-            const ghost = session.visibility.ghosted("edge", edge.index);
+            const ghost = session.visibility.outsideWindow("edge", edge.index);
             const { opacity } = painter.edgePaint(edge.index)?.style.line ?? {};
             assert.strictEqual(opacity === STARTING_GHOST_LOOK["edge.opacity"], ghost, `edge ${edge.id}`);
             assert.isTrue(edge.isRenderVisible(), "a ghost stays drawn");
@@ -446,7 +451,7 @@ describe("changed rows on real nodes and edges", () => {
             await mountedElement.session.styles.add({
                 name: "Small ghosts",
                 target: "node",
-                selector: { match: "state", state: "ghosted" },
+                selector: { match: "state", state: "outsideWindow" },
                 set: { "node.size": 0.25 },
             });
         }, LARGE);
@@ -457,8 +462,8 @@ describe("changed rows on real nodes and edges", () => {
 
         const edges = [...graph.getDataManager().edges.values()];
         const ghostEnds = (edge: Edge): number =>
-            Number(session.visibility.ghosted("node", edge.srcNode.index)) +
-            Number(session.visibility.ghosted("node", edge.dstNode.index));
+            Number(session.visibility.outsideWindow("node", edge.srcNode.index)) +
+            Number(session.visibility.outsideWindow("node", edge.dstNode.index));
         const before = edges.map((edge) => ({ ghosts: ghostEnds(edge), length: edge.drawnLine?.length ?? 0 }));
         const ghostsBefore = nodeGhosts(element);
 
@@ -573,7 +578,7 @@ describe("changed rows on real nodes and edges", () => {
             await mountedElement.session.styles.add({
                 name: "Straight ghosts",
                 target: "edge",
-                selector: { match: "state", state: "ghosted" },
+                selector: { match: "state", state: "outsideWindow" },
                 set: { "edge.curvature": false },
             });
         });
@@ -597,7 +602,7 @@ describe("changed rows on real nodes and edges", () => {
             await mountedElement.session.styles.add({
                 name: "Ghosts on support points",
                 target: "edge",
-                selector: { match: "state", state: "ghosted" },
+                selector: { match: "state", state: "outsideWindow" },
                 set: { "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 },
             });
         }, SUPPORT_GHOSTS);

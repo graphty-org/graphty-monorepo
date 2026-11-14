@@ -3720,6 +3720,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             previewSteps: READ,
             filterBytes: READ,
             passingBytes: READ,
+            keptIds: READ,
+            outsideWindow: READ,
+            outsideWindowBytes: READ,
             hold: exempt(
                 "Draws a condition's removals as ghosts while a reader edits it; the conditions are unchanged.",
             ),

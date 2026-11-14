@@ -278,8 +278,9 @@ const GraphLayoutOpts = z.strictObject({
      * its edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot
      * -- and it stays where it was, so taking the filter away shows it where it was. The layout
      * runs again whenever what the filter shows changes, and when this is switched. Every layout
-     * honours it. Unset or false, the default, a layout runs over the whole graph, hidden nodes
-     * included.
+     * honours it. The time window is not a filter here: what lies outside it is hidden by style
+     * and still takes part, so playing the timeline moves no node. Unset or false, the default, a
+     * layout runs over the whole graph, hidden nodes included.
      */
     visibleOnly: z.boolean().optional(),
 
@@ -291,6 +292,9 @@ const GraphLayoutOpts = z.strictObject({
      * frame, thrown away by the next one. "hold": the layout keeps the nodes where they are while
      * time plays and runs again once, over what is shown, when the play pauses or ends. Unset means
      * "follow". A layout over the whole graph ignores it.
+     *
+     * The time window now hides by style and never changes what `visibleOnly` lays out, so a play
+     * moves nothing this option governs; it is kept so existing configurations stay valid.
      */
     visibleOnlyWhilePlaying: z.enum(["hold", "follow"]).optional(),
 });

@@ -1,10 +1,45 @@
 import type { CameraState } from "../screenshot/types.js";
 
+/**
+ * One stop of a camera path or tour: where the camera goes, how long it takes to get there and how
+ * long it stays.
+ *
+ * Give either `view` or `position` and `target`. A path whose stops all give `position` and
+ * `target` and no `hold` plays exactly as it always has; a path with any `view` or `hold` is a tour,
+ * flown with the element's own camera moves, so it works the same in 2D and in 3D.
+ * @example
+ * ```typescript
+ * await element.playTour([
+ *     { view: "overview", hold: 2000 },
+ *     { view: "cluster-a", duration: 1500, hold: 3000 },
+ *     { view: { zoom: 2, pan: { x: 40, y: 0 } }, duration: 1500, hold: 3000 },
+ * ]);
+ * ```
+ */
 export interface CameraWaypoint {
-    position: { x: number; y: number; z: number };
-    target: { x: number; y: number; z: number };
-    /** Time to reach this waypoint from the previous one (ms) */
+    /** Where the camera stands, in 3D. Required unless `view` is given. */
+    position?: { x: number; y: number; z: number };
+    /** What the camera looks at, in 3D. Required unless `view` is given. */
+    target?: { x: number; y: number; z: number };
+    /**
+     * Where to go: the name of a view -- a camera view (`catalog.cameras()` ids, such as
+     * `"fitToGraph"`) or a view saved in `session.views` -- or a camera state. Wins over `position`
+     * and `target`. A name nothing answers to is refused with `E_UNKNOWN_CAMERA` before the tour
+     * starts; a view with nothing the current drawing mode can use (a 2D view in 3D, a 3D view in
+     * 2D) with `E_UNSUPPORTED`.
+     */
+    view?: string | CameraState;
+    /**
+     * Time to reach this waypoint from the previous one (ms). In a tour, the first stop's duration
+     * is the flight from wherever the camera is; 0 or absent jumps there.
+     */
     duration?: number;
+    /**
+     * How long the camera stays at this waypoint once it arrives, in milliseconds, counted in the
+     * time of the frames drawn.
+     * @default 0
+     */
+    hold?: number;
 }
 
 /**
@@ -55,13 +90,18 @@ export interface AnimationOptions {
      * @default the camera as it is
      */
     camera?: CameraState | { preset: string };
-    /** Waypoints for camera animation path (animated mode) */
+    /**
+     * Waypoints for camera animation path (animated mode). Stops with `view` or `hold` make it a
+     * tour; see {@link CameraWaypoint}. The recording lasts `duration` either way, so a tour's
+     * `duration` is the sum of its stops' durations and holds.
+     */
     cameraPath?: CameraWaypoint[];
     /**
      * A tour, in animated mode, in place of `cameraPath`: the names of the views to visit in
      * order -- camera views (`catalog.cameras()` ids, such as `"fitToGraph"`) or views saved in
-     * `session.views` -- with the duration split evenly between them. Two or more names. A view
-     * that resolves to no position and target (a 2D view) is refused with `E_UNSUPPORTED`.
+     * `session.views` -- with the duration split evenly between them. Two or more names. For holds
+     * or uneven legs, give `cameraPath` stops with `view` and `hold` instead. A view with nothing
+     * the current drawing mode can use is refused with `E_UNSUPPORTED`.
      */
     tour?: readonly string[];
     /** Easing function for camera animations (default: 'easeInOut') */

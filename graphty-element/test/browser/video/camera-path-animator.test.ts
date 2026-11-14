@@ -1,8 +1,11 @@
 import { Animation, Camera, EasingFunction, Scene, Vector3 } from "@babylonjs/core";
 import { assert, beforeEach, describe, test, vi } from "vitest";
 
-import { CameraPathAnimator, type CameraPathAnimatorOptions } from "../../../src/video/CameraPathAnimator.js";
-import type { CameraWaypoint } from "../../../src/video/VideoCapture.js";
+import {
+    CameraPathAnimator,
+    type CameraPathAnimatorOptions,
+    type PositionedWaypoint as CameraWaypoint,
+} from "../../../src/video/CameraPathAnimator.js";
 
 // Helper to create a mock 3D camera
 function createMock3DCamera(): Camera {

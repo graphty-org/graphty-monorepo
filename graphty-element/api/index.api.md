@@ -629,21 +629,21 @@ export interface CameraStateChangedEvent {
 // @public
 export type CameraViewExtent = "centers" | "drawn";
 
-// @public (undocumented)
+// @public
 export interface CameraWaypoint {
     duration?: number;
-    // (undocumented)
-    position: {
+    hold?: number;
+    position?: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
-    target: {
+    target?: {
         x: number;
         y: number;
         z: number;
     };
+    view?: string | CameraState;
 }
 
 // @public
@@ -2973,6 +2973,9 @@ export class Graph implements GraphContext {
     // (undocumented)
     pinOnDrag?: boolean;
     get pixelRatio(): PixelRatio;
+    playTour(path: readonly CameraWaypoint[], options?: {
+        easing?: CameraAnimationOptions["easing"];
+    }): Promise<void>;
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
@@ -3553,6 +3556,9 @@ export class Graphty extends LitElement {
     get pinnedNodes(): ReadonlySet<string | number>;
     get pixelRatio(): PixelRatio;
     set pixelRatio(value: PixelRatio);
+    playTour(path: readonly CameraWaypoint[], options?: {
+        easing?: "linear" | "easeIn" | "easeOut" | "easeInOut";
+    }): Promise<void>;
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];

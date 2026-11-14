@@ -6,11 +6,12 @@
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
 import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { after, describe, it, mock } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
@@ -933,6 +934,16 @@ describe("planRead", () => {
         const again = await refreshSnapshot({ root, file, env, now: now + 60e3 });
         assert.equal(again.refreshed, false);
         assert.equal(seen.length, 2, "under an hour old: no read");
+    });
+    it("loads the real test matrix from only the files the Durations snapshot job checks out (#7851)", async () => {
+        // cone mode: the listed directories plus the root files
+        const job = readFileSync(".github/workflows/ci.yml", "utf8").split("\n    durations-snapshot:\n")[1];
+        const paths = /sparse-checkout: \|\n((?:\s+\S+\n)+)/.exec(job)[1].trim().split(/\s+/);
+        const root = join(TMP, "durations-job-checkout");
+        for (const p of paths) cpSync(p, join(root, p), { recursive: true });
+        for (const f of readdirSync(".", { withFileTypes: true })) if (f.isFile()) cpSync(f.name, join(root, f.name));
+        const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
+        assert.ok(SHARDS.length > 0);
     });
     it("reads the plan once and writes its durations", async () => {
         const { url, seen } = await serve();

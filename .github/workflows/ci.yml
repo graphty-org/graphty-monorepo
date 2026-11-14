@@ -3698,7 +3698,10 @@ jobs:
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }} # every checkout names it; empty on this push, so the pushed commit
-                  sparse-checkout: tools
+                  # tools/ci-test-matrix.mjs reads the feature registry (tools/features-on.mjs)
+                  sparse-checkout: |
+                      tools
+                      graphty-element/src/features
 
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions

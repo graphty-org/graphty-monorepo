@@ -602,7 +602,7 @@ async function expand(reader: Reader, request: ExpandRequest<CypherParams>, sink
 
 /**
  * The generic Cypher source, for any openCypher server: Neo4j over its Query API or Bolt, Neptune
- * over HTTPS. The transport comes from `params.transport`, else the endpoint (`bolt+s://` is Bolt,
+ * over HTTPS. The transport comes from `params.transport`, else the endpoint (`bolt+s://` or `neo4j+s://` is Bolt,
  * a `neptune-graph` host is Neptune Analytics), else the Query API. Experimental.
  * @category Network sources
  */
@@ -613,8 +613,9 @@ export const cypherSource: GraphSource<CypherParams> = cypher({
 });
 
 /**
- * The Neo4j preset: the Query API (Neo4j 5.26 and later, Aura), or Bolt for a `bolt:` or
- * `bolt+s:` endpoint (any Neo4j; needs the optional peer neo4j-driver). Experimental.
+ * The Neo4j preset: the Query API (Neo4j 5.26 and later, Aura), or Bolt for a `bolt:`, `bolt+s:`,
+ * `neo4j:` or `neo4j+s:` endpoint, connected directly to the named host (any Neo4j; needs the
+ * optional peer neo4j-driver). Experimental.
  * @category Network sources
  */
 export const neo4jSource: GraphSource<CypherParams> = cypher({

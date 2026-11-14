@@ -29,6 +29,18 @@ import type { EventOfType } from "./src/events";
  */
 export interface GraphtyElementJSXProps {
     /**
+     * Sets the wording function and words the description again.
+     */
+    accessibleDescription?: Graphty["accessibleDescription"];
+    /**
+     * Sets the announcement's wording function.
+     */
+    accessibleAnnouncement?: Graphty["accessibleAnnouncement"];
+    /**
+     * Adds or removes the node list.
+     */
+    accessibleNodeList?: Graphty["accessibleNodeList"];
+    /**
      * Sets the ids: an array, or a space-separated string as the attribute carries them.
      */
     features?: Graphty["features"];
@@ -290,6 +302,10 @@ export interface GraphtyElementJSXProps {
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     "aria-label"?: string;
+    /**
+     * Adds or removes the node list.
+     */
+    "accessible-node-list"?: boolean;
     /**
      * Sets the restore mode; anything but `"manual"` is `"auto"`.
      */

@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
     acquire,
     commandWhat,
+    COUNT_MAX_AGE_MS,
     HELD,
     laneOf,
     liveTickets,
@@ -251,6 +252,19 @@ describe("test-slots", () => {
         assert.equal(slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir, GRAPHTY_TEST_SLOTS: "3" }, 32), 3, "the variable wins");
         writeFileSync(join(dir, ".count"), "six");
         assert.throws(() => slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32), /\.count must be a whole number/);
+    });
+
+    it("ignores a .count file written more than two hours ago and falls back to the default", () => {
+        const dir = fresh();
+        const file = join(dir, ".count");
+        writeFileSync(file, "6\n");
+        const written = statSync(file).mtimeMs;
+        assert.equal(slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32, written + COUNT_MAX_AGE_MS - 1000), 6);
+        assert.equal(
+            slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32, written + COUNT_MAX_AGE_MS + 1000),
+            4,
+            "stale: one per 8 cores",
+        );
     });
 
     it("gives a Node run at most its share of the cores as workers, and no cap where slots are off", () => {

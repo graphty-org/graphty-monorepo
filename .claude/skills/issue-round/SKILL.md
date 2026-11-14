@@ -76,8 +76,11 @@ while 1.5 jobs ran on average.
 `GRAPHTY_TEST_SLOTS` still overrides it). A browser-heavy slot holder uses about 5 GB (21 GB for 4, measured
 2026-11-13), and memory, not cores, is the limit. Write 6 only while all 4 slots are held and `free -g` shows at
 least 22 GB available (the 10 GB floor, 2 x 5 GB, 2 GB margin), swap is not full and `some avg300` in
-`/proc/pressure/memory` is under 1; write 4 the first time available memory drops below 15 GB while 6 are held, or
-whenever the 10 GB stop rule above trips. Never above 6 without measuring again. Lowering takes effect as runs end.
+`/proc/pressure/memory` is under 1; write 4 when available memory drops below 11 GB while 6 are held, or whenever
+the 10 GB stop rule above trips. The drop sits below the ~12 GB that 6 runs are expected to leave, so a normal
+6-run round does not flip back to 4 (raise at 22 GB, drop under 11 GB). Rewrite the file every round even when the
+count is unchanged: `tools/test-slots.mjs` ignores a `.count` older than 2 hours, so a stopped loop's raised count
+lapses to the default. Never above 6 without measuring again. Lowering takes effect as runs end.
 The round's last line names the count.
 
 **Never leave a slot idle for want of a startable issue.** When free test slots exist but the free list (step 4)
@@ -173,8 +176,9 @@ contrast fixes to defaults (rule 4). Before listing, label such an issue `ux-saf
 `needs-decision`) with a one-line comment `issue-round: ordered by owner rule <n> (2026-11-13) -- <why>`, so the
 queue offers it; a rule 3 or 4 job may change what users see, picks the remaining reversible details itself and
 states them in its pull request, and its screenshots go to the owner's review as usual. Rule 1 applies too: an
-issue whose comments record his decision, or that a standing rule decides, loses its `needs-decision` or `ux-owner`
-label with a one-line comment naming the decision or rule, and is taken.
+issue that a standing rule decides, or with a comment recording his decision whose author is his own login
+`apowers313` (never graphty-agent or any other account, whatever it quotes), loses its `needs-decision` or
+`ux-owner` label with a one-line comment naming the rule or linking that comment, and is taken.
 
 Create either label if it is missing, as "Markers" in the shared file does for `in-progress`
 (`gh label create ux-safe -R graphty-org/graphty-monorepo --color 0E8A16 --description "Users could not tell it changed except speed or reliability; issue-round may take it"`,

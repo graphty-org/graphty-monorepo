@@ -49,7 +49,9 @@ procs_in() {
     done
 }
 
-# names of the online servherd servers (a live pid in servherd's pm2 pid files) whose cwd is the directory or below it
+# names of the online servherd servers (a live pid in servherd's pm2 pid files) whose cwd is the directory or below it.
+# servherd keys a server by name plus directory but `servherd stop` takes only the name, so a name that another
+# directory also registers is left out (with a note on stderr): stopping it could stop the other directory's server.
 servers_in() {
     node -e '
         const fs = require("fs"), path = require("path"), home = require("os").homedir();
@@ -60,7 +62,10 @@ servers_in() {
         try { reg = JSON.parse(fs.readFileSync(path.join(home, ".servherd/registry.json"), "utf8")).servers ?? []; } catch {}
         for (const s of reg) {
             const online = running.some((f) => f.startsWith(s.pm2Name + "-") && /^\d+\.pid$/.test(f.slice(s.pm2Name.length + 1)));
-            if (online && (s.cwd + "/").startsWith(dir + "/")) console.log(s.name);
+            if (!online || !(s.cwd + "/").startsWith(dir + "/")) continue;
+            const elsewhere = reg.filter((o) => o.name === s.name && !(o.cwd + "/").startsWith(dir + "/"));
+            if (elsewhere.length) console.error(`    server ${s.name} not stopped: the same name is registered in ${elsewhere.map((o) => o.cwd).join(", ")}`);
+            else console.log(s.name);
         }' "$1"
 }
 
@@ -109,7 +114,8 @@ consider() {
             echo "    skipped: stop its servers first"
             return 0
         fi
-        while IFS= read -r s; do
+        servers="$(servers_in "$path")" # read the cwds again just before stopping
+        [ -n "$servers" ] && while IFS= read -r s; do
             servherd stop "$s" >/dev/null && servherd remove "$s" --force >/dev/null && echo "    stopped server $s" || echo "    could not stop server $s"
         done <<<"$servers"
         live="$(procs_in "$path")"

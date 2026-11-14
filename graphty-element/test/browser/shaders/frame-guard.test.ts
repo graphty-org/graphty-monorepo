@@ -192,8 +192,8 @@ function hostOf(element: Graphty): LazyShaderHost {
 }
 
 /**
- * Make every fence the element's GL context makes read unsignalled for a while after it was made,
- * as a GPU that takes that long per frame does.
+ * Make every fence the element's GL context makes read unsignalled until the GPU would have
+ * finished its frame, as a GPU that takes that long per frame, and draws frames in order, does.
  * @param element - The element.
  * @param gpuMs - How long each frame keeps the GPU busy; a function so a test can change it.
  * @returns Puts the context's own functions back.
@@ -202,10 +202,14 @@ function slowGpu(element: Graphty, gpuMs: () => number): () => void {
     const gl = (element.graph.engine as unknown as { _gl: WebGL2RenderingContext })._gl;
     const { fenceSync, getSyncParameter } = gl;
     const made = new WeakMap<WebGLSync, number>();
+    // A GPU finishes frames one after another, so a frame queued behind another starts only when
+    // that one is done.
+    let busyUntil = 0;
     gl.fenceSync = (condition, flags) => {
         const fence = fenceSync.call(gl, condition, flags);
         if (fence !== null) {
-            made.set(fence, performance.now() + gpuMs());
+            busyUntil = Math.max(busyUntil, performance.now()) + gpuMs();
+            made.set(fence, busyUntil);
         }
 
         return fence;

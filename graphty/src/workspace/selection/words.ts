@@ -143,7 +143,7 @@ export function referenceWords(session: GraphSession, reference: StepReference |
     if (typeof reference === "object" && "nodes" in reference) {
         const [only] = reference.nodes;
         return reference.nodes.length === 1
-            ? session.data.nodeName(only).name
+            ? (session.data.name(only) ?? String(only))
             : `${formatNumber(reference.nodes.length)} nodes`;
     }
     return "A scope";

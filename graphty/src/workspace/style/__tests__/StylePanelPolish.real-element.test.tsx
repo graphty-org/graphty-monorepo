@@ -113,8 +113,7 @@ describe("the Style panel", () => {
 
     it("reads nodes picked by hand as such and takes a condition beside them", async () => {
         const { session, idOf } = await openScene();
-        const names = ["Valjean", "Javert", "Fantine"];
-        const ids = names.map(idOf);
+        const ids = ["Valjean", "Javert", "Fantine"].map(idOf);
         // As a layer made from a selection holds it: the nodes, and no edges.
         const selector = { match: "ids" as const, nodes: ids, edges: [] };
         await session.styles.add({ name: "Three", target: "node", selector, set: { "node.color": "#d55e00" } });
@@ -127,8 +126,7 @@ describe("the Style panel", () => {
         await userEvent.click(row);
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const card = within(region).getByRole("group", { name: "Picked by hand: 3 nodes" });
-        // By name, not id (issue #7454).
-        assert.include(card.textContent ?? "", names.join(", "), "the card lists the nodes by name");
+        assert.include(card.textContent ?? "", ids.join(", "), "the card lists the ids");
         assert.isNotNull(within(region).queryByRole("button", { name: "Add a condition" }));
 
         // A condition beside them is ANDed with them, not put in their place.

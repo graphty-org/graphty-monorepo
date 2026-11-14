@@ -1157,8 +1157,6 @@ export const READ_ONLY: readonly string[] = [
     "SessionDataApi.loadedWeight",
     "SessionDataApi.matchesSource",
     "SessionDataApi.name",
-    "SessionDataApi.nodeName",
-    "SessionDataApi.edgeName",
     "SessionDataApi.neighbors",
     "SessionDataApi.node",
     "SessionDataApi.nodePage",

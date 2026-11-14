@@ -2128,22 +2128,21 @@ export function CardBody({
             // The rule's own text: an expression as it was typed, any other leaf as the element holds it.
             return card.leaf === null ? null : (
                 <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
-                    {fixedText(session, card.leaf)}
+                    {fixedText(card.leaf)}
                 </Text>
             );
     }
 }
 
 /**
- * A fixed card's leaf as its body says it: the nodes picked by hand by name, an expression as it
- * was typed, any other leaf as the element holds it.
- * @param session - the element's session, which names the nodes.
+ * A fixed card's leaf as its body says it: the ids picked by hand, an expression as it was typed,
+ * any other leaf as the element holds it.
  * @param leaf - the leaf.
  * @returns the text.
  */
-function fixedText(session: GraphSession, leaf: RuleTree): string {
+function fixedText(leaf: RuleTree): string {
     if (leaf.kind === "member" && typeof leaf.of === "object" && "nodes" in leaf.of) {
-        const ids = leaf.of.nodes.map((id) => session.data.nodeName(id).name);
+        const ids = leaf.of.nodes.map(String);
         return ids.length > 5 ? `${ids.slice(0, 5).join(", ")}, +${String(ids.length - 5)}` : ids.join(", ");
     }
     if (leaf.kind === "state") {

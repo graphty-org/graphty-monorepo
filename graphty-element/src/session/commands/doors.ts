@@ -2645,9 +2645,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen.
             node: READ,
             name: READ,
-            // Fresh objects built from the label column on each call.
-            nodeName: READ,
-            edgeName: READ,
             edge: READ,
             nodes: READ,
             edges: READ,

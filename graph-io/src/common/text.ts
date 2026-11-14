@@ -8,7 +8,8 @@
  * - `bool` is exactly `true` / `false` (case-sensitive);
  * - `i32` is `/^-?(0|[1-9][0-9]*)$/` within `[-2^31, 2^31)`; `0` / `1` are i32, never bool;
  * - `f64` is a decimal or exponent literal accepted by `Number()` that is not empty, not
- *   whitespace, not `Infinity` / `NaN`, not a hex / octal / binary form, has no leading zeros in
+ *   whitespace, not `Infinity` / `NaN`, not a hex / octal / binary form, not signed with `+` (a
+ *   phone number such as `+15551007` stays text), has no leading zeros in
  *   its integer part, and whose value is finite (an integer literal outside i32 range is f64);
  * - everything else is `string`.
  */

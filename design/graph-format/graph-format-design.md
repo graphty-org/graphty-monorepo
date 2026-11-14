@@ -963,7 +963,8 @@ json`. Inference never yields `f32` (f32 silently corrupts `0.1` and
   TEXT, `bool` is exactly `true` / `false` (case-sensitive); `i32` is
   `/^-?(0|[1-9][0-9]*)$/` within `[-2^31, 2^31)`; `f64` is a decimal or
   exponent literal accepted by `Number()` that is not empty, not
-  whitespace, not `Infinity` / `NaN` and not a hex / octal / binary form;
+  whitespace, not `Infinity` / `NaN`, not a hex / octal / binary form and
+  not signed with `+` (a phone number `+15551007` stays text);
   everything else is `string`. `0` / `1` text is `i32`, never `bool`. JS
   values map by `typeof` (`boolean` -> `bool`, integral `number` in i32
   range -> `i32`, other `number` -> `f64`, `string` -> `string`, array or

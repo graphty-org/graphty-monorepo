@@ -7,7 +7,8 @@
  * - `bool` is exactly `true` / `false` (case-sensitive);
  * - `i32` is `/^-?(0|[1-9][0-9]*)$/` within `[-2^31, 2^31)`;
  * - `f64` is a decimal or exponent literal accepted by `Number()` that is not empty, not whitespace,
- *   not `Infinity` / `NaN` and not a hex / octal / binary form (and whose value is finite);
+ *   not `Infinity` / `NaN`, not a hex / octal / binary form, not signed with `+` (and whose value
+ *   is finite);
  * - everything else is `string`. `0` / `1` text is `i32`, never `bool`.
  *
  * JS values map by `typeof`: `boolean -> bool`, integral `number` in i32 range -> `i32`, other
@@ -24,8 +25,9 @@ export type InferredDtype = "bool" | "i32" | "f64" | "string" | "json";
 export const WIDENING_ORDER: readonly InferredDtype[] = ["bool", "i32", "f64", "string", "json"];
 
 const I32_TEXT = /^-?(0|[1-9]\d*)$/;
-// integer part without leading zeros ("01" is a string, design section 5.1), optional fraction, optional exponent
-const F64_TEXT = /^[+-]?((0|[1-9]\d*)(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+// optional minus (a leading "+", as a phone number "+15551007" writes, is text), integer part without
+// leading zeros ("01" is a string, design section 5.1), optional fraction, optional exponent
+const F64_TEXT = /^-?((0|[1-9]\d*)(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
 

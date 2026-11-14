@@ -347,7 +347,7 @@ candidate for confirmation by the owner; none contradicts an invariant.
 - A `"sum"` reducer over an i32 / u32 / u8 column (`simplified`, `contract`) widens the result to f64
   (as `"mean"` does) so a total never wraps; `"min"` / `"max"` keep the dtype.
 - `clone()` deep-copies every buffer; a json column's values array is copied, the values shared.
-- f64 text inference: no leading zeros in the integer part, sign and exponent allowed, must be finite;
+- f64 text inference: no leading zeros in the integer part, a minus sign (never `+`) and exponent allowed, must be finite;
   an integer text outside i32 range is f64.
 - `AttributeTable` carries exactly the 12.2 members; declare / withColumns / uniqueness helpers are
   module functions (`createTable`, `declareColumn`, `tableWithColumns`, `verifyUniqueColumn(s)`).

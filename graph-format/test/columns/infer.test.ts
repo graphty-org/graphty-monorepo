@@ -71,7 +71,8 @@ describe("text grammar (design section 5.1)", () => {
         expect(inferTextDtype("2147483648")).toBe("f64");
         expect(inferTextDtype("-2147483649")).toBe("f64");
         expect(inferTextDtype("01")).toBe("string");
-        expect(inferTextDtype("+1")).toBe("f64");
+        expect(inferTextDtype("+1")).toBe("string");
+        expect(inferTextDtype("+15551007")).toBe("string");
         expect(inferTextDtype("1 ")).toBe("string");
         expect(inferTextDtype("")).toBe("string");
         expect(inferTextDtype(`1${"0".repeat(400)}`)).toBe("string");

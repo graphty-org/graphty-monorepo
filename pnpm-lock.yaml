@@ -981,6 +981,9 @@ importers:
       ajv-formats:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
+      axe-core:
+        specifier: ^4.13.0
+        version: 4.13.0
       encrypt-storage:
         specifier: ^2.14.7
         version: 2.16.6

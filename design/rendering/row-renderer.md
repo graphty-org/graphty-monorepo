@@ -1128,6 +1128,48 @@ a node drawn as an object, any hidden row (`RowTable.hiddenRows`), a layout tran
 outside its publish (a scope or followers). Labels and bent edges are not framed while the layout moves. The box's
 eight corners are the framing's spots, so `camera.fitBounds` "turning" keeps the whole box in view as the camera turns.
 
+As built (cosmos-gap stage 119): a landing copied on the card is no longer also published on the CPU. Before, every
+layout frame still ran the CPU publish beside the copy: `publishColumn` over every row, the table's repack of every
+row, and the skip-mask walk, 49 ms of an 82 ms CPU frame at 1M + 1M. Now, when the landing goes up by copy, the
+simulation engine copies it, sends the transform and owes the lane its publish (`ElementPositions.owe`). The first read
+or write of a row writes it: `view`, `read`, `isPlaced`, `write`, `grow`, `remap`, `setPinned`, and on the table
+`rowPosition`, `rowBounds` and `centerOf` (`RowTable.catchUp`), so a pick, a node's position, a drag and a freeze see
+the rows the card shows. The store's snapshot is different: it lends the lane by reference as its `position` column and
+a cached snapshot comes back without a lane accessor, and the store's own `getSnapshot` runs on every frame, so it
+cannot write the publish. The two readers that hand the snapshot's coordinates on write it instead: the consumer copy
+behind `session.data.snapshot()` and the read-only store's `getSnapshot` (an export), and an algorithm's input
+(`Algorithm.input`, which every run reads the graph through, `AStar`'s heuristic and the off-thread copy included). The rows come from the newest landing, with the transform that landing drew with.
+`generation` and `changes` do not trigger it, so a frame that only checks whether the lane moved writes nothing. Owing
+moves the public `generation` once per landing, since the coordinates a reader would get have changed (a consumer
+polling it re-reads, and the read writes the publish); `changes` moves only when the publish is written. A pinned row
+is one the publish leaves alone, so `RowTable.centerOf` of a pinned, placed row (`ElementPositions.keeps`) reads it
+without writing the rest. The undo history's question is different: whether the lane moved since its last capture (`Arrangement.moved`) writes the owed publish first, so a rest point (a pause), an undo or redo, or a `positions.set` during a run seals the arrangement the card shows; those are not per frame. A
+flush that has touched rows to send writes the owed publish first, because rows go up in whole texture lines. The skip
+walk runs only when something can have changed it: a fixed row, a hold or followers, or a table write to a row it
+keeps (`RowTable.ownRowWrites`). Three things are left. The envelope is still measured on every landing, because it is
+the transform the next batches draw with; that is two read-only passes over the read-back (13 ms a frame at 1M rows).
+While a publish is owed, the zoom-to-fit of a running layout frames the envelope's sphere (target centre plus or minus
+the scaling radius) grown by every pinned or dragged row, as a written publish grows its box, instead of the rows' own
+box, which can frame a little more loosely. And a built `Node`, a label on
+one, or anything else that reads a row on every frame still writes the publish on every frame, at today's cost.
+Counted in `shared-device-drawn.test.ts`: across three copied landings, `ElementPositions.changes`,
+`RowTable.repackedRows` and the engine's `rowsWalked` do not move; reading a node's position then publishes the rows,
+and the texture equals the CPU copy, while `generation` moves once a landing. A `session.data.snapshot()` taken
+while landings are owed writes the publish and carries the node's current position (`test/algorithms/owed-publish.test.ts`
+pins the algorithm input). A node pinned at x 500 stays inside the
+box framed while landings are owed, and the pinned node's per-frame read writes no row. Measured on paced WebGPU, interleaved, load average 16-20: the layout frame went
+from 169 ms to 86 ms at 1M + 1M and from 114 ms to 73 ms at 100k + 1M. Both are now GPU-bound, on the line draw plus
+the layout's own passes on the shared device.
+
+As built (cosmos-gap stage 119, correction): `RowTable`'s copied-landing flag stayed true across frames once a
+publish was owed, since an owed landing writes no lane row and so no repack cleared it. A lane write then settles
+first, the settle copies the owed landing again, and the write that asked for it moves the lane; the next repack
+copied the new rows into the CPU copy and sent none, so a layout switched to mid-run (ForceAtlas2 to circular) was
+never drawn and the texture rested on the old landing. The table now remembers the lane's `changes` at the copy
+(`copiedAt`) instead of a flag: a repack of exactly that lane sends nothing, a lane written since sends every row.
+Counted in `shared-device-drawn.test.ts` ("draws a layout switched to while a landing is owed on the card": the
+texture equals the CPU copy after the switch; worst difference 57.8 before the fix).
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,
@@ -1571,6 +1613,28 @@ object per element. Stages 26 to 28 remove that reason.
   ceilings at 2,000,000, 2 runs, load average 2.2 before, 1.0 after): 1,098 MB after a forced collection, against
   1,153-1,154 MB after the third pull request. Still above 800 MB; next are the lazy-row maps and the `ColumnRow`
   per node.
+- **G11, fifth pull request** (from a heap snapshot of 1M + 1M typed after a forced collection, before it: 1,162 MB).
+  Five per-row holders go, all under `"batched"` only:
+    - `importColumns` freezes the records it builds, so the graph slice keeps them as they are instead of a frozen copy
+      beside the journal's (about 112 MB: a node record with its position array, and an edge record).
+    - A row's paint is shared by every row of its look painted the same color (`StylePainter.rowPaint`, up to 1,024
+      colors a look), not a paint and a color object per row (52 MB).
+    - The op log's node range keeps each seed as three numbers in one column, not an array per node (53 MB to 24 MB).
+    - The lazy-row maps: a row with no `Node` keeps its id and record in two arrays by row (`RowIdRecords`), an edge
+      row is found by its id's counter in an array (`EdgeIdRows`, which also drops a second copy of each id string),
+      and the batches keep the `ColumnRow` of each row in an array by row (about 75 MB together). `unbuiltIds`, by
+      node id, stays: a node id is any value.
+    - `ColumnRow` reads its two constant fields from its prototype (8 MB).
+
+    Measured (benchmarks/compare `lean-l-columns`, `batched`, ceilings at 2,000,000, 2 runs each, alternated, load
+    average 16.8-29.7): 1,163 MB on master, 939 MB on this branch, after a forced collection; the load's first frame
+    went from 18.9-20.7 s to 13.2-13.6 s. Measured without the fourth pull request (58 MB more to come off when both
+    are in). Still above 800 MB. The next holders: GPU-side mirrors kept as `Float32Array`s (117 MB, textures of 48, 32
+    and 16 MB among them), the shared node and edge records themselves (about 90 MB, stage 29's "records into
+    columns"), the graph builder's growable columns (83 MB, up to twice their rows), the op log's ranges (67 MB),
+    the row-indexed slot arrays of `RowMap`s (53 MB), the style resolver's per-row columns (54 MB), one `ColumnRow` per
+    node (28 MB) and the layout's scratch coordinates (24 MB).
+
 - With `"batched"`, that option loads a million nodes. `"objects"` with a higher limit refuses with `E_TOO_LARGE`: its heap reason stands.
   **The default stays 100,000** (section 10).
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or

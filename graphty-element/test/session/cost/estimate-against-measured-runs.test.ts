@@ -728,6 +728,8 @@ describe.runIf(process.env.COST_GUARD === "1")(
 
                 once(0); // warm-up, untimed
 
+                // A slow memory reading skips only its own size; the row is skipped when every size read slow.
+                const slowSizes: string[] = [];
                 for (const [index, nodes] of row.sizes.entries()) {
                     const { edges, maxDegree, transitivity } = graphs[index];
                     const memoryBefore = memorySpeed();
@@ -754,13 +756,18 @@ describe.runIf(process.env.COST_GUARD === "1")(
                     if (memory < MIN_MEMORY_SPEED) {
                         const note = `not timed: another tenant is loading this machine's memory (${memory.toFixed(2)}x the reference, under ${MIN_MEMORY_SPEED}). ${facts}`;
                         process.stdout.write(`::warning title=Cost Estimate Accuracy::${note}\n`);
-                        context.skip(note);
+                        slowSizes.push(note);
+                        continue;
                     }
 
                     assert.isAtLeast(ratio, MAX_OPTIMISM, `too optimistic. ${facts}`);
                     if (row.optimismOnly === undefined) {
                         assert.isAtMost(ratio, MAX_PESSIMISM, `too pessimistic. ${facts}`);
                     }
+                }
+
+                if (slowSizes.length === row.sizes.length) {
+                    context.skip(slowSizes.join(" "));
                 }
             });
         }

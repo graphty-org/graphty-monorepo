@@ -41,6 +41,7 @@ import {
     type NodeMask,
 } from "@graphty/graph-format";
 
+import { refusal } from "../indexed/common.js";
 import { BarnesHutTree } from "./barnes-hut.js";
 import { addClusterPull, type ClusterField, clusterField } from "./clusters.js";
 import { assertCollision, collide, settleCollisions } from "./collision.js";
@@ -149,7 +150,11 @@ function pickNumber(
         return fallback;
     }
     if (typeof value !== "number" || !ok(value)) {
-        throw new RangeError(`ForceAtlas2Simulation: ${name} must be ${expected}, got ${String(value)}`);
+        throw refusal(
+            new RangeError(`ForceAtlas2Simulation: ${name} must be ${expected}, got ${String(value)}`),
+            "E_BAD_OPTION",
+            { option: name, value },
+        );
     }
     return value;
 }
@@ -166,7 +171,11 @@ function pickBoolean(name: string, value: boolean | undefined, fallback: boolean
         return fallback;
     }
     if (typeof value !== "boolean") {
-        throw new TypeError(`ForceAtlas2Simulation: ${name} must be a boolean, got ${String(value)}`);
+        throw refusal(
+            new TypeError(`ForceAtlas2Simulation: ${name} must be a boolean, got ${String(value)}`),
+            "E_BAD_OPTION",
+            { option: name, value },
+        );
     }
     return value;
 }
@@ -182,12 +191,19 @@ function pickCenter(center: ArrayLike<number> | undefined): readonly [number, nu
         return out;
     }
     if (center.length > 3) {
-        throw new RangeError(`ForceAtlas2Simulation: center has ${center.length} components, at most 3 expected`);
+        throw refusal(
+            new RangeError(`ForceAtlas2Simulation: center has ${center.length} components, at most 3 expected`),
+            "E_BAD_OPTION",
+            { option: "center", length: center.length, expected: 3 },
+        );
     }
     for (let axis = 0; axis < center.length; axis++) {
         const v = center[axis];
         if (typeof v !== "number" || !Number.isFinite(v)) {
-            throw new RangeError(`ForceAtlas2Simulation: center[${axis}] is not finite`);
+            throw refusal(new RangeError(`ForceAtlas2Simulation: center[${axis}] is not finite`), "E_BAD_OPTION", {
+                option: "center",
+                value: v,
+            });
         }
         out[axis] = v;
     }
@@ -213,11 +229,18 @@ function resolveOptions(options: ForceAtlas2SimulationOptions | undefined): Reso
     // a number and a string, not the option types: a JavaScript caller may pass any value
     const dim: number = o.dim ?? FA2_DEFAULTS.dim;
     if (dim !== 2 && dim !== 3) {
-        throw new RangeError(`ForceAtlas2Simulation: dim must be 2 or 3, got ${String(dim)}`);
+        throw refusal(new RangeError(`ForceAtlas2Simulation: dim must be 2 or 3, got ${String(dim)}`), "E_BAD_OPTION", {
+            option: "dim",
+            value: dim,
+        });
     }
     const compat: string = o.compat ?? "paper";
     if (compat !== "paper" && compat !== "networkx") {
-        throw new RangeError(`ForceAtlas2Simulation: compat must be "paper" or "networkx", got ${compat}`);
+        throw refusal(
+            new RangeError(`ForceAtlas2Simulation: compat must be "paper" or "networkx", got ${compat}`),
+            "E_BAD_OPTION",
+            { option: "compat", value: compat },
+        );
     }
     return {
         maxIter: pickNumber("maxIter", o.maxIter, FA2_DEFAULTS.maxIter, isPositiveInteger, "an integer >= 1"),
@@ -620,7 +643,11 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         for (let i = 0; i < n; i++) {
             mass[i] = massSource[i];
             if (!(mass[i] > 0)) {
-                throw new Error(`ForceAtlas2Simulation: mass[${i}] must be positive`);
+                throw refusal(new Error(`ForceAtlas2Simulation: mass[${i}] must be positive`), "E_BAD_OPTION", {
+                    option: "nodeMass",
+                    index: i,
+                    value: mass[i],
+                });
             }
         }
         // resolveWeights returns arcCount values (the snapshot's arc array or an edge column expanded to arcs)

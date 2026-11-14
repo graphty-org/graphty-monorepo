@@ -1,23 +1,21 @@
-import {
-    Color3,
-    Color4,
-    DirectionalLight,
-    Engine,
-    EngineStore,
-    FloatingOriginCurrentScene,
-    HemisphericLight,
-    Logger,
-    Material,
-    NullEngine,
-    PhotoDome,
-    Quaternion,
-    Scene,
-    Tools,
-    TransformNode,
-    Vector3,
-    WebGPUEngine,
-    WebXRState,
-} from "@babylonjs/core";
+import "./babylonEngineExtensions";
+
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { EngineStore } from "@babylonjs/core/Engines/engineStore.js";
+import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
+import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { PhotoDome } from "@babylonjs/core/Helpers/photoDome.js";
+import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight.js";
+import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight.js";
+import { FloatingOriginCurrentScene } from "@babylonjs/core/Materials/floatingOriginMatrixOverrides.js";
+import { Material } from "@babylonjs/core/Materials/material.js";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Logger } from "@babylonjs/core/Misc/logger.js";
+import { Tools } from "@babylonjs/core/Misc/tools.js";
+import { Scene } from "@babylonjs/core/scene.js";
+import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 
 import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
 import { CameraManager } from "../cameras/CameraManager";
@@ -224,7 +222,7 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  */
 export async function openWebGPUEngine(
     canvas: HTMLCanvasElement,
-    sharesDevice: (adapter: unknown) => boolean = () => false,
+    sharesDevice: (adapter: unknown) => boolean | Promise<boolean> = () => false,
     antialias = true,
 ): Promise<RecoveringWebGPUEngine | string> {
     if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
@@ -253,7 +251,7 @@ export async function openWebGPUEngine(
         );
     }
 
-    const shared = sharesDevice(adapter);
+    const shared = await sharesDevice(adapter);
     const engine = new RecoveringWebGPUEngine(canvas, {
         antialias,
         ...(shared && { setMaximumLimits: true, enableAllFeatures: true, powerPreference: "high-performance" }),

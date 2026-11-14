@@ -202,6 +202,34 @@ export function sleep(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 /**
+ * Wait until a request on this pacer releases its slot, or the signal aborts (the waiter then leaves the queue).
+ * @param p - the pacer
+ * @param signal - the load's signal
+ * @returns resolves when woken; rejects with the signal's reason on abort
+ */
+function waitForSlot(p: Pacer, signal: AbortSignal): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        if (signal.aborted) {
+            reject(signal.reason as Error);
+            return;
+        }
+        const wake = (): void => {
+            signal.removeEventListener("abort", onAbort);
+            resolve();
+        };
+        const onAbort = (): void => {
+            const i = p.waiters.indexOf(wake);
+            if (i >= 0) {
+                p.waiters.splice(i, 1);
+            }
+            reject(signal.reason as Error);
+        };
+        p.waiters.push(wake);
+        signal.addEventListener("abort", onAbort, { once: true });
+    });
+}
+
+/**
  * The milliseconds a readable Retry-After header asks for.
  * @param response - the response
  * @returns milliseconds, or null when absent or unreadable
@@ -428,7 +456,7 @@ class SourceFetcher {
             const now = Date.now();
             p.times = p.times.filter((t) => now - t < rate.perMs);
             if (rate.concurrent !== undefined && p.active >= rate.concurrent) {
-                await new Promise<void>((r) => p.waiters.push(r));
+                await waitForSlot(p, this.signal);
             } else if (p.times.length >= rate.requests) {
                 await sleep(Math.max(1, rate.perMs - (now - p.times[0])), this.signal);
             } else {

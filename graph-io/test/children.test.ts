@@ -185,6 +185,22 @@ describe("childrenCsr (design 7.1 / 5.10)", () => {
         expect(csr.isEmpty()).toBe(true);
     });
 
+    it("drops a negative parent in an i32 parents list and keeps the node a root", () => {
+        const b = new GraphBuilder({ directed: true });
+        const parents = b.declareNodeColumn({ name: "parents", dtype: "list", itemDtype: "i32" });
+        for (const id of ["a", "b", "c"]) {
+            b.addNode(id);
+        }
+        b.setNodeValue(parents, 1, [-1]);
+        b.setNodeValue(parents, 2, [0, -1]);
+        const csr = childrenFromColumn(3, b.freeze().nodes.require("parents"));
+        expect(csr.dropped).toBe(2);
+        expect(Array.from(csr.rowPtr)).toEqual([0, 1, 1, 1]);
+        expect(Array.from(csr.children)).toEqual([2]);
+        expect(Array.from(csr.roots)).toEqual([0, 1]);
+        expect(csr.unreachable).toBe(0);
+    });
+
     it("indexes the containers of an imported DOT cluster graph", async () => {
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
         await dotImporter.import(readCorpusText("dot", "cluster.gv"), builder);

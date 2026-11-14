@@ -460,7 +460,10 @@ describe("server sources on the real element", () => {
             assert.isDefined(session.data.node("p0-friend0"));
         });
         await userEvent.click(element, { button: "right", position: await pointOn(element, "p0") });
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Collapse" }));
+        const collapse = await screen.findByRole("menuitem", { name: "Collapse" });
+        // The server sent every neighbor, so the node offers no second Expand... (#7057).
+        assert.isNull(screen.queryByRole("menuitem", { name: /Expand/ }));
+        await userEvent.click(collapse);
         await waitFor(() => {
             assert.isUndefined(session.data.node("p0-friend0"));
         });

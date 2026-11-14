@@ -97,7 +97,7 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
 
         const { method, topK } = this.schemaOptions;
 
-        context.report({ phase: "Scoring pairs", total: null });
+        context.report({ phase: "scoring-pairs", total: null });
         const member = METHODS[method];
         const { snapshot, run } = this.accelerated(member, "undirected");
         const { value: ranked, precision } = await run((dispatch, s) =>

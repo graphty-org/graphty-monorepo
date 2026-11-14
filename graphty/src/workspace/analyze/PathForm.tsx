@@ -77,7 +77,7 @@ function resolve(session: GraphSession, choice: NodeChoice): NodeId | null {
  * @returns the field's value.
  */
 function chosen(session: GraphSession, id: NodeId | undefined): NodeChoice {
-    return id === undefined ? EMPTY : { text: session.data.name(id) ?? String(id), node: id };
+    return id === undefined ? EMPTY : { text: session.data.nodeName(id).name, node: id };
 }
 
 /** Props for NodeField. */

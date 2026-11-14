@@ -1,12 +1,17 @@
 /**
  * @file The guard every model load runs under: while a load is in progress, every URL Babylon.js
- * is about to request passes through `Tools.PreprocessUrl`, and anything that is not one of the
- * files handed to that load throws (design/rendering/node-models.md, section 3.3).
+ * is about to request passes through `Tools.PreprocessUrl`, and a URL named under the load's root
+ * that is not one of the files handed to that load throws (design/rendering/node-models.md, section 3.3).
  *
- * A load names its files under a root of its own in `graphty-model:`, a scheme no page can resolve, so a reference
- * the intake checks missed never turns into a same-origin request carrying the reader's cookies:
- * it is either one of the load's own files, mapped to the `blob:` URL made for it, or it is
- * refused. `data:` URLs pass, because the intake allowed only image and octet-stream ones.
+ * A load names its files under a root of its own in `graphty-model:`, a scheme no page can resolve,
+ * and the loaders resolve every reference a model makes against that root (an absolute
+ * `https://host/x.png` becomes `graphty-model:/1/https://host/x.png`). So a reference the intake
+ * checks missed never turns into a same-origin request carrying the reader's cookies: it is either
+ * one of the load's own files, mapped to the `blob:` URL made for it, or it is refused.
+ *
+ * Only `graphty-model:` URLs are the guard's business. The hook is process-wide and a load is
+ * asynchronous, so every other request made meanwhile -- a node's picture, an edge's texture,
+ * another element on the page -- is not the model's and passes unchanged (issue #7235).
  */
 
 import { Tools } from "@babylonjs/core/Misc/tools.js";
@@ -54,10 +59,6 @@ function resolve(url: string): string | undefined {
             const match = matchInSet(normalized, files);
             return match !== undefined && "path" in match ? files.get(match.path) : undefined;
         }
-
-        if ([...files.values()].includes(url)) {
-            return url;
-        }
     }
 
     return undefined;
@@ -65,7 +66,7 @@ function resolve(url: string): string | undefined {
 
 let installed = false;
 
-/** Wrap Babylon's URL hook once. Outside a load the previous hook runs unchanged. */
+/** Wrap Babylon's URL hook once. Outside a load, and for any URL not under {@link MODEL_ROOT}, the previous hook runs unchanged. */
 function install(): void {
     if (installed) {
         return;
@@ -74,11 +75,7 @@ function install(): void {
     installed = true;
     const previous = Tools.PreprocessUrl;
     Tools.PreprocessUrl = (url: string): string => {
-        if (active.size === 0) {
-            return previous(url);
-        }
-
-        if (url.startsWith("data:")) {
+        if (active.size === 0 || !url.startsWith(MODEL_ROOT)) {
             return previous(url);
         }
 

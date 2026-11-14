@@ -10,8 +10,14 @@
  *
  *     GRAPHTY_FIDELITY_RECORD=1 npx vitest run --project=default test/fidelity/scorecard.test.ts
  *
- * in graphty-element and commit the file. A drop that is accepted (a reference corrected, a
- * deliberate trade) goes in the file's `allowedDrops` as `"<sample>/<property>": "<reason>"`.
+ * in graphty-element and commit the file. Recording raises each floor to the score measured and
+ * never lowers one, and keeps the floors of every sample the run did not reach (`-t <sample>`, or a
+ * sample that failed before it was scored).
+ *
+ * A drop that is accepted (a reference corrected, a deliberate trade) goes in the file's
+ * `allowedDrops` as `"<sample>/<property>": { floor, to, reason, date }` (the oracle tier's
+ * `AcceptedDrop`): the floor stays, and the score may sit at `to` or above, never below it.
+ * Recording raises `to` with the score and takes the drop off once the score is back at its floor.
  *
  * A property that is no longer judged at all (its reference now leaves every element of it out on
  * purpose, as a gradient-filled node's flat fill is `paintedOver`) is not a drop: its floor is
@@ -30,6 +36,7 @@ import { CORPUS_SAMPLES } from "../../../graph-io/test/fidelity/corpus-samples";
 import { type FidelitySample, SAMPLES } from "../../../graph-io/test/fidelity/samples";
 import type { Scene } from "../../../graph-io/test/fidelity/scene";
 import { createGraphSession, type GraphSession } from "../../session";
+import { type AcceptedDrop, raiseFloors } from "./oracle/floors";
 import { REQUESTED_PROPERTIES, requestedScene } from "./requested-scene";
 
 const GRAPH_IO_TEST = join(__dirname, "..", "..", "..", "graph-io", "test");
@@ -43,8 +50,8 @@ interface Floors {
     about: string;
     /** Per sample, per property: the pass rate a run may not drop below. */
     floors: Record<string, Record<string, number>>;
-    /** `"<sample>/<property>"`: why a drop below its floor is accepted. */
-    allowedDrops: Record<string, string>;
+    /** `"<sample>/<property>"`: a drop below its floor accepted down to `to`, and why. */
+    allowedDrops: Record<string, AcceptedDrop>;
     /** `"<sample>/<property>"`: why a property is no longer judged, so it has no floor. */
     retired?: Record<string, string>;
 }
@@ -102,6 +109,36 @@ function keys(session: GraphSession): { name: Map<string, string>; label: Map<st
     return { name, label };
 }
 
+/**
+ * The floors after a recording run: each floor raised to the score measured and never lowered, the
+ * samples the run did not score kept as they were, each accepted drop's `to` raised to its score,
+ * and a drop whose score is back at its floor taken off.
+ * @param table - the floors as committed
+ * @param scores - per sample, the scores this run measured
+ * @returns the floors to write
+ */
+function merged(table: Floors, scores: Floors["floors"]): Floors {
+    const out = structuredClone(table);
+    const over = new Set<string>();
+    for (const [id, row] of Object.entries(scores)) {
+        raiseFloors(out.floors, id, row);
+        for (const [p, rate] of Object.entries(row)) {
+            const key = `${id}/${p}`;
+            const drop = out.allowedDrops[key];
+            if (drop === undefined) {
+                continue;
+            }
+            if (rate >= out.floors[id][p] - EPSILON) {
+                over.add(key);
+            } else {
+                drop.to = Math.max(drop.to, rate);
+            }
+        }
+    }
+    out.allowedDrops = Object.fromEntries(Object.entries(out.allowedDrops).filter(([key]) => !over.has(key)));
+    return out;
+}
+
 describe("style fidelity scorecard: what graphty-element is asked to draw", () => {
     // Runs first: a planted fault in the requested scene must be caught, or every floor below
     // would be scoring nothing.
@@ -150,14 +187,16 @@ describe("style fidelity scorecard: what graphty-element is asked to draw", () =
             const floors = stored.floors[id] ?? {};
             const dropped = Object.entries(floors).flatMap(([p, floor]) => {
                 const rate = scores[p];
-                if ((rate !== undefined && rate >= floor - EPSILON) || `${id}/${p}` in stored.allowedDrops) {
+                const accepted = stored.allowedDrops[`${id}/${p}`];
+                const least = accepted === undefined ? floor : Math.min(floor, accepted.to);
+                if (rate !== undefined && rate >= least - EPSILON) {
                     return [];
                 }
                 const worst = result.properties[p as keyof typeof result.properties].worst
                     .slice(0, 3)
                     .map((w) => `${w.id} (reference ${JSON.stringify(w.ref)}, asked ${JSON.stringify(w.got)})`);
                 return [
-                    `${id} ${p}: ${rate === undefined ? 'no longer judged (if on purpose, move it to "retired")' : rate.toFixed(4)} < floor ${floor.toFixed(4)}; worst: ${worst.join("; ") || "none listed"}`,
+                    `${id} ${p}: ${rate === undefined ? 'no longer judged (if on purpose, move it to "retired")' : rate.toFixed(4)} < floor ${floor.toFixed(4)}${accepted === undefined ? "" : ` (drop accepted to ${accepted.to.toFixed(4)})`}; worst: ${worst.join("; ") || "none listed"}`,
                 ];
             });
             assert.deepEqual(dropped, [], `${id}: a property fell below its floor in requested-floors.json`);
@@ -181,7 +220,7 @@ describe("style fidelity scorecard: what graphty-element is asked to draw", () =
 
     afterAll(() => {
         if (RECORD) {
-            writeFileSync(FLOORS, `${JSON.stringify({ ...stored, floors: recorded }, null, 4)}\n`);
+            writeFileSync(FLOORS, `${JSON.stringify(merged(stored, recorded), null, 4)}\n`);
             return;
         }
         // One line per raised score, so a fix shows which floors it can raise.

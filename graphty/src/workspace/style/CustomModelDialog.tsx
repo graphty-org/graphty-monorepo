@@ -26,7 +26,7 @@ import { AddressForm, FileInput } from "./ModelsPopover";
 import { chipLine, countChip, middleCut, PART_CODES, partChip, roleWord } from "./modelWords";
 import { PartRow, RoleGlyph } from "./PartsPopover";
 import { useStillOpen } from "./useStillOpen";
-import { CUSTOM_MODEL } from "./words";
+import { CUSTOM_MODEL, logUnexpected } from "./words";
 
 /** What the choosers and the drop zone take, as graphty-element lists it. */
 const MODEL_EXTENSIONS = assetFileExtensions("model");
@@ -428,6 +428,7 @@ export function CustomModelDialog({
         const live = start();
         settle(source, files, live)
             .catch((error: unknown) => {
+                logUnexpected("assets.add", error, []);
                 if (live()) {
                     setProblem({ code: "E_MODEL_PARSE", params: { message: String(error) } });
                 }

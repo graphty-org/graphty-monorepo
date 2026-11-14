@@ -47,8 +47,9 @@ package `@hpcc-js/wasm-graphviz`. See [Graphviz layouts](./graphviz-layouts).
 rather than computing one arrangement and stopping, so `element.setRunning(false)` pauses one and
 `element.setRunning(true)` sets it going again. The pause holds until you resume it: loading more
 nodes, setting another layout, an accelerator attaching or dragging a node places and moves nodes
-but never restarts the simulation. `getLayoutManager().isPaused` is true for a layout stopped
-before it came to rest, and `isSettled` is true only once it has. They are also the three that run on a hardware
+but never restarts the simulation. `session.layout.motion` reads `paused` for a layout stopped
+before it came to rest, and `settled` only once it has (see
+[Showing whether the layout is moving](#showing-whether-the-layout-is-moving)). They are also the three that run on a hardware
 accelerator when there is one -- and `spring-electrical` only runs on one. It has no CPU
 implementation at all, so `setLayout("spring-electrical")` without an accelerator that implements
 it throws `E_NO_ACCELERATOR` rather than quietly arranging the graph some other way. See the
@@ -471,6 +472,44 @@ await graph.waitForSettled();
 graph.setLayout("circular");
 ```
 
+## Running the layout again
+
+`session.layout.rerun()` runs the current layout again, with the same engine, options and scope,
+as choosing it again would. It is one undoable step of its own: its history fact is
+`{ code: "layout.rerun", params: { layout } }`, not a change of layout, so an undo list can say
+"Undo re-running the layout", and undo puts the nodes back where they were.
+
+```typescript
+const session = element.session;
+await session.layout.rerun();
+await session.undo(); // the nodes go back
+```
+
+## Showing whether the layout is moving
+
+`session.layout.motion` is `"running"` while the layout steps, `"paused"` when
+`element.setRunning(false)` stopped it before it came to rest, and `"settled"` once it has come to
+rest. The session's `layout:motion-changed` event fires on every change: a pause, a resume, the
+layout coming to rest and a layout starting again.
+
+```typescript
+const session = element.session;
+const chip = document.querySelector("#motion")!;
+const button = document.querySelector<HTMLButtonElement>("#pause")!;
+
+function show(motion: "running" | "paused" | "settled"): void {
+    chip.textContent = motion;
+    button.textContent = motion === "running" ? "Pause" : "Resume";
+    button.disabled = motion === "settled";
+}
+
+show(session.layout.motion);
+session.on("layout:motion-changed", ({ motion }) => show(motion));
+button.addEventListener("click", () => element.setRunning(session.layout.motion !== "running"));
+```
+
+A session with no renderer (in Node) always reads `"settled"` and never fires the event.
+
 ## Waiting for Settled
 
 Force-directed layouts converge over time. Wait for stabilization:
@@ -673,6 +712,10 @@ await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "
 - **The layout runs again when what is shown changes**, and when `visibleOnly` is switched.
 - **A hidden node stays where it was**, so taking the filter away shows it where it last was
   drawn; the layout then runs again over everything shown.
+- **While time plays, it can hold.** A playing [time window](./timeline) changes what the
+  filter shows at every step, so by default the layout runs again at every step. Set
+  `layout.visibleOnlyWhilePlaying: "hold"` to keep the nodes where they are during the play and
+  lay out once, over what is shown, when the play pauses or ends.
 - **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and
   those still push and pull on its members unless the filter hides them.
 

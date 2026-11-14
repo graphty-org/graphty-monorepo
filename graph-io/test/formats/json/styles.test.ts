@@ -172,7 +172,7 @@ describe("JSON files graph-io read wrongly before", () => {
         expect(values(r, "edge", "color")).toEqual(["#010203"]);
         expect(values(r, "edge", "width")).toEqual([0.5]);
         expect(r.snapshot.nodes.value("label#data", 0)).toBe("Column");
-        expect(r.snapshot.nodes.value("x", 0)).toBe(0);
+        expect(Array.from(r.snapshot.nodes.byRole("position")?.value(0) as ArrayLike<number>)).toEqual([0, 0, 0]);
         expect(r.snapshot.edges.value("color#data", 0)).toBe("rgb(255,0,0)");
     });
 });

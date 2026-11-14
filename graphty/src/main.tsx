@@ -10,7 +10,6 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
 import { loadGraphtyElement } from "./elementLoader";
-import { startRemoteLogIfAsked } from "./lib/remoteLog";
 import { loadSiteConfig } from "./siteConfig";
 import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";
@@ -19,10 +18,7 @@ import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 // Re-export theme for tests and other modules
 export { theme } from "./theme";
 
-// Diagnostics for a browser we cannot open: only with ?remoteLog in the address (lib/remoteLog.ts).
-startRemoteLogIfAsked();
-
-// Nothing is sent until the reader says Share usage data on the start screen or in Settings >
+// Nothing is sent until the reader says Share usage data in the question a first visit is asked or in Settings >
 // Privacy; a reader who said so on an earlier visit starts sending again here, once the site's
 // site.json (fetched first, before the element) has said how this site labels its errors.
 void loadSiteConfig().then(startUsageDataIfShared); // NOSONAR(S7785): a top-level await would hold the first paint for the fetch
@@ -90,7 +86,8 @@ ReactDOM.createRoot(rootElement).render(
 // buttons paint before their code is fetched and run.
 requestAnimationFrame(() => {
     setTimeout(() => {
-        void loadGraphtyElement();
+        // A failure here is said where a graph is drawn, which loads again and offers Retry.
+        loadGraphtyElement().catch(() => undefined);
         void loadFrame();
     }, 0);
 });

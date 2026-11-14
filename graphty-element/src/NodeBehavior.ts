@@ -1,18 +1,14 @@
 // Installs scene.createPickingRay; see test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Culling/ray.js";
 
-import {
-    type ActionEvent,
-    ActionManager,
-    ExecuteCodeAction,
-    Matrix,
-    PointerEventTypes,
-    type PointerInfo,
-    type PointerInfoPre,
-    Ray,
-    Scene,
-    Vector3,
-} from "@babylonjs/core";
+import type { ActionEvent, PointerInfoPre } from "@babylonjs/core";
+import { ActionManager } from "@babylonjs/core/Actions/actionManager.js";
+import { ExecuteCodeAction } from "@babylonjs/core/Actions/directActions.js";
+import { Ray } from "@babylonjs/core/Culling/ray.core.js";
+import { PointerEventTypes, type PointerInfo } from "@babylonjs/core/Events/pointerEvents.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
@@ -22,7 +18,12 @@ import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 import { filterPointerPicks, hoverNodeId, pickNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
-import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
+import {
+    cancelReasonOf,
+    type Dispatcher,
+    type DispatchFunction,
+    type TransactionScope,
+} from "./session/project/Dispatcher";
 import { sourceLoadsOf } from "./session/sources/ids";
 
 /**
@@ -51,6 +52,10 @@ interface DragState {
     dragging: boolean;
     dragStartMeshPosition: Vector3 | null;
     dragStartWorldPosition: Vector3 | null;
+    /** Where the pointer was at the last drag update, for the XR tracking-glitch guard. */
+    lastWorldPosition: Vector3 | null;
+    /** When the last drag update (or the drag start) came, in ms, for the same guard. */
+    lastUpdateTime: number;
     dragPlaneNormal: Vector3 | null;
     /** The pointer moved the node during this drag (set with or without a session). */
     moved: boolean;
@@ -441,6 +446,38 @@ function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): v
     session.data.expand([node.id], options).catch(() => undefined);
 }
 
+/*
+ * The XR tracking-glitch guard: the largest move a reader's hand can make between two drag updates,
+ * in metres of the reader's own space, measured before `zAxisAmplification`. A bigger jump is a
+ * controller losing and reacquiring tracking (a snap of tens of centimetres in one frame), not a
+ * hand, and is ignored.
+ *
+ * - XR_MAX_HAND_SPEED: 10 m/s. Deliberate arm movement peaks well below it: fast reaching runs 1 to
+ *   3 m/s at the hand, the hardest VR rhythm-game swings and punches reach 6 to 10 m/s. A 30 cm
+ *   tracking snap inside one 72 Hz frame is 22 m/s.
+ * - The time is what passed since the previous update, so the bound holds at any frame rate. It is
+ *   never less than one frame of the fastest headset display (120 Hz), so updates that arrive
+ *   close together (an emulator, a script) still allow a hand's frame of movement.
+ * - XR_MAX_HAND_REACH: 2 m, about a standing adult's arm span. However long tracking was lost, a
+ *   hand comes back no further than that from where it went, so a long gap cannot excuse a bigger
+ *   snap.
+ */
+const XR_MAX_HAND_SPEED = 10;
+const XR_SHORTEST_FRAME_SECONDS = 1 / 120;
+const XR_MAX_HAND_REACH = 2;
+
+/**
+ * The longest pointer move one XR drag update may make. XRInputHandler moves the drag pointer by the
+ * hand's movement in the reader's own space (its position under the pivot, turned with the pivot
+ * but never scaled by zoom), so the pointer moves in metres.
+ * @param elapsedMs - Time since the previous update.
+ * @returns The limit, in metres.
+ */
+function xrMaxDragStep(elapsedMs: number): number {
+    const seconds = Math.max(elapsedMs / 1000, XR_SHORTEST_FRAME_SECONDS);
+    return Math.min(XR_MAX_HAND_SPEED * seconds, XR_MAX_HAND_REACH);
+}
+
 // Click detection thresholds
 const CLICK_MAX_DURATION_MS = 300; // Maximum time for a click (vs long press/drag)
 const CLICK_MAX_MOVEMENT_PX = 5; // Maximum pixels of movement for a click
@@ -456,8 +493,8 @@ export class NodeDragHandler {
     private readonly scene: Scene;
     private readonly roster: NodePointerRoster;
     private isHovered = false;
-    private readonly zAxisAmplification: number;
-    private readonly enableZAmplificationInDesktop: boolean;
+    private zAxisAmplification = 10;
+    private enableZAmplificationInDesktop = false;
 
     /**
      * Creates a new drag handler for a node.
@@ -470,16 +507,13 @@ export class NodeDragHandler {
             dragging: false,
             dragStartMeshPosition: null,
             dragStartWorldPosition: null,
+            lastWorldPosition: null,
+            lastUpdateTime: 0,
             dragPlaneNormal: null,
             moved: false,
         };
 
-        // Read config from graph context
         const context = this.getContext();
-        const xrConfig = context.getConfig().xr;
-
-        this.zAxisAmplification = xrConfig?.input.zAxisAmplification ?? 10;
-        this.enableZAmplificationInDesktop = xrConfig?.input.enableZAmplificationInDesktop ?? false;
 
         // A restyle rebuilds the node's mesh and this handler with it, often while the pointer is
         // over the node (a hover layer restyles the node it hovers). Starting from the session's
@@ -511,11 +545,18 @@ export class NodeDragHandler {
         this.gesture?.finish();
         this.gesture = this.openGesture();
 
+        // Read at each drag start, so `setXRConfig` reaches nodes drawn before it.
+        const input = this.getContext().getConfig().xr?.input;
+        this.zAxisAmplification = input?.zAxisAmplification ?? 10;
+        this.enableZAmplificationInDesktop = input?.enableZAmplificationInDesktop ?? false;
+
         this.dragState.dragging = true;
         this.dragState.moved = false;
         this.roster.engaged.add(this);
         this.dragState.dragStartMeshPosition = this.node.drawnPosition.clone();
         this.dragState.dragStartWorldPosition = worldPosition.clone();
+        this.dragState.lastWorldPosition = worldPosition.clone();
+        this.dragState.lastUpdateTime = performance.now();
         this.node.dragging = true;
 
         // Capture the drag plane orientation at drag start
@@ -575,22 +616,31 @@ export class NodeDragHandler {
             return;
         }
 
+        const isXR = this.isXRMode();
+        const jump = worldPosition.subtract(this.dragState.lastWorldPosition ?? worldPosition);
+        const now = performance.now();
+        const elapsedMs = now - this.dragState.lastUpdateTime;
+        this.dragState.lastWorldPosition = worldPosition.clone();
+        this.dragState.lastUpdateTime = now;
+        // A controller that loses and reacquires tracking reports one huge jump. Absorb it into the
+        // drag start, so the node stays where it is and later movement carries on from here.
+        if (isXR && jump.length() > xrMaxDragStep(elapsedMs)) {
+            this.dragState.dragStartWorldPosition.addInPlace(jump);
+            return;
+        }
+
         // Calculate delta from drag start
         const delta = worldPosition.subtract(this.dragState.dragStartWorldPosition);
 
-        // TODO: Add back delta validation with appropriate threshold for XR mode
-        // The previous MAX_REASONABLE_DELTA of 5.0 was too small for 10x amplification
-        // and was blocking ALL movement in XR
-
-        // Apply movement amplification in XR mode
-        // In VR, all controller movements are physically constrained (not just Z-axis)
-        // so we amplify all axes to make node manipulation practical
-        const shouldAmplify = this.isXRMode() || this.enableZAmplificationInDesktop;
-
-        if (shouldAmplify) {
-            delta.x *= this.zAxisAmplification;
-            delta.y *= this.zAxisAmplification;
+        // Amplify depth only: in XR, reaching forward and back is what the arm cannot do far. In XR
+        // depth is the reader's, along the Z of the pivot the camera is parented to: once the reader
+        // turns the scene, scene Z is sideways to them.
+        if (isXR || this.enableZAmplificationInDesktop) {
+            const parent = isXR ? this.scene.activeCamera?.parent : null;
+            const frame = parent instanceof TransformNode ? parent.absoluteRotationQuaternion : Quaternion.Identity();
+            delta.rotateByQuaternionToRef(Quaternion.Inverse(frame), delta);
             delta.z *= this.zAxisAmplification;
+            delta.rotateByQuaternionToRef(frame, delta);
         }
 
         // Calculate new position
@@ -629,7 +679,9 @@ export class NodeDragHandler {
         const context = this.getContext();
         const { gesture } = this;
         this.gesture = null;
-        const pins = this.node.pinOnDrag && this.placedByPointer();
+        // `layoutBehavior.node.pinOnDrag` read at the drop, so a change reaches nodes already drawn
+        const pins =
+            this.node.pinOnDrag && context.getStyles().config.behavior.node.pinOnDrag && this.placedByPointer();
         // An undo during the drag already released the node, put everything back and stopped
         // the layout: the drop of that gesture does nothing.
         if (gesture?.aborted !== true) {
@@ -667,6 +719,7 @@ export class NodeDragHandler {
         this.dragState.dragging = false;
         this.dragState.dragStartMeshPosition = null;
         this.dragState.dragStartWorldPosition = null;
+        this.dragState.lastWorldPosition = null;
         this.dragState.dragPlaneNormal = null;
         this.settle();
     }
@@ -777,7 +830,23 @@ export class NodeDragHandler {
 
         if (gesture.moved) {
             const { x, y, z } = this.node.drawnPosition;
-            scope.dispatch({ op: "positions.set", entries: [{ id: this.node.id, x, y, z }] }).catch(() => undefined);
+            scope
+                .dispatch({ op: "positions.set", entries: [{ id: this.node.id, x, y, z }] })
+                .catch((error: unknown) => {
+                    // An undo during the drag aborts it; that ends the drag, and is no failure.
+                    if (gesture.aborted || cancelReasonOf(error) !== undefined) {
+                        return;
+                    }
+
+                    this.getContext()
+                        .getEventManager?.()
+                        ?.emitGraphError(
+                            this.getContext(),
+                            error instanceof Error ? error : new Error(String(error)),
+                            "other",
+                            { op: "positions.set", node: this.node.id },
+                        );
+                });
         }
 
         if (pins) {

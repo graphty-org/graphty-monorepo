@@ -139,6 +139,8 @@ export interface ToolHost {
     readonly readerText: string;
     /** Admits a URL the reader did not type; absent, none is admitted. */
     readonly allowImportUrl?: (url: URL) => boolean;
+    /** Where `load_dataset` downloads datasets from: the host's `datasetBaseUrl`. */
+    readonly datasetBaseUrl?: string;
 }
 
 /**

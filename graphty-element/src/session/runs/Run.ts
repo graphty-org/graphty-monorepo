@@ -31,7 +31,7 @@ import type { JournalId } from "../journal";
 import type { RunEntry } from "../project/state";
 import { bindResultPath, type ResultSummary, type RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
-import type { CodedFact } from "../shared";
+import type { CodedFact, CodedFactParam } from "../shared";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
 import { type PartialCode, partialSentence } from "./caveatFacts";
 import {
@@ -121,13 +121,21 @@ export interface RunTicket {
 
 /** One progress update, as the thing doing the work reports it. */
 export interface RunProgressReport {
-    /** What it is doing now. Unchanged when absent. */
+    /** What it is doing now, as a kebab-case code (see {@link Progress.phase}). Unchanged when absent. */
     readonly phase?: string;
+    /**
+     * The figures the phase is about (see {@link Progress.params}). Unchanged when absent; cleared
+     * when the phase changes without them.
+     */
+    readonly params?: Readonly<Record<string, CodedFactParam>>;
     /** How many units are done. Unchanged when absent. */
     readonly completed?: number;
     /** How many units there are, or null when that is not knowable. Unchanged when absent. */
     readonly total?: number | null;
-    /** A sentence about the current step. Unchanged when absent. */
+    /**
+     * The algorithm's own text about the current step, passed through as written. Unchanged when
+     * absent. graphty-element's own algorithms report `phase` and `params` and leave it unset.
+     */
     readonly message?: string;
 }
 
@@ -422,21 +430,23 @@ function isAbortLike(error: unknown): error is Error {
  * Abort one controller when a signal aborts, carrying the reason across.
  * @param source - The signal to watch.
  * @param target - The controller to abort.
+ * @returns A function that removes the listener, so a long-lived source does not keep the target.
  */
-function forwardAbort(source: AbortSignal, target: AbortController): void {
+function forwardAbort(source: AbortSignal, target: AbortController): () => void {
     if (source.aborted) {
         target.abort(source.reason);
 
-        return;
+        return () => undefined;
     }
 
-    source.addEventListener(
-        "abort",
-        () => {
-            target.abort(source.reason);
-        },
-        { once: true },
-    );
+    const onAbort = (): void => {
+        target.abort(source.reason);
+    };
+    source.addEventListener("abort", onAbort, { once: true });
+
+    return () => {
+        source.removeEventListener("abort", onAbort);
+    };
 }
 
 /**
@@ -884,6 +894,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             label: this.label,
             distinguishedBy: this.distinguishedBy,
             siblingsDifferBy: this.siblingsDifferBy,
+            name: this.surroundings.entry?.()?.name ?? null,
             algorithm: this.algorithm,
             params: this.params,
             seed: this.seed,
@@ -1116,13 +1127,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
         const execution = new AbortController();
         this.executionController = execution;
-        forwardAbort(context.signal, execution);
-
+        const detachQueue = forwardAbort(context.signal, execution);
         const { signal } = this.definition;
-
-        if (signal !== undefined) {
-            forwardAbort(signal, execution);
-        }
+        const detachCaller = signal === undefined ? undefined : forwardAbort(signal, execution);
 
         const timeBox = this.startTimeBox();
         this.surroundings.notify?.("start");
@@ -1169,6 +1176,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 this.fail(error);
             }
         } finally {
+            detachQueue();
+            detachCaller?.();
+
             if (generation === this.generationValue) {
                 this.clearTimeBox();
             }
@@ -1373,6 +1383,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     private report(update: RunProgressReport): void {
         const previous = this.progressValue;
         const phase = update.phase ?? previous.phase;
+        // A new phase starts with no figures unless it brings its own; the same phase keeps them.
+        const params = update.params ?? (phase === previous.phase ? previous.params : undefined);
         const completed = update.completed ?? previous.completed;
         const total = update.total === undefined ? previous.total : update.total;
         const determinate = total !== null;
@@ -1385,6 +1397,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             total,
             fraction,
             etaMs: this.estimateEta(fraction),
+            ...(params === undefined ? {} : { params }),
             ...(message === undefined ? {} : { message }),
         });
 

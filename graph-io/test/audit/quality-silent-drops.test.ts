@@ -4,20 +4,16 @@
  * fallback"; design section 5.6: a colliding declared attribute is renamed `<name>#<origin.id>`
  * "and records a coercion issue").
  *
- * The tests here fail deliberately; each pins a finding of the audit report:
- * - GraphML `declareTarget()` (src/formats/graphml/importer.ts) catches E_DUPLICATE_ROLE and
- *   re-declares the column without its role with no issue at all, so a key titled `label`
- *   silently loses the label role when the caller's sink (or an earlier key) already holds it;
- *   DOT, GML, CSV and Neo4j report the same condition (W_DOT_ROLE_TAKEN, W_GML_ROLE_TAKEN,
- *   W_CSV_ROLE_TAKEN, W_ROLE_TAKEN);
- * - the GEXF importer ignores elements it does not know (a `<foo/>` under `<graph>`, `<node>` or
- *   `<edge>`, an unknown attribute on `<edge>`) with no issue, while the GraphML importer records
- *   W_UNKNOWN_ELEMENT for the same shape;
+ * Each test guards a finding of the audit report that is now fixed:
+ * - GraphML `declareTarget()` (src/formats/graphml/importer.ts) reports a key titled `label` that
+ *   loses the label role because the caller's sink (or an earlier key) already holds it, as DOT,
+ *   GML, CSV and Neo4j report the same condition;
+ * - the GEXF importer reports elements and attributes it does not know (a `<foo/>` under
+ *   `<graph>`, `<node>` or `<edge>`, an unknown attribute on `<edge>`), as the GraphML importer
+ *   records W_UNKNOWN_ELEMENT for the same shape;
  * - a common option a format has no use for (`hyperedges`, `long`, `restoreMangledIds`,
- *   `nodeIdFrom` on an edge-list CSV) is ignored without an issue by CSV, GML, Pajek and DOT
- *   (design section 8.4: "the importer reports every option it could not honour"); DOT, GraphML,
- *   JSON and Neo4j report W_OPTION_IGNORED for `nodeIdFrom` only and GEXF throws E_UNSUPPORTED
- *   for it, so one condition has three behaviours.
+ *   `nodeIdFrom` on an edge-list CSV) is reported by CSV, GML, Pajek and DOT (design section 8.4:
+ *   "the importer reports every option it could not honour").
  */
 
 import { GraphBuilder } from "@graphty/graph-format";
@@ -53,10 +49,10 @@ describe("audit: silent drops", () => {
         builder.declareNodeColumn({ name: "name", dtype: "string", nullable: true, role: "label" });
         const report = await graphmlImporter.import(GRAPHML_LABEL_KEY, builder);
         const snapshot = builder.freeze();
-        // the role was dropped ...
+        // the role is dropped ...
         expect(snapshot.nodes.get("label")?.meta.role).toBeNull();
         expect(snapshot.nodes.byRole("label")?.meta.name).toBe("name");
-        // ... and nothing says so
+        // ... and an issue says so
         expect(report.issues.map((i) => `${i.severity}:${i.code}`)).not.toEqual([]);
     });
 

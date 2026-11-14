@@ -80,7 +80,7 @@ import type { CodedFact, CodedFactParam } from "../session/shared";
 import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
-import type { EdgeRecord, GraphSession, NodeRecord } from "../session/types";
+import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
 import { writtenPositions } from "./filePositions";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
@@ -104,12 +104,36 @@ export type ExportScope =
 /**
  * Options of one export: the writer's own, graph-io's common ones, and the element's `scope`
  * (which nodes and edges, {@link ExportScope}; when absent, the whole graph, or what is shown
- * while `workingGraph` is on) and `columns` (which attribute columns, by name, `data.<name>` or
+ * while `workingGraph` is on), `columns` (which attribute columns, by name, `data.<name>` or
  * result path; every column when absent -- the id, the ends of an edge, positions and styles are
- * always written).
+ * always written) and `groupTable` (write one row per group instead of the graph,
+ * {@link ExportGroupTable}).
  */
 export type ExportGraphOptions = Readonly<Record<string, unknown>> &
-    CommonExportOptions & { readonly scope?: ExportScope; readonly columns?: readonly string[] };
+    CommonExportOptions & {
+        readonly scope?: ExportScope;
+        readonly columns?: readonly string[];
+        readonly groupTable?: ExportGroupTable;
+    };
+
+/**
+ * The `groupTable` option of `exportGraph`: write the table `session.data.groupTable(groupBy,
+ * { summaries })` returns -- one row per group, with its size and the summaries asked for --
+ * instead of the graph. `"csv"` writes a header row of the column keys and one line per group
+ * (only `neutraliseFormulas` of the writer options applies); `"json"` writes the rows as an array
+ * of objects. Any other format, `scope` or `columns` beside it is refused with `E_OPTION_RANGE`.
+ *
+ * ```ts
+ * const result = await graph.exportGraph("csv", {
+ *     groupTable: { groupBy: "results.louvain.group", summaries: { "data.age": ["mean"] } },
+ * });
+ * await result.text(); // "group,size,data.age.mean\n3,14,31.5\n..."
+ * ```
+ */
+export interface ExportGroupTable extends GroupTableOptions {
+    /** The node path holding each node's group, such as a community run's `results.<run>.group`. */
+    readonly groupBy: string;
+}
 
 /** The codes of one of graph-io's loss tables. */
 type CodesOf<Table> = Extract<Table[keyof Table], string>;
@@ -648,6 +672,63 @@ export function buildExportSnapshot(
     return { snapshot: builder.freeze(), notes };
 }
 
+/**
+ * Write a group table (the `groupTable` option) as CSV or JSON rows.
+ * @param session - The session.
+ * @param format - `"csv"` or `"json"`.
+ * @param options - The export's options, `groupTable` among them.
+ * @returns The export.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` for another format, or `scope` or `columns` beside it.
+ */
+function exportGroupTable(session: GraphSession, format: FormatId, options: ExportGraphOptions): ExportResult {
+    const { groupTable, scope, columns } = options;
+    if ((format !== "csv" && format !== "json") || scope !== undefined || columns !== undefined) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: "groupTable writes only csv or json, and takes no scope or columns",
+            source: "data",
+            details: { option: "groupTable", format, available: ["csv", "json"] },
+        });
+    }
+
+    const table = session.data.groupTable(groupTable?.groupBy ?? "", groupTable ?? {});
+    let output: string;
+    const notes: LossNote[] = [];
+    if (format === "json") {
+        output = JSON.stringify(table.rows);
+    } else {
+        const { cell, count } = formulaGuard(options.neutraliseFormulas !== false);
+        const quote = (value: string | number | boolean | null | undefined): string => {
+            const written = value === null || value === undefined ? "" : String(cell(value));
+            return /[",\r\n]/.test(written) ? `"${written.replaceAll('"', '""')}"` : written;
+        };
+        output = [table.columns, ...table.rows.map((row) => table.columns.map((key) => row[key]))]
+            .map((line) => line.map(quote).join(","))
+            .join("\n");
+        if (count() > 0) {
+            notes.push({
+                code: "W_GRAPHTY_CSV_NEUTRALIZED",
+                message: `${String(count())} cell(s) a spreadsheet would run as a formula were prefixed with an apostrophe`,
+                column: null,
+                count: count(),
+            });
+        }
+    }
+
+    const lossNotes = Object.freeze(notes);
+    return {
+        format,
+        losses: Object.freeze(lossNotes.map(lossOf)),
+        lossNotes,
+        text: () => Promise.resolve(output),
+        bytes: {
+            async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
+                yield await Promise.resolve(new TextEncoder().encode(output));
+            },
+        },
+    };
+}
+
 /** The weight column every exporter writes under its format's own weight name. */
 const EXPORT_WEIGHT_KEY = "weight";
 
@@ -1092,7 +1173,11 @@ export function exportSession(
         return exportProject(session, options);
     }
 
-    const { scope, columns, ...writerOptions } = options;
+    if (options.groupTable !== undefined) {
+        return exportGroupTable(session, format, options);
+    }
+
+    const { scope, columns, groupTable: _groupTable, ...writerOptions } = options;
     if (columns !== undefined && (!Array.isArray(columns) || columns.some((name) => typeof name !== "string"))) {
         throw new GraphtyError({
             code: "E_OPTION_RANGE",

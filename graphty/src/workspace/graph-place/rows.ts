@@ -16,6 +16,7 @@ import {
     type StyleRowPlace,
 } from "@graphty/graphty-element/session";
 
+import { count } from "../inspector/words";
 import { fileStyleLayerWords } from "../styles/fileStyleWords";
 
 /**
@@ -160,16 +161,6 @@ export function rowLayers(session: GraphSession, id: string): string[] {
         return [];
     }
     return [parts.node, parts.edge].filter((layer): layer is string => layer !== undefined);
-}
-
-/**
- * A count with its noun, "1 node" or "77 nodes".
- * @param n - the count.
- * @param noun - the singular noun.
- * @returns the words.
- */
-export function count(n: number, noun: string): string {
-    return `${n.toLocaleString()} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /**

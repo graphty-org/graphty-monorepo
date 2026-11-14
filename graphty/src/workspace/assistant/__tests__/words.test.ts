@@ -27,6 +27,7 @@ const ROWS: readonly (readonly [string, Record<string, string | number>, string 
     ["AI_NO_RESPONSE", {}, "No answer came back.", AGAIN],
     ["AI_NOT_ENABLED", {}, "The assistant is not connected.", PROVIDER],
     ["AI_DISPOSED", {}, "The assistant is not connected.", PROVIDER],
+    ["AI_NO_PREVIOUS_COMMAND", {}, "There is no message to send again.", NONE],
     ["AI_KEY_MISSING", { provider: "google" }, "Add a key for Google.", PROVIDER],
     ["AI_KEY_REJECTED", { provider: "google" }, "Google refused the key.", PROVIDER],
     ["AI_CONFIG_INVALID", {}, "The AI provider settings cannot be used.", PROVIDER],

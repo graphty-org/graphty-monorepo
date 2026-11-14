@@ -104,6 +104,8 @@ export const WORDS = {
     "assistant.list.rename": "Rename",
     "assistant.list.name-field": "Chat name",
     "assistant.list.not-renamed": "Not renamed",
+    "assistant.list.not-deleted": "Not deleted",
+    "assistant.list.not-opened": "Not opened",
     "assistant.notice.open": "Open",
     "assistant.working.writing": "Writing",
     "assistant.status.working": "Working",
@@ -350,6 +352,10 @@ export function endWords(code: string, params: AiResultParams, provider: string,
             return setup(`${name} refused the key.`);
         case "AI_CONFIG_INVALID":
             return setup("The AI provider settings cannot be used.");
+        case "E_MISSING_PACKAGE":
+            return setup(`${name} needs the package ${String(params.package)}, which is not installed.`);
+        case "E_FEATURE_OFF":
+            return setup("The assistant experiment is off.");
         case "AI_HOSTED_TOOL_UNSUPPORTED":
             return note(`${name} cannot use this tool, so the assistant worked without it.`);
         case "AI_PROVIDER_ERROR": {
@@ -406,6 +412,8 @@ export function endWords(code: string, params: AiResultParams, provider: string,
         case "AI_HISTORY_UNAVAILABLE":
         case "AI_STORAGE_FAILED":
             return note("This chat is not being saved.");
+        case "AI_NO_PREVIOUS_COMMAND":
+            return note("There is no message to send again.");
         case "AI_HISTORY_NEWER_FORMAT":
             return note("Saved by a newer version of graphty, so it was left as it is.");
         default:

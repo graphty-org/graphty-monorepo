@@ -55,10 +55,10 @@ import {
 import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
-import { layoutDiag, snapshotId, viewSummary } from "../logging/layoutDiagnostics.js";
 import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
+import type { LayoutMotion } from "../session/types";
 import type { WorkingView } from "../session/working/view";
 import { isDefinedLayout } from "../simple/defineLayout";
 import type { Styles } from "../Styles";
@@ -792,6 +792,12 @@ export class LayoutManager implements Manager {
     /** Told when the layout comes to rest: it settled, was paused, or finished placing. */
     onRest: (() => void) | null = null;
 
+    /** Told when {@link LayoutManager.motion} changes; see {@link LayoutManager.checkMotion}. */
+    onMotion: ((motion: LayoutMotion) => void) | null = null;
+
+    /** The motion last told to `onMotion`. */
+    #toldMotion: LayoutMotion = "settled";
+
     /**
      * Whether undo, redo or a restore is on its way to the position array. While it is, a new
      * snapshot or accelerator reloads the engine without starting it, so nothing moves the
@@ -924,17 +930,6 @@ export class LayoutManager implements Manager {
         const resting = !next && this._running;
         this._running = next;
         if (resting) {
-            if (layoutDiag.isDebugEnabled()) {
-                const engine = this.layoutEngine;
-                layoutDiag.debug("rest", {
-                    engine: engine?.type,
-                    bridge: engine instanceof SimulationLayoutEngine,
-                    engineNodes: engine === undefined ? null : [...engine.nodes].length,
-                    shown: viewSummary(this.shownNow()),
-                    totalNodes: this.dataManager.nodes.size,
-                    dimension: this.engineDimension,
-                });
-            }
             this.onRest?.();
         }
 
@@ -955,6 +950,8 @@ export class LayoutManager implements Manager {
         ) {
             this.layoutEngine.reheat();
         }
+
+        this.checkMotion();
     }
 
     /**
@@ -1024,8 +1021,7 @@ export class LayoutManager implements Manager {
 
         this.unsubscribeAcceleration?.();
         this.unsubscribeAcceleration =
-            this.acceleration?.onChange((status) => {
-                layoutDiag.debug("acceleration changed", { status });
+            this.acceleration?.onChange(() => {
                 this.onAccelerationChange();
             }) ?? null;
     }
@@ -1239,14 +1235,6 @@ export class LayoutManager implements Manager {
      * @param event - The freeze, carrying the snapshot every consumer must switch to.
      */
     private onSnapshotReplaced(event: GraphSnapshotReplacedEvent): void {
-        layoutDiag.debug("onSnapshotReplaced", {
-            next: snapshotId(event.next),
-            nextNodes: event.next.nodeCount,
-            engine: this.layoutEngine?.type,
-            engineView:
-                this.layoutEngine === undefined ? null : viewSummary(layoutEngineInternals.view(this.layoutEngine)),
-            shown: viewSummary(this.shownNow()),
-        });
         // A FREEZE IS WHERE THE GRAPH GETS ITS SIZE. The element's default layout is set before any
         // data arrives, over an empty graph, so this -- not `setLayout` -- is where a graph crosses
         // the size at which the default force arrangement is worth accelerating, in either
@@ -1336,6 +1324,7 @@ export class LayoutManager implements Manager {
 
         this.engine = undefined;
         this.onRest = null;
+        this.onMotion = null;
         this.runningDriver = undefined;
         this.running = false;
     }
@@ -1412,18 +1401,6 @@ export class LayoutManager implements Manager {
         if (!driverClass) {
             throw unknownLayout(driver);
         }
-        layoutDiag.debug("setLayout", {
-            layout,
-            type,
-            driver,
-            // Class names are minified in a build; the simulation type says whether the bridge runs it.
-            bridgeSimulation: (driverClass as { simulationType?: SimulationType }).simulationType ?? null,
-            dimension: how.dimension,
-            transition: how.transition === true,
-            shown: viewSummary(shown),
-            totalNodes: this.dataManager.nodes.size,
-            acceleration: this.acceleration?.status ?? null,
-        });
 
         // Which engines accept a scope is a fact of the class. Only a scope named in THIS call is
         // refused; a carried one is inactive under an engine that cannot hold nodes still.
@@ -1746,16 +1723,36 @@ export class LayoutManager implements Manager {
 
     /**
      * The rows drawn with no `Node`, under renderPath "batched"; none under "objects".
-     * @returns Their row numbers.
+     * @returns A mask by row number, 1 for such a row, or null when there is none. A mask, not a
+     *   set: at a million rows building a set of them cost about 0.1 s of every layout start.
      */
-    private columnRows(): number[] {
+    private columnRows(): Uint8Array | null {
         if (this.dataManager.renderLimits?.batched() !== true) {
-            return [];
+            return null;
         }
 
         // A row stored with no `Node` is one too, painted or not yet.
         const drawn = this.graphContext?.getNodeBatches?.()?.columnRowIndices() ?? [];
-        return [...new Set([...drawn, ...dataManagerInternals.unbuiltRows(this.dataManager)])];
+        const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
+        let bound = 0;
+        for (const rows of [drawn, unbuilt]) {
+            for (const row of rows) {
+                bound = Math.max(bound, row + 1);
+            }
+        }
+
+        if (bound === 0) {
+            return null;
+        }
+
+        const mask = new Uint8Array(bound);
+        for (const rows of [drawn, unbuilt]) {
+            for (const row of rows) {
+                mask[row] = 1;
+            }
+        }
+
+        return mask;
     }
 
     /**
@@ -1868,8 +1865,9 @@ export class LayoutManager implements Manager {
         const nodes = byRow
             ? [...dataManagerInternals.builtNodes(this.dataManager)]
             : [...this.dataManager.nodes.values()];
-        const rows = new Set(this.columnRows());
-        return rows.size === 0 ? nodes : nodes.filter((n) => !rows.has(n.index));
+        // No `Node` to leave out (a batched load builds none): the rows need not be gathered.
+        const rows = nodes.length === 0 ? null : this.columnRows();
+        return rows === null ? nodes : nodes.filter((n) => rows[n.index] !== 1);
     }
 
     /**
@@ -1882,7 +1880,7 @@ export class LayoutManager implements Manager {
      */
     private addBodies(engine: LayoutEngine, nodes: Node[]): void {
         const rows = this.columnRows();
-        if (!(engine instanceof D3GraphEngine || engine instanceof NGraphEngine) || rows.length === 0) {
+        if (!(engine instanceof D3GraphEngine || engine instanceof NGraphEngine) || rows === null) {
             layoutEngineInternals.addNodes(engine, nodes);
             return;
         }
@@ -1902,7 +1900,6 @@ export class LayoutManager implements Manager {
             }
         }
 
-        const rowSet = new Set(rows);
         // A row the working graph hides gets no body.
         const view = layoutEngineInternals.view(engine);
         const hidden = (row: number): boolean =>
@@ -1917,7 +1914,7 @@ export class LayoutManager implements Manager {
                 }
 
                 layoutEngineInternals.addNodes(engine, [n]);
-            } else if (rowSet.has(row) && !hidden(row)) {
+            } else if (rows[row] === 1 && !hidden(row)) {
                 ids.push(snapshot.ids.idOf(row));
             }
         }
@@ -2760,11 +2757,6 @@ export class LayoutManager implements Manager {
     private followShownRows(engine: LayoutEngine): void {
         const before = layoutEngineInternals.view(engine);
         const now = this.shownNow();
-        layoutDiag.debug("followShownRows", {
-            engine: engine.type,
-            before: viewSummary(before),
-            now: viewSummary(now),
-        });
         layoutEngineInternals.setView(engine, now);
         if ((before === null && now === null) || engine instanceof SimulationLayoutEngine) {
             return;
@@ -2819,17 +2811,6 @@ export class LayoutManager implements Manager {
      */
     followView(atRest = false): Promise<void> {
         const engine = this.layoutEngine;
-        if (layoutDiag.isDebugEnabled()) {
-            const built = engine === undefined ? null : layoutEngineInternals.view(engine);
-            const now = this.shownNow();
-            layoutDiag.debug("followView entered", {
-                engine: engine?.type,
-                built: viewSummary(built),
-                now: viewSummary(now),
-                atRest,
-                sameShown: sameShown(built, now),
-            });
-        }
         if (
             engine === undefined ||
             (!atRest && this.restoring()) ||
@@ -2883,12 +2864,10 @@ export class LayoutManager implements Manager {
             (!atRest && this.#generation !== generation) ||
             sameShown(layoutEngineInternals.view(running), this.shownNow())
         ) {
-            layoutDiag.debug("followView queued rebuild skipped", { engine: running?.type, atRest });
             return;
         }
 
         const now = this.#generation;
-        layoutDiag.debug("followView rebuilding", { engine: running.type, atRest });
         await this._setLayoutInternal(running.type, this.driverOptions, {
             dimension: this.engineDimension ?? 3,
             restoring: atRest,
@@ -3324,6 +3303,31 @@ export class LayoutManager implements Manager {
      */
     get isPaused(): boolean {
         return !this.running && !this.isSettled;
+    }
+
+    /**
+     * Whether the layout is moving: `running`, `paused` (stopped before it converged) or `settled`.
+     * @returns The motion.
+     */
+    get motion(): LayoutMotion {
+        if (this.running) {
+            return "running";
+        }
+
+        return this.isSettled ? "settled" : "paused";
+    }
+
+    /**
+     * Tell `onMotion` when the motion differs from what it was last told. Called whenever running
+     * starts or stops, and by the frame loop for what changes without that (a new engine built
+     * while paused, which may converge at once).
+     */
+    checkMotion(): void {
+        const { motion } = this;
+        if (motion !== this.#toldMotion) {
+            this.#toldMotion = motion;
+            this.onMotion?.(motion);
+        }
     }
 
     /**

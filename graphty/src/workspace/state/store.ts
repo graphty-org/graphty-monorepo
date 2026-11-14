@@ -14,6 +14,7 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
     GraphSession,
+    GraphtyErrorCode,
     LoadDraft,
     NoteTargetInput,
     ScopeInput,
@@ -56,6 +57,9 @@ export interface Notice {
     readonly action?: { readonly label: string; readonly run: () => void };
 }
 
+/** An inspector tab: Style, Values, or Notes, which shows only for an item with notes. */
+export type InspectorTab = "style" | "values" | "notes";
+
 /** What the inspector shows: a kind and, for an element or row, its id. */
 interface Inspected {
     readonly kind: string;
@@ -67,18 +71,18 @@ interface Inspected {
 /** The chrome state. */
 export interface WorkspaceState {
     /**
-     * The open project, or null for the start screen (section 2.11).
-     *
-     * The name is held here only until graphty-element publishes `session.project.name` with the
-     * project file (#301, tier1-real-app/plan.md section 2 item 10); the Project package moves it.
-     * `id` changes when another project opens, which mounts a fresh element.
-     */
-    /**
-     * The open project; `blank` when it opened empty, so a reload brings it back even with nothing
-     * written; `opened` when opening it again gives it back, for a reload before graphty-element's
-     * autosave wrote it.
+     * The open project, or null for the start screen (section 2.11); `blank` when it opened empty,
+     * so a reload brings it back even with nothing written; `opened` when opening it again gives it
+     * back, for a reload before graphty-element's autosave wrote it. `id` changes when another
+     * project opens, which mounts a fresh element.
      */
     readonly project: {
+        /**
+         * The name the app shows. graphty-element owns the project's name (`session.project.name`):
+         * this follows it on every `project:status` (ProjectDialogs), and is the app's own name for
+         * the project (its data's) only while the element holds none. Never write a rename here:
+         * rename through `session.project.rename`.
+         */
         readonly name: string;
         readonly id: number;
         readonly blank?: true;
@@ -96,7 +100,7 @@ export interface WorkspaceState {
     readonly renamingRow: string | null;
     readonly inspected: Inspected | null;
     /** The tab last chosen per inspected kind. */
-    readonly tabs: Readonly<Record<string, "style" | "values">>;
+    readonly tabs: Readonly<Record<string, InspectorTab>>;
     /**
      * The Style tab's Node or Edge tab, one for the whole panel: kept while the next row styles
      * that kind, else the kind the row styles (combined Style panel, 2026-10-16).
@@ -132,7 +136,8 @@ export interface WorkspaceState {
     readonly assistantRefused: boolean;
     /** How the last message ended, when the conversation cannot say: nothing reached it. */
     readonly assistantEnded: {
-        readonly code: AiResultCode;
+        /** An `AiResultCode`, or the element's `GraphtyError` code when setting up threw one. */
+        readonly code: AiResultCode | GraphtyErrorCode;
         readonly params: AiResultParams;
         /**
          * It failed while the panel was open: the newest turn's row is the alert until the reader
@@ -295,8 +300,6 @@ export interface WorkspaceState {
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
-    /** Graph settings, Outline width: every outline's width, or null for the element's own. */
-    readonly outlineWidth: number | null;
     /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
      * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
@@ -418,7 +421,6 @@ const INITIAL: WorkspaceState = {
     sameSizeAtAnyDepth: null,
     lighting: "studio",
     autoRotate: false,
-    outlineWidth: null,
     exportOn: "image",
     exportSource: null,
     serverKind: null,
@@ -563,16 +565,24 @@ export function useStoreValue<T>(store: WorkspaceStore, select: (state: Workspac
 
 /**
  * The tab an inspected kind opens on: its fixed tab, else the reader's last choice, else its
- * default, else its first tab.
+ * default, else its first tab. A remembered Notes counts only when this item has notes; with
+ * none there is no Notes tab, and it opens as though Notes had never been chosen.
  * @param kind - the kind, or undefined when it is not registered.
  * @param remembered - the tab memory.
+ * @param hasNotes - whether the inspected item has notes, so a Notes tab.
  * @returns the tab, or null for a kind with no tabs.
  */
-export function tabFor(kind: InspectedKind | undefined, remembered: WorkspaceState["tabs"]): "style" | "values" | null {
+export function tabFor(
+    kind: InspectedKind | undefined,
+    remembered: WorkspaceState["tabs"],
+    hasNotes = false,
+): InspectorTab | null {
     if (kind === undefined || kind.tabs.length === 0) {
         return null;
     }
-    return kind.alwaysOpenOn ?? remembered[kind.kind] ?? kind.defaultTab ?? kind.tabs[0];
+    const last = remembered[kind.kind];
+    const usable = last === "notes" && !hasNotes ? undefined : last;
+    return kind.alwaysOpenOn ?? usable ?? kind.defaultTab ?? kind.tabs[0];
 }
 
 /** The session storage item the reader's place is kept under, for a reload of this tab. */

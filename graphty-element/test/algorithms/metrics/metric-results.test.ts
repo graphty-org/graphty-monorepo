@@ -22,7 +22,8 @@ const METRICS = [
     { key: "closeness", make: (g: Graph): MetricAlgorithm => new ClosenessCentralityAlgorithm(g) },
     { key: "pagerank", make: (g: Graph): MetricAlgorithm => new PageRankAlgorithm(g) },
     { key: "eigenvector", make: (g: Graph): MetricAlgorithm => new EigenvectorCentralityAlgorithm(g) },
-    { key: "katz", make: (g: Graph): MetricAlgorithm => new KatzCentralityAlgorithm(g) },
+    // Below 1 / lambda_max of the fixture: at the default 0.1 it diverges.
+    { key: "katz", make: (g: Graph): MetricAlgorithm => new KatzCentralityAlgorithm(g, { alpha: 0.02 }) },
     { key: "hits", make: (g: Graph): MetricAlgorithm => new HITSAlgorithm(g) },
 ] as const;
 
@@ -169,7 +170,7 @@ describe("metric results", () => {
         });
 
         it("katz states that its default scaling is min-max", async () => {
-            const result = await runMetric((g) => new KatzCentralityAlgorithm(g));
+            const result = await runMetric((g) => new KatzCentralityAlgorithm(g, { alpha: 0.02 }));
             assert.strictEqual(result.graph.normalization, "min-max");
         });
     });
@@ -238,12 +239,23 @@ describe("metric results", () => {
             assert.isTrue(hitsCaveats.converged);
             assert.isBelow(hitsCaveats.iterations ?? Infinity, 100);
 
-            // Katz at its default alpha of 0.1 does NOT: the graph's largest eigenvalue is at least
-            // 10, so the attenuated sums grow every pass. The run says so rather than saying nothing.
-            const katzCaveats = (await runMetric((g) => new KatzCentralityAlgorithm(g))).summary().caveats;
-            assert.isFalse(katzCaveats.converged);
-            assert.strictEqual(katzCaveats.iterations, 100);
-            assert.isTrue(katzCaveats.notes.some((note) => note.includes("without reaching the tolerance")));
+            // Katz at an alpha below 1 / lambda_max settles too.
+            const katzCaveats = (await runMetric((g) => new KatzCentralityAlgorithm(g, { alpha: 0.02 }))).summary()
+                .caveats;
+            assert.isTrue(katzCaveats.converged);
+            assert.isBelow(katzCaveats.iterations ?? Infinity, 100);
+        });
+
+        it("katz at an alpha too large for the graph fails with E_NOT_CONVERGED instead of publishing", async () => {
+            // The default alpha of 0.1: the graph's largest eigenvalue is at least 10, so the
+            // attenuated sums grow every pass and the run has no answer.
+            let thrown: unknown;
+            try {
+                await runMetric((g) => new KatzCentralityAlgorithm(g));
+            } catch (error) {
+                thrown = error;
+            }
+            assert.strictEqual((thrown as { code?: string } | undefined)?.code, "E_NOT_CONVERGED");
         });
 
         it("every metric names its method, its direction and its precision", async () => {

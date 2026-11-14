@@ -6,6 +6,7 @@
 import type { z } from "zod";
 
 import type { AiToolCauseCode } from "../../catalog/assistant";
+import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
 import type { TransactionScope } from "../../session/types";
 import type { AiStatus } from "../AiStatus";
@@ -70,6 +71,16 @@ export interface CommandContext {
  */
 export function writerOf(graph: Graph, context?: CommandContext): TransactionScope {
     return context?.tx ?? graph.getSession();
+}
+
+/**
+ * The cause a failed command reports for an error it caught: the session's own code when the
+ * error is a `GraphtyError` (`E_UNKNOWN_LAYOUT`, `E_OPTION_RANGE`), else none.
+ * @param error - The caught error.
+ * @returns `{ code }` to spread into the command's result, or an empty object.
+ */
+export function causeOf(error: unknown): Pick<CommandResult, "code"> {
+    return isGraphtyError(error) ? { code: error.code } : {};
 }
 
 /**

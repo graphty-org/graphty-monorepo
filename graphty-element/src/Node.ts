@@ -1,25 +1,19 @@
-import {
-    AbstractMesh,
-    type ActionManager,
-    type BaseTexture,
-    type BoundingBox,
-    BoundingInfo,
-    Camera,
-    Color3,
-    Color4,
-    InstancedMesh,
-    type Matrix,
-    Mesh,
-    MeshBuilder,
-    type Plane,
-    type Ray,
-    type Scene,
-    StandardMaterial,
-    TransformNode,
-    Vector3,
-} from "@babylonjs/core";
+import type { BaseTexture, Plane } from "@babylonjs/core";
+import type { ActionManager } from "@babylonjs/core/Actions/actionManager.js";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import type { BoundingBox } from "@babylonjs/core/Culling/boundingBox.js";
+import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
+import type { Ray } from "@babylonjs/core/Culling/ray.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { type Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
-import jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 import omit from "lodash/omit.js";
@@ -27,7 +21,7 @@ import omit from "lodash/omit.js";
 import type { ShaderUse } from "./catalog/shaders";
 import type { Rgba } from "./catalog/types";
 import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
-import { drawnText } from "./config/RichTextStyle";
+import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
@@ -38,6 +32,7 @@ import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
 import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
+import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { labelFitExtent } from "./meshes/labelFit";
@@ -312,46 +307,6 @@ const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellip
 /** The shapes whose mesh is its box, see {@link Node.surfaceIsClosedForm}. */
 const CLOSED_FORM_SHAPES: ReadonlySet<string> = new Set(["box", "rectangle"]);
 
-type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
-
-/**
- * A label's background color as the one string the label renderer takes: an advanced color style's solid value,
- * or a gradient's first color as a fallback.
- * @param color - The style's background color.
- * @returns The color, or undefined for none.
- */
-function labelBackgroundColor(color: LabelStyle["backgroundColor"]): string | undefined {
-    if (!color) {
-        return undefined;
-    }
-    if (typeof color === "string") {
-        return color;
-    }
-    if (color.colorType === "solid") {
-        return color.value;
-    }
-    if (color.colorType === "gradient") {
-        return color.colors[0];
-    }
-    return undefined;
-}
-
-/**
- * A label's borders with a color each, the only ones the label renderer can draw.
- * @param borders - The style's borders.
- * @returns The borders, or undefined when none has a color, so the renderer's default empty list is used.
- */
-function labelBorders(borders: LabelStyle["borders"]): { width: number; color: string; spacing: number }[] | undefined {
-    const valid = (borders ?? [])
-        .filter((border): border is typeof border & { color: string } => border.color !== undefined)
-        .map((border) => ({
-            width: border.width,
-            color: border.color,
-            spacing: border.spacing,
-        }));
-    return valid.length > 0 ? valid : undefined;
-}
-
 /** The colour a node is drawn in when no layer a reader added colours it. */
 const DEFAULT_NODE_COLOR = String(CHANNEL_DESCRIPTORS["node.color"].default ?? "").toLowerCase();
 
@@ -397,6 +352,18 @@ function namesShader(uses: readonly ShaderUse[] | undefined): boolean {
 function hexOf(value: unknown, fallback: string): { hex: string; alpha: number } {
     const { rgb, alpha } = readColor(typeof value === "string" ? value : undefined, fallback);
     return { hex: rgb.toHexString(), alpha };
+}
+
+/**
+ * A batched row's measure as the CPU took it, when the row table's 32-bit copy is that measure rounded: the
+ * object path works in the doubles it measured, and a last bit of difference moves a trimmed edge end by a
+ * pixel (#6287).
+ * @param stored - What the row table holds.
+ * @param measured - What the node measured when it wrote the row, or null.
+ * @returns The measure, or what the table holds when it holds something else (a shrink part of the way).
+ */
+function exactOf(stored: number, measured: number | null): number {
+    return measured !== null && Math.fround(measured) === stored ? measured : stored;
 }
 
 /**
@@ -766,6 +733,9 @@ export class Node implements ModelUser {
     /** The cache key of the halo's source mesh, so a node that changes shape rebuilds its halo. */
     private haloKey: string | null = null;
 
+    /** How far toward the camera the halo is moved from the node: a 2D halo's lift over the edges. */
+    private haloLift = 0;
+
     /**
      * Which shader path draws this node's surface or sprite (design/rendering/shader-styles.md
      * section 5), or null while it is drawn plainly. Part of its source mesh's key: an impostor or
@@ -892,7 +862,8 @@ export class Node implements ModelUser {
     get roundRadius(): number | null {
         const batched = this.batchTable;
         if (batched !== null) {
-            return batched.extentOf(this.row).round;
+            const { round } = batched.extentOf(this.row);
+            return round === null ? null : exactOf(round, this.roundRadiusValue);
         }
 
         // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
@@ -1270,8 +1241,19 @@ export class Node implements ModelUser {
             return;
         }
 
-        this.context.getStatsManager().startMeasurement("Node.update");
+        const stats = this.context.getStatsManager();
+        stats.startMeasurement("Node.update");
+        try {
+            this.followLayout();
+        } finally {
+            stats.endMeasurement("Node.update");
+        }
+    }
 
+    /**
+     * Place the node where the layout says, or follow a drag: the measured part of `update`.
+     */
+    private followLayout(): void {
         // Check if mesh was disposed (e.g., from 2D/3D mode switch) and recreate it.
         if (this.#anchor.isDisposed()) {
             this.updateStyle();
@@ -1279,7 +1261,6 @@ export class Node implements ModelUser {
 
         if (this.dragging) {
             this.syncOverlayPositions();
-            this.context.getStatsManager().endMeasurement("Node.update");
             return;
         }
 
@@ -1306,8 +1287,6 @@ export class Node implements ModelUser {
 
         this.syncXlabelPlace();
         this.syncOverlayPositions();
-
-        this.context.getStatsManager().endMeasurement("Node.update");
     }
 
     /**
@@ -1908,7 +1887,7 @@ export class Node implements ModelUser {
     get drawnScaling(): Readonly<Vector3> {
         const batched = this.batchTable;
         if (batched !== null) {
-            const { scale } = batched.extentOf(this.row);
+            const scale = exactOf(batched.extentOf(this.row).scale, this.#anchor.scaling.x);
             return new Vector3(scale, scale, scale);
         }
 
@@ -1921,7 +1900,8 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnScale(): number {
-        return this.batchTable?.extentOf(this.row).scale ?? this.#anchor.scaling.x;
+        const scale = this.batchTable?.extentOf(this.row).scale;
+        return scale === undefined ? this.#anchor.scaling.x : exactOf(scale, this.#anchor.scaling.x);
     }
 
     /**
@@ -2403,7 +2383,13 @@ export class Node implements ModelUser {
                 halo === null || haloColor === null || halo.opacity === 0
                     ? null
                     : { color: haloColor.hex, scale: halo.scale, opacity: halo.opacity * haloColor.alpha },
-            ring: batch && outline ? hexOf(NodeEffects.extractColorValue(outline.color), "#000000").hex : null,
+            ring:
+                batch && outline && NodeEffects.outlineDrawn(style.effect)
+                    ? {
+                          color: hexOf(NodeEffects.extractColorValue(outline.color), "#000000").hex,
+                          width: NodeEffects.outlineWidthOf(this.context.getScene(), outline.width),
+                      }
+                    : null,
             glow:
                 batch && glow && glowColor !== undefined && (glow.strength ?? 1) > 0
                     ? {
@@ -2876,7 +2862,22 @@ export class Node implements ModelUser {
      * @param color - The per-instance colour.
      */
     private drawPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
-        this.context.getStatsManager().startMeasurement("Node.updateMesh");
+        const stats = this.context.getStatsManager();
+        stats.startMeasurement("Node.updateMesh");
+        try {
+            this.drawShadedPaint(paintKey, paintStyle, color);
+        } finally {
+            stats.endMeasurement("Node.updateMesh");
+        }
+    }
+
+    /**
+     * The measured part of `drawPaint`.
+     * @param paintKey - Which source mesh the paint draws from.
+     * @param paintStyle - The resolved style.
+     * @param color - The per-instance colour.
+     */
+    private drawShadedPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
         const shaded = this.shadedPaint(paintKey, paintStyle);
         const { meshKey, style: o } = shaded;
         this.shaderPath = shaded.path;
@@ -2917,13 +2918,11 @@ export class Node implements ModelUser {
             this.syncLabel(o, false);
             this.syncTooltip(o);
             this.syncHalo();
-            this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }
 
         if (this.movesFor(meshKey, o)) {
             this.moveTo(meshKey, o, color);
-            this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }
 
@@ -3059,8 +3058,6 @@ export class Node implements ModelUser {
         // drops its halo, and repaints it in its source mesh's own colour.
         this.applyRenderState();
         this.applyInstancePaint(o, color);
-
-        this.context.getStatsManager().endMeasurement("Node.updateMesh");
     }
 
     /**
@@ -3393,13 +3390,13 @@ export class Node implements ModelUser {
             // moves out by the configured multiplier, so a box gets a box, a cylinder a
             // cylinder, and a node drawn wider than tall a halo wider than tall.
             overlay.scaling.copyFrom(this.#anchor.scaling).scaleInPlace(selection.scale);
+            this.haloLift = flatHaloLift(overlay, this.#anchor.scaling.z);
         } else {
             this.contextPoint = overlay;
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
         }
 
-        this.followRow();
-        overlay.position.copyFrom(this.#anchor.position);
+        this.syncOverlayPositions();
         overlay.setEnabled(true);
         this.context.getNodeBatches?.()?.rewalk(this);
     }
@@ -3575,7 +3572,9 @@ export class Node implements ModelUser {
     get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
         const batched = this.batchTable;
         if (batched !== null) {
-            return batched.extentOf(this.row).half;
+            const { half } = batched.extentOf(this.row);
+            const measured = this.halfExtentsValue;
+            return { x: exactOf(half.x, measured.x), y: exactOf(half.y, measured.y), z: exactOf(half.z, measured.z) };
         }
 
         const own = this.#anchor.scaling;
@@ -3713,9 +3712,10 @@ export class Node implements ModelUser {
         const color = kind === "halo" ? selection.color : CONTEXT_POINT_COLOR;
         const alpha = kind === "halo" ? selection.opacity : CONTEXT_POINT_ALPHA;
         const shape = kind === "halo" ? this.nodeSourceMesh() : null;
+        const flat = kind === "halo" && this.context.is2D();
         const overlay = this.context
             .getMeshCache()
-            .get(name, () => Node.createOverlaySource(name, color, alpha, scene, shape));
+            .get(name, () => Node.createOverlaySource(name, color, alpha, scene, shape, flat));
 
         if (kind === "halo") {
             this.haloKey = name;
@@ -3770,6 +3770,7 @@ export class Node implements ModelUser {
      * @param alpha - How opaque it is, in `[0, 1]`.
      * @param scene - The scene to build it in.
      * @param shape - The node source mesh whose geometry a halo shares, or null for a unit sphere.
+     * @param flat - Whether it is a 2D halo: a sheet in front of the edges (`applyFlatHalo`).
      * @returns The source mesh.
      */
     private static createOverlaySource(
@@ -3778,9 +3779,17 @@ export class Node implements ModelUser {
         alpha: number,
         scene: Scene,
         shape: Mesh | null,
+        flat = false,
     ): Mesh {
         let source: Mesh;
-        if (shape?.geometry) {
+        // In front of the edges' plane, where a lifted 2D halo needs no depth offset.
+        let lifted = false;
+        if (flat && shape?.geometry) {
+            source = new Mesh(name, scene);
+            const front = applyFlatHalo(source, shape);
+            source.metadata = { flatHaloFront: front };
+            lifted = front < 0;
+        } else if (shape?.geometry) {
             // SHARED geometry, not a copy: one halo source per node source costs a material and
             // no vertices, and Babylon reference-counts the geometry so either can be disposed
             // first. A new mesh rather than a clone, so nothing of the node's own source -- its
@@ -3814,8 +3823,10 @@ export class Node implements ModelUser {
         material.cullBackFaces = false;
         // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
         // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
-        // instead of fighting it for the same pixels. Too small to move a 3D halo visibly.
-        material.zOffsetUnits = 4;
+        // instead of fighting it for the same pixels. Too small to move a 3D halo visibly. A 2D
+        // halo lifted in front of the edges is already behind its node's front, and the offset
+        // would push it back into the edges' plane (issue #7453).
+        material.zOffsetUnits = lifted ? 0 : 4;
         source.material = material;
 
         return source;
@@ -3839,7 +3850,7 @@ export class Node implements ModelUser {
      * @returns The key.
      */
     private haloSourceKey(look: GraphSelectionStyleConfig): string {
-        const key = `${SELECTION_HALO_MESH}:${this.#anchor.name}`;
+        const key = `${SELECTION_HALO_MESH}:${this.#anchor.name}${this.context.is2D() ? ":2d" : ""}`;
         const selection = this.selectionStyle();
         // ponytail: one cached source per halo colour and opacity ever drawn; evict unused
         // ones if a continuous halo colour encoding ever shows up in a profile.
@@ -3859,6 +3870,8 @@ export class Node implements ModelUser {
         this.followRow();
         if (this.halo && !this.halo.isDisposed()) {
             this.halo.position.copyFrom(this.#anchor.position);
+            // the 2D camera looks along +z, so toward it is down z
+            this.halo.position.z -= this.haloLift;
         }
 
         if (this.contextPoint && !this.contextPoint.isDisposed()) {
@@ -4284,33 +4297,13 @@ export class Node implements ModelUser {
         return label;
     }
 
+    /**
+     * The words this node's label or tooltip block draws: its own, or its id when the block names none.
+     * @param labelConfig - The block.
+     * @returns The words.
+     */
     private extractLabelText(labelConfig?: Record<string, unknown>): string {
-        if (!labelConfig) {
-            return this.id.toString();
-        }
-
-        // Check if text is directly provided
-        if (labelConfig.text !== undefined && labelConfig.text !== null) {
-            // Only convert to string if it's a primitive type
-            if (
-                typeof labelConfig.text === "string" ||
-                typeof labelConfig.text === "number" ||
-                typeof labelConfig.text === "boolean"
-            ) {
-                return String(labelConfig.text);
-            }
-        } else if (labelConfig.textPath && typeof labelConfig.textPath === "string") {
-            try {
-                const result = jmespath.search(this.data, labelConfig.textPath);
-                if (result !== null && result !== undefined) {
-                    return String(result);
-                }
-            } catch {
-                // Ignore jmespath errors
-            }
-        }
-
-        return this.id.toString();
+        return labelTextOf(this.data, labelConfig) ?? this.id.toString();
     }
 
     /**
@@ -4340,45 +4333,13 @@ export class Node implements ModelUser {
         }
         const attachOffset = (labelStyle.attachOffset ?? this.getDefaultAttachOffset(placed)) + along;
 
-        const backgroundColor = labelBackgroundColor(labelStyle.backgroundColor);
-
-        // Filter out undefined values from backgroundGradientColors
-        let backgroundGradientColors: string[] | undefined = undefined;
-        if (labelStyle.backgroundGradientColors) {
-            backgroundGradientColors = labelStyle.backgroundGradientColors.filter(
-                (color): color is string => color !== undefined,
-            );
-            if (backgroundGradientColors.length === 0) {
-                backgroundGradientColors = undefined;
-            }
-        }
-
-        const borders = labelBorders(labelStyle.borders);
-
-        // Create label options by spreading the entire labelStyle object
-        const labelOptions: RichTextLabelOptions = {
-            ...labelStyle,
-            // Override with computed values
+        return richTextLabelOptions(labelStyle, {
             text: labelText,
             attachTo: this.labelTarget(),
             attachPosition,
             attachOffset,
             ...(this.shapeType === "polygon" && { centerAtOrigin: true }),
-            backgroundColor,
-            backgroundGradientColors,
-            ...(borders !== undefined && { borders }),
-        };
-
-        // Handle special case for transparent background
-        if (labelOptions.backgroundColor === "transparent") {
-            labelOptions.backgroundColor = undefined;
-        }
-
-        // Remove properties that shouldn't be passed to RichTextLabel
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions;
-
-        return finalLabelOptions;
+        });
     }
 
     /**

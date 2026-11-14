@@ -73,7 +73,7 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
  * @returns the workspace.
  */
 async function openWorkspace(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the workspace is open");
@@ -184,9 +184,11 @@ describe("the workspace's cards, as the approved prototype", () => {
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Leiden");
         await userEvent.click(await within(cards()[0]).findByRole("button", { name: /^Settings for Leiden/u }));
         const panel = await screen.findByRole("dialog", { name: "Leiden" });
-        for (const name of [/^Resolution/u, /^Seed/u, /^Max iterations/u, /^Tolerance/u]) {
+        for (const name of [/^Resolution/u, /^Max iterations/u, /^Tolerance/u]) {
             assert.isNotNull(within(panel).getByRole("spinbutton", { name }));
         }
+        // Leiden is unseeded by default, so its seed is an empty box (a text box until it holds a number).
+        assert.strictEqual(within(panel).getByRole<HTMLInputElement>("textbox", { name: /^Seed/u }).value, "");
         assert.lengthOf(
             within(panel)
                 .getAllByRole("button")

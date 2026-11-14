@@ -33,14 +33,15 @@ import "@graphty/graphty-element";
 
 ## CDN Usage
 
-For quick prototyping or simple pages, use a CDN:
+For quick prototyping or simple pages, load the self-contained bundle (`dist/graphty.bundle.js`) from a
+CDN. It includes Babylon.js and Lit, so the page needs no bundler and no import map:
 
 ```html
 <!-- unpkg -->
-<script type="module" src="https://unpkg.com/@graphty/graphty-element"></script>
+<script type="module" src="https://unpkg.com/@graphty/graphty-element@3/dist/graphty.bundle.js"></script>
 
 <!-- jsDelivr -->
-<script type="module" src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element@3/dist/graphty.bundle.js"></script>
 ```
 
 Then use the component directly:
@@ -57,7 +58,7 @@ camera view, log destination, layout, format or algorithm from the same import:
 
 ```html
 <script type="module">
-    import { registerPalette } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element/dist/graphty.bundle.js";
+    import { registerPalette } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@3/dist/graphty.bundle.js";
 
     registerPalette({
         id: "brand",

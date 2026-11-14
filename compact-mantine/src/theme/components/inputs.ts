@@ -129,11 +129,24 @@ export const LISTBOX_CLASS_NAMES = {
 };
 
 /**
+ * A field's own list (Select, Autocomplete, MultiSelect, TagsInput): the dropdown only frames it,
+ * and the `role="listbox"` inside is the `cm-menu` that scrolls and takes the chevron rows, so
+ * assistive technology sees a scrolling popup the combobox controls (axe
+ * scrollable-region-focusable exempts exactly that: focus stays on the combobox and the arrows
+ * move through the options). It looks the same as LISTBOX_CLASS_NAMES.
+ */
+const FIELD_LISTBOX_CLASS_NAMES = {
+    ...LISTBOX_CLASS_NAMES,
+    dropdown: "cm-menu-surface cm-listbox cm-listbox-frame",
+    options: "cm-listbox-options cm-menu",
+};
+
+/**
  * The pill field's pill classNames (spec 6.7: variable-pill shaped pills), and its list, where
  * several options are checked but only the pointer's or the keyboard's row is ever filled.
  */
 const PILL_CLASS_NAMES = {
-    dropdown: "cm-menu-surface cm-menu cm-listbox cm-listbox-multi",
+    dropdown: "cm-menu-surface cm-listbox cm-listbox-frame cm-listbox-multi",
     pill: "cm-input-pill",
     pillsList: "cm-input-pills",
     inputField: "cm-input-pills-field",
@@ -150,7 +163,7 @@ function listFieldClassNames(fallback: "filled" | "outlined", extra = "", more: 
     const field = fieldClassNames(fallback, extra);
     return (theme: MantineTheme, props: FieldClassProps): Record<string, string> => ({
         ...field(theme, props),
-        ...LISTBOX_CLASS_NAMES,
+        ...FIELD_LISTBOX_CLASS_NAMES,
         ...more,
     });
 }
@@ -160,7 +173,7 @@ const CARET = createElement(FieldCaret);
 
 /**
  * A single-choice list: opens over its trigger, the selected option on top of it. No ScrollArea:
- * the dropdown itself scrolls, clamped by the stylesheet to the viewport less 6px each side.
+ * the listbox itself scrolls, clamped by the stylesheet to the viewport less 6px each side.
  */
 const SINGLE_LIST_DEFAULTS = {
     comboboxProps: overTriggerComboboxProps(),

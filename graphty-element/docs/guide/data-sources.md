@@ -192,13 +192,14 @@ A load waits for the loads ahead of it to finish reading. A download that never 
 back every load asked for after it. Pass a `signal` and abort it to let the next load through:
 
 ```typescript
+const baseUrl = DEFAULT_DATASET_BASE_URL; // from @graphty/graph-samples, or your own copy
 let download = new AbortController();
-void session.data.loadDataset("karate", { signal: download.signal });
+void session.data.loadDataset("karate", { baseUrl, signal: download.signal });
 
 // The reader picked another graph: stop the old download so the new one is not held behind it.
 download.abort();
 download = new AbortController();
-await session.data.loadDataset("dolphins", { signal: download.signal });
+await session.data.loadDataset("dolphins", { baseUrl, signal: download.signal });
 ```
 
 A load aborted before its turn comes rejects and changes nothing, even when its download had
@@ -211,6 +212,13 @@ does not wait for the element's own earlier loads: those reject with `E_SUPERSED
 columns, choose which column is the node id, the edge endpoints or the weight, and see the counts
 the load would produce before anything is added to the graph. See
 [Previewing a Load](./load-preview).
+
+## Joining a Table Onto the Graph
+
+A table that describes the graph already loaded -- values per gene, door entries naming a person
+and a building, the phones each account used -- can be joined onto it instead of loaded on its
+own: its rows become values on the nodes they name, new edges, or links between nodes that share a
+value. See [Joining Data](./joins).
 
 ## Replacing the Graph
 
@@ -238,7 +246,8 @@ naming the format and, when the parser knows it, the line. A graphty project or 
 `session.project.save` writes) is not graph data: it fails with `E_PROJECT_FILE_AS_DATA`, whose
 `details.use` names `project.open`, the verb that opens it. A replacing load that stops at
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
-keeps the current graph.
+keeps the current graph; its `details` carry `format`, `rowErrors` and `limit`. A JSON or CSV
+reader that reaches the limit stops the load with the same code, whether or not it was replacing.
 
 GML, DOT and Pajek files are read by `@graphty/graph-io`. A file of one of those formats that
 cannot be read at all -- a GML list or DOT brace still open when the text ends, a Pajek file with

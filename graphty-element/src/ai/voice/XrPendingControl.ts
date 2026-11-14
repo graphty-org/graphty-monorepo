@@ -8,17 +8,14 @@
  * @module ai/voice/XrPendingControl
  */
 
-import {
-    DynamicTexture,
-    Mesh,
-    MeshBuilder,
-    type Observer,
-    PointerEventTypes,
-    type PointerInfo,
-    type Scene,
-    StandardMaterial,
-    Vector3,
-} from "@babylonjs/core";
+import type { Observer } from "@babylonjs/core";
+import { PointerEventTypes, type PointerInfo } from "@babylonjs/core/Events/pointerEvents.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { AiResultCode } from "../../catalog/ai";
 import { ASSISTANT_TOOLS } from "../../catalog/assistant";

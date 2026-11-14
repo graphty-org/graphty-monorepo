@@ -101,7 +101,7 @@ describe("OpenAlex", () => {
         const { snapshot, report } = await loadFromSource(openalexSource, { work: "W2112090702" }, { fetch });
         const { ids } = snapshot;
         const seed = ids.requireIndex("W2112090702");
-        expect(snapshot.nodes.value("title", seed)).toBe("Collective dynamics of ‘small-world’ networks");
+        expect(snapshot.nodes.value("title", seed)).toBe("Collective dynamics of \u2018small-world\u2019 networks");
         const stub = (i: number): unknown =>
             snapshot.nodes.has(SOURCE_STUB_ATTR) ? snapshot.nodes.value(SOURCE_STUB_ATTR, i) : null;
         let full = 0;

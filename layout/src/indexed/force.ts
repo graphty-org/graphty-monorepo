@@ -11,6 +11,7 @@ import { FruchtermanReingoldSimulation } from "../simulation/fruchterman-reingol
 import { Lcg, seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import type { ForceAtlas2Options, FruchtermanReingoldOptions, SimulationOptions } from "../simulation/types.js";
+import { checkScaleCenter } from "./common.js";
 import { layoutDim, startColumn } from "./start.js";
 
 /**
@@ -50,6 +51,7 @@ export function forceAtlas2(g: GraphSnapshot, options: IndexedForceAtlas2Options
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const { pos, scale = 1, center, maxIter = 100, ...rest } = options;
+    checkScaleCenter(scale, center);
     const column = startColumn(s, pos, dim);
     seedPositions(s, column, options.seed ?? null, dim, 1, null, "fa2");
     const iterations = wholeCount(maxIter);
@@ -77,6 +79,7 @@ export function fruchtermanReingold(g: GraphSnapshot, options: IndexedFruchterma
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const { pos, scale = 1, center, iterations: count = 50, ...rest } = options;
+    checkScaleCenter(scale, center);
     const column = startColumn(s, pos, dim);
     // every missing component is drawn in [0, 1), as the legacy loop drew a missing node: seedPositions would draw
     // inside the box of the given rows, a single point when pos names one node, and the forces cannot part

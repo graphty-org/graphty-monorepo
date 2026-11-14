@@ -88,7 +88,7 @@ if [ -n "$TRACKED" ]; then
     # a pull request (integrate/pipeline-2026-10-24 once labelled pull request #2026 in-progress).
     NAMED_ISSUE=""
     if [ -z "$ISSUE" ] && [ -z "$NEW_ISSUE" ]; then
-        NAMED_ISSUE=$(printf '%s\n' "$BRANCH" | grep -oE '(^|[^0-9])[0-9]{3,}' | head -1 | grep -oE '[0-9]+' || true)
+        NAMED_ISSUE=$(node "$HERE/branch-note.mjs" issue-of "$BRANCH" || true)
         ISSUE="$NAMED_ISSUE"
     fi
     [ -n "$ISSUE" ] || [ -n "$NEW_ISSUE" ] || die "every branch belongs to an issue: name it in the branch (fix/1234-topic), or give --issue N, or --new-issue \"<title>\""

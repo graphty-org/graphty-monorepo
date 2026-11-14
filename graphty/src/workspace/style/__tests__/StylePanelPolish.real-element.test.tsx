@@ -71,7 +71,7 @@ describe("the Style panel", () => {
     it("edits Everything's selection like any layer's", async () => {
         await openScene();
         await clickRow("Everything");
-        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
         const done = await screen.findByRole("button", { name: "Done" });
         assert.isNotNull(done.closest(".sel-ws"), "it opens in the selection editor");
         assert.isNotNull(screen.queryByRole("button", { name: "Value" }), "a step can be added");
@@ -104,9 +104,8 @@ describe("the Style panel", () => {
         });
         await session.styles.settled();
         await clickRow("Plain");
-        const row = await screen.findByRole("treeitem", { name: "Which nodes" });
-        // At rest the layer's row and the canvas key say its count; the outline does not say it again.
-        assert.strictEqual(row.getAttribute("aria-label"), "Which nodes");
+        // At rest the layer's row and the canvas key say its count; the Style Nodes... line does not.
+        const row = await screen.findByRole("button", { name: "Style Nodes..." });
         assert.isNull(row.querySelector(".sel-count"), "no count at rest");
         assert.notInclude(row.textContent ?? "", "add a condition");
         assert.isNull(document.querySelector("[data-warn]"), "no warning outline");
@@ -114,7 +113,8 @@ describe("the Style panel", () => {
 
     it("reads nodes picked by hand as such and takes a condition beside them", async () => {
         const { session, idOf } = await openScene();
-        const ids = ["Valjean", "Javert", "Fantine"].map(idOf);
+        const names = ["Valjean", "Javert", "Fantine"];
+        const ids = names.map(idOf);
         // As a layer made from a selection holds it: the nodes, and no edges.
         const selector = { match: "ids" as const, nodes: ids, edges: [] };
         await session.styles.add({ name: "Three", target: "node", selector, set: { "node.color": "#d55e00" } });
@@ -127,7 +127,8 @@ describe("the Style panel", () => {
         await userEvent.click(row);
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const card = within(region).getByRole("group", { name: "Picked by hand: 3 nodes" });
-        assert.include(card.textContent ?? "", ids.join(", "), "the card lists the ids");
+        // By name, not id (issue #7454).
+        assert.include(card.textContent ?? "", names.join(", "), "the card lists the nodes by name");
         assert.isNotNull(within(region).queryByRole("button", { name: "Add a condition" }));
 
         // A condition beside them is ANDed with them, not put in their place.

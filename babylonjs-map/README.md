@@ -8,8 +8,13 @@ and parsers for the common ways of writing a location.
 npm install babylonjs-map @babylonjs/core
 ```
 
-`@babylonjs/core` 8 is a peer dependency. `babylonjs-map/location` and `babylonjs-map/projection`
-never load Babylon.js, so they work in Node, a Web Worker or a page without a 3D scene.
+`@babylonjs/core` 8 is an optional peer dependency: the main `babylonjs-map` entry needs it, and you
+install it yourself. `babylonjs-map/location` and `babylonjs-map/projection` never load Babylon.js,
+so they work in Node, a Web Worker or a page without a 3D scene, with only:
+
+```bash
+npm install babylonjs-map
+```
 
 ## A globe
 
@@ -94,7 +99,9 @@ new Globe(scene, { sources: [mapSources["natural-earth"], mapSources.openstreetm
 ```
 
 Street tiles stop at 85 degrees north and south; on a globe the poles past that are filled from the
-source's own coarsest tile. A picture can be drawn as a light gray backdrop with `tone: "gray"`.
+source's own coarsest tile. A picture can be drawn as a light gray backdrop with `tone: "gray"`;
+the gray picture is made on a DOM canvas, so without one (Node, a worker) its tiles fail with the
+code `no-canvas` instead of drawing in color.
 
 Your own tile server or picture:
 
@@ -128,13 +135,16 @@ creditElement.textContent = map.attribution.join(" | ");
 
 ## Loading and level of detail
 
-- `map.status` counts tiles `loading`, `ready` and `failed` (a failed tile is a CORS, 403, 404 or
-  429 answer), in all and per source (`status.layers`).
+- `map.status` counts tiles `loading`, `ready` and `failed`, in all and per source
+  (`status.layers`). `status.errors` says why each failed tile failed: its source's index, URL, a
+  `code` (`load`: the loader rejected or threw, `cause` is what it gave -- a browser reports a CORS,
+  403, 404 or 429 answer alike; `no-canvas`: a gray source with no DOM canvas) and the `cause`.
 - The level is chosen from the size of a texel on screen. A failed tile is asked for again after 1 s,
   doubling to a minute, and at once when the browser comes back online; meanwhile its parent is drawn
   in place of it and its siblings, so an area is never drawn from two levels once loading settles.
 - `setSources` keeps the pictures of a source that stays (the base under a changed tile service).
-- `map.onChangedObservable` fires when a tile arrives or fails. If your scene renders only on demand,
+- `map.onChangedObservable` fires when a tile arrives or fails, and when `setSources`, `frame`,
+  `beyond`, `radius`, `sun` or `atmosphere` change the map. If your scene renders only on demand,
   render a frame then.
 - Options: `lodScale` (default 1: a finer tile once a tile covers more than its own pixel size on
   screen), `maxTiles` (256 per source), `maxCachedTiles` (256), `maxConcurrentLoads` (6),

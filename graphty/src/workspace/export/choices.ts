@@ -5,13 +5,7 @@
  * No React, so the rules are tested on their own.
  */
 
-import type {
-    AnimationOptions,
-    ExportResult,
-    ExportScope,
-    ScreenshotErrorCode,
-    ScreenshotOptions,
-} from "@graphty/graphty-element";
+import type { AnimationOptions, ExportResult, ExportScope, ScreenshotOptions } from "@graphty/graphty-element";
 import {
     type FormatDescriptor,
     type OptionDescriptor,
@@ -228,8 +222,11 @@ export async function previewOf(result: ExportResult): Promise<string> {
     return text.slice(0, PREVIEW_CHARS).split("\n").slice(0, PREVIEW_LINES).join("\n");
 }
 
-/** What went wrong, in the app's words, for the codes an export or a capture fails with. */
-const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${ScreenshotErrorCode}`, string>>> = {
+/**
+ * What went wrong, in the app's words, for the codes an export or a capture fails with. A key
+ * `code/reason` words one `details.reason` of a code and wins over the code's own words.
+ */
+const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${GraphtyErrorCode}/${string}`, string>>> = {
     E_OUT_OF_MEMORY: "The browser ran out of memory.",
     E_TOO_LARGE: "The graph is too large for this format.",
     E_CAP_EXCEEDED: "The graph is too large for this format.",
@@ -239,31 +236,54 @@ const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${ScreenshotErr
     E_UNSUPPORTED: "This browser cannot do this.",
     E_DISPOSED: "The graph was closed.",
     E_UNKNOWN_CAMERA: "This view is not available.",
-    DIMENSION_TOO_LARGE: "The image is too large for this browser.",
-    RESOLUTION_TOO_HIGH: "The image is too large for this browser.",
-    CANVAS_ALLOCATION_FAILED: "The browser ran out of memory for an image this size.",
-    INVALID_DIMENSIONS: "The image size is not valid.",
-    UNSUPPORTED_FORMAT: "This browser cannot write this image format.",
-    TRANSPARENT_REQUIRES_PNG: "Only PNG keeps a transparent background.",
-    SCREENSHOT_CAPTURE_FAILED: "The drawing could not be captured.",
-    ENGINE_NOT_CONFIGURED: "The drawing is not ready yet.",
+    "E_UNSUPPORTED/format": "This browser cannot write this image format.",
+    "E_UNSUPPORTED/preserve-drawing-buffer": "The drawing is not ready yet.",
+    E_CAPTURE_FAILED: "The drawing could not be captured.",
+};
+
+/** The words for the codes a screenshot shares with other failures but means something else by. */
+const IMAGE_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
+    E_TOO_LARGE: "The image is too large for this browser.",
+    E_OUT_OF_MEMORY: "The browser ran out of memory for an image this size.",
+    E_OPTION_RANGE: "The image size is not valid.",
+    E_BAD_COMMAND: "Only PNG keeps a transparent background.",
 };
 
 /**
- * What went wrong, worded by the error's code; a code the app has no words for shows as itself.
+ * What went wrong, worded by the error's code (and its `details.reason`); a code the app has no
+ * words for shows as itself.
  * @param error - what the element threw.
+ * @param image - whether it came from a screenshot, which words some codes as being about the image.
  * @returns the sentence.
  */
-export function failureWords(error: unknown): string {
-    const code =
-        typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
-            ? error.code
-            : undefined;
-    if (code === undefined) {
+export function failureWords(error: unknown, image = false): string {
+    const { code, details } =
+        typeof error === "object" && error !== null
+            ? (error as { code?: unknown; details?: { reason?: unknown } })
+            : {};
+    if (typeof code !== "string") {
         return "Something went wrong.";
     }
     const words: Readonly<Record<string, string | undefined>> = FAILURE_WORDS;
-    return words[code] ?? `Something went wrong (${code}).`;
+    const imageWords: Readonly<Record<string, string | undefined>> = image ? IMAGE_WORDS : {};
+    const reason = typeof details?.reason === "string" ? words[`${code}/${details.reason}`] : undefined;
+    return reason ?? imageWords[code] ?? words[code] ?? `Something went wrong (${code}).`;
+}
+
+/**
+ * Why a size cannot be captured, in a phrase that follows the size: the browser's limit on an
+ * image, or the capture's own failure words.
+ * @param reason - `canCaptureScreenshot`'s coded reason.
+ * @param reason.code - the code a capture with those options would fail with.
+ * @param reason.params - that failure's details.
+ * @returns the phrase.
+ */
+export function refusalWords(reason: { code: string; params: Readonly<Record<string, unknown>> }): string {
+    if (reason.code === "E_TOO_LARGE") {
+        return "this browser cannot make an image this size";
+    }
+    const words = failureWords({ code: reason.code, details: reason.params }, true).replace(/\.$/, "");
+    return words.charAt(0).toLowerCase() + words.slice(1);
 }
 
 /** The id of one of graphty-element's screenshot presets. */

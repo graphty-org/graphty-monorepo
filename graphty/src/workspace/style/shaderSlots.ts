@@ -17,7 +17,7 @@ import {
     splitShaderText,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, Encoding } from "@graphty/graphty-element/schema";
-import type { GraphSession, Layer } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer, TransactionScope } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "./PropertyRow";
 import { type DataBinding, EVERYTHING_KEY, lineIn, writeLine } from "./row";
@@ -142,6 +142,7 @@ function ownLayer(ctx: RowContext): Layer | undefined {
  * @param writes - the values, undefined to take a channel off.
  * @param drop - the encode keys to take off with them.
  * @param words - the step's name, for Undo and Redo.
+ * @param scope - where the write goes: the row's session, or a transaction it joins.
  * @returns when it is written.
  */
 async function writeRow(
@@ -149,15 +150,14 @@ async function writeRow(
     writes: Writes,
     drop: (key: string) => boolean = () => false,
     words?: string,
+    scope: TransactionScope = ctx.session,
 ): Promise<void> {
     // Named, so Undo reads "Undid changing Reticle spin"; several rows name each write their own way.
     if (words !== undefined && ctx.many === undefined) {
-        await ctx.session.transaction(words, (tx) =>
-            writeRowNow({ ...ctx, session: tx as GraphSession }, writes, drop),
-        );
+        await scope.transaction(words, (tx) => writeRowNow(ctx, writes, drop, tx));
         return;
     }
-    await writeRowNow(ctx, writes, drop);
+    await writeRowNow(ctx, writes, drop, scope);
 }
 
 /**
@@ -165,10 +165,16 @@ async function writeRow(
  * @param ctx - the row.
  * @param writes - the values, undefined to take a channel off.
  * @param drop - the encode keys to take off with them.
+ * @param session - where the write goes: the row's session, or a transaction it joins.
  * @returns when it is written.
  */
-async function writeRowNow(ctx: RowContext, writes: Writes, drop: (key: string) => boolean): Promise<void> {
-    const { session, many } = ctx;
+async function writeRowNow(
+    ctx: RowContext,
+    writes: Writes,
+    drop: (key: string) => boolean,
+    session: TransactionScope,
+): Promise<void> {
+    const { many } = ctx;
     const entries = Object.entries(writes) as [Channel, ChannelValue | undefined][];
     if (many !== undefined) {
         // ponytail: several rows take each channel as its own write; one step per channel.
@@ -225,6 +231,7 @@ function targetsOf(ctx: RowContext): Layer[] {
  * @param words - the step's name.
  * @param edit - the list each layer holds after, from its own.
  * @param drop - the encode keys (parameter bindings) to take off with it.
+ * @param scope - where the write goes: the row's session, or a transaction it joins.
  * @returns when it is written.
  */
 async function editUses(
@@ -232,13 +239,14 @@ async function editUses(
     words: string,
     edit: (uses: readonly ShaderUse[]) => readonly ShaderUse[],
     drop?: (key: string) => boolean,
+    scope: TransactionScope = ctx.session,
 ): Promise<void> {
     const channel = shadersChannel(ctx.side);
     const targets = targetsOf(ctx);
     const valueOf = (uses: readonly ShaderUse[]): ChannelValue | undefined => (uses.length === 0 ? undefined : uses);
     if (ctx.many === undefined || targets.length === 0) {
         const own = targets[0];
-        await writeRow(ctx, { [channel]: valueOf(edit(usesOf(own, ctx.side))) }, drop, words);
+        await writeRow(ctx, { [channel]: valueOf(edit(usesOf(own, ctx.side))) }, drop, words, scope);
         return;
     }
     const patches = targets.map((layer) => {
@@ -249,7 +257,7 @@ async function editUses(
         >;
         return { id: layer.id, patch: { set } };
     });
-    await ctx.session.transaction(words, (tx) => tx.styles.updateMany(patches, { keepEmpty: true }));
+    await scope.transaction(words, (tx) => tx.styles.updateMany(patches, { keepEmpty: true }));
 }
 
 /**
@@ -294,14 +302,20 @@ export function takeFocusNext(key: string): boolean {
  * @param ctx - the row.
  * @param id - the shader.
  * @param params - parameter values to write with it (a pasted shader that equals a known one).
+ * @param scope - where the write goes: the row's session, or a transaction it joins (a paste's).
  * @returns when it is written.
  */
-export async function addShader(ctx: RowContext, id: string, params: Params = {}): Promise<void> {
+export async function addShader(
+    ctx: RowContext,
+    id: string,
+    params: Params = {},
+    scope: TransactionScope = ctx.session,
+): Promise<void> {
     const use: ShaderUse = { shader: id, ...(Object.keys(params).length === 0 ? {} : { params }) };
     const at = ctx.many === undefined ? usesOf(targetsOf(ctx)[0], ctx.side).length : shaderEntries(ctx).length;
     // The new row takes focus once it is drawn.
     focusLineNext(ctx.session, `${shadersChannel(ctx.side)}:${String(at)}` as Channel);
-    await editUses(ctx, SHADER_STEP_WORDS.add(nameOf(ctx.session, id)), (uses) => [...uses, use]);
+    await editUses(ctx, SHADER_STEP_WORDS.add(nameOf(ctx.session, id)), (uses) => [...uses, use], undefined, scope);
 }
 
 /**

@@ -344,9 +344,7 @@ function TableOptions({ kind, store }: Readonly<{ kind: RecordKind; store: Works
             <Menu.Dropdown>
                 <Menu.Item
                     onClick={() => {
-                        // The file holds every column and every record of the table that is
-                        // showing: the element's export cannot be limited to the visible
-                        // columns (#875) or to a group's members (#820) yet.
+                        // The dialog starts on the table that is showing; it picks the columns and records.
                         store.set({
                             dialog: "export",
                             exportOn: kind === "edge" ? "edges" : "nodes",

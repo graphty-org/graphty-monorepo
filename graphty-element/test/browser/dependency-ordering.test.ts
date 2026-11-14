@@ -53,6 +53,35 @@ describe("Dependency Ordering", () => {
         container.remove();
     });
 
+    /**
+     * Hold the operation queue on a slow operation, so the requests made next all wait their turn
+     * together and the queue has to order, coalesce and obsolete them. Without it each awaited
+     * call has finished before the next is made, and the queue never holds two at once.
+     * @returns a function that lets the queue go again
+     */
+    async function holdTheQueue(): Promise<() => void> {
+        let release = (): void => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        let started = (): void => undefined;
+        const running = new Promise<void>((resolve) => {
+            started = resolve;
+        });
+
+        void operationQueueOf(graph).queueOperationAsync(
+            "data-update",
+            () => {
+                started();
+                return held;
+            },
+            { description: "a slow operation, so the requests behind it have to wait" },
+        );
+
+        await running;
+        return release;
+    }
+
     // =========================================================================
     // Helper functions for position verification
     // =========================================================================
@@ -380,13 +409,20 @@ describe("Dependency Ordering", () => {
 
             await graph.setLayout("circular");
             await styleEveryNode(graph, NODE_STYLE);
+            await operationQueueOf(graph).waitForCompletion();
+            layoutUpdateCount = 0;
 
-            // Rapid data additions that would each trigger layout-update
-            await graph.addNodes([TEST_NODES[0]]);
-            await graph.addNodes([TEST_NODES[1]]);
-            await graph.addNodes([TEST_NODES[2]]);
-            await graph.addNodes([TEST_NODES[3]]);
-            await graph.addEdges(TEST_EDGES);
+            // Rapid data additions that would each trigger layout-update, all waiting together
+            const release = await holdTheQueue();
+            const additions = Promise.all([
+                graph.addNodes([TEST_NODES[0]]),
+                graph.addNodes([TEST_NODES[1]]),
+                graph.addNodes([TEST_NODES[2]]),
+                graph.addNodes([TEST_NODES[3]]),
+                graph.addEdges(TEST_EDGES),
+            ]);
+            release();
+            await additions;
 
             await operationQueueOf(graph).waitForCompletion();
 
@@ -394,9 +430,9 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
             assert.equal(graph.getEdgeCount(), 3, "Should have 3 edges");
 
-            // Layout updates should be coalesced (not one per data addition)
-            // The exact number depends on batching, but should be less than 5
-            assert.isBelow(layoutUpdateCount, 5, "Layout updates should be coalesced");
+            // Layout updates should be coalesced: a queued layout-update is obsoleted by the data and
+            // layout-updates queued after it, so five additions waiting together run one layout-update
+            assert.equal(layoutUpdateCount, 1, "Layout updates should be coalesced");
             verifyFinalStyles();
             await verifyMeshState();
         });
@@ -443,17 +479,26 @@ describe("Dependency Ordering", () => {
                 }
             });
 
-            // Set multiple layouts
-            await graph.setLayout("random");
-            await graph.setLayout("random");
-            await graph.setLayout("circular");
+            // Set multiple layouts while all three are waiting their turn
+            const release = await holdTheQueue();
+            const layouts = Promise.all([
+                graph.setLayout("random"),
+                graph.setLayout("random"),
+                graph.setLayout("circular"),
+            ]);
+            release();
+            await layouts;
 
             await operationQueueOf(graph).waitForCompletion();
 
-            // Only the final layout-set should execute due to self-obsolescence
-            // Previous layout-set operations should be obsoleted
-            const circularSetCount = layoutSetCategories.filter((d) => d.includes("circular")).length;
-            assert.equal(circularSetCount, 1, "Only one circular layout-set should execute");
+            // Only the final layout-set should execute due to self-obsolescence:
+            // the two random layout-sets queued before it never start
+            assert.equal(
+                layoutSetCategories.length,
+                1,
+                `only one layout-set started: ${layoutSetCategories.join(", ")}`,
+            );
+            assert.include(layoutSetCategories[0], "circular", "and it is the last one asked for");
         });
     });
 
@@ -605,28 +650,22 @@ describe("Dependency Ordering", () => {
         });
 
         it("should maintain FIFO order within same operation category", async () => {
-            const nodeAddOrder: string[] = [];
-
-            // Track node additions
-            const originalAddNodes = graph.addNodes.bind(graph);
-            let callIndex = 0;
-            graph.addNodes = async (nodes, ...args) => {
-                const idx = callIndex++;
-                await originalAddNodes(nodes, ...args);
-                nodeAddOrder.push(`add-${idx}`);
-            };
-
-            // Queue multiple data-add operations
             await styleEveryNode(graph, NODE_STYLE);
-            await graph.addNodes([TEST_NODES[0]]);
-            await graph.addNodes([TEST_NODES[1]]);
-            await graph.addNodes([TEST_NODES[2]]);
-            await graph.addNodes([TEST_NODES[3]]);
+
+            // Queue multiple data-add operations, all waiting together, in an order no sort would give
+            const order = ["3", "1", "4", "2"];
+            const release = await holdTheQueue();
+            const additions = Promise.all(order.map(async (id) => graph.addNodes([{ id, label: `Node ${id}` }])));
+            release();
+            await additions;
 
             await operationQueueOf(graph).waitForCompletion();
 
-            // Should maintain FIFO order
-            assert.deepEqual(nodeAddOrder, ["add-0", "add-1", "add-2", "add-3"]);
+            // Should maintain FIFO order: the nodes arrive in the order they were asked for
+            assert.deepEqual(
+                graph.getNodes().map((node) => node.id),
+                order,
+            );
         });
     });
 
@@ -666,10 +705,10 @@ describe("Dependency Ordering", () => {
             await styleEveryNode(graph, NODE_STYLE);
             await graph.setLayout("circular");
 
-            // Fire operations rapidly
-            for (let i = 0; i < 5; i++) {
-                await graph.addNodes([{ id: `node-${i}`, label: `Node ${i}` }]);
-            }
+            // Fire operations rapidly, none waiting for the one before
+            await Promise.all(
+                Array.from({ length: 5 }, async (_, i) => graph.addNodes([{ id: `node-${i}`, label: `Node ${i}` }])),
+            );
 
             await operationQueueOf(graph).waitForCompletion();
 

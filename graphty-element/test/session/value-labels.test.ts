@@ -112,4 +112,45 @@ describe("a value's name", () => {
         assert.strictEqual(reopened.data.valueLabels(path).get("1"), "Last two");
         reopened.dispose();
     });
+
+    it("is written once, right after the views, so a save matches files saved before", async () => {
+        const session = await communities();
+        const run = await session.runs.start("louvain", {});
+        const path = `results.${run.runId}.group`;
+        await session.data.setValueLabel(path, 1, "Last two");
+        const saved = await session.project.save();
+        session.dispose();
+
+        assert.strictEqual(saved.text.split('"valueLabels"').length - 1, 1, "the field is written once");
+        const member = findWith(JSON.parse(saved.text) as unknown, "valueLabels");
+        assert.isDefined(member, "the saved file carries the names");
+        const keys = Object.keys(member);
+        assert.strictEqual(keys[keys.indexOf("valueLabels") - 1], "views", "the field keeps its place in the file");
+        assert.deepStrictEqual(member.valueLabels, [{ path, value: "1", label: "Last two" }]);
+    });
 });
+
+/**
+ * The first object, however deep, that has the key.
+ * @param value - The parsed file.
+ * @param key - The key.
+ * @returns The object, or undefined.
+ */
+function findWith(value: unknown, key: string): Record<string, unknown> | undefined {
+    if (typeof value !== "object" || value === null) {
+        return undefined;
+    }
+
+    if (!Array.isArray(value) && key in value) {
+        return value as Record<string, unknown>;
+    }
+
+    for (const child of Object.values(value)) {
+        const found = findWith(child, key);
+        if (found !== undefined) {
+            return found;
+        }
+    }
+
+    return undefined;
+}

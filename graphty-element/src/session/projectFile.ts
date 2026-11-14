@@ -1451,6 +1451,21 @@ async function clearStyleRows(tx: TransactionScope): Promise<void> {
 }
 
 /**
+ * Hide again the nodes a saved `visibility` hid that the graph holds.
+ * @param opening - The open.
+ * @param visibility - The member's `visibility`.
+ * @param nodeIds - The node ids the graph holds.
+ */
+async function restoreHidden(opening: Opening, visibility: unknown, nodeIds: ReadonlySet<NodeId>): Promise<void> {
+    const hidden = (visibility as { hidden?: unknown } | undefined)?.hidden;
+    if (Array.isArray(hidden)) {
+        await attempt(opening, "visibility", () =>
+            opening.tx.hidden.add((hidden as unknown[]).filter((id): id is NodeId => nodeIds.has(id as NodeId))),
+        );
+    }
+}
+
+/**
  * Empty the session, through the transaction.
  * @param tx - The transaction.
  * @param playback - The timeline settings the session held, which go too.
@@ -1932,12 +1947,7 @@ async function readProject(
         });
     }
 
-    const hidden = (state.visibility as { hidden?: unknown } | undefined)?.hidden;
-    if (Array.isArray(hidden)) {
-        await attempt(opening, "visibility", () =>
-            tx.hidden.add((hidden as unknown[]).filter((id): id is NodeId => nodeIds.has(id as NodeId))),
-        );
-    }
+    await restoreHidden(opening, state.visibility, nodeIds);
 
     // Before the runs: a run over the selection reads it. The selection is not project state.
     const view = doc.members.get("graphty-view-state")?.[0]?.selection as

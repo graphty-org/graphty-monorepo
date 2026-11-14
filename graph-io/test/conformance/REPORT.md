@@ -11,7 +11,7 @@ the expectation today; the reference points into
 
 | Format | Fixtures | Conform | Known failures | Round trips | Round-trip failures |
 |---|---|---|---|---|---|
-| csv | 83 | 71 | 12 | 69 | 0 |
+| csv | 83 | 72 | 11 | 70 | 0 |
 | cx | 51 | 51 | 0 | 47 | 0 |
 | cx2 | 57 | 57 | 0 | 53 | 0 |
 | cys | 53 | 53 | 0 | 40 | 0 |
@@ -165,10 +165,6 @@ rest of the format's expectations does something else.
 ### a header in a leading # comment line is not read (sources.md 7.4) (#7637) (1)
 
 - `netzschleuder/karate-nodes.csv`: crashed instead of an ImportError: GraphFormatError: option idColumn: no column named "index"
-
-### a header of unknown names over text rows is read as data silently (sources.md 7.4) (#7636) (1)
-
-- `dialect/unknown-header-text.csv`: issue W_CSV_POSSIBLE_HEADER missing
 
 ### KONECT bip id spaces collide (sources.md 7.4) (#7637) (1)
 

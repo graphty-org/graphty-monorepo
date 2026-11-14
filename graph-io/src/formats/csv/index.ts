@@ -37,6 +37,7 @@ import {
     NO_ID_COLUMN_CODE,
     OTHER_FORMAT_CODE,
     PADDED_ID_CODE,
+    POSSIBLE_HEADER_CODE,
     ROLE_TAKEN_CODE,
     SINGLE_COLUMN_CODE,
     STRAY_QUOTE_CODE,
@@ -181,4 +182,9 @@ export const CSV_ISSUE = Object.freeze({
      * Reported once per import.
      */
     WEIGHT_AS_ATTRIBUTE: WEIGHT_AS_ATTRIBUTE_CODE,
+    /**
+     * The first row was read as data, but every cell is a word of three or more characters that no other row repeats, so it may be a
+     * header of names graph-io does not know. Pass `header: true` if it is one.
+     */
+    POSSIBLE_HEADER: POSSIBLE_HEADER_CODE,
 });

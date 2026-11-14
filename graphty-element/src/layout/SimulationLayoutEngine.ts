@@ -1382,8 +1382,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * OWED ON THE CARD. When the landing goes up by copy (renderPath "batched" on a shared device),
      * the card already draws it, so no row is written, repacked or walked on the CPU for it: the
      * lane is owed the publish (`ElementPositions.owe`), and the first read or write of a row --
-     * a pick, a node's position, an export, a drag, a freeze -- writes it, from the latest landing
-     * with the transform that landing drew with. At 1M rows the per-row publish was 49 ms of an
+     * a pick, a node's position, a drag, a freeze -- writes it, from the latest landing with the
+     * transform that landing drew with. The store's snapshot lends the lane without an accessor,
+     * so its readers that hand coordinates on (the consumer snapshot, an export, an algorithm's
+     * input) write it themselves. At 1M rows the per-row publish was 49 ms of an
      * 82 ms layout frame (issue #6389). Only the envelope is still measured per landing, since it
      * is the transform the next batches draw with.
      * @param mayOwe - False to write the rows now: the lane's owed publish itself.

@@ -75,6 +75,29 @@ describe("the layout filling the row table on a shared device", () => {
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
     });
 
+    it("hands a snapshot read while a landing is owed the coordinates the card shows", async () => {
+        const graph = await running("batched");
+        await copied(graph);
+        await landed(graph);
+        const lane = graph.getDataManager()[WRITABLE_LANE];
+        const written = lane.changes;
+        await landed(graph);
+        await landed(graph);
+        assert.strictEqual(lane.changes - written, 0);
+
+        // the public snapshot writes the owed publish before it copies the coordinates
+        const snapshot = graph.getSession().data.snapshot();
+        assert.isAbove(lane.changes - written, 0);
+        const row = snapshot.ids.indexOf("n0");
+        const column = snapshot.nodes.byRole("position");
+        assert.strictEqual(column?.dtype, "f32");
+        const at = graph.getNode("n0")?.getPosition();
+        assert.isDefined(at);
+        const data = column?.dtype === "f32" ? column.data : new Float32Array(0);
+        assert.deepEqual(Array.from(data.subarray(3 * row, 3 * row + 3)), [at.x, at.y, at.z]);
+        assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+    });
+
     it("keeps a pinned node in the box it frames while a landing is owed on the card", async () => {
         const graph = await running("batched");
         await copied(graph);

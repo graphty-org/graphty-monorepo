@@ -245,7 +245,7 @@ const TOOLS = [
     {
         name: "shard_times",
         description:
-            "Shard median and p90 times against budget, with top files. kind: full or pr-bins. shard: one shard.",
+            "Shard median and p90 times against budget, with top files; for full runs also each test group's members summed per run against its test step's deadline, and members slower than their GROUP_MEMBER_SECONDS entry (stale). kind: full or pr-bins. shard: one shard.",
         inputSchema: schema({
             range: slowRange,
             kind: { type: "string", enum: ["full", "pr-bins"] },
@@ -262,6 +262,7 @@ const TOOLS = [
                     range: r,
                     kind,
                     more: s.section?.more,
+                    ...(s.section?.groups ? { groups: s.section.groups } : {}),
                     rows: a.shard ? rows.filter((x) => x.shard === a.shard) : rows,
                 },
             };

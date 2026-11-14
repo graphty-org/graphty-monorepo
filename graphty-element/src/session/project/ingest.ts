@@ -2426,8 +2426,8 @@ function refuseEmptyOrPartial(
             source: "data",
             message:
                 rowErrors > 0
-                    ? `Every row of the ${type} source was rejected (${rowErrors} errors: ` +
-                      `${errors.getSummary().message}), so there was nothing to load.`
+                    ? `Every row of the ${type} source was rejected (${rowErrors} errors by category: ` +
+                      `${JSON.stringify(errors.getSummary().byCategory)}), so there was nothing to load.`
                     : `The ${type} source held no nodes and no edges, so there was nothing to load. ` +
                       "Check the file, or the format it was read as.",
             details: { format: type, rowErrors },

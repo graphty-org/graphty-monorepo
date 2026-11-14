@@ -1973,16 +1973,7 @@ export class DataManager implements Manager {
             },
             loadErrors: (format, errors) => {
                 if (this.graphContext) {
-                    const summary = errors.getSummary();
-                    this.eventManager.emitDataLoadingErrorSummary(
-                        format,
-                        summary.totalErrors,
-                        summary.message,
-                        errors.getDetailedReport(),
-                        summary.primaryCategory,
-                        summary.suggestion,
-                        this.loadId,
-                    );
+                    this.eventManager.emitDataLoadingErrorSummary(format, errors, this.loadId);
                 }
             },
             loadComplete: (format, report, progress, duration, errors) => {

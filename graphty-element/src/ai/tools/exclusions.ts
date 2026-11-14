@@ -326,6 +326,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionConfig", members: ["inEffect"], reason: "panel-state", kind: BY_DESIGN },
     ...(["SelectionApi", "SelectionOwner"] as const).flatMap((root): Exclusion[] => [
         { root, members: ["count"], reason: "covered-by", by: "query.overview", kind: BY_DESIGN },
+        { root, members: ["previous"], reason: "covered-by", by: "query.overview", kind: BY_DESIGN },
+        { root, members: ["restore"], reason: "covered-by", by: "select.set", kind: BY_DESIGN },
         {
             root,
             members: [
@@ -779,6 +781,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "removeEventListener",
         ],
         reason: "lifecycle",
+        kind: BY_DESIGN,
+    },
+    {
+        // The page's own words for a screen reader, given as functions, and a list for its readers.
+        root: "Graphty",
+        members: ["accessibleDescription", "accessibleAnnouncement", "accessibleNodeList"],
+        reason: "needs-host",
         kind: BY_DESIGN,
     },
     {

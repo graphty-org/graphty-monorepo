@@ -956,6 +956,27 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(batches.rowMapEntries, 0);
     });
 
+    it("keep no Map entry per stored row in the data manager but the id lookup of a node (G11)", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d", false);
+        await element.session.data.addEdges(NODES.slice(1).map((node) => ({ src: node.id - 1, dst: node.id })));
+        const dm = graph.getDataManager();
+        assert.equal(dataManagerInternals.nodesBuilt(dm), 0);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        // Each Map's own entries: a lazy view of the rows counts rows it does not hold in its size.
+        const ownSize = Object.getOwnPropertyDescriptor(Map.prototype, "size")?.get;
+        let entries = 0;
+        for (const value of Object.values(dm)) {
+            entries += value instanceof Map ? (ownSize?.call(value) as number) : 0;
+        }
+
+        // Node ids are any value, so a node keeps one entry from id to row; its id and record by row,
+        // and an edge's row by its counter, sit in arrays (35 B and 15 B a Map entry at 1M rows).
+        assert.equal(entries, NODES.length);
+    });
+
     it("draw a row with no Node from its paint, the picture its Node drew, and build no Node", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");

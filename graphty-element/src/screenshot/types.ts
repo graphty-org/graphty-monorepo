@@ -1,6 +1,11 @@
 import type { CameraState } from "../camera/types.js";
 
-export type ClipboardStatus = "success" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
+/**
+ * What happened to a capture's clipboard copy. `"not-requested"` when the clipboard was not one of
+ * the capture's destinations.
+ */
+export type ClipboardStatus =
+    "success" | "not-requested" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
 
 /**
  * Options for quality enhancement during screenshot capture.
@@ -73,7 +78,7 @@ export interface ScreenshotOptions {
         waitForOperations?: boolean;
         /**
          * How long `waitForSettle` waits for a moving layout to come to rest before the capture
-         * fails with `LAYOUT_SETTLE_TIMEOUT`, in milliseconds. Default 30,000.
+         * fails with `E_NOT_SETTLED`, in milliseconds. Default 30,000.
          */
         settleTimeoutMs?: number;
     };

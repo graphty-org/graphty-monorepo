@@ -44,14 +44,6 @@
             "outputs": ["{projectRoot}/node_modules/.cache/eslint"],
             "dependsOn": ["^build", "build"]
         },
-        "semantic-release": {
-            "executor": "nx:run-commands",
-            "dependsOn": ["build"],
-            "options": {
-                "command": "semantic-release",
-                "cwd": "graphty-element"
-            }
-        },
         "storybook": {
             "executor": "nx:run-commands",
             "options": {

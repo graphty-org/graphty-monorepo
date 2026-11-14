@@ -91,6 +91,7 @@ export default defineConfig({
                         { text: "Notes", link: "/guide/notes" },
                         { text: "Finding", link: "/guide/find" },
                         { text: "Neighbors", link: "/guide/neighbors" },
+                        { text: "Neighborhoods in Time and Selection Totals", link: "/guide/selection-statistics" },
                         { text: "What Is Under a Point", link: "/guide/element-at" },
                         { text: "Labels", link: "/guide/labels" },
                         { text: "Drawing Nodes as Models", link: "/guide/node-models" },

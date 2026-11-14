@@ -398,6 +398,73 @@ describe("a neighbourhood", () => {
         harness.session.dispose();
     });
 
+    /** a-b dated 2020, b-c dated 2024-06-01, c-d undated: a line whose middle edge is recent. */
+    function datedLine(): Harness {
+        return harnessOf(
+            [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
+            [
+                { src: "a", dst: "b", date: "2020-03-01" },
+                { src: "b", dst: "c", date: "2024-06-01" },
+                { src: "c", dst: "d" },
+            ],
+        );
+    }
+
+    /** A selection that reads the harness's attribute bags. */
+    function datedSelection(harness: Harness): SelectionOwner {
+        return selectionOf(harness, {
+            records: {
+                nodeAttributes: (index) => harness.nodeAttributes.get(index),
+                edgeAttributes: (index) => harness.edgeAttributes.get(index),
+            },
+        });
+    }
+
+    it("follows only the edges inside a time window", () => {
+        const harness = datedLine();
+        const selection = datedSelection(harness);
+
+        selection.applyNow({
+            neighborsOf: ["b"],
+            depth: 3,
+            window: { path: "data.date", from: "2024-01-01", to: "2025-01-01" },
+        });
+
+        assert.deepStrictEqual([...selection.nodes], ["b", "c"], "a-b is too old and c-d carries no time");
+        harness.session.dispose();
+    });
+
+    it("reads numeric times and bounds as numbers, the end excluded", () => {
+        const harness = harnessOf(
+            [{ id: "a" }, { id: "b" }, { id: "c" }],
+            [
+                { src: "a", dst: "b", year: 1999 },
+                { src: "b", dst: "c", year: 2000 },
+            ],
+        );
+        const selection = datedSelection(harness);
+
+        selection.applyNow({ neighborsOf: ["b"], window: { path: "data.year", from: 1999, to: 2000 } });
+
+        assert.deepStrictEqual([...selection.nodes], ["a", "b"]);
+        harness.session.dispose();
+    });
+
+    it("refuses a window bound that names no instant, and a session that reads no edge values", () => {
+        const harness = datedLine();
+        const window = { path: "data.date", from: "not a date", to: "2025-01-01" };
+
+        assert.strictEqual(
+            codeOf(() => datedSelection(harness).applyNow({ neighborsOf: ["b"], window })),
+            "E_OPTION_RANGE",
+        );
+        assert.strictEqual(
+            codeOf(() => selectionOf(harness).applyNow({ neighborsOf: ["b"], window: { ...window, from: 0 } })),
+            "E_UNSUPPORTED",
+        );
+        harness.session.dispose();
+    });
+
     it("grows the current selection when it names no seeds", () => {
         const harness = line(true);
         const selection = selectionOf(harness);

@@ -34,7 +34,7 @@
 
 import type { GraphSnapshot, U8, U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, ScopeId, Selector } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, ScopeId, ScopeInput, Selector } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { deepFreeze } from "../project/draft";
 import { arrayColumn, computeColumnStatistics } from "../results/statistics";
@@ -55,6 +55,9 @@ import {
 
 /** The most elements one selection holds before it is truncated, when nothing says otherwise. */
 export const DEFAULT_SELECTION_CAP = 5000;
+
+/** The prefix of a path that reads a record's own attributes, such as `data.date`. */
+const ATTRIBUTE_PREFIX = "data.";
 
 /** The byte a mask carries for a member, which is what a captured copy is compared against. */
 const MEMBER = 1;
@@ -185,6 +188,8 @@ export interface SelectionAttributeStatistics {
     readonly mean?: number;
     /** The middle value across the selected nodes that carry a number. */
     readonly median?: number;
+    /** The total across the selected nodes that carry a number. */
+    readonly sum?: number;
     /** The lowest value across the selected nodes. */
     readonly min?: number;
     /** The highest value across the selected nodes. */
@@ -201,7 +206,16 @@ export interface SelectionAttributeStatistics {
     readonly direction?: "above" | "below" | "equal";
 }
 
-/** What the current selection adds up to. */
+/** What {@link SelectionApi.statistics} summarises. */
+export interface SelectionStatisticsOptions {
+    /**
+     * Summarise this scope's nodes and edges instead of the selection: `"visible"`, `"graph"`, a
+     * kept set `{ set: id }` or any other scope a selection target takes. The selection when absent.
+     */
+    readonly scope?: ScopeInput;
+}
+
+/** What the current selection, or a scope, adds up to. */
 export interface SelectionStatistics {
     /** How many nodes are selected. */
     readonly nodes: number;
@@ -215,10 +229,15 @@ export interface SelectionStatistics {
      * One entry per attribute the selected nodes carry.
      *
      * Node attributes only: the entries carry no kind, so a node's `data.weight` and an edge's
-     * `data.weight` would be indistinguishable in one list. What the edge half of the selection
-     * adds up to is the three counts above.
+     * `data.weight` would be indistinguishable in one list. The edges' are in `edgeAttributes`.
      */
     readonly attributes: readonly SelectionAttributeStatistics[];
+    /**
+     * One entry per attribute the selected edges carry, each compared with the same attribute
+     * across every edge of the graph. The fields read as {@link SelectionStatistics.attributes}'
+     * do, with "edges" in place of "nodes".
+     */
+    readonly edgeAttributes: readonly SelectionAttributeStatistics[];
     /**
      * The lowest and highest degree among the selected nodes: how many edges touch each, the
      * value a rule reads as `graphty.degree`. Absent while no node is selected.
@@ -450,10 +469,19 @@ export interface SelectionApi {
      */
     promote(name: string): ScopeId;
     /**
-     * What the current selection adds up to.
+     * What the current selection adds up to: counts, and the sum, mean, median and range of every
+     * attribute its nodes and edges carry, each beside the same average over the whole graph.
+     *
+     * ```ts
+     * const { attributes } = await session.selection.statistics();
+     * const cost = attributes.find((a) => a.path === "data.cost");
+     * console.log(cost?.sum, cost?.min, cost?.max);
+     * ```
+     * @param options - What to summarise instead of the selection, such as `{ scope: "visible" }`.
      * @returns The statistics.
+     * @throws A `GraphtyError` (as a rejection) when the scope is not one this session holds.
      */
-    statistics(): Promise<SelectionStatistics>;
+    statistics(options?: SelectionStatisticsOptions): Promise<SelectionStatistics>;
 }
 
 /**
@@ -1305,19 +1333,36 @@ class Selection implements SelectionOwner {
     }
 
     /**
-     * What the current selection adds up to.
+     * What the current selection, or a scope, adds up to.
+     * @param options - What to summarise instead of the selection.
      * @returns The statistics.
      */
-    statistics(): Promise<SelectionStatistics> {
+    statistics(options?: SelectionStatisticsOptions): Promise<SelectionStatistics> {
+        // The executor turns a refused scope into a rejection rather than a synchronous throw.
+        return new Promise((resolve) => {
+            resolve(this.#statisticsNow(options));
+        });
+    }
+
+    /**
+     * What the selection, or a scope, adds up to, now.
+     * @param options - What to summarise instead of the selection.
+     * @returns The statistics.
+     */
+    #statisticsNow(options: SelectionStatisticsOptions | undefined): SelectionStatistics {
         this.#sync();
+        const { nodes, edges } =
+            options?.scope === undefined
+                ? { nodes: this.#nodes, edges: this.#edges }
+                : resolveTarget({ scope: options.scope }, this.#context());
         const { graph } = this.#frame;
         const list = graph.edgeList();
         let induced = 0;
         let cut = 0;
 
         for (let edge = 0; edge < graph.edgeCount; edge++) {
-            const source = this.#nodes.has(list.src[edge]);
-            const target = this.#nodes.has(list.dst[edge]);
+            const source = nodes.has(list.src[edge]);
+            const target = nodes.has(list.dst[edge]);
 
             if (source && target) {
                 induced += 1;
@@ -1330,23 +1375,22 @@ class Selection implements SelectionOwner {
         let min = Infinity;
         let max = -Infinity;
 
-        for (let node = 0; node < this.#nodes.count; node++) {
-            if (this.#nodes.has(node)) {
+        for (let node = 0; node < nodes.count; node++) {
+            if (nodes.has(node)) {
                 min = Math.min(min, degrees[node]);
                 max = Math.max(max, degrees[node]);
             }
         }
 
-        return Promise.resolve(
-            Object.freeze({
-                nodes: this.#nodes.size,
-                edges: this.#edges.size,
-                inducedEdges: induced,
-                cutEdges: cut,
-                attributes: this.#attributeStatistics(),
-                ...(this.#nodes.size === 0 ? {} : { degree: Object.freeze({ min, max }) }),
-            }),
-        );
+        return Object.freeze({
+            nodes: nodes.size,
+            edges: edges.size,
+            inducedEdges: induced,
+            cutEdges: cut,
+            attributes: this.#attributeStatistics(nodes, "node"),
+            edgeAttributes: this.#attributeStatistics(edges, "edge"),
+            ...(nodes.size === 0 ? {} : { degree: Object.freeze({ min, max }) }),
+        });
     }
 
     /**
@@ -1389,7 +1433,7 @@ class Selection implements SelectionOwner {
      * @returns The context, built around the frame the selection is synchronised to.
      */
     #context(): TargetContext {
-        const { scope, results, match, find, note, layer, region } = this.#sources;
+        const { scope, results, match, find, note, layer, region, records } = this.#sources;
 
         return {
             graph: this.#frame.graph,
@@ -1404,6 +1448,14 @@ class Selection implements SelectionOwner {
             ...(note === undefined ? {} : { note }),
             ...(layer === undefined ? {} : { layer }),
             ...(region === undefined ? {} : { region }),
+            ...(records === undefined
+                ? {}
+                : {
+                      edgeValue: (edge: number, path: Path): unknown =>
+                          records.edgeAttributes(edge)?.[
+                              path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path
+                          ],
+                  }),
         };
     }
 
@@ -1524,29 +1576,36 @@ class Selection implements SelectionOwner {
     }
 
     /**
-     * One entry per attribute the selected nodes carry, each compared with the whole graph.
+     * One entry per attribute the members carry, each compared with the whole graph.
      *
-     * The graph-wide average is computed the same way as the selection's -- the same function over
-     * the values in the same order -- so a selection of every node reports `"equal"` rather than a
-     * direction invented by the last bits of two different summations.
+     * The graph-wide average is computed the same way as the members' -- the same function over
+     * the values in the same order -- so a selection of every element reports `"equal"` rather than
+     * a direction invented by the last bits of two different summations.
+     * @param members - The nodes or the edges to summarise.
+     * @param kind - Which of the two they are.
      * @returns The entries, in the order the attribute names were first seen.
      */
-    #attributeStatistics(): readonly SelectionAttributeStatistics[] {
+    #attributeStatistics(
+        members: ElementMask<NodeId> | ElementMask<EdgeId>,
+        kind: "node" | "edge",
+    ): readonly SelectionAttributeStatistics[] {
         const { records } = this.#sources;
 
-        if (records === undefined || this.#nodes.size === 0) {
+        if (records === undefined || members.size === 0) {
             return Object.freeze([]);
         }
 
         const { graph } = this.#frame;
+        const bagOf = (index: number): Readonly<Record<string, unknown>> | undefined =>
+            kind === "node" ? records.nodeAttributes(index, graph.ids.idOf(index)) : records.edgeAttributes(index);
         const selected = new Map<string, AttributeAccumulator>();
 
-        for (let index = 0; index < this.#nodes.count; index++) {
-            if (!this.#nodes.has(index)) {
+        for (let index = 0; index < members.count; index++) {
+            if (!members.has(index)) {
                 continue;
             }
 
-            const bag = records.nodeAttributes(index, graph.ids.idOf(index));
+            const bag = bagOf(index);
 
             if (bag === undefined) {
                 continue;
@@ -1563,7 +1622,7 @@ class Selection implements SelectionOwner {
             }
         }
 
-        const graphValues = this.#graphValues(records, numeric);
+        const graphValues = this.#graphValues(bagOf, kind === "node" ? graph.nodeCount : graph.edgeCount, numeric);
         const described: SelectionAttributeStatistics[] = [];
 
         for (const [key, accumulator] of selected) {
@@ -1575,25 +1634,28 @@ class Selection implements SelectionOwner {
 
     /**
      * Every graph-wide value of the attributes the selection summarised numerically.
-     * @param records - Where the attribute bags are read.
+     * @param bagOf - Reads one element's attribute bag by row.
+     * @param count - How many elements of that kind the graph holds.
      * @param wanted - The attribute names to gather.
-     * @returns The values by attribute name, in node index order.
+     * @returns The values by attribute name, in row order.
      */
-    #graphValues(records: SessionRecordSource, wanted: ReadonlySet<string>): ReadonlyMap<string, number[]> {
+    #graphValues(
+        bagOf: (index: number) => Readonly<Record<string, unknown>> | undefined,
+        count: number,
+        wanted: ReadonlySet<string>,
+    ): ReadonlyMap<string, number[]> {
         const values = new Map<string, number[]>();
 
         if (wanted.size === 0) {
             return values;
         }
 
-        const { graph } = this.#frame;
-
         for (const key of wanted) {
             values.set(key, []);
         }
 
-        for (let index = 0; index < graph.nodeCount; index++) {
-            const bag = records.nodeAttributes(index, graph.ids.idOf(index));
+        for (let index = 0; index < count; index++) {
+            const bag = bagOf(index);
 
             if (bag === undefined) {
                 continue;
@@ -1637,11 +1699,31 @@ function describeAttribute(
         ...base,
         mean: selected.mean,
         median: selected.median,
+        sum: compensatedSum(accumulator.numbers),
         min: selected.min,
         max: selected.max,
         graphMean: whole.mean,
         direction: directionOf(selected.mean, whole.mean),
     };
+}
+
+/**
+ * The total of some numbers, compensated so a long column of small values does not drift.
+ * @param numbers - The numbers.
+ * @returns Their sum.
+ */
+function compensatedSum(numbers: readonly number[]): number {
+    let sum = 0;
+    let compensation = 0;
+
+    for (const value of numbers) {
+        const adjusted = value - compensation;
+        const total = sum + adjusted;
+        compensation = total - sum - adjusted;
+        sum = total;
+    }
+
+    return sum;
 }
 
 /**

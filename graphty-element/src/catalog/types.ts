@@ -856,6 +856,8 @@ export type Channel =
     | "node.chartLineWidth"
     | "node.chartBorderColor"
     | "node.chartBorderWidth"
+    | "node.chartBackgroundColor"
+    | "node.chartBackgroundOpacity"
     | "node.model"
     | "node.modelSourceUp"
     | "node.modelTurn"

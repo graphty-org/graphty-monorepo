@@ -134,7 +134,7 @@ function timeMethod(target: object, name: string, field: "sync" | "edgeWalk"): v
 }
 
 /**
- * Count the bytes and calls of every buffer upload the context makes.
+ * Count the bytes and calls of every buffer and texture upload the context makes.
  * @param gl - The context.
  */
 function countUploads(gl: WebGL2RenderingContext): void {
@@ -157,6 +157,13 @@ function countUploads(gl: WebGL2RenderingContext): void {
         tally.uploadCalls++;
         tally.uploadBytes += bytesOf(args[1], args[3] as number | undefined, args[4] as number | undefined);
         data(...args);
+    };
+    // The pulled-line table is a texture: a write to it goes up as texture lines.
+    const texSubImage = gl.texSubImage2D.bind(gl) as (...args: unknown[]) => void;
+    (gl as unknown as Record<string, unknown>).texSubImage2D = (...args: unknown[]): void => {
+        tally.uploadCalls++;
+        tally.uploadBytes += bytesOf(args[8]);
+        texSubImage(...args);
     };
 }
 

@@ -11,16 +11,16 @@ the expectation today; the reference points into
 
 | Format | Fixtures | Conform | Known failures | Round trips | Round-trip failures |
 |---|---|---|---|---|---|
-| csv | 83 | 71 | 12 | 69 | 1 |
+| csv | 83 | 72 | 11 | 70 | 0 |
 | cx | 51 | 51 | 0 | 47 | 0 |
-| cx2 | 57 | 57 | 0 | 53 | 1 |
+| cx2 | 57 | 57 | 0 | 53 | 0 |
 | cys | 53 | 53 | 0 | 40 | 0 |
-| dot | 196 | 191 | 5 | 173 | 2 |
+| dot | 196 | 196 | 0 | 178 | 0 |
 | gexf | 110 | 107 | 3 | 104 | 1 |
-| gml | 109 | 100 | 9 | 90 | 4 |
-| graphml | 148 | 145 | 3 | 131 | 5 |
+| gml | 109 | 109 | 0 | 98 | 4 |
+| graphml | 148 | 148 | 0 | 134 | 0 |
 | json | 427 | 420 | 7 | 102 | 0 |
-| neo4j | 45 | 26 | 19 | 25 | 0 |
+| neo4j | 45 | 30 | 15 | 29 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
 | xgmml | 77 | 77 | 0 | 75 | 0 |
@@ -87,6 +87,7 @@ rest of the format's expectations does something else.
 - cys (cytoscape-integration-tests): Cytoscape hides the node of an expanded group and removes a collapsed group's members from the network it shows; graph-io's snapshot holds every node the network file declares in the network and records groups as parent containment, the collapsed members in meta.extra.cytoscape.groups (design section 3.1); Cytoscape shows 4 nodes and 2 edges (1 file)
 - cys (spec): Cytoscape's entry patterns need a folder before networks/ and tables/, so it loads nothing; the entries are unambiguous, so graph-io reads them (1 file)
 - cys (spec): Cytoscape throws a NullPointerException; graph-io skips the table and says so (1 file)
+- gml (networkx-3.1): networkx ignores OGDF's rootcluster block (an unknown top-level key); OGDF's own reader reads it as the cluster tree, which graph-io keeps as group nodes (2 files)
 - json (python-json-obographs): fastobo.load_graph reads the untyped nodes as Typedefs (11 Terms); the schema makes type optional and says nothing of untyped nodes being properties, so they are nodes (design 4.6: every node is a node) (1 file)
 - obo (spec): fastobo keeps the backslash and reads the next line as a separate clause; the 1.2 guide defines the backslash at a line end as a continuation (1 file)
 - obo (spec): fastobo and ROBOT reject the whole file; graph-io skips the one clause (design 4.3) (1 file)
@@ -146,43 +147,35 @@ rest of the format's expectations does something else.
 
 ## csv
 
-### adjacency-list rows misread as edge rows (sources.md 7.4) (3)
+### adjacency-list rows misread as edge rows (sources.md 7.4) (#7637) (3)
 
 - `gephi/adjacency-list.csv`: nodes: expected 4, got 2; edges: expected 3, got 1
 - `gephi/mixed.csv`: nodes: expected 7, got 5; edges: expected 10, got 5
 - `networkx/karate.adjlist`: nodes: expected 34, got 2; edges: expected 78, got 1
 
-### a quoted empty endpoint becomes an empty-string node id instead of E_MISSING_ENDPOINT (sources.md 7.4) (2)
+### a quoted empty endpoint becomes an empty-string node id instead of E_MISSING_ENDPOINT (sources.md 7.4) (#7634) (2)
 
 - `csv-spectrum/empty.csv`: nodes: expected 2, got 4; edges: expected 1, got 2
 - `csv-spectrum/empty_crlf.csv`: nodes: expected 2, got 4; edges: expected 1, got 2
 
-### networkx dict-repr data column not parsed (sources.md 7.4) (2)
+### networkx dict-repr data column not parsed (sources.md 7.4) (#7637) (2)
 
 - `networkx/karate.edgelist`: nodes: expected 34, got 0; edges: expected 78, got 0
 - `networkx/multidigraph.edgelist`: nodes: expected 2, got 0; edges: expected 3, got 0
 
-### a header in a leading # comment line is not read (sources.md 7.4) (1)
+### a header in a leading # comment line is not read (sources.md 7.4) (#7637) (1)
 
 - `netzschleuder/karate-nodes.csv`: crashed instead of an ImportError: GraphFormatError: option idColumn: no column named "index"
 
-### a header of unknown names over text rows is read as data silently (sources.md 7.4) (1)
-
-- `dialect/unknown-header-text.csv`: issue W_CSV_POSSIBLE_HEADER missing
-
-### KONECT bip id spaces collide (sources.md 7.4) (1)
+### KONECT bip id spaces collide (sources.md 7.4) (#7637) (1)
 
 - `konect/out.brunson_southern-women_southern-women`: nodes: expected 10, got 5
 
-### matrix CSV not detected (sources.md 7.4) (1)
+### matrix CSV not detected (sources.md 7.4) (#7637) (1)
 
 - `gephi/matrix.csv`: nodes: expected 5, got 7; edges: expected 6, got 5
 
-### round trip: a node table without edges exports as an edge list, which drops isolated nodes (declared loss W_CSV_ISOLATED_NODES) (1)
-
-- `gephi/spreadsheet-nodes.csv`: nodeCount: expected 3, got 0 (despite loss notes: W_CSV_ISOLATED_NODES, W_CSV_NODE_TABLE)
-
-### unquoted id cells are not trimmed (sources.md 7.4) (1)
+### unquoted id cells are not trimmed (sources.md 7.4) (#7635) (1)
 
 - `dialect/whitespace-around-fields.csv`: nodes: expected 3, got 4; node "c" missing
 
@@ -193,10 +186,7 @@ No known failures.
 
 ## cx2
 
-### round trip: the CX2 exporter writes the specification's integer node ids, so it refuses string ids without sanitizeIds "mangle" (declared loss E_ID_CHARSET) (1)
-
-- `authored/mangled-ids.cx2`: threw: GraphFormatError: 2 node ids cannot be written as CX2 integers (first: "GO:0008150" at index 0); pass sanitizeIds: "mangle" to rewrite them
-
+No known failures.
 
 ## cys
 
@@ -204,130 +194,72 @@ No known failures.
 
 ## dot
 
-### a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4) (3)
-
-- `graphviz-issues/1408.dot`: failed: E_SYNTAX: "1408.dot" could not be read as dot: line 6: unexpected character "#"
-- `authored/hash-indented.gv`: failed: E_SYNTAX: "hash-indented.gv" could not be read as dot: line 2: unexpected character "#"
-- `authored/hash-midline.gv`: failed: E_SYNTAX: line 2: unexpected character "#"
-
-### an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4) (2)
-
-- `pydot/hash_inside_html.dot`: node "<b>b2 #rules!</b>" missing
-- `pydot/html_labels.dot`: nodes: expected 6, got 5; node "abcde" missing
-
-### round trip: a mixed-direction graph is refused by the DOT exporter under the default onMixedDirection "error" (1)
-
-- `authored/edge-op-mismatch.gv`: threw: GraphFormatError: 1 undirected edge in a directed graph, and DOT holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"
-
-### round trip: the DOT export writes subgraph members before the other nodes, so node order changes on re-import (1)
-
-- `graphviz-graphs/b7.gv`: ids[2]: expected "a", got "y"; ids[3]: expected "c", got "z"
-
+No known failures.
 
 ## gexf
 
-### 1.1 <slices> skipped instead of read as spells (sources.md 1.4 Graph element) (1)
+### 1.1 <slices> skipped instead of read as spells (sources.md 1.4 Graph element) (#7643) (1)
 
 - `authored/slices-1.1.gexf`: issue W_UNKNOWN_ELEMENT present
 
-### 1.3 list with an escaped quote misparsed (sources.md 1.4 Attributes) (1)
+### 1.3 list with an escaped quote misparsed (sources.md 1.4 Attributes) (#7642) (1)
 
 - `graphology/v1_3.gexf`: node "Suzy" single: expected ["a","'b'","c"], got ["a","\\b\\''","c"]
 
-### round trip: dynamic attribute values shift by one element on GEXF re-export (1)
+### round trip: dynamic attribute values shift by one element on GEXF re-export (#7644) (1)
 
 - `gephi-datasets/photoviz-dynamic.gexf`: extensions.temporal:node:codelines.element[308]: expected 121, got 120; extensions.temporal:node:codelines.element[309]: expected 122, got 121
 
-### undeclared attvalue dropped instead of kept with a warning (sources.md 1.4 Attributes) (1)
+### undeclared attvalue dropped instead of kept with a warning (sources.md 1.4 Attributes) (#7641) (1)
 
 - `graphology/undeclared_attribute.gexf`: node 0 url: no such column
 
 
 ## gml
 
-### a node without id is skipped instead of given a generated id (sources.md 4.4) (4)
+### round trip: the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds "mangle" (sources.md 4.4) (#7744) (4)
 
-- `igraph/tests_unit_graph2.gml`: nodes: expected 3, got 0
-- `igraph/tests_regression_bug_2497.gml`: nodes: expected 2, got 1
-- `ogdf/invalid_missing-id.gml`: nodes: expected 3, got 2
-- `authored/node-without-id.gml`: nodes: expected 3, got 2; label "no id" missing (no label column)
-
-### string and bare-word node ids are rejected (sources.md 4.4) (4)
-
-- `ogdf/invalid_invalid-integer.gml`: failed: E_SYNTAX: "invalid_invalid-integer.gml" could not be read as gml: expected a value for key "source" at line 12, found "fooBar"
-- `gephi/label.gml`: failed: E_SYNTAX: "label.gml" could not be read as gml: expected a value for key "id" at line 5, found "A"
-- `gephi/emojis.gml`: failed: E_SYNTAX: "emojis.gml" could not be read as gml: expected a value for key "id" at line 5, found "A"
-- `authored/bareword-ids.gml`: failed: E_SYNTAX: "bareword-ids.gml" could not be read as gml: expected a value for key "id" at line 2, found "a"
-
-### round trip: exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4) (3)
-
-- `netzschleuder/karate-77.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
-- `netzschleuder/lesmis.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
-- `authored/underscore-keys.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
-
-### no nesting depth guard (sources.md 4.4) (1)
-
-- `authored/deep-nesting-5000.gml`: imported (1 nodes) where a failure was expected
-
-### round trip: the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds "mangle" (sources.md 4.4) (1)
-
-- `authored/string-ids.gml`: threw: GraphFormatError: 2 node ids are not integers (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `ogdf/invalid_invalid-integer.gml`: threw: GraphFormatError: 1 node id is not integers (first: "fooBar" at index 3); pass sanitizeIds: "mangle" to rewrite them
+- `gephi/label.gml`: threw: GraphFormatError: 3 node ids are not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `gephi/emojis.gml`: threw: GraphFormatError: 1 node id is not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `authored/bareword-ids.gml`: threw: GraphFormatError: 2 node ids are not integers (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
 
 
 ## graphml
 
-### round trip: a node id with spaces is not an NMTOKEN, so export refuses it without sanitizeIds "mangle" (sources.md 2.1) (5)
-
-- `boost/graphml_test.xml`: threw: GraphFormatError: 1 node id is not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "not a canonical node" at index 2); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-string-ids-0.graphml`: threw: GraphFormatError: 5 node ids are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-string-ids-1.graphml`: threw: GraphFormatError: 5 node ids are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-infer-string-ids-0.graphml`: threw: GraphFormatError: 5 node ids are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-infer-string-ids-1.graphml`: threw: GraphFormatError: 5 node ids are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-
-### <data> for an undeclared key is an error and its value is dropped (sources.md 2.4) (1)
-
-- `graphology/miserables_broken.graphml`: failed: E_GRAPHML_UNKNOWN_KEY: error limit of 100 exceeded: line 512: <data> references undeclared key "label"
-
-### <key> declared inside <graph> is skipped and its data rejected (sources.md 2.4) (1)
-
-- `gephi-tests/cdata.graphml`: label "foo" missing (no label column); label "bar" missing (no label column)
-
-### per-edge directed other than true/false skips the edge (sources.md 2.4) (1)
-
-- `authored/directed-variants.graphml`: edges: expected 4, got 2
-
+No known failures.
 
 ## json
 
-### top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape) (2)
+### top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape) (#7652) (2)
 
 - `cytoscape/abcde.json`: edges: expected 7, got 0; node "a" missing
 - `cytoscape/gal.json`: failed: E_MISSING_ENDPOINT: error limit of 100 exceeded: edges[100] has no source
 
-### a NaN weight is E_INVALID_WEIGHT under the shared weight rule and its edge is skipped; a tuple node id (a JSON array) is not a node id (sources.md 8.4 JSON layer) (1)
+### a NaN weight is E_INVALID_WEIGHT under the shared weight rule and its edge is skipped; a tuple node id (a JSON array) is not a node id (sources.md 8.4 JSON layer) (#7651) (1)
 
 - `networkx/nan-inf-bigint-tuple.node_link.json`: nodes: expected 5, got 4; edges: expected 3, got 1
 
-### Gephi / sigma JSON misread as graphology, x / y not mapped to position (sources.md 8.4 other dialects) (1)
+### Gephi / sigma JSON misread as graphology, x / y not mapped to position (sources.md 8.4 other dialects) (#7652) (1)
 
 - `sigma/clique3.json`: node "6" role:position: no such column; node "9" role:position: no such column
 
-### links is not read when edges is also present; it is reported (W_JSON_UNREAD_KEY), not imported (sources.md 8.4 node-link) (1)
+### links is not read when edges is also present; it is reported (W_JSON_UNREAD_KEY), not imported (sources.md 8.4 node-link) (#7652) (1)
 
 - `authored/links-and-edges.json`: edges: expected 2, got 1; edge "a"->"b" missing
 
-### networkx cytoscape_data misread: numeric endpoints do not match string data.id, directed flag ignored (sources.md 0.2, 8.4 Cytoscape) (1)
+### networkx cytoscape_data misread: numeric endpoints do not match string data.id, directed flag ignored (sources.md 0.2, 8.4 Cytoscape) (#7652) (1)
 
 - `networkx/karate.cytoscape.json`: directed: expected false, got true
 
-### vis x / y not mapped to position (sources.md 8.4 other dialects) (1)
+### vis x / y not mapped to position (sources.md 8.4 other dialects) (#7652) (1)
 
 - `vis/network.json`: node 1 role:position: no such column; node 2 role:position: no such column
 
 
 ## neo4j
 
-### APOC JSON exports are not read (sources.md 9.4) (12)
+### APOC JSON exports are not read (sources.md 9.4) (#303) (12)
 
 - `apoc-json/all.json`: failed: E_CSV_QUOTE: "all.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
 - `apoc-json/all_array.json`: failed: E_CSV_QUOTE: "all_array.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
@@ -342,27 +274,11 @@ No known failures.
 - `apoc-json/query_nodes_path.json`: failed: E_CSV_QUOTE: "query_nodes_path.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
 - `apoc-json/MapPath.json`: failed: E_CSV_QUOTE: "MapPath.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
 
-### APOC CSV exports are not read (sources.md 9.4) (3)
+### APOC CSV exports are not read (sources.md 9.4) (#304) (3)
 
 - `apoc-csv/export-all.csv`: failed: E_NEO4J_HEADER: "export-all.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _e
 - `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: "multi-labels.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, 
 - `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: "quotes-none.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _
-
-### an unreadable typed cell drops the whole row instead of warning and leaving it unset (sources.md 9.4) (1)
-
-- `admin/boolean-strict.csv`: nodes: expected 5, got 4
-
-### Duplicate node: later row wins, Neo4j keeps the first (sources.md 9.4) (1)
-
-- `admin/duplicate-node.csv`: node 1 name: expected "first", got "second"
-
-### several :ID columns (composite key) rejected (sources.md 9.4) (1)
-
-- `admin/manual-composite-id.csv`: failed: E_NEO4J_HEADER: "manual-composite-id.csv" could not be read as neo4j: line 1: a node header has more than one :ID column
-
-### vector{...} property type not parsed as a list of numbers (sources.md 9.4) (1)
-
-- `admin/manual-vector.csv`: node "a" vector1: expected [0.5,1.5,2.5], got "0.5;1.5;2.5"
 
 
 ## obo
@@ -391,9 +307,9 @@ announced an E_ code (a documented refusal).
 | graphml | 300 | 289 | 11 (E_XML_ILLEGAL_CHAR) | 0 | idText |
 | gml | 300 | 300 | 0 | 0 | boolAsInt |
 | dot | 300 | 268 | 32 (E_DOT_TRAILING_BACKSLASH) | 0 | idText, negativeZero, nonFiniteText, textInferred |
-| pajek | 300 | 115 | 133 (E_PAJEK_TEXT) | 52 | idText, negativeZero, nonFiniteText, textInferred |
-| csv | 300 | 274 | 0 | 26 | direction, idText, negativeZero, nodeOrder, nonFiniteText, textInferred |
-| neo4j | 300 | 218 | 0 | 82 | direction, idText |
+| pajek | 300 | 137 | 163 (E_PAJEK_TEXT) | 0 | idText, negativeZero, nonFiniteText, textInferred |
+| csv | 300 | 300 | 0 | 0 | direction, idText, negativeZero, nodeOrder, nonFiniteText, textInferred |
+| neo4j | 300 | 300 | 0 | 0 | direction, idText |
 | json node-link | 300 | 300 | 0 | 0 | negativeZero, nonFiniteUnset |
 | json jgf | 300 | 300 | 0 | 0 | idString, negativeZero, nodeOrder, nonFiniteUnset |
 | json cytoscape | 300 | 300 | 0 | 0 | direction, negativeZero, nonFiniteUnset |
@@ -442,17 +358,14 @@ Minimal cases (`fixtures/generative/cases.json`):
 - `dot-backslash-newline` (1 configuration(s)): a text holding a backslash before a line break is a Graphviz line continuation; export() must refuse it (E_DOT_TRAILING_BACKSLASH) rather than write a text that reads back without both characters. fixed, regression
 - `csv-edgeless-undirected` (1 configuration(s)): an undirected graph without edges has no Type cell to carry its direction; check() must announce W_CSV_DIRECTION_DROPPED. fixed, regression
 - `pajek-numeric-text-parameter` (1 configuration(s)): a string parameter holding -3 reads back as a number; check() must announce W_TEXT_INFERRED. fixed, regression
-- `pajek-infinite-weight` (1 configuration(s)): an infinite edge weight. known failure: pajek: an infinite edge weight is written as `Infinity`, which the Pajek importer reads as a parameter name without a value (E_PAJEK_LINE) and drops the edge; check() announces nothing. Pajek has no spelling for infinity: check() should refuse or note it
-- `csv-one-column-node-table-pipe` (1 configuration(s)): a node table with the Id column only, an id holding `|`. known failure: csv: a one-column node table is written with a bare `|`, `;` or tab inside an id, and the importer's delimiter sniff picks that character, splitting the rows (E_CSV_FIELD_COUNT). The exporter should quote a cell holding any sniffable delimiter when the table has one column
-- `gml-list-marker-text` (1 configuration(s)): a text cell holding "[]". known failure: gml: a text cell equal to NetworkX's list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing. Either note it (the NetworkX convention makes the text ambiguous) or write such a text so it cannot be taken for a marker
-- `neo4j-tab-in-quoted-id` (1 configuration(s)): an id holding tabs, on a node with three self-loops. known failure: neo4j: the importer sniffs the delimiter; the one-column :ID section gives no evidence for the comma, the quoted ids' tabs repeat evenly, so the file is read tab-delimited and every relationship row fails (text after a closing quote). neo4j-admin uses a comma unless told otherwise
+- `pajek-infinite-weight` (1 configuration(s)): an infinite edge weight is written as `Infinity` and read back as that weight. fixed, regression
+- `csv-one-column-node-table-pipe` (1 configuration(s)): a node table with the Id column only, an id holding `|`, is written with that id quoted (the bare `|` won the importer's delimiter sniff and split the rows). fixed, regression
+- `gml-list-marker-text` (1 configuration(s)): a text cell holding "[]". known failure: gml: a text cell equal to NetworkX's list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing. Either note it (the NetworkX convention makes the text ambiguous) or write such a text so it cannot be taken for a marker (#7649)
+- `neo4j-tab-in-quoted-id` (1 configuration(s)): an id holding tabs, on a node with three self-loops (the tabs once won the importer's delimiter sniff over the comma). fixed, regression
 
 Graphs the properties skip until the known failure is fixed:
 
-- pajek: an infinite edge weight is written as `Infinity`, which the Pajek importer reads as a parameter name without a value (E_PAJEK_LINE) and drops the edge; check() announces nothing
-- csv: a one-column node table (ids only) is written with a bare `|`, `;` or tab in an id, and the importer's delimiter sniff picks that character, splitting the rows (E_CSV_FIELD_COUNT)
-- gml: a text cell equal to NetworkX's list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing
-- neo4j: the importer sniffs the delimiter: a file whose first section has one column and whose quoted cells hold tabs is read tab-delimited, and the comma-delimited rows fail (text after a closing quote); neo4j-admin's delimiter is a comma unless told otherwise
+- gml: a text cell equal to NetworkX's list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing (#7649)
 
 ## Schema validation
 

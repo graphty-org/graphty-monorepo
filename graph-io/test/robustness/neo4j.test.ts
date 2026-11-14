@@ -90,10 +90,7 @@ describe("Neo4j robustness: headers and wrong formats", () => {
         expect(codes(report)).toEqual([]);
     });
 
-    // DEFERRED: an unquoted data cell shaped like a header cell ("Note: ID") still starts a section.
-    // Without a quote, a blank line or a file boundary nothing tells it from a real mid-file header
-    // in graphty's one-file convention; it.fails keeps the defect visible until a rule is chosen.
-    it.fails("neo4j-data-cell-looks-like-header: an unquoted header-shaped data cell is read as data", async () => {
+    it("neo4j-data-cell-looks-like-header: an unquoted header-shaped data cell is read as data", async () => {
         const { s, report } = await load(":ID,note,:LABEL\n1,Note: ID,P\n2,x,P\n");
         expect(ids(s)).toEqual([1, 2]);
         expect(codes(report)).toEqual([]);
@@ -199,12 +196,12 @@ describe("Neo4j robustness: rows and counts", () => {
         expect(codes(report)).toEqual([]);
     });
 
-    it("neo4j-duplicate-node-counts: a repeated id counts one node", async () => {
+    it("neo4j-duplicate-node-counts: a repeated id counts one node and keeps the first row", async () => {
         const { s, report } = await load(":ID,n\n1,a\n1,b\n");
         expect(s.nodeCount).toBe(1);
         expect(report.counts.nodes).toBe(1);
         expect(codes(report)).toEqual([NEO4J_ISSUE.DUPLICATE_NODE]);
-        expect(value(s, "nodes", "n", 0)).toBe("b");
+        expect(value(s, "nodes", "n", 0)).toBe("a");
     });
 
     it("neo4j-dangling-endpoint-counts: a created endpoint is counted and reported", async () => {
@@ -278,16 +275,20 @@ describe("Neo4j robustness: rows and counts", () => {
 // ============================================================ typed values
 
 describe("Neo4j robustness: typed values", () => {
-    it("neo4j-byte-short-range: values outside byte and short are E_COLUMN_TYPE and the row skipped", async () => {
+    it("neo4j-byte-short-range: values outside byte and short are E_COLUMN_TYPE and left unset", async () => {
         const { s, report } = await load(":ID,c:byte,s:short\n1,127,32767\n2,300,1\n3,1,70000\n4,-128,-32768\n");
-        expect(ids(s)).toEqual([1, 4]);
+        expect(ids(s)).toEqual([1, 2, 3, 4]);
+        expect(value(s, "nodes", "c", 1)).toBeUndefined();
+        expect(value(s, "nodes", "s", 1)).toBe(1);
+        expect(value(s, "nodes", "s", 2)).toBeUndefined();
         expect(codes(report)).toEqual(["E_COLUMN_TYPE", "E_COLUMN_TYPE"]);
-        expect(report.counts.skippedNodes).toBe(2);
+        expect(report.counts.skippedNodes).toBe(0);
     });
 
     it("neo4j-char-multichar: a char value of more than one character is E_COLUMN_TYPE", async () => {
         const { s, report } = await load(":ID,c:char\n1,a\n2,abc\n");
-        expect(ids(s)).toEqual([1]);
+        expect(ids(s)).toEqual([1, 2]);
+        expect(value(s, "nodes", "c", 1)).toBeUndefined();
         expect(codes(report)).toEqual(["E_COLUMN_TYPE"]);
     });
 
@@ -324,7 +325,8 @@ describe("Neo4j robustness: typed values", () => {
 
     it("neo4j-datetime-named-zone: an unknown zone name is E_COLUMN_TYPE", async () => {
         const { s, report } = await load(":ID,d:datetime\n1,2020-01-01T00:00:00[Mars/Olympus]\n2,\n");
-        expect(ids(s)).toEqual([2]);
+        expect(ids(s)).toEqual([1, 2]);
+        expect(value(s, "nodes", "d", 0)).toBeUndefined();
         expect(codes(report)).toEqual(["E_COLUMN_TYPE"]);
     });
 
@@ -332,16 +334,56 @@ describe("Neo4j robustness: typed values", () => {
         const { s, report } = await load(
             ":ID,d:duration\n1,P14DT16H12M\n2,forever\n3,PT0.75M\n4,P2012-02-02T14:37:21.545\n5,P\n",
         );
-        expect(ids(s)).toEqual([1, 3, 4]);
+        expect(ids(s)).toEqual([1, 2, 3, 4, 5]);
         expect(codes(report)).toEqual(["E_COLUMN_TYPE", "E_COLUMN_TYPE"]);
         expect(value(s, "nodes", "d", 0)).toBe("P14DT16H12M");
+        expect(value(s, "nodes", "d", 1)).toBeUndefined();
     });
 
-    it("neo4j-array-bad-item: a list item of the wrong type is E_COLUMN_TYPE and the row skipped", async () => {
+    it("neo4j-array-bad-item: a list item of the wrong type is E_COLUMN_TYPE and the list left unset", async () => {
         const { s, report } = await load(":ID,n:int[]\n1,1;2\n2,1;x\n");
-        expect(ids(s)).toEqual([1]);
+        expect(ids(s)).toEqual([1, 2]);
         expect(value(s, "nodes", "n", 0)).toEqual([1, 2]);
+        expect(value(s, "nodes", "n", 1)).toBeUndefined();
         expect(codes(report)).toEqual(["E_COLUMN_TYPE"]);
         expect(report.issues[0].line).toBe(3);
+    });
+    it("neo4j-vector: a vector property is a list of its coordinate type; a wrong length is E_COLUMN_TYPE", async () => {
+        const { s, report } = await load(
+            ':ID,"v:vector{coordinateType:INTEGER8,dimensions:2}"\n1,1;2\n2,1;2;3\n3,1;300\n',
+        );
+        expect(ids(s)).toEqual([1, 2, 3]);
+        expect(value(s, "nodes", "v", 0)).toEqual([1, 2]);
+        expect(value(s, "nodes", "v", 1)).toBeUndefined();
+        expect(value(s, "nodes", "v", 2)).toBeUndefined();
+        expect(codes(report)).toEqual(["E_COLUMN_TYPE", "E_COLUMN_TYPE"]);
+    });
+
+    it("neo4j-vector: an unknown coordinate type is E_NEO4J_HEADER", async () => {
+        const error = await fail(':ID,"v:vector{coordinateType:complex}"\n1,1\n');
+        expect(issue(error.report, NEO4J_ISSUE.HEADER).message).toMatch(/coordinate type/);
+    });
+});
+
+describe("Neo4j robustness: composite keys and the delimiter", () => {
+    it("neo4j-composite-id: several :ID columns form one key, referenced by as many endpoint columns", async () => {
+        const { s, report } = await load("a:ID,b:ID\nx,1\nx,2\n:START_ID,:START_ID,:END_ID,:END_ID\nx,1,x,2\n,1,x,2\n");
+        expect(ids(s)).toEqual(['["x","1"]', '["x","2"]']);
+        expect(value(s, "nodes", "b", 1)).toBe("2");
+        expect(s.edgeCount).toBe(1);
+        expect(codes(report)).toEqual([NEO4J_ISSUE.MISSING_ENDPOINT]);
+    });
+
+    it("neo4j-tab-sniff: tab-separated data rows never outvote a comma header", async () => {
+        const { s, report } = await load(":ID\na\tb\tc\n:START_ID,:END_ID\na\tb\tc,a\tb\tc\n");
+        expect(ids(s)).toEqual(["a\tb\tc"]);
+        expect(s.edgeCount).toBe(1);
+        expect(codes(report)).toEqual([]);
+    });
+
+    it("neo4j-tab-sniff: a header split by tabs makes the file tab-delimited", async () => {
+        const { s, report } = await load(":ID\tname\n1\ta,b\n");
+        expect(value(s, "nodes", "name", 0)).toBe("a,b");
+        expect(codes(report)).toEqual([]);
     });
 });

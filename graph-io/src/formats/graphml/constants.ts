@@ -243,10 +243,12 @@ export const GRAPHML_ISSUE = Object.freeze({
     UNKNOWN_PARENT: UNKNOWN_PARENT_CODE,
     /** Two `<data>` of one key on one element, two `<default>` in one key, or two weight keys; one is kept. */
     DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
-    /** A `<data>` whose key was never declared. */
-    UNKNOWN_KEY: "E_GRAPHML_UNKNOWN_KEY",
-    /** A `<key>` declared after `<data>` that used it; those values were already reported and dropped. */
+    /** A `<data>` whose key was never declared; the key is read as an untyped (string) key named by its id. */
+    UNKNOWN_KEY: "W_GRAPHML_UNKNOWN_KEY",
+    /** A `<key>` declared after `<data>` that used it; that data was already read as text and the key is ignored. */
     KEY_DECLARED_LATE: "W_GRAPHML_KEY_DECLARED_LATE",
+    /** A `<key>` declared inside `<graph>` instead of `<graphml>`; it is read as if declared in `<graphml>`. */
+    KEY_IN_GRAPH: "W_GRAPHML_KEY_IN_GRAPH",
     /** A `<data>` whose key is declared for another domain. */
     KEY_DOMAIN: "W_GRAPHML_KEY_DOMAIN",
     /** A `<data>` without a key attribute. */
@@ -265,8 +267,10 @@ export const GRAPHML_ISSUE = Object.freeze({
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge id already used by another edge. */
     DUPLICATE_EDGE_ID: DUPLICATE_EDGE_ID_CODE,
-    /** A `directed` attribute that is neither true nor false. */
+    /** A `directed` attribute that is neither true nor false; the edge takes its graph's direction. */
     INVALID_DIRECTED: "E_GRAPHML_INVALID_DIRECTED",
+    /** A `directed` attribute written `True`, `FALSE` or with spaces, not an xs:boolean spelling; read as the boolean. */
+    DIRECTED_SPELLING: "W_GRAPHML_DIRECTED_SPELLING",
     /** An `edgedefault` that is neither directed nor undirected. */
     INVALID_EDGEDEFAULT: "E_GRAPHML_INVALID_EDGEDEFAULT",
     /** A `<graph>` without edgedefault; the `defaultDirected` option applies. */

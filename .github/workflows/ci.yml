@@ -128,15 +128,16 @@ env:
 
 jobs:
     # The cap on concurrent pull request runs (tools/ci-run-cap.mjs). On a pull request it waits, on one small
-    # runner, while CI_PR_RUN_CAP (a repository variable, default 2) or more earlier pull request runs are
-    # active, or while a release.yml run waits for a runner, so the full run goes first. Every other job needs
-    # the Build job, which needs this one, so a waiting run holds nothing else. It never fails the run: an API
-    # error or 25 minutes of waiting proceeds. A push to master, a dispatch and the release train's call skip
-    # the wait. Change the cap with `gh variable set CI_PR_RUN_CAP --body <n|off>`.
+    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 160) or more
+    # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a release.yml run waits for a
+    # runner, so the full run goes first. Every other job needs the Build job, which needs this one, so a waiting
+    # run holds nothing else. It never fails the run: an API error proceeds, and waiting has no limit but this
+    # job's timeout. A push to master, a dispatch and the release train's call skip the wait. Change the limits
+    # with `gh variable set CI_PR_JOB_BUDGET --body <n|off>` and `gh variable set CI_PR_RUN_CAP --body <n|off>`.
     run-cap:
         name: Run cap
         runs-on: ubuntu-24.04
-        timeout-minutes: 30
+        timeout-minutes: 120
         # the job runs on every event (a skipped job would skip every job below Build); only its steps are
         # limited to a pull request, so elsewhere it is a few seconds on one runner
         # never fails the run, a timeout included, and so is no required check (tools/ci-advisory-checks.json)
@@ -168,6 +169,7 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   CAP: ${{ vars.CI_PR_RUN_CAP || '2' }}
+                  BUDGET: ${{ vars.CI_PR_JOB_BUDGET }}
               run: node tools/ci-run-cap.mjs
 
     # The packages job: decides what the run tests, builds every package and uploads their dist folders,

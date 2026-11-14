@@ -1,337 +1,104 @@
 /**
- * AiManager Schema Lifecycle Tests.
- * @module test/ai/AiManager.schema.test
+ * AiManager schema lifecycle: the system prompt describes the graph's data as it is now, on a
+ * real graph.
+ * @module test/browser/ai/AiManager.schema.test
  */
 
-import type { Observable } from "@babylonjs/core";
-import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
-import { AiManager } from "../../../src/ai/AiManager";
+import type { AiManager } from "../../../src/ai/AiManager";
+import type { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import type { Graph } from "../../../src/Graph";
-import type { DataManager, EventManager } from "../../../src/managers";
+import { cleanupE2EGraph, createE2EGraph } from "../../helpers/e2e-graph-setup";
 
-/** Type for event listener callback */
-type EventCallback = (event: unknown) => void;
+const NODES = [
+    { id: "A", kind: "server", priority: 1 },
+    { id: "B", kind: "client", priority: 2 },
+    { id: "C", kind: "router", priority: 3 },
+];
+
+const EDGES = [
+    { src: "A", dst: "B", weight: 10 },
+    { src: "B", dst: "C", weight: 20 },
+];
 
 /**
- * Result from createMockGraphWithEvents.
+ * The assistant the graph built.
+ * @param graph - The graph.
+ * @returns Its AI manager.
  */
-interface MockGraphResult {
-    graph: Graph;
-    mockNodes: Map<string, { id: string; data: Record<string, unknown> }>;
-    mockEdges: Map<string, { id: string; srcId: string; dstId: string; data: Record<string, unknown> }>;
-    eventListeners: Map<string, EventCallback[]>;
-    addNode: (id: string, data: Record<string, unknown>) => void;
-    addEdge: (id: string, srcId: string, dstId: string, data: Record<string, unknown>) => void;
-    emitDataAdded: (type: "nodes" | "edges", count: number) => void;
+function managerOf(graph: Graph): AiManager {
+    const manager = graph.getAiManager();
+    assert.ok(manager, "AI is enabled");
+    return manager;
 }
 
 /**
- * Create a mock graph for testing schema lifecycle.
- * This graph supports adding nodes/edges and emitting events.
+ * Send one message and return the system prompt the provider was sent with it.
+ * @param graph - The graph whose assistant is asked.
+ * @returns The system prompt.
  */
-function createMockGraphWithEvents(): MockGraphResult {
-    const mockNodes = new Map<string, { id: string; data: Record<string, unknown> }>();
-    const mockEdges = new Map<string, { id: string; srcId: string; dstId: string; data: Record<string, unknown> }>();
-    const eventListeners = new Map<string, EventCallback[]>();
-
-    // Add initial nodes for schema extraction
-    for (let i = 0; i < 30; i++) {
-        mockNodes.set(`node-${i}`, {
-            id: `node-${i}`,
-            data: {
-                type: ["server", "client", "router"][i % 3],
-                age: 20 + i,
-                active: i % 2 === 0,
-            },
-        });
-    }
-
-    // Add initial edges
-    for (let i = 0; i < 15; i++) {
-        mockEdges.set(`edge-${i}`, {
-            id: `edge-${i}`,
-            srcId: `node-${i}`,
-            dstId: `node-${(i + 1) % 30}`,
-            data: {
-                weight: Math.random() * 100,
-                relation: "connects",
-            },
-        });
-    }
-
-    const mockDataManager = {
-        nodes: mockNodes,
-        edges: mockEdges,
-        getNode: (id: string) => mockNodes.get(id),
-        getEdge: (id: string) => mockEdges.get(id),
-    } as unknown as DataManager;
-
-    const mockEventManager = {
-        addListener: (type: string, callback: EventCallback): symbol => {
-            if (!eventListeners.has(type)) {
-                eventListeners.set(type, []);
-            }
-
-            const listeners = eventListeners.get(type);
-            listeners?.push(callback);
-
-            return Symbol("listener-id");
-        },
-        removeListener: (): boolean => true,
-        // Like the real EventManager: a generic graph event reaches listeners of its type.
-        emit: (type: string, data: Record<string, unknown>): void => {
-            for (const listener of eventListeners.get(type) ?? []) {
-                listener({ type, ...data });
-            }
-        },
-        onGraphEvent: {
-            add: () => null,
-            remove: () => null,
-        } as unknown as Observable<unknown>,
-    } as unknown as EventManager;
-
-    const graph = {
-        getNodeCount: () => mockNodes.size,
-        getEdgeCount: () => mockEdges.size,
-        getDataManager: () => mockDataManager,
-        eventManager: mockEventManager,
-        is2D: () => false,
-        getLayoutManager: () => ({
-            layoutEngine: { type: "ngraph" },
-        }),
-    } as unknown as Graph;
-
-    const addNode = (id: string, data: Record<string, unknown>): void => {
-        mockNodes.set(id, { id, data });
-    };
-
-    const addEdge = (id: string, srcId: string, dstId: string, data: Record<string, unknown>): void => {
-        mockEdges.set(id, { id, srcId, dstId, data });
-    };
-
-    const emitDataAdded = (type: "nodes" | "edges", count: number): void => {
-        const listeners = eventListeners.get("data-added") ?? [];
-
-        for (const listener of listeners) {
-            listener({ type: "data-added", dataType: type, count });
-        }
-    };
-
-    return {
-        graph,
-        mockNodes,
-        mockEdges,
-        eventListeners,
-        addNode,
-        addEdge,
-        emitDataAdded,
-    };
+async function promptSentFor(graph: Graph): Promise<string> {
+    const provider = managerOf(graph).getProvider() as MockLlmProvider;
+    provider.clearCallHistory();
+    await graph.aiCommand("hello");
+    const system = provider.getCallHistory()[0]?.messages.find((message) => message.role === "system");
+    assert.ok(system, "the provider was sent a system prompt");
+    return system.content;
 }
 
 describe("AiManager schema lifecycle", () => {
-    let aiManager: AiManager;
-
-    beforeEach(() => {
-        aiManager = new AiManager();
-        vi.useFakeTimers();
-    });
-
     afterEach(() => {
-        aiManager.dispose();
-        vi.useRealTimers();
+        cleanupE2EGraph();
     });
 
-    describe("initialization", () => {
-        it("extracts schema on initialization", () => {
-            const { graph } = createMockGraphWithEvents();
+    it("the system prompt names the graph's node and edge properties", async () => {
+        const { graph } = await createE2EGraph({ nodes: NODES, edges: EDGES });
 
-            aiManager.init(graph, {
-                provider: "mock",
-                registerBuiltinCommands: false,
-            });
+        const prompt = await promptSentFor(graph);
 
-            const schemaManager = aiManager.getSchemaManager();
-            assert.ok(schemaManager !== null, "Should have schema manager after init");
-
-            const schema = schemaManager.getSchema();
-            assert.ok(schema !== null, "Should have extracted schema on init");
-            assert.strictEqual(schema.nodeCount, 30, "Should have correct node count");
-        });
-
-        it("does not extract schema when graph is empty", () => {
-            // Create empty graph
-            const mockDataManager = {
-                nodes: new Map(),
-                edges: new Map(),
-            } as unknown as DataManager;
-
-            const mockEventManager = {
-                addListener: (): symbol => Symbol("id"),
-                removeListener: (): boolean => true,
-                emit: (): void => undefined,
-            } as unknown as EventManager;
-
-            const emptyGraph = {
-                getNodeCount: () => 0,
-                getEdgeCount: () => 0,
-                getDataManager: () => mockDataManager,
-                eventManager: mockEventManager,
-                is2D: () => false,
-                getLayoutManager: () => ({ layoutEngine: { type: "ngraph" } }),
-            } as unknown as Graph;
-
-            aiManager.init(emptyGraph, {
-                provider: "mock",
-                registerBuiltinCommands: false,
-            });
-
-            const schemaManager = aiManager.getSchemaManager();
-            const schema = schemaManager?.getSchema();
-
-            // Schema should be extracted even for empty graph (with zero properties)
-            assert.ok(schema !== null, "Should have schema even for empty graph");
-            assert.strictEqual(schema?.nodeCount, 0);
-        });
+        assert.include(prompt, "## Data Schema");
+        assert.include(prompt, "priority");
+        assert.include(prompt, "weight");
     });
 
-    describe("data change updates", () => {
-        it("updates schema when nodes added", async () => {
-            const { graph, addNode, emitDataAdded } = createMockGraphWithEvents();
+    it("an assistant enabled on an empty graph sees the data added after it", async () => {
+        const { graph } = await createE2EGraph();
 
-            aiManager.init(graph, {
-                provider: "mock",
-                registerBuiltinCommands: false,
-            });
+        assert.notInclude(await promptSentFor(graph), "## Data Schema");
 
-            const schemaManager = aiManager.getSchemaManager();
-            assert.ok(schemaManager, "Schema manager should exist");
+        await graph.addNodes(NODES);
 
-            const initialSchema = schemaManager.extract();
-            const initialNodeCount = initialSchema.nodeCount;
-
-            // Add new nodes
-            addNode("new-node-1", { type: "new-type", size: 42 });
-            addNode("new-node-2", { type: "new-type", size: 43 });
-
-            // Emit data-added event
-            emitDataAdded("nodes", 2);
-
-            // Fast-forward through debounce delay
-            await vi.advanceTimersByTimeAsync(500);
-
-            // Schema should be invalidated and will be re-extracted on next access
-            const newSchema = schemaManager.extract();
-            assert.strictEqual(newSchema.nodeCount, initialNodeCount + 2, "Should reflect new node count");
-        });
-
-        it("updates schema when edges added", async () => {
-            const { graph, addEdge, emitDataAdded } = createMockGraphWithEvents();
-
-            aiManager.init(graph, {
-                provider: "mock",
-                registerBuiltinCommands: false,
-            });
-
-            const schemaManager = aiManager.getSchemaManager();
-            assert.ok(schemaManager, "Schema manager should exist");
-
-            const initialSchema = schemaManager.extract();
-            const initialEdgeCount = initialSchema.edgeCount;
-
-            // Add new edges
-            addEdge("new-edge-1", "node-0", "node-1", { weight: 50 });
-
-            // Emit data-added event
-            emitDataAdded("edges", 1);
-
-            // Fast-forward through debounce delay
-            await vi.advanceTimersByTimeAsync(500);
-
-            // Schema should be invalidated
-            const newSchema = schemaManager.extract();
-            assert.strictEqual(newSchema.edgeCount, initialEdgeCount + 1, "Should reflect new edge count");
-        });
-
-        it("debounces rapid schema updates", async () => {
-            const { graph, emitDataAdded } = createMockGraphWithEvents();
-
-            aiManager.init(graph, {
-                provider: "mock",
-                registerBuiltinCommands: false,
-            });
-
-            const schemaManager = aiManager.getSchemaManager();
-            assert.ok(schemaManager, "Schema manager should exist");
-
-            // Spy on invalidateCache
-            let invalidateCount = 0;
-            const originalInvalidate = schemaManager.invalidateCache.bind(schemaManager);
-            schemaManager.invalidateCache = (): void => {
-                invalidateCount++;
-                originalInvalidate();
-            };
-
-            // Emit multiple rapid data-added events
-            emitDataAdded("nodes", 1);
-            emitDataAdded("nodes", 1);
-            emitDataAdded("nodes", 1);
-            emitDataAdded("edges", 1);
-            emitDataAdded("edges", 1);
-
-            // Should not have invalidated yet (debounced)
-            assert.strictEqual(invalidateCount, 0, "Should not invalidate during debounce period");
-
-            // Fast-forward through debounce delay
-            await vi.advanceTimersByTimeAsync(500);
-
-            // Should have invalidated only once
-            assert.strictEqual(invalidateCount, 1, "Should invalidate once after debounce");
-        });
+        const prompt = await promptSentFor(graph);
+        assert.include(prompt, "## Data Schema");
+        assert.include(prompt, "priority");
     });
 
-    describe("system prompt integration", () => {
-        it("includes schema in generated system prompt", () => {
-            const { graph } = createMockGraphWithEvents();
+    it("the prompt after a data change describes the new data", async () => {
+        const { graph } = await createE2EGraph({ nodes: NODES, edges: EDGES });
+        assert.notInclude(await promptSentFor(graph), "region");
 
-            aiManager.init(graph, {
-                provider: "mock",
-                registerBuiltinCommands: false,
-            });
+        await graph.addNodes([{ id: "D", kind: "server", priority: 4, region: "west" }]);
 
-            const controller = aiManager.getController();
-            assert.ok(controller !== null, "Should have controller after init");
-
-            // The controller should have access to schema through its system prompt building
-            // We can verify this by checking the schema manager exists and has schema
-            const schemaManager = aiManager.getSchemaManager();
-            assert.ok(schemaManager !== null);
-
-            const schema = schemaManager.getSchema();
-            assert.ok(schema !== null, "Schema should be available for system prompt");
-            assert.ok(schema.nodeProperties.length > 0, "Schema should have node properties");
-        });
+        assert.include(await promptSentFor(graph), "region");
     });
 
-    describe("dispose cleanup", () => {
-        it("cleans up event listeners on dispose", () => {
-            const { graph, eventListeners } = createMockGraphWithEvents();
+    it("dispose stops listening to the graph's data changes", async () => {
+        const { graph } = await createE2EGraph({ nodes: NODES, edges: EDGES });
+        const manager = managerOf(graph);
+        const schemaManager = manager.getSchemaManager();
+        assert.ok(schemaManager);
 
-            aiManager.init(graph, {
-                provider: "mock",
-                registerBuiltinCommands: false,
-            });
+        // While enabled, a data change drops the cached schema.
+        schemaManager.extract();
+        await graph.addNodes([{ id: "D", kind: "server", priority: 4 }]);
+        assert.isNull(schemaManager.getSchema(), "a data change drops the cached schema");
 
-            // Verify listener was added
-            const dataAddedListeners = eventListeners.get("data-added") ?? [];
-            assert.ok(dataAddedListeners.length > 0, "Should have data-added listener");
+        schemaManager.extract();
+        manager.dispose();
+        await graph.addNodes([{ id: "E", kind: "client", priority: 5 }]);
 
-            // Dispose
-            aiManager.dispose();
-
-            // Schema manager should be cleared
-            const schemaManager = aiManager.getSchemaManager();
-            assert.strictEqual(schemaManager, null, "Schema manager should be null after dispose");
-        });
+        assert.isNotNull(schemaManager.getSchema(), "a disposed manager no longer hears data changes");
+        assert.isNull(manager.getSchemaManager());
     });
 });

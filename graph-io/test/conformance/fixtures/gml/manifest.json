@@ -780,7 +780,7 @@
           "fooBar"
         ]
       },
-      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4)"
+      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4) (#7744)"
     },
     {
       "file": "ogdf/invalid_invalid-node.gml",
@@ -880,7 +880,7 @@
           }
         ]
       },
-      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4)"
+      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4) (#7744)"
     },
     {
       "file": "gephi/emojis.gml",
@@ -900,7 +900,7 @@
           "\u2705"
         ]
       },
-      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4)"
+      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4) (#7744)"
     },
     {
       "file": "netzschleuder/karate-77.gml",
@@ -1287,7 +1287,7 @@
           }
         ]
       },
-      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4)"
+      "roundTripRefusal": "E_ID_CHARSET"
     },
     {
       "file": "authored/bareword-ids.gml",
@@ -1312,7 +1312,7 @@
           }
         ]
       },
-      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4)"
+      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4) (#7744)"
     },
     {
       "file": "authored/node-without-id.gml",

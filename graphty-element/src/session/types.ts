@@ -748,8 +748,9 @@ export interface GraphStatistics {
     /** Edges in the snapshot, self-loops and repeats included. */
     readonly edgeCount: number;
     /**
-     * Edges as a fraction of the pairs that could carry one, self-loops excluded from both
-     * halves. Zero for a graph with fewer than two nodes.
+     * Pairs of nodes joined by an edge as a fraction of the pairs that could be, so never above 1:
+     * self-loops are excluded and repeated edges between the same pair count once. Zero for a
+     * graph with fewer than two nodes.
      */
     readonly density: number;
     /**
@@ -2920,6 +2921,14 @@ export interface JoinRecord {
      * it did not have, so editing the join can put them back.
      */
     readonly before?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+    /**
+     * For a join that adds elements (edges, a merge, a link): the nodes it made, which the graph
+     * did not hold when it ran. Removing or editing the join takes only these of its nodes; the
+     * nodes it named that the graph already held stay. Absent on a join recorded before 3.40.0,
+     * which takes every node it named that no other load supplied.
+     * @since 3.40.0
+     */
+    readonly made?: readonly NodeId[];
 }
 
 /**

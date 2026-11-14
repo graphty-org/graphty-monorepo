@@ -552,6 +552,15 @@ describe("StylePainter row paints, one look per mesh key", () => {
         assert.strictEqual(new Set(paints.map((paint) => paint?.color?.r)).size, NODES.length, "each keeps its color");
     });
 
+    it("hands rows of one look and one color the same paint object, not one per row (G11)", async () => {
+        const held = harness();
+        await held.paintAll();
+
+        const paints = NODES.map((_, index) => held.painter.rowPaint(index));
+        assert.isNotNull(paints[0]?.color, "the default style paints a color");
+        assert.strictEqual(new Set(paints).size, 1, "a paint and its color object per row was 52 MB at 1M rows");
+    });
+
     it("builds a style per size when the size is data-driven", async () => {
         const held = harness();
         await held.styles.add({

@@ -255,7 +255,14 @@ export class Arrangement {
      * @returns True when it has.
      */
     get moved(): boolean {
-        return this.source !== null && this.source.positions.changes !== this.captured;
+        if (this.source === null) {
+            return false;
+        }
+
+        // A layout drawing from the card owes the lane its frames (design/rendering/row-renderer.md
+        // 4.5); they count as moves, so a rest point, an undo or a `positions.set` mid-run seals them.
+        this.source.positions.settle();
+        return this.source.positions.changes !== this.captured;
     }
 
     /**

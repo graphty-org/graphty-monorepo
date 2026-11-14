@@ -44,6 +44,7 @@ import "./src/graphty-element";
 // =============================================================================
 // Core classes
 // =============================================================================
+export type { AccessibleAnnouncement, AccessibleGraphFacts, AccessibleSelection } from "./src/a11y/ScreenReader";
 export { Edge, type EdgeCapEnd } from "./src/Edge";
 // what `Edge.mesh` is for a line drawn as pattern elements, so a consumer can narrow it (issue #7127)
 export type { NodeScreenPosition } from "./src/Graph";
@@ -338,6 +339,8 @@ export type {
     NodeGenericEvent,
     NodeHoverEvent,
     OperationCancelledEvent,
+    RenderLostEvent,
+    RenderRestoredEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
     XRSessionEndedEvent,

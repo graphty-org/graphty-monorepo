@@ -3,6 +3,7 @@ import { registry as sourceRegistry, SOURCE_FORMAT_PREFIX } from "@graphty/graph
 import { css, LitElement, type PropertyValues, ReactiveElement } from "lit";
 import { property } from "lit/decorators.js";
 
+import { type AccessibleAnnouncement, type AccessibleGraphFacts, graphFacts, ScreenReader } from "./a11y/ScreenReader";
 import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
 import { type AutosaveAtRisk, ElementAutosave, resolveAutosaveKey } from "./autosave/elementAutosave";
 import { type PageSource, sourceSlot } from "./autosave/recovery";
@@ -230,6 +231,19 @@ export class Graphty extends LitElement {
     #unwatchProgress: (() => void) | null = null;
     /** Unsubscribes the three shader mirrors. */
     #unwatchShaders: (() => void) | null = null;
+    /** See {@link Graphty.accessibleDescription}. */
+    #accessibleDescription: ((facts: AccessibleGraphFacts) => string) | undefined;
+    /** See {@link Graphty.accessibleAnnouncement}. */
+    #accessibleAnnouncement: ((announcement: AccessibleAnnouncement) => string) | undefined;
+    /** See {@link Graphty.accessibleNodeList}. */
+    #accessibleNodeList = false;
+    /** The canvas's role and description, the selection's live region and the node list. */
+    readonly #screenReader = new ScreenReader({
+        session: () => this.#graph.getSession(),
+        canvas: () => this.#graph.canvas,
+        describe: () => this.#accessibleDescription,
+        announce: () => this.#accessibleAnnouncement,
+    });
     readonly #progressAt = new Map<string, number>();
     readonly #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
@@ -752,6 +766,10 @@ export class Graphty extends LitElement {
                 this.#graph.canvas.setAttribute(name, value);
             }
 
+            if (this.#wired) {
+                this.#screenReader.refresh();
+            }
+
             return;
         }
 
@@ -837,6 +855,7 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
             this.#mirrorVisibilityChange(change);
         });
+        this.#screenReader.connect(this.renderRoot);
         // A note written from a panel, a console or an undo: plain values, as the other mirrors.
         this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
             this.dispatchEvent(
@@ -1015,6 +1034,107 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Words the drawing's accessible description from its facts, which a screen reader reads
+     * after the canvas's name (the host's `aria-label`). Called again whenever the data, the
+     * styling or the selection changes. Unset (the default), the canvas has no description: the
+     * words are the page's, in the page's language.
+     * @since 3.40.0
+     * @example
+     * ```ts
+     * element.setAttribute("aria-label", "Florentine families");
+     * element.accessibleDescription = ({ nodes, edges, legend }) =>
+     *     `${nodes} families, ${edges} marriages. ` + legend.map((block) => block.field?.technicalName ?? "").join(", ");
+     * ```
+     * @returns The wording function, or undefined
+     */
+    @property({ attribute: false })
+    get accessibleDescription(): ((facts: AccessibleGraphFacts) => string) | undefined {
+        return this.#accessibleDescription;
+    }
+    /**
+     * Sets the wording function and words the description again.
+     */
+    set accessibleDescription(value: ((facts: AccessibleGraphFacts) => string) | undefined) {
+        const oldValue = this.#accessibleDescription;
+        this.#accessibleDescription = value;
+        if (this.#wired) {
+            this.#screenReader.refresh();
+        }
+
+        this.requestUpdate("accessibleDescription", oldValue);
+    }
+
+    /**
+     * Words what a screen reader announces when the selection changes, from a code and its facts
+     * (the selected nodes by name, and a single selected node's neighbors). Unset (the default),
+     * the announcement is the selected nodes' names, separated by commas, and nothing once the
+     * selection is cleared.
+     * @since 3.40.0
+     * @example
+     * ```ts
+     * element.accessibleAnnouncement = ({ params }) =>
+     *     params.count === 1
+     *         ? `${params.nodes[0].name}, ${params.neighborCount} neighbors: ${params.neighbors.map((n) => n.name).join(", ")}`
+     *         : `${params.count} selected`;
+     * ```
+     * @returns The wording function, or undefined
+     */
+    @property({ attribute: false })
+    get accessibleAnnouncement(): ((announcement: AccessibleAnnouncement) => string) | undefined {
+        return this.#accessibleAnnouncement;
+    }
+    /**
+     * Sets the announcement's wording function.
+     */
+    set accessibleAnnouncement(value: ((announcement: AccessibleAnnouncement) => string) | undefined) {
+        const oldValue = this.#accessibleAnnouncement;
+        this.#accessibleAnnouncement = value;
+        this.requestUpdate("accessibleAnnouncement", oldValue);
+    }
+
+    /**
+     * Whether an off-screen list of the visible nodes, by name, follows the canvas for keyboard
+     * and screen reader users: one Tab stop, Up and Down (Home, End) move through the nodes, and
+     * Enter or Space selects the one reached. Off by default. The list is named by the host's
+     * `aria-label` and is never drawn; a page that wants it seen styles `::part(node-list)`.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element aria-label="Florentine families" accessible-node-list></graphty-element>
+     * ```
+     * @returns True when the list is there
+     */
+    @property({ attribute: "accessible-node-list", type: Boolean })
+    get accessibleNodeList(): boolean {
+        return this.#accessibleNodeList;
+    }
+    /**
+     * Adds or removes the node list.
+     */
+    set accessibleNodeList(value: boolean) {
+        const oldValue = this.#accessibleNodeList;
+        this.#accessibleNodeList = value;
+        this.#screenReader.setList(value, this.#wired ? this.renderRoot : undefined);
+        this.requestUpdate("accessibleNodeList", oldValue);
+    }
+
+    /**
+     * The facts a description of the drawing is phrased from, as numbers, the legend and the
+     * selection: what {@link Graphty.accessibleDescription} receives, for a page that words the
+     * drawing somewhere of its own.
+     * @since 3.40.0
+     * @example
+     * ```ts
+     * const { nodes, edges, selection } = element.accessibleFacts();
+     * summary.textContent = `${nodes} nodes, ${edges} edges, ${selection.count} selected`;
+     * ```
+     * @returns The facts now
+     */
+    accessibleFacts(): AccessibleGraphFacts {
+        return graphFacts(this.#graph.getSession());
+    }
+
+    /**
      * The graph container element. Lit never renders it: `connectedCallback` places it in the
      * shadow root before the first update, and `update` leaves it there (see there).
      * @returns The graph container element
@@ -1177,6 +1297,7 @@ export class Graphty extends LitElement {
         this.#unwatchSelection = null;
         this.#unwatchVisibility?.();
         this.#unwatchVisibility = null;
+        this.#screenReader.disconnect();
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
         this.#unwatchProjectStatus?.();
@@ -6740,6 +6861,35 @@ export class Graphty extends LitElement {
      */
     get rendererStatus(): RendererStatus | null {
         return this.#graph.rendererStatus;
+    }
+
+    /**
+     * Gets the graph drawn again after the browser took away its graphics device.
+     *
+     * When the WebGL context or the WebGPU device is lost (a driver reset, a GPU process crash),
+     * the element fires `render-lost` and asks for the device back by itself; `render-restored`
+     * follows once the graph is drawn again. The data, the styles, the camera and the undo
+     * history are never touched. Call this when the device has not come back -- from a "Restart
+     * viewer" button, say: it asks the browser again and rebuilds the picture from the graph in
+     * memory, with nothing loaded again. It resolves at once while nothing is lost.
+     * @returns A promise that resolves when the graph is drawn again.
+     * @throws A `GraphtyError` with `E_RENDER_LOST` when the browser cannot give a WebGL context
+     *     back, or `E_DEVICE_LOST` when no new WebGPU device can be opened.
+     * @since 3.53.0
+     * @example
+     * ```js
+     * const element = document.querySelector("graphty-element");
+     * element.addEventListener("render-lost", () => {
+     *     restartButton.hidden = false;
+     * });
+     * element.addEventListener("render-restored", () => {
+     *     restartButton.hidden = true;
+     * });
+     * restartButton.addEventListener("click", () => element.restartRenderer());
+     * ```
+     */
+    restartRenderer(): Promise<void> {
+        return this.#graph.restartRenderer();
     }
 
     /**

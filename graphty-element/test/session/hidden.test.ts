@@ -149,6 +149,12 @@ describe("session.hidden", () => {
         await session.hidden.add(["34"]);
         assert.isTrue(session.hidden.ids.has(34));
         assert.isFalse((await drawn(session)).nodes["34"]);
+        const opened = createGraphSession();
+        await opened.project.open((await session.project.save()).text);
+        assert.isTrue(opened.hidden.ids.has(34), "a project file keeps it, whichever spelling was saved");
+        assert.isFalse((await drawn(opened)).nodes["34"]);
+        opened.dispose();
+
         await session.hidden.remove([34]);
         assert.strictEqual(session.hidden.ids.size, 0);
         session.dispose();

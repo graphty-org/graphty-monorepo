@@ -29,6 +29,7 @@ import {
     type StyleDocument,
 } from "../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
+import { otherIdSpelling } from "../data/nodeIdSpelling";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import type { AssetsApiInternal } from "./assets/AssetsApi";
@@ -1460,7 +1461,13 @@ async function restoreHidden(opening: Opening, visibility: unknown, nodeIds: Rea
     const hidden = (visibility as { hidden?: unknown } | undefined)?.hidden;
     if (Array.isArray(hidden)) {
         await attempt(opening, "visibility", () =>
-            opening.tx.hidden.add((hidden as unknown[]).filter((id): id is NodeId => nodeIds.has(id as NodeId))),
+            // An integer id may be saved in either spelling, as `hidden.add` takes it.
+            opening.tx.hidden.add(
+                (hidden as NodeId[]).filter((id) => {
+                    const other = otherIdSpelling(id);
+                    return nodeIds.has(id) || (other !== undefined && nodeIds.has(other));
+                }),
+            ),
         );
     }
 }

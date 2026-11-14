@@ -28,6 +28,15 @@
     border-bottom: 1px solid var(--cm-border);
 }
 
+/* The preview is the recipe, not the graph: tagged so until Done. */
+.jw-preview-tag {
+    position: absolute;
+    inset-block-start: 6px;
+    inset-inline-start: 6px;
+    z-index: 1;
+    pointer-events: none;
+}
+
 .jw-rows {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

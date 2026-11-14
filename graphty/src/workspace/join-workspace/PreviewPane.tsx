@@ -1,9 +1,41 @@
-import type { GraphSession, JoinElementFate, JoinPreview, NodeId, RuleTree } from "@graphty/graphty-element/session";
+import type { GraphSession, JoinPreview, JoinsDraft, NodeId, RuleTree } from "@graphty/graphty-element/session";
+import { Badge } from "@mantine/core";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { shownStep, useJoinWorkspace } from "./context";
 import { keepRule } from "./keeps";
-import { FATE_COLORS } from "./words";
+import { CARD_COLORS } from "./words";
+
+/** How the preview marks an element a card touched: in the card's color, hollow or dashed when new. */
+interface Mark {
+    readonly color: string;
+    readonly added: boolean;
+}
+
+/**
+ * The elements the shown cards touched, each marked by the last card touching it.
+ * @param draft - the recipe.
+ * @param upTo - how many cards, from the first, the preview shows.
+ * @returns the marks, by `n:<id>` and `e:<id>`.
+ */
+function marksOf(draft: JoinsDraft, upTo: number): ReadonlyMap<string, Mark> {
+    const marks = new Map<string, Mark>();
+    draft.steps.slice(0, upTo).forEach((each, index) => {
+        const color = CARD_COLORS[index % CARD_COLORS.length];
+        const shown = draft.preview({ step: each.id });
+        for (const node of shown.nodes) {
+            if (node.fate !== undefined) {
+                marks.set(`n:${String(node.id)}`, { color, added: node.fate === "added" });
+            }
+        }
+        for (const edge of shown.edges) {
+            if (edge.fate !== undefined) {
+                marks.set(`e:${edge.id}`, { color, added: edge.fate === "added" });
+            }
+        }
+    });
+    return marks;
+}
 
 /** The preview's layout: the graph drawn flat, the same drawing on every opening. */
 const PREVIEW_LAYOUT_CONFIG = { dim: 2, seed: 7 } as const;
@@ -19,9 +51,10 @@ export function PreviewPane(): React.JSX.Element {
     const { draft, version, side, keeps } = api;
     const step = shownStep(api);
     // The regions the compare steps drawn keep: the preview's own element hides the rest.
-    const { keep } = useMemo(() => {
+    const { keep, marks } = useMemo(() => {
         const at = draft.steps.findIndex((each) => each.id === step);
-        return { version, keep: keepRule(draft.steps.slice(0, side === "before" ? at : at + 1), keeps) };
+        const upTo = side === "before" ? at : at + 1;
+        return { version, keep: keepRule(draft.steps.slice(0, upTo), keeps), marks: marksOf(draft, upTo) };
     }, [draft, version, step, side, keeps]);
     // Read again on every edit to the draft.
     const { preview } = useMemo(
@@ -44,9 +77,9 @@ export function PreviewPane(): React.JSX.Element {
     }, []);
     useEffect(() => {
         if (session !== null) {
-            void draw(session, preview, keep);
+            void draw(session, preview, keep, marks);
         }
-    }, [session, preview, keep]);
+    }, [session, preview, keep, marks]);
     return (
         <div
             className="jw-preview"
@@ -54,6 +87,9 @@ export function PreviewPane(): React.JSX.Element {
             data-nodes={preview.nodes.length}
             data-edges={preview.edges.length}
         >
+            <Badge size="sm" variant="light" color="yellow" className="jw-preview-tag">
+                Draft
+            </Badge>
             <graphty-element
                 ref={ref}
                 aria-label="Join preview"
@@ -69,23 +105,35 @@ export function PreviewPane(): React.JSX.Element {
 const drawnLayers = new WeakMap<GraphSession, string[]>();
 
 /**
- * Draws a preview in the preview's own element: its graph replaced, one layer per fate.
+ * Draws a preview in the preview's own element: its graph replaced, then style layers marking
+ * what the cards did: every element faint, then each card's elements in its color, new nodes
+ * hollow and new edges dashed, so the drawing reads as a draft, not the graph.
  * @param session - the preview element's session.
  * @param preview - the graph to draw.
  * @param keep - the filter keeping a compare step's chosen regions, or null.
+ * @param marks - the elements the shown cards touched.
  */
-async function draw(session: GraphSession, preview: JoinPreview, keep: RuleTree | null): Promise<void> {
-    const byFate = new Map<JoinElementFate, NodeId[]>();
-    const edgeFates = new Map<JoinElementFate, string[]>();
+async function draw(
+    session: GraphSession,
+    preview: JoinPreview,
+    keep: RuleTree | null,
+    marks: ReadonlyMap<string, Mark>,
+): Promise<void> {
+    const nodeGroups = new Map<string, { mark: Mark; ids: NodeId[] }>();
+    const edgeGroups = new Map<string, { mark: Mark; ids: string[] }>();
     for (const node of preview.nodes) {
-        if (node.fate !== undefined) {
-            byFate.set(node.fate, [...(byFate.get(node.fate) ?? []), node.id]);
+        const mark = marks.get(`n:${String(node.id)}`);
+        if (mark !== undefined) {
+            const group = `${mark.color}|${String(mark.added)}`;
+            nodeGroups.set(group, { mark, ids: [...(nodeGroups.get(group)?.ids ?? []), node.id] });
         }
     }
     const edges = preview.edges.map((edge, at) => {
         const id = `p${String(at)}`;
-        if (edge.fate !== undefined) {
-            edgeFates.set(edge.fate, [...(edgeFates.get(edge.fate) ?? []), id]);
+        const mark = marks.get(`e:${edge.id}`);
+        if (mark !== undefined) {
+            const group = `${mark.color}|${String(mark.added)}`;
+            edgeGroups.set(group, { mark, ids: [...(edgeGroups.get(group)?.ids ?? []), id] });
         }
         return { ...edge.data, id, source: edge.source, target: edge.target };
     });
@@ -97,21 +145,32 @@ async function draw(session: GraphSession, preview: JoinPreview, keep: RuleTree 
         await tx.data.addNodes(preview.nodes.map((node) => ({ ...node.data, id: node.id })));
         await tx.data.addEdges(edges);
         const layers: string[] = [];
-        for (const [fate, nodes] of byFate) {
+        if (marks.size > 0) {
+            for (const target of ["node", "edge"] as const) {
+                const rest = await tx.styles.add({
+                    name: "untouched",
+                    target,
+                    selector: { match: "everything" },
+                    set: target === "node" ? { "node.opacity": 0.25 } : { "edge.opacity": 0.25 },
+                });
+                layers.push(rest.id);
+            }
+        }
+        for (const { mark, ids } of nodeGroups.values()) {
             const layer = await tx.styles.add({
-                name: fate,
+                name: mark.added ? "new" : "touched",
                 target: "node",
-                selector: { match: "ids", nodes },
-                set: { "node.color": FATE_COLORS[fate] },
+                selector: { match: "ids", nodes: ids },
+                set: { "node.color": mark.color, "node.opacity": 1, ...(mark.added ? { "node.wireframe": true } : {}) },
             });
             layers.push(layer.id);
         }
-        for (const [fate, ids] of edgeFates) {
+        for (const { mark, ids } of edgeGroups.values()) {
             const layer = await tx.styles.add({
-                name: fate,
+                name: mark.added ? "new" : "touched",
                 target: "edge",
                 selector: { match: "ids", edges: ids },
-                set: { "edge.color": FATE_COLORS[fate] },
+                set: { "edge.color": mark.color, "edge.opacity": 1, ...(mark.added ? { "edge.style": "dash" } : {}) },
             });
             layers.push(layer.id);
         }

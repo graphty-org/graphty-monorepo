@@ -1,5 +1,5 @@
 import type { JoinReport, JoinStepEntry } from "@graphty/graphty-element/session";
-import { Button, Chip, Group, SegmentedControl, Text, TextInput } from "@mantine/core";
+import { Button, Group, MultiSelect, NumberInput, SegmentedControl, Text, TextInput } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { useJoinWorkspace } from "../context";
@@ -78,6 +78,53 @@ export function CommitInput({
 }
 
 /**
+ * A number box whose value reaches the recipe when the reader leaves it or presses Enter, so
+ * typing "25" is one edit of the recipe, not a pass through 2.
+ * @param props - Component props
+ * @param props.label - its accessible name.
+ * @param props.value - the value the recipe holds.
+ * @param props.min - the smallest value.
+ * @param props.onCommit - the value typed.
+ * @returns the box.
+ */
+export function CommitNumber({
+    label,
+    value,
+    min,
+    onCommit,
+}: Readonly<{ label: string; value: number; min: number; onCommit: (value: number) => void }>): React.JSX.Element {
+    const [typed, setTyped] = useState<number | string>(value);
+    useEffect(() => {
+        setTyped(value);
+    }, [value]);
+    const commit = (): void => {
+        const next = typeof typed === "number" ? typed : Number.parseInt(typed, 10);
+        if (Number.isFinite(next) && next >= min && next !== value) {
+            onCommit(next);
+        } else if (next !== value) {
+            setTyped(value);
+        }
+    };
+    return (
+        <NumberInput
+            size="xs"
+            w={72}
+            aria-label={label}
+            min={min}
+            allowDecimal={false}
+            value={typed}
+            onChange={setTyped}
+            onBlur={commit}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    commit();
+                }
+            }}
+        />
+    );
+}
+
+/**
  * A segmented choice of a card.
  * @param props - Component props
  * @param props.label - its accessible name.
@@ -101,7 +148,7 @@ export function Seg({
 }
 
 /**
- * Column chips: which columns of the input a card brings or shares.
+ * Columns picked: which columns of the input a card brings or shares.
  * @param props - Component props
  * @param props.label - the group's accessible name.
  * @param props.columns - the columns offered.
@@ -121,21 +168,18 @@ export function ColumnChips({
     onChange: (columns: readonly string[]) => void;
 }>): React.JSX.Element {
     return (
-        <Chip.Group
-            multiple
+        <MultiSelect
+            size="xs"
+            aria-label={label}
+            searchable
+            placeholder={chosen.length === 0 ? "none" : undefined}
+            data={[...columns]}
             value={[...chosen]}
+            comboboxProps={{ withinPortal: true }}
             onChange={(value) => {
                 onChange(columns.filter((column) => value.includes(column)));
             }}
-        >
-            <Group gap={3} role="group" aria-label={label} className="jr-cols">
-                {columns.map((column) => (
-                    <Chip key={column} value={column} size="xs" variant="outline">
-                        {column}
-                    </Chip>
-                ))}
-            </Group>
-        </Chip.Group>
+        />
     );
 }
 

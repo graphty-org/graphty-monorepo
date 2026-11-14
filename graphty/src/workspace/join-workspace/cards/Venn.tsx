@@ -1,9 +1,14 @@
-import type { JoinRegion, JoinReport, JoinStepEntry } from "@graphty/graphty-element/session";
+import {
+    JOIN_REGIONS as REGIONS,
+    type JoinRegion,
+    type JoinReport,
+    type JoinStepEntry,
+} from "@graphty/graphty-element/session";
 import { Badge, Group, Text } from "@mantine/core";
 import React from "react";
 
 import { useJoinWorkspace } from "../context";
-import { REGIONS } from "../keeps";
+import { inputName } from "./outcomes";
 
 /** Each region's color when kept. */
 const REGION_COLORS: Readonly<Record<JoinRegion, string>> = {
@@ -63,6 +68,9 @@ export function Venn({
     from,
 }: Readonly<{ step: JoinStepEntry; report: JoinReport | undefined; from: string }>): React.JSX.Element {
     const api = useJoinWorkspace();
+    // A: the loads the graph holds, by name; B: the card's table.
+    const loads = api.draft.inputs.filter((each) => !each.held && each.key !== step.from);
+    const onto = loads.length === 1 ? inputName(api.draft.inputs, loads[0].key) : "graph";
     const keep = api.keeps.get(step.id) ?? REGIONS;
     const counts = report?.regions?.nodes;
     const toggle = (region: JoinRegion): void => {
@@ -71,9 +79,9 @@ export function Venn({
         api.setKeep(step.id, ordered.length === REGIONS.length ? null : ordered);
     };
     const words: Readonly<Record<JoinRegion, string>> = {
-        "only-onto": "only A",
+        "only-onto": `only ${onto}`,
         both: "both",
-        "only-from": "only B",
+        "only-from": `only ${from}`,
     };
     return (
         <div className="jr-venn">
@@ -115,19 +123,15 @@ export function Venn({
                     </text>
                 ))}
             </svg>
-            <div className="jr-venn-side">
-                <Group gap={4} wrap="nowrap">
-                    <span className="jr-dot" style={{ background: REGION_COLORS["only-onto"] }} />
-                    <Text size="sm" truncate>
-                        A graph
-                    </Text>
-                </Group>
-                <Group gap={4} wrap="nowrap">
-                    <span className="jr-dot" style={{ background: REGION_COLORS["only-from"] }} />
-                    <Text size="sm" truncate>
-                        B {from}
-                    </Text>
-                </Group>
+            <div className="jr-venn-side" role="group" aria-label="Region counts">
+                {REGIONS.map((region) => (
+                    <Group key={region} gap={4} wrap="nowrap" data-region={region}>
+                        <span className="jr-dot" style={{ background: REGION_COLORS[region] }} />
+                        <Text size="sm" truncate>
+                            <b>{counts?.[region] ?? 0}</b> {words[region]}
+                        </Text>
+                    </Group>
+                ))}
                 <Badge size="sm" variant="light" color="violet" className="jr-venn-set">
                     {setName(keep)}
                 </Badge>

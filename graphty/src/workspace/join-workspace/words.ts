@@ -13,13 +13,17 @@ export const JOIN_KEYS = {
     redo: "Shift+Mod+Z",
 } as const;
 
-/** Each element fate's color in the preview, and in the panes that name a fate. */
-export const FATE_COLORS: Readonly<Record<JoinElementFate, string>> = {
-    matched: "#1c7ed6",
-    updated: "#e8590c",
-    added: "#2f9e44",
-    merged: "#7048e8",
-};
+/** Each card's color, by its position: its border and number, and its elements in the preview. */
+export const CARD_COLORS: readonly string[] = [
+    "#9747ff",
+    "#f24822",
+    "#0fa958",
+    "#0d99ff",
+    "#ffa629",
+    "#e8448f",
+    "#14ae5c",
+    "#7a5af8",
+];
 
 /** Rows on one page of the rows table. */
 export const ROWS_PAGE = 50;

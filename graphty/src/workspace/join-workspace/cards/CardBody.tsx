@@ -15,6 +15,7 @@ import {
     isNewKey,
     type Outcome,
     OUTCOME_BY_ID,
+    OUTCOME_SHAPES,
     outcomeOf,
     OUTCOMES,
     pathName,
@@ -52,7 +53,7 @@ function exampleLine(outcome: Outcome, suggestion: JoinSuggestion): string {
  * @returns true when they are the same match.
  */
 function sameKey(a: JoinKey | undefined, b: JoinKey | undefined): boolean {
-    return a !== undefined && b !== undefined && a.file === b.file && a.graph === b.graph;
+    return a !== undefined && b !== undefined && a.file === b.file && a.graph === b.graph && a.onto === b.onto;
 }
 
 /**
@@ -87,7 +88,7 @@ export function CardBody({
     const { guess, examples } = useMemo(
         () => ({
             version,
-            guess: guessOf(draft.suggest(from, step?.id)),
+            guess: guessOf(draft.suggest(from, step?.id, { among: OUTCOME_SHAPES })),
             examples: Object.fromEntries(
                 OUTCOMES.map((each) => [
                     each.value,
@@ -119,8 +120,11 @@ export function CardBody({
                     }}
                 />
             </Row>
+            <Text size="sm" c="dimmed">
+                Each row becomes
+            </Text>
             <Radio.Group
-                label="Each row becomes"
+                aria-label="Each row becomes"
                 size="xs"
                 value={picked}
                 onChange={(value) => {
@@ -139,7 +143,7 @@ export function CardBody({
                             label={
                                 <span className="jc-outcome-label">
                                     {each.label}
-                                    {guess === each.value ? (
+                                    {guess === each.value && step?.joined === undefined ? (
                                         <Badge size="xs" variant="outline" color="gray">
                                             suggested
                                         </Badge>
@@ -179,7 +183,9 @@ function Picked({
         () => ({ version, suggestion: draft.suggest(step.from, step.id, { shape: OUTCOME_BY_ID[answer].shape }) }),
         [draft, version, step, answer],
     );
-    const suggested = (at: number): boolean => sameKey(choices.keys[at], suggestion.keys[at]);
+    // A join reopened after Done was the reader's own choice: nothing on it is a suggestion.
+    const suggested = (at: number): boolean =>
+        step.joined === undefined && sameKey(choices.keys[at], suggestion.keys[at]);
     const setKeys = (keys: readonly JoinKey[]): void => {
         changeStep(api, step, { keys });
     };
@@ -258,7 +264,7 @@ function Picked({
     return (
         <>
             {matches}
-            <Row label="Compare">
+            <Row label="Ignore">
                 <LooseToggles step={step} report={report} />
             </Row>
             <Options step={step} outcome={answer} report={report} />

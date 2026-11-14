@@ -1,5 +1,5 @@
 import { Popout } from "@graphty/compact-mantine";
-import { Button, TextInput } from "@mantine/core";
+import { Button, Text, TextInput } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -15,16 +15,24 @@ export function AddTableButton(): React.JSX.Element {
     const [asking, setAsking] = useState(false);
     const [url, setUrl] = useState("");
     const [loading, setLoading] = useState(false);
+    // Why the last load failed: the element's error code, shown until the next try.
+    const [failed, setFailed] = useState<string | null>(null);
+    const codeOf = (error: unknown): string =>
+        typeof error === "object" && error !== null && "code" in error ? String(error.code) : "error";
     const load = (): void => {
         if (url.trim() === "" || loading) {
             return;
         }
         setLoading(true);
+        setFailed(null);
         void api
             .addTable(url.trim())
             .then(() => {
                 setAsking(false);
                 setUrl("");
+            })
+            .catch((error: unknown) => {
+                setFailed(codeOf(error));
             })
             .finally(() => {
                 setLoading(false);
@@ -57,8 +65,10 @@ export function AddTableButton(): React.JSX.Element {
                                 aria-label="Table URL"
                                 placeholder="https://"
                                 value={url}
+                                error={failed !== null}
                                 onChange={(event) => {
                                     setUrl(event.currentTarget.value);
+                                    setFailed(null);
                                 }}
                             />
                             <Button size="compact-xs" type="submit" loading={loading}>
@@ -75,6 +85,11 @@ export function AddTableButton(): React.JSX.Element {
                                 File...
                             </Button>
                         </form>
+                        {failed === null ? null : (
+                            <Text size="sm" c="red" role="alert" data-error={failed}>
+                                Load failed ({failed})
+                            </Text>
+                        )}
                     </Popout.Content>
                 </Popout.Panel>
             </Popout>
@@ -87,7 +102,11 @@ export function AddTableButton(): React.JSX.Element {
                     const file = event.currentTarget.files?.[0];
                     event.currentTarget.value = "";
                     if (file !== undefined) {
-                        void api.addTable(file);
+                        setFailed(null);
+                        void api.addTable(file).catch((error: unknown) => {
+                            setFailed(codeOf(error));
+                            setAsking(true);
+                        });
                     }
                 }}
             />

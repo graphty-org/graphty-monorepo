@@ -12,6 +12,7 @@ import { AddTableButton } from "../AddTableButton";
 import { type JoinWorkspaceApi, useJoinWorkspace } from "../context";
 import { PreviewPane } from "../PreviewPane";
 import { RowsPane } from "../RowsPane";
+import { CARD_COLORS } from "../words";
 import { CardBody } from "./CardBody";
 import { cardTitle, choicesFor, errorWords, matchLine, type Outcome, outcomeOf, summaryChips } from "./outcomes";
 
@@ -23,9 +24,6 @@ const CARD_KEYS = {
     down: "Mod+]",
     remove: "Delete",
 } as const;
-
-/** Each card's color, by its position: its border and number. */
-const CARD_COLORS = ["#9747ff", "#f24822", "#0fa958", "#0d99ff", "#ffa629", "#e8448f", "#14ae5c", "#7a5af8"];
 
 /** A card whose answer is not picked yet: only the workspace holds it, not the recipe. */
 interface Unpicked {
@@ -64,6 +62,10 @@ export function CardsBody(): React.JSX.Element {
     const { steps } = draft;
     const [unpicked, setUnpicked] = useState<readonly Unpicked[]>([]);
     const serial = useRef(0);
+    // Joins reopened after Done start folded: the reader opens the one to change.
+    const [reopened] = useState<ReadonlySet<string>>(
+        () => new Set(steps.filter((step) => step.joined !== undefined).map((step) => step.id)),
+    );
 
     const addCard = (): void => {
         const read = new Set([...steps.map((step) => step.from), ...unpicked.map((card) => card.from)]);
@@ -106,16 +108,17 @@ export function CardsBody(): React.JSX.Element {
 
     const counts = useMemo(() => {
         const after = draft.preview();
-        const before = steps.length === 0 ? after : draft.preview({ step: steps[0].id, before: true });
+        // The change is over the graph as committed, which reopened joins already hold.
+        const before = api.session.data.count();
         return {
             version,
             nodes: after.nodes.length,
             edges: after.edges.length,
-            moreNodes: after.nodes.length - before.nodes.length,
-            moreEdges: after.edges.length - before.edges.length,
+            moreNodes: after.nodes.length - before.nodes,
+            moreEdges: after.edges.length - before.edges,
             tables: draft.inputs.filter((input) => input.held).length,
         };
-    }, [draft, version, steps]);
+    }, [api.session, draft, version]);
     const errors = steps.filter((step) => draft.outcome(step.id).error !== undefined).length;
     const items: CardListItem[] = [
         ...steps.map((step, at) => stepCard(api, step, at)),
@@ -172,6 +175,7 @@ export function CardsBody(): React.JSX.Element {
                     <CardList
                         label="Joins"
                         items={items}
+                        defaultFolded={reopened}
                         onRemove={(id) => {
                             if (steps.some((step) => step.id === id)) {
                                 api.edit((each) => {
@@ -196,7 +200,7 @@ export function CardsBody(): React.JSX.Element {
                         add={
                             <Button
                                 size="compact-xs"
-                                variant="default"
+                                variant="subtle"
                                 fullWidth
                                 className="jr-add"
                                 disabled={draft.inputs.length === 0}

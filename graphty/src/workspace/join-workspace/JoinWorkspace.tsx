@@ -64,7 +64,8 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
     const box = useRef<HTMLElement>(null);
     // One recipe per opening; the tables it was opened with are held first.
     const [draft] = useState<JoinsDraft>(() => {
-        const made = session.data.prepareJoins();
+        // Every committed join comes back as a card, so a join can be edited or taken back after Done.
+        const made = session.data.prepareJoins({ edit: session.data.joins().map((join) => join.source) });
         held.forEach((table) => made.hold(table));
         return made;
     });

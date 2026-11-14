@@ -6,7 +6,7 @@
 import type { JoinInput } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { cardTitle, guessOf, isNewKey, matchLine, outcomeOf } from "../outcomes";
+import { cardTitle, countOf, guessOf, isNewKey, listOf, matchLine, outcomeOf, perPair } from "../outcomes";
 
 const INPUTS: readonly JoinInput[] = [
     { key: "held:1", name: "door_entries.csv", held: true, columns: ["entry_id", "person_id"], rows: 3 },
@@ -21,11 +21,27 @@ describe("join card answers", () => {
         assert.strictEqual(outcomeOf({ keys: [], shape: "link" }), "links");
     });
 
-    it("tags an edge or fields guess, never one with no key", () => {
+    it("tags any of the four answers as the guess, never one with no key", () => {
         const key = { file: "person_id", graph: "id" };
         assert.strictEqual(guessOf({ shape: "edges", keys: [key, key], confident: true }), "edge");
         assert.strictEqual(guessOf({ shape: "node-values", keys: [key], confident: true }), "fields");
+        assert.strictEqual(guessOf({ shape: "row-nodes", keys: [key, key, key], confident: true }), "node");
+        assert.strictEqual(guessOf({ shape: "link", keys: [key], confident: true }), "links");
         assert.isUndefined(guessOf({ shape: "rows", keys: [], confident: false }));
+    });
+
+    it("words Per pair, List and Count as the element's reductions", () => {
+        assert.deepEqual(perPair([{ file: "person_id", graph: "id" }]), {
+            aggregate: { person_id: "count" },
+            names: { "person_id (count)": "count" },
+        });
+        assert.deepEqual(perPair([]), {});
+        assert.deepEqual(listOf(["phone", "email"]), { phone: "list", email: "list" });
+        assert.deepEqual(countOf("account_id", "logins"), {
+            aggregate: { account_id: "count" },
+            names: { "account_id (count)": "logins count" },
+            columns: [],
+        });
     });
 
     it("titles a card by its table and answer, and lines up its matches", () => {

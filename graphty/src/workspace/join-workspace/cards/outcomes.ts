@@ -10,6 +10,7 @@ import type {
     JoinChoices,
     JoinInput,
     JoinKey,
+    JoinReduce,
     JoinReport,
     JoinRowFate,
     JoinsDraft,
@@ -61,9 +62,13 @@ export function outcomeOf(choices: JoinChoices): Outcome {
     }
 }
 
+/** The shapes a card's answers ask for: what the element's guess chooses among. */
+export const OUTCOME_SHAPES: readonly JoinShape[] = OUTCOMES.map((each) => each.shape);
+
 /**
- * The answer graphty-element's suggestion reads as: the one a card tags "suggested". The element
- * never suggests a node with edges or links, so those are never tagged.
+ * The answer graphty-element's suggestion reads as: the one a card tags "suggested". Ask the
+ * element with `draft.suggest(from, before, { among: OUTCOME_SHAPES })`, so any of the four can be
+ * the guess.
  * @param suggestion - the element's suggestion for the card's table.
  * @returns the answer, or undefined when the suggestion names no key.
  */
@@ -71,10 +76,48 @@ export function guessOf(suggestion: JoinSuggestion): Outcome | undefined {
     if (suggestion.keys.length === 0) {
         return undefined;
     }
-    if (suggestion.shape === "edges") {
-        return "edge";
+    switch (suggestion.shape) {
+        case "edges":
+            return "edge";
+        case "row-nodes":
+            return "node";
+        case "link":
+            return "links";
+        case "node-values":
+        case "merge":
+            return "fields";
+        default:
+            return undefined;
     }
-    return suggestion.shape === "node-values" || suggestion.shape === "merge" ? "fields" : undefined;
+}
+
+/**
+ * An edges card's "Per pair": one edge per pair of ends, carrying how many rows named it.
+ * @param keys - the card's keys; the first is the source end.
+ * @returns the choices that make it.
+ */
+export function perPair(keys: readonly JoinKey[]): Pick<JoinChoices, "aggregate" | "names"> {
+    const first = keys[0]?.file;
+    return first === undefined ? {} : { aggregate: { [first]: "count" }, names: { [`${first} (count)`]: "count" } };
+}
+
+/**
+ * A Fields card's "List": every row's value of each brought column, as a list on every node.
+ * @param columns - the brought columns.
+ * @returns the reductions.
+ */
+export function listOf(columns: readonly string[]): Readonly<Record<string, JoinReduce>> {
+    return Object.fromEntries(columns.map((column) => [column, "list"]));
+}
+
+/**
+ * A Fields card's "Count": how many rows name each node, written as `<table> count`.
+ * @param key - the key column.
+ * @param from - the table's name.
+ * @returns the choices that make it.
+ */
+export function countOf(key: string, from: string): Pick<JoinChoices, "aggregate" | "names" | "columns"> {
+    return { aggregate: { [key]: "count" }, names: { [`${key} (count)`]: `${from} count` }, columns: [] };
 }
 
 /**
@@ -101,8 +144,10 @@ export function choicesFor(outcome: Outcome, draft: JoinsDraft, from: string, be
     const { shape } = OUTCOME_BY_ID[outcome];
     const suggestion = draft.suggest(from, before, { shape });
     switch (outcome) {
-        case "edge":
-            return { shape, keys: suggestion.keys.slice(0, 2) };
+        case "edge": {
+            const keys = suggestion.keys.slice(0, 2);
+            return { shape, keys, ...perPair(keys) };
+        }
         case "node":
             return {
                 shape,

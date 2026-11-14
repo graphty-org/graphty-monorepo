@@ -1,11 +1,11 @@
 import type { JoinChoices, JoinReport, JoinStepEntry } from "@graphty/graphty-element/session";
-import { NumberInput, Select } from "@mantine/core";
+import { Select } from "@mantine/core";
 import React from "react";
 
 import { useJoinWorkspace } from "../context";
 import { changeStep, type ChoicesPatch } from "./choices";
-import { ColumnChips, CommitInput, Row, Seg } from "./controls";
-import type { Outcome } from "./outcomes";
+import { ColumnChips, CommitInput, CommitNumber, Row, Seg } from "./controls";
+import { countOf, inputName, listOf, type Outcome, perPair } from "./outcomes";
 
 /** Several rows naming one node: the first row's values, a list of every row's, or a count. */
 type ManyRows = "first" | "list" | "count";
@@ -16,10 +16,11 @@ type ManyRows = "first" | "list" | "count";
  * @returns the choice.
  */
 function manyRowsOf(choices: JoinChoices): ManyRows {
-    if (choices.aggregate !== undefined) {
+    const rules = Object.values(choices.aggregate ?? {});
+    if (rules.includes("count")) {
         return "count";
     }
-    return choices.repeated === "both" ? "list" : "first";
+    return rules.length > 0 || choices.repeated === "both" ? "list" : "first";
 }
 
 /** The clash rules a Fields card offers, by the element's rule. */
@@ -50,6 +51,7 @@ export function Options({
     const columns = api.draft.inputs.find((each) => each.key === step.from)?.columns ?? [];
     const keyFiles = new Set(choices.keys.map((key) => key.file));
     const offered = columns.filter((column) => !keyFiles.has(column) && column !== choices.rowNode?.id);
+    const listing = outcome === "fields" && manyRowsOf(choices) === "list";
     const bring = (
         <Row key="bring" label="Bring">
             <ColumnChips
@@ -57,7 +59,11 @@ export function Options({
                 columns={offered}
                 chosen={choices.columns ?? offered}
                 onChange={(chosen) => {
-                    set({ columns: chosen.length === offered.length ? undefined : chosen });
+                    // A list is one reduction per brought column, so it follows Bring.
+                    set({
+                        columns: chosen.length === offered.length ? undefined : chosen,
+                        ...(listing ? { aggregate: listOf(chosen) } : {}),
+                    });
                 }}
             />
         </Row>
@@ -88,7 +94,11 @@ export function Options({
                             { value: "row", label: "Per row" },
                         ]}
                         onChange={(value) => {
-                            set({ repeated: value === "row" ? "both" : undefined });
+                            set(
+                                value === "row"
+                                    ? { repeated: "both", aggregate: undefined, names: undefined }
+                                    : { repeated: undefined, ...perPair(choices.keys) },
+                            );
                         }}
                     />
                 </Row>
@@ -173,30 +183,22 @@ export function Options({
                     />
                 </Row>
                 <Row label="Hub cap">
-                    <NumberInput
-                        size="xs"
-                        w={72}
-                        aria-label="Hub cap"
+                    <CommitNumber
+                        label="Hub cap"
                         min={2}
                         value={link.maxShared ?? 10}
-                        onChange={(value) => {
-                            if (typeof value === "number") {
-                                set({ link: { ...link, maxShared: value } });
-                            }
+                        onCommit={(value) => {
+                            set({ link: { ...link, maxShared: value } });
                         }}
                     />
                 </Row>
                 <Row label="At least">
-                    <NumberInput
-                        size="xs"
-                        w={72}
-                        aria-label="At least"
+                    <CommitNumber
+                        label="At least"
                         min={1}
                         value={link.minShared ?? 1}
-                        onChange={(value) => {
-                            if (typeof value === "number") {
-                                set({ link: { ...link, minShared: value } });
-                            }
+                        onCommit={(value) => {
+                            set({ link: { ...link, minShared: value } });
                         }}
                     />
                 </Row>
@@ -251,11 +253,12 @@ export function Options({
                     ]}
                     onChange={(value) => {
                         if (value === "count" && key !== undefined) {
-                            set({ repeated: undefined, aggregate: { [key]: "count" }, columns: [] });
+                            set({ repeated: undefined, ...countOf(key, inputName(api.draft.inputs, step.from)) });
                         } else {
                             set({
-                                repeated: value === "list" ? "both" : undefined,
-                                aggregate: undefined,
+                                repeated: undefined,
+                                aggregate: value === "list" ? listOf(offered) : undefined,
+                                names: undefined,
                                 columns: undefined,
                             });
                         }
@@ -273,21 +276,19 @@ export function Options({
                     }}
                 />
             </Row>
-            {choices.compare === true
-                ? null
-                : (report?.clashes ?? []).map(({ column }) => (
-                      <Row key={`clash-${column}`} label={column}>
-                          <Seg
-                              label={`Clash ${column}`}
-                              value={choices.clash?.[column] ?? "both"}
-                              data={CLASH_RULES}
-                              onChange={(value) => {
-                                  const rule = CLASH_RULES.find((each) => each.value === value)?.value ?? "both";
-                                  set({ clash: { ...choices.clash, [column]: rule } });
-                              }}
-                          />
-                      </Row>
-                  ))}
+            {(report?.clashes ?? []).map(({ column }) => (
+                <Row key={`clash-${column}`} label={column}>
+                    <Seg
+                        label={`Clash ${column}`}
+                        value={choices.clash?.[column] ?? "both"}
+                        data={CLASH_RULES}
+                        onChange={(value) => {
+                            const rule = CLASH_RULES.find((each) => each.value === value)?.value ?? "both";
+                            set({ clash: { ...choices.clash, [column]: rule } });
+                        }}
+                    />
+                </Row>
+            ))}
         </>
     );
 }

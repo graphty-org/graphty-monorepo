@@ -77,10 +77,6 @@
     color: var(--cm-text-disabled, var(--mantine-color-dimmed));
 }
 
-.jr-add {
-    border-style: dashed;
-}
-
 .jr-venn {
     display: flex;
     align-items: center;
@@ -158,13 +154,20 @@
     flex-wrap: wrap;
 }
 
+/* A picker option on one line, as tall as every listbox row: name, count, then a few values. */
 .jc-option {
     display: flex;
-    flex-direction: column;
-    gap: 1px;
+    align-items: center;
+    gap: 4px;
     min-width: 0;
+    flex: 1;
+}
+
+.jc-option-name {
+    flex: none;
 }
 
 .jc-option-samples {
-    font-family: var(--mantine-font-family-monospace);
+    flex: 1;
+    min-width: 0;
 }

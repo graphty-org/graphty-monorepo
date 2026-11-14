@@ -1,13 +1,10 @@
 /**
  * The regions a compare step keeps (the Venn's regions a reader switched off), as the filter rule
- * graphty-element reads: a `categories` leaf on the step's membership column. The element writes
- * the membership and filters by it; the workspace only names the regions to keep.
+ * graphty-element gives for them (`joinRegionRule`). The element writes the membership, names the
+ * rule and filters by it; the workspace only names the regions to keep.
  */
 
-import type { JoinRegion, JoinStepEntry, RuleTree } from "@graphty/graphty-element/session";
-
-/** Every region a compare step writes. */
-export const REGIONS: readonly JoinRegion[] = ["only-onto", "both", "only-from"];
+import { type JoinRegion, joinRegionRule, type JoinStepEntry, type RuleTree } from "@graphty/graphty-element/session";
 
 /**
  * The filter rule keeping only the chosen regions of the given compare steps.
@@ -21,18 +18,8 @@ export function keepRule(
 ): RuleTree | null {
     const leaves = steps.flatMap((step): RuleTree[] => {
         const keep = keeps.get(step.id);
-        if (step.choices.compare !== true || keep === undefined || keep.length === REGIONS.length) {
-            return [];
-        }
-        return [
-            {
-                kind: "categories",
-                attribute: `data.${step.choices.membership ?? "membership"}`,
-                values: keep,
-                // A node the comparison never saw (a later step made it) is not hidden by it.
-                missing: "include",
-            },
-        ];
+        const rule = keep === undefined ? null : joinRegionRule(step.choices, keep);
+        return rule === null ? [] : [rule];
     });
     if (leaves.length === 0) {
         return null;

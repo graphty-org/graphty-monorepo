@@ -174,6 +174,10 @@ describe("Filter cards on the real element", () => {
         await addValueCard(session);
         // At rest: while a card's workspace is open the other cards drop their counts (ws-polish 2).
         await userEvent.click(within(await workspace()).getByRole("button", { name: "Done" }));
+        // Done closes the workspace once graphty-element has painted the result, not in the click.
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+        });
         await session.visibility.addCondition({
             effect: "keep",
             rule: { kind: "text", reads: "data.label", mode: "substring", text: "e" },

@@ -11,7 +11,7 @@ import isEqual from "lodash/isEqual.js";
 import type { Rgba } from "../catalog/types";
 import { drawnText } from "../config/RichTextStyle";
 import { RowMap } from "../data/RowMap";
-import { batchableOf, type BatchView, type NodePaint, shaderPartOf } from "../managers/StylePainter";
+import { batchableOf, type BatchView, isPlainPaint, type NodePaint, shaderPartOf } from "../managers/StylePainter";
 import type { Node } from "../Node";
 import type { RowMeasure } from "../render/RowTable";
 import { batchUploadFrames } from "./FrameRoster";
@@ -485,6 +485,9 @@ function drawSpan(first: Mesh, sources: Mesh[]): [Mesh, Mesh] {
     return [low, high];
 }
 
+/** A view in which nothing keeps a row out of a batch: what a plain paint is drawn in. */
+const UNLIT_VIEW: BatchView = { flatOutline: false };
+
 /** The shapes a row can be round from every side as, as `Node` keeps them. */
 const ROUND_TYPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 
@@ -541,7 +544,9 @@ export class ColumnRow implements RowMeasure {
             shape?.model === undefined &&
             (texture?.image ?? "") === "" &&
             drawnText(label) === undefined &&
-            batchableOf(paint, view)
+            // A plain paint is the fallback past an object budget: under 3D flat lighting, which batches nothing
+            // else, it is still drawn by a batch, without the outline only a `Node` draws.
+            batchableOf(paint, isPlainPaint(paint) ? UNLIT_VIEW : view)
         );
     }
 
@@ -706,6 +711,8 @@ export interface NodeBatchHost {
     meshesChanged(): void;
     /** A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by. */
     resized?(): void;
+    /** Rows drawn with no `Node` that a new view no longer batches: each is to be painted again. */
+    repaint?(rows: readonly number[]): void;
 }
 
 /** Decides which rows are batched and keeps the batches up to date, once a frame. */
@@ -720,6 +727,8 @@ export class NodeBatches {
      */
     private readonly nodeGroups = new Map<Node, RowGroup>();
     private readonly objectRows = new Set<BatchRow>();
+    /** Of the rows drawn with no `Node`, those drawn from a plain paint ({@link plainRowCount}). */
+    private plainRows = 0;
     /** The rows drawn with no `Node`, by row: an array slot each, not a Map entry (G11). */
     private readonly columnRows = new RowMap<ColumnRow>();
 
@@ -1030,6 +1039,7 @@ export class NodeBatches {
         );
         const row = new ColumnRow(index, paint, source, sourcePaint);
         this.columnRows.set(index, row);
+        this.plainRows += isPlainPaint(paint) ? 1 : 0;
         this.paintedBehindEdges ||= (paint.style.shape?.zIndex ?? 0) < 0;
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);
@@ -1050,6 +1060,7 @@ export class NodeBatches {
         const row = this.columnRows.get(index);
         if (row !== undefined) {
             this.columnRows.delete(index);
+            this.plainRows -= isPlainPaint(row.paint) ? 1 : 0;
             this.leave(row);
         }
     }
@@ -1081,6 +1092,34 @@ export class NodeBatches {
     }
 
     /**
+     * How many rows are drawn from a plain paint, past `limits.objectRows` (`plainNodePaint`).
+     * @returns The count.
+     */
+    get plainRowCount(): number {
+        return this.plainRows;
+    }
+
+    /**
+     * The rows drawn from a plain paint, past `limits.objectRows` (`plainNodePaint`).
+     * @param labelledOnly - Only those whose own paint draws a label.
+     * @returns Their row numbers.
+     */
+    plainRowIndices(labelledOnly = false): number[] {
+        const rows: number[] = [];
+        if (this.plainRows === 0) {
+            return rows;
+        }
+
+        for (const [index, { paint }] of this.columnRows) {
+            if (isPlainPaint(paint) && (!labelledOnly || paint.labelled === true)) {
+                rows.push(index);
+            }
+        }
+
+        return rows;
+    }
+
+    /**
      * A freeze moved rows: every batch refills, and each row drawn with no `Node` takes its new row
      * number, or goes when the freeze dropped it.
      * @param remap - The freeze's node remap: old row to new, INVALID_INDEX for a dropped row;
@@ -1095,6 +1134,7 @@ export class NodeBatches {
         for (const row of rows) {
             const moved = remap?.[row.index] ?? INVALID_INDEX;
             if (moved === INVALID_INDEX) {
+                this.plainRows -= isPlainPaint(row.paint) ? 1 : 0;
                 this.leave(row);
             } else {
                 row.index = moved;
@@ -1213,13 +1253,20 @@ export class NodeBatches {
             this.sync(node);
         }
 
-        // ponytail: a view that no longer batches a row drops it; the next paint asks for a `Node`.
+        // A view that no longer batches a row drops it, and its paint again gets it a `Node`, or a plain
+        // paint past `limits.objectRows`: dropped and not painted, it drew nothing.
+        const dropped: number[] = [];
         for (const row of [...this.columnRows.values()]) {
             if (!row.batchableIn(this.view)) {
                 this.unpaintRow(row.index);
+                dropped.push(row.index);
             } else {
                 this.sync(row);
             }
+        }
+
+        if (dropped.length > 0) {
+            this.host.repaint?.(dropped);
         }
     }
 
@@ -1450,6 +1497,7 @@ export class NodeBatches {
             if (node instanceof ColumnRow) {
                 // ponytail: its source is gone, so the row draws nothing until it is painted again.
                 this.columnRows.delete(node.index);
+                this.plainRows -= isPlainPaint(node.paint) ? 1 : 0;
             } else {
                 this.nodeGroups.delete(node);
             }

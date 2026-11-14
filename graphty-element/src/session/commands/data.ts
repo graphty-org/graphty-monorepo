@@ -718,6 +718,55 @@ export function replaceNodesCommand(
     };
 }
 
+/** The keys a moved edge record names its endpoints by, as `add-edges` reads them. */
+export interface MovedEndpoints {
+    readonly source: string;
+    readonly target: string;
+}
+
+/**
+ * The step merging nodes into one: the kept node takes the chosen values, every edge of a merged
+ * node is added again with that end on the kept node, and the merged nodes are removed with
+ * their own edges. Undo takes back all three as one step.
+ * @param kept - The node the others merge into.
+ * @param values - The values the kept node takes; none when it keeps its record as it is.
+ * @param merged - The nodes merged away.
+ * @param moved - Their edges' records, with each end already on the kept node.
+ * @param endpoints - The keys `moved` names its ends by.
+ * @returns The command.
+ */
+export function mergeNodesCommand(
+    kept: NodeId,
+    values: Readonly<Record<string, unknown>> | undefined,
+    merged: readonly NodeId[],
+    moved: readonly RecordInput[],
+    endpoints: MovedEndpoints,
+): BatchCommand {
+    const steps: DataApplyCommand[] = [];
+    if (values !== undefined && Object.keys(values).length > 0) {
+        steps.push({
+            op: "data.apply",
+            mutation: { kind: "update-rows", target: "node", rows: [{ id: kept, values }] },
+        });
+    }
+
+    steps.push({ op: "data.apply", mutation: { kind: "remove-nodes", ids: [...merged] } });
+    if (moved.length > 0) {
+        steps.push({
+            op: "data.apply",
+            mutation: { kind: "add-edges", records: moved, source: endpoints.source, target: endpoints.target },
+        });
+    }
+
+    const count = merged.length + 1;
+    return {
+        op: "batch",
+        label: `Merged ${String(count)} nodes`,
+        fact: { code: "data.merge-nodes", params: { count } },
+        steps,
+    };
+}
+
 /** Above this many rows a command holds the whole `graph` slice instead of each id. */
 const MAX_HELD_IDS = 1024;
 

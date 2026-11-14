@@ -1,9 +1,7 @@
-import { GraphtyLogger, type Logger } from "../logging";
+import type { Graph } from "../Graph.js";
 import { captureError } from "../screenshot/captureError.js";
 import { VIDEO_CONSTANTS } from "../screenshot/constants.js";
-import type { AnimationOptions, AnimationResult } from "./VideoCapture.js";
-
-const logger: Logger = GraphtyLogger.getLogger(["graphty", "video", "recorder"]);
+import { type AnimationOptions, type AnimationResult, calculateDropRate } from "./VideoCapture.js";
 
 /**
  * Error thrown when animation capture is cancelled by the user
@@ -19,15 +17,9 @@ export class AnimationCancelledError extends Error {
 }
 
 /**
- * Configuration options for MediaRecorderCapture
+ * Calls `onFrame` after every frame the graph draws, until the returned function is called.
  */
-interface MediaRecorderCaptureConfig {
-    /**
-     * Enable debug logging for codec detection and capture process.
-     * @default false
-     */
-    debug?: boolean;
-}
+export type FrameSource = (onFrame: () => void) => () => void;
 
 /**
  * MediaRecorder wrapper with codec detection, Safari support, and cancellation handling.
@@ -60,26 +52,13 @@ export class MediaRecorderCapture {
     private isCancelled = false;
     /** Stored reject callback for cancellation - cleared after use */
     private cancelReject: ((error: Error) => void) | null = null;
-    /** Debug logging enabled */
-    private readonly debug: boolean;
 
     /**
      * Creates a new MediaRecorderCapture instance
-     * @param config - Configuration options for the recorder
+     * @param frames - The frames the graph draws: each is copied to a resized recording and counted.
      */
-    constructor(config: MediaRecorderCaptureConfig = {}) {
-        this.debug = config.debug ?? false;
-    }
+    constructor(private readonly frames: FrameSource) {}
 
-    /**
-     * Log a debug message if debug mode is enabled
-     * @param message - The message to log
-     */
-    private log(message: string): void {
-        if (this.debug) {
-            logger.debug(message);
-        }
-    }
     /**
      * Detects browser and returns best supported codec
      *
@@ -95,18 +74,9 @@ export class MediaRecorderCapture {
      * @returns MIME type string for the selected codec
      */
     private getSupportedCodec(requestedFormat?: "webm" | "mp4" | "auto"): string {
-        // Debug: Log codec support detection
-        this.log("[MediaRecorder] Codec Detection:");
-        this.log(`  - Requested format: ${requestedFormat ?? "auto"}`);
-        this.log(`  - VP9 support: ${MediaRecorder.isTypeSupported("video/webm;codecs=vp9")}`);
-        this.log(`  - VP8 support: ${MediaRecorder.isTypeSupported("video/webm;codecs=vp8")}`);
-        this.log(`  - MP4 support: ${MediaRecorder.isTypeSupported("video/mp4")}`);
-        this.log(`  - WebM (no codec) support: ${MediaRecorder.isTypeSupported("video/webm")}`);
-
         // If user explicitly requested a format, try that first
         if (requestedFormat === "mp4") {
             if (MediaRecorder.isTypeSupported("video/mp4")) {
-                this.log("  → Selected: video/mp4 (user requested)");
                 return "video/mp4";
             }
 
@@ -118,12 +88,10 @@ export class MediaRecorderCapture {
 
         if (requestedFormat === "webm") {
             if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
-                this.log("  → Selected: video/webm;codecs=vp9 (user requested WebM)");
                 return "video/webm;codecs=vp9";
             }
 
             if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8")) {
-                this.log("  → Selected: video/webm;codecs=vp8 (user requested WebM)");
                 return "video/webm;codecs=vp8";
             }
 
@@ -136,24 +104,20 @@ export class MediaRecorderCapture {
         // Auto-detect best format (default)
         // Try WebM first (better compression, open format)
         if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
-            this.log("  → Selected: video/webm;codecs=vp9 (auto - best quality)");
             return "video/webm;codecs=vp9";
         }
 
         if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8")) {
-            this.log("  → Selected: video/webm;codecs=vp8 (auto - fallback)");
             return "video/webm;codecs=vp8";
         }
 
         // Fall back to MP4 for Safari
         if (MediaRecorder.isTypeSupported("video/mp4")) {
-            this.log("  → Selected: video/mp4 (auto - Safari fallback)");
             return "video/mp4";
         }
 
         // Try without codec specification (browser will choose)
         if (MediaRecorder.isTypeSupported("video/webm")) {
-            this.log("  → Selected: video/webm (auto - no codec specified)");
             return "video/webm";
         }
 
@@ -166,7 +130,8 @@ export class MediaRecorderCapture {
 
     /**
      * Captures video in realtime using MediaRecorder API.
-     * Streams canvas frames directly to a video blob as the animation plays.
+     * Streams canvas frames to a video blob as the animation plays -- the canvas itself, or a copy
+     * at the size asked for -- and counts the frames the graph draws while it records.
      * @param canvas - The HTML canvas element to capture
      * @param options - Animation capture options
      * @param onProgress - Optional callback for progress updates (0-100)
@@ -183,11 +148,22 @@ export class MediaRecorderCapture {
 
         const codec = this.getSupportedCodec(options.format);
         const fps = options.fps ?? VIDEO_CONSTANTS.DEFAULT_FPS;
-        const width = options.width ?? canvas.width;
-        const height = options.height ?? canvas.height;
-
-        // Get canvas stream
-        const stream = canvas.captureStream(fps);
+        const output = outputCanvas(canvas, options);
+        const context = output === canvas ? null : output.getContext("2d");
+        const { width, height } = output;
+        // Fitted inside the output with the canvas's aspect, centered; the margins left are black.
+        const scale = Math.min(width / canvas.width, height / canvas.height);
+        const drawWidth = canvas.width * scale;
+        const drawHeight = canvas.height * scale;
+        const left = (width - drawWidth) / 2;
+        const top = (height - drawHeight) / 2;
+        if (context) {
+            context.fillStyle = "#000";
+            context.fillRect(0, 0, width, height);
+        }
+        const stream = output.captureStream(fps);
+        const expectedFrames = Math.floor((options.duration / 1000) * fps);
+        const counter = frameCounter(fps, expectedFrames);
 
         // Create MediaRecorder
         const recorderOptions: MediaRecorderOptions = {
@@ -216,6 +192,11 @@ export class MediaRecorderCapture {
                 return;
             }
 
+            const stopFrames = this.frames(() => {
+                // Copied in the same task the graph drew in, while the drawing buffer still holds it.
+                context?.drawImage(canvas, left, top, drawWidth, drawHeight);
+                counter.frame();
+            });
             let progressInterval: ReturnType<typeof setInterval> | undefined;
             let durationTimer: ReturnType<typeof setTimeout> | undefined;
             let started = false;
@@ -226,6 +207,7 @@ export class MediaRecorderCapture {
                 clearInterval(progressInterval);
                 clearTimeout(durationTimer);
                 clearTimeout(startTimer);
+                stopFrames();
                 stream.getTracks().forEach((track) => {
                     track.stop();
                 });
@@ -244,6 +226,7 @@ export class MediaRecorderCapture {
                 clearTimeout(startTimer);
 
                 const startTime = Date.now();
+                counter.start();
                 progressInterval = setInterval(() => {
                     // Stop progress tracking if cancelled
                     if (this.isCancelled) {
@@ -288,8 +271,6 @@ export class MediaRecorderCapture {
                 }
 
                 const blob = new Blob(chunks, { type: recorder.mimeType });
-                const expectedFrames = Math.floor((options.duration / 1000) * fps);
-
                 // Determine format from MIME type
                 // Safari/iOS sometimes returns empty blob.type, so we fall back to requested codec
                 const actualMimeType = blob.type || codec; // Use requested codec if blob.type is empty
@@ -299,15 +280,7 @@ export class MediaRecorderCapture {
                         ? "mp4"
                         : "webm";
 
-                // Debug logging for format detection
-                this.log(
-                    `[MediaRecorder] Codec requested: ${codec}, Blob MIME type: "${blob.type}", Detected format: ${format}`,
-                );
-
-                // We can't accurately count frames with MediaRecorder in realtime mode
-                // So we assume all frames were captured unless we detect issues
-                const framesCaptured = expectedFrames;
-                const framesDropped = 0;
+                const { framesCaptured } = counter;
 
                 resolve({
                     blob,
@@ -318,8 +291,8 @@ export class MediaRecorderCapture {
                         width,
                         height,
                         framesCaptured,
-                        framesDropped,
-                        dropRate: 0,
+                        framesDropped: expectedFrames - framesCaptured,
+                        dropRate: calculateDropRate(framesCaptured, expectedFrames),
                     },
                 });
             };
@@ -408,4 +381,98 @@ export class MediaRecorderCapture {
     getMimeType(format?: "webm" | "mp4" | "auto"): string {
         return this.getSupportedCodec(format);
     }
+}
+
+/**
+ * The canvas a recording takes its frames from: the graph's own, or a copy at the size asked for.
+ * One side given keeps the canvas's aspect; both given fit the picture inside them.
+ * @param canvas - The graph's canvas.
+ * @param options - The capture's options.
+ * @returns The canvas to record.
+ */
+function outputCanvas(canvas: HTMLCanvasElement, options: AnimationOptions): HTMLCanvasElement {
+    const width = Math.round(options.width ?? (options.height ?? canvas.height) * (canvas.width / canvas.height));
+    const height = Math.round(options.height ?? width * (canvas.height / canvas.width));
+    if (width === canvas.width && height === canvas.height) {
+        return canvas;
+    }
+    const output = document.createElement("canvas");
+    output.width = width;
+    output.height = height;
+    return output;
+}
+
+/**
+ * Counts the frames a recording receives: of the frames the graph draws after `start()`, at most
+ * one in each 1/fps slot, and no more than the recording expects. Slots are centered on the first
+ * frame counted, so a graph drawing at the recording's own rate is not counted as dropping frames
+ * for a millisecond's jitter.
+ * @param fps - The recording's frame rate.
+ * @param expectedFrames - The frames the recording expects.
+ * @returns The counter.
+ */
+function frameCounter(
+    fps: number,
+    expectedFrames: number,
+): { start: () => void; frame: () => void; readonly framesCaptured: number } {
+    const interval = 1000 / fps;
+    let started = false;
+    let origin: number | undefined;
+    let lastSlot = -1;
+    let framesCaptured = 0;
+    return {
+        start: () => {
+            started = true;
+        },
+        frame: () => {
+            if (!started) {
+                return;
+            }
+            const now = performance.now();
+            origin ??= now;
+            const slot = Math.round((now - origin) / interval);
+            if (slot !== lastSlot && slot < expectedFrames) {
+                lastSlot = slot;
+                framesCaptured++;
+            }
+        },
+        get framesCaptured() {
+            return framesCaptured;
+        },
+    };
+}
+
+/**
+ * Stand the camera where a stationary recording asked, with zoom-to-fit held off, until the
+ * returned function puts it back. The camera is there for the recording, not placed by the reader,
+ * so the element's own framing goes on as before afterwards.
+ * @param graph - The graph being recorded.
+ * @param camera - The camera state or named view to record from.
+ * @returns Puts the camera, its placement and zoom-to-fit back.
+ */
+export async function holdCameraForCapture(
+    graph: Graph,
+    camera: NonNullable<AnimationOptions["camera"]>,
+): Promise<() => Promise<void>> {
+    const updateManager = graph.getUpdateManager();
+    const zoomToFitWasEnabled = updateManager.isZoomToFitEnabled();
+    if (zoomToFitWasEnabled) {
+        updateManager.disableZoomToFit();
+    }
+    const original = graph.getCameraState();
+    const restorePlacement = graph.saveCameraPlacement();
+    const restore = async (): Promise<void> => {
+        await graph.setCameraState(original);
+        restorePlacement();
+        if (zoomToFitWasEnabled) {
+            updateManager.enableZoomToFit();
+        }
+    };
+    try {
+        await graph.setCameraState(camera);
+    } catch (error: unknown) {
+        await restore();
+        throw error;
+    }
+    return restore;
 }

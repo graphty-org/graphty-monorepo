@@ -247,6 +247,28 @@ export class OrbitCameraController {
     }
 
     /**
+     * Slide the view across the screen by a drag of some CSS pixels: the pivot moves in the plane
+     * through it that faces the camera, so a point on that plane stays under the pointer. Any
+     * point the view turns about moves with it.
+     * @param dx - Pixels the pointer moved right.
+     * @param dy - Pixels the pointer moved down.
+     */
+    public pan(dx: number, dy: number): void {
+        const { tanY } = this.#halfFovTangents();
+        const perPixel = (2 * tanY * this.cameraDistance) / Math.max(1, this.#canvas.clientHeight);
+        const slide = new Vector3(-dx * perPixel, dy * perPixel, 0);
+        const world = Vector3.TransformNormal(slide, this.pivot.computeWorldMatrix(true));
+        this.pivot.position.addInPlace(world);
+        const { center } = this.pivotController;
+        if (center !== null) {
+            this.pivotController.center = center.add(world);
+        }
+        this.pivot.computeWorldMatrix(true);
+        this.updateCameraPosition();
+        this.onReaderMove?.();
+    }
+
+    /**
      * Zoom by a factor of the current distance, within the same limits as `zoom`. Over a globe the
      * factor scales the camera's height above its surface instead; see {@link zoomDelta}.
      * @param factor - The distance multiplier (< 1 zooms in, > 1 zooms out)

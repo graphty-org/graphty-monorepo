@@ -62,6 +62,19 @@ exit "\${FAKE_REVIEW_RC:-0}"
 );
 chmodSync(review, 0o755);
 
+// Where the runs log their times (tools/step-log.mjs).
+const stepLog = join(dir, "steps.jsonl");
+const steps = () => {
+    try {
+        return readFileSync(stepLog, "utf8")
+            .trim()
+            .split("\n")
+            .map((l) => JSON.parse(l));
+    } catch {
+        return [];
+    }
+};
+
 // Setup git runs isolated and unsigned; the script under test gets the fake HOME and PATH, plus a
 // session override it must drop.
 const setupEnv = isolatedGitEnv({ ...process.env, GIT_CONFIG_COUNT: "0" });
@@ -108,6 +121,7 @@ const run = (args = ["--proof", proof], extra = {}) => {
         GIT_CONFIG_KEY_0: "user.name",
         GIT_CONFIG_VALUE_0: "the-owner",
         GH_TOKEN: "owner-token-must-not-be-used",
+        PIPELINE_STEP_LOG: stepLog,
         ...extra,
     };
     for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_CONFIG_GLOBAL", "GH_CONFIG_DIR"]) delete env[k];
@@ -151,6 +165,29 @@ describe("pr-open.sh", () => {
         assert.match(body, /^- fix\(tools\): a fix$/m);
         assert.match(body, /^Fixes #1234$/m);
         assert.match(body, /^## Proof\n\nnode tools\/x\.test\.mjs: 3 pass$/m);
+    });
+
+    it("logs the whole run's time and the review's, with their exit codes, to the step log", () => {
+        branch("fix/1242-times");
+        rmSync(stepLog, { force: true });
+        assert.equal(run(["--proof", proof], { FAKE_REVIEW_RC: "3" }).code, 3);
+        assert.deepEqual(
+            steps().map((s) => [s.kind, s.exit]),
+            [
+                ["pr-open-review", 3],
+                ["pr-open", 3],
+            ],
+        );
+        rmSync(stepLog, { force: true });
+        assert.equal(run().code, 0);
+        assert.deepEqual(
+            steps().map((s) => [s.kind, s.exit]),
+            [
+                ["pr-open-review", 0],
+                ["pr-open", 0],
+            ],
+        );
+        for (const s of steps()) assert.ok(Number.isInteger(s.ms) && s.ms >= 0, JSON.stringify(s));
     });
 
     it("drops a Proof file's own Proof heading and keeps its other headings inside the Proof section", () => {

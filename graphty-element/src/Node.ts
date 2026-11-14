@@ -36,6 +36,7 @@ import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
 import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
+import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { labelFitExtent } from "./meshes/labelFit";
@@ -736,6 +737,9 @@ export class Node implements ModelUser {
     /** The cache key of the halo's source mesh, so a node that changes shape rebuilds its halo. */
     private haloKey: string | null = null;
 
+    /** How far toward the camera the halo is moved from the node: a 2D halo's lift over the edges. */
+    private haloLift = 0;
+
     /**
      * Which shader path draws this node's surface or sprite (design/rendering/shader-styles.md
      * section 5), or null while it is drawn plainly. Part of its source mesh's key: an impostor or
@@ -1241,8 +1245,19 @@ export class Node implements ModelUser {
             return;
         }
 
-        this.context.getStatsManager().startMeasurement("Node.update");
+        const stats = this.context.getStatsManager();
+        stats.startMeasurement("Node.update");
+        try {
+            this.followLayout();
+        } finally {
+            stats.endMeasurement("Node.update");
+        }
+    }
 
+    /**
+     * Place the node where the layout says, or follow a drag: the measured part of `update`.
+     */
+    private followLayout(): void {
         // Check if mesh was disposed (e.g., from 2D/3D mode switch) and recreate it.
         if (this.#anchor.isDisposed()) {
             this.updateStyle();
@@ -1250,7 +1265,6 @@ export class Node implements ModelUser {
 
         if (this.dragging) {
             this.syncOverlayPositions();
-            this.context.getStatsManager().endMeasurement("Node.update");
             return;
         }
 
@@ -1276,8 +1290,6 @@ export class Node implements ModelUser {
 
         this.syncXlabelPlace();
         this.syncOverlayPositions();
-
-        this.context.getStatsManager().endMeasurement("Node.update");
     }
 
     /**
@@ -2847,7 +2859,22 @@ export class Node implements ModelUser {
      * @param color - The per-instance colour.
      */
     private drawPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
-        this.context.getStatsManager().startMeasurement("Node.updateMesh");
+        const stats = this.context.getStatsManager();
+        stats.startMeasurement("Node.updateMesh");
+        try {
+            this.drawShadedPaint(paintKey, paintStyle, color);
+        } finally {
+            stats.endMeasurement("Node.updateMesh");
+        }
+    }
+
+    /**
+     * The measured part of `drawPaint`.
+     * @param paintKey - Which source mesh the paint draws from.
+     * @param paintStyle - The resolved style.
+     * @param color - The per-instance colour.
+     */
+    private drawShadedPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
         const shaded = this.shadedPaint(paintKey, paintStyle);
         const { meshKey, style: o } = shaded;
         this.shaderPath = shaded.path;
@@ -2888,13 +2915,11 @@ export class Node implements ModelUser {
             this.syncLabel(o, false);
             this.syncTooltip(o);
             this.syncHalo();
-            this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }
 
         if (this.movesFor(meshKey, o)) {
             this.moveTo(meshKey, o, color);
-            this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }
 
@@ -3029,8 +3054,6 @@ export class Node implements ModelUser {
         // drops its halo, and repaints it in its source mesh's own colour.
         this.applyRenderState();
         this.applyInstancePaint(o, color);
-
-        this.context.getStatsManager().endMeasurement("Node.updateMesh");
     }
 
     /**
@@ -3363,13 +3386,13 @@ export class Node implements ModelUser {
             // moves out by the configured multiplier, so a box gets a box, a cylinder a
             // cylinder, and a node drawn wider than tall a halo wider than tall.
             overlay.scaling.copyFrom(this.#anchor.scaling).scaleInPlace(selection.scale);
+            this.haloLift = flatHaloLift(overlay, this.#anchor.scaling.z);
         } else {
             this.contextPoint = overlay;
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
         }
 
-        this.followRow();
-        overlay.position.copyFrom(this.#anchor.position);
+        this.syncOverlayPositions();
         overlay.setEnabled(true);
         this.context.getNodeBatches?.()?.rewalk(this);
     }
@@ -3685,9 +3708,10 @@ export class Node implements ModelUser {
         const color = kind === "halo" ? selection.color : CONTEXT_POINT_COLOR;
         const alpha = kind === "halo" ? selection.opacity : CONTEXT_POINT_ALPHA;
         const shape = kind === "halo" ? this.nodeSourceMesh() : null;
+        const flat = kind === "halo" && this.context.is2D();
         const overlay = this.context
             .getMeshCache()
-            .get(name, () => Node.createOverlaySource(name, color, alpha, scene, shape));
+            .get(name, () => Node.createOverlaySource(name, color, alpha, scene, shape, flat));
 
         if (kind === "halo") {
             this.haloKey = name;
@@ -3742,6 +3766,7 @@ export class Node implements ModelUser {
      * @param alpha - How opaque it is, in `[0, 1]`.
      * @param scene - The scene to build it in.
      * @param shape - The node source mesh whose geometry a halo shares, or null for a unit sphere.
+     * @param flat - Whether it is a 2D halo: a sheet in front of the edges (`applyFlatHalo`).
      * @returns The source mesh.
      */
     private static createOverlaySource(
@@ -3750,9 +3775,17 @@ export class Node implements ModelUser {
         alpha: number,
         scene: Scene,
         shape: Mesh | null,
+        flat = false,
     ): Mesh {
         let source: Mesh;
-        if (shape?.geometry) {
+        // In front of the edges' plane, where a lifted 2D halo needs no depth offset.
+        let lifted = false;
+        if (flat && shape?.geometry) {
+            source = new Mesh(name, scene);
+            const front = applyFlatHalo(source, shape);
+            source.metadata = { flatHaloFront: front };
+            lifted = front < 0;
+        } else if (shape?.geometry) {
             // SHARED geometry, not a copy: one halo source per node source costs a material and
             // no vertices, and Babylon reference-counts the geometry so either can be disposed
             // first. A new mesh rather than a clone, so nothing of the node's own source -- its
@@ -3786,8 +3819,10 @@ export class Node implements ModelUser {
         material.cullBackFaces = false;
         // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
         // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
-        // instead of fighting it for the same pixels. Too small to move a 3D halo visibly.
-        material.zOffsetUnits = 4;
+        // instead of fighting it for the same pixels. Too small to move a 3D halo visibly. A 2D
+        // halo lifted in front of the edges is already behind its node's front, and the offset
+        // would push it back into the edges' plane (issue #7453).
+        material.zOffsetUnits = lifted ? 0 : 4;
         source.material = material;
 
         return source;
@@ -3811,7 +3846,7 @@ export class Node implements ModelUser {
      * @returns The key.
      */
     private haloSourceKey(look: GraphSelectionStyleConfig): string {
-        const key = `${SELECTION_HALO_MESH}:${this.#anchor.name}`;
+        const key = `${SELECTION_HALO_MESH}:${this.#anchor.name}${this.context.is2D() ? ":2d" : ""}`;
         const selection = this.selectionStyle();
         // ponytail: one cached source per halo colour and opacity ever drawn; evict unused
         // ones if a continuous halo colour encoding ever shows up in a profile.
@@ -3831,6 +3866,8 @@ export class Node implements ModelUser {
         this.followRow();
         if (this.halo && !this.halo.isDisposed()) {
             this.halo.position.copyFrom(this.#anchor.position);
+            // the 2D camera looks along +z, so toward it is down z
+            this.halo.position.z -= this.haloLift;
         }
 
         if (this.contextPoint && !this.contextPoint.isDisposed()) {

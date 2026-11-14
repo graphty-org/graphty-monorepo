@@ -312,7 +312,6 @@ export interface AnimationOptions {
     fps?: number;
     height?: number;
     tour?: readonly string[];
-    transparentBackground?: boolean;
     videoBitrate?: number;
     width?: number;
 }
@@ -2778,6 +2777,7 @@ export class Graph implements GraphContext {
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
     cancelAnimationCapture(): boolean;
+    cancelCameraAnimation(): boolean;
     // (undocumented)
     canvas: HTMLCanvasElement;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
@@ -3326,6 +3326,7 @@ export class Graphty extends LitElement {
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
     cancelAnimationCapture(): boolean;
+    cancelCameraAnimation(): boolean;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
     clearAiHistory(options?: {
@@ -3406,6 +3407,7 @@ export class Graphty extends LitElement {
     getCameraState(): CameraState;
     getDataManager(): DataManager;
     getEdgeCount(): number;
+    getEdges(): Edge[];
     getEventManager(): EventManager;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
@@ -3886,6 +3888,13 @@ export type GraphtyErrorCode =
 * caller refreshes the id it holds.
 */
 | "E_UNKNOWN_ELEMENT"
+/**
+* A graph was constructed with the id of a page element that the document does not hold, so
+* there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
+* or passes the element itself.
+* @since 3.40.0
+*/
+| "E_HOST_NOT_FOUND"
 /**
 * A saved document's content is malformed: not the kind it claims, a required member missing
 * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
@@ -7642,6 +7651,15 @@ export interface SavedProject {
 }
 
 // @public
+export interface ScreenshotLegendOptions {
+    position?: ScreenshotLegendPosition;
+    title?: string;
+}
+
+// @public
+export type ScreenshotLegendPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+// @public
 export interface ScreenshotLegendSection {
     note?: string;
     ramp?: {
@@ -7676,7 +7694,7 @@ export interface ScreenshotOptions {
     format?: "png" | "jpeg" | "webp";
     // (undocumented)
     height?: number;
-    legend?: readonly ScreenshotLegendSection[];
+    legend?: boolean | "auto" | ScreenshotLegendOptions | readonly ScreenshotLegendSection[];
     // (undocumented)
     multiplier?: number;
     // (undocumented)

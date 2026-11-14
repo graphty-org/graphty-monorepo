@@ -43,6 +43,16 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# How long the whole run and its review took, one line each in <main checkout>/tmp/step-times.jsonl
+# (tools/step-log.mjs). The log never fails or changes the run.
+log_step() { node "$here/step-log.mjs" "$@" >/dev/null 2>&1 || true; }
+run_start=$(date +%s%3N)
+on_exit() {
+    local rc=$?
+    log_step pr-open "$run_start" total "$rc"
+    [ -z "${tmp_files:-}" ] || rm -f $tmp_files
+}
+trap on_exit EXIT
 die() {
     echo "pr-open: $*" >&2
     exit "${code:-1}"
@@ -110,7 +120,9 @@ fi
 # The fresh-context review, before anything is pushed. It prints its report's path; exit 3 is a blocking finding.
 review="${PR_OPEN_REVIEW:-$here/pr-review.sh}"
 rc=0
+review_start=$(date +%s%3N)
 report=$("$review" --proof "$proof" --issue "$issue" --reuse) || rc=$?
+log_step pr-open-review "$review_start" review "$rc"
 if [ "$rc" = 3 ] && [ "$answered" = 1 ]; then
     echo "pr-open: opening with the review's blocking findings answered in the Proof (--review-answered)" >&2
 elif [ "$rc" = 3 ]; then
@@ -139,7 +151,7 @@ existing=$(gh pr list --head "$branch" --base master --state open --json url,aut
 url=${existing%% *}
 author=${existing#* }
 body=$(mktemp) section=$(mktemp)
-trap 'rm -f "$body" "$section"' EXIT
+tmp_files="$body $section"
 {
     echo "## Proof"
     echo

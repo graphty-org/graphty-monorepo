@@ -78,6 +78,18 @@ export function startUsageDataIfShared(): void {
 }
 
 /**
+ * Answers No for this page view only, storing nothing and calling nothing: the question pinned to
+ * every page stays out of the way of tests and stories that are not about it. One that is calls
+ * `forgetUsageAnswer` after this.
+ */
+export function assumeUsageDeclinedForTests(): void {
+    remembered = "declined";
+    listeners.forEach((listener) => {
+        listener();
+    });
+}
+
+/**
  * Forgets the answer, as on a first launch. For tests and stories.
  */
 export function forgetUsageAnswer(): void {

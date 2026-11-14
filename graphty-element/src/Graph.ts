@@ -140,7 +140,7 @@ import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { WRITABLE_LANE } from "./data/lane";
-import { sampleOf } from "./data/source-bytes";
+import { fetchBytes, sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import {
@@ -1010,7 +1010,12 @@ export class Graph implements GraphContext {
         if (typeof element === "string") {
             const e: Element | null = document.getElementById(element);
             if (!e) {
-                throw new Error(`getElementById() could not find element '${element}'`);
+                throw new GraphtyError({
+                    code: "E_HOST_NOT_FOUND",
+                    message: `No element with id "${element}" to draw the graph in.`,
+                    source: "config",
+                    details: { id: element },
+                });
             }
 
             this.element = e;
@@ -1618,9 +1623,29 @@ export class Graph implements GraphContext {
         // What was selected is worked out from the change only when a change holds the camera: a
         // walk of the selection on every change is quadratic in a removal of many selected nodes.
         let pivoted = false;
+        // A right-click or a touch-and-hold asks for a menu about what is under the pointer: a
+        // selection it makes (the element's own, or the menu's opener selecting the node from its
+        // `contextmenu` handler) keeps the camera still, or the node would glide out from under a
+        // menu opened at the pointer (issue #7452). Held for the press's own events and the
+        // handlers they run, until the next task.
+        let menuPress = false;
+        let menuPressEnd: ReturnType<typeof setTimeout> | undefined;
+        const pressMenu = (event: Event): void => {
+            if (event.type !== "contextmenu" && (event as PointerEvent).button !== 2) {
+                return;
+            }
+            menuPress = true;
+            clearTimeout(menuPressEnd);
+            menuPressEnd = setTimeout(() => {
+                menuPress = false;
+            });
+        };
+        for (const type of ["pointerdown", "pointerup", "contextmenu"]) {
+            this.element.addEventListener(type, pressMenu, { capture: true, signal: this.#teardown.signal });
+        }
         this.session.on("selection:changed", ({ cause, added, removed }) => {
             const causes = this.styles.config.behavior.camera.pivotOnSelectionCauses;
-            if (causes === undefined || causes.includes(cause)) {
+            if (!menuPress && (causes === undefined || causes.includes(cause))) {
                 pivoted = true;
                 return;
             }
@@ -1852,9 +1877,14 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Shuts down the graph, stopping animations and disposing all resources.
+     * Shuts down the graph, stopping animations and disposing all resources. A second call does
+     * nothing.
      */
     shutdown(): void {
+        if (this.#teardown.signal.aborted) {
+            return;
+        }
+
         // First, so a repaint queued behind a load or a run -- or one already painting -- stops
         // rather than running against the store and session this is about to dispose.
         this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
@@ -2607,8 +2637,8 @@ export class Graph implements GraphContext {
             // Clean up any partially initialized resources
             this.cleanup();
 
-            // Re-throw with context
-            throw new Error(`Failed to initialize graph: ${error instanceof Error ? error.message : String(error)}`);
+            // A coded failure (a renderer or WebGPU refusal) keeps its code, details and stack.
+            throw GraphtyError.wrap(error, { code: "E_INTERNAL", source: "view" });
         }
     }
 
@@ -3403,13 +3433,8 @@ export class Graph implements GraphContext {
         }
 
         // Extension didn't match - fetch content for detection
-        const response = await fetch(url, signal === undefined ? undefined : { signal });
-        if (!response.ok) {
-            throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
-        }
-
         // Bytes, decoded by the importer: see loadFromFile.
-        const fetchedContent = new Uint8Array(await response.arrayBuffer());
+        const fetchedContent = await fetchBytes(url, signal);
         this.dataManager.throwIfSuperseded(generation, url);
         const detectedFromContent = detectFormat(url, sampleOf(fetchedContent));
         if (!detectedFromContent) {
@@ -7103,9 +7128,16 @@ export class Graph implements GraphContext {
      * ```
      */
     async captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
-        const screenshotCapture = new ScreenshotCapture(this.engine, this.scene, this.canvas, this, () => {
-            this.renderManager.requestFrame();
-        });
+        const screenshotCapture = new ScreenshotCapture(
+            this.engine,
+            this.scene,
+            this.canvas,
+            this,
+            () => {
+                this.renderManager.requestFrame();
+            },
+            () => this.session.styles.legend(),
+        );
         return screenshotCapture.captureScreenshot(options);
     }
 
@@ -7178,9 +7210,27 @@ export class Graph implements GraphContext {
     async captureAnimation(
         options: import("./video/VideoCapture.js").AnimationOptions,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const { MediaRecorderCapture } = await import("./video/MediaRecorderCapture.js");
+        const { MediaRecorderCapture, holdCameraForCapture } = await import("./video/MediaRecorderCapture.js");
 
-        const capture = new MediaRecorderCapture();
+        // A frame reaches the recorder once the engine has ended it: WebGPU submits the frame's
+        // work only in endFrame(), so a copy made from the scene's after-render would read a canvas
+        // that does not hold the frame yet. A tick that ends with no scene drawn is no frame.
+        const capture = new MediaRecorderCapture((onFrame) => {
+            let drawn = false;
+            const afterRender = this.scene.onAfterRenderObservable.add(() => {
+                drawn = true;
+            });
+            const endFrame = this.engine.onEndFrameObservable.add(() => {
+                if (drawn) {
+                    drawn = false;
+                    onFrame();
+                }
+            });
+            return () => {
+                this.scene.onAfterRenderObservable.remove(afterRender);
+                this.engine.onEndFrameObservable.remove(endFrame);
+            };
+        });
 
         // Store reference for cancellation
         this.activeCapture = capture;
@@ -7200,8 +7250,14 @@ export class Graph implements GraphContext {
                 return await this.captureAnimatedCameraVideo(options, capture, onProgress);
             }
 
-            // Capture stationary video
-            const result = await capture.captureRealtime(this.canvas, options, onProgress);
+            // Capture stationary video, from the camera asked for
+            const restoreCamera = options.camera ? await holdCameraForCapture(this, options.camera) : undefined;
+            let result: import("./video/VideoCapture.js").AnimationResult;
+            try {
+                result = await capture.captureRealtime(this.canvas, options, onProgress);
+            } finally {
+                await restoreCamera?.();
+            }
 
             // Handle download if requested
             this.handleVideoDownload(result, options);
@@ -7360,6 +7416,22 @@ export class Graph implements GraphContext {
         }
 
         return cancelled;
+    }
+
+    /**
+     * Stop the camera's animated moves: the one under way stops where the camera is now, and
+     * moves still waiting their turn are dropped. Every caller awaiting one of them resolves; a
+     * cancelled move is not an error.
+     * @returns True if a camera move was cancelled, false if none was under way or waiting
+     * @example
+     * ```typescript
+     * const moving = graph.applyCameraView("top", { animate: true, duration: 2000 });
+     * graph.cancelCameraAnimation();
+     * await moving; // resolves, with the camera wherever it had got to
+     * ```
+     */
+    cancelCameraAnimation(): boolean {
+        return this.operationQueue.cancelByCategory("camera-update") > 0;
     }
 
     /**
@@ -8568,23 +8640,42 @@ export class Graph implements GraphContext {
     }
 
     private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {
-        // The whole graph is framed by what is drawn, so no node at the rim is cut off; a subset by
-        // its centres unless the caller asks otherwise.
-        const extent = extentOption ?? (nodeIds === undefined ? "drawn" : "centers");
-        const nodes =
-            nodeIds === undefined
+        // The whole graph is framed as the project's framing says, by what is drawn when it says
+        // nothing, so no node at the rim is cut off; a subset by its centres unless the caller asks otherwise.
+        const whole = nodeIds === undefined;
+        const extent = extentOption ?? (whole ? (this.session.config.framing?.extent ?? "drawn") : "centers");
+        // Only what the reader can see: a hidden node keeps its position but must not stretch the box.
+        const nodes = (
+            whole
                 ? this.getNodes()
-                : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined);
+                : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined)
+        ).filter((node) => node.getRenderState() === "visible");
 
         const points = nodes.map((node) => node.getPosition());
+        // "drawn" takes each node out to its drawn box, so a big node at the edge is not cut off.
+        const boxes: { min: GraphBounds["min"]; max: GraphBounds["max"] }[] =
+            extent === "drawn" ? nodes.map((node) => node.framingBounds()) : [];
+
+        // The whole graph also holds the visible rows drawn with no `Node` (renderPath "batched"),
+        // each a spot as wide as its widest half, as zoom-to-fit frames them.
+        const columns = whole ? this.updateManager.columnFraming() : undefined;
+        for (const { pos, half } of columns ? (nodeFramingBox([], extent, columns)?.spots ?? []) : []) {
+            points.push(pos);
+            if (extent === "drawn") {
+                boxes.push({
+                    min: { x: pos.x - half, y: pos.y - half, z: pos.z - half },
+                    max: { x: pos.x + half, y: pos.y + half, z: pos.z + half },
+                });
+            }
+        }
+
         // The whole graph on a map is the map too: its edges, or the globe.
-        const frame = nodeIds === undefined ? this.#geoFrame() : null;
+        const frame = whole ? this.#geoFrame() : null;
         if (frame !== null && points.length > 0) {
             points.push(...mapCorners(frame));
         }
 
-        // "drawn" takes each node out to its drawn box, so a big node at the edge is not cut off.
-        return measureBounds(points, extent === "drawn" ? nodes.map((node) => node.framingBounds()) : []);
+        return measureBounds(points, boxes);
     }
 
     /**
@@ -9584,6 +9675,8 @@ export class Graph implements GraphContext {
 
     // Voice input adapter instance (lazy-initialized)
     private voiceAdapter: VoiceInputAdapter | null = null;
+    // Removes the running session's `onTranscript`, so it never hears a later session.
+    private voiceTranscriptOff: (() => void) | null = null;
 
     /**
      * Get the voice input adapter.
@@ -9607,6 +9700,8 @@ export class Graph implements GraphContext {
                 if (active) {
                     this.eventManager.emit("ai-voice-start", {});
                 } else {
+                    this.voiceTranscriptOff?.();
+                    this.voiceTranscriptOff = null;
                     this.eventManager.emit("ai-voice-end", { reason });
                 }
             });
@@ -9625,8 +9720,10 @@ export class Graph implements GraphContext {
      * @param options - Voice input options
      * @param options.continuous - Whether to continuously listen for input
      * @param options.interimResults - Whether to return interim transcription results
-     * @param options.language - BCP 47 language tag (e.g., "en-US", "fr-FR")
-     * @param options.onTranscript - Callback for transcription events
+     * @param options.language - BCP 47 language tag (e.g., "en-US", "fr-FR"); without one the
+     *   browser recognizes the page's language (`<html lang>`)
+     * @param options.onTranscript - Callback for this session's transcription events; it is not
+     *   called again once the session ends or another starts
      * @param options.onStart - Callback when voice input starts
      * @returns True if voice input started successfully
      * @example
@@ -9657,11 +9754,6 @@ export class Graph implements GraphContext {
             return false;
         }
 
-        // Register transcript callback if provided
-        if (options?.onTranscript) {
-            adapter.onInput(options.onTranscript);
-        }
-
         // Register start callback if provided
         if (options?.onStart) {
             adapter.onStart(options.onStart);
@@ -9671,8 +9763,13 @@ export class Graph implements GraphContext {
         adapter.start({
             continuous: options?.continuous ?? false,
             interimResults: options?.interimResults ?? true,
-            language: options?.language ?? "en-US",
+            language: options?.language,
         });
+
+        // Registered after `start`, which ends the previous session (and removes its callback) first.
+        // This session's callback is removed when it ends.
+        this.voiceTranscriptOff?.();
+        this.voiceTranscriptOff = options?.onTranscript ? adapter.onInput(options.onTranscript) : null;
 
         // Return true because permission is being requested
         // Actual start/failure will be notified via onStart callback

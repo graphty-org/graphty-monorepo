@@ -70,7 +70,7 @@ describe("withFeaturesOn", () => {
 
 describe("the On shards", () => {
     const PACKAGES = ["graphty-element", "graphty"];
-    const shards = [...SHARDS.filter((s) => !s["full-run-only"]), ...FEATURES_ON_SHARDS];
+    const shards = [...SHARDS.filter((s) => !s["full-run-only"] && s.flags !== "on"), ...FEATURES_ON_SHARDS];
     const names = (include) => include.map((e) => e.shard).filter((n) => n.includes("features-on"));
 
     it("exist only while graphty-element declares an experiment", () => {
@@ -80,7 +80,7 @@ describe("the On shards", () => {
         );
     });
 
-    it("are planned in a full run and never on a pull request", () => {
+    it("are planned whole in a full run and never whole on a pull request", () => {
         assert.deepEqual(names(plan(PACKAGES, undefined, undefined, true, shards)), []);
         assert.deepEqual(
             names(plan(PACKAGES, undefined, undefined, false, shards)),
@@ -111,10 +111,10 @@ describe("the On shards", () => {
 
     it("come after every Off shard and group, and the test job runs at most 40 jobs at once (fewer on a full run)", () => {
         const include = plan([...PACKAGES, "graph-format", "layout"], undefined, undefined, false, shards);
-        const first = include.findIndex((e) => e["full-run-only"]);
+        const first = include.findIndex((e) => e.flags === "on");
         assert.ok(first > 0);
         assert.ok(
-            include.slice(first).every((e) => e["full-run-only"]),
+            include.slice(first).every((e) => e.flags === "on"),
             "nothing Off after the first On",
         );
         const ci = parseYaml(readFileSync(".github/workflows/ci.yml", "utf8"));
@@ -136,14 +136,22 @@ describe("the On shards", () => {
         }
     });
 
-    it("stay out of a pull request's light plan: a bin of an On shard is dropped unless it is a full run", () => {
-        const on = shards.find((s) => s["full-run-only"]);
-        const light = { bins: [{ name: `${on.shard}-1`, shard: on.shard, files: [], command: "true" }] };
-        const include = plan(PACKAGES, undefined, light, true, shards);
-        assert.ok(include.length > 0);
-        assert.ok(!include.some((e) => e["full-run-only"] || e.shard === `${on.shard}-1`));
-        const full = plan(PACKAGES, undefined, light, false, shards).find((e) => e.shard === `${on.shard}-1`);
-        assert.ok(full?.["full-run-only"], "a full run keeps it");
+    it("run their selected files on a pull request (#7847), but never a whole family packed into bins", () => {
+        const on = shards.find((s) => s.flags === "on");
+        const selected = { name: `${on.shard}-1`, shard: on.shard, covers: [on.shard], files: [], command: "true" };
+        const packed = { ...selected, name: `${on.shard}-2`, whole: on.package };
+        const light = { bins: [selected, packed] };
+        const pr = plan(PACKAGES, undefined, light, true, shards);
+        assert.deepEqual(names(pr), [selected.name], "only the selected bin, and not the On shard itself");
+        assert.equal(pr.at(-1).flags, "on", "after every Off shard");
+        const full = names(plan(PACKAGES, undefined, light, false, shards));
+        assert.ok(full.includes(selected.name) && full.includes(packed.name), "a full run keeps both");
+    });
+
+    it("are in the pull request selector's shards, and lifecycle is not", () => {
+        assert.ok(readFileSync("tools/test-select.mjs", "utf8").includes('SHARDS.filter((s) => !s["full-run-only"])'));
+        assert.ok(SHARDS.some((s) => s.shard === "graphty-element-lifecycle" && s["full-run-only"]));
+        assert.ok(FEATURES_ON_SHARDS.every((s) => !s["full-run-only"] && s["pull-request"] === "selected"));
     });
 
     it("set GRAPHTY_FEATURES_ON=1, which a selected run of their files keeps", () => {
@@ -187,7 +195,7 @@ describe("the On shards", () => {
     it("never join an Off shard: the twins exist only under GRAPHTY_FEATURES_ON=1, which no Off command sets", () => {
         // vitest includes a project any one --project filter matches, so graphty-N's "!storybook" would run
         // the twins if they existed in its run
-        for (const s of SHARDS.filter((x) => !x["full-run-only"])) {
+        for (const s of SHARDS.filter((x) => x.flags !== "on")) {
             assert.doesNotMatch(s["test-command"], /GRAPHTY_FEATURES_ON/, s.shard);
         }
     });

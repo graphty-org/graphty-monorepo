@@ -125,6 +125,10 @@ describe("seeded placement", () => {
         }
     });
 
+    it("scatters the random layout differently each time when no seed is given", () => {
+        assert.notDeepEqual(runRandom({}), runRandom({}));
+    });
+
     it("still lets an explicit seed change the random layout", () => {
         assert.notDeepEqual(runRandom({ seed: 5 }), runRandom({ seed: 6 }));
     });

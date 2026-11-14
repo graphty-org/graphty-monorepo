@@ -551,6 +551,18 @@ jobs:
             # build every graph fails to transform and every package runs whole). Fails open: a store that does
             # not answer packs bins without history, and a selector that fails keeps the Plan step's matrix, every
             # affected shard whole.
+            # Master's newest durations snapshot (the Durations snapshot job): the bins step packs by it when the store
+            # does not answer its plan read, which was 28.6% of pull request runs in the week to 11-14; without it
+            # those runs packed without history and planned about three times the test jobs (#7851).
+            - name: Restore the durations snapshot
+              if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.reuse-run == ''
+              continue-on-error: true
+              uses: actions/cache/restore@v6
+              with:
+                  path: ${{ runner.temp }}/durations-snapshot
+                  key: results-durations-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: results-durations-
+
             - name: Plan the light check's test bins
               id: bins
               if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.reuse-run == ''
@@ -565,7 +577,8 @@ jobs:
                   plan="$RUNNER_TEMP/results-plan"
                   git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
                   node tools/results/plan-read.mjs "$AFFECTED" "$plan" --sha "$HEAD_SHA" \
-                      --base "$(git rev-parse HEAD^1)" --files "$RUNNER_TEMP/changed.txt" || true
+                      --base "$(git rev-parse HEAD^1)" --files "$RUNNER_TEMP/changed.txt" \
+                      --snapshot "$RUNNER_TEMP/durations-snapshot/durations.json" || true
                   if ! node tools/test-select.mjs --base "origin/$BASE_REF" --head HEAD --plan \
                       --durations "$plan/durations.json" > "$plan/light-plan.json"; then
                       echo "::warning::the test selector failed; every affected shard runs whole"
@@ -866,17 +879,18 @@ jobs:
                   HUSKY: "0"
 
             # Every package's dist, as the packages job built it.
-            # The fidelity stories' reference pictures are Git LFS objects, cached like the story tests'
-            # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
-            # build-storybook pulls them (a no-op once the cache restored them).
+            # The style fidelity oracles' rasterized PNGs, which the fidelity stories draw, are Git LFS objects,
+            # cached like the story tests' baselines so a run downloads only the pictures added since the cache
+            # was saved. graph-io's build-storybook pulls them (a no-op once the cache restored them). The key
+            # hashes those same PNGs, so a new oracle picture saves a new cache.
             - name: Restore the style fidelity reference pictures
               id: fidelity-references
               if: steps.reuse-build.outputs.artifacts-run == ''
               uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
-                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
-                  restore-keys: lfs-fidelity-references-
+                  key: lfs-fidelity-oracles-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+                  restore-keys: lfs-fidelity-oracles-
 
             - name: Probe the nx remote cache
               if: steps.reuse-build.outputs.artifacts-run == ''
@@ -954,7 +968,7 @@ jobs:
               uses: actions/cache/save@v6
               with:
                   path: .git/lfs/objects
-                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
+                  key: lfs-fidelity-oracles-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the Stories job
@@ -1146,6 +1160,14 @@ jobs:
             - name: Lint affected (PR)
               if: needs.packages.outputs.full == 'false'
               run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --base=origin/${{ github.base_ref }} --head=HEAD
+
+            # graph-io's lint typechecks its fidelity stories, which import graphty-element's source and test
+            # helpers; graph-io/project.json negates that dependency (it would be a cycle), so nx never calls
+            # graph-io affected by a graphty-element change, and this step lints it then (#7196). graph-io's lint
+            # inputs (graph-io/project.json) name graphty-element, so nx's cache never replays master's result here.
+            - name: Lint graph-io's fidelity stories (PR, graphty-element affected)
+              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && !contains(fromJSON(needs.packages.outputs.affected), 'graph-io')
+              run: pnpm exec nx run graph-io:lint --exclude-task-dependencies
 
             - name: Lint all (master, a manual dispatch or the merge queue)
               if: needs.packages.outputs.full == 'true'
@@ -3658,6 +3680,69 @@ jobs:
                   gh api --paginate "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100" --jq '.actions_caches[]' > "$RUNNER_TEMP/caches.ndjson"
                   gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number --jq '.[].number' > "$RUNNER_TEMP/open-prs.txt"
                   node tools/cache-hygiene.mjs "$RUNNER_TEMP/caches.ndjson" "$RUNNER_TEMP/open-prs.txt" --apply
+
+    # The recorded file durations a pull request's bins step packs by when the results store does not answer its
+    # plan read (#7851): master's push build reads them one family at a time, at most once an hour, merges them
+    # over the previous snapshot and saves it as a cache, which every pull request restores. Never gates.
+    durations-snapshot:
+        name: Durations snapshot
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        # id-token: write is the results store's credential (tools/results/client.mjs)
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }} # every checkout names it; empty on this push, so the pushed commit
+                  # tools/ci-test-matrix.mjs reads the feature registry (tools/features-on.mjs)
+                  sparse-checkout: |
+                      tools
+                      graphty-element/src/features
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Restore the durations snapshot
+              uses: actions/cache/restore@v6
+              with:
+                  path: ${{ runner.temp }}/durations-snapshot
+                  key: results-durations-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: results-durations-
+
+            # exit 3: under an hour old, or no family answered; the previous snapshot stands
+            - name: Read the durations one family at a time
+              id: refresh
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: |
+                  status=0
+                  node tools/results/plan-read.mjs --refresh-snapshot "$RUNNER_TEMP/durations-snapshot/durations.json" || status=$?
+                  [ "$status" = 0 ] && echo "refreshed=true" >> "$GITHUB_OUTPUT"
+                  [ "$status" = 0 ] || [ "$status" = 3 ]
+
+            - name: Save the durations snapshot
+              if: steps.refresh.outputs.refreshed == 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ${{ runner.temp }}/durations-snapshot
+                  key: results-durations-${{ github.run_id }}-${{ github.run_attempt }}
 
     # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
     # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different

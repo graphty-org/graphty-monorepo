@@ -318,7 +318,7 @@ function meetsLineFrom(head: ReturnType<typeof drawnHead>): number {
 }
 
 describe("a half arrow's line and barb (#5490)", () => {
-    test.each(["half-open", "half-open-flipped", "half-barb", "half-barb-flipped"])(
+    test.each(["half-open", "half-open-flipped"])(
         "%s: the line runs on to where the arm meets it, leaving no break",
         async (type) => {
             await oneEdge({ "edge.arrowHead": type, "edge.arrowHeadSize": 3 });
@@ -329,6 +329,17 @@ describe("a half arrow's line and barb (#5490)", () => {
             assert.isAtLeast(head.stop, head.tip - meetsLineFrom(head) - 1);
             // and not past the tip
             assert.isAtMost(head.stop, head.tip + 1);
+        },
+    );
+
+    test.each(["half-barb", "half-barb-flipped"])(
+        "%s: the line stops where Cytoscape stops it under HALF_TOP, 0.2 of its 1.135 back from the tip (#7769)",
+        async (type) => {
+            await oneEdge({ "edge.arrowHead": type, "edge.arrowHeadSize": 3 });
+            const head = drawnHead();
+            const length = head.tip - Math.min(...head.along);
+            assert.isAbove(length, 10, "the head is drawn large enough to measure");
+            assert.closeTo(head.stop, head.tip - (0.2 / 1.135) * length, 1);
         },
     );
 

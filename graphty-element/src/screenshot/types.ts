@@ -83,14 +83,25 @@ export interface ScreenshotOptions {
         settleTimeoutMs?: number;
     };
     /**
-     * A key drawn into the image at its top left, sized as it would be on the canvas. The element
-     * draws exactly what is passed -- every word is the caller's -- so a consumer builds the
-     * sections from the same `session.styles.legend()` blocks it shows on screen. Absent or empty,
-     * the image has no key.
+     * A key drawn into the image, sized as it would be on the canvas and scaled with the capture.
+     *
+     * - `true` draws the element's own legend (`session.styles.legend()`): one section per bound
+     *   channel, headed by the field's name, with a chip per value or a ramp between the domain's
+     *   ends. It writes no words of its own -- only the data's values and names.
+     * - `"auto"` does the same, and only when a layer binds a value.
+     * - `{ position, title }` is `true` with a corner (default `"bottom-right"`) and a heading line
+     *   in the caller's words (none by default).
+     * - An array draws exactly the sections passed, at the top left -- every word is the caller's.
+     *
+     * Absent, `false` or an empty array, the image has no key.
+     * @example
+     * legend: true
+     * @example
+     * legend: { position: "top-left", title: "Degree" }
      * @example
      * legend: [{ title: "Color: Louvain", rows: [{ label: "1", color: "#4e79a7", value: "17" }] }]
      */
-    legend?: readonly ScreenshotLegendSection[];
+    legend?: boolean | "auto" | ScreenshotLegendOptions | readonly ScreenshotLegendSection[];
     /**
      * Whether the selection highlight is drawn into the image. `false` leaves it out of this
      * capture only: the selection stays as it is on screen and no selection event fires.
@@ -122,6 +133,17 @@ export interface ScreenshotOptions {
      * @deprecated Not yet implemented - Phase 3+ feature
      */
     // metadata?: Record<string, string>;
+}
+
+/** A corner of the image a capture's key sits in. */
+export type ScreenshotLegendPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+/** Where the element's own legend goes in a capture, and an optional heading for it. */
+export interface ScreenshotLegendOptions {
+    /** The corner the key sits in. @default "bottom-right" */
+    position?: ScreenshotLegendPosition;
+    /** A heading line above the key, in the caller's words. Absent, the key has no heading. */
+    title?: string;
 }
 
 /** One section of the key a capture draws (`ScreenshotOptions.legend`), in the caller's words. */

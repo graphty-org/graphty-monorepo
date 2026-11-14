@@ -13,6 +13,7 @@ import type { GraphStore } from "../../src/data/GraphStore";
 import type { GraphSession } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { dataDigest } from "../../src/session/project/digest";
+import { recordsBuilt } from "../../src/session/project/recordMap";
 import { assertScalesLinearly } from "../helpers/cost";
 
 /**
@@ -139,36 +140,61 @@ describe("session.data.importColumns", () => {
         });
     }
 
-    it("keeps one copy of each record a batched importColumns makes: the graph's is the journal's (G11)", async () => {
+    it("holds a batched importColumns' records as columns, built on first read and kept (stage 29)", async () => {
         for (const batched of [false, true]) {
             const session = createElementSession({}, { batched: () => batched });
+            const before = recordsBuilt.count;
             await byColumns(session);
-            // Each step of the batch writes its own entry, the command exactly as it ran.
-            const added = (kind: string): unknown[] => {
+            // No record is built by the load itself: the journal, the slice and the op log hold rows.
+            assert.strictEqual(recordsBuilt.count - before, 0, `records built by the load: ${String(batched)}`);
+            const added = (kind: string): readonly unknown[] => {
                 for (const { command } of session.journal.entries) {
                     if (
                         command.op === "data.apply" &&
                         command.mutation.kind === kind &&
                         "records" in command.mutation
                     ) {
-                        return [...command.mutation.records];
+                        return command.mutation.records;
                     }
                 }
 
                 return [];
             };
-            const node = added("add-nodes")[1];
-            const edge = added("add-edges")[1];
-            assert.isDefined(node);
+            const nodes = added("add-nodes");
+            const edges = added("add-edges");
+            assert.strictEqual(nodes.length, IDS.length);
+            assert.strictEqual(edges.length, SOURCES.length);
+            // The objects path keeps the records it built; the batched path's journal builds each on read.
+            assert.strictEqual(nodes[1] === nodes[1], !batched, `journal keeps node objects: ${String(batched)}`);
             const { graph } = dispatcherOf(session).state;
-            // A frozen copy of every record beside the journal's own was 112 MB at 1M + 1M.
-            assert.strictEqual(graph.nodes.get("b") === node, batched, `node record shared: ${String(batched)}`);
-            assert.strictEqual(
-                [...graph.edges.values()][1] === edge,
-                batched,
-                `edge record shared: ${String(batched)}`,
-            );
+            const node = graph.nodes.get("b");
+            assert.deepStrictEqual(node, { id: "b", position: [1, 0, 0], group: 1 });
+            assert.deepStrictEqual(nodes[1], node);
+            assert.deepStrictEqual([...graph.edges.values()][1], edges[1]);
+            // A record built on read is kept: every reader sees one object from then on.
+            assert.strictEqual(graph.nodes.get("b"), node);
+            assert.isTrue(Object.isFrozen(node));
+            assert.strictEqual(recordsBuilt.count - before, batched ? 1 + SOURCES.length : 0);
         }
+    });
+
+    it("builds the records again from columns after undo and redo on the batched path", async () => {
+        const session = createElementSession({}, { batched: () => true });
+        await byColumns(session);
+        const loaded = digest(session);
+        await session.undo();
+        await session.redo();
+        assert.strictEqual(digest(session), loaded);
+    });
+
+    it("copies the columns, so writing the caller's arrays after the call changes no record", async () => {
+        const session = createElementSession({}, { batched: () => true });
+        const ids = [...IDS];
+        const positions = POSITIONS.slice();
+        await session.data.importColumns({ sources: SOURCES, targets: TARGETS, nodeCount: 5, ids, positions });
+        ids[1] = "changed";
+        positions[3] = 99;
+        assert.deepStrictEqual(dispatcherOf(session).state.graph.nodes.get("b"), { id: "b", position: [1, 0, 0] });
     });
 
     it("numbers the nodes by row when no ids are given", async () => {

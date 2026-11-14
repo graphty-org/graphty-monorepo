@@ -17,6 +17,7 @@ import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "../../catalog";
 import type { GraphSession, ImportColumnsInput } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { dataDigest } from "../../src/session/project/digest";
+import { recordsBuilt } from "../../src/session/project/recordMap";
 import type { GraphRecord } from "../../src/session/project/state";
 
 /** graph-io's committed corpus, one directory per format. */
@@ -161,7 +162,10 @@ async function bothDoors(
         },
     };
     const byColumns = createElementSession({}, { batched: () => batched });
+    const built = recordsBuilt.count;
     await byColumns.data.importColumns(columns);
+    // The load builds and keeps no record on either path (stage 29): the batched path holds rows.
+    assert.strictEqual(recordsBuilt.count, built, "records built by the typed load");
 
     const out = { records: held(byRecords), columns: held(byColumns) };
     byRecords.dispose();

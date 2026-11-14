@@ -1787,8 +1787,9 @@ export class DataManager implements Manager {
         // next freeze does not name it a second time.
         this.eventManager.emitSnapshotDropped();
         this.store.forgetSnapshot();
-        // Nothing that was waiting for its style is drawn any more.
+        // Nothing that was waiting for its style is drawn any more, and no row is held plain.
         this.unpainted.clear();
+        this.graphContext?.getUpdateManager?.().dataCleared();
         this.clearStoredUnpainted();
 
         // The layout lets go of them too, as it does of a node removed one at a time: an engine

@@ -4875,6 +4875,9 @@ export class Graph implements GraphContext {
     setLimits(value: LimitsOption): void {
         this.#limits.request(value);
         this.#warnLimitsIgnored();
+        // A row drawn plain past an object budget is painted again, so a raised budget gives it its object.
+        this.updateManager.limitsChanged();
+        this.renderManager.requestFrame();
     }
 
     /** Say, as a code, that the ceilings asked for are not in force. */
@@ -4967,6 +4970,14 @@ export class Graph implements GraphContext {
                     meshesChanged: () => {
                         this.updateManager.thawActiveMeshes();
                         this.updateManager.meshesShownOrHidden();
+                    },
+                    repaint: (rows) => {
+                        const painter = this.getStylePainter();
+                        for (const row of rows) {
+                            painter?.queue("node", row);
+                        }
+
+                        this.renderManager.requestFrame();
                     },
                     resized: () => {
                         if (this.layoutManager.layoutEngine?.wakeForResize() === true) {

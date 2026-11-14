@@ -145,9 +145,21 @@ const roads = await fetchDataset("road-ny");
 const mine = await fetchDataset("road-ny", { baseUrl: "https://my.cdn/graphs/" }); // a mirror of your own
 ```
 
-`fetchDataset(name, { baseUrl, fetch, signal })` takes a base URL (a mirror or a self-hosted copy of
-the files), a `fetch` implementation and an abort signal. A failed download rejects with
-`fetching <url> failed: HTTP <status>`.
+`fetchDataset(name, { baseUrl, fetch, signal, verify, maxBytes })` takes a base URL (a mirror or a
+self-hosted copy of the files), a `fetch` implementation and an abort signal. A dataset in
+`DATASETS` is checked against its published SHA-256 (`verify: false` turns that off, for a mirror
+with different content under a known name); the check is of the gzip file, so it is skipped when a
+server sends the file with `Content-Encoding: gzip` and the bytes arrive unzipped. A download that
+reads or unzips to more than `maxBytes` (`DEFAULT_DATASET_MAX_BYTES`, 256 MiB, by default) is
+refused. A failure rejects with a `DatasetError` whose `code` says what went wrong and whose
+`details` carry the facts:
+
+| `code`                | When                                                                                                   | `details`                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------- |
+| `E_DATASET_NAME`      | the name is not lowercase letters, digits and dashes                                                   | `name`                      |
+| `E_DATASET_HTTP`      | the server answered with an error status or no body                                                    | `url`, `status`             |
+| `E_DATASET_CHECKSUM`  | the file is not the published one (or SHA-256 is unavailable outside a secure context, `actual: null`) | `url`, `expected`, `actual` |
+| `E_DATASET_TOO_LARGE` | the download passed `maxBytes`                                                                         | `url`, `maxBytes`           |
 
 Each dataset also has a picture of itself, for a gallery or a menu: its metadata's `thumbnail`
 names a 480 x 300 WebP with a transparent background, published beside its file. A large dataset's

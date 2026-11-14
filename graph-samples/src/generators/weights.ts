@@ -17,7 +17,8 @@ export type ColumnCombine = "source" | "target" | "sum" | "mean" | "product" | "
  * (seed, "weights", 0).
  *
  * - `uniform`: a real in [min, max) (default [0, 1)).
- * - `integer`: an integer in [min, max], both ends included -- capacities, Dijkstra demos.
+ * - `integer`: an integer in [min, max], both ends included -- capacities, Dijkstra demos. Both ends
+ *   are within +-2^24, the range where a Float32 weight holds every integer exactly.
  * - `exponential`: -mean ln(1 - u), mean default 1.
  * - `euclidean`: the distance between the endpoints' `x`, `y` (and `z`, when present) node columns;
  *   for the generators that emit positions.
@@ -87,6 +88,11 @@ function integerWeights(spec: SpecOf<"integer">, stream: RandomStream, out: Floa
     const { min, max } = spec;
     if (!(Number.isSafeInteger(min) && Number.isSafeInteger(max) && min <= max)) {
         throw new RangeError(`weights: integer needs integers min <= max, got ${min} and ${max}`);
+    }
+    if (Math.abs(min) > 2 ** 24 || Math.abs(max) > 2 ** 24) {
+        throw new RangeError(
+            `weights: integer min and max must be within +-2^24 to stay exact in a Float32 weight, got ${min} and ${max}`,
+        );
     }
     for (let e = 0; e < out.length; e++) {
         out[e] = min + stream.nextBelow(max - min + 1);

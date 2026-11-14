@@ -426,7 +426,7 @@ export const TwoD: Story = {
 };
 
 /**
- * Zoom right in on one node, then Fit, and check every node is drawn inside the canvas.
+ * Zoom right in on one node, then Fit, and check every node is drawn whole inside the canvas.
  *
  * Fit is the action a reader who has lost the graph presses, so the picture after it must be the
  * whole graph. In 2D it once filled the screen with a single edge.
@@ -459,13 +459,18 @@ const fits = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d"
     const outside = element.graph
         .getNodes()
         .filter((node) => {
+            // The drawn node, not only its centre: a node at the rim must not be cut off.
             const at = element.nodeScreenPosition(node.id);
-            return !(at !== undefined && at.visible && at.x >= 0 && at.x <= width && at.y >= 0 && at.y <= height);
+            if (at === undefined || !at.visible) {
+                return true;
+            }
+            const { left, top, right, bottom } = at.bounds;
+            return left < -0.5 || top < -0.5 || right > width + 0.5 || bottom > height + 0.5;
         })
         .map((node) => String(node.id));
     await holds(
         outside.length === 0,
-        `Camera Controls ${story}: after Fit, nodes ${outside.join(", ")} are not drawn inside the canvas`,
+        `Camera Controls ${story}: after Fit, nodes ${outside.join(", ")} are not drawn whole inside the canvas`,
     );
 };
 

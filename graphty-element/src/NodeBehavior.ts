@@ -9,8 +9,10 @@ import {
     PointerEventTypes,
     type PointerInfo,
     type PointerInfoPre,
+    Quaternion,
     Ray,
     Scene,
+    TransformNode,
     Vector3,
 } from "@babylonjs/core";
 
@@ -603,9 +605,15 @@ export class NodeDragHandler {
         // Calculate delta from drag start
         const delta = worldPosition.subtract(this.dragState.dragStartWorldPosition);
 
-        // Amplify depth only: in XR, reaching forward and back is what the arm cannot do far.
+        // Amplify depth only: in XR, reaching forward and back is what the arm cannot do far. In XR
+        // depth is the reader's, along the Z of the pivot the camera is parented to: once the reader
+        // turns the scene, scene Z is sideways to them.
         if (isXR || this.enableZAmplificationInDesktop) {
+            const parent = isXR ? this.scene.activeCamera?.parent : null;
+            const frame = parent instanceof TransformNode ? parent.absoluteRotationQuaternion : Quaternion.Identity();
+            delta.rotateByQuaternionToRef(Quaternion.Inverse(frame), delta);
             delta.z *= this.zAxisAmplification;
+            delta.rotateByQuaternionToRef(frame, delta);
         }
 
         // Calculate new position

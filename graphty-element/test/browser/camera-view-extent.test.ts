@@ -1,7 +1,8 @@
 /**
  * @file The `extent` option of the camera views (issue #2668): `"drawn"` frames each node out to the
  * box it is drawn in, for `zoomToNodes`, `applyCameraView` and `resolveCameraPreset`, and for a third
- * party's view the same way as a built-in one. The default, `"centers"`, keeps measuring centres.
+ * party's view the same way as a built-in one. A subset is measured by centres by default; the whole
+ * graph by its drawn nodes (issue #6804), so Fit never cuts off a node at the rim.
  */
 
 import "../../src/graphty-element";
@@ -157,4 +158,16 @@ describe("camera views take an extent", () => {
         await element.waitForStableFrame();
         assert.isTrue(wholeOnScreen(element, "a"), "drawn: the node is whole on screen");
     });
+
+    for (const mode of ["3d", "2d"] as const) {
+        it(`fitToGraph over the whole graph keeps every drawn node inside the view in ${mode}`, async () => {
+            const element = await mounted(mode);
+
+            await element.zoomToNodes("a", { animate: false });
+            await element.applyCameraView("fitToGraph", { animate: false });
+            await element.waitForStableFrame();
+            const cut = NODES.map((node) => node.id).filter((id) => !wholeOnScreen(element, id));
+            assert.deepEqual(cut, [], `after Fit in ${mode}, nodes ${cut.join(", ")} are cut off`);
+        });
+    }
 });

@@ -140,54 +140,6 @@
             "issue": "#5905"
         },
         {
-            "file": "graphty/src/workspace/graph-place/StyleTree.tsx",
-            "rule": "named",
-            "detail": "lacksStartingRows",
-            "count": 2,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty/src/workspace/graph-place/StyleTree.tsx",
-            "rule": "named",
-            "detail": "startingRows",
-            "count": 1,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty/src/workspace/graph-place/StyleTree.tsx",
-            "rule": "source-by",
-            "detail": "template",
-            "count": 1,
-            "reason": "treats a layer differently because its source is \"template\"",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty/src/workspace/graph-place/StyleTree.tsx",
-            "rule": "template-id",
-            "detail": "templateId",
-            "count": 2,
-            "reason": "singles out a starting row by its template id",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty/src/workspace/graph-place/StyleTree.tsx",
-            "rule": "template-id",
-            "detail": "graphty:starting-",
-            "count": 1,
-            "reason": "singles out a starting row by its template id",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty/src/workspace/graph-place/StyleTree.tsx",
-            "rule": "named",
-            "detail": "restoreStartingRows",
-            "count": 1,
-            "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
             "file": "graphty/src/workspace/inspector/WhyThisLook.tsx",
             "rule": "source-by",
             "detail": "element",

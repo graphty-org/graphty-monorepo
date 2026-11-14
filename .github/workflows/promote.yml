@@ -45,6 +45,8 @@ env:
     DRY_RUN: ${{ inputs.dry_run }}
     CONFIG_ONLY: ${{ inputs.config_only }}
     SITE_CONFIG: graphty/sites/${{ inputs.channel }}.json
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
 
 jobs:
     promote:

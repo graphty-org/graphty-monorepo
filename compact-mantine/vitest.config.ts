@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
+import type { CDPSession } from "playwright";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
@@ -129,6 +130,37 @@ const touchTap: BrowserCommand<[selector: string]> = async (ctx, selector) => {
     await cdp.detach();
 };
 
+/** One node of CDP's `Accessibility.getFullAXTree`, as far as axNodes reads it. */
+type CdpAxNode = {
+    role?: { value?: string };
+    name?: { value?: string };
+    value?: { value?: unknown };
+    properties?: { name: string; value?: { value?: unknown } }[];
+    backendDOMNodeId?: number;
+};
+
+/**
+ * The value text CDP reports for a node. Chromium 158 (Playwright 1.65) reports every `valuetext`
+ * as "" (or a native range's raw number) and leaves `aria-valuetext` out of CDP's tree entirely;
+ * Chromium 143 reported it. Until CDP carries it again, an empty `valuetext` is read from the
+ * node's own `aria-valuetext`, the attribute the browser would speak; a node without it stays "".
+ * @param cdp - the CDP session
+ * @param node - the accessibility node
+ * @returns the value text, or undefined when the node has none
+ */
+const axValueText = async (cdp: CDPSession, node: CdpAxNode): Promise<string | undefined> => {
+    const text = node.properties?.find((property) => property.name === "valuetext")?.value?.value;
+    if (text !== "" || node.backendDOMNodeId === undefined) {
+        return text === undefined ? undefined : String(text);
+    }
+    const { node: dom } = (await cdp.send("DOM.describeNode", { backendNodeId: node.backendDOMNodeId })) as {
+        node: { attributes?: string[] };
+    };
+    const attributes = dom.attributes ?? [];
+    const at = attributes.indexOf("aria-valuetext");
+    return at >= 0 && at % 2 === 0 ? attributes[at + 1] : "";
+};
+
 /**
  * What the browser's accessibility tree says about the nodes with this accessible name, in every
  * frame: the role, the name and the value a screen reader reads (CDP `getFullAXTree`).
@@ -150,25 +182,15 @@ const axNodes: BrowserCommand<[name: string]> = async (ctx, name) => {
     walk(frameTree as Tree);
     const found: { role: string; name: string; value: string | undefined; valueText: string | undefined }[] = [];
     for (const frameId of ids) {
-        const { nodes } = (await cdp.send("Accessibility.getFullAXTree", { frameId })) as {
-            nodes: {
-                role?: { value?: string };
-                name?: { value?: string };
-                value?: { value?: unknown };
-                properties?: { name: string; value?: { value?: unknown } }[];
-            }[];
-        };
-        for (const node of nodes) {
-            if (node.name?.value === name) {
-                const value = node.value?.value;
-                const text = node.properties?.find((property) => property.name === "valuetext")?.value?.value;
-                found.push({
-                    role: String(node.role?.value),
-                    name,
-                    value: value === undefined ? undefined : String(value),
-                    valueText: text === undefined ? undefined : String(text),
-                });
-            }
+        const { nodes } = (await cdp.send("Accessibility.getFullAXTree", { frameId })) as { nodes: CdpAxNode[] };
+        for (const node of nodes.filter((candidate) => candidate.name?.value === name)) {
+            const value = node.value?.value;
+            found.push({
+                role: String(node.role?.value),
+                name,
+                value: value === undefined ? undefined : String(value),
+                valueText: await axValueText(cdp, node),
+            });
         }
     }
     await cdp.detach();

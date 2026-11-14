@@ -400,8 +400,10 @@ describe("the timeline's switch on a phone", () => {
         const store = createWorkspaceStore({ project: { name: "Phone", id: 1 }, place: "graph", timelineOpen: true });
         const session = await mount("graph", store);
         await session.project.open(await timedProject(), { discard: true });
+        // The saved window is back (with the timeline on it narrows only the drawing).
         await waitFor(() => {
-            assert.strictEqual(session.visibility.summary.visibleEdges, 2);
+            assert.strictEqual(session.data.statistics().edgeCount, 4);
+            assert.isNotNull(session.visibility.window);
         });
         return session;
     }

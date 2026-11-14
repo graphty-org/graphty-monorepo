@@ -1571,11 +1571,9 @@ export class Ingest<K extends KnownEdge> {
         options: AddEdgesOptions | undefined,
     ): ResolvedEndpoints {
         if (options?.source !== undefined && options.target !== undefined) {
-            const declared: ResolvedEndpoints = {
-                source: options.source,
-                target: options.target,
-                resolvedFrom: "declared",
-            };
+            // Through resolveEndpoints so a malformed declared expression is refused with
+            // E_OPTION_RANGE instead of reading null for every record.
+            const declared = resolveEndpoints(edges, { source: options.source, target: options.target });
             if (this.loadTally !== null && edges.length > 0) {
                 // The load's answer too, so its report (and the columns' roles) name the columns
                 // the reader chose rather than the configured defaults it never read.

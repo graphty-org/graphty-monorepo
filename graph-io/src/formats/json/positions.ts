@@ -1,6 +1,6 @@
 /**
  * How a JSON file's positions are spelled, for `extractPositions()`. A Cytoscape `elements`
- * document has a role-`position` column the importer already flipped to y up; a vis or graphology
+ * or vis document has a role-`position` column the importer already flipped to y up; a graphology
  * file's `x` / `y` are a role-`position` column as written, its `meta.extra` saying how. A plain
  * `{ nodes: [{ x, y }] }` file is read as graphty-element's own convention (center, y up, file
  * units) and never flipped, unless it carries a positive marker of a y-down tool: d3-force's
@@ -38,8 +38,16 @@ export function jsonPositions(snapshot: GraphSnapshot): ImporterPositions | null
         switch (jsonShapeOf(snapshot)?.dialect) {
             case "cytoscape":
                 return { containersFollowChildren: true };
-            case "vis":
-                return { centerOffset: visCenterOffset(snapshot) };
+            case "vis": {
+                // the importer flipped vis-network's y to up, so its offset to a node's center flips too
+                const offset = visCenterOffset(snapshot);
+                return {
+                    centerOffset: (row) => {
+                        const o = offset(row);
+                        return o === null ? null : [o[0], -o[1]];
+                    },
+                };
+            }
             default:
                 return null;
         }

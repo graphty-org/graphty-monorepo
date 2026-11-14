@@ -2548,7 +2548,8 @@ function importVisNodes(ctx: ImportContext, nodes: readonly unknown[], nodeIdKey
         const xy = position === INVALID_INDEX ? null : planarXY(record);
         writeFlat(ctx.nodes, index, xy === null ? record : withoutXY(record), id, (key) => key !== nodeIdKey);
         if (xy !== null) {
-            ctx.nodes.set(position, index, [xy[0], xy[1], 0]);
+            // vis-network's y grows downward; positions are stored y up and the exporter flips back
+            ctx.nodes.set(position, index, [xy[0], flipY(xy[1]), 0]);
         }
     }
 }
@@ -3183,8 +3184,8 @@ function placedRest(record: JsonRecord, xy: readonly [number, number] | null, ge
 
 /** How the role-`position` column of a vis or graphology file's `x` / `y` is spelled (see jsonPositions()). */
 const XY_POSITION_EXTRA = {
-    // vis-network draws x / y straight onto its canvas, y down
-    vis: { sourceDims: 2, units: "px", yAxis: "down" },
+    // vis-network draws x / y straight onto its canvas, y down; the importer flips y to up
+    vis: { sourceDims: 2, units: "px" },
     // sigma.js draws y up and fits the positions' bounding box into its canvas
     graphology: { sourceDims: 2, units: "file", viewerFit: SIGMA_FIT },
 } as const;

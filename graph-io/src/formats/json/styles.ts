@@ -21,6 +21,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { itemAt } from "../../common/text.js";
+import { flipY } from "../../positions/convert.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonBoolean, canonNumber, canonOpacity } from "../../styles/canon/number.js";
@@ -291,8 +292,8 @@ function cells(snapshot: GraphSnapshot, target: StyleTarget, name: string): ((i:
 }
 
 /**
- * vis.js: each node's `x` and `y` as the file wrote them: the role-`position` column the importer made of numeric ones,
- * else the plain `x` / `y` cells (text vis-network parses as a number).
+ * vis.js: each node's `x` and `y` as the file wrote them: the role-`position` column the importer made of numeric ones
+ * (its y flipped back to down), else the plain `x` / `y` cells (text vis-network parses as a number).
  * @param snapshot - the graph
  * @returns the x and y readers
  */
@@ -304,10 +305,11 @@ function visPlaces(
     if (position === null) {
         return [xs, ys];
     }
+    const down = (k: 0 | 1, v: number): number => (k === 1 ? flipY(v) : v);
     const at =
         (k: 0 | 1, plain: ((i: number) => unknown) | null) =>
         (i: number): unknown =>
-            position.isSet(i) ? (position.value(i) as ArrayLike<number>)[k] : plain?.(i);
+            position.isSet(i) ? down(k, (position.value(i) as ArrayLike<number>)[k]) : plain?.(i);
     return [at(0, xs), at(1, ys)];
 }
 

@@ -503,7 +503,11 @@ function nodeFrom(
             : sorted.flatMap((s) =>
                   s.fill === null || s.kind === "image" ? [] : [{ box: s.box, color: s.fill.color }],
               );
-    const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
+    // a node drawn as its picture alone (yEd's image and SVG nodes) is read by its picture's bounds, as graphty's side
+    // reads one (`drawnPrimitives`): a box, whatever the picture draws inside it
+    const pictureOnly = outline === undefined && pictures.length > 0;
+    const pictureShape: PShape | null = pictureOnly ? "rect" : null;
+    const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : pictureShape;
     const nodeFill = paintedFill ?? filled?.fill ?? null;
     const bands = shapes.flatMap((s) =>
         s.uncut !== undefined && s.fill !== null && s.fill.color !== nodeFill?.color
@@ -4751,6 +4755,13 @@ const TWIN_OVERLAP = 0.25;
 const LABEL_BACKGROUND_COST = 0.5;
 
 /**
+ * What a picture adds to its cost as a node's body (`matchBodies`): a shape on the same spot is the body and the
+ * picture is drawn over it (Cytoscape.js's background image over its disc, cytoscapejs-specimen-images-charts); a
+ * picture with no shape under it is still the body (yEd's SVG node).
+ */
+const PICTURE_BODY_COST = 0.05;
+
+/**
  * Nodes graphty places this close in the oracle's frame, in oracle pixels, are on one spot (`matchBodies`): a quarter
  * pixel moves no pixel's center, so which of them is nearer a shape drawn there is noise of the fit, not the drawing.
  */
@@ -4790,12 +4801,32 @@ const filledAlike = (a: Prim, b: Prim): boolean =>
  * @returns the body
  */
 function topAlike(body: Prim, free: readonly Prim[]): Prim {
-    return free.reduce((top, q) => (q.index > top.index && onOneSpot(q, body) ? q : top), body);
+    return free.reduce((top, q) => (q.index > top.index && onOneSpot(q, body) && paintsOver(q, top) ? q : top), body);
 }
 
 /** Two shapes drawn alike, each within the other's box but for half a pixel: one hides the other. */
 const onOneSpot = (a: Prim, b: Prim): boolean =>
     drawnAlike(a, b) && boxWithin(a.box, b.box, INSIDE_SLACK) && boxWithin(b.box, a.box, INSIDE_SLACK);
+
+/**
+ * Whether a shape's outline holds every point of another's, within half a pixel: it paints over all of it. Lines a
+ * node draws inside its own outline in the outline's paint, as one path in the outline's box, hold none of its corners
+ * (yEd Live's internal storage: its two inner lines drawn after the box, in the box's fill and stroke).
+ * @param top - the shape drawn over
+ * @param under - the shape it may hide
+ * @returns true when it hides all of it
+ */
+const paintsOver = (top: Prim, under: Prim): boolean =>
+    under.points.every((q) => inPolygon(q, top.points) || toOutline(q, top.points) <= INSIDE_SLACK);
+
+/**
+ * Whether a shape drawn alike on a body's spot is the body's own lines: inside the body's outline, without painting
+ * over it (yEd Live's internal storage).
+ * @param q - the shape
+ * @param body - the node's body
+ * @returns true for the body's own lines
+ */
+const ownLinesOf = (q: Prim, body: Prim): boolean => onOneSpot(q, body) && paintsOver(body, q) && !paintsOver(q, body);
 
 /**
  * Where each node is matched from: graphty's prediction, except that nodes predicted on one spot (`COINCIDENT_PX`)
@@ -4922,7 +4953,8 @@ function matchBodies(
                 cost:
                     d / Math.max(s, 4) +
                     0.5 * Math.abs(Math.log((size + 1) / (s + 1))) +
-                    (backsALabel(p) ? LABEL_BACKGROUND_COST : 0),
+                    (backsALabel(p) ? LABEL_BACKGROUND_COST : 0) +
+                    (p.kind === "image" ? PICTURE_BODY_COST : 0),
                 id: n.id,
                 p,
             });
@@ -4961,7 +4993,13 @@ function matchBodies(
               );
         taken.add(body.index);
         for (const q of shapes) {
-            if (!c.id.startsWith(GROUP_CLAIM) && q !== body && !taken.has(q.index) && onOneSpot(q, body)) {
+            if (
+                !c.id.startsWith(GROUP_CLAIM) &&
+                q !== body &&
+                !taken.has(q.index) &&
+                onOneSpot(q, body) &&
+                !ownLinesOf(q, body)
+            ) {
                 hidden.add(q.index);
             }
         }
@@ -4984,7 +5022,7 @@ function matchBodies(
                     // in the body's own paint at another size off its middle, which no outline is (json-cyjs-perf: n571's
                     // disc drawn over n570's, a fifth wider and 5.6 px off, was read as n570's outline, and n570's lines
                     // as another node's, #5196); one on its middle is the node's own (yEd's double ellipse)
-                    !drawnAlike(q, body) &&
+                    (!drawnAlike(q, body) || ownLinesOf(q, body)) &&
                     !(
                         filledAlike(q, body) &&
                         Math.hypot(cx(whole(q)) - cx(whole(body)), cy(whole(q)) - cy(whole(body))) > 0.05 * size + 0.5

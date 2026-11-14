@@ -832,6 +832,9 @@ export function drawnPrimitives(
         const [hw, hh] = [(n.w - inset - gap) / 2, (n.h - inset - gap) / 2];
         const unit = ([x, y]: readonly [number, number]): Pt => [(x - n.x) / hw, (y - n.y) / hh];
         const figure = hw > 0 && hh > 0 ? d?.figure?.map(([a, b]): [Pt, Pt] => [unit(a), unit(b)]) : undefined;
+        // a node drawn as its picture alone, with no fill and no border (yEd's image and SVG nodes), is read by its
+        // picture's bounds, as the oracle's side reads one (`nodeFrom`): a box
+        const pictureOnly = d?.picture !== undefined && fill === null && !(borderColor !== null && borderWidth > 0);
         nodes.push({
             id: n.id,
             cx: n.x,
@@ -839,7 +842,7 @@ export function drawnPrimitives(
             // the fill, which graphty's border rings from outside (the scene's size takes the inset back)
             w: n.w - inset - gap,
             h: n.h - inset - gap,
-            shape: SHAPES[n.shape] ?? "other",
+            shape: pictureOnly ? "rect" : (SHAPES[n.shape] ?? "other"),
             fill: fill === null ? null : gradientFill(fill, n.fillOpacity, d?.gradient === true ? d.ramp : null, n),
             stroke:
                 borderColor !== null && borderWidth > 0

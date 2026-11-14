@@ -122,6 +122,21 @@ await graph.updateNodes([
 ]);
 ```
 
+**Merging Nodes:**
+
+Two nodes that are really one (the same person spelled two ways) merge into one in a single
+undoable step. Every edge of the merged node moves to the kept node, and the kept node can take
+new values at the same time.
+
+```typescript
+await element.session.data.mergeNodes(["ann", "ann-b"], {
+    into: "ann", // the node that stays; the first id when left out
+    values: { name: "Ann Baker" }, // patched onto the kept node's record
+});
+
+await element.session.undo(); // both nodes and all their edges come back
+```
+
 **Accessing Data:**
 
 ```typescript
@@ -130,6 +145,9 @@ const node = graph.getNode("node1");
 
 // Get all nodes
 const allNodes = graph.getNodes();
+
+// Get all edges
+const allEdges = graph.getEdges();
 
 // Get counts
 const nodeCount = graph.getNodeCount();

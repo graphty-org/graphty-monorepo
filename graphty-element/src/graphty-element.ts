@@ -491,7 +491,7 @@ export class Graphty extends LitElement {
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
      * @returns Settles once the re-resolved layers are repainted; rejects when one could not be.
-     * @since 2.7.0
+     * @since 3.40.0
      * @example
      * ```ts
      * import { definePalette } from "@graphty/graphty-element/extend";
@@ -4868,6 +4868,20 @@ export class Graphty extends LitElement {
      */
     getNodes(): import("./Node").Node[] {
         return this.#graph.getNodes();
+    }
+
+    /**
+     * Get all edges in the graph. `session.data.edges()` lists the same edges as plain records.
+     * @returns Array of all edges
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * const edges = element.getEdges();
+     * console.log('Edges:', edges.map((edge) => `${edge.srcId} -> ${edge.dstId}`));
+     * ```
+     */
+    getEdges(): import("./Edge").Edge[] {
+        return this.#graph.getEdges();
     }
 
     /**

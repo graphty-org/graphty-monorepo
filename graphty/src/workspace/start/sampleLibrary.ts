@@ -159,55 +159,83 @@ function firstSentence(text: string): string {
  * Every tile: the app's own samples first, then every other dataset in graph-samples' catalog that
  * graphty-element can open, in the catalog's order, then every generator. A dataset past the
  * element's published ceilings is left out: its tile could only open an empty graph.
+ * @param catalog - The datasets and generators to list.
+ * @param catalog.datasets - The datasets.
+ * @param catalog.generators - The generators.
+ * @returns The tiles.
  */
-const SAMPLE_TILES: readonly LibraryTile[] = [
-    ...START_SAMPLES.map((sample): LibraryTile => {
-        const dataset = copyOf(sample);
-        const field = FIELDS[sample.id] ?? "Other";
-        const hook = HOOKS[sample.id] ?? sample.name;
-        return {
-            id: sample.id,
-            name: sample.name,
-            hook,
-            field,
-            size: dataset === undefined ? sample.size : sizeWords(dataset),
-            sentence: sample.sentence,
-            picture: () => samplePicture(sample),
+function buildTiles({ datasets, generators }: SampleCatalog): readonly LibraryTile[] {
+    return [
+        ...START_SAMPLES.map((sample): LibraryTile => {
+            const dataset = copyOf(sample);
+            const field = FIELDS[sample.id] ?? "Other";
+            const hook = HOOKS[sample.id] ?? sample.name;
+            return {
+                id: sample.id,
+                name: sample.name,
+                hook,
+                field,
+                size: dataset === undefined ? sample.size : sizeWords(dataset),
+                sentence: sample.sentence,
+                picture: () => samplePicture(sample),
+                note: undefined,
+                words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
+                source: { kind: "sample", sample },
+            };
+        }),
+        ...datasets
+            .filter((dataset) => !Object.values(OWN_COPIES).includes(dataset.name) && fitsInBrowser(dataset))
+            .map((dataset): LibraryTile => ({
+                id: dataset.name,
+                name: dataset.title,
+                hook: HOOKS[dataset.name] ?? dataset.title,
+                field: FIELDS[dataset.name] ?? "Other",
+                size: sizeWords(dataset),
+                sentence: firstSentence(dataset.description),
+                picture: () => pictureOf(dataset),
+                note: noteOf(dataset),
+                words: `${dataset.title} ${HOOKS[dataset.name] ?? ""} ${FIELDS[dataset.name] ?? "Other"} ${dataset.description}`.toLowerCase(),
+                source: { kind: "dataset", dataset },
+            })),
+        ...generators.map((generator): LibraryTile => ({
+            id: `generate-${generator.name}`,
+            name: generator.plainName,
+            hook: generator.plainName,
+            field: GENERATED,
+            size:
+                generator.params.length === 0
+                    ? "nothing to set"
+                    : generator.params.map((param) => param.plainName).join(", "),
+            sentence: generator.description,
+            picture: () => pictureOf(generator),
             note: undefined,
-            words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
-            source: { kind: "sample", sample },
-        };
-    }),
-    ...DATASET_DESCRIPTORS.filter(
-        (dataset) => !Object.values(OWN_COPIES).includes(dataset.name) && fitsInBrowser(dataset),
-    ).map((dataset): LibraryTile => ({
-        id: dataset.name,
-        name: dataset.title,
-        hook: HOOKS[dataset.name] ?? dataset.title,
-        field: FIELDS[dataset.name] ?? "Other",
-        size: sizeWords(dataset),
-        sentence: firstSentence(dataset.description),
-        picture: () => pictureOf(dataset),
-        note: noteOf(dataset),
-        words: `${dataset.title} ${HOOKS[dataset.name] ?? ""} ${FIELDS[dataset.name] ?? "Other"} ${dataset.description}`.toLowerCase(),
-        source: { kind: "dataset", dataset },
-    })),
-    ...GENERATOR_DESCRIPTORS.map((generator): LibraryTile => ({
-        id: `generate-${generator.name}`,
-        name: generator.plainName,
-        hook: generator.plainName,
-        field: GENERATED,
-        size:
-            generator.params.length === 0
-                ? "nothing to set"
-                : generator.params.map((param) => param.plainName).join(", "),
-        sentence: generator.description,
-        picture: () => pictureOf(generator),
-        note: undefined,
-        words: `${generator.plainName} ${generator.name} ${GENERATED} ${generator.description}`.toLowerCase(),
-        source: { kind: "generator", generator },
-    })),
-];
+            words: `${generator.plainName} ${generator.name} ${GENERATED} ${generator.description}`.toLowerCase(),
+            source: { kind: "generator", generator },
+        })),
+    ];
+}
+
+/** The datasets and generators the library lists. */
+interface SampleCatalog {
+    readonly datasets: readonly DatasetMeta[];
+    readonly generators: readonly GeneratorDescriptor[];
+}
+
+/** graphty-element's catalog, which the library lists. */
+const ELEMENT_CATALOG: SampleCatalog = { datasets: DATASET_DESCRIPTORS, generators: GENERATOR_DESCRIPTORS };
+/** The tiles of the catalog listed now. */
+let sampleTiles = buildTiles(ELEMENT_CATALOG);
+
+/**
+ * Lists another catalog in place of graphty-element's, or graphty-element's again: for a test that
+ * adds a dataset and a generator to the catalog and looks for them in the library.
+ * @param catalog - The catalog, or none for graphty-element's.
+ * @param catalog.datasets - The datasets.
+ * @param catalog.generators - The generators.
+ */
+export function setSampleCatalogForTests(catalog: SampleCatalog = ELEMENT_CATALOG): void {
+    sampleTiles = buildTiles(catalog);
+}
 
 /**
  * The tiles this site offers, in order: the app's own samples that offeredSamples() offers (the
@@ -217,7 +245,7 @@ const SAMPLE_TILES: readonly LibraryTile[] = [
  */
 export function offeredTiles(timeline: boolean): readonly LibraryTile[] {
     const own = new Set(offeredSamples(timeline));
-    return SAMPLE_TILES.filter((tile) => tile.source.kind !== "sample" || own.has(tile.source.sample));
+    return sampleTiles.filter((tile) => tile.source.kind !== "sample" || own.has(tile.source.sample));
 }
 
 /** The field of every network sample, for the field filter. */

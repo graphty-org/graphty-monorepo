@@ -366,8 +366,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const graph1 = await createMockGraph(communityGraphData);
                 const graph2 = await createMockGraph(communityGraphData);
 
-                // Seeded: the bridge has one edge to each triangle, so at 0.5 which one it joins is a tie
-                // the seed breaks. Without one Leiden draws a seed per run, and this failed at random.
+                // Seeded: the bridge has one edge to each triangle, so at 0.5 which triangle it joins
+                // is a tie the seed breaks; unseeded, about 1 run in 100 put it with triangle B.
                 const leiden1 = new LeidenAlgorithm(graph1, { resolution: 0.5, randomSeed: 42 });
                 await leiden1.run();
 

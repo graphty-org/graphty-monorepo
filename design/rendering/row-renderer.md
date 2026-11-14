@@ -1236,6 +1236,26 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   (`slice.nodes`, `slice.edges`, read by `Node.data` and every record reader), so loading without one means
   holding records as columns and building them on demand, which is stage 29's "records into columns", conditional
   on stage 30's harness run. Stage 28 builds nothing more for it.
+  Records into columns (stage 29, built): under `"batched"`, `importColumns` copies its columns into a row source
+  (`session/project/recordMap.ts`) and keeps no record from the load: the load still builds each row's record
+  (short-lived, some rows two or three times) as the record doors read it, and drops it. The journal's `add-nodes` and `add-edges` commands
+  hold the columns and hand out `records` as a getter that builds a plain frozen array of plain records on read
+  (kept by a `WeakRef` only while the reader holds it), so `JournalEntry.command` stays plain data: it clones,
+  deep-freezes and reads the same record twice, as on the objects path; the graph slice's maps are a `RecordMap` (a `Map` subclass)
+  holding a row number per column record, as do the op log's `nodes` and `edges` ranges; rows stored with no `Node`
+  or `Edge` keep a marker and read the record from the slice. Corrections to this section and to the stage note:
+  the record had four holders, not two (the journal's command and the data manager's unbuilt rows besides the
+  slice and the op log), and a record is built on every read and never kept, not "built on demand and kept":
+  something reads every record after a load, so keeping what was built held the whole 90 MB (859 MB after GC
+  against 874 MB on master); built per read it is 775 MB, under the 800 MB target (1M + 1M, RTX, 2026-11-14). A
+  built `Node` still keeps its own record as `Node.data`; a second read of a column row's slice record is an equal
+  object, not the same one. The objects path keeps its records as before. Correction to the section 13 row's
+  proving tests: the load builds records, so "records built during an eligible file import counted at 0" is
+  proven as records kept after it counted at 0 (`RecordMap.heldRecords`, every build counted beside it), and
+  the digest-and-fingerprint half compares both on every corpus file, generator and sample dataset. The first
+  pull request is the heap half; `columnsEligible`, routing record arrays through the column door, the counted
+  ineligible-load test and the import report (`importColumns` resolving to a `LoadReport`) are the stage's
+  second pull request.
 - **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
   one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
   whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the
@@ -1650,6 +1670,29 @@ object per element. Stages 26 to 28 remove that reason.
   `limits-warning` once a repaint settles, and again only when the number held plain changes. The app's
   `fitsInBrowser` and `isLarge` take the limits as an optional parameter, defaulting to `DEFAULT_LIMITS`; no caller
   passes raised ones yet, because the app does not raise `limits` on the element.
+- **Stage 124, the gaps stage 30 left** (corrections to the bullet above, batched only). The rows held plain are
+  counted by what draws them, not by sets of row numbers in `UpdateManager`: `NodeBatches.plainRowCount` (column
+  rows whose paint key starts `plain|`) and `EdgeRowLines.plainCount` (rows in a batch made for a plain paint).
+  Those follow every unpaint, removal, renumbering freeze and clear, so `W_OBJECT_CAP`'s `wanted` after a removal
+  is exact, and a clear resets what was last reported, so a reload past the budget reports again. Setting
+  `limits` queues every plain row for a repaint (`UpdateManager.limitsChanged`): a raised budget gives each row it
+  has room for its object, and a row that has its object keeps it. Under 3D `flat` lighting, which batches no
+  row, a plain paint is still drawable by a batch, drawn without the outline only a `Node` draws; and a view
+  change that drops column rows from their batch now repaints them (`NodeBatchHost.repaint`), where before
+  they drew nothing until some other paint reached them. A plain row whose own paint has a label carries
+  `labelled` on its plain paint; while label sampling is on (section 4.7) it is a candidate by row and
+  position (`RowTable.centerOf`), and when it wins its cell its `Node` is built (`UpdateManager.buildPlainRow`)
+  and its label drawn as any other, through the glyph atlas when `labelText` is `"glyphs"`. With sampling
+  off a plain row still draws no label: the label is what its object would have held. A `Node` built for a
+  label stays when a later pass drops the label, so the objects grow by the rows that ever won a cell.
+- **Stage 125, the app raises the limits** (correction to the stage 30 bullet's "the app does not raise `limits` on
+  the element"). Under the cosmograph experiment only, the graphty app sets the element's `limits` beside
+  `renderPath = "batched"` (`ElementHost.tsx`, `COSMOGRAPH_LIMITS`): `renderCeiling`, `edgesDrawn`, `objectRows` and
+  `objectEdges` all 1,000,000, so a million nodes and a million edges load and each may draw as an object of its own.
+  With the experiment off the app writes no `limits` and the element's defaults stand. The start page's
+  `fitsInBrowser` and `isLarge` still run on `DEFAULT_LIMITS`: they are called before an element exists, so they
+  have no session to read raised limits from. `CosmographFlag.real-element.test.tsx` loads 100,001 nodes and 100,000
+  edges into the workspace with the experiment on and reads every row drawn from `rowCounts`.
 
 ## 9. Edge-case rulings (input -> expected result)
 

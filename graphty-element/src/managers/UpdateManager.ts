@@ -37,6 +37,7 @@ import { type DataManager, dataManagerInternals, disposeReleased } from "./DataM
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
+import { LabelDeclutter } from "./LabelDeclutter";
 import type { LayoutManager } from "./LayoutManager";
 import { MINIMUM_PAINT_BATCH, minimumWorkPerFrame } from "./minimumWork";
 import { attachPendingWork, PendingWork } from "./PendingWork";
@@ -1524,6 +1525,7 @@ export class UpdateManager implements Manager {
 
         if (painter.hasPendingNodes) {
             this.syncNodeStyles(painter, deadline);
+            this.repaintedSinceFit = this.fitRead !== null;
         }
 
         // While a load holds the draw (`DataManager.drawHeld`) no frame shows the nodes and edges
@@ -1544,6 +1546,39 @@ export class UpdateManager implements Manager {
             this.paintBatchesDone();
         }
     }
+
+    /**
+     * Whether a node repaint drawn since the last fit changed the box it framed, while that fit's
+     * picture is not final yet. A style that lands after the fit -- a layer naming a shader whose
+     * body was still loading, drawn at another extent -- left the camera on the old box, and
+     * whether it landed before or after the fit depended on the machine's speed: the same story
+     * framed at two zooms (issue #7970). Asked on a drawn frame, once the repainted meshes are
+     * built, and measured once per repaint, not per frame.
+     */
+    private noteRepaintedExtent(): void {
+        if (!this.repaintedSinceFit || this.fitRead === null || this.fittedBox === undefined) {
+            return;
+        }
+
+        if (this.graphContext.getStylePainter?.()?.hasPendingNodes === true) {
+            return;
+        }
+
+        this.repaintedSinceFit = false;
+        const box = this.measure();
+        if (box === undefined || !sameBox(box, this.fittedBox)) {
+            this.fitExtentMoved = true;
+        }
+    }
+
+    /** The box the last fit framed, before any map grew it; see {@link UpdateManager.noteRepaintedExtent}. */
+    private fittedBox: FramingBox | undefined;
+
+    /** Whether a node repaint was applied since the last fit, before its picture was final. */
+    private repaintedSinceFit = false;
+
+    /** Whether a repaint moved the fitted box before the fit's picture was final. */
+    private fitExtentMoved = false;
 
     /** The token held while a repaint's batches remain; see {@link UpdateManager.syncStyles}. */
     private paintBatches: (() => void) | null = null;
@@ -1655,7 +1690,6 @@ export class UpdateManager implements Manager {
         const lines = this.graphContext.getEdgeRowLines?.() ?? null;
         const paint = painter.edgePaint(index);
         const [source, target] = ends;
-        this.heldPlainEdges.delete(index);
         const lineable =
             lines !== null &&
             paint !== null &&
@@ -1678,7 +1712,6 @@ export class UpdateManager implements Manager {
             lines.paintRow(index, source, target, plainEdgePaint(paint))
         ) {
             lines.setHidden(index, this.rowHidden(index));
-            this.heldPlainEdges.add(index);
             return undefined;
         }
 
@@ -1834,7 +1867,6 @@ export class UpdateManager implements Manager {
         // painted again below through `nodePaint`, so the Node never holds a shared style
         const paint = id === undefined ? null : painter.rowPaint(index);
         const batches = this.graphContext.getNodeBatches?.() ?? null;
-        this.heldPlain.delete(index);
         if (id === undefined || paint === null || batches?.paintRow(index, paint) === true) {
             return undefined;
         }
@@ -1842,35 +1874,90 @@ export class UpdateManager implements Manager {
         // Past `limits.objectRows`, a row whose look no batch draws is drawn as a plain body, and
         // keeps no `Node` (design/rendering/row-renderer.md section 8).
         const cap = this.dataManager.renderLimits?.objectRows?.() ?? Number.POSITIVE_INFINITY;
-        if (
-            batches !== null &&
-            dataManagerInternals.nodesLive(this.dataManager) >= cap &&
-            batches.paintRow(index, plainNodePaint(paint))
-        ) {
-            this.heldPlain.add(index);
+        const plain =
+            batches === null || dataManagerInternals.nodesLive(this.dataManager) < cap ? null : plainNodePaint(paint);
+        if (plain !== null && batches?.paintRow(index, plain) === true) {
+            if (plain.labelled === true) {
+                // label sampling may pick it, and then builds it a `Node` for the label (`buildPlainRow`)
+                LabelDeclutter.notePlainLabel(this.graphContext.getScene(), this.graphContext);
+            }
+
             return undefined;
         }
 
         return dataManagerInternals.buildRow(this.dataManager, id);
     }
 
-    /**
-     * Rows past `limits.objectRows` drawn as plain bodies.
-     * ponytail: a removed row's index stays until that index is painted again, so `wanted` can
-     * overcount after a removal; key it by row id if the count must be exact.
-     */
-    private readonly heldPlain = new Set<number>();
-    /** Edge rows past `limits.objectEdges` drawn as plain lines. */
-    private readonly heldPlainEdges = new Set<number>();
     /** How many rows of each kind the last `W_OBJECT_CAP` reported. */
     private readonly reportedPlain = { nodes: 0, edges: 0 };
+
+    /**
+     * The graph was emptied: no row is held plain any more, so a reload past a budget reports it again.
+     * @internal
+     */
+    dataCleared(): void {
+        this.reportedPlain.nodes = 0;
+        this.reportedPlain.edges = 0;
+    }
+
+    /**
+     * The object budgets changed: every row held plain is painted again, so one the new budget has room
+     * for gets its object. A row that has its object keeps it, as at any paint.
+     * @internal
+     */
+    limitsChanged(): void {
+        const painter = this.graphContext.getStylePainter?.();
+        if (painter === undefined) {
+            return;
+        }
+
+        for (const row of this.graphContext.getNodeBatches?.()?.plainRowIndices() ?? []) {
+            painter.queue("node", row);
+        }
+
+        for (const row of this.graphContext.getEdgeRowLines?.()?.plainRows() ?? []) {
+            painter.queue("edge", row);
+        }
+    }
+
+    /**
+     * The rows held plain whose own paint draws a label, for label sampling to pick from.
+     * @returns Each row and its node's id.
+     * @internal
+     */
+    plainLabelRows(): { row: number; id: NodeIdType }[] {
+        const rows: { row: number; id: NodeIdType }[] = [];
+        for (const row of this.graphContext.getNodeBatches?.()?.plainRowIndices(true) ?? []) {
+            const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
+            if (id !== undefined) {
+                rows.push({ row, id });
+            }
+        }
+
+        return rows;
+    }
+
+    /**
+     * Build the `Node` of a row held plain that label sampling picked, so its label is drawn: its own
+     * paint is queued for the next frame.
+     * ponytail: the `Node` stays when a later pass drops its label, so the objects grow by the rows that
+     * ever won a cell; turn it back into a plain row if zooming about builds too many.
+     * @param id - The row's node id.
+     * @internal
+     */
+    buildPlainRow(id: NodeIdType): void {
+        dataManagerInternals.buildRow(this.dataManager, id);
+    }
 
     /**
      * Say once a repaint settles, as `W_OBJECT_CAP`, that rows past an object budget are drawn plain.
      * @param of - Which rows.
      */
     private reportObjectCap(of: "nodes" | "edges"): void {
-        const held = (of === "nodes" ? this.heldPlain : this.heldPlainEdges).size;
+        const held =
+            (of === "nodes"
+                ? this.graphContext.getNodeBatches?.()?.plainRowCount
+                : this.graphContext.getEdgeRowLines?.()?.plainCount) ?? 0;
         if (held === this.reportedPlain[of]) {
             return;
         }
@@ -2578,6 +2665,7 @@ export class UpdateManager implements Manager {
         // `stateIsFinished` is the last pass's answer, and work can arrive between that pass and
         // this frame: a load that brings nodes and starts the layout, then a resize that calls
         // `viewMoved()`, drew a frame of unplaced meshes and called it final (issue #3517).
+        this.noteRepaintedExtent();
         if (!this.pictureIsFinished()) {
             this.stateIsFinished = false;
             return;
@@ -4468,6 +4556,9 @@ export class UpdateManager implements Manager {
 
         this.hasZoomedToFit = true;
         this.fitRead = this.fitInputs();
+        this.fittedBox = box;
+        this.fitExtentMoved = false;
+        this.repaintedSinceFit = false;
         this.forceZoomToFit = false;
         this.explicitZoomToFit = false;
         this.framingHasNothingToFrame = false;
@@ -4544,7 +4635,7 @@ export class UpdateManager implements Manager {
      * @returns True when the fit is owed again.
      */
     private fitIsStale(): boolean {
-        return this.fitRead !== null && this.fitRead !== this.fitInputs();
+        return this.fitRead !== null && (this.fitExtentMoved || this.fitRead !== this.fitInputs());
     }
 
     /**

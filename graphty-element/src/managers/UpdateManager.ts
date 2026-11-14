@@ -1843,13 +1843,23 @@ export class UpdateManager implements Manager {
         // painted again below through `nodePaint`, so the Node never holds a shared style
         const paint = id === undefined ? null : painter.rowPaint(index);
         const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const table = this.graphContext.getRowTable?.() ?? null;
+        const filtered = (): boolean => this.viewMasks?.visibility?.nodes()?.has(index) === false;
         // A row a style hides (what lies outside a time window) draws nothing, and needs no `Node` to hide it.
+        // Its bound goes to 0 as a hidden `Node`'s does, so a pick or a region skips it.
         if (paint?.style.visible === false) {
             batches?.unpaintRow(index);
+            table?.hide(index, true);
             return undefined;
         }
 
-        if (id === undefined || paint === null || batches?.paintRow(index, paint) === true) {
+        if (id === undefined || paint === null) {
+            return undefined;
+        }
+
+        if (batches?.paintRow(index, paint) === true) {
+            // shown again: hidden now only if a filter hides it, as `applyColumnRows` writes
+            table?.hide(index, filtered());
             return undefined;
         }
 
@@ -1859,6 +1869,7 @@ export class UpdateManager implements Manager {
         const plain =
             batches === null || dataManagerInternals.nodesLive(this.dataManager) < cap ? null : plainNodePaint(paint);
         if (plain !== null && batches?.paintRow(index, plain) === true) {
+            table?.hide(index, filtered());
             if (plain.labelled === true) {
                 // label sampling may pick it, and then builds it a `Node` for the label (`buildPlainRow`)
                 LabelDeclutter.notePlainLabel(this.graphContext.getScene(), this.graphContext);

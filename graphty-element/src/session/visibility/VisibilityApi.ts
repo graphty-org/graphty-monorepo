@@ -615,7 +615,7 @@ export interface SessionVisibilityApi extends VisibilityApi {
 }
 
 /** What every filter keeps, the window aside, by id; null for a kind nothing narrows. */
-export interface KeptIds {
+interface KeptIds {
     readonly nodes: ReadonlySet<NodeId> | null;
     readonly edges: ReadonlySet<EdgeId> | null;
 }

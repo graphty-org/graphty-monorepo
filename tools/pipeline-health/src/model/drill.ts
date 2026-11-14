@@ -48,7 +48,7 @@ export async function runDrill(store: Store, runId: number, nowMs: number): Prom
     };
 }
 
-function kindOf(t: TestItem, s: ShardRunItem | undefined): TestHistoryResponse["events"][number]["kind"] {
+function kindOf(t: TestItem, s: { full?: boolean } | undefined): TestHistoryResponse["events"][number]["kind"] {
     if (t.source === "local") {
         return "local";
     }
@@ -56,8 +56,23 @@ function kindOf(t: TestItem, s: ShardRunItem | undefined): TestHistoryResponse["
 }
 
 /**
- * A file's (or one test's) failed and flaky results in the range, newest first, joined to their shard runs for the
- * pull request, commit and kind; undefined when there are none.
+ * The GitHub job key and shard of a CI invocation id, `<run>.<attempt>.<job>.<shard>[.p<k>][.r<n>].<try>`
+ * (tools/results/run-group.mjs baseId); a local one, or a shorter id, names what it can.
+ * @param t - the test row
+ * @returns the job key and shard, when the id names them
+ */
+function jobOf(t: TestItem): { job?: string; shard?: string } {
+    const parts = t.source === "ci" ? t.invocation.split(".") : [];
+    const shard = parts.length > 4 ? parts.slice(3, -1).join(".") : parts[3];
+    return { ...(parts[2] ? { job: parts[2] } : {}), ...(shard ? { shard } : {}) };
+}
+
+/** How many invocations' shard and run lookups testHistory runs at once. */
+const LOOKUP_BATCH = 25;
+
+/**
+ * A file's (or one test's) failed and flaky results in the range, newest first, joined to their shard runs (else
+ * their workflow run) for the pull request, commit and kind; an empty list when there are none.
  * @param store - the table
  * @param q - the query
  * @param q.file - test file path
@@ -70,30 +85,31 @@ export async function testHistory(
     store: Store,
     q: { file: string; test?: string; range: "7d" | "28d" },
     nowMs: number,
-): Promise<TestHistoryResponse | undefined> {
+): Promise<TestHistoryResponse> {
     const from = nowMs - (q.range === "28d" ? 28 : 7) * DAY;
     const live = (await store.query(`TESTH#${q.file}`, { from: skTime(from) })).filter((i) => isLive(i, nowMs));
     const tests = (live as unknown as TestItem[])
         .filter((t) => q.test === undefined || t.name === q.test)
         .sort((a, b) => b.seenAt - a.seenAt);
-    if (!tests.length) {
-        return undefined;
-    }
-    const shards = new Map<string, ShardRunItem | undefined>();
-    for (const t of tests) {
-        if (!shards.has(t.invocation)) {
-            shards.set(
-                t.invocation,
-                ((await store.query(`R#shard_run#${t.invocation}`)) as unknown as ShardRunItem[]).at(-1),
-            );
-        }
+    // A story bin's flaky post and a backfilled annotation have no shard run: the workflow run names the commit.
+    const shards = new Map<string, { sha: string; pr?: number; full?: boolean } | undefined>();
+    const lookup = async (invocation: string): Promise<void> => {
+        const shard = ((await store.query(`R#shard_run#${invocation}`)) as unknown as ShardRunItem[]).at(-1);
+        const run = /^(\d+)\./.exec(invocation)?.[1];
+        const runs = shard || !run ? [] : ((await store.query(`RUN#${run}`)) as unknown as RunItem[]);
+        shards.set(invocation, shard ?? runs.find((r) => r.kind === "run"));
+    };
+    // Lookups run LOOKUP_BATCH at a time, so a flaky file's hundreds of invocations fit in the Read Lambda's timeout.
+    const invocations = [...new Set(tests.map((t) => t.invocation))];
+    for (let i = 0; i < invocations.length; i += LOOKUP_BATCH) {
+        await Promise.all(invocations.slice(i, i + LOOKUP_BATCH).map(lookup));
     }
     return {
         generated: iso(nowMs),
         range: q.range,
         file: q.file,
         ...(q.test === undefined ? {} : { test: q.test }),
-        family: tests[0].family,
+        family: tests[0]?.family ?? null,
         events: tests.map((t) => {
             const s = shards.get(t.invocation);
             // A CI invocation id starts "<run id>.<run attempt>." (ingest.ts, runPrefix); a local one "local.".
@@ -104,9 +120,11 @@ export async function testHistory(
                 ...(s?.pr === undefined ? {} : { pr: s.pr }),
                 run: Number.isFinite(run) ? run : 0,
                 attempt: Number.isFinite(attempt) ? attempt : t.attempt,
+                ...jobOf(t),
                 sha: s?.sha ?? "",
                 outcome: t.outcome,
                 ...(t.signature ? { signature: t.signature.slice(0, 200) } : {}),
+                ...(t.pictures ? { pictures: t.pictures } : {}),
             };
         }),
     };

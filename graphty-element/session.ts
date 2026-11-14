@@ -72,6 +72,8 @@ export type {
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
+    DataChange,
+    DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
     DraftColumn,
@@ -80,6 +82,7 @@ export type {
     DraftRowOptions,
     DraftTable,
     EdgeEnd,
+    EdgeName,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
@@ -100,6 +103,10 @@ export type {
     GraphSettingKey,
     GraphStatistics,
     GroupOutlineClick,
+    GroupSummary,
+    GroupTable,
+    GroupTableOptions,
+    GroupTableRow,
     HistoryCause,
     HistoryClearOptions,
     HistoryCode,
@@ -107,15 +114,22 @@ export type {
     HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    ImportColumnsInput,
     ImportOptions,
     JoinChoices,
     JoinKey,
+    JoinLink,
+    JoinLookup,
+    JoinMapping,
     JoinRecord,
+    JoinReduce,
+    JoinRegion,
     JoinReport,
     JoinRowFate,
     JoinShape,
     JoinSuggestion,
     JoinWarning,
+    LayoutMotion,
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
@@ -128,14 +142,20 @@ export type {
     LocationKind,
     LocationUnused,
     LocationUsing,
+    MergeNodesOptions,
     ModelChange,
     ModelState,
+    MultipleTestingCorrection,
     Neighbor,
     NeighborOptions,
     NeighborPage,
     NeighborSort,
+    NodeName,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedGroup,
+    OverRepresentedValue,
+    OverRepresentedValues,
     PageColumn,
     PendingId,
     PendingStep,
@@ -146,6 +166,7 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemapOptions,
     RemoveSourceResult,
     ReplaceCounts,
     ReplaceReport,
@@ -154,15 +175,19 @@ export type {
     ResultColumn,
     ResultColumnDescriptor,
     ResultSort,
+    RowReason,
+    RowReasonCode,
     RowUpdate,
     RunPlacement,
     SessionAttributes,
+    SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
     SessionDataApi,
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHidden,
     SessionHistory,
     SessionLayout,
     SessionPositions,
@@ -195,6 +220,7 @@ export { createGraphSession } from "./src/session";
 export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { EndpointSpelling } from "./src/data/endpoints";
 export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export { IMPORT_ROWS_KEPT } from "./src/data/report";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 export type {
     RecipeColumn,
@@ -224,6 +250,9 @@ export type {
     BuiltInModelFormat,
     ModelFormat,
     ModelLimits,
+    ModelPart,
+    ModelPartRole,
+    ModelPartState,
     ModelSummary,
     NamedBlob,
     PartAnswer,
@@ -302,6 +331,7 @@ export {
 export type {
     BatchResult,
     BatchStep,
+    BatchStepFailure,
     CaveatCode,
     Caveats,
     EngineVersions,
@@ -338,6 +368,9 @@ export type {
     StaleReason,
     StartOptions,
     SuggestionOutcome,
+    SweepOptions,
+    SweepResult,
+    SweepRow,
     WeightMeaning,
     WeightSkip,
 } from "./src/session/runs";
@@ -363,15 +396,24 @@ export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } 
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ComparedField,
+    CompareSide,
+    ComparisonBase,
+    GroupMove,
+    GroupOverlap,
     Histogram,
     HistogramBin,
     HistogramBinning,
     HistogramOptions,
     Normalization,
     NumericColumnView,
+    PartitionComparison,
+    RankChange,
+    RankingComparison,
     RankingEntry,
     ReadingCode,
     ReadingOptions,
+    ResultComparison,
     ResultsApi,
     ResultSummary,
     RunRef,
@@ -467,9 +509,13 @@ export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal"
 // ---------------------------------------------------------------------------------------------
 
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./src/session";
+export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./src/session";
 export { browserProjects } from "./src/session";
+export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./src/session";
 export type {
+    AssetStorage,
     ProjectApi,
+    ProjectAssetChoice,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
@@ -489,6 +535,7 @@ export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    NeighborhoodWindow,
     RuleCheck,
     SelectionApi,
     SelectionApplyOptions,
@@ -498,6 +545,7 @@ export type {
     SelectionDirection,
     SelectionOp,
     SelectionStatistics,
+    SelectionStatisticsOptions,
     SelectionTarget,
     SelectionTextMode,
     UnknownRulePath,
@@ -563,6 +611,7 @@ export type {
     TimeCounts,
     TimeExtent,
     TimeField,
+    TimeFieldOptions,
     TimeFieldResult,
     TimeIds,
     TimeMeasure,
@@ -586,11 +635,13 @@ export type {
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
+    CostBasis,
     CostConfidence,
     CostEstimate,
     CostGateDecision,
     CostGateLimits,
     CostMeasurement,
+    CostProvenanceCode,
     EstimateRefusalCode,
     MachineCalibration,
 } from "./src/session/cost";
@@ -739,6 +790,8 @@ export type {
     StyleCounts,
     StyleExplanation,
     StyleFileDocument,
+    StyleRepaintCause,
+    StyleRepaintFailure,
     StyleRow,
     StyleRowId,
     StyleRowPin,
@@ -760,7 +813,25 @@ export type {
     ValueEntryWrite,
     ValueGroup,
 } from "./src/session/styles";
+export type {
+    Condition,
+    ConditionField,
+    ConditionFieldKind,
+    ConditionTextMode,
+    ListedConditionField,
+} from "./src/session/styles";
 export {
+    CONDITION_SOURCE_PATH,
+    conditionFields,
+    conditionKey,
+    conditionLeaf,
+    conditionOf,
+    conditionSelector,
+    edgeConditions,
+    isConditionFinished,
+    newCondition,
+    nodeConditionLeaves,
+    nodeConditions,
     OVERFLOW_PATTERNS,
     OVERFLOW_SHAPES,
     quotePath,
@@ -790,7 +861,7 @@ export type {
     XrUnavailableReason,
 } from "./src/acceleration";
 export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
-export type { DefaultableLimits } from "./src/session";
+export type { DefaultableLimits, LimitsOption } from "./src/session";
 export { DEFAULT_LIMITS } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -800,6 +871,9 @@ export { DEFAULT_LIMITS } from "./src/session";
 export type {
     AccelerationErrorCode,
     GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
     GraphtyErrorInit,
     GraphtyErrorJson,
     GraphtyErrorSource,

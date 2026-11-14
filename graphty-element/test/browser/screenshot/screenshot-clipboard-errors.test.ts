@@ -1,152 +1,114 @@
-import { afterEach, assert, test } from "vitest";
+import { afterEach, assert, test, vi } from "vitest";
 
+import { GraphtyError } from "../../../src/errors";
 import type { Graph } from "../../../src/Graph.js";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
+/**
+ * Replaces the browser's clipboard for one test, and grants clipboard-write so the outcome is the
+ * write's own.
+ * @param clipboard - What `navigator.clipboard` reads as; undefined for a browser without one.
+ */
+function stubClipboard(clipboard: Pick<Clipboard, "write"> | undefined): void {
+    Object.defineProperty(navigator, "clipboard", { value: clipboard, configurable: true });
+    vi.spyOn(navigator.permissions, "query").mockResolvedValue({ state: "granted" } as PermissionStatus);
+}
+
 afterEach(() => {
+    Reflect.deleteProperty(navigator, "clipboard");
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     cleanupTestGraphWithData(graph);
 });
 
-test("screenshot returns valid clipboardStatus", async () => {
+/**
+ * Asserts a clipboard error is the browser refusing, for one reason.
+ * @param error - The result's clipboardError.
+ * @param reason - The `details.reason` it must carry.
+ */
+function assertRefused(error: Error | undefined, reason: string): void {
+    assert.ok(error instanceof GraphtyError, "clipboardError should be a GraphtyError");
+    assert.equal(error.code, "E_UNSUPPORTED");
+    assert.equal(error.details.reason, reason);
+}
+
+test("a capture without the clipboard as a destination reports not-requested", async () => {
     graph = await createTestGraphWithData();
 
-    const result = await graph.captureScreenshot({
-        destination: { clipboard: true },
-    });
+    const result = await graph.captureScreenshot({ destination: { blob: true } });
 
-    // Clipboard status should be one of the valid values
-    const validStatuses = ["success", "not-supported", "permission-denied", "not-secure-context", "failed"];
-    assert.ok(
-        validStatuses.includes(result.clipboardStatus),
-        `clipboardStatus should be one of ${validStatuses.join(", ")}, got ${result.clipboardStatus}`,
-    );
+    assert.equal(result.clipboardStatus, "not-requested");
+    assert.equal(result.clipboardError, undefined);
 });
 
-test("screenshot provides clipboardError when clipboard fails", async () => {
+test("a successful clipboard write reports success with no error", async () => {
     graph = await createTestGraphWithData();
+    const write = vi.fn().mockResolvedValue(undefined);
+    stubClipboard({ write });
 
-    const result = await graph.captureScreenshot({
-        destination: { clipboard: true },
-    });
+    const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
-    // If clipboard failed, there should be an error
-    if (result.clipboardStatus !== "success") {
-        assert.ok(result.clipboardError, "Should have clipboardError when clipboard operation fails");
-        assert.ok(result.clipboardError.message, "clipboardError should have a message");
-    }
+    assert.equal(result.clipboardStatus, "success");
+    assert.equal(result.clipboardError, undefined);
+    assert.equal(write.mock.calls.length, 1);
+    assert.ok(result.blob instanceof Blob);
 });
 
-test("screenshot still succeeds even if clipboard fails", async () => {
+test("a browser without a clipboard reports not-supported and still returns the image", async () => {
     graph = await createTestGraphWithData();
+    stubClipboard(undefined);
 
-    const result = await graph.captureScreenshot({
-        destination: { clipboard: true },
-    });
+    const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
-    // Screenshot should succeed even if clipboard fails
-    assert.ok(result.blob, "Should have blob even if clipboard fails");
-    assert.ok(result.blob instanceof Blob, "blob should be a Blob");
-    assert.ok(result.metadata, "Should have metadata");
+    assert.equal(result.clipboardStatus, "not-supported");
+    assertRefused(result.clipboardError, "clipboard");
+    assert.ok(result.blob instanceof Blob);
 });
 
-test("clipboard status is 'not-supported' or 'success' based on browser capability", async () => {
+test("an insecure page reports not-secure-context", async () => {
     graph = await createTestGraphWithData();
+    vi.stubGlobal("isSecureContext", false);
 
-    const result = await graph.captureScreenshot({
-        destination: { clipboard: true },
-    });
+    const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
-    // In most test environments, clipboard might not be supported
-    // but in secure contexts it should work
-
-    if (window.isSecureContext && navigator.clipboard) {
-        // Clipboard API is available - status should be success or permission-denied
-        assert.ok(
-            ["success", "permission-denied", "failed"].includes(result.clipboardStatus),
-            `In secure context with clipboard API, status should be success/permission-denied/failed, got ${result.clipboardStatus}`,
-        );
-    } else {
-        // Clipboard API not available
-        assert.ok(
-            ["not-supported", "not-secure-context"].includes(result.clipboardStatus),
-            `Without clipboard API or secure context, status should be not-supported or not-secure-context, got ${result.clipboardStatus}`,
-        );
-    }
+    assert.equal(result.clipboardStatus, "not-secure-context");
+    assertRefused(result.clipboardError, "clipboard-insecure-context");
 });
 
-test("clipboard operation does not throw error", async () => {
+test("a write the browser refuses reports permission-denied", async () => {
     graph = await createTestGraphWithData();
+    stubClipboard({ write: vi.fn().mockRejectedValue(new DOMException("refused", "NotAllowedError")) });
 
-    // This should not throw even if clipboard is not supported
-    const result = await graph.captureScreenshot({
-        destination: { clipboard: true },
-    });
+    const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
-    assert.ok(result, "Should return result");
-    assert.ok(result.blob, "Should have blob");
+    assert.equal(result.clipboardStatus, "permission-denied");
+    assertRefused(result.clipboardError, "clipboard-permission");
 });
 
-test("clipboard error has appropriate code", async () => {
+test("a denied clipboard-write permission reports permission-denied without writing", async () => {
     graph = await createTestGraphWithData();
+    const write = vi.fn().mockResolvedValue(undefined);
+    stubClipboard({ write });
+    vi.spyOn(navigator.permissions, "query").mockResolvedValue({ state: "denied" } as PermissionStatus);
 
-    const result = await graph.captureScreenshot({
-        destination: { clipboard: true },
-    });
+    const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
-    if (result.clipboardError) {
-        // Error should have a code property if it's a ScreenshotError
-        const errorCode = (result.clipboardError as { code?: string }).code;
-
-        if (errorCode) {
-            const validCodes = [
-                "CLIPBOARD_NOT_SUPPORTED",
-                "CLIPBOARD_PERMISSION_DENIED",
-                "CLIPBOARD_NOT_SECURE_CONTEXT",
-                "CLIPBOARD_WRITE_FAILED",
-                "CLIPBOARD_FAILED",
-            ];
-            assert.ok(
-                validCodes.includes(errorCode),
-                `Error code should be one of the valid clipboard error codes, got ${errorCode}`,
-            );
-        }
-    }
+    assert.equal(result.clipboardStatus, "permission-denied");
+    assertRefused(result.clipboardError, "clipboard-permission");
+    assert.equal(write.mock.calls.length, 0);
 });
 
-test("multiple screenshots can handle clipboard independently", async () => {
+test("a write that fails for another reason reports failed", async () => {
     graph = await createTestGraphWithData();
+    stubClipboard({ write: vi.fn().mockRejectedValue(new Error("device busy")) });
 
-    // First screenshot with clipboard
-    const result1 = await graph.captureScreenshot({
-        destination: { clipboard: true },
-    });
+    const result = await graph.captureScreenshot({ destination: { clipboard: true } });
 
-    // Second screenshot with clipboard
-    const result2 = await graph.captureScreenshot({
-        destination: { clipboard: true },
-    });
-
-    // Both should have completed
-    assert.ok(result1.blob, "First screenshot should have blob");
-    assert.ok(result2.blob, "Second screenshot should have blob");
-
-    // Clipboard status should be consistent across calls
-    assert.equal(
-        result1.clipboardStatus,
-        result2.clipboardStatus,
-        "Clipboard status should be consistent across multiple calls",
-    );
-});
-
-test("screenshot without clipboard destination has default clipboard status", async () => {
-    graph = await createTestGraphWithData();
-
-    const result = await graph.captureScreenshot({
-        destination: { blob: true },
-    });
-
-    // When clipboard is not requested, status should still be set (to not-supported or success depending on defaults)
-    assert.ok(result.clipboardStatus, "Should have clipboardStatus even when not requested");
+    assert.equal(result.clipboardStatus, "failed");
+    assert.ok(result.clipboardError instanceof GraphtyError);
+    assert.equal(result.clipboardError.code, "E_CAPTURE_FAILED");
+    assert.deepEqual(result.clipboardError.details, { media: "image", destination: "clipboard" });
+    assert.ok(result.blob instanceof Blob);
 });

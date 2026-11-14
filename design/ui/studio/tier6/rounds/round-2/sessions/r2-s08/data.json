@@ -1,0 +1,92 @@
+{
+ "counts": {
+  "totalEdges": 298,
+  "totalNodes": 249,
+  "visibleEdges": 298,
+  "visibleNodes": 249,
+  "selectedNodes": 0,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "yeast-galactose.graphml",
+   "kind": "file",
+   "counts": {
+    "nodes": 249,
+    "edges": 298
+   },
+   "recount": {
+    "nodes": 249,
+    "edges": 298
+   },
+   "chips": null,
+   "join": null,
+   "leftOut": null,
+   "mapping": null
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": "label",
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.name",
+   "name": "name",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.gal1RGexp",
+   "name": "gal1RGexp",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.gal4RGexp",
+   "name": "gal4RGexp",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.gal80Rexp",
+   "name": "gal80Rexp",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  }
+ ],
+ "filters": [],
+ "filter": null,
+ "window": null
+}

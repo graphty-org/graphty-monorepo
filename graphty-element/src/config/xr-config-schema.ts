@@ -16,13 +16,17 @@ import { z } from "zod";
  * ```
  */
 
+/** A Quest Touch face button. */
+const xrControllerButton = z.enum(["a", "b", "x", "y"]);
+
 export const xrConfigSchema = z
     .object({
         /**
-         * Enable/disable XR functionality globally
-         * @default true
+         * Enable/disable XR functionality globally. Off by default: asking a headless browser
+         * which XR modes it supports can hang.
+         * @default false
          */
-        enabled: z.boolean().default(true),
+        enabled: z.boolean().default(false),
 
         /**
          * XR UI button configuration
@@ -48,11 +52,30 @@ export const xrConfigSchema = z
                 unavailableMessageDuration: z.number().positive().default(5000),
 
                 /**
-                 * Show "VR / AR NOT AVAILABLE" warning when XR is not available
+                 * Show the `unavailableLabel` message when XR is not available
                  * When false, no message is displayed if AR/VR aren't available
                  * @default false
                  */
                 showAvailabilityWarning: z.boolean().default(false),
+
+                /**
+                 * Text of the button that enters VR
+                 * @default "VR"
+                 */
+                vrLabel: z.string().default("VR"),
+
+                /**
+                 * Text of the button that enters AR
+                 * @default "AR"
+                 */
+                arLabel: z.string().default("AR"),
+
+                /**
+                 * Text of the message shown when `showAvailabilityWarning` is on and neither VR
+                 * nor AR is available
+                 * @default "VR / AR NOT AVAILABLE"
+                 */
+                unavailableLabel: z.string().default("VR / AR NOT AVAILABLE"),
             })
             .prefault({}),
 
@@ -80,7 +103,8 @@ export const xrConfigSchema = z
                     .default("local-floor"),
 
                 /**
-                 * Optional WebXR features to request
+                 * Optional WebXR features to request when a VR session starts, such as "anchors".
+                 * The session gets each one the device supports; the rest are skipped.
                  * @default []
                  */
                 optionalFeatures: z.array(z.string()).default([]),
@@ -107,10 +131,11 @@ export const xrConfigSchema = z
                     .default("local-floor"),
 
                 /**
-                 * Optional WebXR features to request
-                 * @default ["hit-test"]
+                 * Optional WebXR features to request when an AR session starts, such as "hit-test".
+                 * The session gets each one the device supports; the rest are skipped.
+                 * @default []
                  */
-                optionalFeatures: z.array(z.string()).default(["hit-test"]),
+                optionalFeatures: z.array(z.string()).default([]),
             })
             .prefault({}),
 
@@ -126,26 +151,16 @@ export const xrConfigSchema = z
                 handTracking: z.boolean().default(true),
 
                 /**
-                 * Enable motion controllers
-                 * @default true
-                 */
-                controllers: z.boolean().default(true),
-
-                /**
-                 * Enable near interaction (touch/grab)
+                 * Enable near interaction: hands and controllers touch and grab up close, each
+                 * drawing a touch orb
                  * @default true
                  */
                 nearInteraction: z.boolean().default(true),
 
                 /**
-                 * Enable physics-based interactions
-                 * @default false
-                 */
-                physics: z.boolean().default(false),
-
-                /**
                  * Z-axis movement amplification factor
-                 * Multiplies Z-axis delta during drag to make depth manipulation practical in VR
+                 * Multiplies Z-axis delta during a node drag (a headset pinch or trigger drag, or a
+                 * pointer drag) to make depth manipulation practical in VR. X and Y follow the hand.
                  *
                  * Example: With zAxisAmplification = 10, moving controller 0.1 units in Z
                  * will move the node 1.0 units in Z
@@ -163,23 +178,29 @@ export const xrConfigSchema = z
             .prefault({}),
 
         /**
-         * Teleportation configuration
+         * The assistant in an immersive session (XRAiConfig). Optional with no default, so a
+         * configuration that leaves it out parses exactly as before; its defaults apply where it
+         * is read.
          */
-        teleportation: z
+        ai: z
             .object({
-                /**
-                 * Enable teleportation system
-                 * @default false
-                 */
-                enabled: z.boolean().default(false),
-
-                /**
-                 * Teleportation animation duration (ms)
-                 * @default 200
-                 */
-                easeTime: z.number().positive().default(200),
+                pushToTalk: z
+                    .object({
+                        buttons: z.array(xrControllerButton).optional(),
+                        wristOrb: z.boolean().optional(),
+                    })
+                    .optional(),
+                pendingButtons: z
+                    .object({
+                        approve: z.array(xrControllerButton).optional(),
+                        deny: z.array(xrControllerButton).optional(),
+                    })
+                    .optional(),
+                pendingControl: z.boolean().optional(),
+                panel: z.boolean().optional(),
+                labels: z.record(z.string(), z.string()).optional(),
             })
-            .prefault({}),
+            .optional(),
     })
     .prefault({});
 

@@ -109,10 +109,10 @@ describe("Undo from the reader's keys", () => {
         (document.activeElement as HTMLElement | null)?.blur();
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
-            assert.equal(store.get().notice?.message, "Undid adding the layer Cosette.");
+            assert.equal(store.get().notice?.message, "Undid adding the layer Cosette");
         });
         // The reader sees it: the toast is drawn, not only kept in the store.
-        await screen.findByText("Undid adding the layer Cosette.", { selector: ".cm-toast-message" });
+        await screen.findByText("Undid adding the layer Cosette", { selector: ".cm-toast-message" });
     });
 
     it("names the act when Control+Z is pressed on the drawing", async () => {
@@ -133,9 +133,9 @@ describe("Undo from the reader's keys", () => {
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.isFalse(session.canUndo);
-            assert.equal(store.get().notice?.message, "Undid adding Layer 1.");
+            assert.equal(store.get().notice?.message, "Undid adding Layer 1");
         });
-        await screen.findByText("Undid adding Layer 1.", { selector: ".cm-toast-message" });
+        await screen.findByText("Undid adding Layer 1", { selector: ".cm-toast-message" });
     });
 
     it("disables the canvas menu's Clear selection with nothing selected", async () => {

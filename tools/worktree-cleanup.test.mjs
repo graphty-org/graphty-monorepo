@@ -137,11 +137,79 @@ describe("worktree-cleanup", () => {
         mergedTree("taken");
         git(root, "worktree", "lock", locked);
         put(join(root, "tools/live-tools.json"), JSON.stringify({ t: { worktree: ".worktrees/tool" } }));
-        put(join(home, ".servherd/registry.json"), JSON.stringify({ servers: [{ cwd: join(served, "pkg") }] }));
+        put(join(home, ".servherd/pm2/pids/servherd-up-3.pid"), String(process.pid));
+        const servers = [{ cwd: join(served, "pkg"), pm2Name: "servherd-up" }];
+        put(join(home, ".servherd/registry.json"), JSON.stringify({ servers }));
         put(join(root, "tmp/pipeline-round/state.json"), '{"m":"taken branch taken, session x"}');
         const r = pass();
         assert.deepEqual(r.removed, []);
         assert.deepEqual(r.kept, { [KEEP.tool]: 2, [KEEP.locked]: 1, [KEEP.held]: 1 });
+    });
+
+    it("removes a stopped servherd server's worktree (no pid file, or a dead pid)", () => {
+        const stopped = mergedTree("stopped");
+        const crashed = mergedTree("crashed");
+        const dead = spawnSync("true").pid;
+        put(join(home, ".servherd/pm2/pids/servherd-crashed-4.pid"), String(dead));
+        // A live pid under a longer name that shares the prefix does not make "servherd-stopped" online.
+        put(join(home, ".servherd/pm2/pids/servherd-stopped-2-5.pid"), String(process.pid));
+        const servers = [
+            { cwd: stopped, pm2Name: "servherd-stopped" },
+            { cwd: crashed, pm2Name: "servherd-crashed" },
+        ];
+        put(join(home, ".servherd/registry.json"), JSON.stringify({ servers }));
+        assert.deepEqual(pass().removed.sort(), [crashed, stopped]);
+    });
+
+    it("removes a worktree whose branch tracks a file under tmp/, keeping that file with the moved tmp/", () => {
+        put(join(root, "tmp/stage/proof.md"), "proof\n");
+        git(root, "add", "-f", "tmp/stage/proof.md");
+        git(root, "commit", "-q", "-m", "docs: proof by mistake");
+        git(root, "push", "-q", "origin", "master");
+        const d = mergedTree("tracked-tmp");
+        put(join(d, "tmp/notes.txt"), "scratch\n");
+        const r = pass();
+        assert.deepEqual(r.removed, [d]);
+        assert.equal(existsSync(d), false);
+        assert.equal(readFileSync(join(root, "tmp/worktree-tmp/tracked-tmp/stage/proof.md"), "utf8"), "proof\n");
+        assert.equal(readFileSync(join(root, "tmp/worktree-tmp/tracked-tmp/notes.txt"), "utf8"), "scratch\n");
+    });
+
+    it("keeps a worktree with a tracked tmp/ file and a real edit, and never forces it", () => {
+        put(join(root, "tmp/stage/proof.md"), "proof\n");
+        git(root, "add", "-f", "tmp/stage/proof.md");
+        git(root, "commit", "-q", "-m", "docs: proof by mistake");
+        git(root, "push", "-q", "origin", "master");
+        const d = mergedTree("edited");
+        put(join(d, "README"), "edited\n");
+        assert.deepEqual(pass().kept, { [KEEP.dirty]: 1 });
+        assert.equal(readFileSync(join(d, "README"), "utf8"), "edited\n");
+        assert.equal(existsSync(join(d, "tmp/stage/proof.md")), true);
+    });
+
+    it("removes a worktree whose only untracked output is ignored by master's newer .gitignore", () => {
+        const d = mergedTree("old-ignores");
+        put(join(root, ".gitignore"), "node_modules/\ntmp/\n.reports/\n");
+        git(root, "commit", "-q", "-am", "chore: ignore reports");
+        git(root, "push", "-q", "origin", "master");
+        put(join(d, ".reports/r.json"), "{}\n");
+        assert.match(git(d, "status", "--porcelain"), /\?\? \.reports\//);
+        assert.deepEqual(pass().removed, [d]);
+    });
+
+    it("keeps a worktree with untracked files neither its branch nor master ignores", () => {
+        const d = mergedTree("both-see");
+        put(join(root, ".gitignore"), "node_modules/\ntmp/\n.reports/\n");
+        git(root, "commit", "-q", "-am", "chore: ignore reports");
+        git(root, "push", "-q", "origin", "master");
+        put(join(d, ".reports/r.json"), "{}\n");
+        put(join(d, "mine.txt"), "mine\n");
+        const r = pass();
+        assert.deepEqual(r.kept, { [KEEP.dirty]: 1 });
+        assert.deepEqual(
+            r.keptTrees.map((t) => [t.dir, t.why]),
+            [[d, KEEP.dirty]],
+        );
     });
 
     it("keeps a worktree with recent git activity", () => {
@@ -153,6 +221,10 @@ describe("worktree-cleanup", () => {
         const dirs = ["c1", "c2", "c3"].map(mergedTree);
         const dry = pass({ apply: false });
         assert.deepEqual(dry.would, dirs);
+        assert.deepEqual(
+            dry.wouldTrees.map((t) => t.finished),
+            ["merged", "merged", "merged"],
+        );
         assert.equal(
             dirs.every((d) => existsSync(d)),
             true,

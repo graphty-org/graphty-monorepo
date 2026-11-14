@@ -1,22 +1,26 @@
 // Tests of the results store's client, failure reporter and group runner (tools/results/): what they send,
 // that they batch past the 20th failure, and that a store that never answers costs only its timeout and
-// leaves the run's verdict alone, the record spooled.
+// leaves the run's verdict alone.
 //
 //   node --test tools/results/results.test.mjs
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
 import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { after, describe, it, mock } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
 import {
     call,
     config,
+    bodySummary,
     EVENT_MS,
+    fetchPlan,
     flushHealth,
     postFailures,
     postBenchmarks,
@@ -33,12 +37,13 @@ import { benchmarkRows } from "./post-benchmarks.mjs";
 import { unstableStories } from "./post-unstable-stories.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
-import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
+import { durationsOf, planRead, readersOf, refreshSnapshot, variantsOf } from "./plan-read.mjs";
 import {
     baseId,
     fileIssues,
     groupKeys,
     groupFamily,
+    groupShape,
     junitOf,
     newFlakyJudge,
     postRecords,
@@ -119,9 +124,21 @@ describe("config", () => {
 });
 
 describe("client", () => {
-    it("uses 5 s for records and 2 s for failure events", () => {
-        assert.equal(RECORD_MS, 5000);
-        assert.equal(EVENT_MS, 2000);
+    it("uses 5 s for records and 2 s for failure events", async (t) => {
+        // every deadline expires at once, so the test reads which deadline each request was given without waiting
+        const deadlines = [];
+        t.mock.method(AbortSignal, "timeout", (ms) => {
+            deadlines.push(ms);
+            return AbortSignal.abort(new DOMException("deadline", "TimeoutError"));
+        });
+        const s = await serve();
+        const cfg = { ...config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [] };
+        const f = { file: "a", name: "n", status: "fail", message: "m" };
+        assert.equal((await postInvocation(cfg, { id: "r1.1" })).why, "no answer in 5 s");
+        assert.equal((await postFailures(cfg, "inv", [f])).why, "no answer in 2 s");
+        assert.deepEqual(deadlines, [RECORD_MS, EVENT_MS]);
+        assert.deepEqual([RECORD_MS, EVENT_MS], [5000, 2000]);
+        assert.equal(s.seen.length, 0, "no request outlived its deadline");
     });
     it("sends the token and the schema version", async () => {
         const s = await serve();
@@ -161,14 +178,12 @@ describe("client", () => {
         assert.deepEqual(await readPlan(cfg, { sha: "abc", files: ["x", "y"] }), { order: ["a"] });
         assert.equal(s.seen[0].url, "/v1/plan?sha=abc&files=x%2Cy");
     });
-    it("fails open against a store that never answers, and spools the record", async () => {
+    it("fails open against a store that never answers, and says it is down", async () => {
         const s = await serve(false);
         const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
-        const r = await postInvocation({ ...cfg, retryMs: [10, 10] }, { id: "r1.1" }, join(TMP, "spool"), 300);
-        assert.equal(r.ok, false);
-        assert.equal(r.why, "no answer in 0.3 s");
+        const r = await postInvocation({ ...cfg, retryMs: [10, 10] }, { id: "r1.1" }, 300);
+        assert.deepEqual(r, { ok: false, why: "no answer in 0.3 s", down: true });
         assert.equal(s.seen.length, 3, "sent once and retried twice");
-        assert.deepEqual(JSON.parse(readFileSync(r.spooled, "utf8")), { id: "r1.1" });
     });
     it("sends a request again when no answer or a 5xx came, and never one that got a 4xx", async () => {
         let calls = 0;
@@ -187,7 +202,7 @@ describe("client", () => {
             assert.equal(globalThis.fetch.mock.callCount(), 2);
             mock.restoreAll();
             answers(500, 500, 500);
-            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 500" });
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 500", down: true });
             assert.equal(globalThis.fetch.mock.callCount(), 3, "sent once and retried twice");
             mock.restoreAll();
             answers(404, 200);
@@ -215,6 +230,51 @@ describe("client", () => {
         } finally {
             mock.restoreAll();
         }
+    });
+    it("says why a read failed: the HTTP status and body summary, a timeout, or the network error (#6164)", async () => {
+        const cfg = { ...config({ RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [] };
+        try {
+            mock.method(globalThis, "fetch", () =>
+                Promise.resolve(new Response("D1_ERROR: query\n  too expensive", { status: 500 })),
+            );
+            assert.deepEqual(await fetchPlan(cfg, { sha: "a" }), {
+                ok: false,
+                why: "HTTP 500: D1_ERROR: query too expensive",
+                down: true,
+            });
+            mock.restoreAll();
+            mock.method(globalThis, "fetch", () =>
+                Promise.reject(
+                    new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED 10.0.0.1:443") }),
+                ),
+            );
+            assert.deepEqual(await fetchPlan(cfg, {}), {
+                ok: false,
+                why: "fetch failed (connect ECONNREFUSED 10.0.0.1:443)",
+                down: true,
+            });
+        } finally {
+            mock.restoreAll();
+        }
+        const silent = await serve(false);
+        const r = await call(
+            { ...config({ RESULTS_URL: silent.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [] },
+            "GET",
+            "/v1/plan",
+            undefined,
+            200,
+        );
+        assert.deepEqual(r, { ok: false, why: "no answer in 0.2 s", down: true });
+        const ok = await serve(() => ({ order: ["c"] }));
+        assert.deepEqual(await fetchPlan(config({ RESULTS_URL: ok.url, GRAPHTY_RESULTS_TOKEN: "t" }), {}), {
+            ok: true,
+            data: { order: ["c"] },
+        });
+    });
+    it("summarises a refused body on one short line and never repeats a bearer credential", () => {
+        assert.equal(bodySummary(""), "");
+        assert.equal(bodySummary("bad\n\ttoken: Bearer abc.def.ghi"), "bad token: Bearer ***");
+        assert.equal(bodySummary("x".repeat(500)).length, 200);
     });
     it("fails open with no store configured", async () => {
         assert.deepEqual(await call(null, "GET", "/v1/plan"), { ok: false, why: "results store not configured" });
@@ -396,6 +456,27 @@ describe("records", () => {
             ["error"],
         );
     });
+
+    // #6374: a run stopped at its deadline writes no JUnit report; what hung is its failure, which the bisect reads
+    it("records what a run stopped at its deadline left running as its failures", () => {
+        const file = "graphty/src/workspace/selection/__tests__/cardPalette.test.ts";
+        const text = "[HANG] the run reached the job's deadline and was stopped";
+        const [rec] = recordsOf({
+            id: "9.1.test.graphty-4",
+            head: { commit: "c", tree: "t", base: "b", dirty: false },
+            variant: "graphty|flags=off|whole",
+            inputs: "i",
+            env: "e",
+            code: 124,
+            result: { firstCode: 124, firstOutcome: "infra", retried: false, hung: [{ file, name: "(hung)", text }] },
+            startedAt: 1000,
+            endedAt: 9000,
+            dir: join(TMP, "no-reports"),
+            runId: "run1",
+        });
+        assert.equal(rec.outcome, "infra");
+        assert.deepEqual(rec.failures, [{ file, name: "(hung)", status: "fail", message: text }]);
+    });
 });
 
 describe("runShape", () => {
@@ -409,17 +490,36 @@ describe("runShape", () => {
 });
 
 describe("postRecords", () => {
-    it("asks a store that never answers once and spools every record", async () => {
+    it("asks a store that never answers once, and writes nothing to disk (#7266)", async () => {
         const s = await serve(false);
         const cfg = { ...config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
-        const spool = join(TMP, "spool-2");
-        const rs = await postRecords(cfg, [{ id: "g.1" }, { id: "g.2" }], spool, 300);
+        const rs = await postRecords(cfg, [{ id: "g.1" }, { id: "g.2" }], 300);
         assert.equal(s.seen.length, 3, "the first request and its two retries, and nothing after");
         assert.deepEqual(
             rs.map((r) => r.ok),
             [false, false],
         );
-        assert.deepEqual(readdirSync(spool).sort(), ["g.1.json", "g.2.json"]);
+    });
+    it("still asks a store that refused one record (4xx) for the next (#7266)", async () => {
+        const seen = [];
+        const server = createServer((req, res) => {
+            seen.push(req.url);
+            res.statusCode = seen.length === 1 ? 400 : 200;
+            res.end(seen.length === 1 ? '{"error":"bad record"}' : '{"stored":true}');
+        });
+        servers.push(server);
+        await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+        const url = `http://127.0.0.1:${server.address().port}`;
+        const cfg = { ...config({ RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
+        const rs = await postRecords(cfg, [{ id: "g.1" }, { id: "g.2" }], 300);
+        assert.deepEqual(
+            rs.map((r) => [r.ok, r.down]),
+            [
+                [false, undefined],
+                [true, undefined],
+            ],
+        );
+        assert.equal(seen.length, 2, "a refusal is an answer: never sent again, and the store is still asked");
     });
 });
 
@@ -427,7 +527,7 @@ describe("runGroup", () => {
     // the store below never answers: each record POST costs its deadline, not RECORD_MS and RETRY_MS (19 s)
     const NEVER_ANSWERS = { record: 300, retry: [10, 10] };
 
-    it("keeps the verdict and spools the record when the store never answers", async () => {
+    it("keeps the verdict and loses the record when the store never answers", async () => {
         const s = await serve(false);
         const root = join(TMP, "checkout");
         mkdirSync(join(root, "tools"), { recursive: true });
@@ -444,9 +544,13 @@ describe("runGroup", () => {
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "5" };
         const code = await runGroup("fake", undefined, { root, env, storeMs: NEVER_ANSWERS });
         assert.equal(code, 3);
-        const spooled = readdirSync(join(root, "test-results/results-spool"));
-        assert.deepEqual(spooled, ["5.1.job.fake.1.json"]);
-        const rec = JSON.parse(readFileSync(join(root, "test-results/results-spool", spooled[0]), "utf8"));
+        assert.equal(existsSync(join(root, "test-results/results-spool")), false, "no spool (#7266)");
+        const sent = s.seen.filter((r) => r.url === "/v1/invocations").map((r) => r.body);
+        assert.deepEqual(
+            sent.map((r) => r.id),
+            ["5.1.job.fake.1", "5.1.job.fake.1", "5.1.job.fake.1"],
+        );
+        const rec = sent[0];
         assert.equal(rec.variant, "fake|flags=off|whole");
         assert.equal(rec.outcome, "infra");
         assert.equal(rec.sha.length, 40);
@@ -465,12 +569,11 @@ describe("runGroup", () => {
         execFileSync("git", ["init", "-q"], { cwd: root });
         execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "7" };
-        const spool = join(root, "test-results/results-spool");
         await runGroup("plain", undefined, { root, env, storeMs: NEVER_ANSWERS });
         await runGroup("pkg-features-on-1", undefined, { root, env, storeMs: NEVER_ANSWERS });
-        const read = (f) => JSON.parse(readFileSync(join(spool, f), "utf8"));
-        assert.equal(read("7.1.job.plain.1.json").variant, "plain|flags=off|whole");
-        assert.equal(read("7.1.job.pkg-features-on-1.1.json").variant, "pkg-features-on|flags=on|whole");
+        const read = (id) => s.seen.find((r) => r.url === "/v1/invocations" && r.body.id === id).body;
+        assert.equal(read("7.1.job.plain.1").variant, "plain|flags=off|whole");
+        assert.equal(read("7.1.job.pkg-features-on-1.1").variant, "pkg-features-on|flags=on|whole");
 
         const e = { PATH: "x" };
         const on = { flags: "on", "test-command": "c" };
@@ -480,23 +583,13 @@ describe("runGroup", () => {
         assert.deepEqual(keys({ "test-command": "c" }), { variant: "f|flags=off|whole", inputs: key("off") });
         assert.equal(keys({ "test-command": "c" }, { ...e, GRAPHTY_FLAGS: "on" }).inputs, key("on"));
         assert.notEqual(key("on"), key("off"));
-    });
-
-    it("keeps a passing verdict when the record cannot even be spooled", async () => {
-        const s = await serve(false);
-        const root = join(TMP, "checkout-nospool");
-        mkdirSync(join(root, "tools"), { recursive: true });
-        writeFileSync(
-            join(root, "tools/ci-test-matrix.mjs"),
-            `export const SHARDS = [{ shard: "fake", package: "pkg", "test-command": "exit 0" }];\n`,
+        // a pull request's On bin past the shard count has no SHARDS entry: its command says it is On (#7847)
+        const bin = (command) => groupShape({ shardName: "g-features-on-37", shard: undefined, command, env: e });
+        assert.equal(
+            bin("cd g && GRAPHTY_FEATURES_ON=1 pnpm exec vitest run 'a.test.ts'").variant,
+            "g-features-on|flags=on|selected",
         );
-        execFileSync("git", ["init", "-q"], { cwd: root });
-        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
-        // The spool directory is a file, so writing the unsent record throws.
-        mkdirSync(join(root, "test-results"), { recursive: true });
-        writeFileSync(join(root, "test-results/results-spool"), "");
-        const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "6" };
-        assert.equal(await runGroup("fake", undefined, { root, env, storeMs: NEVER_ANSWERS }), 0);
+        assert.equal(bin("cd g && pnpm exec vitest run 'a.test.ts'").flags, "off");
     });
 });
 
@@ -694,13 +787,18 @@ describe("planRead", () => {
             "graphty-element-browser|flags=off|selected",
         ]);
     });
-    it("never asks about a full-run-only family, such as the On shards", () => {
-        const on = {
-            shard: "graphty-element-browser-features-on-1",
-            package: "graphty-element",
-            "full-run-only": true,
-        };
-        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    it("never asks about a full-run-only family, such as lifecycle", () => {
+        const life = { shard: "graphty-element-lifecycle", package: "graphty-element", "full-run-only": true };
+        assert.deepEqual(variantsOf([...shards, life], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    });
+    it("asks about an On family under flags=on: its selected files run on a pull request (#7847)", () => {
+        const on = { shard: "graphty-element-browser-features-on-1", package: "graphty-element", flags: "on" };
+        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), [
+            "graphty-element-browser|flags=off|whole",
+            "graphty-element-browser|flags=off|selected",
+            "graphty-element-browser-features-on|flags=on|whole",
+            "graphty-element-browser-features-on|flags=on|selected",
+        ]);
     });
     it("also asks for a story shard's screenshot family, whatever the family is called", () => {
         const stories = [
@@ -727,6 +825,43 @@ describe("planRead", () => {
         assert.deepEqual(durationsOf(plan), { layout: { "a.test.ts": 5, "b.test.ts": 7 } });
         assert.deepEqual(durationsOf(null), {});
     });
+    /**
+     * planRead() for layout with console.log captured.
+     * @param o planRead()'s options but `root` and `affected`
+     * @returns `{ r, lines }`
+     */
+    async function logged(o) {
+        const lines = [];
+        mock.method(console, "log", (line) => lines.push(line));
+        try {
+            return { r: await planRead({ root: process.cwd(), affected: ["layout"], ...o }), lines };
+        } finally {
+            mock.restoreAll();
+        }
+    }
+    it("writes the store's refusal as the reason and warns on the run page that bins fall back (#6164)", async () => {
+        const out = join(TMP, "plan-refused");
+        mock.method(globalThis, "fetch", () => Promise.resolve(new Response("over the limit", { status: 429 })));
+        const { r, lines } = await logged({ out, env: { RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" } });
+        assert.equal(r.plan, null);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")), {
+            unavailable: "HTTP 429: over the limit",
+        });
+        assert.deepEqual(lines, [
+            "::warning::results store: no plan (HTTP 429: over the limit); test bins are packed without history, one job per file",
+        ]);
+    });
+    it("warns too when CI has no store configured, and never when the plan was read", async () => {
+        const off = await logged({ out: join(TMP, "plan-off-warn"), env: {} });
+        assert.match(off.lines[0], /^::warning::results store: no plan \(results store not configured\)/);
+        const { url } = await serve();
+        const on = await logged({
+            out: join(TMP, "plan-on-quiet"),
+            env: { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        assert.ok(on.r.plan);
+        assert.ok(!on.lines.some((l) => l.includes("::warning::")), on.lines.join("\n"));
+    });
     it("fails open: no store writes an unavailable plan and empty durations", async () => {
         const out = join(TMP, "plan-off");
         const r = await planRead({ root: process.cwd(), affected: ["layout"], out, env: {} });
@@ -735,6 +870,93 @@ describe("planRead", () => {
             unavailable: "results store not configured",
         });
         assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {});
+    });
+    it("packs by the durations snapshot when the store gives no plan, only the families it asked about (#7851)", async () => {
+        const out = join(TMP, "plan-snapshot");
+        const snapshot = join(TMP, "plan-snapshot.json");
+        const at = Date.parse("2026-11-14T10:00:00Z");
+        writeFileSync(
+            snapshot,
+            JSON.stringify({
+                at,
+                durations: { layout: { "layout/a.test.ts": 4000 }, "remote-logger": { "r.test.ts": 1 } },
+            }),
+        );
+        mock.method(globalThis, "fetch", () =>
+            Promise.resolve(new Response('{"error":"internal error"}', { status: 500 })),
+        );
+        const { r, lines } = await logged({
+            out,
+            snapshot,
+            env: { RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        assert.equal(r.plan, null);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {
+            layout: { "layout/a.test.ts": 4000 },
+        });
+        assert.match(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")).unavailable, /HTTP 500/);
+        assert.deepEqual(lines, [
+            '::warning::results store: no plan (HTTP 500: {"error":"internal error"}); test bins are packed by the durations snapshot of 2026-11-14T10:00:00.000Z',
+        ]);
+        // a missing or empty snapshot packs without history, as before
+        const none = await logged({ out, snapshot: join(TMP, "no-such.json"), env: {} });
+        assert.match(none.lines[0], /packed without history/);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {});
+    });
+    it("refreshes the snapshot one family at a time, keeping a family whose read failed, once an hour (#7851)", async () => {
+        const root = join(TMP, "snapshot-root");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout" }, { shard: "graphty-1", package: "graphty" },
+                { shard: "graphty-2", package: "graphty" }];\nexport const STORY_SHARDS = ["layout"];\n`,
+        );
+        const { url, seen } = await serve((req) => {
+            const variants = new URL(req.url, "http://x").searchParams.get("variants").split(",");
+            if (variants[0].startsWith("graphty|")) return {}; // an answer with no durations keeps the previous ones
+            return {
+                variants: Object.fromEntries(variants.map((v) => [v, { fileMs: { [`${v.split("|")[0]}.ts`]: 7 } }])),
+            };
+        });
+        const file = join(root, "snap", "durations.json");
+        const old = { at: 0, durations: { graphty: { "old.ts": 3 }, layout: { "gone.ts": 9 } } };
+        mkdirSync(join(root, "snap"));
+        writeFileSync(file, JSON.stringify(old));
+        const env = { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" };
+        const now = Date.parse("2026-11-14T10:00:00Z");
+        const r = await refreshSnapshot({ root, file, env, now });
+        assert.equal(r.refreshed, true);
+        assert.deepEqual(r.answered, ["layout"]);
+        assert.match(r.failed[0], /^graphty /);
+        // one read per family, its `-shots` family with it
+        assert.deepEqual(
+            seen.map((s) => new URL(s.url, url).searchParams.get("variants")),
+            [
+                "graphty|flags=off|whole,graphty|flags=off|selected",
+                "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots",
+            ],
+        );
+        assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), {
+            at: now,
+            durations: {
+                graphty: { "old.ts": 3 },
+                layout: { "layout.ts": 7 },
+                "layout-shots": { "layout-shots.ts": 7 },
+            },
+        });
+        const again = await refreshSnapshot({ root, file, env, now: now + 60e3 });
+        assert.equal(again.refreshed, false);
+        assert.equal(seen.length, 2, "under an hour old: no read");
+    });
+    it("loads the real test matrix from only the files the Durations snapshot job checks out (#7851)", async () => {
+        // cone mode: the listed directories plus the root files
+        const job = readFileSync(".github/workflows/ci.yml", "utf8").split("\n    durations-snapshot:\n")[1];
+        const paths = /sparse-checkout: \|\n((?:\s+\S+\n)+)/.exec(job)[1].trim().split(/\s+/);
+        const root = join(TMP, "durations-job-checkout");
+        for (const p of paths) cpSync(p, join(root, p), { recursive: true });
+        for (const f of readdirSync(".", { withFileTypes: true })) if (f.isFile()) cpSync(f.name, join(root, f.name));
+        const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
+        assert.ok(SHARDS.length > 0);
     });
     it("reads the plan once and writes its durations", async () => {
         const { url, seen } = await serve();
@@ -750,13 +972,40 @@ describe("planRead", () => {
         assert.equal(seen.length, 1);
         const q = new URL(seen[0].url, url).searchParams;
         // layout's stories run in ci.yml's story-tests job, so its `-shots` family is asked too (STORY_SHARDS)
-        assert.equal(
-            q.get("variants"),
-            "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots," +
-                "layout-storybook|flags=off|whole,layout-storybook|flags=off|selected",
+        const variants = q.get("variants").split(",");
+        assert.deepEqual(
+            variants.filter((v) => v.startsWith("layout")),
+            [
+                "layout|flags=off|whole",
+                "layout|flags=off|selected",
+                "layout-shots|flags=off|shots",
+                "layout-storybook|flags=off|whole",
+                "layout-storybook|flags=off|selected",
+            ],
         );
-        assert.equal(q.get("inputs"), "-,-,-,-,-");
+        assert.equal(q.get("inputs"), variants.map(() => "-").join(","));
         assert.equal(q.get("files"), "layout/src/x.ts");
+    });
+    it("finds the packages that import an affected package by relative path, which nx leaves out (#6229)", () => {
+        const packages = ["graph-io", "graphty-element", "graphty", "layout"];
+        // graph-io's fidelity stories import ../../../graphty-element/index.ts; graph-io/project.json drops the edge
+        assert.ok(readersOf(process.cwd(), ["graphty-element"], packages).includes("graph-io"));
+        assert.ok(!readersOf(process.cwd(), ["graphty-element", "graph-io"], packages).includes("graph-io"));
+        assert.deepEqual(readersOf(process.cwd(), [], packages), []);
+        assert.deepEqual(readersOf(join(TMP, "not-a-checkout"), ["graphty-element"], packages), []);
+    });
+    it("asks for the durations of graph-io's story bins when only graphty-element is affected (#6229)", async () => {
+        const { url, seen } = await serve();
+        const out = join(TMP, "plan-readers");
+        await planRead({
+            root: process.cwd(),
+            affected: ["graphty-element"],
+            out,
+            env: { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        const variants = new URL(seen[0].url, url).searchParams.get("variants").split(",");
+        assert.ok(variants.includes("graph-io-storybook|flags=off|selected"), variants.join("\n"));
+        assert.ok(variants.includes("graphty-element-browser|flags=off|selected"));
     });
 });
 
@@ -983,6 +1232,19 @@ describe("the pull request rules", () => {
         assert.equal(await dispatchChecks([{ ...check, base: "def5678" }], gh, { claim: async () => undefined }), 1);
     });
 
+    it("#7265: gives the claim back when gh cannot dispatch the check", async () => {
+        const check = { base: "abc1234", file: "a.test.ts", variant: o.variant, repeat: 1 };
+        const released = [];
+        const refuse = () => {
+            throw new Error("HTTP 422: workflow not found");
+        };
+        const opts = { claim: async () => true, release: async (c) => released.push(c) };
+        assert.equal(await dispatchChecks([check], refuse, opts), 0);
+        assert.deepEqual(released, [check]);
+        assert.equal(await dispatchChecks([check], () => "", opts), 1);
+        assert.equal(released.length, 1, "a dispatched check keeps its claim");
+    });
+
     it("lets the store's quarantine through", () => {
         const plan = { quarantine: [{ family: FAMILY, file: "a.test.ts", name: "q", issue: 9 }], failingOnBase: [] };
         const d = judge(plan, report(fail("q")), report(fail("q")));
@@ -1008,6 +1270,17 @@ describe("the pull request rules", () => {
         assert.equal(q.get("variants"), `${FAMILY}|flags=off|whole,${FAMILY}|flags=off|selected`);
         const down = config({ RESULTS_URL: "http://127.0.0.1:9", GRAPHTY_RESULTS_TOKEN: "t" });
         assert.equal(await refreshPlan(plan, { cfg: down, sha: "h1", family: FAMILY, variant: o.variant }), plan);
+    });
+
+    it("asks an On twin's re-run for master's flags=on evidence, not flags=off (#7847)", async () => {
+        const plan = { base: "b1", affected: [], quarantine: [], failingOnBase: [] };
+        const s = await serve(() => ({ quarantine: [], failingOnBase: [{ name: "k" }] }));
+        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const on = "graphty-features-on";
+        const fresh = await refreshPlan(plan, { cfg, sha: "h1", family: on, variant: `${on}|flags=on|selected` });
+        assert.equal(fresh.failingOnBase[0].name, "k");
+        const q = new URL(s.seen.find((r) => r.url.startsWith("/v1/plan")).url, s.url).searchParams;
+        assert.equal(q.get("variants"), `${on}|flags=on|whole,${on}|flags=on|selected`);
     });
 
     it("leaves a run that did not end in test failures alone", () => {
@@ -1233,7 +1506,7 @@ describe("fileIssues", () => {
         assert.match(titles[0], /broken 1/);
     });
 
-    it("knows a base run whose last answer was spooled, from its environment or any earlier answer", async () => {
+    it("knows a base run whose last answer was lost, from its environment or any earlier answer", async () => {
         const failures = [{ file: "a.test.ts", name: "one", message: "Error: broken 1" }];
         const failing = [{ file: "a.test.ts", name: "one" }];
         const recs = [rec("failed", failures), rec("failed", failures)];
@@ -1606,6 +1879,23 @@ describe("health API fan-out", () => {
             },
         ]);
         assert.deepEqual(unstableStories({ items: [] }, index, []), []);
+
+        // With the capture's directory, each story names its two shots: results.json's capture, then second/<file>.
+        const dir = mkdtempSync(join(TMP, "capture-"));
+        mkdirSync(join(dir, "second"));
+        writeFileSync(join(dir, "second", "gone--story.png"), "second shot");
+        const first = "a".repeat(64);
+        const withPictures = unstableStories(
+            { items: [{ id: "gone--story", file: "gone--story.png", status: "unstable", capture: first }] },
+            index,
+            [],
+            dir,
+        );
+        const second = createHash("sha256").update("second shot").digest("hex");
+        assert.deepEqual(withPictures[0].pictures, [first, second]);
+        // A missing second shot names no pictures.
+        const noSecond = { id: "x", file: "x.png", status: "unstable", capture: first };
+        assert.equal(unstableStories({ items: [noSecond] }, index, [], dir)[0].pictures, undefined);
     });
     it("sends a benchmark job's results to the health API as one post", async () => {
         const h = await serveHealth();
@@ -1632,13 +1922,13 @@ describe("health API fan-out", () => {
                 timestamp: "new",
                 results: [
                     { algorithm: "GRSBM", graphSize: 50, edges: 98, executionTime: 4.18, memoryUsage: 0 },
-                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, memoryUsage: 0 },
+                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, input: "3fa2c1d0e9b8" },
                 ],
             },
         ];
         assert.deepEqual(benchmarkRows(algorithms), [
             { name: "GRSBM n=50", value: 4.18 },
-            { name: "GRSBM n=100", value: 15.75 },
+            { name: "GRSBM n=100", value: 15.75, input: "3fa2c1d0e9b8" },
         ]);
         // webgpu-graph-algorithms/benchmarks/out/gpu-linux-t4.json (benchmarks/harness.ts)
         const harness = [
@@ -1671,11 +1961,9 @@ describe("health API fan-out", () => {
         }
         const gone = config(healthEnv(s.url, "http://127.0.0.1:1"));
         assert.deepEqual(await call(gone, "POST", "/v1/sites", {}), { ok: true, data: {} });
-        const spool = join(TMP, "health-spool");
         const silent = await serveHealth(null);
         const down = await serve(false);
-        const r = await postInvocation(config(healthEnv(down.url, silent.url)), { id: "9.1.a" }, spool, 50);
-        assert.deepEqual(readdirSync(spool), ["9.1.a.json"]);
+        const r = await postInvocation(config(healthEnv(down.url, silent.url)), { id: "9.1.a" }, 50);
         assert.equal(r.ok, false);
     });
     it("delivers before process.exit() with flushHealth(), and gives up after its own 2 s", async () => {
@@ -1714,9 +2002,8 @@ describe("health API fan-out", () => {
     it("still sends a group's records to the health API when the store stops answering", async () => {
         const down = await serve(false);
         const h = await serveHealth();
-        const spool = join(TMP, "health-group-spool");
         const recs = [{ id: "7.1.a" }, { id: "7.1.b" }];
-        const out = await postRecords(config(healthEnv(down.url, h.url)), recs, spool, 50);
+        const out = await postRecords(config(healthEnv(down.url, h.url)), recs, 50);
         assert.deepEqual(
             out.map((r) => r.ok),
             [false, false],

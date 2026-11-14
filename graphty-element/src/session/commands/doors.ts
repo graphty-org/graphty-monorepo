@@ -185,6 +185,21 @@ function removes(kind: "remove-nodes" | "remove-edges", ids: readonly string[]):
 /** The command emptying the graph. */
 const CLEAR: SessionCommand = { op: "data.apply", mutation: { kind: "clear" } };
 
+/** What merging merge-b into merge-a, with one edge between them, dispatches inside its batch. */
+const MERGE_STEPS: readonly SessionCommand[] = [
+    updateRow("node", "merge-a", { weight: 3 }),
+    removes("remove-nodes", ["merge-b"]),
+    {
+        op: "data.apply",
+        mutation: {
+            kind: "add-edges",
+            records: [{ source: "merge-a", target: "merge-a" }],
+            source: "source",
+            target: "target",
+        },
+    },
+];
+
 /** The code of the fact each batch the element builds carries, by its label. */
 const BATCH_CODES = {
     "Replaced the nodes": "data.replace-nodes",
@@ -224,8 +239,8 @@ function imports(mode: "replace" | "merge", source: ImportSource, extra: ImportE
 /** The network source the doors load from: two pages of one node each, read with no request. */
 const DOOR_SOURCE = "door-source";
 
-/** The one sample the doors' network source lists. */
-const DOOR_SAMPLE = "door-sample";
+/** The one example the doors' network source lists. */
+const DOOR_EXAMPLE = "door-example";
 
 /**
  * Register the doors' network source, once.
@@ -239,7 +254,7 @@ function doorSource(): string {
                 descriptor: {
                     plainName: "Door source",
                     params: [],
-                    samples: [{ id: DOOR_SAMPLE, plainName: "Door sample", params: {} }],
+                    examples: [{ id: DOOR_EXAMPLE, plainName: "Door example", params: {} }],
                 },
                 async *records(_params: Record<string, never>, ctx) {
                     for (let page = Number(ctx.cursor?.page ?? 0); page < 2; page++) {
@@ -396,6 +411,12 @@ const REMOVE_SOURCE_STEPS: readonly SessionCommand[] = [
     { op: "data.setSource", source: { type: "json", config: {} }, sources: [], provenance: {} },
 ];
 
+/**
+ * What a row writes for a load's `loadedAt`: the wall-clock time a load is stamped with cannot be
+ * pinned, so the door harness writes this in its place before it compares.
+ */
+export const DOOR_LOADED_AT = "(loaded at)";
+
 /** The roles the `replaceSource` and `reloadSource` doors read their edge table with. */
 const DOOR_SHIPS_MAPPING = {
     tables: {
@@ -447,6 +468,7 @@ const REPLACE_SOURCE_STEPS: readonly SessionCommand[] = [
             target: "target",
             weight: null,
             repeated: "first",
+            repeatedScope: "held",
         },
         mapping: DOOR_SHIPS_MAPPING,
         input: "i2",
@@ -487,6 +509,7 @@ const RELOAD_SOURCE_STEPS: readonly SessionCommand[] = [
             target: "target",
             weight: null,
             repeated: "first",
+            repeatedScope: "held",
         },
         mapping: DOOR_SHIPS_MAPPING,
         input: "i2",
@@ -506,6 +529,15 @@ const RELOAD_SOURCE_EXPECT: readonly unknown[] = [
         steps: RELOAD_SOURCE_STEPS,
     },
     ...RELOAD_SOURCE_STEPS,
+];
+/** What `data.remap({ mapping: {} })` dispatches inside its batch: reloadSource's steps, the mapping kept with the load. */
+const REMAP_STEPS: readonly SessionCommand[] = RELOAD_SOURCE_STEPS.map((step) =>
+    step.op === "data.import" ? { ...step, choices: { mapping: {} } } : step,
+);
+/** What `data.remap({ mapping: {} })` dispatches: the batch, then its steps. */
+const REMAP_EXPECT: readonly unknown[] = [
+    { ...(RELOAD_SOURCE_EXPECT[0] as object), steps: REMAP_STEPS },
+    ...REMAP_STEPS,
 ];
 /** What `data.replaceSource("s1", ...)` dispatches: the batch, then its steps. */
 const REPLACE_SOURCE_EXPECT: readonly unknown[] = [
@@ -566,6 +598,7 @@ const EDIT_JOIN_STEPS: readonly SessionCommand[] = [
                 tables: ["door-join.csv"],
                 tableRows: ["nodes"],
                 added: { nodes: 0, edges: 0 },
+                loadedAt: DOOR_LOADED_AT,
                 counts: { nodes: 1, edges: 0 },
             },
         ],
@@ -683,11 +716,11 @@ const ADD_FROM_SOURCE = calls(
     [imports("merge", { type: "json", config: { data: TINY_JSON } })],
 );
 
-/** Loading from a URL: the text fetched, and the id path the element reads. */
-const LOAD_FROM_URL = calls(
-    [TINY_JSON_URL],
-    [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES, nodeIdPath: "id" } })],
-);
+/**
+ * Loading from a URL: the bytes fetched, and no id path, since the element's is the default "id" and
+ * naming it would turn off the JSON reader's own-shape reading.
+ */
+const LOAD_FROM_URL = calls([TINY_JSON_URL], [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES } })]);
 
 /**
  * Loading from a URL on the element, whose rows above set the node id path to `key` and the edge
@@ -725,7 +758,7 @@ const CAPTURE = exempt("A capture reads the picture; it changes nothing.");
 const TRANSPORT = exempt(
     "In-flight layout computation; where the layout comes to rest is recorded with the step that moved it.",
 );
-const RENDER = exempt(
+export const RENDER = exempt(
     "A render object or render bookkeeping, derived from project state and rewritten by the derivation pass.",
 );
 const HISTORY = exempt("Moves through the history or groups commands into a step; it is not a step itself.");
@@ -857,6 +890,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     views: READ,
     layout: READ,
     positions: READ,
+    hidden: READ,
     seededNodeCount: READ,
     status: READ,
     catalog: READ,
@@ -917,12 +951,17 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     edgeMask: READ,
     apply: SELECTION,
     count: READ,
+    members: READ,
     checkRule: READ,
     clear: SELECTION,
+    previous: READ,
+    restore: SELECTION,
     hovered: READ,
     hover: exempt("The pointer resting on a node is view state, not a step, like the selection."),
     hoverPreview: READ,
     previewHover: exempt("A preview of the hover look on the selection is view state, like the pointer."),
+    peeked: READ,
+    peek: exempt("Pointing at elements for a moment is view state, like the pointer: no step, never saved."),
     // The doors test selects node "d1" before calling it.
     promote: calls(
         ["door set"],
@@ -1156,6 +1195,10 @@ const SHADERS_API: Readonly<Record<string, Door>> = {
         "Lets a shader the project already holds run; whether it may run is the reader's trust, never saved in a project file.",
     ),
     thumbnail: CAPTURE,
+    describe: READ,
+    fromCatalog: exempt(
+        "Names the project's copy of a catalog shader for a write to use; it dispatches a shader.set only when the project holds that id with other text, and the write that names the copy records it.",
+    ),
 };
 
 const STYLES_API: Readonly<Record<string, Door>> = {
@@ -1261,6 +1304,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     sequence: READ,
     layerGroups: READ,
     counts: READ,
+    drawnCount: READ,
     legendOf: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
@@ -1417,6 +1461,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "config.set", values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } } },
             ]),
             labelDeclutter: VIEW_SETTING,
+            accessibleDescription: VIEW_SETTING,
+            accessibleAnnouncement: VIEW_SETTING,
+            accessibleNodeList: VIEW_SETTING,
+            accessibleFacts: READ,
             renderOnDemand: VIEW_SETTING,
             shaderSettings: exempt(
                 "The reader's shader preferences and trust, never saved in a project file and never read from one.",
@@ -1450,9 +1498,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             xr: XR,
             captureScreenshot: CAPTURE,
             nodeThumbnail: CAPTURE,
+            modelThumbnail: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
+            cancelCameraAnimation: IN_FLIGHT,
+            playTour: CAMERA,
             isAnimationCapturing: READ,
             estimateAnimationCapture: READ,
             getViewMode: READ,
@@ -1508,6 +1559,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinnedNodes: READ,
             getNode: READ,
             getNodes: READ,
+            getEdges: READ,
             getNodeCount: READ,
             getEdgeCount: READ,
             selectNode: SELECTION,
@@ -1524,6 +1576,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForStableFrame: READ,
             waitForPainted: READ,
             isFrameStable: READ,
+            isGraphDrawn: READ,
             cameraPlaced: READ,
             batchOperations: BATCH,
             on: LISTEN,
@@ -1572,6 +1625,25 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getAiStatus: READ,
             onAiStatusChange: LISTEN,
             cancelAiCommand: IN_FLIGHT,
+            resolveAiApproval: MESSAGE,
+            answerAiQuestion: MESSAGE,
+            getAiConversation: READ,
+            getPendingAiApprovals: READ,
+            getPendingAiQuestions: READ,
+            getAiCapabilities: READ,
+            aiTalk: INPUT,
+            stopAiSpeech: INPUT,
+            endAiLive: INPUT,
+            getAiVoiceSupport: INPUT,
+            isAiTalking: READ,
+            listAiConversations: READ,
+            openAiConversation: ASSISTANT,
+            newAiConversation: ASSISTANT,
+            deleteAiConversation: ASSISTANT,
+            renameAiConversation: ASSISTANT,
+            clearAiHistory: ASSISTANT,
+            forgetAiKeys: ASSISTANT,
+            exportAiConversation: READ,
             getAiManager: READ,
             isAiEnabled: READ,
             retryLastAiCommand: MESSAGE,
@@ -1584,7 +1656,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             accelerationMinNodes: MACHINE,
             renderer: MACHINE,
             rendererStatus: READ,
+            restartRenderer: RENDER,
             renderPath: MACHINE,
+            antialias: MACHINE,
+            limits: MACHINE,
             rowCounts: READ,
         },
     },
@@ -1612,6 +1687,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setRenderer: MACHINE,
             rendererRequest: READ,
             rendererStatus: READ,
+            restartRenderer: RENDER,
             expectRenderer: LIFECYCLE,
             eventManager: READ,
             nodeLabelCounts: READ,
@@ -1733,11 +1809,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getUpdateManager: READ,
             getMeshCache: READ,
             getRowTable: READ,
+            leansLines: READ,
+            getDrawnTarget: READ,
             openRowTable: RENDER,
             getNodeBatches: READ,
+            getEdgeRowLines: READ,
             getNodeIdTarget: READ,
+            getEdgeIdTarget: READ,
             renderPath: READ,
+            antialias: READ,
             setRenderPath: MACHINE,
+            limits: READ,
+            setLimits: MACHINE,
             rowCounts: READ,
             getScene: READ,
             getStatsManager: READ,
@@ -1789,13 +1872,17 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForSettled: READ,
             framing: READ,
             isFrameStable: READ,
+            isGraphDrawn: READ,
             waitForStableFrame: READ,
             waitForPainted: READ,
             captureScreenshot: CAPTURE,
             nodeThumbnail: CAPTURE,
+            modelThumbnail: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
+            cancelCameraAnimation: IN_FLIGHT,
+            playTour: CAMERA,
             isAnimationCapturing: READ,
             estimateAnimationCapture: READ,
             getCameraState: READ,
@@ -1829,6 +1916,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ),
             getNode: READ,
             getNodes: READ,
+            getEdges: READ,
             render: RENDER,
             enableAiControl: ASSISTANT,
             disableAiControl: ASSISTANT,
@@ -1836,6 +1924,25 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getAiStatus: READ,
             onAiStatusChange: LISTEN,
             cancelAiCommand: IN_FLIGHT,
+            resolveAiApproval: MESSAGE,
+            answerAiQuestion: MESSAGE,
+            getAiConversation: READ,
+            getPendingAiApprovals: READ,
+            getPendingAiQuestions: READ,
+            getAiCapabilities: READ,
+            aiTalk: INPUT,
+            stopAiSpeech: INPUT,
+            endAiLive: INPUT,
+            getAiVoiceSupport: INPUT,
+            isAiTalking: READ,
+            listAiConversations: READ,
+            openAiConversation: ASSISTANT,
+            newAiConversation: ASSISTANT,
+            deleteAiConversation: ASSISTANT,
+            renameAiConversation: ASSISTANT,
+            clearAiHistory: ASSISTANT,
+            forgetAiKeys: ASSISTANT,
+            exportAiConversation: READ,
             getAiManager: READ,
             isAiEnabled: READ,
             retryLastAiCommand: MESSAGE,
@@ -1873,9 +1980,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             refreshFonts: RENDER,
             refitPicture: RENDER,
             applySessionPaint: RENDER,
+            takeDrawnPaint: RENDER,
             dispose: RENDER,
             isDisposed: READ,
             modelDrawn: READ,
+            imageDrawn: READ,
             getRenderState: READ,
             setRenderState: RENDER,
             isSelected: READ,
@@ -1894,6 +2003,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPinned: READ,
             roundRadius: READ,
             drawnFill: READ,
+            drawnOpacity: READ,
             drawnRadius: READ,
             layoutRadius: READ,
             spacingRadius: READ,
@@ -1911,21 +2021,30 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             shapeTextLabels: RENDER,
             xlabelLabel: RENDER,
             syncXlabelPlace: RENDER,
+            resampleLabel: RENDER,
             isDrawnAsGroup: READ,
+            isDrawnBehindEdges: READ,
             groupDrawnForAnotherCamera: READ,
             drawnPosition: READ,
             drawnWorldPosition: READ,
             drawnWorldMatrix: READ,
             drawnSourceMesh: RENDER,
             drawnInstanceColor: READ,
+            wholeScale: READ,
             batchableIn: READ,
+            batchLook: READ,
             drawnBoundingBox: READ,
             drawnWorldRadius: READ,
             drawnWorldScaling: READ,
             drawnScaling: READ,
             drawnPickMesh: READ,
+            drawnAnchor: READ,
+            drawnBoundingInfo: READ,
+            paintedSourceMesh: READ,
             drawnByRowScan: READ,
             drawnInBatch: READ,
+            togglesOwnMeshes: READ,
+            walksEachFrame: READ,
             drawInBatch: RENDER,
             drawnRayHit: READ,
             drawnScale: RENDER,
@@ -1995,6 +2114,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getInterceptPoints: READ,
             trimInput: READ,
             supportEdge: READ,
+            isPulled: READ,
+            followsRows: READ,
+            followRenumberedRows: RENDER,
+            togglesOwnMeshes: READ,
+            columnEnd: READ,
+            endRow: READ,
         },
     },
     {
@@ -2010,10 +2135,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SESSION,
             paint: READ,
+            edgeAges: READ,
             publishModelChange: EVENTS,
             emptyClick: EVENTS,
             elementClick: EVENTS,
             groupOutlineClick: EVENTS,
+            layoutMotion: EVENTS,
         },
     },
     {
@@ -2074,6 +2201,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getSnapshot: LANE,
             undirected: READ,
             nodeAtRow: READ,
+            nodeIdAtRow: READ,
             positions: LANE,
             seededNodeCount: READ,
             directionSettledBy: READ,
@@ -2082,6 +2210,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             updateStyles: RENDER,
             setGraphContext: LIFECYCLE,
             setLayoutEngine: LIFECYCLE,
+            // Wiring the graph sets from its render path and `limits`; the project saves `limits` itself.
+            renderLimits: LIFECYCLE,
             init: LIFECYCLE,
             dispose: LIFECYCLE,
             bindSession: LIFECYCLE,
@@ -2158,6 +2288,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             running: IN_FLIGHT,
             setPaused: IN_FLIGHT,
             isPaused: READ,
+            motion: READ,
             setGraphContext: LIFECYCLE,
             updateStyles: RENDER,
             init: LIFECYCLE,
@@ -2169,6 +2300,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dimension: READ,
             step: TRANSPORT,
             stepBatch: TRANSPORT,
+            steppedPublishes: READ,
             placeGroups: TRANSPORT,
             groupBox: READ,
             getNodePosition: READ,
@@ -2180,6 +2312,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             hasLayoutEngine: READ,
             updatePositions: TRANSPORT,
             onRest: RENDER,
+            onMotion: RENDER,
+            checkMotion: RENDER,
             restoring: RENDER,
             replacing: RENDER,
             graphWritesWaiting: RENDER,
@@ -2192,6 +2326,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             releaseDetachedScope: DERIVED,
             // A run's results changed; a layout clustering by them moves, and rests in its own step.
             clustersChanged: TRANSPORT,
+            // What the filter shows changed; a layout over what it shows moves, and rests in its own step.
+            relayoutForVisibility: TRANSPORT,
         },
     },
     {
@@ -2268,6 +2404,25 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             onStatusChange: LISTEN,
             cancel: IN_FLIGHT,
             retry: MESSAGE,
+            resolveAiApproval: MESSAGE,
+            answerQuestion: MESSAGE,
+            getConversation: READ,
+            getPendingAiApprovals: READ,
+            getPendingQuestions: READ,
+            getCapabilities: READ,
+            talk: INPUT,
+            stopSpeech: INPUT,
+            endLive: INPUT,
+            getVoiceSupport: INPUT,
+            listConversations: READ,
+            openConversation: ASSISTANT,
+            newConversation: ASSISTANT,
+            deleteConversation: ASSISTANT,
+            renameConversation: ASSISTANT,
+            clearHistory: ASSISTANT,
+            exportConversation: READ,
+            isTalking: READ,
+            ready: READ,
             getCommandRegistry: READ,
             getController: READ,
             getProvider: READ,
@@ -2350,6 +2505,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        // The painter's queue of rows waiting to draw.
+        name: "PendingRows",
+        file: "src/managers/StylePainter.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "InputManager",
         file: "src/managers/InputManager.ts",
         half: "renderer",
@@ -2367,7 +2529,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getLayoutManager: READ,
             getMeshCache: READ,
             getRowTable: READ,
+            leansLines: READ,
+            getDrawnTarget: READ,
             getNodeBatches: READ,
+            getEdgeRowLines: READ,
             getScene: READ,
             getStatsManager: READ,
             is2D: READ,
@@ -2427,8 +2592,32 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        name: "EdgeRowLines",
+        file: "src/meshes/EdgeRowLines.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "ColumnRow",
+        file: "src/meshes/NodeBatch.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "PulledLineBatch",
+        file: "src/meshes/PulledLineBatch.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "NodeIdTarget",
         file: "src/render/NodeIdTarget.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "EdgeIdTarget",
+        file: "src/render/EdgeIdTarget.ts",
         half: "renderer",
         whole: RENDER,
     },
@@ -2456,9 +2645,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen.
             node: READ,
             name: READ,
+            // Fresh objects built from the label column on each call.
+            nodeName: READ,
+            edgeName: READ,
             edge: READ,
             nodes: READ,
             edges: READ,
+            // Two numbers off the snapshot.
+            count: READ,
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
@@ -2604,6 +2798,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                                 input: "i1",
                                 tables: [],
                                 added: { nodes: 2, edges: 1 },
+                                loadedAt: DOOR_LOADED_AT,
                                 counts: { nodes: 2, edges: 1 },
                                 name: "Door source",
                             },
@@ -2647,6 +2842,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 },
                 expect: RELOAD_SOURCE_EXPECT,
             },
+            // Reads the only load's rows again under the mapping, as reloadSource's one batch.
+            remap: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: [{ mapping: {} }],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import(DOOR_SHIPS_SOURCE);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: REMAP_EXPECT,
+            },
             // The values the join wrote go back, and the table joins anew, as one batch.
             editJoin: {
                 kind: "dispatches",
@@ -2689,9 +2899,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             testSource: READ,
             listSource: READ,
             previewSource: READ,
+            readExample: READ,
             checkSource: READ,
             refresh: SOURCE_REFRESH,
             loads: READ,
+            sourceSettings: READ,
+            sourceInput: READ,
             nodeSource: READ,
             pendingSourceLoads: READ,
             expand: SOURCE_EXPANSION,
@@ -2726,27 +2939,27 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     ),
                 ],
             },
-            // A sample a source lists, loaded with its params as one source load.
-            loadSample: calls(() => {
-                doorSource();
-                return [DOOR_SAMPLE];
-            }, [
-                {
-                    ...sourceImport(
-                        "replace",
-                        ["door-s0", "door-s1"],
-                        {},
-                        {
-                            nodes: ["door-s0", "door-s1"].map((id) => ({
-                                id,
-                                "_source.expansion": "none",
-                                "_source.loads": ["load-1"],
-                            })),
-                        },
-                    ),
-                    source: { type: `source:${DOOR_SOURCE}`, config: {}, name: "Door sample" },
-                } as SessionCommand,
-            ]),
+            // An example a source lists, loaded with its params as one source load.
+            loadExample: calls(
+                () => [doorSource(), DOOR_EXAMPLE],
+                [
+                    {
+                        ...sourceImport(
+                            "replace",
+                            ["door-s0", "door-s1"],
+                            {},
+                            {
+                                nodes: ["door-s0", "door-s1"].map((id) => ({
+                                    id,
+                                    "_source.expansion": "none",
+                                    "_source.loads": ["load-1"],
+                                })),
+                            },
+                        ),
+                        source: { type: `source:${DOOR_SOURCE}`, config: {}, name: "Door example" },
+                    } as SessionCommand,
+                ],
+            ),
             // A saved load of an opened project, run again: its rows, merged over the ones it brought.
             runPendingSourceLoad: {
                 kind: "dispatches",
@@ -2783,6 +2996,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             structureValue: READ,
             histogram: READ,
             valueCounts: READ,
+            overRepresented: READ,
+            groupTable: READ,
             // The column commands, each one batch.
             setRole: {
                 kind: "dispatches",
@@ -2910,6 +3125,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             fingerprint: READ,
             addNodes: calls([[{ id: "door-a" }]], [addNodes({ id: "door-a" })]),
             addEdges: calls([[{ src: "door-a", dst: "door-b" }]], [addEdges({ src: "door-a", dst: "door-b" })]),
+            importColumns: calls(
+                [{ sources: [0], targets: [1], nodeCount: 2, ids: ["door-c", "door-d"] }],
+                batchOf("Set the graph data", addNodesBy("id", { id: "door-c" }, { id: "door-d" }), {
+                    op: "data.apply",
+                    mutation: {
+                        kind: "add-edges",
+                        records: [{ source: "door-c", target: "door-d" }],
+                        source: "source",
+                        target: "target",
+                    },
+                }),
+            ),
             updateNodes: calls(
                 [[{ id: "door-a", values: { weight: 2 } }]],
                 [updateRow("node", "door-a", { weight: 2 })],
@@ -2917,6 +3144,32 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             updateEdges: calls([[{ id: "0", values: { weight: 2 } }]], [updateRow("edge", "0", { weight: 2 })]),
             removeEdges: calls([["0"]], [removes("remove-edges", ["0"])]),
             removeNodes: calls([["door-b"]], [removes("remove-nodes", ["door-b"])]),
+            mergeNodes: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: [["merge-a", "merge-b"], { values: { weight: 3 } }],
+                    around: async (target) => {
+                        const data = target as {
+                            addNodes(records: unknown[]): Promise<void>;
+                            addEdges(records: unknown[]): Promise<void>;
+                        };
+                        await data.addNodes([{ id: "merge-a" }, { id: "merge-b" }]);
+                        await data.addEdges([{ source: "merge-b", target: "merge-a" }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Merged 2 nodes",
+                        fact: { code: "data.merge-nodes", params: { count: 2 } },
+                        steps: MERGE_STEPS,
+                    },
+                    ...MERGE_STEPS,
+                ],
+            },
             clear: calls([], [CLEAR]),
             import: calls(
                 [{ type: "json", config: { data: TINY_JSON } }],
@@ -3000,6 +3253,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             styles: READ,
             suggestJoin: READ,
             joinReport: READ,
+            lookup: READ,
             // A draft of TINY_JSON: the rows it held, loaded without reading the source again, its
             // nodes named by the file's label column, as `data.import` names them.
             load: calls([], [{ op: "batch", steps: [DRAFT_LABEL, DRAFT_LOAD] }, DRAFT_LABEL, DRAFT_LOAD]),
@@ -3014,10 +3268,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             start: calls(["degree"], [RUN_DEGREE]),
             answered: READ,
             batch: calls([[{ algorithm: "degree" }]], [RUN_DEGREE]),
+            sweep: calls(
+                ["pagerank", "dampingFactor", [0.9]],
+                [
+                    {
+                        op: "algo.run",
+                        algorithm: "pagerank",
+                        params: { dampingFactor: 0.9 },
+                        as: "pagerank_dampingfactor_0_9",
+                    },
+                ],
+            ),
             get: READ,
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             move: calls(["door-run", null], [{ op: "algo.move", runId: "door-run", before: null }]),
+            rename: calls(["door-run", "Influence"], [{ op: "algo.rename", runId: "door-run", name: "Influence" }]),
             bindings: READ,
             readers: READ,
             painting: READ,
@@ -3232,6 +3498,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 call: { kind: "call", args: ["Fixture project"] },
                 expect: [{ op: "config.set", values: { name: "Fixture project" } }],
             },
+            assetChoices: READ,
             save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
             markSaved: exempt("Moves the save point that dirty is measured from; it changes nothing a project saves."),
             open: exempt(
@@ -3331,8 +3598,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             options: READ,
             dimension: READ,
             arrangedDimension: READ,
+            motion: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
+            rerun: calls([], [{ op: "layout.rerun" }]),
             optionInEffect: READ,
             locationColumns: READ,
         },
@@ -3357,6 +3626,16 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ),
             pin: calls([["n1"]], [PIN_N1]),
             unpin: calls([["n1"]], [UNPIN_N1]),
+        },
+    },
+    {
+        name: "SessionHidden",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            ids: READ,
+            add: calls([["n1"]], [{ op: "visibility.hide", ids: ["n1"], hidden: true }]),
+            remove: calls([["n1"]], [{ op: "visibility.hide", ids: ["n1"], hidden: false }]),
         },
     },
     {
@@ -3434,6 +3713,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,
+            // A layout drawing from the card owes the lane its frame; settling it writes the rows.
+            owe: LANE,
+            forgive: LANE,
+            settle: LANE,
+            keeps: READ,
+            unsettledView: READ,
         },
     },
     {
@@ -3451,6 +3736,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             applyNow: SELECTION,
             applyAtNextRead: SELECTION,
             edgeRemovalChangesNothing: READ,
+            endPeek: exempt("The session's end clears a peek, which is view state."),
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,
@@ -3569,10 +3855,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdMask: READ,
             // A node's drawn size changed, so a layout keeping nodes apart by it starts again.
             wakeForResize: TRANSPORT,
+            // Whether the engine keeps nodes apart by their drawn size (`nodeGap`).
+            spacesBySize: READ,
             // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
             clusterColumn: READ,
             // A node's community changed, so a layout pulling communities together starts again.
             wakeForClusters: TRANSPORT,
+            // The box the last publish left the rows in, read by the batched fit; walks no row.
+            publishedBounds: READ,
         },
     },
     {
@@ -3596,7 +3886,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "renderer",
         doors: {
             execute: MESSAGE,
+            resolveAiApproval: MESSAGE,
+            answerQuestion: MESSAGE,
             getLastInput: READ,
+            getConversation: READ,
+            getPendingApprovals: READ,
+            getPendingQuestions: READ,
+            getCapabilities: READ,
+            listConversations: READ,
+            openConversation: ASSISTANT,
+            newConversation: ASSISTANT,
+            deleteConversation: ASSISTANT,
+            renameConversation: ASSISTANT,
+            clearHistory: ASSISTANT,
+            exportConversation: READ,
+            ready: READ,
             getLastError: READ,
             clearLastError: ASSISTANT,
             getStatus: READ,
@@ -3655,14 +3959,24 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: READ,
     },
     {
+        name: "EnabledFeatures",
+        file: "src/features/resolve.ts",
+        half: "session",
+        whole: READ,
+    },
+    {
         name: "GraphCommand",
         file: "src/ai/commands/types.ts",
         half: "renderer",
         doors: {
             name: READ,
+            plainName: READ,
             description: READ,
             parameters: READ,
             examples: READ,
+            effect: READ,
+            load: READ,
+            keywords: READ,
             execute: TOOL,
         },
     },
@@ -3800,6 +4114,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        name: "LabelSampler",
+        file: "src/managers/LabelSampler.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "Layer",
         file: "src/session/styles/Layer.ts",
         half: "session",
@@ -3869,10 +4189,12 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
 export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.addNodes": "edit",
     "SessionDataApi.addEdges": "edit",
+    "SessionDataApi.importColumns": "edit",
     "SessionDataApi.updateNodes": "edit",
     "SessionDataApi.updateEdges": "edit",
     "SessionDataApi.removeNodes": "edit",
     "SessionDataApi.removeEdges": "edit",
+    "SessionDataApi.mergeNodes": "edit",
     "SessionDataApi.collapse": "edit",
     "SessionDataApi.clear": "clear",
     // Doors that work out their change from the graph read it once the loads ahead have landed.
@@ -3880,13 +4202,14 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.removeSource": "edit",
     "SessionDataApi.replaceSource": "edit",
     "SessionDataApi.reloadSource": "edit",
+    "SessionDataApi.remap": "edit",
     "SessionDataApi.editJoin": "edit",
     "SessionDataApi.setType": "edit",
     "SessionDataApi.renameColumn": "edit",
     "SessionDataApi.import": "load",
     "SessionDataApi.generate": "load",
     "SessionDataApi.loadDataset": "load",
-    "SessionDataApi.loadSample": "load",
+    "SessionDataApi.loadExample": "load",
     "SessionDataApi.more": "load",
     "SessionDataApi.runPendingSourceLoad": "load",
     "SessionDataApi.expand": "load",

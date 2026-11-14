@@ -1,7 +1,7 @@
 // Registers the <graphty-element> custom element; nothing is referenced by name.
 import "../src/graphty-element";
 
-import { InstancedMesh, Vector3 } from "@babylonjs/core";
+import { Vector3 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { FLAT_NODE_SHAPES, NodeBorderStyles } from "../src/config/NodeStyle";
@@ -80,6 +80,8 @@ export const ShapesIn2D: Story = {
         await assertShapeVariety(scene, TOOL_SHAPES.length);
     },
     args: {
+        // the shapes the file-styles experiment adds (rectangle, round-rectangle, ...) are drawn only with it on
+        features: ["file-styles"],
         setup: storySetup({
             viewMode: "2d",
             node: { "node.color": "#5A67D8", "node.labelStyle": { sizePx: 20, color: "#000000" } },
@@ -129,8 +131,8 @@ export const PajekShapesAndMidLineArrows: Story = {
         await assertGraphLoaded(scene, { nodes: PAJEK_SHAPES.length, edges: PAJEK_EDGES.length });
         await assertShapeVariety(scene, PAJEK_SHAPES.length);
 
-        const bodiless = scene.graph.getNode("none")?.drawnPickMesh;
-        const sourceOf = bodiless instanceof InstancedMesh ? bodiless.sourceMesh : bodiless;
+        // The node's own source mesh: a row a batch draws has no mesh of its own to read it from.
+        const sourceOf = scene.graph.getNode("none")?.paintedSourceMesh;
         await holds(
             sourceOf?.getTotalIndices() === 0,
             `Styles/Node PajekShapesAndMidLineArrows: the node of shape "none" draws ${String(sourceOf?.getTotalIndices())} indices`,
@@ -160,6 +162,8 @@ export const PajekShapesAndMidLineArrows: Story = {
         );
     },
     args: {
+        // Pajek's shapes and mid-line arrowheads are the file-styles experiment's, drawn only with it on
+        features: ["file-styles"],
         setup: storySetup({
             viewMode: "2d",
             node: {
@@ -308,7 +312,7 @@ export const RelativeExtentsIn3D: Story = {
         await assertViewMode(scene, "3d");
         await assertGraphLoaded(scene, { nodes: STRETCH_NODES.length, edges: 0 });
 
-        const deep = scene.graph.getNode("box deep")?.drawnPickMesh.getBoundingInfo().boundingBox.extendSize;
+        const deep = scene.graph.getNode("box deep")?.drawnBoundingInfo.boundingBox.extendSize;
         await holds(
             deep !== undefined && deep.z > 2.5 * deep.x,
             "Styles/Node RelativeExtentsIn3D: the deep box is three times as deep as it is wide",
@@ -368,8 +372,7 @@ export const LabelFit: Story = {
 
         await assertGraphLoaded(scene, { nodes: LABEL_FIT_NODES.length, edges: 0 });
 
-        const width = (id: string): number =>
-            scene.graph.getNode(id)?.drawnPickMesh.getBoundingInfo().boundingBox.extendSize.x ?? 0;
+        const width = (id: string): number => scene.graph.getNode(id)?.drawnBoundingInfo.boundingBox.extendSize.x ?? 0;
         const rows = LABEL_FIT_NODES.filter((_node, index) => index % 3 === 0);
         const narrow = rows.filter((row, index) => {
             const longer = LABEL_FIT_NODES[index * 3 + 2];

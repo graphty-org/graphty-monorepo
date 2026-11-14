@@ -8,9 +8,9 @@
  * tree says, and writes them out under one root with a version stamp.
  *
  * The point of the file is that an options form, a metrics panel, a file picker, a cost gate or
- * a coding agent can read the whole algorithm, layout, format, palette and scale surface -- with
- * every option each of them accepts -- without parsing TypeScript, installing a renderer or
- * hard-coding a list that falls silently out of step.
+ * a coding agent can read the whole algorithm, layout, format, palette, scale and style channel
+ * surface -- with every option and value each of them accepts -- without parsing TypeScript,
+ * installing a renderer or hard-coding a list that falls silently out of step.
  *
  * Run by `npm run build`, after the Vite builds have produced `dist/`.
  */
@@ -66,6 +66,15 @@ const document = {
     /** Every scale that maps a data range onto a visual channel. */
     scales: catalog.SCALE_DESCRIPTORS,
 
+    /**
+     * Every style channel a layer can paint, nodes first then edges: its target, the kind of value
+     * it accepts, every value of an enum channel (node shapes, arrowheads, line patterns, label
+     * positions), its range and step, its default, whether it is drawn, and what the renderer
+     * narrows. The same descriptors `session.catalog.channels()` returns, with the experimental
+     * ones marked by `feature`.
+     */
+    channels: Object.values(catalog.CHANNEL_DESCRIPTORS),
+
     /** Named things a caller may reasonably ask for that no implementation serves, and why. */
     unserved: {
         layouts: catalog.UNSERVED_LAYOUT_IDS,
@@ -87,7 +96,7 @@ for (const [key, value] of Object.entries(document)) {
 
 writeFileSync(outFile, `${JSON.stringify(document, null, 2)}\n`, "utf8");
 
-const counts = ["algorithms", "layouts", "formats", "palettes", "scales", "errorCodes"]
+const counts = ["algorithms", "layouts", "formats", "palettes", "scales", "channels", "errorCodes"]
     .map((key) => `${document[key].length} ${key}`)
     .join(", ");
 

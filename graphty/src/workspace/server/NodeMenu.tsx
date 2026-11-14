@@ -1,4 +1,4 @@
-import { Popout, PopoutManager } from "@graphty/compact-mantine";
+import { ActionRow, PanelLabelsProvider, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { NodeId } from "@graphty/graphty-element/session";
 import { Button } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { EXPAND_DEFAULTS, EXPAND_DIALOG, type ServerFormState, splitList } from "./commands";
 import { ExpandFields } from "./ServerForm";
+import { codeWords, failureOf } from "./words";
 
 /** Where the rows are open: the node, and its point in the window. */
 interface Opened {
@@ -66,7 +67,7 @@ export function NodeMenu(): React.JSX.Element | null {
                     }}
                 >
                     <Popout.Panel
-                        width={260}
+                        width={240}
                         header={{ variant: "title", title: "Expand" }}
                         closeLabel="Close Expand"
                         anchorX={point}
@@ -87,17 +88,23 @@ export function NodeMenu(): React.JSX.Element | null {
                                             limit: expandWith.limit,
                                             ...(types.length === 0 ? {} : { relationshipTypes: types }),
                                         })
-                                        .catch(() => {
-                                            store.set({ notice: { message: "Not expanded" } });
+                                        .catch((error: unknown) => {
+                                            store.set({
+                                                notice: { message: `Not expanded: ${codeWords(failureOf(error))}` },
+                                            });
                                         });
                                 }}
                             >
-                                <ExpandFields value={expandWith} onChange={setExpandWith} />
-                                <div className="sv-actions">
-                                    <Button size="xs" type="submit">
-                                        Expand
-                                    </Button>
-                                </div>
+                                <PanelLabelsProvider showLabels>
+                                    <ExpandFields value={expandWith} onChange={setExpandWith} />
+                                </PanelLabelsProvider>
+                                <ActionRow
+                                    actions={
+                                        <Button size="xs" type="submit">
+                                            Expand
+                                        </Button>
+                                    }
+                                />
                             </form>
                         </Popout.Content>
                     </Popout.Panel>

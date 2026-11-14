@@ -105,10 +105,19 @@ import type {
 } from "../../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
+import { GraphtyLogger } from "../../logging/GraphtyLogger";
 import { quoteEach } from "../../utils/quote-each";
 import { resolveColumn } from "../columns";
+import {
+    dropUnusedShaderCopies,
+    loadNamedShaders,
+    namedShaders,
+    settleShaderCopies,
+    shaderIdsIn,
+    withoutShaderUses,
+} from "../commands/shaderCopies";
 import {
     STYLE_DEFINITIONS,
     type StyleCommand,
@@ -347,10 +356,13 @@ export interface TemplateReport {
     /**
      * What happened to the document's shaders, as codes: `shader.held` with `ids`, the ones that
      * wait for `session.shaders.approve`; `shader.id-taken` with `id`, one the project already
-     * holds with other text (the project's stays). Absent when the document carries none.
+     * holds with other text (the project's stays); `shader.unknown` with `layer`, `channel` (a
+     * shader list or an encode key) and `shader`, a use an opening file names whose text it does
+     * not carry or that does not read, dropped while the rest of the layer opens. Absent when the
+     * document carries none and drops none.
      * @since 3.36.0
      */
-    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken">[];
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken" | "shader.unknown">[];
 }
 
 /** What applying a style document accepts beyond the document itself. */
@@ -370,7 +382,7 @@ export interface TemplateOptions extends RunOptions {
     /**
      * What to do with the shaders the document carries, for this call only: `"hold"` until
      * `session.shaders.approve`, `"run"` them, or `"refuse"` them (layers naming them draw what
-     * lies beneath). Absent: the element's `shaderSettings.untrusted`, which holds by default.
+     * lies beneath). A refused shader is still kept, held, so a save carries it back out. Absent: the element's `shaderSettings.untrusted`, which holds by default.
      * A `shaderSettings` member in the document itself is ignored.
      * @since 3.36.0
      */
@@ -387,11 +399,8 @@ export type TemplatePosition = "top" | "aboveBase" | { readonly before: LayerId 
 export interface StyleUpdateOptions extends RunOptions {
     /**
      * Keep the layer when the patch takes its last value away: it stays in its place, painting
-     * nothing until something is written again, as a starting row that writes nothing does. A
-     * panel that removes properties one at a time sets it, so removing the last one does not
-     * remove the layer. Without it (the default), such an update is refused with `E_BAD_LAYER`,
-     * as `add` refuses a layer that writes nothing. A layer that already writes nothing (a row
-     * added with no look yet) may be renamed or given another selector without it.
+     * nothing until something is written again. Every layer may write nothing, so an update does
+     * this with or without the option, which is kept for callers that pass it.
      * @since 3.26.0
      */
     readonly keepEmpty?: boolean;
@@ -565,7 +574,8 @@ export interface StylesApi {
      * The patch is applied over the layer's current specification, one key deep. A key present
      * with `undefined` CLEARS it, so `{ set: undefined }` drops the literal values; a key absent
      * leaves what was there. The merged specification is checked exactly as a new one would be,
-     * so an update cannot leave a layer in a state `add` would have refused.
+     * so an update cannot leave a layer in a state `add` would have refused. A patch that takes
+     * the last value away leaves the layer in place, painting nothing.
      * @param id - The layer to change.
      * @param patch - What to change about it.
      * @param options - A signal to cancel with, a progress handler, and `keepEmpty`.
@@ -1045,6 +1055,14 @@ export interface StylesApi {
      */
     counts(id: LayerId): StyleCounts;
     /**
+     * How many of the elements a layer's rule matches are drawn now: `counts(id).matched` less those
+     * a filter hides.
+     * @param id - The layer.
+     * @returns The count.
+     * @experimental assistant
+     */
+    drawnCount(id: LayerId): number;
+    /**
      * Turn a rule into the fixed value it currently produces, so a person can then edit it.
      *
      * THE PAIRED VERB OF {@link StylesApi.explain}, which reports a channel worked out from the
@@ -1223,6 +1241,10 @@ export interface StylesApi {
      * SYNCHRONOUS. The element's own layers are NOT in it: they come with the element, they cannot
      * be added by a consumer, and a document carrying them would either duplicate them or be
      * refused wherever it was applied. What a document holds is what somebody chose.
+     *
+     * It carries the text of every shader the project holds (`shaders`), so it opens the same on a
+     * build that no longer ships a shader it used. A layer use, an encode key or the background
+     * naming a shader the project does not hold is reported in `problems` as `shader.not-saved`.
      * @returns The document, bottom first.
      */
     toDocument(): StyleDocument;
@@ -1308,7 +1330,7 @@ export interface StylesApi {
     /**
      * Add back whichever of the three starting rows the tree lacks: Everything (nodes and edges,
      * pinned to the bottom, writing nothing), Selected (nodes and edges, pinned to the top,
-     * drawing a near-black node halo with a white glow and a near-black edge band) and Hovered (nodes, pinned to
+     * drawing a node halo and an edge band in the selection settings' colors) and Hovered (nodes, pinned to
      * the top, writing nothing). One undo step; nothing when all three are there. Setting the
      * project setting `startingRows` to true adds them the same way. While a time field is
      * designated (`session.time.setField`), the Ghost row comes too: nodes and edges in the state
@@ -1339,15 +1361,18 @@ export interface StylesApi {
      * RESOLVED WHEN A LAYER IS WRITTEN: a binding that names no palette records the default's id,
      * so a saved document always names a concrete palette. The call therefore belongs before the
      * layers are added. A later call leaves the layers that took the previous default as they are
-     * and writes a warning naming them; with `reapply: true` it re-resolves those layers instead.
+     * and logs a warning naming them; with `reapply: true` it re-resolves those layers instead.
      * A layer that names its palette is never touched.
      * @param palettes - The palette id per kind. Each must name a palette of that kind.
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @returns Settles once every re-resolved layer has been written and painted, at once when
+     *   there is none. Rejects with the first layer update's error; a layer whose update failed
+     *   keeps the previous default and counts as having taken it, so a later call retries it.
      * @throws `E_UNKNOWN_PALETTE` for an id no palette answers to, `E_BAD_COMMAND` for a palette
      *   of the wrong kind or a slot that is not a palette kind.
      */
-    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void;
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): Promise<void>;
 }
 
 /** A style file: the layers alone, as {@link StylesApi.toFile} writes it. */
@@ -1470,6 +1495,12 @@ export interface StylesSources {
      * layer the element ships is the element's bug and not the caller's.
      */
     readonly base?: readonly ElementLayerSpec[];
+    /**
+     * Element layers painted above the whole stack and never part of it: not listed, saved or
+     * undone, so a passing look (a peek) costs the project nothing. Answer the same array until
+     * they change: each new one is compiled once.
+     */
+    readonly transient?: () => readonly ElementLayerSpec[];
     /** Which paths this session answers. Absent means it cannot say, and none are reported. */
     readonly paths?: PathDirectory;
     /** Whether the graph is directed now, which decides the head an edge draws when no layer sets one. */
@@ -1478,6 +1509,8 @@ export interface StylesSources {
     readonly liftDrawn?: () => boolean;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /** Whether the file styles experiment is on, which decides the values a binding spreads over; absent reads on. */
+    readonly fileStyles?: () => boolean;
     /**
      * Where a run is looked up, for the two verbs that take one.
      *
@@ -1603,6 +1636,11 @@ export interface StylesSources {
      * @param refusal - The facts.
      */
     readonly onRefused?: (refusal: StyleRefusal) => void;
+    /**
+     * Called when a repaint nobody awaited fails (a branches view's), so a host can publish it.
+     * @param failure - What the repaint was for, and why it failed.
+     */
+    readonly onRepaintFailed?: (failure: StyleRepaintFailure) => void;
     /**
      * Called once after the last {@link StylesSources.onChange} of one repaint.
      * @param batch - The edits that pass told.
@@ -1979,6 +2017,48 @@ export interface StyleRefusal {
 }
 
 /**
+ * What a repaint the element started on its own was for, as `style:repaint-failed` names it:
+ * `selection`, `hover` and `peek` follow the reader's state, `sets` a set whose members changed,
+ * `branches` a branches view, `hidden` nodes hidden or shown (`session.hidden`), and `layer` a
+ * layer a pass could not paint at all.
+ * @since 3.52.0
+ */
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer";
+
+/**
+ * A repaint nobody awaited that failed, or a layer a pass could not paint, as
+ * `style:repaint-failed` publishes it. The picture on screen is stale until the next repaint.
+ * @since 3.52.0
+ */
+export interface StyleRepaintFailure {
+    /** What the repaint was for. */
+    readonly cause: StyleRepaintCause;
+    /** Why, as a code; for `cause: "layer"` its `target` names the layer. */
+    readonly error: GraphtyError;
+}
+
+/**
+ * The failure a repaint nobody awaited publishes.
+ * @param cause - What the repaint was for.
+ * @param error - What it threw.
+ * @returns The failure, its error coded `E_INTERNAL` when what was thrown carried no code.
+ */
+export function repaintFailure(cause: StyleRepaintCause, error: unknown): StyleRepaintFailure {
+    return {
+        cause,
+        error: isGraphtyError(error)
+            ? error
+            : new GraphtyError({
+                  code: "E_INTERNAL",
+                  message: `A ${cause} repaint failed.`,
+                  source: "style",
+                  details: { cause },
+                  cause: error,
+              }),
+    };
+}
+
+/**
  * The refusal a specification the check rejected gets.
  *
  * The code is the FIRST problem's, so a consumer switching on it sees the reason a person would
@@ -2052,12 +2132,15 @@ function documentRowKeys(specs: readonly LayerSpec[], ids: readonly LayerId[]): 
 /** The most pasted shaders one style document carries. */
 const DOCUMENT_SHADER_LIMIT = 64;
 
-/** The most shader text one style document carries, in characters. */
-const DOCUMENT_SHADER_TEXT_LIMIT = 262_144;
+/**
+ * The most shader text one style document carries, in characters: 1 MiB, room for every preset
+ * (about 220 KB) and the reader's own.
+ */
+const DOCUMENT_SHADER_TEXT_LIMIT = 1_048_576;
 
 /**
- * Check a document's shader list: at most 64 entries, each a namespaced id and its text, at most
- * 256 KB of text in all. The text itself is checked when the shader is added to the project.
+ * Check a document's shader list: at most 64 entries, each an id and its text, at most 1 MiB of
+ * text in all. The text itself is checked when the shader is added to the project.
  * @param shaders - The list, as the document carries it.
  * @throws A `GraphtyError` with `E_BAD_COMMAND`, whose `details.code` is `shader.too-many`,
  *   `shader.too-large` or `shader.id-invalid`.
@@ -2079,8 +2162,8 @@ function checkDocumentShaders(shaders: StyleDocument["shaders"]): void {
     let bytes = 0;
     for (const entry of shaders as readonly unknown[]) {
         const { id, text } = (entry ?? {}) as { id?: unknown; text?: unknown };
-        if (!isShaderId(id, true) || typeof text !== "string") {
-            throw badCommand("Each shader in a style document is { id, text }, its id namespaced.", {
+        if (!isShaderId(id) || typeof text !== "string") {
+            throw badCommand("Each shader in a style document is { id, text }.", {
                 code: "shader.id-invalid",
                 id: String(id),
             });
@@ -2090,7 +2173,7 @@ function checkDocumentShaders(shaders: StyleDocument["shaders"]): void {
     }
 
     if (bytes > DOCUMENT_SHADER_TEXT_LIMIT) {
-        throw badCommand("A style document carries at most 256 KB of shader text.", {
+        throw badCommand("A style document carries at most 1 MiB of shader text.", {
             code: "shader.too-large",
             bytes,
             limit: DOCUMENT_SHADER_TEXT_LIMIT,
@@ -2567,10 +2650,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /** Edits written since the last pass, told once it has repainted them. */
     const announcements: Announcement[] = [];
     /** What the last pass changed and painted, which an undo, a redo or a rollback reports. */
-    let lastPass: { reason: RepaintReason; layers: readonly LayerId[]; painted: RepaintReport | null } = {
+    let lastPass: {
+        reason: RepaintReason;
+        layers: readonly LayerId[];
+        painted: RepaintReport | null;
+        failed: boolean;
+    } = {
         reason: "update",
         layers: [],
         painted: null,
+        failed: false,
     };
 
     /**
@@ -2648,8 +2737,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param stack - The stack.
      * @returns The stack the repaint and every reading of it use.
      */
-    const painting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] =>
-        branchesShown === null ? basePainting(stack) : previewStack(paintedStack(stack), branchesShown.layers);
+    const painting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
+        const shown =
+            branchesShown === null ? basePainting(stack) : previewStack(paintedStack(stack), branchesShown.layers);
+        const specs = sources.transient?.() ?? [];
+        return specs.length === 0 ? shown : [...shown, ...transientLayers(specs)];
+    };
+
+    /** The transient layers last compiled, by the array that named them. */
+    let compiledTransient: { specs: readonly ElementLayerSpec[]; layers: readonly CompiledLayer[] } | undefined;
+    /**
+     * The transient layers, compiled.
+     * @param specs - The layers.
+     * @returns Them, bottom first.
+     */
+    const transientLayers = (specs: readonly ElementLayerSpec[]): readonly CompiledLayer[] => {
+        if (compiledTransient?.specs !== specs) {
+            compiledTransient = { specs, layers: compileElementLayers(specs, minter()) };
+        }
+
+        return compiledTransient.layers;
+    };
 
     /** The branches view drawn now, and the layers it draws. */
     let branchesShown: { readonly layers: readonly CompiledLayer[]; readonly view: BranchesView } | null = null;
@@ -2717,7 +2825,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             .then(
                 () => undefined,
                 (error: unknown) => {
-                    console.error("[graphty] Could not repaint a branches view.", error);
+                    sources.onRepaintFailed?.(repaintFailure("branches", error));
                 },
             )
             .finally(() => {
@@ -3088,6 +3196,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return cut === -1 ? painted : painted.slice(0, cut);
     };
 
+    /**
+     * What a layer selects among the elements drawn: a filter step that hides some of them takes
+     * them out of the count, so a key never counts nodes the drawing does not show.
+     * @param id - The layer.
+     * @returns How many, and out of how many of its kind.
+     */
+    const selectsAmongDrawn = (id: LayerId): { count: number; of: number } => {
+        const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
+        const compiled = byId().get(id);
+        const edges = compiled?.layer.target === "edge";
+        const drawn = elementsOf(DRAWN);
+        const test = compiled?.selector.test ?? null;
+        let count = 0;
+        for (const index of edges ? drawn.edges : drawn.nodes) {
+            if (test === null || test(index)) {
+                count++;
+            }
+        }
+        return { count, of: edges ? whole.edgeCount : whole.nodeCount };
+    };
+
     /** What a legend is read from. */
     const legendSources: LegendSources = {
         // The stack's own layers: a branches view's stand-ins are not layers and never reach a key.
@@ -3158,10 +3287,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     let defaultPalettes: DefaultPalettes = {};
     /**
      * The bindings, as "layer id / channel", whose palette was filled in from a default rather
-     * than named by the author. Only ever read against the live stack, so an entry for a layer
-     * that is gone answers for nothing.
+     * than named by the author, and the palette written. Only ever read against the live stack,
+     * so an entry for a layer that is gone answers for nothing.
      */
-    const defaulted = new Set<string>();
+    const defaulted = new Map<string, string>();
 
     /**
      * The palette kind a colour binding's default comes from, or null when it reads no palette.
@@ -3221,7 +3350,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             if (palette !== undefined) {
                 encode ??= { ...(spec.encode as Record<string, Binding>) };
                 encode[channel] = { ...binding, palette };
-                defaulted.add(`${id}/${channel}`);
+                defaulted.set(`${id}/${channel}`, palette);
             }
         }
 
@@ -3428,6 +3557,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     // Several layers written as one step: a transaction, joining the caller's own
                     // when there is one, since the dispatcher routes it there.
                     const members = command.batch();
+                    const loading = loadNamedShaders(members);
+                    if (loading !== undefined) {
+                        await loading;
+                    }
                     // Dispatched together, not one after another: each member writes its draft as it is
                     // dispatched, and awaiting each in turn would let a repaint pass run between them.
                     const outcomes = await dispatcher.transaction(
@@ -3443,6 +3576,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     return { result: (command.result === undefined ? results : command.result(results)) as T };
                 }
 
+                const loading = loadNamedShaders(command);
+                if (loading !== undefined) {
+                    await loading;
+                }
                 const outcome = (await dispatcher.dispatch(command)) as EditOutcome<T>;
                 await outcome.painted;
 
@@ -3923,18 +4060,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const mode = asked ?? trust?.mode() ?? "hold";
         const writes: { id: string; text: string }[] = [];
         const facts: CodedFact<"shader.held" | "shader.id-taken">[] = [];
-        if (mode === "refuse") {
-            return { mode, writes, facts };
-        }
-
         const held: string[] = [];
         for (const { id, text } of document.shaders ?? []) {
-            // A shader this page registered under the id is the page's own code: the page's
-            // version draws, and the document's copy is not needed.
-            if (trust?.pageOwns(id) === true) {
+            // Text that does not read is not written: an opening file drops the uses naming it.
+            if (trust?.readable(id, text) === false) {
                 continue;
             }
 
+            // Trust is the entry's content hash, read as the project stores it; never its id.
+            const trusted = trust?.trusted(id, text, mode === "refuse") === true;
             const existing = dispatcher.state.shaders.get(id);
             if (existing !== undefined) {
                 // The first loaded wins; a second text under the id is reported, not swapped in.
@@ -3946,7 +4080,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             writes.push({ id, text });
-            if (mode !== "run" && trust?.trusted(text) !== true) {
+            if (mode !== "run" && !trusted) {
                 held.push(id);
             }
         }
@@ -4648,11 +4782,38 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (command.op === "style.template") {
-            const plan = planTemplate(command.document, command.templateId, command.at);
             const { facts } = documentShaders(command.document, command.shaders);
-            return facts.length === 0 && command.document.shaders === undefined
+            // A document resolves a use only against the shaders it carries and those the project
+            // holds, never the catalog by id: any other use is dropped and reported, and the rest
+            // of it applies. Whether opening a file or applying a saved document, the same rule.
+            const dropped: { channel: string; shader: string }[][] = [];
+            let { document } = command;
+            // A carried entry keeps its uses when its text reads, whether or not trust lets it
+            // run: refused text draws nothing, but the author's uses survive a save.
+            const readable = SHADER_TRUST.get(api)?.readable;
+            const carried = new Set(
+                (command.document.shaders ?? [])
+                    .filter((entry) => readable?.(entry.id, entry.text) !== false)
+                    .map((entry) => entry.id),
+            );
+            const keep = (id: string): boolean => carried.has(id) || dispatcher.services.shaderReadable?.(id) === true;
+            const layers = document.layers.map((spec, at) => {
+                dropped[at] = [];
+                return withoutShaderUses(spec, keep, dropped[at]);
+            });
+            document = layers.every((spec, at) => spec === document.layers[at]) ? document : { ...document, layers };
+
+            const plan = planTemplate(document, command.templateId, command.at);
+            const unknown = dropped.flatMap((uses, at) =>
+                uses.map((use): CodedFact<"shader.unknown"> => ({
+                    code: "shader.unknown",
+                    params: { layer: plan.layers[at] ?? "", channel: use.channel, shader: use.shader },
+                })),
+            );
+            const all = [...facts, ...unknown];
+            return all.length === 0 && command.document.shaders === undefined
                 ? plan
-                : { ...plan, result: Object.freeze({ ...plan.result, shaders: Object.freeze(facts) }) };
+                : { ...plan, result: Object.freeze({ ...plan.result, shaders: Object.freeze(all) }) };
         }
 
         switch (command.action) {
@@ -4746,6 +4907,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             binding: filled,
             column,
             scales,
+            fileStyles: sources.fileStyles?.() !== false,
             asWritten: binding,
             ...(options.bins === undefined ? {} : { bins: options.bins }),
             ...(options.span === undefined ? {} : { span: options.span }),
@@ -4757,12 +4919,22 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     dispatcher.services.styles = {
         previewColumn: (binding, channel, column) => previewColumn(binding, channel, column),
         execute(command, draft) {
+            // Every style write reaches here, run commits and suggested styles included: one that
+            // names a catalog shader the project does not hold copies its text in, in this step. A
+            // document copies nothing: it carries its shaders.
+            const named = namedShaders(dispatcher.state);
+            if (command.op !== "style.template") {
+                settleShaderCopies(shaderIdsIn(command), draft, dispatcher.services);
+            }
+
             const planned = planOf(command);
             if (command.op === "style.template") {
                 // The layers are planned first, so a refused document writes no shader either.
                 const { mode, writes } = documentShaders(command.document, command.shaders);
                 if (mode === "run") {
-                    SHADER_TRUST.get(api)?.trust(writes.map((entry) => entry.text));
+                    SHADER_TRUST.get(api)?.trust(writes);
+                } else if (mode === "refuse") {
+                    SHADER_TRUST.get(api)?.refuse(writes);
                 }
 
                 for (const { id, text } of writes) {
@@ -4795,6 +4967,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 dispatcher.lane.touch("styles", "");
             } else {
                 draft.styles = next;
+                dropUnusedShaderCopies(named, dispatcher.state, draft, dispatcher.services);
             }
 
             let settle: (painted: RepaintReport | null) => void = () => undefined;
@@ -4803,7 +4976,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 settle = resolve;
                 refuse = reject;
             });
-            // Nobody may be awaiting it: a failed repaint is also reported where hooks report.
+            // Nobody may be awaiting it: the run's rejection is how a failed repaint is told.
             painted.catch(() => undefined);
             announcements.push({
                 change: {
@@ -4858,6 +5031,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             reason: request.reason,
             layers: request.edits.map((each) => (each.next ?? each.previous)?.layer.id ?? ""),
             painted,
+            failed: failure !== null,
         };
 
         let edit: Announcement[] = [];
@@ -4882,6 +5056,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             edit = [];
         }
         flushBatch();
+
+        // An undo, a redo, a restore or a rollback has no run to reject: the lane reports it.
+        if (failure !== null && told.length === 0) {
+            throw failure instanceof Error ? failure : new Error("The repaint failed", { cause: failure });
+        }
     });
 
     // An undo, a redo, a restore or a rollback is told once the pass deriving it has run, one
@@ -4889,7 +5068,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const previousDerived = dispatcher.events.derived;
     dispatcher.events.derived = (change) => {
         previousDerived?.(change);
-        if (change.cause !== "command" && change.slices.includes("styles")) {
+        // A failed repaint is not a change painted: the lane has reported it instead.
+        if (change.cause !== "command" && change.slices.includes("styles") && !lastPass.failed) {
             styleRevision++;
             const told: StyleChange = {
                 reason: lastPass.reason,
@@ -4908,22 +5088,35 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
     };
 
+    /**
+     * Check the element's own layers.
+     * @param specs - The layers.
+     * @param id - Mints each one's id.
+     * @returns The compiled layers.
+     * @throws A `GraphtyError` coded `E_INTERNAL` for a malformed one: it is the element's bug.
+     */
+    function compileElementLayers(
+        specs: readonly ElementLayerSpec[],
+        id: (name: string) => LayerId,
+    ): readonly CompiledLayer[] {
+        return specs.map((spec) => {
+            const checked = check(spec, id(spec.name));
+
+            if (checked.layer === null) {
+                throw new GraphtyError({
+                    code: "E_INTERNAL",
+                    message: `The element's own style layer "${spec.name}" is malformed.`,
+                    source: "style",
+                    details: { errors: checked.result.errors },
+                });
+            }
+
+            return checked.layer;
+        });
+    }
+
     // The element's own layers are the baseline: seeded once, and never a step.
-    const seedId = minter();
-    const seeded = (sources.base ?? []).map((spec) => {
-        const checked = check(spec, seedId(spec.name));
-
-        if (checked.layer === null) {
-            throw new GraphtyError({
-                code: "E_INTERNAL",
-                message: `The element's own style layer "${spec.name}" is malformed.`,
-                source: "style",
-                details: { errors: checked.result.errors },
-            });
-        }
-
-        return checked.layer;
-    });
+    const seeded = compileElementLayers(sources.base ?? [], minter());
     if (seeded.length > 0) {
         dispatcher.seed((draft) => {
             draft.styles = Object.freeze([...current(), ...seeded]);
@@ -4960,7 +5153,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         const matched = { nodes: within("node", nodes), edges: within("edge", edges) };
         if (matched.nodes.length + matched.edges.length > 0) {
-            return { ...styleAgreement(matched, read, channel), readOver: "row" };
+            const own = new Set(parts.map(({ layer }) => layer.id));
+            return { ...styleAgreement(matched, read, channel, own), readOver: "row" };
         }
 
         // It matches nothing: read the row's kinds through the layers that match every element.
@@ -5672,6 +5866,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 binding: palette === undefined ? rule : { ...rule, palette },
                 count: options.count,
                 scales,
+                fileStyles: sources.fileStyles?.() !== false,
             });
         },
 
@@ -5757,7 +5952,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                   };
         },
 
-        setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
+        drawnCount(id: LayerId): number {
+            return selectsAmongDrawn(id).count;
+        },
+
+        setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): Promise<void> {
             assertDefaultPalettes(palettes);
 
             // The layers that took the default a kind is about to lose: a binding naming no palette
@@ -5774,18 +5973,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                         binding === undefined || channelDescriptor(channel)?.accepts !== "color"
                             ? null
                             : paletteKindOf(binding);
-                    if (
-                        kind === null ||
-                        !("by" in binding) ||
-                        palettes[kind] === undefined ||
-                        palettes[kind] === previous[kind]
-                    ) {
+                    if (kind === null || !("by" in binding) || palettes[kind] === undefined) {
                         return [];
                     }
 
+                    // A binding still on the palette a default wrote took it, whichever default
+                    // that was: one whose reapply failed is stale until a call lands it.
                     const took =
-                        binding.palette === undefined ||
-                        (binding.palette === previous[kind] && defaulted.has(`${layer.id}/${channel}`));
+                        binding.palette === undefined
+                            ? palettes[kind] !== previous[kind]
+                            : binding.palette !== palettes[kind] &&
+                              defaulted.get(`${layer.id}/${channel}`) === binding.palette;
                     return took ? [{ channel, kind }] : [];
                 });
                 if (channels.length > 0) {
@@ -5796,41 +5994,56 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             defaultPalettes = { ...previous, ...palettes };
 
             if (stale.length === 0) {
-                return;
+                return Promise.resolve();
             }
 
             if (options.reapply !== true) {
-                const named = stale.map(({ layer }) => `"${layer.name}" (${layer.id})`).join(", ");
-                console.warn(
-                    `[graphty] setDefaultPalettes: ${named} took the previous default palette and keep it. ` +
-                        "Call setDefaultPalettes before adding layers, or pass { reapply: true } to repaint them.",
+                GraphtyLogger.getLogger(["graphty", "style"]).warn(
+                    "setDefaultPalettes: layers that took the previous default palette keep it; pass reapply",
+                    { layerIds: stale.map(({ layer }) => layer.id) },
                 );
-                return;
+                return Promise.resolve();
             }
 
-            for (const { layer, channels } of stale) {
-                const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
-                for (const { channel, kind } of channels) {
-                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
-                    defaulted.add(`${layer.id}/${channel}`);
-                }
+            // A layer counts as having taken the new default only once its update lands, so a
+            // failed one still reads as stale to the next call.
+            return Promise.all(
+                stale.map(async ({ layer, channels }) => {
+                    const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
+                    for (const { channel, kind } of channels) {
+                        encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
+                    }
 
-                api.update(layer.id, { encode }).then(undefined, (error: unknown) => {
-                    console.error(`[graphty] setDefaultPalettes could not reapply the layer "${layer.name}".`, error);
-                });
-            }
+                    // Read before the update is awaited: a later call may change the defaults meanwhile.
+                    const written = channels.map(({ channel, kind }) => [channel, defaultPalettes[kind]] as const);
+                    await api.update(layer.id, { encode });
+                    for (const [channel, palette] of written) {
+                        if (palette !== undefined) {
+                            defaulted.set(`${layer.id}/${channel}`, palette);
+                        }
+                    }
+                }),
+            ).then(() => undefined);
         },
 
         toDocument(): StyleDocument {
             const mine = current().filter((entry) => !entry.layer.locked);
             const layers = mine.map((entry) => specOf(entry.layer));
             const carried = carriedPalettes(layers);
-            // The project's shaders travel with its look, verbatim, beside the palettes, and so do
-            // the page's registered shaders its layers name, so the look opens on a page without them.
-            const shaders = [
-                ...[...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text })),
-                ...(SHADER_TRUST.get(api)?.embedded(layers) ?? []).map((entry) => Object.freeze({ ...entry })),
-            ];
+            // The project's shaders travel with its look, verbatim, beside the palettes. A write
+            // that names a catalog shader copies it into the project, so this is every shader used.
+            const shaders = [...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text }));
+            // Every id a layer, an encode key or the background names must be one the document
+            // carries. One that is not is an element bug, reported rather than written silently.
+            const background = dispatcher.state.config.get("background") as { shader?: { id?: unknown } } | undefined;
+            const named = shaderIdsIn(layers);
+            if (typeof background?.shader?.id === "string") {
+                named.add(background.shader.id);
+            }
+
+            const problems = [...named]
+                .filter((id) => !dispatcher.state.shaders.has(id))
+                .map((id): ShaderProblem => Object.freeze({ code: "shader.not-saved", params: { id } }));
             // Saved by place, since an opened document mints new layer ids.
             const tree = documentRows(rowsOf(current()), (key) => mine.findIndex((entry) => entry.layer.id === key));
 
@@ -5842,6 +6055,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
                 ...(shaders.length === 0 ? {} : { shaders: Object.freeze(shaders) }),
                 ...(tree === undefined ? {} : { tree }),
+                ...(problems.length === 0 ? {} : { problems: Object.freeze(problems) }),
             });
         },
 
@@ -6033,14 +6247,17 @@ type ShaderTrustMode = "run" | "hold" | "refuse";
 interface ShaderTrust {
     /** The trust a document gets when its call names none. */
     readonly mode: () => ShaderTrustMode;
-    /** Whether a text may run without asking. */
-    readonly trusted: (text: string) => boolean;
-    /** Approve texts for this session. */
-    readonly trust: (texts: readonly string[]) => void;
-    /** The text of each page-registered shader the layers name, to embed in a saved document. */
-    readonly embedded: (layers: readonly LayerSpec[]) => readonly { readonly id: string; readonly text: string }[];
-    /** Whether the page registered a shader under this id, so a document's copy gives way to it. */
-    readonly pageOwns: (id: string) => boolean;
+    /**
+     * Whether a document's entry may run without asking, by its content hash as the project stores it.
+     * A refusing call leaves out the settings' `untrusted: "run"`.
+     */
+    readonly trusted: (id: string, text: string, refusing?: boolean) => boolean;
+    /** Whether a document's entry reads as a shader under its id; one that does not is never written. */
+    readonly readable: (id: string, text: string) => boolean;
+    /** Approve documents' entries for this session. */
+    readonly trust: (entries: readonly { readonly id: string; readonly text: string }[]) => void;
+    /** Hold documents' entries a call refused, until the reader approves one, whatever the settings. */
+    readonly refuse: (entries: readonly { readonly id: string; readonly text: string }[]) => void;
 }
 
 /** Each stack's shader trust, by the API that owns it. */

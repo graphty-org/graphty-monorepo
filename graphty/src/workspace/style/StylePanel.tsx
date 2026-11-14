@@ -4,10 +4,10 @@ import { ComboInput, CompactColorInput, FieldRow } from "@graphty/compact-mantin
 import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-element/session";
-import { Box, Button, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
+import { Box, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
+import { cosmographOn, nodeModelsOn, selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, isHidden, isLocked, paintedTarget, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { isPanelEscape } from "../keys/keys";
@@ -37,7 +37,7 @@ import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
-import { firstStyleWords, madeWords, SECTIONS } from "./words";
+import { firstStyleWords, madeWords, sectionsFor } from "./words";
 
 /**
  * The row the Style tab edits when the caller names none, read from `inspected` as the inspector
@@ -371,7 +371,7 @@ export interface KindControl {
 }
 
 /** How a kind's picker and the other kind's tab hand a field between them. */
-export interface Elsewhere {
+interface Elsewhere {
     /** The field to open on with a card on it. */
     readonly adding?: string;
     /** Goes to the other kind's tab with a card on a field it carries. */
@@ -379,31 +379,16 @@ export interface Elsewhere {
 }
 
 /** A kind's tab label and its noun. */
-const KIND_WORDS: Readonly<Record<Target, { tab: string; many: string; title: string }>> = {
-    node: { tab: "Node", many: "nodes", title: "Nodes" },
-    edge: { tab: "Edge", many: "edges", title: "Edges" },
+const KIND_WORDS: Readonly<Record<Target, { tab: string; many: string }>> = {
+    node: { tab: "Node", many: "nodes" },
+    edge: { tab: "Edge", many: "edges" },
 };
 
 /**
- * How many properties a kind's layers set, for the other kind's line: "2 styles".
- * @param layers - the kind's layers.
- * @returns the words.
- */
-function stylesWords(layers: readonly Layer[]): string {
-    const channels = new Set(
-        layers.flatMap((layer) => [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]),
-    );
-    if (channels.size === 0) {
-        return "nothing set";
-    }
-    return channels.size === 1 ? "1 style" : `${String(channels.size)} styles`;
-}
-
-/**
- * One row's Style tab (V7, the owner's choice of 2026-10-16): Node and Edge tabs; each tab names the
- * other kind in one line, then the kind's switch and its Which picker (a tree row), then its
- * sections. One tab state for the panel: kept while the next row styles that kind, else the kind
- * the row styles, Node on a tie.
+ * One row's Style tab (V7, the owner's choice of 2026-10-16): Node and Edge tabs; each tab holds
+ * the kind's switch and its Style Nodes... or Style Edges... line (a tree row), then its sections.
+ * One tab state for the panel: kept while the next row styles that kind, else the kind the row
+ * styles, Node on a tie.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.row - the row's layers
@@ -490,12 +475,13 @@ export function RowStyle({
         };
         return (
             <section className="ws-style-group" data-group={side}>
-                {SECTIONS[side].map((spec) =>
-                    spec.id === "text" ? (
-                        <LabelSection key={spec.id} ctx={ctx} />
-                    ) : (
-                        <Section key={spec.id} ctx={ctx} spec={spec} />
-                    ),
+                {sectionsFor(side, { cosmograph: cosmographOn(session), nodeModels: nodeModelsOn(session) }).map(
+                    (spec) =>
+                        spec.id === "text" ? (
+                            <LabelSection key={spec.id} ctx={ctx} />
+                        ) : (
+                            <Section key={spec.id} ctx={ctx} spec={spec} />
+                        ),
                 )}
             </section>
         );
@@ -594,80 +580,11 @@ export function RowStyle({
                                         : null}
                                 </>
                             )}
-                            {/* The other kind last: the tab opens on its own kind's lines. */}
-                            <OtherLine
-                                session={session}
-                                row={row}
-                                side={other}
-                                kinds={kinds}
-                                styled={styled(other)}
-                                painted={paints(other)}
-                                onEdit={() => {
-                                    show(other);
-                                }}
-                            />
                         </Tabs.Panel>
                     );
                 })}
             </Tabs>
         </Stack>
-    );
-}
-
-/**
- * The other kind in one line, so the whole layer reads from either tab, in one wording whatever
- * its state: "Edges: 2 styles", "Edges: not styled", then "Edit edges", which opens the kind's
- * tab (where its switch turns it on). One Tab stop.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.row - the row
- * @param props.side - nodes or edges
- * @param props.kinds - the kinds' switches, when the rows have them
- * @param props.styled - whether the kind is styled
- * @param props.painted - whether the row paints the kind (a part that writes nothing beside one
- *   that writes reads as not styled)
- * @param props.onEdit - goes to the kind's tab
- * @returns The line
- */
-function OtherLine({
-    session,
-    row,
-    side,
-    kinds,
-    styled,
-    painted,
-    onEdit,
-}: Readonly<{
-    session: GraphSession;
-    row: readonly LayerId[];
-    side: Target;
-    kinds: KindControl | undefined;
-    styled: boolean;
-    painted: boolean;
-    onEdit: () => void;
-}>): React.JSX.Element | null {
-    const words = KIND_WORDS[side];
-    if (!styled && kinds === undefined) {
-        // A kind this row can never style has no tab to edit.
-        return null;
-    }
-    const state = kinds?.state(side);
-    let what = "not styled";
-    if (styled && painted) {
-        what =
-            state !== undefined && state.of > 1
-                ? `on in ${String(state.on)} of ${String(state.of)} layers`
-                : stylesWords(rowLayers(session, row, side));
-    }
-    return (
-        <Group gap={6} wrap="nowrap" className="ws-other-line" data-other={side}>
-            <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0 }} truncate>
-                {`${words.title}: ${what}`}
-            </Text>
-            <Button size="compact-xs" variant="subtle" onClick={onEdit}>
-                Edit {words.many}
-            </Button>
-        </Group>
     );
 }
 

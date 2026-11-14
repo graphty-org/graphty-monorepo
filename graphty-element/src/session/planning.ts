@@ -19,7 +19,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { planar } from "@graphty/layout";
 
-import { type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
+import { askedWeight, type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
 import { layoutAlias, layoutDescriptor, layoutEntry, layoutIdForEngine } from "../catalog/layouts";
 import type {
     AlgorithmDescriptor,
@@ -42,7 +42,7 @@ import {
     type LocationDesignation,
     resolveLocation,
 } from "../layout/locationMap/source";
-import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand } from "./commands/algo";
+import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { BatchCommand } from "./commands/index";
@@ -57,6 +57,7 @@ import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
 import {
     ASSUMED_ITERATION_BOUND,
+    bareBasis,
     type CostEstimate,
     type CostGateLimits,
     type CostInput,
@@ -128,6 +129,7 @@ export type SessionCommand =
     | AlgoLegacyCommand
     | AlgoRemoveCommand
     | AlgoMoveCommand
+    | AlgoRenameCommand
     | DataCommand
     | DataIssuesCommand
     | SourceExpandOpCommand
@@ -497,6 +499,7 @@ function unavailableEstimate(
         reason,
         refusal,
         basis: reason,
+        basisFacts: bareBasis("cost.refused"),
     });
 }
 
@@ -628,6 +631,7 @@ function planLayout(context: PlanningContext, command: LayoutSetCommand): Plan {
                   blocked: Object.freeze({
                       code: "E_OPTION_RANGE",
                       // An unavailable layout's basis is its refusal sentence.
+                      // eslint-disable-next-line @typescript-eslint/no-deprecated -- PlanBlock.reason is still English
                       reason: cost.basis,
                   }),
               }),
@@ -653,7 +657,7 @@ function weighedCaveats(
     try {
         const reading = resolveRunWeight(
             descriptor?.weightMeaning ?? null,
-            command.params?.weight,
+            askedWeight(command.params?.weight, descriptor?.options),
             context.loadedWeight?.() ?? null,
         );
         return {
@@ -1207,6 +1211,17 @@ function layoutEstimateNow(
         cancellable: true,
         available: true,
         basis: `${costClass} layout "${id}" drawn by "${engine}" over n=${String(n)}, m=${String(e)}`,
+        basisFacts: Object.freeze({
+            nodes: n,
+            edges: e,
+            sizesScaled: false,
+            term: "class" as const,
+            iterations,
+            iterationsAssumed: !(Number.isFinite(declared) && declared > 0),
+            sample: null,
+            derivationSeconds: 0,
+            provenance: Object.freeze({ code: "cost.layout" as const, params: Object.freeze({ layout: id, engine }) }),
+        }),
     });
 }
 
@@ -1229,5 +1244,6 @@ function unavailableLayout(costClass: CostClass, { reason, refusal }: EstimateRe
         reason,
         refusal,
         basis: reason,
+        basisFacts: bareBasis("cost.refused"),
     });
 }

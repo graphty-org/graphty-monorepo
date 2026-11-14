@@ -2,15 +2,10 @@ import { ArcRotateCamera, Buffer, Matrix, Mesh, NullEngine, Scene, Vector3 } fro
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { CustomLineRenderer } from "../src/meshes/CustomLineRenderer";
-import {
-    EDGE_STATIC_FLOATS,
-    JOIN_FLOATS_PER_PIECE,
-    JOIN_TEMPLATE_INDICES,
-    JOIN_TEMPLATE_POSITIONS,
-    WIDENED_FLOATS_PER_PIECE,
-} from "../src/meshes/edgeJoinShader";
-import { drawsExpandedLines, EdgeLineBatch, forceExpandedLines, segmentMatrixToRef } from "../src/meshes/EdgeLineBatch";
+import { JOIN_FLOATS_PER_PIECE, WIDENED_FLOATS_PER_PIECE } from "../src/meshes/edgeJoinShader";
+import { EdgeLineBatch, segmentMatrixToRef } from "../src/meshes/EdgeLineBatch";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
+import { batchUploadFrames } from "../src/meshes/FrameRoster";
 import { assertScalesLinearly } from "./helpers/cost";
 
 describe("EdgeLineBatch", () => {
@@ -199,7 +194,7 @@ describe("EdgeLineBatch", () => {
             vi.restoreAllMocks();
         });
 
-        function joined(pattern?: { kind: "dash" | "dot"; elementLength: number }): EdgeLineBatch {
+        function joined(pattern?: { kind: "dash" | "dot"; elementLength: number; gap?: number }): EdgeLineBatch {
             const mesh = CustomLineRenderer.createJoinedLineMesh(
                 { width: 0.2, color: "#336699", worldWidth: true, pattern },
                 scene,
@@ -214,6 +209,11 @@ describe("EdgeLineBatch", () => {
         function slotOf(drawn: EdgeLineBatch, slot: number): number[] {
             const data = (drawn as unknown as { slots: Float32Array }).slots;
             return [...data.subarray(slot * JOIN_FLOATS_PER_PIECE, slot * JOIN_FLOATS_PER_PIECE + 14)];
+        }
+
+        /** The GPU buffer a batch's hidden flags go up in. */
+        function hiddenBufferOf(drawn: EdgeLineBatch): Buffer | null {
+            return (drawn as unknown as { hiddenBuffer: Buffer | null }).hiddenBuffer;
         }
 
         /** One slot's corners two pieces back and two ahead. */
@@ -292,6 +292,15 @@ describe("EdgeLineBatch", () => {
             assert.isAbove(spacing, 0.6, "dashes are apart, not touching");
         });
 
+        test("a dashed run with a gap of its own repeats a dash and that gap from its start, whatever its length", () => {
+            // yEd's dashes: six widths on, two off, on a line 0.2 wide
+            const drawn = joined({ kind: "dash", elementLength: 1.2, gap: 0.4 });
+            const slots = [drawn.acquire(), drawn.acquire()];
+            drawn.placeRun(slots, [0, 0, 0, 3, 0, 0, 3, 4, 0]);
+            assert.closeTo(slotOf(drawn, slots[0])[13], 1.6, 1e-6);
+            assert.closeTo(slotOf(drawn, slots[1])[13], 1.6, 1e-6);
+        });
+
         test("upload once for a frame however many pieces moved", () => {
             const drawn = joined();
             const update = vi.spyOn(Buffer.prototype, "updateDirectly");
@@ -304,6 +313,175 @@ describe("EdgeLineBatch", () => {
             assert.strictEqual(update.mock.calls.length, 1, "the frame uploads once");
             scene.render();
             assert.strictEqual(update.mock.calls.length, 1, "and a frame that moved nothing uploads nothing");
+        });
+
+        test("hiding a slot writes one flag and keeps its placement, and showing it clears the flag", () => {
+            const drawn = joined();
+            const slot = drawn.acquire();
+            drawn.place(slot, new Vector3(1, 2, 0), new Vector3(4, 6, 0));
+            scene.render();
+            const placed = slotOf(drawn, slot);
+            const sent: { kind: string; count: number }[] = [];
+            const upload = Buffer.prototype.updateDirectly;
+            vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (this: Buffer, ...args) {
+                const [, , count] = args;
+                sent.push({ kind: this === hiddenBufferOf(drawn) ? "hidden" : "other", count: count ?? 0 });
+                upload.apply(this, args);
+            });
+
+            drawn.park(slot);
+            assert.deepEqual(slotOf(drawn, slot), placed, "the placement stays where it is");
+            assert.strictEqual(drawn.lengthOf(slot), 0, "read as drawing nothing");
+            assert.isTrue(drawn.isParked(slot));
+            scene.render();
+            assert.deepEqual(sent, [{ kind: "hidden", count: 1 }], "only the slot's flag goes up");
+
+            sent.length = 0;
+            assert.isTrue(drawn.unpark(slot), "put back");
+            assert.strictEqual(drawn.lengthOf(slot), 5);
+            scene.render();
+            assert.deepEqual(sent, [{ kind: "hidden", count: 1 }], "and only its flag again");
+            assert.isFalse(drawn.unpark(slot), "a shown slot has nothing to put back");
+        });
+
+        /** The GPU buffer a batch's colors go up in. */
+        function colorBufferOf(drawn: EdgeLineBatch): Buffer | null {
+            return (drawn as unknown as { colorBuffer: Buffer | null }).colorBuffer;
+        }
+
+        test("a new slot draws in the batch's color, and taking it uploads no color", () => {
+            const drawn = joined();
+            scene.render();
+            const update = vi.spyOn(Buffer.prototype, "updateDirectly");
+            const slot = drawn.acquire();
+            scene.render();
+
+            const blue = [0x33, 0x66, 0x99].map((byte) => Math.fround(byte / 255));
+            assert.deepStrictEqual(drawn.colorOf(slot), [...blue, 1]);
+            assert.isFalse(
+                update.mock.contexts.some((buffer) => buffer === colorBufferOf(drawn)),
+                "the buffer was made holding the default",
+            );
+        });
+
+        /**
+         * A time window's Ghost row recolors every edge that crosses the window's edge, a frame at
+         * a time. The work per edge is its color: four floats in place, no slot written or moved,
+         * and one run of the color buffer uploaded (issue #6026).
+         */
+        test("recoloring n edges writes no slot and uploads n color rows", () => {
+            // The scene's batches upload by runs of written slots, as the element turns on.
+            batchUploadFrames.rangedUploads(scene).on = true;
+            const drawn = joined();
+            const slots = Array.from({ length: 50 }, () => drawn.acquire());
+            for (const [i, slot] of slots.entries()) {
+                drawn.place(slot, new Vector3(i, 0, 0), new Vector3(i, 1, 0));
+            }
+            scene.render();
+            const placed = slots.map((slot) => slotOf(drawn, slot));
+            const sent: { kind: string; count: number }[] = [];
+            const upload = Buffer.prototype.updateDirectly;
+            vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (this: Buffer, ...args) {
+                const [, , count] = args;
+                sent.push({ kind: this === colorBufferOf(drawn) ? "color" : "other", count: count ?? 0 });
+                upload.apply(this, args);
+            });
+
+            const recolored = slots.filter((_, i) => i % 5 === 0);
+            for (const slot of recolored) {
+                drawn.setColor(slot, 0.5, 0.5, 0.5, 0.2);
+            }
+            scene.render();
+
+            assert.deepStrictEqual(
+                slots.map((slot) => slotOf(drawn, slot)),
+                placed,
+                "every slot stays as placed",
+            );
+            assert.deepStrictEqual(
+                sent,
+                recolored.map(() => ({ kind: "color", count: 1 })),
+                "one color row each",
+            );
+            assert.deepStrictEqual(drawn.colorOf(recolored[0]), [0.5, 0.5, 0.5, Math.fround(0.2)].map(Math.fround));
+
+            sent.length = 0;
+            for (const slot of recolored) {
+                drawn.setColor(slot, 0.5, 0.5, 0.5, 0.2);
+            }
+            scene.render();
+            assert.deepStrictEqual(sent, [], "the same color again writes nothing");
+        });
+
+        test("a batch is drawn in the transparent pass exactly while a slot in it is translucent", () => {
+            const drawn = joined();
+            const first = drawn.acquire();
+            const second = drawn.acquire();
+            assert.strictEqual(drawn.mesh.visibility, 1, "opaque slots: the opaque pass");
+
+            drawn.setColor(first, 1, 0, 0, 0.3);
+            drawn.setColor(second, 1, 0, 0, 0.3);
+            assert.isBelow(drawn.mesh.visibility, 1, "a translucent slot: the transparent pass");
+
+            drawn.setColor(first, 1, 0, 0, 1);
+            assert.isBelow(drawn.mesh.visibility, 1, "while one is left");
+            drawn.release(second);
+            assert.strictEqual(drawn.mesh.visibility, 1, "a released slot counts for nothing");
+            assert.strictEqual(drawn.acquire(), second, "taken again");
+            assert.strictEqual(drawn.mesh.visibility, 1, "in the batch's own color");
+        });
+
+        test("a slot placed while hidden is drawn again, and no longer parked", () => {
+            const drawn = joined();
+            const slot = drawn.acquire();
+            drawn.place(slot, new Vector3(0, 0, 0), new Vector3(3, 4, 0));
+            drawn.park(slot);
+            drawn.place(slot, new Vector3(0, 0, 0), new Vector3(6, 8, 0));
+
+            assert.isFalse(drawn.isParked(slot));
+            assert.strictEqual(drawn.lengthOf(slot), 10);
+            assert.isFalse(drawn.unpark(slot));
+        });
+
+        /**
+         * A time window that jumps hides and shows tens of thousands of edges a frame. The work per
+         * edge is one flag: no slot float written and one float uploaded (issue #6025).
+         */
+        test("hiding n edges writes no slot and uploads n flags", async () => {
+            const collapses = vi.spyOn(EdgeLineBatch.prototype as unknown as { collapse: () => void }, "collapse");
+            const sent: number[] = [];
+            const upload = Buffer.prototype.updateDirectly;
+            await assertScalesLinearly(
+                (n) => {
+                    const drawn = joined();
+                    const slots = Array.from({ length: n }, (_, i) => {
+                        const slot = drawn.acquire();
+                        drawn.place(slot, new Vector3(i, 0, 0), new Vector3(i + 1, 0, 0));
+                        return slot;
+                    });
+                    scene.render();
+                    collapses.mockClear();
+                    sent.length = 0;
+                    const spy = vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (
+                        this: Buffer,
+                        ...args
+                    ) {
+                        sent.push((args[2] ?? 0) * this.byteStride);
+                        upload.apply(this, args);
+                    });
+                    for (const slot of slots) {
+                        drawn.park(slot);
+                    }
+
+                    scene.render();
+                    spy.mockRestore();
+                    assert.strictEqual(collapses.mock.calls.length, 0, "no slot is zeroed");
+                    const bytes = sent.reduce((sum, b) => sum + b, 0);
+                    assert.strictEqual(bytes, n * 4, "one float a slot");
+                    return bytes;
+                },
+                { sizes: [250, 1000], counter: "bytes uploaded" },
+            );
         });
 
         /**
@@ -408,163 +586,6 @@ describe("EdgeLineBatch", () => {
         });
 
         function joined(): EdgeLineBatch {
-            return new EdgeLineBatch(
-                CustomLineRenderer.createJoinedLineMesh({ width: 0.2, color: "#336699", worldWidth: true }, scene),
-                scene,
-            );
-        }
-    });
-
-    /**
-     * ON A SOFTWARE RENDERER A JOINED LINE IS ONE PLAIN MESH (issue #3095): the template repeated
-     * per piece, each piece's floats repeated per vertex. The shader is the same, so the picture
-     * is the same exactly when every vertex reads what the instance it stands for would have read.
-     */
-    describe("expanded lines (a software renderer)", () => {
-        afterEach(() => {
-            forceExpandedLines(null);
-            vi.restoreAllMocks();
-        });
-
-        const VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
-
-        function build(expanded: boolean, widened: boolean): EdgeLineBatch {
-            forceExpandedLines(expanded);
-            const mesh = CustomLineRenderer.createJoinedLineMesh(
-                {
-                    width: 0.2,
-                    color: "#336699",
-                    worldWidth: true,
-                    widened,
-                    pattern: { kind: "dash", elementLength: 0.3 },
-                },
-                scene,
-            );
-            const drawn = new EdgeLineBatch(mesh, scene);
-            // Past the first 32 slots, so the expanded batch grows too, and a released slot inside.
-            for (let i = 0; i < 40; i++) {
-                const run = [drawn.acquire(), drawn.acquire(), drawn.acquire()];
-                drawn.placeRun(run, [i, 0, 0, i + 1, 0, 0, i + 1, 1, 0, i + 2, 1, i]);
-                drawn.writeStatic(
-                    run[1],
-                    Array.from({ length: 20 }, (_, k) => i * 100 + k),
-                );
-            }
-
-            drawn.release(7);
-            scene.render();
-            return drawn;
-        }
-
-        /**
-         * An upload of part of a buffer leaves Babylon no copy to read back, and NullEngine has no
-         * GPU to read: keep the array each upload came from, so a test can read what went up.
-         */
-        function keepUploads(): void {
-            const upload = Buffer.prototype.updateDirectly;
-            vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (
-                this: Buffer,
-                ...args: Parameters<Buffer["updateDirectly"]>
-            ) {
-                upload.apply(this, args);
-                (this as unknown as { _data: unknown })._data = args[0];
-            });
-        }
-
-        function attribute(drawn: EdgeLineBatch, kind: string, count: number): number[] {
-            const buffer = drawn.mesh.getVertexBuffer(kind);
-            assert.isNotNull(buffer, kind);
-            return [...(buffer.getFloatData(count) ?? [])];
-        }
-
-        test("upload only the vertices of the pieces handed out, not the arrays' whole capacity", () => {
-            const uploaded: number[] = [];
-            vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (this: Buffer, _data, _at, count) {
-                uploaded.push((count ?? 0) * this.byteStride);
-            });
-            const drawn = build(true, true);
-            const bytes = (floats: number): number => drawn.drawnCount * VERTICES * floats * 4;
-
-            assert.sameMembers(uploaded, [bytes(WIDENED_FLOATS_PER_PIECE), bytes(EDGE_STATIC_FLOATS)]);
-        });
-
-        for (const widened of [false, true]) {
-            test(`every vertex reads its piece's values, as an instance would${widened ? " (widened)" : ""}`, () => {
-                keepUploads();
-                const instanced = build(false, widened);
-                const expanded = build(true, widened);
-                const pieces = instanced.drawnCount;
-
-                assert.strictEqual(expanded.drawnCount, pieces);
-                assert.strictEqual(expanded.mesh.forcedInstanceCount, 0, "no instances");
-                assert.strictEqual(instanced.mesh.forcedInstanceCount, pieces);
-                const [subMesh] = expanded.mesh.subMeshes;
-                assert.strictEqual(subMesh.indexCount, pieces * JOIN_TEMPLATE_INDICES.length, "draws only the pieces");
-                assert.isOk(subMesh.getBoundingInfo(), "and has a box the transparent pass can sort by");
-
-                const indices = expanded.mesh.getIndices() ?? [];
-                const positions = attribute(expanded, "position", pieces * VERTICES);
-                for (let piece = 0; piece < pieces; piece++) {
-                    JOIN_TEMPLATE_INDICES.forEach((index, i) => {
-                        assert.strictEqual(indices[piece * JOIN_TEMPLATE_INDICES.length + i], index + piece * VERTICES);
-                    });
-                    assert.deepEqual(positions.slice(piece * VERTICES * 3, (piece + 1) * VERTICES * 3), [
-                        ...JOIN_TEMPLATE_POSITIONS,
-                    ]);
-                }
-
-                const kinds = ["pPrev", "pA", "pB", "pNext", "run", "pPrev2", "pNext2"];
-                if (widened) {
-                    kinds.push("runTotal", "edgeColorA", "edgeColorB", "edgeParams", "edgeMeta", "edgeTimes");
-                }
-
-                for (const kind of kinds) {
-                    const perPiece = attribute(instanced, kind, pieces);
-                    const perVertex = attribute(expanded, kind, pieces * VERTICES);
-                    const size = perPiece.length / pieces;
-                    assert.isTrue(
-                        perPiece.some((v) => v !== 0),
-                        `${kind} holds something to compare`,
-                    );
-                    for (let v = 0; v < pieces * VERTICES; v++) {
-                        const piece = Math.floor(v / VERTICES);
-                        assert.deepEqual(
-                            perVertex.slice(v * size, (v + 1) * size),
-                            perPiece.slice(piece * size, (piece + 1) * size),
-                            `${kind} at vertex ${String(v)}`,
-                        );
-                    }
-                }
-            });
-        }
-
-        test("upload once for a frame however many pieces moved", () => {
-            forceExpandedLines(true);
-            const drawn = joinedLine();
-            const update = vi.spyOn(Buffer.prototype, "updateDirectly");
-            for (let i = 0; i < 10; i++) {
-                drawn.placeRun([drawn.acquire(), drawn.acquire()], [0, 0, 0, i, 0, 0, i, 1, 0]);
-            }
-
-            scene.render();
-            assert.strictEqual(update.mock.calls.length, 1, "the frame uploads once");
-            scene.render();
-            assert.strictEqual(update.mock.calls.length, 1, "and a frame that moved nothing uploads nothing");
-        });
-
-        test("a software renderer draws expanded, a GPU and a test engine draw instances", () => {
-            const engine = scene.getEngine() as unknown as { _glRenderer: string };
-            assert.isFalse(drawsExpandedLines(scene.getEngine()), "the null engine");
-            engine._glRenderer =
-                "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)";
-            assert.isTrue(drawsExpandedLines(scene.getEngine()));
-            engine._glRenderer = "llvmpipe (LLVM 15.0.7, 256 bits)";
-            assert.isTrue(drawsExpandedLines(scene.getEngine()));
-            engine._glRenderer = "ANGLE (NVIDIA, Vulkan 1.3.277 (NVIDIA GeForce RTX 4090 (0x00002684)), NVIDIA)";
-            assert.isFalse(drawsExpandedLines(scene.getEngine()));
-        });
-
-        function joinedLine(): EdgeLineBatch {
             return new EdgeLineBatch(
                 CustomLineRenderer.createJoinedLineMesh({ width: 0.2, color: "#336699", worldWidth: true }, scene),
                 scene,

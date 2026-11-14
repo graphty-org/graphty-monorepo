@@ -57,6 +57,36 @@ If the WebGPU device is lost, by a driver reset or a GPU process crash, the elem
 rebuilds and draws the same graph, with nothing for you to do. If no new device can be had,
 `rendererStatus.drawing` turns false and a `graph-error` event carries `E_DEVICE_LOST`.
 
+## When the graphics device is lost
+
+The browser can take the WebGL context or the WebGPU device away from a page: a driver reset, a GPU
+process crash, or a tab left in the background on a phone. The element fires `render-lost` (with
+the code `E_RENDER_LOST` and `params.renderer`), and `rendererStatus.drawing` is false until it is
+drawing again. Your data, styles, camera and undo history are never touched.
+
+The element asks for the device back by itself and fires `render-restored` once the same graph is
+drawn again. When the browser does not give it back, `restartRenderer()` asks again and rebuilds
+the picture from the graph in memory; nothing is loaded again:
+
+```js
+const graph = document.querySelector("graphty-element");
+const restart = document.querySelector("#restart-viewer");
+
+graph.addEventListener("render-lost", () => {
+    restart.hidden = false;
+});
+graph.addEventListener("render-restored", () => {
+    restart.hidden = true;
+});
+restart.addEventListener("click", async () => {
+    await graph.restartRenderer();
+});
+```
+
+`restartRenderer()` resolves at once when nothing is lost. It rejects with `E_RENDER_LOST` when the
+browser cannot give a WebGL context back, and with `E_DEVICE_LOST` when no new WebGPU device can be
+opened.
+
 ## What differs under WebGPU
 
 | Feature                               | Under WebGPU                                           |
@@ -76,13 +106,23 @@ that would fail. Keep the default renderer on a page that offers VR or AR.
 WebAssembly modules, glslang and twgsl, which it fetches from `https://cdn.babylonjs.com` the first
 time a WebGPU graph opens on the page, about 1 MB together. The element fetches them before it
 draws, so a page whose Content Security Policy or network blocks that host draws with WebGL and
-says so in `rendererStatus.reason`, rather than drawing a graph with no edges.
+says so in `rendererStatus.reason`, rather than drawing a graph with no edges. To serve them yourself,
+copy `glslang/glslang.js`, `glslang/glslang.wasm`, `twgsl/twgsl.js` and `twgsl/twgsl.wasm` from
+`https://cdn.babylonjs.com/v<babylon version>/` to your own host and point Babylon.js at it before the
+graph opens: `Tools.ScriptBaseUrl = "https://example.com/babylon"` (`Tools` from `@babylonjs/core`).
 
 ## One device for drawing and layout
 
 With [acceleration](./acceleration) on, the graph draws on WebGPU and the adapter is real hardware, the renderer and the accelerator
 run on one device. The element decides this before the renderer opens, and needs nothing from you. On a software adapter they stay on two.
 If the device is lost, both stop, the renderer comes back on a new device, and the layout carries on there.
+
+`rendererStatus.layoutDevice` says which it is: `"shared"`, `"separate"` (WebGL, or a software adapter), or `null` when no accelerator
+is offered:
+
+```js
+const { layoutDevice } = element.rendererStatus ?? {};
+```
 
 ## Is WebGPU faster?
 
@@ -107,6 +147,89 @@ picture or transparency, say) stays a mesh, and so do the other nodes of its sha
 
 ```js
 const { batchedNodes, objectNodes } = element.rowCounts;
+```
+
+### Loading more than 100,000 nodes
+
+A load past 100,000 nodes or 1,000,000 edges is refused with `E_TOO_LARGE`. On the batched path
+you can raise either number with `limits` (experimental):
+
+```html
+<graphty-element view-mode="2d" render-path="batched" layout="random"></graphty-element>
+<script type="module">
+    import "@graphty/graphty-element";
+    const graph = document.querySelector("graphty-element");
+    graph.limits = { renderCeiling: 1_000_000 };
+    const nodes = Array.from({ length: 1_000_000 }, (_, i) => ({ id: `n${i}` }));
+    await graph.session.data.addNodes(nodes);
+    console.log(graph.session.capabilities.limits.renderCeiling); // 1000000
+</script>
+```
+
+`session.capabilities.limits` always holds the numbers in force, and `capabilities:changed` fires
+when they change. On the default `"objects"` path `limits` is ignored, the element fires
+`limits-warning` with the code `W_LIMITS_IGNORED`, and the 100,000 and 1,000,000 stand. Changing
+`renderPath` to `"objects"` while the graph holds more than those is refused: the element fires
+`error` with `E_TOO_LARGE` and stays on `"batched"`.
+
+A node whose look no batch can draw (a border, a model, a picture) or an edge with an arrow head,
+a dash or a label is drawn as an object of its own, which costs far more memory. `limits` also
+caps how many of those there are: `objectRows` for nodes and `objectEdges` for edges, by default
+100,000 and 1,000,000. Past a cap, later nodes are drawn as plain bodies and later edges as plain
+lines, and the element fires `limits-warning` with the code `W_OBJECT_CAP` and
+`{ of, wanted, cap }`:
+
+```js
+graph.limits = { renderCeiling: 1_000_000, objectRows: 50_000 };
+graph.addEventListener("limits-warning", (event) => {
+    if (event.detail.code === "W_OBJECT_CAP") {
+        console.log(event.detail.params); // { of: "nodes", wanted: 1000000, cap: 50000 }
+    }
+});
+```
+
+### Loading a graph held as arrays
+
+When your graph is already arrays -- edge endpoints as row numbers, say from a generator or a
+binary file -- hand them over as they are with `session.data.importColumns`. Nodes are rows `0`
+to `nodeCount - 1`, and edge `i` runs from row `sources[i]` to row `targets[i]`. Plain arrays and
+typed arrays both work:
+
+```js
+const graph = document.querySelector("graphty-element");
+await graph.session.data.importColumns({
+    sources: new Uint32Array([0, 1, 2]),
+    targets: new Uint32Array([1, 2, 0]),
+    nodeCount: 3,
+    ids: ["a", "b", "c"], // optional; default: the row number
+    weights: [1, 2, 0.5], // optional; stored as each edge's `weight`
+    attributes: { nodes: { group: ["x", "y", "x"] } }, // optional
+});
+console.log(graph.session.data.count()); // { nodes: 3, edges: 3 }
+```
+
+The graph is the one `addNodes` and `addEdges` would make from the same rows, the same limits
+apply, and it is one undo step. Columns that do not line up are refused with `E_BAD_COMMAND`, and
+nothing is added.
+
+## Smoothing (antialias)
+
+The canvas is drawn with 4x multisampling, which smooths the edges of lines and nodes. With very
+many edges, multisampling is most of each frame's cost; `antialias="false"` turns it off, for
+harder edges and faster frames. Nothing else about the picture changes.
+
+```html
+<graphty-element render-path="batched" antialias="false"></graphty-element>
+```
+
+Set it as an attribute, in any position in the tag, or as a property before using any other
+property or method of the element. A later change takes effect only on a new element and raises
+the warning `W_ANTIALIAS_LATE`:
+
+```js
+element.addEventListener("graphty-warning", (e) => {
+    const { code, params } = e.detail; // "W_ANTIALIAS_LATE", { requested, active }
+});
 ```
 
 ## Drawing only when something changes

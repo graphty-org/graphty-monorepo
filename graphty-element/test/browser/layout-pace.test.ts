@@ -73,7 +73,9 @@ describe("layout pace", () => {
         }
 
         const steps = "_stepCount" in engine ? engine._stepCount : engine.iterationsDone;
-        const x = engine.getNodePosition([...layoutManager.nodes][0])?.x ?? Number.NaN;
+        // By id: under renderPath "batched" a simulation's rows have no Node for the frame loop to hand out.
+        const first = graph.getDataManager().getNode("0");
+        const x = (first === undefined ? undefined : engine.getNodePosition(first))?.x ?? Number.NaN;
         release();
         release = undefined;
         cleanupTestGraph(graph);

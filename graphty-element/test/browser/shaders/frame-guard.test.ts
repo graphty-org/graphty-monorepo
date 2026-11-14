@@ -23,10 +23,10 @@ import { operationQueueOf } from "../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../src/managers/everyFrameAnimations";
 import type { RenderManager } from "../../../src/managers/RenderManager";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
-import { type RenderQualityChange, shadersControllerOf } from "../../../src/session/shaders";
+import { type RenderQualityChange, shaderContentHash, shadersControllerOf } from "../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../src/shaders/chunk";
 import { defineShader } from "../../../src/simple/defineShader";
-import { sha256Hex } from "../../../src/utils/sha256";
+import { pixelAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 
 const WIDTH = 400;
@@ -430,30 +430,10 @@ describe("motion", () => {
                 state: "still",
                 problem: { code: "shader.flashing", params: { id } },
             });
-            assert.isAtLeast(hostOf(element).loaded?.uniforms.frozenTime(sha256Hex(text)) ?? -1, 0);
+            assert.isAtLeast(hostOf(element).loaded?.uniforms.frozenTime(shaderContentHash(text)) ?? -1, 0);
         });
     }
 });
-
-/**
- * Read one pixel of the canvas, at a point in CSS pixels.
- * @param element - The element.
- * @param x - x.
- * @param y - y.
- * @returns r, g, b, a.
- */
-async function pixelAt(element: Graphty, x: number, y: number): Promise<number[]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 1);
-    const scale = 1 / engine.getHardwareScalingLevel();
-    const read = (await engine.readPixels(
-        Math.round(x * scale),
-        Math.round(engine.getRenderHeight() - y * scale),
-        1,
-        1,
-    )) as unknown as Uint8Array;
-    return [read[0], read[1], read[2], read[3]];
-}
 
 describe("the level's caps and detail", () => {
     it("crops an effect's square to 128 px at low quality and leaves it whole at high", async () => {
@@ -476,7 +456,7 @@ describe("the level's caps and detail", () => {
         const ringX = center.x + (edge.x - center.x) * 3;
 
         const isRed = async (): Promise<boolean> => {
-            const [r, g] = await pixelAt(element, ringX, center.y);
+            const [r, g] = await pixelAt(element, { x: ringX, y: center.y });
             return r > 200 && g < 60;
         };
         let red = false;

@@ -318,6 +318,11 @@ export interface OracleReport {
      * to compare it with) is not measurable there, which is never a failure.
      */
     judged: Partial<Record<OracleProperty, string[]>>;
+    /**
+     * The elements judged as the drawing as a whole (the frame, the background, the share of lines drawn bent): a
+     * property judging only these judges no element of the drawing one by one.
+     */
+    wholeDrawing: string[];
     association: unknown;
     transform: {
         scale: number;
@@ -387,6 +392,26 @@ function annotationOver<T extends { box: PBox }>(box: PBox, shapes: readonly T[]
         }
     }
     return best;
+}
+
+/** The most of the smaller of two pieces of a node's face the other may cover while the two lie side by side. */
+const SIDE_BY_SIDE_OVERLAP = 0.5;
+
+/**
+ * The pieces of a node's face, where they lie side by side (stripes, wedges, a pie's slices); none where any piece
+ * covers most of another (a drop shadow and the face over it, an overlay, a table's cells over its background).
+ * @param faces - the pieces, each with its box
+ * @returns the pieces, or none
+ */
+function sideBySide<F extends { box: PBox }>(faces: readonly F[]): readonly F[] {
+    const area = (b: PBox): number => Math.max(0, boxW(b)) * Math.max(0, boxH(b));
+    const shared = (a: PBox, b: PBox): number =>
+        Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) *
+        Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+    const layered = faces.some((a, i) =>
+        faces.some((b, k) => k > i && shared(a.box, b.box) > SIDE_BY_SIDE_OVERLAP * Math.min(area(a.box), area(b.box))),
+    );
+    return layered ? [] : faces;
 }
 
 /**
@@ -812,6 +837,26 @@ const runsToMiddle = (n: PNode, end: Pt | undefined): end is Pt =>
     Math.hypot(end[0] - n.cx, end[1] - n.cy) < FIGURE_MIDDLE * Math.min(n.w, n.h);
 
 /**
+ * One graphty render pixel or so in oracle pixels: the least any distance tolerance allows. Between unrelated layouts
+ * the size-fitted scale says how much larger the program draws its nodes, not how large a render pixel is: a drawing
+ * at a ninth of the program's size made a render pixel 14 oracle pixels (cx-radiation-bibliography), and an arrowhead
+ * twice the program's size passed. There both drawings fill a canvas, and a render pixel is no larger than the
+ * canvases' ratio.
+ * @param oracle - the oracle's drawing
+ * @param graphty - graphty's
+ * @param lengthScale - the scale lengths are judged by
+ * @param unrelatedLayout - whether each program laid the file out itself
+ * @returns the pixel, in oracle pixels
+ */
+export function renderPixel(oracle: PScene, graphty: PScene, lengthScale: number, unrelatedLayout: boolean): number {
+    const canvasRatio = Math.max(
+        oracle.width / Math.max(graphty.width, 1e-9),
+        oracle.height / Math.max(graphty.height, 1e-9),
+    );
+    return ORACLE_TOLERANCES.pixel * (unrelatedLayout ? Math.min(lengthScale, canvasRatio) : lengthScale);
+}
+
+/**
  * How far an arrowhead's size is from the oracle's: by their ratio (`arrowRatio`), but alike within a pixel, which a
  * rounding on a head a few pixels long moves by more than the ratio allows.
  * @param o - the oracle's size, in oracle pixels
@@ -819,7 +864,7 @@ const runsToMiddle = (n: PNode, end: Pt | undefined): end is Pt =>
  * @param pixel - a render pixel, in oracle pixels
  * @returns the miss, 0 when alike
  */
-function arrowMiss(o: number, g: number, pixel: number): number {
+export function arrowMiss(o: number, g: number, pixel: number): number {
     return Math.abs(g - o) <= pixel ? 0 : ratioMiss(g / Math.max(o, 1e-9), ORACLE_TOLERANCES.arrowRatio);
 }
 
@@ -1423,6 +1468,8 @@ export type OracleJudges = (property: OracleProperty, id: string, subject?: stri
 class Judge {
     readonly results = new Map<OracleProperty, OracleJudged[]>();
     readonly failed = new Map<string, Set<OracleProperty>>();
+    /** The ids judged as the drawing as a whole (kind "graph"). */
+    readonly wholeDrawing = new Set<string>();
 
     constructor(private readonly judges: OracleJudges = () => true) {}
 
@@ -1437,6 +1484,9 @@ class Judge {
     ): void {
         if (!this.judges(p, id, subject)) {
             return;
+        }
+        if (kind === "graph") {
+            this.wholeDrawing.add(id);
         }
         const pass = miss <= 0;
         const list = this.results.get(p) ?? [];
@@ -1630,15 +1680,17 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
             }
         }
         // a line that is a caption's words on its own may also be the first line of a longer caption wrapped under it
-        // ("font.strokeWidth=3" over "strokeColor")
+        // ("font.strokeWidth=3" over "strokeColor"); the longest such run is the caption, as its first lines may be
+        // another caption's whole words ("shape=" over "PARALLELOGRAM" over "60x30", cx-specimen-node-shapes)
         const run = [t];
+        let caption = 0;
         for (let next = below(t); next !== undefined && run.length < 4; next = below(next)) {
             run.push(next);
             if (words.has(squash(run.map((x) => x.content).join("")))) {
-                run.forEach((x) => dropped.add(x));
-                break;
+                caption = run.length;
             }
         }
+        run.slice(0, caption).forEach((x) => dropped.add(x));
     }
     // a caption's own body: a shape drawn tight around its words (a program that ignores the file's "no fill" on
     // a caption node still draws the box), part of the caption and left out with it
@@ -2035,16 +2087,7 @@ export function compareOracle(
         const b = apply(local, v);
         return [b[0] - a[0], b[1] - a[1]];
     };
-    // One graphty render pixel or so in oracle pixels: the least any distance tolerance allows. Between unrelated
-    // layouts the size-fitted scale says how much larger the program draws its nodes, not how large a render pixel is:
-    // a drawing at a ninth of the program's size made a render pixel 14 oracle pixels (cx-radiation-bibliography), and
-    // an arrowhead twice the program's size passed. There both drawings fill a canvas, and a render pixel is no larger
-    // than the canvases' ratio.
-    const canvasRatio = Math.max(
-        oracle.width / Math.max(graphty.width, 1e-9),
-        oracle.height / Math.max(graphty.height, 1e-9),
-    );
-    const pixel = T.pixel * (transform?.unrelatedLayout === true ? Math.min(lengthScale, canvasRatio) : lengthScale);
+    const pixel = renderPixel(oracle, graphty, lengthScale, transform?.unrelatedLayout === true);
     // the layout's own extent, over the node centers: a node's size against it says how large the node is beside
     // the whole drawing, which node sizes themselves must not inflate
     const centersO = boxOfPoints(pairs.map(([o]): Pt => [o.cx, o.cy]));
@@ -2109,8 +2152,9 @@ export function compareOracle(
         if (o.shape !== null) {
             j.add("node.shape", "node", id, o.shape === g.shape ? 0 : 1, o.shape, g.shape);
         }
-        const oFill = shownFill(o);
-        // graphty's fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across
+        // each fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across, on
+        // either side (yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size: graphml-stm32-func)
+        const oFill = Math.min(o.w, o.h) < 0.5 ? null : shownFill(o);
         const gFill = Math.min(g.w, g.h) * lengthScale < 0.5 ? null : g.fill;
         const gGradAngle = gFill?.gradient?.angle ?? null;
         const runAngles = {
@@ -3134,6 +3178,24 @@ export function compareOracle(
         ...oracle.nodes.flatMap((n) =>
             (n.pictures ?? []).map((box) => ({ tag: "picture", box, fill: null, stroke: null, text: null })),
         ),
+        // so is each piece of a fill the program draws side by side in pieces, in another color than the node's fill
+        // (Graphviz's stripes and wedges), which graphty draws as pieces over the node's face: only graphty's pieces
+        // over a program's were judged (no extra), so a stripe graphty left out passed (dot-synth-nodes n_striped,
+        // #6176). A piece in the node's own fill is that fill, judged as the node's; pieces drawn over one another (a
+        // shadow under the face, an overlay or a table's cells over it) are no fill in pieces, and a piece a clip cuts
+        // (`bands`, below) is judged there.
+        ...oracle.nodes.flatMap((n) =>
+            sideBySide(n.faces ?? [])
+                .filter((f) => n.fill === null || deltaE(f.color, n.fill.color) > T.colorDeltaE)
+                .filter((f) => !(n.bands ?? []).some((b) => shapeId("", b.box) === shapeId("", f.box)))
+                .map((f) => ({ tag: "face", box: f.box, fill: f.color, stroke: null, text: null })),
+        ),
+        // so is each piece of a group's fill drawn in pieces (Graphviz's striped cluster), the first being its fill
+        ...oracle.groups.flatMap((g) =>
+            sideBySide(g.faces ?? [])
+                .filter((f) => g.fill === null || deltaE(f.color, g.fill.color) > T.colorDeltaE)
+                .map((f) => ({ tag: "face", box: f.box, fill: f.color, stroke: null, text: null })),
+        ),
         // the band of a yFiles group's frame round its panel: drawn, and not the group's fill
         ...oracle.groups.flatMap((g) =>
             g.panel === undefined || g.panel.color === g.fill?.color
@@ -3172,9 +3234,9 @@ export function compareOracle(
     // a picture or a stripe graphty draws over a node's face is drawn where the program draws one as part of a node
     const oBoxes = [
         ...oracle.strays.map((s) => s.box),
-        ...oracle.nodes.flatMap((n) => [...(n.pictures ?? []), ...(n.faces ?? [])]),
+        ...oracle.nodes.flatMap((n) => [...(n.pictures ?? []), ...(n.faces ?? []).map((f) => f.box)]),
         ...oracle.texts.map((t) => t.box),
-        ...oracle.groups.map((g) => g.box),
+        ...oracle.groups.flatMap((g) => [g.box, ...(g.faces ?? []).map((f) => f.box)]),
     ];
     const oTexts = [
         ...oracle.nodes.map((n) => n.label),
@@ -3264,6 +3326,7 @@ export function compareOracle(
         verdict: { pass: elements.length === 0, failing: elements.length },
         failures,
         judged,
+        wholeDrawing: [...j.wholeDrawing].sort(cmp),
         association,
         transform,
         counts: {
@@ -3522,8 +3585,21 @@ export function lineAlign(t: PText): "start" | "middle" | "end" | null {
         lines.some(
             (a) => under(wide, a) && lines.some((b) => b !== a && under(wide, b) && sameRow(a, b) && !under(a, b)),
         );
+    const kept = lines.filter((l) => !spans(l));
+    // Cells side by side share a row. Lines each on a row of its own, set close under the one above, are one column
+    // however little they overlap across (Graphviz's `\l` and `\r` lines, dot-synth-nodes n_ljust): read as cells, no
+    // cell held two lines and the label's alignment went unjudged (#6176). A line set off by more than half a font size
+    // is another text (a node's xlabel), not a further line.
+    const rows = [...kept].sort((p, q) => p.y0 - q.y0);
+    const column =
+        rows.length >= 2 &&
+        rows.every((a, i) => rows.every((b, k) => k <= i || !sameRow(a, b))) &&
+        rows.every((b, i) => i === 0 || b.y0 - rows[i - 1].y1 <= ORACLE_TOLERANCES.lineAlignOfSize * t.sizePx);
+    if (column) {
+        return alignOfLines(rows, t.sizePx);
+    }
     const cells: PBox[][] = [];
-    for (const b of lines.filter((l) => !spans(l)).sort((p, q) => p.x0 - q.x0)) {
+    for (const b of kept.sort((p, q) => p.x0 - q.x0)) {
         const last = cells.at(-1);
         if (last !== undefined && b.x0 < Math.max(...last.map((l) => l.x1))) {
             last.push(b);

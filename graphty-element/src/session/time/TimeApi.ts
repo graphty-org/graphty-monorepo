@@ -35,6 +35,7 @@ import type {
 } from "../visibility";
 import type { TimeInstants, TimePlayback, TimeResultsPolicy } from "../visibility/filter";
 import { diffCounts, type FilterBytes, type SlideCounts } from "../visibility/slide";
+import { ageFadeInactive, type AgeFadeInactiveReason, type EdgeAgeFade, normalizedStarts } from "./ageFade";
 import {
     addSteps,
     alignTo,
@@ -69,6 +70,7 @@ import {
     type IndexWork,
     inSlices,
     kindBounds,
+    type KindIndex,
     type KindPlan,
     mergeField,
     noticesOf,
@@ -132,6 +134,20 @@ export interface TimeField {
 }
 
 /**
+ * How {@link TimeApi.setField} designates a field.
+ * @experimental timeline
+ * @beta
+ */
+export interface TimeFieldOptions {
+    /**
+     * Convert a text column every one of whose values reads as a date to a date column, in the
+     * same undoable step, so the column's type and the timeline agree. Off by default: the column
+     * keeps its type.
+     */
+    readonly asDates?: boolean;
+}
+
+/**
  * How many elements of one kind have a usable time.
  * @experimental timeline
  * @beta
@@ -150,7 +166,7 @@ export interface TimeCounts {
  * @experimental timeline
  * @beta
  */
-export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect";
+export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect" | "time.age-fade-inactive";
 
 /**
  * What designating a field found.
@@ -361,6 +377,12 @@ export interface TimeSettings {
     readonly outside: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in, unless a call or the window names its own. */
     readonly timeZone: string;
+    /**
+     * Fade by age: the opacity of edges at the window's first instant, rising to 1 at its end;
+     * 1 (the default) draws no fade. See {@link TimePlayback.ageFade}.
+     * @experimental timeline
+     */
+    readonly ageFade: number;
 }
 
 /**
@@ -397,12 +419,14 @@ export interface TimeApi {
      * clears the window. A column designated again without a unit takes the unit it had before.
      * @param field - Nodes, edges or both; both must name the same column, and when both name an
      *     `end` or `spells`, the same one. A kind naming neither keeps instants.
+     * @param options - With `asDates`, a text column of dates also becomes a date column, in the
+     *     same step; a refused call converts nothing.
      * @returns What the values held.
      * @throws `E_BAD_COMMAND` (`reason`: `"declared-not-time"`, `"time-paths-differ"` with `field`
      *     naming `start`, `end` or `spells`, `"unit"`, `"time-zone"`, `"no-times"` for a column whose
      *     values hold no time at all).
      */
-    setField(field: TimeField | null): Promise<TimeFieldResult>;
+    setField(field: TimeField | null, options?: TimeFieldOptions): Promise<TimeFieldResult>;
     /**
      * The columns whose values read as time, most read first.
      * @returns The candidates; a column none of whose values reads as time is left out.
@@ -412,7 +436,10 @@ export interface TimeApi {
      * What the designated field's values held: the same notices `setField` returns, also for a
      * field designated by an import or an element attribute. It starts no build it would wait on:
      * after a load, or over a column of 50,000 rows or more, wait on {@link TimeApi.ready} first.
-     * @returns The notices; empty with no field, and until the index is ready.
+     * With a field designated and `ageFade` under 1 where it cannot apply, it also holds
+     * `time.age-fade-inactive` (`{ reason }`: `"no-edge-time"`, `"spells"` or `"ghost"`), whether
+     * or not the index is ready.
+     * @returns The notices; empty with no field, and, but for that one, until the index is ready.
      */
     notices(): readonly CodedFact<TimeNoticeCode>[];
     /**
@@ -498,8 +525,10 @@ export interface TimeApi {
      * A sliding window snaps to a new step; switching to cumulative grows the window from the start
      * of the data, and back to sliding keeps one step ending where it ended. A new `timeZone` is
      * written on the window, and snaps it as a new step does. With no window only the setting is
-     * stored. `results: "rerun"` re-runs the runs a window move left out of date.
+     * stored. `results: "rerun"` re-runs the runs a window move left out of date. `ageFade` moves
+     * no window: it changes only how edges in it are drawn.
      * @param settings - The settings that change.
+     * @throws `E_BAD_COMMAND` for a setting out of range (`field: "ageFade"` outside 0 to 1).
      */
     setSettings(settings: Partial<TimeSettings>): Promise<void>;
     /**
@@ -603,6 +632,11 @@ export interface TimeSources {
     readonly digestOf: (spec: Scope) => string;
     readonly emit: <K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]) => void;
     /**
+     * Convert a text column whose every value reads as a date to a date column; does nothing to
+     * any other column. Its dispatch is made before its first await. Absent, `asDates` does nothing.
+     */
+    readonly asDates?: (kind: "node" | "edge", column: string) => Promise<void> | undefined;
+    /**
      * Settles on the next drawn frame, or at once when no frame is coming. Absent with no renderer.
      * Asked only by a stepped play with `waitForRender`.
      */
@@ -610,7 +644,7 @@ export interface TimeSources {
 }
 
 /** The `data.knownFields` keys that hold the designation. */
-export interface KnownTimeFields {
+interface KnownTimeFields {
     readonly nodeTimePath: string | null;
     readonly nodeTimeUnit: TimeUnit | null;
     readonly nodeTimeParseZone: string | null;
@@ -641,6 +675,11 @@ export interface TimeInternals {
     parsedCount(kind: "node" | "edge", column: string): number | undefined;
     /** Whether playback is running, so autosave can wait for a pause. */
     readonly playing: boolean;
+    /**
+     * What the renderer fades edges by age with: null while `ageFade` is 1, the timeline is off,
+     * the setting cannot apply or the index is not ready.
+     */
+    edgeAges(): EdgeAgeFade | null;
     /** Apply the `results` setting after a visibility change. */
     visibilityChanged(change: VisibilityChange): void;
     /** Stop playback for good. */
@@ -713,31 +752,15 @@ export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
 }
 
 /** Every timeline setting at its default. */
-export const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
+const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
     results: "stale",
     mode: "sliding",
     step: "auto",
     missing: "inside",
     outside: "hide",
     timeZone: UTC_ZONE,
+    ageFade: 1,
 });
-
-/**
- * Whether two settings say the same.
- * @param a - One.
- * @param b - The other.
- * @returns True when every member matches.
- */
-export function sameSettings(a: TimeSettings, b: TimeSettings): boolean {
-    return (
-        a.results === b.results &&
-        a.mode === b.mode &&
-        a.step === b.step &&
-        a.missing === b.missing &&
-        a.outside === b.outside &&
-        a.timeZone === b.timeZone
-    );
-}
 
 // ---------------------------------------------------------------------------------------------
 // Reading the index
@@ -1152,6 +1175,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let timer: ReturnType<typeof setTimeout> | null = null;
     /** The window on screen while it is played smoothly or dragged, before it is recorded. */
     let cursor: TimeWindow | null = null;
+    /** The edges' starts normalized over the extent, for the index and extent they were read from. */
+    let ageCache: { kind: KindIndex; from: number; to: number; ages: Float32Array } | null = null;
     let frame: number | null = null;
     let lastFrameAt = 0;
     let smooth = true;
@@ -1599,6 +1624,17 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @returns The extent, or null.
      */
     const extentNow = (): TimeExtent | null => extentOf(indexNow());
+
+    /**
+     * Why a fade by age set under 1 does nothing, with a field designated.
+     * @returns The reason, or null when it applies or is not set.
+     */
+    const ageFadeReason = (): AgeFadeInactiveReason | null => {
+        const field = fieldNow();
+        const { ageFade, outside } = settingsNow();
+
+        return field === null || ageFade >= 1 ? null : ageFadeInactive(field.edges, outside);
+    };
 
     /**
      * Whether the designated field reads plain numbers.
@@ -2201,14 +2237,19 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             next = advanced(current, 1);
         }
 
+        // A pause and a new play while the move runs make this tick stale: only the play it
+        // belongs to may go on, or pause.
+        const play = plays;
         try {
             await move(next, "play");
         } catch {
-            api.pause();
+            if (play === plays) {
+                api.pause();
+            }
             return;
         }
 
-        if (playing && !disposed) {
+        if (play === plays && playing && !disposed) {
             nextStep();
         }
     };
@@ -2470,9 +2511,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     /**
      * Designate a field, or clear it: the work of one `setField` call.
      * @param field - The field, or null.
+     * @param options - As `setField` takes them.
      * @returns What it found.
      */
-    const designate = async (field: TimeField | null): Promise<TimeFieldResult> => {
+    const designate = async (field: TimeField | null, options: TimeFieldOptions): Promise<TimeFieldResult> => {
         for (const source of field === null ? [] : [field.nodes, field.edges]) {
             if (source !== undefined) {
                 assertTimeSource(source);
@@ -2506,6 +2548,23 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         await dispatcher.transaction(
             "time.field",
             async (tx) => {
+                // A text column of dates becomes a date column in this same step.
+                const sides =
+                    options.asDates === true
+                        ? ([
+                              ["node", nodes],
+                              ["edge", edges],
+                          ] as const)
+                        : [];
+                for (const [kind, source] of sides) {
+                    if (source !== undefined && source.unit === undefined) {
+                        await dispatcher.routed(
+                            (command, dispatched) => tx.dispatch(command, dispatched),
+                            () => sources.asDates?.(kind, columnOf(source.start)),
+                        );
+                    }
+                }
+
                 await tx.dispatch({
                     op: "config.set",
                     values: {
@@ -2572,8 +2631,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             });
         },
 
-        async setField(field: TimeField | null): Promise<TimeFieldResult> {
-            const run = (): Promise<TimeFieldResult> => designate(field);
+        async setField(field: TimeField | null, options: TimeFieldOptions = {}): Promise<TimeFieldResult> {
+            const run = (): Promise<TimeFieldResult> => designate(field, options);
             const call = fieldCalls === null ? run() : fieldCalls.then(run);
             const settled = call.then(
                 () => undefined,
@@ -2599,7 +2658,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         notices(): readonly CodedFact<TimeNoticeCode>[] {
-            return noticesOf(indexIfReady());
+            const notices = noticesOf(indexIfReady());
+            const reason = ageFadeReason();
+
+            return reason === null ? notices : [...notices, { code: "time.age-fade-inactive", params: { reason } }];
         },
 
         parse(text: string, options: { readonly timeZone?: string } = {}): number | null {
@@ -2753,7 +2815,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             const current = visibility.window;
-            const moved = current !== null && extentNow() !== null ? windowUnder(current, next, patch.timeZone) : null;
+            // Fading by age changes only how the window is drawn, so it leaves the window where it is.
+            const drawingOnly = Object.keys(patch).every((key) => key === "ageFade");
+            const moved =
+                current !== null && extentNow() !== null && !drawingOnly
+                    ? windowUnder(current, next, patch.timeZone)
+                    : null;
             const before = masksNow();
             const playback: TimePlayback = Object.freeze(
                 Object.fromEntries(
@@ -2839,14 +2906,17 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             if (start !== current) {
+                const play = plays;
                 void move(start, "play")
                     .then(() => {
-                        if (playing) {
+                        if (play === plays && playing && !disposed) {
                             nextStep();
                         }
                     })
                     .catch(() => {
-                        api.pause();
+                        if (play === plays) {
+                            api.pause();
+                        }
                     });
                 return;
             }
@@ -3021,6 +3091,54 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         get playing() {
             return playing;
+        },
+
+        edgeAges(): EdgeAgeFade | null {
+            const { ageFade, outside } = settingsNow();
+            if (ageFade >= 1 || sources.timeline?.() === false) {
+                return null;
+            }
+
+            if (ageFadeInactive(fieldNow()?.edges, outside) !== null) {
+                return null;
+            }
+
+            // While a load or a merge rebuilds the index, the last ages stand: the fade stays on,
+            // and an edge added since reads past their end as untimed until the index lands.
+            const built = indexIfReady();
+            if (built !== null) {
+                const extent = extentOf(built);
+                const kind = built.edge ?? null;
+                if (kind === null || extent === null) {
+                    return null;
+                }
+
+                if (ageCache?.kind !== kind || ageCache.from !== extent.from || ageCache.to !== extent.to) {
+                    ageCache = {
+                        kind,
+                        from: extent.from,
+                        to: extent.to,
+                        ages: normalizedStarts(kind, extent.from, extent.to),
+                    };
+                }
+            }
+
+            if (ageCache === null) {
+                return null;
+            }
+
+            const window = cursor ?? visibility.window;
+            if (window === null) {
+                return { ages: ageCache.ages, from: 0, to: 1, fade: 1 };
+            }
+
+            const span = ageCache.to > ageCache.from ? ageCache.to - ageCache.from : 1;
+            return {
+                ages: ageCache.ages,
+                from: (boundOf(window, "from") - ageCache.from) / span,
+                to: (boundOf(window, "to") - ageCache.from) / span,
+                fade: ageFade,
+            };
         },
 
         visibilityChanged(change: VisibilityChange): void {

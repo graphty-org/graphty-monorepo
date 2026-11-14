@@ -15,7 +15,7 @@ import type { Xyz } from "./edgeRoute";
  * middle of constant size `centralGravity` (vis-network's default barnesHut solver); `"forceAtlas2"`, a push of
  * `repulsion / d` and a pull of `centralGravity * d` (its forceAtlas2Based solver).
  */
-export type SupportModel = "barnesHut" | "forceAtlas2";
+type SupportModel = "barnesHut" | "forceAtlas2";
 
 /** What one edge's support point settles under: the `line.support*` style options. */
 export interface SupportForces {
@@ -729,7 +729,9 @@ export class SupportPoints<E> {
         });
         const was = this.lastEnds;
         this.lastEnds = now;
-        return was.length !== now.length || now.some((v, i) => Math.abs(v - was[i]) > 1e-6);
+        // exactly: a last move under any tolerance (a node's place rounded to 32 bits after a drag) left the settle
+        // started a frame early, from ends a hair off, so where the points rested hung on the drag's last frames
+        return was.length !== now.length || now.some((v, i) => v !== was[i]);
     }
 
     /**

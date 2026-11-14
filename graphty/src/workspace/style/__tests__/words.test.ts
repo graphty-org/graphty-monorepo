@@ -1,6 +1,6 @@
 import { channelsFor, PALETTE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { GraphtyError } from "@graphty/graphty-element/session";
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import {
     bindLabel,
@@ -11,8 +11,8 @@ import {
     enumWords,
     failureWords,
     hiddenByWords,
-    labelStatement,
     locationOfCell,
+    logUnexpected,
     madeWords,
     matchesWordStart,
     paletteWord,
@@ -103,12 +103,6 @@ describe("the Style tab's words and arrangement", () => {
         );
     });
 
-    it("states the label line's result from the counts, the hidden part only while the overlap rule is on", () => {
-        assert.equal(labelStatement({ labeled: 77, hiddenByOverlap: 64 }, true), "77 labels, 64 hidden");
-        assert.equal(labelStatement({ labeled: 77, hiddenByOverlap: 0 }, false), "77 labels");
-        assert.equal(labelStatement({ labeled: 1, hiddenByOverlap: 0 }, false), "1 label");
-    });
-
     it("maps the position grid to the element's label locations and back", () => {
         assert.equal(locationOfCell("top-center"), "top");
         assert.equal(locationOfCell("bottom-center"), "bottom");
@@ -154,6 +148,26 @@ describe("failure notices", () => {
     });
 });
 
+describe("an error a quiet catch answers", () => {
+    const coded = (code: "E_UNKNOWN_LAYER" | "E_INTERNAL" | "E_DISPOSED" | "E_BAD_COMMAND"): GraphtyError =>
+        new GraphtyError({ code, message: code, source: "style" });
+
+    it("is logged when it is a bug, never when it is a refusal the caller answers", () => {
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        try {
+            assert.isTrue(logUnexpected("a", new TypeError("x")));
+            assert.isTrue(logUnexpected("a", coded("E_INTERNAL")));
+            assert.isFalse(logUnexpected("a", coded("E_BAD_COMMAND")));
+            assert.isFalse(logUnexpected("a", coded("E_UNKNOWN_LAYER"), ["E_UNKNOWN_LAYER"]));
+            assert.isTrue(logUnexpected("a", coded("E_BAD_COMMAND"), ["E_UNKNOWN_LAYER"]));
+            assert.isFalse(logUnexpected("a", coded("E_DISPOSED"), ["E_UNKNOWN_LAYER"]));
+            assert.equal(logged.mock.calls.length, 3);
+        } finally {
+            logged.mockRestore();
+        }
+    });
+});
+
 describe("the notice after styling a selection", () => {
     it("does not say a layer named by its count twice", () => {
         assert.equal(madeWords("8 nodes", 8, 0), "Made a layer for the 8 selected nodes");
@@ -167,10 +181,11 @@ describe("the notice after styling a selection", () => {
 });
 
 describe("shader words", () => {
-    it("finds a shader by a word of its name or an alias", () => {
-        assert.isTrue(shaderMatches({ id: "glass-marble", plainName: "Glass marble" }, "mar"));
-        assert.isTrue(shaderMatches({ id: "liquid-metal", plainName: "Liquid metal" }, "shiny"));
-        assert.isFalse(shaderMatches({ id: "pearl", plainName: "Pearl" }, "metal"));
+    it("finds a shader by a word of its name, a category or a tag", () => {
+        assert.isTrue(shaderMatches({ plainName: "Pearl", categories: ["Iridescent"] }, "irid"));
+        assert.isTrue(shaderMatches({ plainName: "Glass marble" }, "mar"));
+        assert.isTrue(shaderMatches({ plainName: "Liquid metal", tags: ["metal", "shiny"] }, "shiny"));
+        assert.isFalse(shaderMatches({ plainName: "Pearl", categories: ["Iridescent"], tags: ["shiny"] }, "metal"));
     });
 
     it("says what a shader uses, as values", () => {

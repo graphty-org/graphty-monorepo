@@ -10,12 +10,15 @@ import {
     type LayoutImplementation,
     type OptionDescriptor,
 } from "@graphty/graphty-element/catalog";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
 import { isSlow } from "../analyze/words";
 import { useSessionVersion } from "../toolbar/useSessionVersion";
 import { layoutRefusalWords } from "./refusalWords";
+
+const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
 /**
  * The app's name for each of the element's layouts, by catalog id. A layout a third party
@@ -90,7 +93,7 @@ export function layoutName(descriptor: LayoutDescriptor): string {
  * @param descriptor - the layout.
  * @returns true for a Graphviz engine.
  */
-export function isGraphviz(descriptor: LayoutDescriptor): boolean {
+function isGraphviz(descriptor: LayoutDescriptor): boolean {
     return layoutEntry(descriptor.id)?.implementations[0]?.fact.code === "implementation.graphviz";
 }
 
@@ -101,7 +104,7 @@ export function isGraphviz(descriptor: LayoutDescriptor): boolean {
  * @param implementation - the engine.
  * @returns the descriptor.
  */
-export function withEngine(descriptor: LayoutDescriptor, implementation: LayoutImplementation): LayoutDescriptor {
+function withEngine(descriptor: LayoutDescriptor, implementation: LayoutImplementation): LayoutDescriptor {
     return {
         ...descriptor,
         engine: implementation.engine,
@@ -155,7 +158,13 @@ export function useLayouts(session: GraphSession | null): readonly LayoutDescrip
                     setResolved({ session, layouts });
                 }
             },
-            () => undefined,
+            (error: unknown) => {
+                // The list keeps the layouts it read before; the refusal is an element defect.
+                logger.error(
+                    "catalog.optionsFor failed; the layout list was not refreshed",
+                    error instanceof Error ? error : undefined,
+                );
+            },
         );
         return () => {
             live = false;

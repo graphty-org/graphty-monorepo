@@ -13,8 +13,17 @@
 import rootConfig from "../eslint.config.js";
 import tseslint from "typescript-eslint";
 
+import { aiEngineBoundary } from "./eslint-rules/ai-engine-boundary.mjs";
 import nodeMeshFunnel from "./eslint-rules/node-mesh-funnel.mjs";
+import { savedFormatLint } from "./test/saved-format/eslint-saved-format.js";
 import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
+
+/** Prevent architectural violations - don't mutate layers directly. */
+const LAYERS_MUTATION = {
+    selector:
+        'MemberExpression[property.name="layers"] CallExpression[callee.property.name=/^(push|splice|unshift|pop|shift)$/]',
+    message: "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
+};
 
 const local = { rules: { "node-mesh-funnel": nodeMeshFunnel, "node-position-funnel": nodePositionFunnel } };
 
@@ -31,10 +40,8 @@ export default tseslint.config(
         ignores: [
             "index.d.ts",
             "index.js",
-            // Ad-hoc debugging scripts, never run by a test or a gate. Not linted yet: the test block
-            // below applies @typescript-eslint rules to test/**/*.js, where that plugin is not
-            // registered, so ESLint refuses these files outright. Scope that block to .ts and fix
-            // the findings to remove this line.
+            // Ad-hoc debugging scripts, never run by a test or a gate. Not linted yet: fix their
+            // findings to remove this line.
             "test/helpers/scripts/**/*.js",
             // The lifecycle tests' Chrome extension: a service worker Chrome loads, two lines.
             "test/lifecycle/discard-extension/**",
@@ -56,19 +63,24 @@ export default tseslint.config(
     // ============================================
     // PACKAGE-SPECIFIC RULES
     // ============================================
+    // The layers guard, and the AI engine boundary: AI frameworks and provider SDKs only in the
+    // adapter folder, loaded only by src/ai/engine/load.ts (eslint-rules/ai-engine-boundary.mjs).
+    // Each block of the boundary repeats the layers guard, since ESLint keeps one setting per rule.
+    ...aiEngineBoundary(rootConfig, [LAYERS_MUTATION]),
+
+    // The AI adapter and its fake provider APIs speak each provider's own wire vocabulary
+    // (tool_choice, max_output_tokens, stop_reason), whose quotes Prettier removes. Names graphty
+    // declares itself are still checked.
     {
-        files: ["**/*.ts", "**/*.tsx"],
+        files: [
+            "src/ai/engine/tanstack/**/*.ts",
+            "test/ai/engine/providerApiFixtures.ts",
+            "test/ai/engine/providerApi.test.ts",
+            "test/ai/engine/reasoningOptions.test.ts",
+            "test/ai/engine/live.test.ts",
+        ],
         rules: {
-            // Prevent architectural violations - don't mutate layers directly
-            "no-restricted-syntax": [
-                "error",
-                {
-                    selector:
-                        'MemberExpression[property.name="layers"] CallExpression[callee.property.name=/^(push|splice|unshift|pop|shift)$/]',
-                    message:
-                        "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
-                },
-            ],
+            camelcase: ["error", { properties: "never" }],
         },
     },
 
@@ -83,6 +95,13 @@ export default tseslint.config(
         plugins: { local },
         rules: { "local/node-position-funnel": "error" },
     },
+
+    // ============================================
+    // NOTHING READS THE PRESET CATALOG BY A SHADER ID
+    // ============================================
+    // A save file carries its shaders, so a shader id is a key into the project's own shaders.
+    // The rule and the files allowed to read the catalog: test/saved-format/eslint-saved-format.js.
+    savedFormatLint,
 
     // ============================================
     // NOTHING REACHES THROUGH A NODE TO ITS MESH
@@ -105,6 +124,48 @@ export default tseslint.config(
     },
 
     // ============================================
+    // THE ELEMENT KEEPS WRITING ITS OWN DEPRECATED FIELDS
+    // ============================================
+    // Each type below carries a field the element deprecated for its consumers and still fills in
+    // until the next major removes it. Writing that field is the element keeping its promise, not a
+    // use of deprecated code; reading or passing anything else deprecated is still an error.
+    {
+        files: ["src/**/*.ts"],
+        ignores: ["**/*.test.ts", "**/__tests__/**"],
+        rules: {
+            "@typescript-eslint/no-deprecated": [
+                "error",
+                {
+                    allow: [
+                        {
+                            from: "file",
+                            name: [
+                                "Caveats",
+                                "FieldInterpretation",
+                                "FieldBand",
+                                "LayoutImplementationSpec",
+                                "LayoutImplementation",
+                                "OptionDescriptor",
+                                "ExportResult",
+                                "OperationCancelledEvent",
+                                "CostEstimate",
+                                "RunRecord",
+                                "ScopeApi",
+                                "StyleChannelDescriptor",
+                                "UnboundLayer",
+                                "ScopeResolver",
+                                "ChannelDescriptor",
+                                "LegendSwatch",
+                                "LegendBlock",
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+
+    // ============================================
     // ALGORITHM FILES - RELAXED REQUIRE-AWAIT
     // ============================================
     {
@@ -118,7 +179,7 @@ export default tseslint.config(
     // TEST FILES - ALLOW TS-EXPECT-ERROR
     // ============================================
     {
-        files: ["**/*.test.ts", "test/**/*.ts", "test/**/*.js"],
+        files: ["**/*.test.ts", "test/**/*.ts"],
         rules: {
             // Allow ts-expect-error in tests
             "@typescript-eslint/ban-ts-comment": [

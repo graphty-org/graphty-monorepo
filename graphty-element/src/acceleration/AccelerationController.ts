@@ -505,27 +505,39 @@ export class AccelerationController {
     }
 
     /**
+     * Whether any accelerator could be built: acceleration is not off and a backend is registered.
+     * @returns True when one could.
+     * @internal
+     */
+    get offersAccelerator(): boolean {
+        return this.#policy !== "off" && this.#registry.list().length > 0;
+    }
+
+    /**
      * Whether a registered backend would run on the device a renderer opens on this adapter.
      * @param adapter - The `GPUAdapter`, opaque here.
      * @returns True when the renderer should open a device fit for both. A registration that throws
      * has said no: the renderer opens whatever the answer, and the backend then finds its own device.
      */
-    sharesDevice(adapter: unknown): boolean {
+    async sharesDevice(adapter: unknown): Promise<boolean> {
         if (this.#policy === "off") {
             return false;
         }
 
-        return this.#registry.list().some((entry) => {
+        for (const entry of this.#registry.list()) {
             try {
-                return entry.sharesDevice?.(adapter) === true;
+                if ((await entry.sharesDevice?.(adapter)) === true) {
+                    return true;
+                }
             } catch (error) {
                 logger.warn("A registered accelerator could not say whether it shares the device", {
                     name: entry.name,
                     reason: error instanceof Error ? error.message : String(error),
                 });
-                return false;
             }
-        });
+        }
+
+        return false;
     }
 
     /**

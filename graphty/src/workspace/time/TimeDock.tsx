@@ -29,7 +29,7 @@ import {
     Tooltip,
     UnstyledButton,
 } from "@mantine/core";
-import { useElementSize, useMediaQuery } from "@mantine/hooks";
+import { useMediaQuery } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -37,12 +37,13 @@ import { runFailureWords } from "../inspector/words";
 import { formatKey } from "../keys/keys";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useBoxSize } from "../useBoxSize";
 import {
     announceWindow,
+    changeSpeed,
     jumpToSelection,
     openTimeSheet,
     PHONE_WIDTH,
-    playAt,
     reportTimeError,
     selectionSpan,
     stepWindow,
@@ -539,8 +540,7 @@ function SpeedButton({
                     store.set({ timeSpeed: nextSpeed });
                     // A play in progress goes on at the new speed.
                     if (session.time.playing) {
-                        session.time.pause();
-                        playAt(session, nextSpeed);
+                        changeSpeed(session, store, nextSpeed);
                     }
                 }}
             >
@@ -594,7 +594,7 @@ export function TimeDock(): React.JSX.Element | null {
     const [drag, setDrag] = useState<[number, number] | null>(null);
     // A brush gesture under way; a whole-window drag's release commits it as its own step.
     const hold = useRef<BrushHold | null>(null);
-    const { ref, width } = useElementSize();
+    const { ref, width } = useBoxSize();
     const phone = useMediaQuery(PHONE_WIDTH, false, { getInitialValueInEffect: false });
     const maxCount = Math.max(10, Math.floor((width > 0 ? width : 300) / PX_PER_BIN));
     const { view, reset, chartRef, pinched } = useTimeZoom(session, maxCount);

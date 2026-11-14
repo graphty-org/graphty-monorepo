@@ -1,4 +1,4 @@
-import { Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial, SubMesh } from "@babylonjs/core";
+import { Effect, Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial, SubMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
@@ -301,6 +301,19 @@ describe("FilledArrowRenderer - open outlines drawn at an outline width (#5800)"
         assert.closeTo(Math.max(...zs), 1, 1e-9);
         assert.closeTo(Math.min(...zs.filter((z) => z > 0)), 0.9, 1e-9);
         mesh.dispose();
+    });
+});
+
+describe("FilledArrowRenderer - camera on the line (#123)", () => {
+    test("the vertex shader never normalizes a zero cross product when the camera looks straight down the line", () => {
+        FilledArrowRenderer.registerShaders();
+        const src = Effect.ShadersStore.filledArrowVertexShader.replace(/\s+/g, " ");
+        // cross(forward, toCamera) is zero there, and normalize() of zero is NaN on the GPU
+        assert.notInclude(src, "normalize(cross(forward, toCamera))");
+        assert.include(src, "vec3 right = cross(forward, toCamera);");
+        assert.include(src, "if (dot(right, right) < 1e-12) {");
+        assert.include(src, "abs(forward.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)");
+        assert.include(src, "right = normalize(right);");
     });
 });
 

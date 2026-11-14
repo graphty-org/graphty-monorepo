@@ -51,7 +51,10 @@ export interface CardListProps {
     onRenamingChange?: (id: string | null) => void;
     /** Called by a card's x. Focus then moves to the next card, else the previous one. */
     onRemove?: (id: string) => void;
-    /** Called while a card's grip is dragged, or by Up and Down on the grip, with its new index. */
+    /**
+     * Called while a card's grip is dragged, with its new index. The grip takes no keys: keys that
+     * move a card are the caller's, shown beside a menu item that runs them.
+     */
     onReorder?: (id: string, toIndex: number) => void;
     /** The folded cards (controlled). */
     folded?: ReadonlySet<string>;
@@ -161,7 +164,7 @@ export function CardList({
     const reorder = useRef(onReorder);
     reorder.current = onReorder;
     /** What gets focus once the items change: a grip by id, or the card at an index. */
-    const focusNext = useRef<{ grip: string } | { at: number } | null>(null);
+    const focusNext = useRef<{ at: number } | null>(null);
 
     // A card appended at the end folds the others and comes into view.
     const seen = useRef(items.map((item) => item.id));
@@ -185,10 +188,6 @@ export function CardList({
             return;
         }
         focusNext.current = null;
-        if ("grip" in next) {
-            box.querySelector<HTMLElement>(`[data-card-grip="${CSS.escape(next.grip)}"]`)?.focus();
-            return;
-        }
         const cards = [...box.querySelectorAll<HTMLElement>(":scope > [data-card-id]")];
         const card = cards[Math.min(next.at, cards.length - 1)];
         (card ?? box.querySelector<HTMLElement>(":scope > .cm-card-add button, :scope > .cm-card-add"))?.focus();
@@ -217,19 +216,6 @@ export function CardList({
         globalThis.addEventListener("pointermove", move);
         globalThis.addEventListener("pointerup", drop);
         globalThis.addEventListener("pointercancel", drop);
-    };
-    const moveKeys = (event: React.KeyboardEvent<HTMLElement>, id: string, at: number): void => {
-        const by = { ArrowUp: -1, ArrowDown: 1 }[event.key];
-        if (by === undefined) {
-            return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        const to = at + by;
-        if (to >= 0 && to < items.length) {
-            focusNext.current = { grip: id };
-            onReorder?.(id, to);
-        }
     };
     const fold = (id: string, on: boolean): void => {
         const next = new Set(folded);
@@ -289,9 +275,6 @@ export function CardList({
                                 aria-label={labels.moveCard(item.title)}
                                 onPointerDown={(event) => {
                                     grab(event, item.id);
-                                }}
-                                onKeyDown={(event) => {
-                                    moveKeys(event, item.id, at);
                                 }}
                             >
                                 <GripGlyph />

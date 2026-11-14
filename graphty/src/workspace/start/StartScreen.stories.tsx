@@ -79,7 +79,7 @@ const meta: Meta<typeof Workspace> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** First launch: the usage data card at the foot, unanswered (the mock's `#/start-screen/first-run`). */
+/** First launch: the usage data question pinned to the window's foot, unanswered (the mock's `#/start-screen/first-run`). */
 export const FirstRun: Story = {};
 
 /** What is collected, open (`#/start-screen/disclosure`). */
@@ -106,7 +106,7 @@ export const Declined: Story = {
     },
 };
 
-/** A later launch: the card was answered before, so the foot is empty (`#/start-screen/returning`). */
+/** A later launch: the question was answered before, so it is not shown (`#/start-screen/returning`). */
 export const Returning: Story = {
     beforeEach: () => {
         answerUsageData("declined");
@@ -132,7 +132,7 @@ export const ReturningReader: Story = {
     },
 };
 
-/** Open network data: the sources on the way, and Open from a link. */
+/** Open network data: the chooser of the kinds of network, over the start page. */
 export const NetworkData: Story = {
     beforeEach: () => {
         answerUsageData("declined");
@@ -161,6 +161,24 @@ export const NetworkData: Story = {
             setTimeout(resolve, 0);
         });
         focused.blur();
+    },
+};
+
+/** The sample library's network samples, one tile for each kind of network source. */
+export const NetworkSamples: Story = {
+    beforeEach: () => {
+        answerUsageData("declined");
+    },
+    play: async ({ canvasElement }) => {
+        await heroDrawn(canvasElement);
+        const section = await waitFor(() => {
+            const found = canvasElement.querySelector('section[aria-label="Load network data"]');
+            if (found === null) {
+                throw new Error("the network samples have not drawn yet");
+            }
+            return found;
+        });
+        section.scrollIntoView();
     },
 };
 

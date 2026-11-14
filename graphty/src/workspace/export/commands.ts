@@ -7,7 +7,7 @@ import type { WorkspaceState } from "../state/store";
  * @param state - the workspace state.
  * @returns the store's `exportOn`.
  */
-export function exportTarget(state: Pick<WorkspaceState, "dockOpen" | "dockTab">): WorkspaceState["exportOn"] {
+function exportTarget(state: Pick<WorkspaceState, "dockOpen" | "dockTab">): WorkspaceState["exportOn"] {
     if (!state.dockOpen) {
         return "image";
     }

@@ -7,6 +7,7 @@
 import { createHash } from "node:crypto";
 
 import budgets from "../../../../ci-budgets.json" with { type: "json" };
+import { groupMemberDim } from "./groups.js";
 import { type JobItem, MIN, type RawItem, type RawKind } from "./items.js";
 
 export interface Contribution {
@@ -49,7 +50,7 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort-slice-saturated`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort-slice-saturated-designed-rerun-clean-file-runs-group-member-time`;
 
 /**
  * When a job started on a runner, or undefined when it never did. GitHub gives a job cancelled before any runner
@@ -198,7 +199,11 @@ export const METRICS: MetricDef[] = [
         id: "ci.reruns",
         from: [
             src("run", "completedAt", (r) =>
-                r.status === "completed" && r.conclusion !== "skipped"
+                // release.yml's attempt 2 is release-rerun.yml's designed same-commit re-run of a red full run, done
+                // once by design (.github/workflows/release-rerun.yml), so it is not counted as a re-run at all.
+                r.status === "completed" &&
+                r.conclusion !== "skipped" &&
+                !(r.workflow === "release.yml" && r.attempt === 2)
                     ? { sum: r.attempt > 1 ? 1 : 0, dim: r.workflow }
                     : null,
             ),
@@ -213,6 +218,17 @@ export const METRICS: MetricDef[] = [
                       { value: s.secs * 1000, exact: true, sum: FULL_SHARD_BUDGET_MS, dim: s.variant }
                     : null,
             ),
+        ],
+    },
+    // A test group's members in full runs (groups.ts): each try's time by [group, run, member], summed per run to
+    // compare the group's total with its test step's deadline. Every outcome counts: a failed try used the step too.
+    {
+        id: "ci.full_group_member_time",
+        from: [
+            src("shard_run", "endedAt", (s) => {
+                const dim = s.source === "ci" && s.full ? groupMemberDim(s) : undefined;
+                return dim ? { sum: s.secs * 1000, dim } : null;
+            }),
         ],
     },
     // The Shard times section's pull request bins view: bin time per family, against the 8-minute packing target.
@@ -274,13 +290,17 @@ export const METRICS: MetricDef[] = [
             ),
         ],
     },
-    // Flake hotspots (section 5): how often each test file ran, the denominator of a file's and its tests' rate.
+    // Flake hotspots (section 5): how often each test file ran, the denominator of a file's and its tests' rate. The
+    // sum counts its clean runs (a test passed, none failed), which resolve a flaky test (flaky.ts netChange).
     {
         id: "flaky.file_runs",
         from: [
             src("shard_run", "endedAt", (s) =>
                 s.source === "ci" && s.attempt === 1
-                    ? s.files.map(([file]) => ({ dim: fileRunKey(s.family, file) }))
+                    ? s.files.map(([file, passed, failed]) => ({
+                          dim: fileRunKey(s.family, file),
+                          sum: passed > 0 && failed === 0 ? 1 : 0,
+                      }))
                     : null,
             ),
         ],
@@ -327,6 +347,11 @@ export const METRICS: MetricDef[] = [
                 c.workflow ? { sum: c.usd, dim: c.line === "llm" ? `${c.workflow}, LLM step` : c.workflow } : null,
             ),
         ],
+    },
+    // The AWS line by AWS service, to see which service spends (issue #6486).
+    {
+        id: "cost.aws_by_service",
+        from: [src("cost", "day", (c) => Object.entries(c.services ?? {}).map(([dim, sum]) => ({ sum, dim })))],
     },
     // Section 7, list-price value: GitHub-hosted job minutes (each job rounded up, as GitHub bills), by
     // [workflow, os]; the view prices them from rates.json, so a rate change needs no recompute.

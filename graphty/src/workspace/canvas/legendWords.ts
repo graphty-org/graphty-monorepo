@@ -89,6 +89,26 @@ const NUMBER_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
 ]);
 
 /**
+ * The channels that shape an edge's line: its route, bends, curve, fan and where it meets its
+ * nodes. The line itself shows them; a key would list one row per edge route ("Edge bends: ...").
+ */
+const LINE_SHAPE_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
+    "edge.curvature",
+    "edge.bends",
+    "edge.bendCurve",
+    "edge.route",
+    "edge.arcRadius",
+    "edge.arcHeight",
+    "edge.fanSpacing",
+    "edge.fanned",
+    "edge.nodeGap",
+    "edge.sourceNodeGap",
+    "edge.targetNodeGap",
+    "edge.sourcePort",
+    "edge.targetPort",
+]);
+
+/**
  * The block with its rows in group order (Group 1, Group 2, ...) when they name a run's groups:
  * a group given its own color would otherwise come first. The Other row stays last.
  * @param block - the block.
@@ -207,7 +227,7 @@ function paintedRows(block: LegendBlock): LegendBlock {
  * The blocks the legend shows: not a label's (it would list every name beside the name already
  * drawn), not a size that does not vary (a key for one size reads as "sizes done" while every
  * dot is the same, and a highlight's one width, "24", reads as a count), not a channel whose key
- * is a bare number (`NUMBER_CHANNELS`), not one whose row paints nothing right now (a Selected
+ * is a bare number (`NUMBER_CHANNELS`), not an edge's line shape (`LINE_SHAPE_CHANNELS`), not one whose row paints nothing right now (a Selected
  * row with nothing selected) or whose every element a filter step hides, and not one a layer
  * above paints over on every element (a key for
  * paint no reader can see is a false claim). A value the binding hides is no row, and a block left
@@ -221,6 +241,7 @@ export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
             (block) =>
                 !TEXT_CHANNELS.has(block.channel) &&
                 !NUMBER_CHANNELS.has(block.channel) &&
+                !LINE_SHAPE_CHANNELS.has(block.channel) &&
                 block.painted !== 0 &&
                 // A layer whose every element a filter step hides keys nothing drawn.
                 block.scope?.count !== 0 &&
@@ -360,6 +381,7 @@ const FACT_SENTENCES: Readonly<Record<LegendFactCode, (param: (name: string) => 
     "legend.lumped": (param) => `${param("count")} lumped into Other`,
     "legend.not-measured": (param) => `not measured (${param("count")})`,
     "legend.painted-over": (param) => `painted over by "${param("name")}"`,
+    "legend.no-spread": () => "no spread",
 };
 
 /**
@@ -439,7 +461,7 @@ export const NOTHING_KEYED = "Nothing is styled yet";
  * @param layer - The name of the layer that paints over it.
  * @returns The words.
  */
-export function coveredWords(layer: string): string {
+function coveredWords(layer: string): string {
     return `covered by ${layer}`;
 }
 
@@ -451,7 +473,7 @@ export function coveredWords(layer: string): string {
  * @param covers - The layers above that paint the property on the block's elements, and on how many.
  * @returns The line, or null when nothing covers it.
  */
-export function coveredLine(
+function coveredLine(
     block: LegendBlock,
     covers: readonly { readonly layer: string; readonly count: number }[],
 ): string | null {

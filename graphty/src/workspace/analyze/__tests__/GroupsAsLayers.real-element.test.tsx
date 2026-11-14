@@ -14,6 +14,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -50,6 +51,10 @@ function groupOf(layer: Layer | undefined): { path: string; value: string } | un
     const where = layer?.selector.match === "rule" ? layer.selector.where : undefined;
     return where?.kind === "categories" ? { path: where.attribute, value: where.values[0] } : undefined;
 }
+
+// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
+// (covered by its own tests): the experiment stays off here.
+withFeatures([]);
 
 describe("a grouping run from Analyze", () => {
     it("makes a folder of group layers; a recolored group keeps its members through a re-run", async () => {
@@ -126,7 +131,9 @@ describe("a grouping run from Analyze", () => {
         await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Leiden");
         await userEvent.click(await screen.findByRole("option", { name: /^Leiden/ }));
-        await screen.findByRole("spinbutton", { name: /^Random seed/ });
+        // Leiden is unseeded by default, so its seed is an empty box (a text box until it holds a number).
+        const seed = await screen.findByRole<HTMLInputElement>("textbox", { name: /^Random seed/ });
+        assert.strictEqual(seed.value, "");
         assert.isNotNull(screen.getByRole("spinbutton", { name: /^Threshold/ }));
         assert.isNull(screen.queryByRole("button", { name: /^Advanced/ }));
     });

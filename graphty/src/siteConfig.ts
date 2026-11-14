@@ -9,7 +9,7 @@
 import { featuresFromUrl, resolveFeatures } from "@graphty/graphty-element/catalog";
 
 /** The sites one build serves; `unknown` when the site said nothing usable. */
-export type SiteName = "canary" | "nightly" | "production" | "unknown";
+type SiteName = "canary" | "nightly" | "production" | "unknown";
 
 /** What the app runs with on this site. */
 export interface SiteConfig {
@@ -115,6 +115,15 @@ export function siteConfig(): SiteConfig {
  */
 export function siteTimeline(): boolean {
     return resolveFeatures(current.features).enabled.includes("timeline");
+}
+
+/**
+ * Whether this site switches styles from files on, for the Settings switch the start page offers
+ * before any session exists; `fileStylesOn(session)` answers everywhere else.
+ * @returns true when it is on.
+ */
+export function siteFileStyles(): boolean {
+    return resolveFeatures(current.features).enabled.includes("file-styles");
 }
 
 /**

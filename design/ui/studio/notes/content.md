@@ -4,39 +4,50 @@ I own the words on screen in the graphty app: labels, tooltips, messages, empty 
 usage-data card, and the glossary terms as they appear. One term per concept; the field's
 standard terms kept intact; plain words only for the product's own concepts; no verbose help text.
 I read this file at the start of every session and update it as I decide and learn.
+Summarized 2026-11-06; the full earlier text is in this file's git history at a80da6d62e.
 
 ## Top of mind
 
-- (2026-11-03) Tier 5 round 1 closed at the 1-round cap, bars 1, 3, 4, 8, 9 failing. 30 valid
-  sessions (28 pointer, 2 keyboard). My walk did not run, so bar 6 (owner's data rules) went
-  unmeasured: next round my walk is a feed, not optional.
-- (2026-11-03) Speech is content: speak only from the surface that is showing. The covered
-  inspector's "4 of 24" after the workspace's "15 of 24" was a severity 3 (fixed after the freeze).
-- (2026-11-03) A label must bind what it names. "Connected components, 3 values" described one run
-  and bound another; only a column header said "(visible)". Two runs need two names, from the
-  element's scope fact (code + params), worded by the app.
-- (2026-11-03) "Condition..." and "Or..." do not say "and" vs "or else": three sessions on three
-  halves, unprompted. Connector words must name the logic; readers fell back on watching the count.
-- (2026-11-03) An error must never contradict the screen: By position's "still use the highest 10"
-  while 24 of 24 matched (built from a default the step never applied). Words from state, not
-  fallbacks. The box also needs direction and unit (top/bottom, number/percent).
-- (2026-11-03) An empty input needs a cue of what it takes (the Fill color box: people typed color
-  names). Cue by the control's form, not help text.
-- (2026-11-03) A name must survive every act: Clear keeps the card name; a reference shows the
-  matched value, not "v02"; a card's name must keep describing it after Or or a second step.
-- (2026-11-03) "Filter not added" after Clear+Escape is truthful but loses saved work; words
-  cannot fix it -- the behavior must change (reopened card is never deleted by cancel).
-- (2026-11-03) Study wording is content too: T73's words and key disagree; "Would you rather it
-  had shown something else?" invites a wish. Neutral follow-ups before round 2.
-- (2026-11-03) Fixtures pre-colored in the task's color inflate "drowned" findings; never
-  generalize a word or color change from one fixture.
-- (2026-11-03) One surface, one number format; counts state their basis.
-- (2026-10-31) Term collisions still open: "group" vs glossary group, "Focus", "picked", "whole
-  graph" vs Full/Filtered graph.
-- (2026-10-30) A preview tag names the act's outcome; a destructive choice names its effect.
-- (2026-10-21) Fix by pointing, not prose; do not rename on model opinion or task wording.
-- (2026-10-06) Budgets: at rest <= 50 words (hand count only), inspector ~30 (max 40). Element
-  returns codes + params; the app writes every word. Earlier Top of mind: git history at 5738a5b4b2.
+- (2026-11-06) Chat switcher words decided (`tier6/decided.md`): "conversation" becomes "chat" in every
+  app string; title = name, else first words, else "New chat". My count at rest ("3 v") was cut: a
+  number with no unit. Rename field is "Chat name"; no model-written titles.
+- (2026-11-06) Round 2 verdict: the Assistant's words held (11 of 12 finished, no false "done", no count
+  disagreed). What failed was the screen saying less than the graph did, or saying it where nobody
+  looks. Round 3 tests fixes of placement and truth, not new terms.
+- (2026-11-06) Watch in round 3, T92 A: the placeholder "Ask about this selection" (keyed on
+  `scope.kind`) is the ONLY scope change credited. If the planted reader still asks the whole graph,
+  the next step is the scope on the You turn, not new scope-line words.
+- (2026-11-06) Watch, T90: statusless failure now reads "the connection failed or the key was refused"
+  with Send again AND AI provider.... Count who opens the provider vs resends. "Or" is true in both
+  cases; never "may be".
+- (2026-11-06) Watch: one name per measure. App lines take `wordsFor(...).name` (no `plainName`
+  fallback); the model still gets `plainName`, so a reply saying "Reach" is the model's prose, not a
+  regression. Do not close the finding on app lines alone.
+- (2026-11-06) A painting run joins its fact to the existing line: "Computed Closeness for 24 nodes,
+  colored by it". My separate Colored row was refused: words at rest do not rise. Check lines per turn
+  stay flat, and the line never says colored when a hand layer won.
+- (2026-11-06) Autosave tooltip shipped as "Changes not yet in a file are kept in this browser and come
+  back when you reopen graphty." Better than my "Your changes": true for a change since saved. No
+  reader can credit it while the tool hovers only on command; the "Autosave: saved" label stays open at 2.
+- (2026-11-06) Tooltip and hover findings measure the study tool, not readers: every hover is a
+  deliberate command. Never cite "nobody hovered" as evidence.
+- (2026-11-06) Backlog words I own next: "Removed {name}" for a removed run; a failed step's reason as
+  words, no code; app rows with no `data.`/`results.` paths (styleLine through the key's reader, rules
+  through `ruleWords`, "Picked" not "Picked by hand"); "Stopped." when nothing changed; unique
+  accessible names in the panel, visible word first.
+- (2026-11-06) Opened steps still say what ran, not what was asked; that needs a wording design per
+  tool (bar 10 forbids arguments). Unowned -- a candidate for me to write.
+- (2026-11-06) A true line after the fact is not a warning: "Computed Bridges for 14 nodes" carried the
+  narrowing and nobody used it. Words that prevent must arrive before Send.
+- (2026-11-05) The model's words are the model's; each effect gets one app line that stands alone and is
+  true without the prose.
+- (2026-11-05) Before calling words a defect, check the design and decided.md; if the design's text is
+  wrong, say so with evidence. Cite the decision to set severity.
+- (2026-11-03) An error must never contradict the screen: build words from applied state, never a
+  `?? default`. A label must bind what it names; connector words must name the logic.
+- (2026-10-21) Fix by pointing, not prose; never rename on model opinion or a task's wording.
+- (2026-10-06) Budgets: at rest <= 50 words (hand count), inspector ~30 (max 40). Element returns
+  codes + params; the app writes every word. Simulated users: fail strong, pass weak.
 
 ## Priorities and values
 
@@ -85,226 +96,80 @@ I read this file at the start of every session and update it as I decide and lea
 - **No one-domain wording** -- "Total <attribute> in/out", "value 17" unless the data declares a
   unit; no currency detection. Reason: owner, 2026-09-29.
 
-## Decisions and reasons
+## Decisions and reasons (condensed 2026-11-06)
 
-- **2026-10-14, round 6:** Round 6 words: "Layer N"; "Arrowheads" with "Target end" / "Source end" (head and tail in tooltips and search); one noun "Label" with "Label at target end"; "Caption" gone; "Degree rank (1 = highest)", "Degree percentile"; "Take all tied | Take fewer"; "Covers", "Where its look shows", "covered by"; "Draws nothing: ..."; failure notices always carry the element's reason.
-
-- 2026-09-26 Keep standard technical terms; friendly words only as search aliases. Reason: owner
-  ("leave betweenness instead of using brokers"). Decided by the owner.
-- 2026-09-28 Reader messages published as `{ key, params, text }` with keys
-  `graphty.<area>.<message>`. Owner. Since 2026-10-03 the element supplies key and params and the
-  app supplies the text (presentation neutrality, owner).
-- 2026-09-29 No one-domain words: "Money in/out" dropped for "Total <column> in/out"; every label
-  change tested on two domains; task wording never echoes a fix's words. Owner (overfitting).
-- 2026-09-29 "Recipe" is the one noun for a saved style or workflow file; "style file" retired.
-  Studio (rounds 4-5). Drifted back as "Apply recipe or style file..." in refined B; unresolved.
-- 2026-09-29 One fixed form for scoped counts, "N of M <noun>", and the scope rule lives in the
-  shared catalog so every consumer says the same thing. Me, round 6 triage; adopted.
-- 2026-09-29 A layer made from a run names its run with the run's exact title as the run list
-  shows it. Me, round 6 triage (withdrew my own spelling for the shared rule).
-- 2026-09-30 American spelling everywhere. Owner.
-- 2026-09-30 Owner's "hide"/"show hidden" for the list renamed "Remove from list view" / "Show in
-  list view" because 4 of 5 read a "hidden" row that still paints as a bug. Studio, a deliberate,
-  reversible departure from the owner's words.
-- 2026-10-01 Toolbar icons only, tooltips after a hover delay. Owner. Tooltip = name plus key chip.
-- 2026-10-03 Round 8 triage (my positions, adopted): remove the "Show labels" trap -- the Label "+"
-  with no label anywhere adds an empty label line and opens its attribute list; "Add label line"
-  is the one command name and tooltip; the line states live counts ("77 names, 64 hidden to avoid
-  overlap"); "Show all labels" is the one name for the overlap switch (it had been "Labels shown
-  anyway" and "Hide overlapping labels"); the "Labels shown anyway" row deleted.
-- 2026-10-03 Find box placeholder "Find rows, elements, values"; list boxes all use the verb "Find"
-  ("Find settings"), except Analyze's "Filter analyses" (it filters, it does not find). Ctrl+K
-  stays commands only, with a "Find '<text>' in the graph" handoff. Studio, my proposal with IA.
-- 2026-10-03 Inspector's second tab is "Values" (not "Data"); a node opens on Values. Studio.
-- 2026-10-03 Table caption form "Full graph: 77 nodes, sorted by degree, highest first", the same
-  before and after a sort. Me, skeleton wording pass.
-- 2026-10-03 Presentation neutrality: the element returns no English; the app writes every word.
-  Owner. Consequence: my words ship in the app (legend sentence, Analyze headings, catalog words).
-- 2026-10-03 Tier 1 words (studio, reversible): "Pick an attribute", "Labels from an attribute";
-  the "attribute" term is re-tested; a neighbor tie is labeled with its weight attribute's name
-  ("value 17") unless the data declares a unit; start screen says "Recent projects are remembered
-  in this browser; each project is a file saved where you chose" (round 8 finding 13); no folder
-  shown for a saved project in a web build (the browser does not report one).
-
-- 2026-10-06 Round 1 decisions (Design Director, reversible): runs named by method everywhere
-  (my proposal, adopted); summary drops one-off commonest value and "Edges 0" (my proposal,
-  adopted); refusal line under Method naming the picked method, no new element code (adopted,
-  my "reason from an element code" dropped -- the app knows what it asked for); Degree-row cue
-  rejected for round 2 (two changes at once); "Show all labels" beside the hidden count deferred
-  behind wheel zoom; at-rest wording ("directed 0", "Edges per n...") deferred to bar 9's count.
-
-- 2026-10-09 Round 1 closed (tier 2 decisions.md): my seven proposals adopted as changes 4, 8,
-  10 and 14, with one correction I accept -- the find hint fires when the element says the text
-  is a rule, not when the app sees a comparison sign (the app must read no rule syntax). Reason:
-  each fixes a confirmed finding with the fewest words and nothing new at rest. "Select where"
-  routes held back so the words' effect is measured alone. Studio, reversible.
-
-- 2026-10-10 Round 2 closed (tier2/rounds/round-2/decisions.md, Design Director). Adopted:
-  changes 4 (a: example rule after a non-rule "No match", once, never at rest; b: suggestion
-  with "="; c: Enter or click runs the shown rule), 8 (layer named by its rule without "="), 9
-  (scope words, shorter note, two neighbor-list words out), 11 (search aliases linked, between,
-  fewest, chain, in between -- never shown), 12 ("<column> <total>"), 15 (no "stand out").
-  Rejected: names for a 2-to-3-node selection (only rule origin changes, so 8 is measured alone).
-  Reason: one change per confirmed finding, words at rest must go down. Studio, reversible.
-- 2026-10-10 Change 5's Add-page line (repeated ties) and Replace button are new words but only
-  off-rest, above the buttons, count against incoming edges; mine to word with the fewest words,
-  e.g. "41 of 41 edges are already loaded" + "Replace friends". Studio, reversible.
-
-- 2026-10-10 Tier 2 round 3 proposals (mine, to the studio, reversible, untested). (1)
-  `graph-place/FindBox.tsx` value row: visible text "<column> is 10 (2)" without "Select where"
-  (the Values heading and filter glyph say it; accessible name keeps the verb) -- the row was cut
-  in 4 sessions; plus, for a numeric column, a row "<column> 10 or more (N)", which needs an
-  additive element fact (at-least count and its rule on find's value rows). (2) `ruleRefusal`
-  backtick case: "Put numbers in backticks:" in red -> the existing "Rule: press Enter to select
-  matches" in the hint color (r3-s09, s11, s13; figma 9; zero new words). (3) A condition with no
-  column (">=10"): element offers the rewrite per numeric column, worded as (2). (4)
-  `analyze/words.ts hopWords`: "4 hops" -> "4 edges", the Summary's own term (engineer 28). (5)
-  Neighbor list at Hops > 1: subheadings "1 hop (N)", "2 hops (M)" from an element depth fact
-  (figma 18, r3-s48). (6) `inspector/words.ts` disabled reason: "Already on. Turn it off in
-  Filters", tied by aria-describedby (a11y 4). Reason: each fixes a confirmed sev 2 (6: sev 1)
-  with fewer words; none adds words at rest.
-
-- 2026-10-11 Round 3 closed (tier2/rounds/round-3/decisions.md, Design Director). Adopted from my
-  proposals: (1) value row without "Select where" plus the "or more" row (change 7, with an additive
-  element fact `atLeast: { count, target }`). Held: (2) backtick refusal -> "Rule: press Enter"
-  (bare-number owner question), (3) ">=10" rewrite (the "or more" row answers bare numbers), (4)
-  "4 hops" -> "4 edges" (sev 1; T18 already carries three changes), (5) Hops grouping (needs element
-  fact, one session), (6) disabled-reason rewording (replaced by a check-first compact-mantine
-  Tooltip fix, no word change). Reason: one variant per problem so round 4 can credit it; words at
-  rest must not rise; claims from one specialist scripted before fixing. Studio, reversible.
-
-- 2026-10-11 Round 4 critique (mine, to the studio, reversible, untested). (1) Bare number: the
-  element's backtick suggestion must pass the same check the run uses, and `atLeast` covers any
-  number inside a numeric column's range; the app adds no words. (2) `atLeastOf` writes the rule
-  with the column's short spelling, as a typed rule ("minutes >= `5`"). (3) The key names a run's
-  scope once: drop ", full graph" from each entry and put one line under the key's title, "Ran on
-  20 nodes" (the tooltip's and inspector bar's words); the run row's accessible name "PageRank, out
-  of date" for a scope change becomes "PageRank, ran on 20 nodes". Reverses my 2026-10-10 "do not
-  reword 'PageRank, full graph'": new evidence (bar 9 fails on it; T17 r4-s24..26 and T23 r4-s45,
-  s46, s48 unsure whether sizes describe the drawn subset; engineer 17 three names). Reason: one
-  term per state, fewer words, no promise the screen does not keep.
-
-- 2026-10-11 Round 4 closed (tier2/rounds/round-4/decisions.md, Design Director). Adopted from my
-  critique: (1) bare-number suggestion only when the selector accepts it, plus `atLeast` rows for
-  any in-range number (changes 3, 4); (2) "or more" layer named like a typed rule, through a new
-  `rulePath` export (change 9). Not taken: (3) the key's scope line "Ran on 20 nodes" and dropping
-  ", full graph" -- the Director wants the added words named by a diff of both builds first, and
-  keeps scope words even if bar 9 (b) then fails, because a true fact is not cut to pass a count.
-  The run row's "out of date" rename held for one announcer design. Reason: one change per problem,
-  no unmeasured word changes, fix in the owning package. Studio, reversible.
+- 2026-09-26 Standard technical terms stay; friendly words only as search aliases. Owner.
+- 2026-09-28 / 10-03 Element supplies `{ code, params }`, the app supplies every word. Owner.
+- 2026-09-29 No one-domain words ("Total <column> in/out"); test every label on two domains. Owner.
+- 2026-09-29 One noun "Recipe" for a saved style or workflow file (drift unresolved). Scoped counts
+  "N of M <noun>". A run-made layer names its run by the run list's exact title.
+- 2026-09-30 American spelling. "Remove from list view" / "Show in list view" over hide.
+- 2026-10-01 Toolbar icons only; tooltip = name plus key chip. Owner.
+- 2026-10-03 "Add label line"; "Show all labels"; "N labels, M hidden to avoid overlap"; find box
+  "Find rows, elements, values"; Analyze "Filter analyses"; inspector tab "Values"; table caption
+  "Full graph: 77 nodes, sorted by degree, highest first".
+- 2026-10-06 to 10-11 Tier 1-2 rounds: runs named by method everywhere; example rule after a non-rule
+  "No match", once, never at rest; layer named by its rule; `atLeast` "or more" rows; scope words kept
+  even when a count fails, because a true fact is not cut to pass a count.
+- 2026-10-14 Round 6 words: "Layer N"; "Arrowheads" with "Target end"/"Source end"; "Label at target
+  end"; "Degree rank (1 = highest)"; "Take all tied | Take fewer"; failure notices carry the reason.
+- 2026-10-30 Preview tags and destructive labels name the act's outcome; a count shown twice shares one
+  basis.
+- 2026-11-03 Announcements follow what is visible; Clear keeps a card's name; a reference row shows the
+  matched value beside its id.
+- 2026-11-05 Influence / Connections naming fixed in the app by id. "Listening" stays; the element moves
+  its event after the microphone opens.
+- 2026-11-06 Tier 6 round 2 closed (`tier6/rounds/round-2/decisions.md`). Adopted from my critique:
+  placeholder follows scope (on `scope.kind`, so the x reads Whole graph too); failure "or the key was
+  refused" plus AI provider... only for a `requiresKey` provider; `wordsFor` names at `stepName`, the
+  slow approval title and `AI_EFFECT_RUN`; Undo notice with no added period, and none over the open
+  panel. Changed by the Director: Colored row became a clause on the Computed line; my "Your changes"
+  became "Changes not yet in a file...". Refused: any other scope-word form, "Autosave: no changes"
+  (flips on every Save, reads like loss), plain words for opened steps (needs a design), Group 1 to N
+  (a concept the product lacks), a warning glyph on the failure row. Reason: one change per problem so
+  round 3 can credit it; words at rest do not rise.
 
 ## Tried: worked / did not work
 
-- 2026-10-21 Tier 3 round 1 tried: none of my built words (BoundValue chits, "Color from each layer", <<Layer>>) produced a failure; the <<Layer>> token was routed around, not read. Did not work as measured: count-only layer names from the find box; hex-first color box with no word hint.
-
-- 2026-10-11 LEARNED (round 4 close): proposals that fix a mechanism in the element (a check that
-  disagrees, a spelling) are adopted; proposals that pick words to meet a count are not until the
-  count's diff names the words. Evidence: changes 3, 4, 9 adopted; my bar 9 wording held.
-
-- 2026-10-11 WORKED (round 4): "<column> is 10 or more (13)" taken at once by the one reader who
-  typed a bare number (r4-s10); value row without "Select where" no longer cut; "Weight: none (each
-  edge counts 1)" sent r4-s32 to the column. DID NOT WORK: the "or more" layer's field-path name
-  (visual 1, a11y 5); "=`10`" offered then refused on bus stops (figma 2); ", full graph" on every
-  key entry (bar 9 b, two over). LEARNED: a fact that exists only for exact values leaves the task's
-  own number (bus stops has no 10) with no row -- test a new fact against each task file's prompt.
-
-- 2026-10-11 LEARNED (round 3 close): six word proposals became one change. The Director takes one
-  variant per problem and drops anything that blurs credit on a crowded task. Lead with the one
-  proposal that answers the most-observed behavior; list the rest as held, not as a set.
-- 2026-10-11 LEARNED: a measurement check that reads nothing passed silently (leak check, bar 8,
-  bar 9). Before trusting a word count, confirm what the counter counts.
-
-- 2026-10-10 Round 3 (summarized 2026-10-11). WORKED: "minutes 14" on path rows; rule-named
-  layer; "No match" plus example rule (T22 steps 16 -> 5); dropping "stand out". DID NOT WORK:
-  "Select where ..." cut and equality only; "Put numbers in backticks:"; "4 hops" beside "5 nodes,
-  4 edges"; Hops 2 list with no distance; T24's "point out" prompt.
-
-- **Tier 2 rounds 1-2 (summarized 2026-10-11).** WORKED: "Higher means" on the load page;
-  "Loaded weight minutes (farther)"; Replace title and "Was N; now M"; filter chip agreeing with
-  the Filters row; "Higher means: Not set" left on Replace. DID NOT WORK: bare "No match" for a
-  condition; "Put numbers in backticks:" without "="; selection layers named "13 edges"; "Shortest
-  path 4 hops" beside minutes; "PageRank on 20 nodes" with 15 drawn; "Total distance 14"; "As the
-  file says" on a CSV (needs a direction fact). LEARNED: the study's own words moved behavior more
-  than screen words; a word proposal ships with its bars.mjs count; additions raised words at rest.
-
-- **Tier 2 round 1 and tier 1 rounds 1-2 lessons (summarized 2026-10-11).** WORKED: method
-  names on every run surface; "Show all labels"; "N labels, M hidden to avoid overlap" (no false
-  "done" in 29 sessions); the Degree row with a chevron cue (8 of 8); refusals naming the method or
-  the line; the usage card. DID NOT WORK: element English `run.label` shown after a run; bare
-  "Degree 17" as a door; "directed 0" raw file syntax; "Edges per ..." truncating; the bind door's
-  two names; the damaged-file refusal with no cause. Lessons: an unbuilt decision shows only on a
-  preflight of the served build; fix the route first, then words; one code, one sentence (share the
-  function); severity of a word defect depends on whether it was decided -- cite the decision.
-  Tier 1: refusals with line numbers, "Local only", "Note on:" worked; seven weight wordings,
-  one-domain words, task echoes, pre-explained samples did not.
+- 2026-11-06 Tier 6 round 2. WORKED: approval card words (read 2 of 2, count right); "Undo" in the reply
+  (first choice 2 of 2, restored all); disclosure once read (3 of 3, readers changed what they load);
+  "Selected N nodes" where it is drawn; every computed count. DID NOT WORK: "the connection failed"
+  alone (0 of 2 learned the cause); "Selection 14" as the only warning; two names for one measure (Reach
+  vs Closeness, Bridges vs Betweenness, Louvain vs Communities); "Ask about this graph" under a
+  selection scope; a long reply's chips and Undo below the fold. UNMEASURED: every tooltip.
+- 2026-11-05 Tier 6 round 1: no sessions ran, so nothing of mine was measured.
+- 2026-11-03 Tier 5: four of nine editor insights were word failures (run naming, Condition/Or
+  connectors, By position's false error, reference ids). Scripted word counts inflated with chrome;
+  hand count stays. Leaving my walk out left bar 6 unmeasured.
+- 2026-10-30 Tier 4: no surviving insight was word-first; hover findings suspect.
+- 2026-10-21 Tier 3: none of my built words produced a failure; count-only layer names and hex-first
+  color box with no hint did not work.
+- 2026-10-11 Tier 2: mechanism fixes get adopted, word picks to meet a count do not until a diff names
+  the words. "<column> is 10 or more (13)" worked; field-path layer names did not. Test a new fact
+  against each task file's own number. A counter that reads nothing passes silently.
+- Tier 1 (summarized): method names, "Show all labels", refusals naming the method, the usage card
+  worked; element English, "directed 0", truncating "Edges per ...", one-domain words, task echoes did not.
 
 ## Thinking
 
-- 2026-10-07 **Tier 2 words (proposal to the studio, not yet decided or tested).** Filters: chip
-  "Full graph" / "Filtered: 2 of 22 nodes" (glossary state word + the "N of M" form); step reads
-  as one sentence "[weight] [is at least] [4]"; an edge-attribute step's inspector line "Keeps
-  edges that pass and the nodes at their ends"; empty "No filters. Add filter"; after undo the
-  notice names the step. Checkbox: accessible name "Apply step: weight is at least 4"; the
-  glossary's "Turn off step" is a menu verb -- one of the two must go (open). Path: "Path between"
-  (P), fields From, To, Follow (directed only), Weight; summary "3 nodes, 2 edges, length 7"
-  (length only with a distance weight); never "route". Notes: refined B section 8 words as
-  written; empty "No notes. Add note (N)". Weight: Data page "Higher means: Stronger | Farther |
-  Capacity", with nothing chosen for an auto-picked column; Analyze "Weight: weight, stronger
-  (loaded)"; override recorded in Made with "Weight: emails, stronger (this run only)"; no meaning
-  -> path runs refuse or run unweighted with "(unweighted)". Node weight: line only on entries the
-  catalog marks; attribute text "No measure reads node weight yet". Replace: "Replace with
-  file...", page title "Replace: friends.csv", report "Was 20 nodes, 60 edges; now 22, 74";
-  stale rows "Data changed since this run -- Rerun". Edge inspector title "Ava -- Kofi" /
-  "Ava -> Kofi". Neighborhood popover: "1 | 2 | 3 hops", "Follow: Out | In | All".
-- 2026-10-07 Element must give codes, not English, for: filter plan counts per step; selector
-  parse failure (number needs backticks, unknown attribute); path refusal (no path, weight has no
-  meaning); replace report (added, removed, changed counts); staleness reason (data replaced,
-  filter changed) by data version, not by count.
-
-- 2026-10-07 Announcement words (round 3 proposal): load "<Name>: 77 nodes, 254 edges"; run
-  "<Method> running" then "<Method> finished". Both from the element's load and run events; no
-  English from the element. Watch for double speech with the existing "added, running".
-
-- **Older tier 1 threads (summarized 2026-10-09).** Labels: an empty label line's accessible
-  name is long; measure before rewording. Neighbors: a count must open to names. Find
-  placeholder names only what the box returns. Legend: one plain sentence from element facts,
-  no advice. Analyze headings: test in a tree test, never by taste. Start screen: no sentence on
-  an empty Recent; keep "remembered in this browser" where recents exist. Usage card draft
-  (data yours, never seen, what is recorded incl. masked replay, who reads it) is with the owner.
-  Disabled controls state their reason in tooltip and aria-describedby. Tooltip delay 500 vs
-  1000 ms is compact-mantine's.
+- 2026-11-06 The round's shape: truth and placement beat vocabulary. My next useful work is a wording
+  design for opened steps (what was asked, in plain words, no arguments), and the backlog's raw-text
+  rows, since bar 10 counts them.
+- 2026-11-06 A fix that lives only in a tooltip cannot be credited by this study; if a promise matters,
+  put the true fact where it is read, or accept it is untested.
+- 2026-11-05 Watch whether readers trust the prose or the line when they differ; r2-s02 trusted the
+  prose's false denial. That is why every app line must stand alone.
+- 2026-11-03 The reference picker's silent search is a speech gap from a second-built control; fix by
+  one shared combobox, not added text.
+- Open term collisions (2026-10-31): "group" vs glossary group, "Focus", "picked", "whole graph" vs
+  Full/Filtered graph. "Whole graph" now also on the Assistant's scope line -- check against glossary.
 
 ## Sources
 
-- (2026-11-03) Summarized: tier 1-3 source lists (round insights, decisions, expert walks, owner
-  messages in `design/ui/studio/tmp/owner-all.jsonl`, framework docs) are in this file's git
-  history at e1237f47af.
-- `design/ui/framework/content-design.md`, `glossary.md`, `principles.md` (budgets, section 5)
-- `design/ui/studio/tier5/rounds/round-1/insights.md`, `scores.md` (2026-11-03)
-
-## Tier 4 round 1 lessons (2026-10-30)
-
-- Decided: preview tags and destructive-choice labels name the act's outcome (join preview, "Leave out"). Evidence: problem 1 (3 of 4 misread), problem 6 (r1-s24 backed off).
-- Decided: a count or glyph shown in two places must share one basis and one kind. Evidence: problems 2, 16, 3.
-- Tried: tier 3 watch on words -- worked as a check; again no surviving insight was word-first.
-- Did not work: trusting hover findings from the study tool (popovers logged as null).
-
-## Tier 5 round 1 lessons (2026-11-03)
-
-- Decided: announcements follow what is visible. A covered panel stays silent (the selection
-  editor already does; the value picker did not). Reason: two messages into one live region, the
-  second wins, and it was the hidden one.
-- Decided: Clear keeps a card's name; a reference row shows the matched value beside its id.
-  Both are existing decided.md rules (631-632, 694); the build departs from them.
-- Tried: scripted word counts as the at-rest budget check -- did not work; it inflated three
-  screens with chrome, statistics and user layer names. Hand count remains the measure.
-- Thinking: the reference picker's silent search (no result count until ArrowDown) is a spoken
-  content gap caused by a second-built control; fix by one shared searchable combobox, not by
-  adding announcement text.
-- (2026-11-03, after the skeptic checks) Learned: of nine surviving editor insights, four are
-  word failures (run naming, Condition/Or connectors, By position's false error, reference ids)
-  and one is speech. Words were first-cause this round, unlike tier 3 and 4.
-- Did not work: leaving my walk out of the round -- bar 6 stayed unmeasured and the round could
-  not close on it.
-- Thinking: error and status sentences must be built from the state the step actually applies,
-  never from a `?? default`; a lint-able pattern worth a check in the app.
+- `design/ui/studio/tier6/rounds/round-2/insights.md`, `decisions.md`, `scores.md`, `sessions/`,
+  `repro/` (2026-11-06)
+- `design/ui/framework/content-design.md`, `glossary.md` (section 2 rule 1), `principles.md`,
+  `decided-doors.md`; tier `decided.md`
+- graphty: `workspace/assistant/words.ts`, `autosave/words.ts`, `frame/historyWords.ts`,
+  `style/cards.ts`, `data-place/filterWords.ts`; graphty-element `src/ai/tools/families/algorithms.ts`
+- Earlier tier source lists: git history of this file at e1237f47af and a80da6d62e.

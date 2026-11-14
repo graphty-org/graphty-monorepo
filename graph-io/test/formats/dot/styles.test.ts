@@ -213,8 +213,14 @@ describe("DOT styles: Graphviz's rules", () => {
         }`);
         const width = byId(styles, snapshot, "borderWidth");
         expect(["p", "t", "n", "f"].map((id) => width.get(id))).toEqual([0, 0, 0, 0]);
-        // an unfilled none draws only its label; a filled one is its box, filled, with no outline
-        expect(["n", "f"].map((id) => byId(styles, snapshot, "shape").get(id))).toEqual(["none", "rectangle"]);
+        // an unfilled none draws only its label; a filled one is its box, filled, with no outline; plain and plaintext
+        // are none with other margins, so an unfilled one draws only its label too (Graphviz's shapes documentation)
+        expect(["n", "f", "p", "t"].map((id) => byId(styles, snapshot, "shape").get(id))).toEqual([
+            "none",
+            "rectangle",
+            "none",
+            "none",
+        ]);
         expect(["s", "b", "w"].map((id) => width.get(id))).toEqual([3, 2, 0.5]);
         const style = byId(styles, snapshot, "borderStyle");
         expect(["s", "w", "k"].map((id) => style.get(id))).toEqual(["dashed", "dotted", null]);
@@ -508,6 +514,7 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
             node [style=filled];
             a [fillcolor="yellow:purple", gradientangle=90];
             b [fillcolor="#00ff00:#0000ff", gradientangle=315];
+            q [width=0.5, height=0.5, fillcolor="#00ff00:#0000ff", gradientangle=315];
             c [color="red;0.3:blue"];
             r [style=radial, fillcolor="white:orange"];
             s [shape=box, style=striped, fillcolor="red:blue"];
@@ -517,11 +524,16 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         }`);
         const get = (p: string): Map<string, unknown> => byId(styles, snapshot, p);
         const [fill, second, angle] = ["fill", "fillGradient", "fillGradientAngle"].map(get);
-        expect(["a", "b", "c", "cluster_g"].map((id) => [fill.get(id), second.get(id), angle.get(id)])).toEqual([
+        expect(["a", "b", "q", "c", "cluster_g"].map((id) => [fill.get(id), second.get(id), angle.get(id)])).toEqual([
             // Graphviz turns counter-clockwise from left to right; the neutral angle clockwise on screen
             ["#ffff00", "#800080", 270],
+            // Graphviz runs 315 to the corner of the 54 x 36 box, along atan2(36, 54) on screen; graphty-element
+            // stretches its ramp over the box, so it is given atan2(36^2, 54^2) to change color along the same line
+            ["#00ff00", "#0000ff", 23.9625],
+            // on a square box the two agree
             ["#00ff00", "#0000ff", 45],
             ["#ff0000", "#0000ff", 0],
+            // a cluster's box is not known until it is laid out
             ["#ff0000", "#0000ff", 180],
         ]);
         // a weighted first color switches at its fraction: Graphviz's SVG stops at the fraction less 0.001 and at it
@@ -1044,6 +1056,9 @@ function hasGraphviz(): boolean {
 
 const GRAPHVIZ = hasGraphviz();
 
+/** The graphty.styles attribute, removed to read a file as a plain Graphviz reader would. */
+const WITHOUT_BLOCK = /"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/;
+
 /**
  * Compares what graphty draws for a DOT file with what Graphviz draws, two-sided: a value the reader missed fails as
  * surely as a wrong one. Labels drawn from HTML or records, and nodes with an external label, are skipped (their
@@ -1106,8 +1121,10 @@ function compareWithGraphviz(
         if (g === undefined || visible[i] === false) {
             continue;
         }
-        // a pen width of 0 still draws Graphviz's thinnest line; graphty draws none
+        // a pen width of 0 still draws Graphviz's thinnest line; graphty draws none (an invis node draws no line at all)
+        const invis = /\binvis/.test(String(snapshot.nodes.has("style") ? snapshot.nodes.value("style", i) : ""));
         const thinnest =
+            !invis &&
             borderWidth[i] === 0 &&
             Number(snapshot.nodes.has("penwidth") ? snapshot.nodes.value("penwidth", i) : 1) === 0;
         const ours = {
@@ -1372,12 +1389,12 @@ describe("DOT styles: writing", () => {
         }
     });
 
-    it("writes styles a plain Graphviz reader draws the same, without the block (dot -Tplain where available)", async () => {
+    it("writes styles a plain Graphviz reader reads back the same, without the block", async () => {
         const source = new Uint8Array(readFileSync(join(CORPUS, "graphviz-gallery-directed-sdh.gv")));
         const { snapshot, styles } = await load(source);
         const written = await registry.exportGraphToBytes(snapshot, "dot", { styles });
         // read as any program would: the block ignored, Graphviz's attributes alone
-        const text = new TextDecoder().decode(written).replace(/"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/, "");
+        const text = new TextDecoder().decode(written).replace(WITHOUT_BLOCK, "");
         const again = await load(text);
         expect(again.styles.styles.source.tool).toBe("graphviz");
         for (const property of ["fill", "fillOpacity", "borderColor", "shape", "label"]) {
@@ -1390,24 +1407,28 @@ describe("DOT styles: writing", () => {
                 drawn(styles, snapshot, "edge", property),
             );
         }
-        if (GRAPHVIZ) {
-            const before = await graphvizDraws(source);
-            const after = await graphvizDraws(new TextEncoder().encode(text));
-            // graphty reads both shapes into the same neutral shape (an inverted triangle is a triangle)
-            const keep = (n: GoldenNode): unknown => [n.fill, n.outline, n.label, registryShape(n.shape) ?? n.shape];
-            for (const [id, node] of Object.entries(before.nodes)) {
-                expect([id, keep(after.nodes[id])]).toEqual([id, keep(node)]);
-            }
-            // Graphviz writes edges in its own order, which depends on the file's statement order; a bold line is
-            // written as its pen width, 2
-            const edges = (list: readonly GoldenEdge[]): string[] =>
-                list
-                    .map((e) =>
-                        JSON.stringify([e.key, e.color, e.style === "bold" ? "solid" : e.style, e.head, e.tail]),
-                    )
-                    .sort();
-            expect(edges(after.edges)).toEqual(edges(before.edges));
+    });
+
+    // reported as skipped, not passed, where Graphviz is not installed
+    it.runIf(GRAPHVIZ)("writes styles Graphviz itself draws the same, without the block (dot -Tplain)", async () => {
+        const source = new Uint8Array(readFileSync(join(CORPUS, "graphviz-gallery-directed-sdh.gv")));
+        const { snapshot, styles } = await load(source);
+        const written = await registry.exportGraphToBytes(snapshot, "dot", { styles });
+        const text = new TextDecoder().decode(written).replace(WITHOUT_BLOCK, "");
+        const before = await graphvizDraws(source);
+        const after = await graphvizDraws(new TextEncoder().encode(text));
+        // graphty reads both shapes into the same neutral shape (an inverted triangle is a triangle)
+        const keep = (n: GoldenNode): unknown => [n.fill, n.outline, n.label, registryShape(n.shape) ?? n.shape];
+        for (const [id, node] of Object.entries(before.nodes)) {
+            expect([id, keep(after.nodes[id])]).toEqual([id, keep(node)]);
         }
+        // Graphviz writes edges in its own order, which depends on the file's statement order; a bold line is
+        // written as its pen width, 2
+        const edges = (list: readonly GoldenEdge[]): string[] =>
+            list
+                .map((e) => JSON.stringify([e.key, e.color, e.style === "bold" ? "solid" : e.style, e.head, e.tail]))
+                .sort();
+        expect(edges(after.edges)).toEqual(edges(before.edges));
     });
 
     it("reports a missing label a rule reads from the label column, which reads back as the empty label", async () => {

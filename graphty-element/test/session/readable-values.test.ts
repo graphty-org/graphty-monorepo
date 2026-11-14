@@ -10,6 +10,7 @@ import { assert, describe, it } from "vitest";
 
 import { algorithmByKey } from "../../src/catalog/algorithms";
 import type { ReadableValue, RuleTree } from "../../src/catalog/types";
+import { exportSession } from "../../src/data/export";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
@@ -141,6 +142,14 @@ describe("session.data.readableValues()", () => {
             paths.some((path) => path.endsWith(".inDegree") || path.endsWith(".outDegree")),
             paths.join(", "),
         );
+    });
+
+    it("writes no incoming or outgoing connections into an export of an undirected graph", async () => {
+        const session = await lesMisAfterRuns();
+        const header = (await exportSession(session, "csv", { table: "nodes" }).text()).split("\n")[0];
+
+        assert.match(header, /results\.[^.,]+\.value/);
+        assert.notMatch(header, /inDegree|outDegree/, header);
     });
 
     it("keeps them on a directed graph", async () => {

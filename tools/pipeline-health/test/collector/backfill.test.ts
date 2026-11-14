@@ -434,6 +434,18 @@ describe("backfill", () => {
         expect(homes(store, "run")).toHaveLength(0);
         expect(await getCursor(store, runsCursor(REPO))).toBeUndefined();
     });
+
+    it("fails on a failed cursor read instead of re-reading the whole range (#7275)", async () => {
+        const store = new MemoryStore();
+        const get = store.get.bind(store);
+        store.get = (key) =>
+            key.pk === `CURSOR#${runsCursor(REPO)}`
+                ? Promise.reject(new Error("ProvisionedThroughputExceededException"))
+                : get(key);
+        const f = fake();
+        await expect(backfill(options(store, f))).rejects.toThrow("ProvisionedThroughputExceededException");
+        expect(listCalls(f.urls)).toEqual([]);
+    });
 });
 
 describe("the all-issues load", () => {
@@ -577,25 +589,32 @@ describe("drill-down indexes", () => {
         });
         await putRaw(store, [shard, test("draws", NOW - 5 * MIN), test("old", NOW - 10 * DAY)], NOW);
         const h = await testHistory(store, { file: "a.test.ts", range: "7d" }, NOW);
-        expect(h!.events).toEqual([
+        expect(h.events).toEqual([
             {
                 at: new Date(NOW - 5 * MIN).toISOString().replace(".000", ""),
                 kind: "pr",
                 pr: 77,
                 run: 500,
                 attempt: 2,
+                job: "layout",
                 sha: "abc",
                 outcome: "failed",
                 signature: "expected 1",
             },
         ]);
-        expect((await testHistory(store, { file: "a.test.ts", range: "28d" }, NOW))!.events).toHaveLength(2);
-        expect(await testHistory(store, { file: "a.test.ts", test: "nope", range: "28d" }, NOW)).toBeUndefined();
+        expect((await testHistory(store, { file: "a.test.ts", range: "28d" }, NOW)).events).toHaveLength(2);
+        // A test with nothing stored is an empty history, not an error.
+        expect(await testHistory(store, { file: "a.test.ts", test: "nope", range: "28d" }, NOW)).toMatchObject({
+            file: "a.test.ts",
+            test: "nope",
+            family: null,
+            events: [],
+        });
 
         // A rewrite seen at another time moves its index item instead of leaving a second one.
         await putRaw(store, [{ ...test("draws", NOW - 4 * MIN), outcome: "flaky" }], NOW);
         const again = await testHistory(store, { file: "a.test.ts", test: "draws", range: "7d" }, NOW);
-        expect(again!.events.map((e) => e.outcome)).toEqual(["flaky"]);
+        expect(again.events.map((e) => e.outcome)).toEqual(["flaky"]);
     });
 });
 

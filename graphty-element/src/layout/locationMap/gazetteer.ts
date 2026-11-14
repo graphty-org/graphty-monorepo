@@ -19,14 +19,14 @@ export type PlaceRole = "country" | "region" | "city";
 export const PLACE_ROLES: readonly PlaceRole[] = ["country", "region", "city"];
 
 /** Each layer's file under the gazetteer's address. */
-export const PLACE_FILES: Readonly<Record<PlaceRole, string>> = {
+const PLACE_FILES: Readonly<Record<PlaceRole, string>> = {
     country: "countries.json.gz",
     region: "regions.json.gz",
     city: "cities.json.gz",
 };
 
 /** A credit a map shows while a layer's places are drawn. */
-export interface PlaceCredit {
+interface PlaceCredit {
     readonly text: string;
     readonly url: string;
 }
@@ -37,7 +37,7 @@ export interface PlaceCredit {
  * ISO 3166-1 alpha-2 code; `region` is the first-level region key (`"US.TX"`), null for a country
  * or a region with no key. The city layer also names the regions its cities are in, by key.
  */
-export interface GazetteerFile {
+interface GazetteerFile {
     readonly format: "graphty-gazetteer";
     readonly version: 1;
     readonly layer: PlaceRole;
@@ -49,7 +49,7 @@ export interface GazetteerFile {
 }
 
 /** One place. */
-export interface Place {
+interface Place {
     readonly name: string;
     readonly country: string;
     readonly region: string | null;
@@ -90,12 +90,34 @@ export function normalizePlace(value: unknown): string {
 }
 
 /**
+ * The keys a place is found by: its name, its alternates, and a country's code. A one-character
+ * alternate is a postal code (Natural Earth gives the Maldives' Baa atoll "B"), never a name a table
+ * holds; indexed, it would make a column of labels "A", "B" read as regions, so it is left out.
+ * @param name - The place's name.
+ * @param alternates - Its other names and codes.
+ * @param code - A country's ISO code, or null.
+ * @returns The keys, none blank.
+ */
+function placeKeys(name: string, alternates: readonly string[], code: string | null): Set<string> {
+    const keys = new Set([name, ...(code === null ? [] : [code])].map(normalizePlace));
+    for (const alternate of alternates) {
+        const key = normalizePlace(alternate);
+        if (key.length > 1) {
+            keys.add(key);
+        }
+    }
+
+    keys.delete("");
+    return keys;
+}
+
+/**
  * A layer from its file, indexed by every name it lists (and, for a country, its code).
  * @param file - The parsed file.
  * @returns The layer.
  * @throws A `GraphtyError` with code `E_FETCH_FAILED` when the file is not a gazetteer layer.
  */
-export function layerFromFile(file: unknown): GazetteerLayer {
+function layerFromFile(file: unknown): GazetteerLayer {
     const f = file as Partial<GazetteerFile> | null;
     if (f?.format !== "graphty-gazetteer" || f.version !== 1 || !Array.isArray(f.places) || f.layer === undefined) {
         throw new GraphtyError({
@@ -109,15 +131,12 @@ export function layerFromFile(file: unknown): GazetteerLayer {
     const byName = new Map<string, Place[]>();
     for (const [name, alternates, country, region, lat, lon, population] of f.places) {
         const place: Place = { name, country, region, lat, lon, population };
-        const keys = new Set([name, ...alternates, ...(f.layer === "country" ? [country] : [])].map(normalizePlace));
-        for (const key of keys) {
-            if (key !== "") {
-                const list = byName.get(key);
-                if (list === undefined) {
-                    byName.set(key, [place]);
-                } else {
-                    list.push(place);
-                }
+        for (const key of placeKeys(name, alternates, f.layer === "country" ? country : null)) {
+            const list = byName.get(key);
+            if (list === undefined) {
+                byName.set(key, [place]);
+            } else {
+                list.push(place);
             }
         }
     }
@@ -170,7 +189,7 @@ async function gunzipText(response: Response): Promise<string> {
  * @param role - The role, or auto for all.
  * @returns The roles to load.
  */
-export function layersFor(role: PlaceRole | "auto"): readonly PlaceRole[] {
+function layersFor(role: PlaceRole | "auto"): readonly PlaceRole[] {
     if (role === "country") {
         return ["country"];
     }

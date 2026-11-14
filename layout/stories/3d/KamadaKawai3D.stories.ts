@@ -50,7 +50,10 @@ function createKamadaKawai3DStory(args: KamadaKawai3DArgs): HTMLElement {
     const randomPositions = generateRandom3DPositions(generatedGraph, 200, seed);
 
     // Compute final Kamada-Kawai 3D layout using actual algorithm with dim=3
-    const finalPositions = toPositionMap(kamadaKawai(snapshot, { scale, center: [0, 0, 0], dim: 3 }), snapshot.ids);
+    const finalPositions = toPositionMap(
+        kamadaKawai(snapshot, { scale, center: [0, 0, 0], dim: 3, seed }),
+        snapshot.ids,
+    );
 
     // Create main container
     const container = create3DStoryContainer();

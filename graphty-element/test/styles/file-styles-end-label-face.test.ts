@@ -7,6 +7,9 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /**
  * What the styles resolve one channel of the edge between two nodes to.

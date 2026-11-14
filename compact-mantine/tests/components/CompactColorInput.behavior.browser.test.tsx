@@ -1,0 +1,924 @@
+import { DirectionProvider, MantineProvider } from "@mantine/core";
+import { render, screen } from "@testing-library/react";
+import React, { type ReactNode, useState } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
+
+import { CompactColorInput, compactTheme, PopoutManager } from "../../src";
+import { LabelsProvider } from "../../src/i18n";
+
+/**
+ * Test wrapper that includes all required providers.
+ */
+function TestWrapper({ children, dir = "ltr" }: { children: ReactNode; dir?: "ltr" | "rtl" }): React.JSX.Element {
+    return (
+        <DirectionProvider initialDirection={dir} detectDirection={false}>
+            <MantineProvider theme={compactTheme}>
+                <PopoutManager>{children}</PopoutManager>
+            </MantineProvider>
+        </DirectionProvider>
+    );
+}
+
+describe("CompactColorInput", () => {
+    it("renders hex input with default color value", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /hex/i })).toHaveValue("FF0000");
+    });
+
+    it("renders hex input with explicit color value", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput color="#00FF00" defaultColor="#FF0000" />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /hex/i })).toHaveValue("00FF00");
+    });
+
+    it("renders label when provided", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" label="Fill Color" />
+            </TestWrapper>,
+        );
+        expect(screen.getByText("Fill Color")).toBeInTheDocument();
+    });
+
+    it("shows opacity input by default", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" defaultOpacity={75} />
+            </TestWrapper>,
+        );
+        // Figma draws the number alone; the "%" is a separate scrub handle after it.
+        expect(screen.getByRole("textbox", { name: /opacity/i })).toHaveValue("75");
+    });
+
+    it("hides opacity input when showOpacity is false", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" showOpacity={false} />
+            </TestWrapper>,
+        );
+        expect(screen.queryByRole("textbox", { name: /opacity/i })).not.toBeInTheDocument();
+    });
+
+    it("has color swatch button", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("button", { name: /^pick/i })).toBeInTheDocument();
+    });
+
+    it("shows reset button when explicit color is set", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput color="#00FF00" defaultColor="#FF0000" label="Test" />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
+    });
+
+    it("hides reset button when using default value", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" label="Test" />
+            </TestWrapper>,
+        );
+        expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
+    });
+
+    it("marks hex input as default when using default color", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /hex/i })).toHaveAttribute("data-is-default", "true");
+    });
+
+    it("marks hex input as non-default when explicit color is set", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput color="#00FF00" defaultColor="#FF0000" />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /hex/i })).toHaveAttribute("data-is-default", "false");
+    });
+
+    describe("event model", () => {
+        it("returns to the default on reset when a controlling caller types a color at the default", async () => {
+            const user = userEvent.setup();
+            function Controlled(): React.JSX.Element {
+                const [chosen, setChosen] = useState<string | undefined>(undefined);
+                return (
+                    <CompactColorInput
+                        label="Fill"
+                        color={chosen}
+                        defaultColor="#FF0000"
+                        showOpacity={false}
+                        onChangeEnd={(next) => {
+                            setChosen(next);
+                        }}
+                    />
+                );
+            }
+            render(
+                <TestWrapper>
+                    <Controlled />
+                </TestWrapper>,
+            );
+
+            const input = screen.getByRole("textbox");
+            await user.clear(input);
+            await user.type(input, "00FF00{Enter}");
+            await user.click(screen.getByRole("button", { name: "Reset Fill to default" }));
+
+            expect(input).toHaveValue("FF0000");
+            expect(screen.queryByRole("button", { name: "Reset Fill to default" })).not.toBeInTheDocument();
+        });
+
+        it("calls onColorChange when hex input changes on blur", async () => {
+            const user = userEvent.setup();
+            const onColorChange = vi.fn();
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" onColorChange={onColorChange} />
+                </TestWrapper>,
+            );
+
+            const input = screen.getByRole("textbox", { name: /hex/i });
+            await user.clear(input);
+            await user.type(input, "00FF00");
+            await user.tab();
+
+            expect(onColorChange).toHaveBeenCalledTimes(1);
+            expect(onColorChange.mock.calls[0][0]).toBe("#00FF00");
+        });
+
+        it("hands the blur that committed the color to onColorChange", async () => {
+            const user = userEvent.setup();
+            const onColorChange = vi.fn();
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" onColorChange={onColorChange} />
+                </TestWrapper>,
+            );
+
+            const input = screen.getByRole("textbox", { name: /hex/i });
+            await user.clear(input);
+            await user.type(input, "00FF00");
+            await user.tab();
+
+            const event = onColorChange.mock.calls[0][1];
+            expect(event).toBeDefined();
+            expect(event.type).toBe("blur");
+        });
+
+        it("calls onOpacityChange when opacity input changes on blur", async () => {
+            const user = userEvent.setup();
+            const onOpacityChange = vi.fn();
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" defaultOpacity={100} onOpacityChange={onOpacityChange} />
+                </TestWrapper>,
+            );
+
+            const input = screen.getByRole("textbox", { name: /opacity/i });
+            await user.clear(input);
+            await user.type(input, "50");
+            await user.tab();
+
+            expect(onOpacityChange).toHaveBeenCalledTimes(1);
+            expect(onOpacityChange.mock.calls[0][0]).toBe(50);
+        });
+
+        it("clamps opacity between 0 and 100", async () => {
+            const user = userEvent.setup();
+            const onOpacityChange = vi.fn();
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" defaultOpacity={50} onOpacityChange={onOpacityChange} />
+                </TestWrapper>,
+            );
+
+            const input = screen.getByRole("textbox", { name: /opacity/i });
+            await user.clear(input);
+            await user.type(input, "150");
+            await user.tab();
+
+            expect(onOpacityChange).toHaveBeenCalledTimes(1);
+            expect(onOpacityChange.mock.calls[0][0]).toBe(100);
+        });
+
+        it("calls onColorChange with undefined when reset is clicked", async () => {
+            const user = userEvent.setup();
+            const onColorChange = vi.fn();
+            render(
+                <TestWrapper>
+                    <CompactColorInput
+                        color="#00FF00"
+                        defaultColor="#FF0000"
+                        label="Test"
+                        onColorChange={onColorChange}
+                    />
+                </TestWrapper>,
+            );
+
+            await user.click(screen.getByRole("button", { name: /reset/i }));
+
+            expect(onColorChange).toHaveBeenCalledTimes(1);
+            expect(onColorChange.mock.calls[0][0]).toBeUndefined();
+            expect(onColorChange.mock.calls[0][1].type).toBe("click");
+        });
+
+        // Contract 1.5: focus and blur are forwarded, never swallowed for
+        // internal state, even though blur is what commits the value.
+        it("forwards focus and blur from both boxes", async () => {
+            const user = userEvent.setup();
+            const onFocus = vi.fn();
+            const onBlur = vi.fn();
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" onFocus={onFocus} onBlur={onBlur} />
+                </TestWrapper>,
+            );
+
+            await user.click(screen.getByRole("textbox", { name: /hex/i }));
+            expect(onFocus).toHaveBeenCalledTimes(1);
+
+            await user.click(screen.getByRole("textbox", { name: /opacity/i }));
+            expect(onBlur).toHaveBeenCalledTimes(1);
+            expect(onFocus).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    describe("accessibility", () => {
+        it("wraps the three controls in a group named by the field's label", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" label="Fill Color" />
+                </TestWrapper>,
+            );
+
+            const group = screen.getByRole("group", { name: "Fill Color" });
+            expect(group.tagName).toBe("FIELDSET");
+            expect(group).toContainElement(screen.getByRole("textbox", { name: /^Fill Color(,|$)/ }));
+            expect(group).toContainElement(screen.getByRole("button", { name: "Pick fill Color" }));
+            expect(group).toContainElement(screen.getByRole("textbox", { name: "Fill Color opacity" }));
+        });
+
+        it("renders no group when there is no label to name it with", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" />
+                </TestWrapper>,
+            );
+            expect(screen.queryByRole("group")).not.toBeInTheDocument();
+        });
+
+        it("names the controls from a hidden label without drawing it", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" label="Fill" hideLabel />
+                </TestWrapper>,
+            );
+            expect(screen.queryByText("Fill")).not.toBeInTheDocument();
+            expect(screen.queryByRole("group")).not.toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: /^Fill color(,|$)/ })).toHaveValue("FF0000");
+            expect(screen.getByRole("button", { name: "Pick fill color" })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: "Fill opacity" })).toBeInTheDocument();
+        });
+
+        it("marks the swatch as opening a dialog", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" />
+                </TestWrapper>,
+            );
+            const swatch = screen.getByRole("button", { name: /^pick/i });
+            expect(swatch).toHaveAttribute("aria-haspopup", "dialog");
+            expect(swatch).toHaveAttribute("aria-expanded", "false");
+        });
+
+        it("names the reset button after the field", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput color="#00FF00" defaultColor="#FF0000" label="Fill Color" />
+                </TestWrapper>,
+            );
+            expect(screen.getByRole("button", { name: "Reset Fill Color to default" })).toBeInTheDocument();
+        });
+
+        it("names the reset button generically when the field has no label", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput color="#00FF00" defaultColor="#FF0000" />
+                </TestWrapper>,
+            );
+            expect(screen.getByRole("button", { name: "Reset color to default" })).toBeInTheDocument();
+        });
+
+        // WCAG 2.2 (2.5.8) asks for a 24px target; the reset used to be an
+        // 18px "xs" ActionIcon.
+        it("draws the reset button at the 24px target size", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput color="#00FF00" defaultColor="#FF0000" />
+                </TestWrapper>,
+            );
+            const reset = screen.getByRole("button", { name: /reset/i });
+            expect(reset.style.getPropertyValue("--ai-size")).toContain("24");
+        });
+    });
+
+    describe("strings", () => {
+        it("takes every accessible name from the labels", () => {
+            render(
+                <TestWrapper>
+                    <LabelsProvider
+                        labels={{
+                            colorSwatch: "Nuancier",
+                            colorHexValue: "Valeur hexadecimale",
+                            opacity: "Opacite",
+                        }}
+                    >
+                        <CompactColorInput defaultColor="#FF0000" />
+                    </LabelsProvider>
+                </TestWrapper>,
+            );
+
+            expect(screen.getByRole("button", { name: "Nuancier" })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: /^Valeur hexadecimale(,|$)/ })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: "Opacite" })).toBeInTheDocument();
+        });
+
+        it("builds a labeled field's names from the label through the labels", () => {
+            render(
+                <TestWrapper>
+                    <LabelsProvider
+                        labels={{
+                            pickColor: (label) => `Choisir ${label}`,
+                            colorValue: (label) => `${label} (couleur)`,
+                            colorOpacity: (label) => `${label} (opacite)`,
+                        }}
+                    >
+                        <CompactColorInput label="Fond" defaultColor="#FF0000" />
+                    </LabelsProvider>
+                </TestWrapper>,
+            );
+
+            expect(screen.getByRole("button", { name: "Choisir Fond" })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: /^Fond \(couleur\)(,|$)/ })).toHaveValue("FF0000");
+            expect(screen.getByRole("textbox", { name: "Fond (opacite)" })).toBeInTheDocument();
+        });
+
+        it("reads a comma decimal separator in the opacity box when the locale uses one", async () => {
+            const user = userEvent.setup();
+            const onOpacityChange = vi.fn();
+            render(
+                <TestWrapper>
+                    <LabelsProvider locale="de-DE">
+                        <CompactColorInput
+                            defaultColor="#FF0000"
+                            defaultOpacity={100}
+                            onOpacityChange={onOpacityChange}
+                        />
+                    </LabelsProvider>
+                </TestWrapper>,
+            );
+
+            const input = screen.getByRole("textbox", { name: /opacity/i });
+            await user.clear(input);
+            await user.type(input, "12,5");
+            await user.tab();
+
+            expect(onOpacityChange).toHaveBeenCalledTimes(1);
+            expect(onOpacityChange.mock.calls[0][0]).toBe(12.5);
+        });
+    });
+
+    describe("direction", () => {
+        // The chit, the hex box and the opacity box are one field now (Figma's paint field), laid
+        // out in logical order so the field mirrors under a right-to-left direction. The mirrored
+        // geometry is measured in tests/figma/color.browser.test.tsx.
+        it("holds the chit, the hex box and the opacity box in one field, in reading order", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" />
+                </TestWrapper>,
+            );
+
+            const field = screen.getByTestId("compact-color-input-field");
+            const parts = [
+                screen.getByRole("button", { name: /^pick/i }),
+                screen.getByRole("textbox", { name: /hex/i }),
+                screen.getByRole("textbox", { name: /opacity/i }),
+            ];
+            parts.forEach((part) => {
+                expect(field).toContainElement(part);
+            });
+            const all = Array.from(field.querySelectorAll("button, input"));
+            expect(parts.map((part) => all.indexOf(part))).toEqual([0, 1, 2]);
+        });
+
+        it("ends the field at the hex box when there is no opacity box", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" showOpacity={false} />
+                </TestWrapper>,
+            );
+
+            const field = screen.getByTestId("compact-color-input-field");
+            expect(field.lastElementChild).toBe(screen.getByRole("textbox", { name: /hex/i }));
+        });
+
+        it("takes the field width from the width prop", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" width={156} />
+                </TestWrapper>,
+            );
+            expect(screen.getByTestId("compact-color-input-field").style.width).toBe("156px");
+        });
+
+        it("renders under a right-to-left direction provider", () => {
+            render(
+                <TestWrapper dir="rtl">
+                    <CompactColorInput defaultColor="#FF0000" label="Fill Color" />
+                </TestWrapper>,
+            );
+            expect(screen.getByRole("group", { name: "Fill Color" })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: /^Fill Color(,|$)/ })).toBeInTheDocument();
+        });
+    });
+
+    // Figma's paint field keyboard (design/figma-spec.md 7.2 and 6.1).
+    describe("keyboard", () => {
+        it("commits the hex on Enter and keeps focus in the box", async () => {
+            const user = userEvent.setup();
+            const onColorChange = vi.fn();
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" onColorChange={onColorChange} />
+                </TestWrapper>,
+            );
+
+            const hex = screen.getByRole("textbox", { name: /hex/i });
+            await user.clear(hex);
+            await user.type(hex, "0f0{Enter}");
+
+            expect(onColorChange).toHaveBeenCalledTimes(1);
+            expect(onColorChange.mock.calls[0][0]).toBe("#00FF00");
+            expect(hex).toHaveFocus();
+        });
+
+        it("reverts the hex on Escape and on anything that is not a color", async () => {
+            const user = userEvent.setup();
+            const onColorChange = vi.fn();
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" onColorChange={onColorChange} />
+                </TestWrapper>,
+            );
+
+            const hex = screen.getByRole("textbox", { name: /hex/i });
+            await user.clear(hex);
+            // A valid color, so only Escape can stop it being committed.
+            await user.type(hex, "123456{Escape}");
+            expect(hex).toHaveValue("FF0000");
+            expect(hex).toHaveFocus();
+            expect(onColorChange).not.toHaveBeenCalled();
+
+            await user.clear(hex);
+            await user.type(hex, "XYZ12Q");
+            await user.tab();
+            expect(hex).toHaveValue("FF0000");
+            expect(onColorChange).not.toHaveBeenCalled();
+        });
+
+        it("steps the opacity by 1 with the arrows and by 10 with Shift, committing each at once", async () => {
+            const user = userEvent.setup();
+            const onOpacityChange = vi.fn();
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" defaultOpacity={50} onOpacityChange={onOpacityChange} />
+                </TestWrapper>,
+            );
+
+            const opacity = screen.getByRole("textbox", { name: /opacity/i });
+            await user.click(opacity);
+            await user.keyboard("{ArrowUp}");
+            expect(onOpacityChange.mock.calls.at(-1)?.[0]).toBe(51);
+            await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+            expect(onOpacityChange.mock.calls.at(-1)?.[0]).toBe(41);
+            expect(onOpacityChange).toHaveBeenCalledTimes(2);
+        });
+
+        it("offers no reset when showReset is false", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput color="#00FF00" defaultColor="#FF0000" showReset={false} />
+                </TestWrapper>,
+            );
+            expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
+        });
+    });
+
+    // Every value editor in the library takes `disabled` and means the same
+    // thing by it: unusable, skipped by Tab, and announced as unavailable.
+    describe("disabled", () => {
+        it("refuses every one of its controls together", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" color="#00FF00" disabled />
+                </TestWrapper>,
+            );
+
+            expect(screen.getByTestId("compact-color-input-swatch")).toBeDisabled();
+            expect(screen.getByTestId("compact-color-input-hex")).toBeDisabled();
+            expect(screen.getByTestId("compact-color-input-opacity")).toBeDisabled();
+            expect(screen.getByTestId("compact-color-input-reset")).toBeDisabled();
+        });
+    });
+    // One gesture, one write. These tests exist because the application forked
+    // this whole component to escape the race the first of them reproduces, and
+    // U6 of the shell repair moves the fork back into the library: see the
+    // `onChange` doc comment in CompactColorInput.tsx.
+    describe("one write per gesture", () => {
+        /**
+         * The half of the color a controlled consumer is holding.
+         */
+        interface ColorSnapshot {
+            color?: string | undefined;
+            opacity?: number | undefined;
+        }
+
+        /**
+         * A controlled consumer shaped exactly like the style panel: it keeps
+         * both halves of the color in ONE state object and rebuilds that
+         * object from the snapshot the current render is holding.
+         *
+         * That closure is the whole point. It is what every controlled consumer
+         * of a two-part control does, and it is what makes two callbacks fired
+         * inside one React batch write over each other.
+         * @param props - Component props
+         * @param props.onWrite - Called with each state object the consumer builds
+         * @param props.combined - Use the combined `onChange` rather than the two separate callbacks
+         * @param props.showOpacity - Whether the control offers an opacity box
+         * @returns The control, driven from the consumer's own state
+         */
+        function ControlledConsumer({
+            onWrite,
+            combined,
+            showOpacity = true,
+        }: {
+            onWrite: (next: ColorSnapshot) => void;
+            combined: boolean;
+            showOpacity?: boolean;
+        }): React.JSX.Element {
+            const [style, setStyle] = useState<ColorSnapshot>({});
+
+            if (combined) {
+                return (
+                    <CompactColorInput
+                        label="Fill"
+                        defaultColor="#FF0000"
+                        showOpacity={showOpacity}
+                        color={style.color}
+                        opacity={style.opacity}
+                        onChange={(color, opacity): void => {
+                            const merged = { ...style, color, opacity };
+                            setStyle(merged);
+                            onWrite(merged);
+                        }}
+                    />
+                );
+            }
+
+            return (
+                <CompactColorInput
+                    label="Fill"
+                    defaultColor="#FF0000"
+                    showOpacity={showOpacity}
+                    color={style.color}
+                    opacity={style.opacity}
+                    onColorChange={(color): void => {
+                        const merged = { ...style, color };
+                        setStyle(merged);
+                        onWrite(merged);
+                    }}
+                    onOpacityChange={(opacity): void => {
+                        const merged = { ...style, opacity };
+                        setStyle(merged);
+                        onWrite(merged);
+                    }}
+                />
+            );
+        }
+
+        // The picker's swatches are found by their label, not with getByRole. A role query
+        // works out the role and the accessible name of every element in the open picker, which
+        // cost about 50 ms per lookup (more under coverage), and this group's tests passed the 5 s
+        // timeout in a loaded pre-push gate (issue #1503). Each swatch is a button labelled with
+        // its hexa value, so the label alone finds it.
+
+        /**
+         * Opens the picker and presses the half-transparent blue swatch, which
+         * is one gesture that moves BOTH halves of the color: `#5B8FF980` is
+         * `#5B8FF9` at 50 per cent.
+         * @param user - The user-event session driving the test
+         */
+        async function pickTranslucentBlue(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+            await user.click(screen.getByRole("button", { name: /^pick/i }));
+            // The picker's own swatches are named by their hexa value, so the
+            // half-transparent blue is reachable by name rather than by index.
+            await user.click(screen.getByLabelText("blue 5B8FF980"));
+        }
+
+        // THE DEFECT, pinned rather than fixed: two callbacks cannot carry one
+        // gesture, and this is why `onChange` exists. It is asserted as the
+        // behavior it is so that nobody deletes the combined callback on the
+        // grounds that the two separate ones "look fine".
+        it("the two separate callbacks cannot carry one gesture", async () => {
+            const user = userEvent.setup();
+            const writes = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <ControlledConsumer combined={false} onWrite={writes} />
+                </TestWrapper>,
+            );
+
+            await pickTranslucentBlue(user);
+
+            expect(writes).toHaveBeenCalledTimes(2);
+            expect(writes.mock.calls[0][0]).toEqual({ color: "#5B8FF9" });
+            // The second write was rebuilt from the same stale snapshot as the
+            // first, so the color the reader just picked is gone.
+            expect(writes.mock.calls[1][0]).toEqual({ opacity: 50 });
+        });
+
+        it("a picker gesture reports color and opacity in ONE onChange call", async () => {
+            const user = userEvent.setup();
+            const writes = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <ControlledConsumer combined onWrite={writes} />
+                </TestWrapper>,
+            );
+
+            await pickTranslucentBlue(user);
+
+            expect(writes).toHaveBeenCalledTimes(1);
+            expect(writes.mock.calls[0][0]).toEqual({ color: "#5B8FF9", opacity: 50 });
+        });
+
+        it("a consumer supplying only onChange gets exactly one call per gesture", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" label="Fill" onChange={onChange} />
+                </TestWrapper>,
+            );
+
+            await user.click(screen.getByRole("button", { name: /^pick/i }));
+            await user.click(screen.getByLabelText("blue 5B8FF980"));
+            expect(onChange).toHaveBeenCalledTimes(1);
+
+            await user.click(screen.getByLabelText("red FF6B6B80"));
+            expect(onChange).toHaveBeenCalledTimes(2);
+        });
+
+        it("offers the caller's swatches in the picker in place of the built-in set", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput
+                        defaultColor="#FF0000"
+                        label="Fill"
+                        swatches={["#123456FF"]}
+                        onChange={onChange}
+                    />
+                </TestWrapper>,
+            );
+
+            await user.click(screen.getByRole("button", { name: /^pick/i }));
+            expect(screen.queryByRole("button", { name: /5B8FF9/ })).not.toBeInTheDocument();
+            await user.click(screen.getByRole("button", { name: /123456/ }));
+            expect(onChange).toHaveBeenCalledWith("#123456", 100);
+        });
+
+        it("fires onChange on the hex commit with both halves", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" opacity={40} label="Fill" onChange={onChange} />
+                </TestWrapper>,
+            );
+
+            const hex = screen.getByRole("textbox", { name: /^Fill color(,|$)/ });
+            await user.clear(hex);
+            await user.type(hex, "00FF00");
+            await user.tab();
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe("#00FF00");
+            expect(onChange.mock.calls[0][1]).toBe(40);
+            expect(onChange.mock.calls[0][2].type).toBe("blur");
+        });
+
+        it("fires onChange on the opacity commit with both halves", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" color="#00FF00" label="Fill" onChange={onChange} />
+                </TestWrapper>,
+            );
+
+            const opacity = screen.getByRole("textbox", { name: /opacity/i });
+            await user.clear(opacity);
+            await user.type(opacity, "25");
+            await user.tab();
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe("#00FF00");
+            expect(onChange.mock.calls[0][1]).toBe(25);
+            expect(onChange.mock.calls[0][2].type).toBe("blur");
+        });
+
+        it("fires onChange on the reset with both halves cleared", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput
+                        defaultColor="#FF0000"
+                        color="#00FF00"
+                        opacity={40}
+                        label="Fill"
+                        onChange={onChange}
+                    />
+                </TestWrapper>,
+            );
+
+            await user.click(screen.getByRole("button", { name: /reset/i }));
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBeUndefined();
+            expect(onChange.mock.calls[0][1]).toBeUndefined();
+            expect(onChange.mock.calls[0][2].type).toBe("click");
+        });
+
+        // Given onChange AND an older callback, onChange is the only route: the
+        // older pair would be a second write for the same gesture, built from
+        // the same stale snapshot onChange exists to avoid.
+        describe("onChange together with the older callbacks", () => {
+            it("writes once through onChange on a picker gesture, and warns", async () => {
+                const user = userEvent.setup();
+                const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+                const onChange = vi.fn();
+                const onColorChange = vi.fn();
+                const onOpacityChange = vi.fn();
+
+                render(
+                    <TestWrapper>
+                        <CompactColorInput
+                            defaultColor="#FF0000"
+                            color="#FF0000"
+                            opacity={100}
+                            label="Fill"
+                            onChange={onChange}
+                            onColorChange={onColorChange}
+                            onOpacityChange={onOpacityChange}
+                        />
+                    </TestWrapper>,
+                );
+
+                await user.click(screen.getByRole("button", { name: /^pick/i }));
+                await user.click(screen.getByLabelText("blue 5B8FF980"));
+
+                expect(onChange).toHaveBeenCalledTimes(1);
+                expect(onColorChange).not.toHaveBeenCalled();
+                expect(onOpacityChange).not.toHaveBeenCalled();
+
+                const conflicts = warn.mock.calls.filter(([message]) =>
+                    String(message).includes("onColorChange or onOpacityChange"),
+                );
+                expect(conflicts).toHaveLength(1);
+                warn.mockRestore();
+            });
+
+            it("writes once through onChange on a hex commit", async () => {
+                const user = userEvent.setup();
+                const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+                const onChange = vi.fn();
+                const onColorChange = vi.fn();
+
+                render(
+                    <TestWrapper>
+                        <CompactColorInput
+                            defaultColor="#FF0000"
+                            label="Fill"
+                            onChange={onChange}
+                            onColorChange={onColorChange}
+                        />
+                    </TestWrapper>,
+                );
+
+                const hex = screen.getByRole("textbox", { name: /^Fill color(,|$)/ });
+                await user.clear(hex);
+                await user.type(hex, "00FF00");
+                await user.tab();
+
+                expect(onChange).toHaveBeenCalledTimes(1);
+                expect(onChange.mock.calls[0][0]).toBe("#00FF00");
+                expect(onColorChange).not.toHaveBeenCalled();
+                warn.mockRestore();
+            });
+        });
+
+        // The glow and outline color fields pass showOpacity={false}, which is
+        // the arrangement the application's fork used to paper over with a
+        // hardcoded opacity of 100. The control must still be usable, and must
+        // not clear an opacity the reader cannot see or reach.
+        it("carries one gesture through with showOpacity false", async () => {
+            const user = userEvent.setup();
+            const writes = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <ControlledConsumer combined showOpacity={false} onWrite={writes} />
+                </TestWrapper>,
+            );
+
+            expect(screen.queryByRole("textbox", { name: /opacity/i })).not.toBeInTheDocument();
+
+            await user.click(screen.getByRole("button", { name: /^pick/i }));
+            await user.click(screen.getByLabelText("blue 5B8FF980"));
+
+            expect(writes).toHaveBeenCalledTimes(1);
+            expect(writes.mock.calls[0][0]).toEqual({ color: "#5B8FF9", opacity: undefined });
+        });
+    });
+
+    describe("a caller taking its color back", () => {
+        it("shows the default again when the caller's color returns to undefined after a typed color", async () => {
+            const user = userEvent.setup();
+            const field = (color: string | undefined): ReactNode => (
+                <TestWrapper>
+                    <CompactColorInput color={color} defaultColor="#FF0000" onColorChange={vi.fn()} />
+                </TestWrapper>
+            );
+            const { rerender } = render(field(undefined));
+            const input = screen.getByRole("textbox", { name: /hex/i });
+            await user.clear(input);
+            await user.type(input, "00FF00");
+            await user.tab();
+            // The caller writes the color, then takes it back (an undo).
+            rerender(field("#00FF00"));
+            rerender(field(undefined));
+
+            const after = screen.getByRole("textbox", { name: /hex/i });
+            expect(after).toHaveAttribute("data-is-default", "true");
+            expect(after).toHaveValue("FF0000");
+        });
+    });
+
+    describe("a color with none in force", () => {
+        it("draws an empty swatch, not the picker's starting color, until one is chosen", () => {
+            const { rerender } = render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FFFFFF" emptyText="None" emptySwatch />
+                </TestWrapper>,
+            );
+            const swatch = screen.getByTestId("compact-color-input-swatch");
+            expect(swatch).toHaveAttribute("data-empty", "true");
+            expect(swatch.firstElementChild).toBeNull();
+
+            rerender(
+                <TestWrapper>
+                    <CompactColorInput color="#FF0000" defaultColor="#FFFFFF" emptyText="None" emptySwatch />
+                </TestWrapper>,
+            );
+            expect(swatch).not.toHaveAttribute("data-empty");
+            expect(swatch.firstElementChild).not.toBeNull();
+        });
+    });
+});

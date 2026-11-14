@@ -1,6 +1,6 @@
 // The results Worker's read side (design/ci/channels-pipeline/results-service.md 5.3 and 6; channels.md 5 and
 // 7; budgets-and-trust.md 1.6). Every answer is computed when it is read: no cron, no stored conclusion.
-import { refuse } from "./service.js";
+import { refuse, ROWS_MAX } from "./service.js";
 import { issueKey } from "./signature.js";
 
 const DAY = 86_400_000;
@@ -9,6 +9,12 @@ const FULL_RUN_SLOT = DAY / 4;
 const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may count (never local)
 const MASTER_EVIDENCE = "('full','bisect','base')"; // master's own code: the only kinds that excuse or pass a quarantine
 const QUARANTINE_PASSES = 20;
+const PLAN_VARIANTS_MAX = 100;
+// A variant's per-file durations read only its newest invocations: file_run is never pruned, and reading a variant's
+// whole history grew until a light check's plan read overloaded D1 (HTTP 500), its bins were packed without
+// history and pull requests ran about five times as many test jobs (#5404). A selected run's bin holds about 7
+// files, so 1,000 bins still give most files their 9 runs; a whole run's parts give every file far more.
+export const HISTORY_INVOCATIONS = 1000;
 // GPU tests, and the style fidelity slices: a sample judged differently on the same inputs is a determinism
 // defect in the drawing or the comparator (#4270)
 const NEVER_QUARANTINED = /^(webgpu-graph-algorithms|graphty-element-fidelity)/;
@@ -157,10 +163,14 @@ async function variantFacts(db, variant, inputs, now) {
     const runs = await all(
         db,
         `SELECT file, ms FROM (SELECT r.file, r.ms, row_number() OVER (PARTITION BY r.file ORDER BY i.started_at DESC) AS n
-           FROM file_run r JOIN invocation i ON i.id = r.invocation
-           WHERE i.variant = ? AND i.kind IN ${EVIDENCE} AND i.outcome IN ('passed','failed') AND r.ms IS NOT NULL)
+           FROM (SELECT id, started_at FROM invocation
+                 WHERE variant = ? AND kind IN ${EVIDENCE} AND outcome IN ('passed','failed')
+                 ORDER BY started_at DESC LIMIT ?) i
+           JOIN file_run r ON r.invocation = i.id
+           WHERE r.ms IS NOT NULL)
          WHERE n <= 9`,
         variant,
+        HISTORY_INVOCATIONS,
     );
     const byFile = Map.groupBy(runs, (r) => r.file);
     const fileMs = Object.fromEntries([...byFile].map(([file, rs]) => [file, median(rs.map((r) => r.ms))]));
@@ -212,6 +222,8 @@ export async function getPlan(q, who, db, now) {
     const variants = list(q.get("variants"));
     const inputs = list(q.get("inputs"));
     if (variants.length !== inputs.length) refuse(400, "variants and inputs must be lists of the same length");
+    // each variant fans out several queries at once: an everything run asks for ~55
+    if (variants.length > PLAN_VARIANTS_MAX) refuse(400, `a plan reads at most ${PLAN_VARIANTS_MAX} variants`);
     const pairs = variants.map((v, i) => [v, inputs[i]]);
     const families = [...new Set(variants.map((v) => v.split("|")[0]))];
     // in parallel: one after another, an everything run's ~55 variants took past the client's wait, so its bins
@@ -220,6 +232,7 @@ export async function getPlan(q, who, db, now) {
         await Promise.all(pairs.map(async ([v, k]) => [v, await variantFacts(db, v, k, now)])),
     );
     const files = list(q.get("files"));
+    if (files.length > ROWS_MAX) refuse(400, `a plan reads at most ${ROWS_MAX} files`);
     return {
         quarantine: (await activeQuarantine(db, families, now)).map((q) => ({ ...q, since: undefined })),
         failingOnBase: await failingOnBase(db, q.get("base"), pairs, new Set(files)),
@@ -322,6 +335,7 @@ const BLOCKING = {
     "green-images": "waiting-for-screenshots",
     approved: "resume-due",
     rejected: "rejected",
+    refused: "refused",
     "green-clean": "promotable",
 };
 
@@ -377,7 +391,7 @@ export async function getReleaseState(q, who, db, now) {
         ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ??
           nightly.movedAt - FULL_RUN_SLOT)
         : 0;
-    const last = states.findLast((s) => !["approved", "rejected"].includes(s.state));
+    const last = states.findLast((s) => !["approved", "rejected", "refused"].includes(s.state));
     const canary = await newestSite(db);
     const canaryVerdict = states.find((s) => s.sha === canary?.sha);
     const unpromoted = !!canary && !sameAsNightly(canary.sha, nightly?.sha, states) && canary.builtAt > nightlyBuilt;

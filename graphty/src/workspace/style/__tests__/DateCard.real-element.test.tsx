@@ -38,7 +38,9 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
         return;
     }
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+        await userEvent.click(
+            within(where).getAllByRole("button", { name: /^(Edit |Style (Nodes|Edges)\.\.\.)/ })[0] ?? document.body,
+        );
     }
     const control = await waitFor(() => {
         const ws = document.querySelector<HTMLElement>(".sel-ws");
@@ -200,6 +202,49 @@ describe("the date condition card", () => {
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(layer.id).matched, 3);
     });
+
+    it.each([
+        ["the inline editor", ["timeline"]],
+        ["the selection workspace", ["timeline", "selection-workspace"]],
+    ])(
+        "in %s: says how many have no date as a chip, and a typed non-date as a short field message",
+        async (_where, features) => {
+            await siteFeatures(features);
+            await openWithDates("data");
+            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            // The selection workspace opens on an empty card: its Value field lists the attributes.
+            const list = await waitFor(() => {
+                const found =
+                    screen.queryByRole("option", { name: /^installed(,|$)/ }) ??
+                    screen.queryByRole("button", { name: "Value" });
+                assert.isNotNull(found, "the attribute list, or the card's Value field");
+                return found;
+            });
+            if (list?.getAttribute("role") !== "option") {
+                await userEvent.click(list ?? document.body);
+            }
+            await userEvent.click(await screen.findByRole("option", { name: /^installed(,|$)/ }));
+            const card = await waitFor(() => {
+                const found = document.querySelector<HTMLElement>("[data-card-body]");
+                assert.isNotNull(found);
+                return found;
+            });
+            // Eight nodes, six with an install date: the card says how many it leaves out, as a chip.
+            const said = await waitFor(() => {
+                const text = card?.textContent ?? "";
+                assert.match(text, /Not measured|left out/, "the card says the two without a date");
+                return text;
+            });
+            assert.notInclude(said, "left out", "no sentence");
+            assert.include(said, "Not measured: 2");
+            await userEvent.click(
+                within(card ?? document.body).getByRole("combobox", { name: "installed before, a date or a year" }),
+            );
+            await userEvent.keyboard("abc{Enter}");
+            const alert = await within(card ?? document.body).findByRole("alert");
+            assert.strictEqual(alert.textContent, "Not a date");
+        },
+    );
 
     it("keeps the mode picked, and the date typed, across Before, After and Between", async () => {
         const session = await openWithDates("graph");

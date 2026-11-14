@@ -6,7 +6,14 @@
  * - an end caption placed on the line some distance from its node (Cytoscape.js `source-text-offset`),
  * - a node's outer border, a second ring outside its border (Cytoscape.js `outline-*`).
  */
-import { type AbstractMesh, Color3, type Mesh, type StandardMaterial, type Vector3 } from "@babylonjs/core";
+import {
+    type AbstractMesh,
+    type BoundingBox,
+    Color3,
+    type Mesh,
+    type StandardMaterial,
+    type Vector3,
+} from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { StaticStyle } from "../../src/catalog/types";
@@ -14,7 +21,7 @@ import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { gradientPieceColors } from "../../src/meshes/edgeGradient";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
-import { readDrawn } from "../fidelity/drawn-scene";
+import { type DrawnAnnotation, readDrawn } from "../fidelity/drawn-scene";
 import { strokedBarb } from "../fidelity/oracle/primitives";
 import { asData, edgeBetween, styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
 
@@ -311,7 +318,7 @@ function meetsLineFrom(head: ReturnType<typeof drawnHead>): number {
 }
 
 describe("a half arrow's line and barb (#5490)", () => {
-    test.each(["half-open", "half-open-flipped", "half-barb", "half-barb-flipped"])(
+    test.each(["half-open", "half-open-flipped"])(
         "%s: the line runs on to where the arm meets it, leaving no break",
         async (type) => {
             await oneEdge({ "edge.arrowHead": type, "edge.arrowHeadSize": 3 });
@@ -322,6 +329,17 @@ describe("a half arrow's line and barb (#5490)", () => {
             assert.isAtLeast(head.stop, head.tip - meetsLineFrom(head) - 1);
             // and not past the tip
             assert.isAtMost(head.stop, head.tip + 1);
+        },
+    );
+
+    test.each(["half-barb", "half-barb-flipped"])(
+        "%s: the line stops where Cytoscape stops it under HALF_TOP, 0.2 of its 1.135 back from the tip (#7769)",
+        async (type) => {
+            await oneEdge({ "edge.arrowHead": type, "edge.arrowHeadSize": 3 });
+            const head = drawnHead();
+            const length = head.tip - Math.min(...head.along);
+            assert.isAbove(length, 10, "the head is drawn large enough to measure");
+            assert.closeTo(head.stop, head.tip - (0.2 / 1.135) * length, 1);
         },
     );
 
@@ -449,11 +467,98 @@ describe("a node's underlay and overlay", () => {
         assert.strictEqual(paint(parts.overlay).emissiveColor.toHexString().toLowerCase(), "#0000ff");
     });
 
+    test("are read off the scene as shapes of their own round the node, in their colors", async () => {
+        await oneEdge(
+            {},
+            {
+                "node.underlayOpacity": 0.5,
+                "node.underlayColor": "#00ff00",
+                "node.underlayPadding": 0.5,
+                "node.overlayOpacity": 0.25,
+                "node.overlayColor": "#0000ff",
+                "node.overlayPadding": 0.25,
+            },
+        );
+        assert(graph);
+        const drawn = readDrawn(graph);
+        const node = drawn.nodes.get("A");
+        assert(node);
+        const around = (fill: string): DrawnAnnotation | undefined =>
+            drawn.annotations.find((a) => a.kind === "shape" && a.fill === fill && a.box.x0 < node.box.x0);
+        const under = around("#00ff00");
+        const over = around("#0000ff");
+        assert(under && over, "the drawn scene reads both");
+        assert.isBelow(under.box.x0, over.box.x0, "the underlay padded the farther");
+        assert.isAbove(over.box.x1, node.box.x1);
+    });
+
     test("draws none without an opacity", async () => {
         await oneEdge({}, { "node.underlayColor": "#00ff00", "node.underlayPadding": 0.5 });
         assert(graph);
         const node = graph.getDataManager().nodes.get("A");
         assert.isNull((node as unknown as { underlay: AbstractMesh | null }).underlay);
+        assert.isFalse(readDrawn(graph).annotations.some((a) => a.fill === "#00ff00"));
+    });
+});
+
+describe("a node's shadow", () => {
+    const shadowOf = (): { mesh: AbstractMesh; shadow: AbstractMesh[] } => {
+        assert(graph);
+        const node = graph.getDataManager().nodes.get("A");
+        assert(node);
+        return node as unknown as { mesh: AbstractMesh; shadow: AbstractMesh[] };
+    };
+    const box = (m: AbstractMesh): BoundingBox => {
+        m.computeWorldMatrix(true);
+        return m.getBoundingInfo().boundingBox;
+    };
+
+    test("is the node's shape moved right and down behind it, its soft edge in layers whose opacities make its own", async () => {
+        await oneEdge(
+            {},
+            {
+                "node.shadowOpacity": 0.3,
+                "node.shadowColor": "#ff0000",
+                "node.shadowBlur": 0.1,
+                "node.shadowOffsetX": 0.2,
+                "node.shadowOffsetY": 0.2,
+            },
+        );
+        const { mesh, shadow } = shadowOf();
+        assert.strictEqual(shadow.length, 4, "a soft edge is drawn in layers");
+        const fill = box(mesh);
+        const [outer, ...inner] = shadow.map(box);
+        // moved right and down (y up in the scene), the outermost layer the widest
+        assert.isAbove(outer.centerWorld.x, fill.centerWorld.x);
+        assert.isBelow(outer.centerWorld.y, fill.centerWorld.y);
+        for (const b of inner) {
+            assert.isBelow(b.maximumWorld.x - b.minimumWorld.x, outer.maximumWorld.x - outer.minimumWorld.x);
+        }
+        // 2D looks along +z: behind the node's back, the outermost layer farthest
+        assert.isAbove(outer.minimumWorld.z, fill.maximumWorld.z);
+        assert.isAbove(outer.minimumWorld.z, inner[0].maximumWorld.z);
+        const paints = shadow.map(
+            (m) => (m as unknown as { sourceMesh: Mesh }).sourceMesh.material as StandardMaterial,
+        );
+        assert.strictEqual(paints[0].emissiveColor.toHexString().toLowerCase(), "#ff0000");
+        const through = paints.reduce((left, p) => left * (1 - p.alpha), 1);
+        assert.closeTo(1 - through, 0.3, 1e-9);
+    });
+
+    test("is one layer at its opacity with no blur, read off the scene as a picture beside the node", async () => {
+        await oneEdge({}, { "node.shadowOpacity": 1, "node.shadowOffsetX": 0.2 });
+        assert.strictEqual(shadowOf().shadow.length, 1);
+        assert(graph);
+        const drawn = readDrawn(graph);
+        const node = drawn.nodes.get("A");
+        assert(node?.shadow, "the drawn scene reads the shadow");
+        assert.isAbove(node.shadow.x0, node.box.x0);
+        assert.isTrue(drawn.annotations.some((a) => a.kind === "image" && a.box === node.shadow));
+    });
+
+    test("draws none without an opacity", async () => {
+        await oneEdge({}, { "node.shadowColor": "#ff0000", "node.shadowOffsetX": 0.2 });
+        assert.strictEqual(shadowOf().shadow.length, 0);
     });
 });
 

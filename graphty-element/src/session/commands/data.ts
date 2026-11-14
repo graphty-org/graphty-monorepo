@@ -36,6 +36,7 @@ import type { DeclaredDirection } from "../../data/DataSource";
 import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { featureOff } from "../../features/resolve";
 import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
 import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
@@ -45,11 +46,12 @@ import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
 import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
-import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
+import { applyFileStyles, asksFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { Selector } from "../styles/selector";
+import { designateDeclaredTime } from "../time/declared";
 import type {
     HistoryCode,
     JoinRecord,
@@ -85,6 +87,8 @@ export type DataMutation =
           readonly target?: string;
           /** The repeated-edge policy for this call. */
           readonly repeated?: DuplicatePolicy;
+          /** The record key weights are read from for this call, overriding `data.knownFields.edgeWeightPath`. */
+          readonly weight?: string;
           /**
            * The graph's direction, declared the way a node-link JSON file's `"directed"` key
            * declares it, and taken on the same terms: only while the graph holds no edges, and
@@ -254,6 +258,8 @@ export interface ImportSource {
     readonly name?: string;
     /** The file's size in bytes, when a file was read. */
     readonly size?: number;
+    /** The name of the file it was read from. */
+    readonly fileName?: string;
 }
 
 /** `data.import`. */
@@ -299,9 +305,13 @@ export interface DataImportCommand {
     /**
      * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
      * Absent, the source's `styles` option decides, and without one the file's styles are left out.
+     * @experimental file-styles
      */
     readonly styles?: "file" | "none";
-    /** How the file's styles are turned into layers; the source's `styleOptions` when absent. */
+    /**
+     * How the file's styles are turned into layers; the source's `styleOptions` when absent.
+     * @experimental file-styles
+     */
     readonly styleOptions?: FileStyleOptions;
     /** Where the load came from, for its `data.sources()` entry; read from the source's type when absent. */
     readonly origin?: LoadedSourceKind;
@@ -330,6 +340,8 @@ export interface HeldRows {
     readonly edges: readonly Record<string, unknown>[];
     /** Each edge record's line, as `DraftRow.line` numbers it; its position from 1 when absent. */
     readonly edgeLines?: readonly number[] | null;
+    /** Each node record's line, as `DraftRow.line` numbers it; its position from 1 when absent. */
+    readonly nodeLines?: readonly number[] | null;
     /** The direction the file declared, read when the rows were. */
     readonly declaredDirection: DeclaredDirection | null;
     /** The rows reading the source refused. */
@@ -346,6 +358,8 @@ export interface HeldRows {
     readonly weight?: string | null;
     /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
     readonly repeated?: DuplicatePolicy;
+    /** `"held"`: `repeated` covers only pairs held before this load; its own repeats follow the configuration. */
+    readonly repeatedScope?: "held";
 }
 
 /** The load choices a `data.import` command carries. */
@@ -448,8 +462,9 @@ interface DataLabelCommand {
 /**
  * `data.setFileStyles`: replace the per-element style values the layers made from files read, one
  * entry per load. An empty list removes them all.
+ * @experimental file-styles
  */
-export interface DataSetFileStylesCommand {
+interface DataSetFileStylesCommand {
     readonly op: "data.setFileStyles";
     readonly loads: readonly FileStyleLoadValues[];
 }
@@ -602,10 +617,12 @@ export function describeSource(source: ImportSource): ImportSource {
                   Object.fromEntries(Object.entries(source.config).filter(([key]) => key !== "data" && key !== "file")),
               );
 
+    const fileName = (source.config?.file as { readonly name?: unknown } | undefined)?.name;
     return Object.freeze({
         ...(source.type === undefined ? {} : { type: source.type }),
         ...(source.name === undefined ? {} : { name: source.name }),
         ...(source.size === undefined ? {} : { size: source.size }),
+        ...(typeof fileName === "string" ? { fileName } : {}),
         ...(config === undefined ? {} : { config }),
     });
 }
@@ -700,6 +717,55 @@ export function replaceNodesCommand(
         fact: { code: "data.replace-nodes", params: {} },
         steps,
         ...(setup ? { setup } : {}),
+    };
+}
+
+/** The keys a moved edge record names its endpoints by, as `add-edges` reads them. */
+export interface MovedEndpoints {
+    readonly source: string;
+    readonly target: string;
+}
+
+/**
+ * The step merging nodes into one: the kept node takes the chosen values, every edge of a merged
+ * node is added again with that end on the kept node, and the merged nodes are removed with
+ * their own edges. Undo takes back all three as one step.
+ * @param kept - The node the others merge into.
+ * @param values - The values the kept node takes; none when it keeps its record as it is.
+ * @param merged - The nodes merged away.
+ * @param moved - Their edges' records, with each end already on the kept node.
+ * @param endpoints - The keys `moved` names its ends by.
+ * @returns The command.
+ */
+export function mergeNodesCommand(
+    kept: NodeId,
+    values: Readonly<Record<string, unknown>> | undefined,
+    merged: readonly NodeId[],
+    moved: readonly RecordInput[],
+    endpoints: MovedEndpoints,
+): BatchCommand {
+    const steps: DataApplyCommand[] = [];
+    if (values !== undefined && Object.keys(values).length > 0) {
+        steps.push({
+            op: "data.apply",
+            mutation: { kind: "update-rows", target: "node", rows: [{ id: kept, values }] },
+        });
+    }
+
+    steps.push({ op: "data.apply", mutation: { kind: "remove-nodes", ids: [...merged] } });
+    if (moved.length > 0) {
+        steps.push({
+            op: "data.apply",
+            mutation: { kind: "add-edges", records: moved, source: endpoints.source, target: endpoints.target },
+        });
+    }
+
+    const count = merged.length + 1;
+    return {
+        op: "batch",
+        label: `Merged ${String(count)} nodes`,
+        fact: { code: "data.merge-nodes", params: { count } },
+        steps,
     };
 }
 
@@ -919,6 +985,11 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
     byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
+        // Refused before anything is read: drawing a file's styles is the file styles experiment.
+        if (asksFileStyles(command) && ctx.services.fileStyles?.() === false) {
+            throw featureOff("file-styles", "styles");
+        }
+
         // The scene units one unit of the file's lengths is drawn as, once its styles are drawn:
         // the stored drawing a recommended fixed layout keeps takes the same unit (issue #2322).
         let sceneScale: number | null = null;
@@ -933,6 +1004,8 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
             await repickEdges(picked, ctx);
         }
 
+        // The time field the file declares, designated in this same step.
+        await designateDeclaredTime(outcome?.reader?.declaredTime, ctx);
         // The file's styles, and the previous file's layers swept, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (layoutChoiceOf(command) === "recommended") {
@@ -1198,6 +1271,12 @@ const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
     keys: () => [`graph/v:${FILE_STYLES_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
+        // Writing a file's style values is the file styles experiment; only a project open restores
+        // saved ones with it off, so reopening and saving a project keeps them.
+        if (ctx.services.fileStyles?.() === false && ctx.services.restoringFileStyles !== true) {
+            throw featureOff("file-styles", "data.setFileStyles");
+        }
+
         // Checked before anything is written: the values may come from a file anyone edited.
         const store = fileStyleStoreOf(command.loads);
         const service = serviceOf(ctx.services.data);

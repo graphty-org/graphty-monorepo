@@ -59,7 +59,12 @@ function fakeGemini(options: { failures?: { status: number; text: string }[]; ca
             serviceTier: body?.serviceTier === "flex" ? "flex" : "standard",
         };
         const candidates = [{ content: { role: "model", parts: [{ text: "done" }] }, finishReason: "STOP" }];
-        return Promise.resolve(Response.json({ candidates, usageMetadata }));
+        const answer = { candidates, usageMetadata };
+        return Promise.resolve(
+            url.includes(":streamGenerateContent")
+                ? new Response(`data: ${JSON.stringify(answer)}\r\n\r\n`)
+                : Response.json(answer),
+        );
     };
     return { fetch, sent };
 }
@@ -262,18 +267,20 @@ describe("GeminiTransport", () => {
         });
 
         it("hands the caller's own abort back as it is, never resent", async () => {
-            const api = fakeGemini();
             const caller = new AbortController();
             caller.abort(new Error("caller stopped"));
-            const fetch = (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
-                Promise.reject(init?.signal?.reason as Error);
+            const sent: string[] = [];
+            const fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+                sent.push(input instanceof Request ? input.url : input.toString());
+                return Promise.reject(init?.signal?.reason as Error);
+            };
             const transport = new GeminiTransport({ apiKey: "k", tier: "standard", fetch });
 
             let error: unknown;
             await transport.fetch(GENERATE, { ...request(), signal: caller.signal }).catch((e: unknown) => (error = e));
             assert.ok(error instanceof Error);
             assert.strictEqual(error.message, "caller stopped");
-            assert.strictEqual(api.sent.length, 0);
+            assert.deepStrictEqual(sent, [GENERATE], "sent once, never resent");
         });
     });
 
@@ -355,7 +362,7 @@ describe("GeminiTransport", () => {
         assert.match(other.summary(), /cost unknown$/);
     });
 
-    it("is the fetch the element's Google provider sends with, and caches the prefix the AI SDK writes", async () => {
+    it("is the fetch the element's Google provider sends with, and caches the prefix its adapter writes", async () => {
         const api = fakeGemini();
         const transport = new GeminiTransport({ apiKey: "k", tier: "flex", fetch: api.fetch });
         const provider = new VercelAiProvider("google");
@@ -370,7 +377,7 @@ describe("GeminiTransport", () => {
             assert.strictEqual(answer.text, "done");
         }
 
-        const generates = api.sent.filter((s) => s.url === GENERATE);
+        const generates = api.sent.filter((s) => s.url.includes(":streamGenerateContent"));
         assert.strictEqual(generates.length, 3);
         assert.ok(generates[0].body?.systemInstruction && generates[0].body.tools);
         assert.deepStrictEqual(
@@ -383,5 +390,6 @@ describe("GeminiTransport", () => {
         );
         assert.strictEqual(generates[2].body?.tools, undefined);
         assert.strictEqual(transport.usage.requests, 3);
+        assert.strictEqual(transport.usage.outputTokens, 90);
     });
 });

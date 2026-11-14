@@ -27,7 +27,9 @@ export interface RealInput {
 /**
  * Turns the wheel over the middle of an element: real input under the test runner, else one
  * replayed wheel event at the same point, as Storybook's own UI and the visual capture have no
- * real input to give.
+ * real input to give. Resolves once the browser has drawn a frame after the wheel: a shot taken in
+ * the frame the real wheel arrived in drew some icons with different edge pixels from one taken a
+ * frame later, so two renders of a story that ends on the wheel disagreed (#6048).
  * @param parameters - the story context's parameters.
  * @param element - where the wheel turns.
  * @param deltaY - how far, in pixels; negative is away from the reader.
@@ -36,6 +38,7 @@ export async function wheelOver(parameters: Record<string, unknown>, element: El
     const real = realInput(parameters);
     if (real !== undefined) {
         await real.wheel(element, deltaY);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
         return;
     }
     const box = element.getBoundingClientRect();

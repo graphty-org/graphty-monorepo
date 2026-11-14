@@ -129,7 +129,7 @@ function layer(target: "node" | "edge", tag: string, set: Record<string, unknown
  */
 function measuredInput(edge: Edge): EdgeTrimInput {
     const input = edge.trimInput;
-    const [srcMesh, dstMesh] = [edge.srcNode.drawnPickMesh, edge.dstNode.drawnPickMesh];
+    const [srcMesh, dstMesh] = [edge.srcNode.drawnAnchor, edge.dstNode.drawnAnchor];
     srcMesh.computeWorldMatrix(true);
     dstMesh.computeWorldMatrix(true);
     const srcWorld = srcMesh.getAbsolutePosition();
@@ -144,7 +144,12 @@ function measuredInput(edge: Edge): EdgeTrimInput {
      * @param mesh - What it meets.
      * @returns The fraction of the line, or null for a miss.
      */
-    const hit = (from: Vector3, to: Vector3, mesh: typeof srcMesh): number | null => {
+    const hit = (from: Vector3, to: Vector3, anchor: typeof srcMesh): number | null => {
+        const mesh = anchor === srcMesh ? edge.srcNode.drawnPickMesh : edge.dstNode.drawnPickMesh;
+        if (mesh === null) {
+            return null;
+        }
+
         edge.ray.origin.copyFrom(from);
         to.subtractToRef(from, edge.ray.direction);
         const point = edge.ray.intersectsMeshes([mesh])[0]?.pickedPoint;
@@ -287,10 +292,11 @@ function shaderEnds(inputs: EdgeTrimInput[]): TrimmedEnds[] {
     const program = trimProgram(gl);
     gl.useProgram(program);
 
-    const floats = inputs.flatMap(({ src, dst, source, target, capBack }) => [
+    // the shader takes the gap and the head as one distance
+    const floats = inputs.flatMap(({ src, dst, source, target, capBack, capGap = 0 }) => [
         ...[src.x, src.y, src.z, 0],
         ...[dst.x, dst.y, dst.z, 0],
-        ...[capBack, 0, 0, 0],
+        ...[capGap + capBack, 0, 0, 0],
         ...packEnd(source),
         ...packEnd(target),
     ]);
@@ -510,15 +516,22 @@ function meshReads(nodes: readonly Node[], run: () => void): number {
             return Reflect.has(target, key);
         },
     };
+    // A row a batch draws has no mesh left to count.
     const held = nodes.map((node) => node.drawnPickMesh);
     nodes.forEach((node, i) => {
-        node.mesh = new Proxy(held[i], count);
+        const mesh = held[i];
+        if (mesh !== null) {
+            node.mesh = new Proxy(mesh, count);
+        }
     });
     try {
         run();
     } finally {
         nodes.forEach((node, i) => {
-            node.mesh = held[i];
+            const mesh = held[i];
+            if (mesh !== null) {
+                node.mesh = mesh;
+            }
         });
     }
 

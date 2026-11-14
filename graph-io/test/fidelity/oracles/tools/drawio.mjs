@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Re-creates the yEd GraphML stand-in oracles: draw.io 32.4.1's own SVG of a yEd GraphML sample. Nearly every such
-// oracle is now the real program's own drawing (TOOLS.md, "yEd's oracles"): this script skips those, whatever ids it
-// is given, so today it draws only `yed-graphml-specimen-images-charts`, a file yEd refuses to open.
+// Re-creates the yEd GraphML stand-in oracles: draw.io 32.4.1's own SVG of a yEd GraphML sample. Every such oracle is
+// now the real program's own drawing (TOOLS.md, "yEd's oracles"): this script skips those, whatever ids it is given,
+// so today it draws nothing; it stays for a sheet yEd or yEd Live cannot open.
 //
 // Two of draw.io's own steps, unmodified, in headless Chromium on draw.io's export page
 // (src/main/webapp/export3.html, the page the draw.io desktop CLI `drawio -x -f svg` drives):
@@ -26,27 +26,20 @@
 // tools/drawio/app/drawio/src/main/webapp). Fonts: Chromium runs with the repository's pinned fonts
 // (visual-fonts/fonts.conf). The PNG beside each SVG comes from rasterize.mjs (resvg).
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
-import { isolatedGitEnv } from "../../../../../tools/isolated-git-env.mjs";
 import { gunzipSync } from "node:zlib";
 import process from "node:process";
 
+import { mainCheckout } from "./main-checkout.mjs";
 import { isYedDrawing } from "./own-drawing.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../../../..");
-const main = dirname(
-    execFileSync("git", ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
-        encoding: "utf8",
-        env: isolatedGitEnv(),
-    }).trim(),
-);
-const web = process.env.DRAWIO_WEBAPP ?? join(main, "tmp/style-fidelity/tools/drawio/app/drawio/src/main/webapp");
+const web =
+    process.env.DRAWIO_WEBAPP ?? join(mainCheckout, "tmp/style-fidelity/tools/drawio/app/drawio/src/main/webapp");
 const W = 1200;
 const H = 900;
 const corpus = "graph-io/test/corpus/styles";

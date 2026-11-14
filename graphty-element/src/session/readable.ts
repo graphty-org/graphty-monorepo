@@ -116,7 +116,7 @@ function entryOf(
  * @param field - The run field it is, when it is one, for a declared order.
  * @returns The kind.
  */
-export function valueKindOf(
+function valueKindOf(
     column: AttributeDescriptor,
     declaration: MeasurementDeclaration | undefined,
     field?: FieldDescriptor,

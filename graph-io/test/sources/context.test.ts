@@ -70,6 +70,26 @@ describe("credential binding", () => {
         expect([seen[1].cache, seen[1].redirect]).toEqual(["default", "follow"]);
     });
 
+    it("sends a User-Agent from Node only: the caller's, else the source's, else graph-io's", async () => {
+        const seen: Request[] = [];
+        const fetch = (input: RequestInfo | URL): Promise<Response> => {
+            seen.push(input as Request);
+            return Promise.resolve(new Response("{}"));
+        };
+        await bareContext({ fetch }, { endpoint: API }).ctx.fetch("/a");
+        await bareContext({ fetch, userAgent: "me/1" }, { endpoint: API }).ctx.fetch("/a", {
+            headers: { "user-agent": "source/1" },
+        });
+        await bareContext({ fetch }, { endpoint: API }).ctx.fetch("/a", { headers: { "user-agent": "source/1" } });
+        await bareContext({ fetch, userAgent: "me/1" }, { endpoint: API, runtime: "browser" }).ctx.fetch("/a");
+        expect(seen.map((r) => r.headers.get("user-agent"))).toEqual([
+            "graphty-graph-io (+https://graphty.app)",
+            "me/1",
+            "source/1",
+            null,
+        ]);
+    });
+
     it("uses redirect error in a browser, where a manual redirect is opaque", async () => {
         const seen: Request[] = [];
         const fetch = (input: RequestInfo | URL): Promise<Response> => {
@@ -372,6 +392,36 @@ describe("pacing", () => {
         }
         await all;
         expect(peak).toBe(2);
+    });
+
+    it("rejects a request waiting for a slot as soon as its load aborts or times out", async () => {
+        let started = 0;
+        const held: (() => void)[] = [];
+        const fetch = (): Promise<Response> => {
+            started++;
+            return new Promise((resolve) => held.push(() => resolve(new Response("{}"))));
+        };
+        const extra = {
+            endpoint: API,
+            id: "paced-abort",
+            descriptor: { plainName: "P", params: [], rateLimit: { requests: 100, perMs: 1000, concurrent: 1 } },
+        };
+        // one load holds the only slot; the next two queue behind it
+        const holder = bareContext({ fetch }, extra).ctx.fetch("/a");
+        const controller = new AbortController();
+        const aborted = bareContext({ fetch, signal: controller.signal }, extra).ctx.fetch("/a");
+        const timed = bareContext({ fetch, limits: { timeoutMs: 5 } }, extra);
+        const timedOut = rejection(timed.ctx.fetch("/a"));
+        await new Promise((r) => setImmediate(r));
+        controller.abort("user");
+        await expect(aborted).rejects.toBe("user");
+        expect((await timedOut).issue?.code).toBe("E_SOURCE_TIMEOUT");
+        timed.dispose();
+        // the queued loads left the queue: neither was sent, and the slot passes to no one
+        expect(started).toBe(1);
+        held.shift()?.();
+        await holder;
+        expect(started).toBe(1);
     });
 });
 

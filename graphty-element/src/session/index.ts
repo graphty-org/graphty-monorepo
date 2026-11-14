@@ -22,32 +22,28 @@ export type {
     BuiltInModelFormat,
     ModelFormat,
     ModelLimits,
+    ModelPart,
+    ModelPartRole,
+    ModelPartState,
     ModelSummary,
     NamedBlob,
     PartAnswer,
 } from "./assets/AssetsApi";
 export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
+export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./backgroundImage";
+export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./backgroundImage";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
 export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
-export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./issues";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
-export type { DefaultableLimits } from "./limits";
+export type { DefaultableLimits, LimitsOption } from "./limits";
 export { DEFAULT_LIMITS } from "./limits";
 export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./network";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
-export type {
-    RecipeColumn,
-    RecipeDocument,
-    RecipeIgnoredIssue,
-    RecipeJoin,
-    RecipeLeftOutCode,
-    RecipeSource,
-} from "./recipe";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type { LoadStyleReport } from "./styles/fileStyles/apply";
 export type {
@@ -83,6 +79,8 @@ export type {
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
+    DataChange,
+    DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
     DraftColumn,
@@ -91,6 +89,7 @@ export type {
     DraftRowOptions,
     DraftTable,
     EdgeEnd,
+    EdgeName,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
@@ -114,6 +113,10 @@ export type {
     GraphSettingKey,
     GraphStatistics,
     GroupOutlineClick,
+    GroupSummary,
+    GroupTable,
+    GroupTableOptions,
+    GroupTableRow,
     HistoryCause,
     HistoryClearOptions,
     HistoryCode,
@@ -121,15 +124,22 @@ export type {
     HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    ImportColumnsInput,
     ImportOptions,
     JoinChoices,
     JoinKey,
+    JoinLink,
+    JoinLookup,
+    JoinMapping,
     JoinRecord,
+    JoinReduce,
+    JoinRegion,
     JoinReport,
     JoinRowFate,
     JoinShape,
     JoinSuggestion,
     JoinWarning,
+    LayoutMotion,
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
@@ -142,14 +152,20 @@ export type {
     LocationKind,
     LocationUnused,
     LocationUsing,
+    MergeNodesOptions,
     ModelChange,
     ModelState,
+    MultipleTestingCorrection,
     Neighbor,
     NeighborOptions,
     NeighborPage,
     NeighborSort,
+    NodeName,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedGroup,
+    OverRepresentedValue,
+    OverRepresentedValues,
     PageColumn,
     PendingId,
     PendingStep,
@@ -161,6 +177,7 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemapOptions,
     RemoveSourceResult,
     ReplaceCounts,
     ReplaceReport,
@@ -169,15 +186,19 @@ export type {
     ResultColumn,
     ResultColumnDescriptor,
     ResultSort,
+    RowReason,
+    RowReasonCode,
     RowUpdate,
     RunPlacement,
     SessionAttributes,
+    SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
     SessionDataApi,
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHidden,
     SessionHistory,
     SessionLayout,
     SessionPositions,

@@ -288,6 +288,17 @@ describe("edge route geometry", () => {
             ),
             [10, 0, 0, 9, 3, 0, 11, 3, 0, 10, 0, 0],
         );
+        // a route whose first and last bends are the layout's own line ends adds no node center
+        assert.deepEqual(
+            fileRoute(
+                at(0, 0),
+                at(8, 0),
+                { bends: [0.25, 0, 0.5, -0.5, 0.75, 0], srcPort: null, dstPort: null, loop: false, ends: true },
+                half,
+                half,
+            ),
+            [2, 0, 0, 4, -4, 0, 6, 0, 0],
+        );
     });
 
     it("draws a stored route from its first point outside the source to its last outside the target, or from its ports", () => {

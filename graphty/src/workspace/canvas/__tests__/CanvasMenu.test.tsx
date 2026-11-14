@@ -46,8 +46,11 @@ function standIn(
             return () => set.delete(listener);
         },
         selection,
-        data: { statistics: () => ({ nodeCount: 3, edgeCount: 2 }), node: () => undefined },
+        // A node with no network source, as a real session reports one a file loaded.
+        data: { statistics: () => ({ nodeCount: 3, edgeCount: 2 }), node: () => undefined, nodeSource: () => null },
         layout: { dimension: "3d" },
+        // No experiment switched on, as a real session carries.
+        features: { enabled: [] },
     } as unknown as GraphSession;
     const element = {
         renderQuality: { level: "high", motion, heavy: "on" },

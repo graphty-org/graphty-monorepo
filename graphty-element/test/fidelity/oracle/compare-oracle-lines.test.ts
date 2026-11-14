@@ -23,6 +23,8 @@ import {
     type PScene,
     type PStroke,
     type Pt,
+    rampAngleOnScreen,
+    spreadStops,
 } from "./primitives";
 
 const fill = (color: string, gradient: PGradient | null = null): PFill => ({ color, opacity: 1, gradient });
@@ -704,6 +706,114 @@ describe("gradients", () => {
             failing(o, scene("graphty", [], nodes({ ...linear(0, "#ff0000", "#0000ff"), kind: "radial" }))),
             ["node.gradient"],
         );
+    });
+
+    it("unrolls a reflected or repeated ramp into the colors it paints across its shape", () => {
+        const wb = linear(0, "#ffffff", "#0000ff").stops;
+        // yEd's shape node: the ramp from a third across to the right side, reflected over the left third
+        assert.deepEqual(spreadStops(wb, "reflect", -0.5, 1), [
+            { offset: 0, color: "#8080ff", opacity: 1 },
+            { offset: 0.333333, color: "#ffffff", opacity: 1 },
+            { offset: 1, color: "#0000ff", opacity: 1 },
+        ]);
+        // yEd Live's linear-gradient-reflect: 0.4 to 0.6 of a box, back and forth five times across it
+        assert.deepEqual(
+            spreadStops(wb, "reflect", -2, 3).map((s) => [s.offset, s.color]),
+            [0, 0.2, 0.4, 0.6, 0.8, 1].map((offset, i) => [offset, i % 2 === 0 ? "#ffffff" : "#0000ff"]),
+        );
+        // a repeat jumps back to its first color at each seam
+        assert.deepEqual(
+            spreadStops(wb, "repeat", 0, 2).map((s) => [s.offset, s.color]),
+            [
+                [0, "#ffffff"],
+                [0.5, "#0000ff"],
+                [0.5, "#ffffff"],
+                [1, "#0000ff"],
+            ],
+        );
+        // ... sharp too where its stops stop short of its ends, and a hard stop stays hard run either way
+        const short = wb.map((st, i) => ({ ...st, offset: i === 0 ? 0.2 : 0.8 }));
+        assert.deepEqual(
+            spreadStops(short, "repeat", 0, 2).map((s) => [s.offset, s.color]),
+            [
+                [0, "#ffffff"],
+                [0.1, "#ffffff"],
+                [0.4, "#0000ff"],
+                [0.5, "#0000ff"],
+                [0.5, "#ffffff"],
+                [0.6, "#ffffff"],
+                [0.9, "#0000ff"],
+                [1, "#0000ff"],
+            ],
+        );
+        const hard = linear(0, "#ff0000", "#ff0000", "#0000ff", "#0000ff").stops.map((st, i) => ({
+            ...st,
+            offset: [0, 0.5, 0.5, 1][i],
+        }));
+        assert.deepEqual(
+            spreadStops(hard, "reflect", 0, 2).map((s) => [s.offset, s.color]),
+            [
+                [0, "#ff0000"],
+                [0.25, "#ff0000"],
+                [0.25, "#0000ff"],
+                [0.5, "#0000ff"],
+                [0.75, "#0000ff"],
+                [0.75, "#ff0000"],
+                [1, "#ff0000"],
+            ],
+        );
+        // a ramp that spans its shape, or a padded one, keeps its stops
+        assert.deepEqual(spreadStops(wb, "reflect", 0, 1), wb);
+        assert.deepEqual(spreadStops(wb, "pad", -0.5, 1), wb);
+    });
+
+    it("judges a reflected ramp by the colors it paints, and still fails one drawn from its stops alone", () => {
+        const painted: PGradient = {
+            kind: "linear",
+            stops: spreadStops(linear(0, "#ffffff", "#0000ff").stops, "reflect", -0.5, 1),
+            angle: 0,
+        };
+        const nodes = (g: PGradient): PNode[] =>
+            NODES.map(([id, x, y]) => node(id, x, y, { fill: fill(g.stops[0].color, g) }));
+        const o = scene("oracle", [], nodes(painted));
+        const unrolled: PGradient = {
+            kind: "linear",
+            stops: [
+                { offset: 0, color: "#8080ff", opacity: 1 },
+                { offset: 1 / 3, color: "#ffffff", opacity: 1 },
+                { offset: 1, color: "#0000ff", opacity: 1 },
+            ],
+            angle: 0,
+        };
+        assert.deepEqual(failing(o, scene("graphty", [], nodes(unrolled))), []);
+        // white to blue from the left side, as the ramp's stops read alone, is not what yEd paints
+        assert.include(failing(o, scene("graphty", [], nodes(linear(0, "#ffffff", "#0000ff")))), "node.gradient");
+    });
+
+    it("judges a stretched ramp by the direction its color changes on screen, and still fails one run the wrong way", () => {
+        // graphml-yfiles-html-stag-flowchart: yEd Live's ramp runs corner to corner of a 220 x 94 box in
+        // objectBoundingBox units, and graphty's at 45 degrees across its square texture stretched over the same box;
+        // both change color along 66.9 degrees on screen, though the oracle's vector runs along 23.1
+        const box: [number, number, number, number] = [220, 0, 0, 94];
+        const ramp = (deg: number): number =>
+            rampAngleOnScreen([Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180)], box) ?? Number.NaN;
+        const yedLive = rampAngleOnScreen([1, 1], box) ?? Number.NaN;
+        assert.closeTo(yedLive, 66.87, 0.01);
+        const nodes = (g: PGradient): PNode[] =>
+            NODES.map(([id, x, y]) => node(id, x, y, { fill: fill("#ff0000", g) }));
+        const o = scene("oracle", [], nodes(linear(yedLive, "#ff0000", "#0000ff")));
+        assert.deepEqual(failing(o, scene("graphty", [], nodes(linear(ramp(45), "#ff0000", "#0000ff")))), []);
+        // the same box's other diagonal, or the ramp left to right, is the wrong way however the box stretches it
+        assert.deepEqual(failing(o, scene("graphty", [], nodes(linear(ramp(135), "#ff0000", "#0000ff")))), [
+            "node.gradient",
+        ]);
+        assert.deepEqual(failing(o, scene("graphty", [], nodes(linear(ramp(0), "#ff0000", "#0000ff")))), [
+            "node.gradient",
+        ]);
+        // and run backwards along the right line it still fails: a program's ramp has a direction, not only a line
+        assert.deepEqual(failing(o, scene("graphty", [], nodes(linear(ramp(225), "#ff0000", "#0000ff")))), [
+            "node.gradient",
+        ]);
     });
 
     it("fails an edge drawn flat where the program draws a gradient along it", () => {

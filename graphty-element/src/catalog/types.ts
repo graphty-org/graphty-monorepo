@@ -23,12 +23,13 @@ import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graph-samples";
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { ChannelDescriptor } from "../session/styles/channels";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
-import type { ShaderDescriptor, ShaderText, ShaderUse } from "./shaders";
+import type { ShaderDescriptor, ShaderProblem, ShaderText, ShaderUse } from "./shaders";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -538,7 +539,7 @@ export interface OptionBound {
  *
  * "unknown" is not a control. It is what the Zod emitter records when a schema uses a
  * construct it cannot classify: the option is still published, still carries its name and its
- * default, and says why it could not be typed in `unsupportedReason`. Dropping the option or
+ * default, and says why it could not be typed in `unsupported`. Dropping the option or
  * throwing would both hide a real gap, so neither is allowed.
  */
 export const OPTION_TYPES = [
@@ -614,8 +615,51 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     /**
      * Why `type` is "unknown", in a sentence naming the construct that could not be
      * classified. Present only when `type` is "unknown".
+     * @deprecated Read {@link OptionDescriptor.unsupported} and word it in the application.
+     * Removed at the next major release.
      */
     unsupportedReason?: string;
+    /**
+     * Why `type` is "unknown", as a code with no words. Present on every "unknown" option the
+     * element derives from a schema; a descriptor written by hand may leave it out. See {@link OptionUnsupportedCode} for the codes.
+     * @since 3.38.0
+     */
+    unsupported?: OptionUnsupported;
+}
+
+/**
+ * Why an option's schema has no control, as {@link OptionDescriptor.unsupported} reports it:
+ *
+ * - `option.recursive` -- the schema refers to itself, so it has no single value type.
+ * - `option.only-null` -- the only value the schema accepts is null.
+ * - `option.no-type` -- the schema declares no value type.
+ * - `option.union` -- the schema is a union with no single control; `params.types` names its arms'
+ *   types.
+ * - `option.array` -- an array option; give it a type with an override.
+ * - `option.object` -- an object or record option; give it a type with an override.
+ * - `option.untyped` -- the construct has no JSON Schema type, so its values cannot be classified.
+ * - `option.not-convertible` -- the schema could not be converted to JSON Schema at all.
+ *
+ * New codes may be added in a minor release.
+ * @since 3.38.0
+ */
+export type OptionUnsupportedCode =
+    | "option.recursive"
+    | "option.only-null"
+    | "option.no-type"
+    | "option.union"
+    | "option.array"
+    | "option.object"
+    | "option.untyped"
+    | "option.not-convertible";
+
+/**
+ * Why an option's schema has no control: a code, and for `option.union` the arms' types.
+ * @since 3.38.0
+ */
+export interface OptionUnsupported {
+    readonly code: OptionUnsupportedCode;
+    readonly params: { readonly types?: readonly string[] };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -683,6 +727,7 @@ export type Channel =
     | "node.tooltipStyle"
     | "node.opacity"
     | "node.outline"
+    | "node.outlineWidth"
     | "node.glow"
     | "node.glowStrength"
     | "node.halo"
@@ -718,6 +763,11 @@ export type Channel =
     | "node.raisedBorderWidth"
     | "node.raisedBorderLightColor"
     | "node.raisedBorderDarkColor"
+    | "node.shadowColor"
+    | "node.shadowOpacity"
+    | "node.shadowBlur"
+    | "node.shadowOffsetX"
+    | "node.shadowOffsetY"
     | "node.underlayColor"
     | "node.underlayOpacity"
     | "node.underlayPadding"
@@ -739,6 +789,8 @@ export type Channel =
     | "node.shapeTexts"
     | "node.labelTable"
     | "node.shapeLineWidth"
+    | "node.shapeLineHaloColor"
+    | "node.shapeLineHaloWidth"
     | "node.labelFit"
     | "node.labelPaddingX"
     | "node.labelPaddingY"
@@ -805,6 +857,8 @@ export type Channel =
     | "node.chartLineWidth"
     | "node.chartBorderColor"
     | "node.chartBorderWidth"
+    | "node.chartBackgroundColor"
+    | "node.chartBackgroundOpacity"
     | "node.model"
     | "node.modelSourceUp"
     | "node.modelTurn"
@@ -848,6 +902,8 @@ export type Channel =
     | "edge.patternCount"
     | "edge.waveAmplitude"
     | "edge.wavePeriod"
+    | "edge.dashLength"
+    | "edge.dashGap"
     | "edge.curvature"
     | "edge.bends"
     | "edge.fanSpacing"
@@ -877,6 +933,7 @@ export type Channel =
     | "edge.arrowHeadGap"
     | "edge.arrowHeadStack"
     | "edge.arrowHeadColor"
+    | "edge.arrowHeadFillColor"
     | "edge.arrowHeadOpacity"
     | "edge.arrowHeadImage"
     | "edge.arrowHeadText"
@@ -900,6 +957,7 @@ export type Channel =
     | "edge.arrowTailGap"
     | "edge.arrowTailStack"
     | "edge.arrowTailColor"
+    | "edge.arrowTailFillColor"
     | "edge.arrowTailOpacity"
     | "edge.arrowTailImage"
     | "edge.arrowTailText"
@@ -921,6 +979,7 @@ export type Channel =
     | "edge.arrowMiddleHeadOutlineWidth"
     | "edge.arrowMiddleHeadPosition"
     | "edge.arrowMiddleHeadColor"
+    | "edge.arrowMiddleHeadFillColor"
     | "edge.arrowMiddleHeadOpacity"
     | "edge.arrowMiddleHeadImage"
     | "edge.arrowMiddleTail"
@@ -930,6 +989,7 @@ export type Channel =
     | "edge.arrowMiddleTailOutlineWidth"
     | "edge.arrowMiddleTailPosition"
     | "edge.arrowMiddleTailColor"
+    | "edge.arrowMiddleTailFillColor"
     | "edge.arrowMiddleTailOpacity"
     | "edge.arrowMiddleTailImage"
     | "edge.animationSpeed"
@@ -1330,6 +1390,7 @@ export interface LayerSpec {
      * Where a layer made from a file's styles came from: the element's facts about it, set when
      * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
      * Absent on every other layer. An update that does not name it keeps it.
+     * @experimental file-styles
      */
     fileStyle?: FileStyleOrigin;
     /**
@@ -1384,11 +1445,22 @@ export interface StyleDocument {
      */
     tree?: readonly StyleDocumentRow[];
     /**
-     * The text of each pasted shader the layers name, verbatim in the shader text format, so a
-     * document copied alone keeps its shaders. Absent when the layers name none.
+     * The project's shaders, each `{ id, text }` with the complete shader text (header, parameter
+     * declarations and defaults, body, low-detail body), built-ins copied in included. An `id` is a
+     * key into this list and nothing more: a layer's use, an encode key
+     * `<target>.shaders.<id>.<param>` and the background name a shader by it, and a reader resolves
+     * them here, never against its own catalog, so a file opens the same on a build that no longer
+     * ships a shader it used. Absent when the project holds none.
      * @since 3.36.0
      */
     shaders?: readonly { readonly id: string; readonly text: ShaderText }[];
+    /**
+     * What `toDocument` found wrong while writing: `shader.not-saved` with `id`, a shader a layer,
+     * an encode key or the background names that the document does not carry. An element bug,
+     * never expected; ignored on reading. Absent when nothing is wrong.
+     * @since 3.36.0
+     */
+    problems?: readonly ShaderProblem[];
 }
 
 /** One row of a saved style tree: a layer, by its place in the document, or a folder. */
@@ -1565,6 +1637,7 @@ export interface FormatDescriptor {
      * styles (`styles: "file"` on a load), and what its writer keeps of a graph's styles --
      * `"rules"` (the layers come back as layers when the file is read again), `"values"` (only
      * each element's values) or `"none"`. Absent means `{ read: false, write: "none" }`.
+     * @experimental file-styles
      */
     styles?: FormatStyles;
     /**
@@ -1578,7 +1651,10 @@ export interface FormatDescriptor {
     description?: string;
 }
 
-/** What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}. */
+/**
+ * What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}.
+ * @experimental file-styles
+ */
 export interface FormatStyles {
     /** Whether the reader can draw a file's own styles. */
     readonly read: boolean;
@@ -1989,10 +2065,24 @@ export interface MetricAvailability {
  * The result of checking an expression. Validation covers references, not only syntax: an
  * expression that parses perfectly and names a run or an attribute that does not exist matches
  * nothing, silently, which reads exactly like a correct answer of zero.
+ *
+ * `ok` is true only when the expression parses and every path it reads is answered.
  */
 export interface QueryValidation {
     ok: boolean;
-    error?: { code: GraphtyErrorCode; message: string; position: number };
+    /**
+     * Why the expression does not parse, as a code and its parameters, never as words: `code` is
+     * `E_BAD_SELECTOR`, `position` the character offset of the mistake, and `params` the error's
+     * `details` (`reason`, one of the selector refusal reasons, and the values it names). A
+     * `formula` is `E_UNSUPPORTED` at position 0, since the formula grammar is not implemented.
+     * Absent when it parses.
+     */
+    error?: { code: GraphtyErrorCode; position: number; params: Readonly<Record<string, unknown>> };
+    /**
+     * The paths it reads that nothing in this session answers: `unknown-run` for a `results.`
+     * path naming no run here, `unknown-attribute` for any other. `candidates` are the nearest
+     * paths that would be answered, nearest first. Empty when it does not parse.
+     */
     unresolvedPaths: readonly {
         path: Path;
         reason: "unknown-run" | "unknown-attribute";
@@ -2292,6 +2382,14 @@ export interface UnionLeaf {
      * loaded). A visibility filter condition must read `"graph"`.
      */
     readonly within: "graph" | "visible";
+    /**
+     * Narrows the base to the nodes and edges these loads supplied (`session.data.sources()`
+     * keys, what `session.data.sourcesOf(id)` lists): a branch that starts with `"all"` starts
+     * with theirs, a step adds only theirs, and a reading's totals count only theirs. Absent:
+     * every load's. A load that is gone supplies nothing.
+     * @since 3.36.0
+     */
+    readonly sources?: readonly SourceKey[];
     /** The branches, in order. */
     readonly branches: readonly UnionBranch[];
 }
@@ -2548,6 +2646,19 @@ export interface FilterCondition {
      * @since 3.36.0
      */
     readonly name?: string;
+    /**
+     * The load the condition belongs to (`session.data.sources()` key): it judges only the nodes
+     * and edges that load supplied (`session.data.sourcesOf(id)`) and leaves every other load's
+     * elements as they are. A keep condition hides only that load's elements its rule does not
+     * match, an exclude condition hides only that load's matches, and a select condition selects
+     * only among that load's elements; `conditionCounts()` counts it over that load's elements.
+     * An element two loads supplied belongs to both. Absent: the condition judges every element.
+     * A load that is gone supplies nothing, so its conditions then do nothing. The `steps` view
+     * shows such a condition's rule without its load. To have a selection's totals read the same
+     * load, narrow its `union` leaf with {@link UnionLeaf.sources}.
+     * @since 3.36.0
+     */
+    readonly source?: SourceKey;
 }
 
 /**
@@ -2773,6 +2884,17 @@ export interface CatalogApi {
     algorithms(): readonly AlgorithmDescriptor[];
     layouts(): readonly LayoutDescriptor[];
     formats(): readonly FormatDescriptor[];
+    /**
+     * The style channels this session offers for nodes or for edges, in table order. With the
+     * `file-styles` experiment on it is the same array `channelsFor(target)` returns; with it off it
+     * leaves out the channels the experiment added and the values it added to the rest (node shapes,
+     * arrowheads, line patterns, a size mode). A style editor builds its pickers from it. A layer that
+     * writes a value it leaves out is still accepted and drawn.
+     * @param target - Nodes or edges.
+     * @returns The channels, the same array on every call with the same target.
+     * @since 3.36.0
+     */
+    channels(target: "node" | "edge"): readonly ChannelDescriptor[];
     palettes(): readonly PaletteDescriptor[];
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];
@@ -2821,8 +2943,12 @@ export interface CatalogApi {
      */
     functions(): readonly FunctionDescriptor[];
     /**
-     * @deprecated Not implemented. Removed at the next major release unless it is implemented
-     * first (issue #333).
+     * The attributes that hold points in time, for a time slider: first those `data.attributes()`
+     * gives the `time` role (declared by the file or the load), then the columns whose values read
+     * as time, best first, as `session.time.candidates()` finds them -- dates in text, epochs, and
+     * whole numbers from 1000 to 2999 in a column whose name speaks of time.
+     * @returns The time attributes, nodes and edges both; empty when the graph has none.
+     * @since 3.40.0
      */
     timeAttributes(): readonly AttributeDescriptor[];
     metrics(): readonly MetricAvailability[];
@@ -2833,8 +2959,15 @@ export interface CatalogApi {
      */
     applicable(): readonly MetricAvailability[];
     /**
-     * @deprecated Not implemented. Removed at the next major release unless it is implemented
-     * first (issue #335).
+     * Check an expression against this session without running it, as a form field would on
+     * every keystroke: whether it parses, where it does not, and which paths it reads that
+     * nothing here answers. Selectors and filters share one expression grammar; a `formula` is
+     * refused with `E_UNSUPPORTED`, since the formula grammar is not implemented.
+     * @param query - The expression.
+     * @param o - Options.
+     * @param o.kind - Which kind of expression it is; a selector when absent.
+     * @returns The check. Never throws for a bad expression.
+     * @since 3.40.0
      */
     validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }): QueryValidation;
     /**
@@ -2862,7 +2995,7 @@ export interface CatalogApi {
  * Implementing one means deleting its name here: `SessionCatalogApi` is derived from this list,
  * so the two cannot drift apart.
  */
-export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
+export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
 
 // ---------------------------------------------------------------------------------------------
 // Guards

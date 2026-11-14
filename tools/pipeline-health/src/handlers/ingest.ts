@@ -13,7 +13,7 @@ import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
 import { dynamoStore } from "../dynamo.js";
-import { BENCH_PK, type BenchItem, benchKey, withPoint } from "../model/benchmarks.js";
+import { BENCH_PK, type BenchItem, benchKey, type BenchPoint, withPoint } from "../model/benchmarks.js";
 import {
     BUMP_BRANCH,
     DAY,
@@ -92,7 +92,9 @@ const refuse = (status: number, code: string, params: Record<string, string | nu
 };
 
 const ssm = new SSMClient({});
-let localTokenHash: Promise<string | undefined> | undefined;
+// The local token's hash, re-read after LOCAL_TOKEN_TTL_MS so a rotation reaches warm containers.
+const LOCAL_TOKEN_TTL_MS = 5 * 60_000;
+let localTokenHash: { hash: string; until: number } | undefined;
 let store: Store | undefined;
 
 /**
@@ -143,7 +145,7 @@ async function ingest(
     }
     let who: Who;
     if (local) {
-        if (!(await localTokenOk(event.headers?.authorization))) {
+        if (!(await localTokenOk(event.headers?.authorization, now))) {
             refuse(401, "unauthorized");
         }
         who = { kind: "local", claims: {} };
@@ -324,9 +326,13 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
         case "benchmarks":
             return { items: [], extra: await benchItems(body, who, db, now), source: "benchmarks" };
         case "durations":
+            // Checked as before, and the post still ages its source, but no row is stored: no metric, view or
+            // drill-down reads a step row, and the pull request runs post about 3,000 each, 230,000 on a busy day,
+            // the dashboard's largest writer (#6813). The results service keeps them.
+            durationItems(body, who, now);
             // The site repositories' and deploy-pages.yml's deploy timings must not keep ci-results looking fresh.
             return {
-                items: durationItems(body, who, now),
+                items: [],
                 extra: [],
                 source: who.kind === "deploy" || who.kind === "site" ? "site" : "ci-results",
             };
@@ -375,7 +381,22 @@ function testItem(
         signature: (message.split("\n")[0] ?? "").slice(0, 200),
         seenAt,
         ...(bump ? { bump: true } : {}),
+        ...(f.pictures === undefined ? {} : { pictures: picturesOf(f.pictures) }),
     };
+}
+
+const SHA256 = /^[0-9a-f]{64}$/;
+
+/**
+ * An unstable story's two picture hashes (tools/results/post-unstable-stories.mjs), or a refusal.
+ * @param v - the posted `pictures`
+ * @returns the first and second shot's sha256
+ */
+function picturesOf(v: unknown): [string, string] {
+    if (!Array.isArray(v) || v.length !== 2 || !v.every((h) => typeof h === "string" && SHA256.test(h))) {
+        refuse(400, "bad_field", { field: "pictures", type: "two sha256" });
+    }
+    return v as [string, string];
 }
 
 /**
@@ -564,7 +585,17 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
 }
 
 /**
- * A benchmark job's results (`{ source, sha?, machine?, unit?, rows: [{ name, value }] }`, tools/results/post-benchmarks.mjs),
+ * A benchmark point with the input its row names (a fingerprint of what it timed), when it names one.
+ * @param p - the point
+ * @param input - the row's `input`, if any
+ * @returns the point, with its input
+ */
+const withInput = (p: BenchPoint, input: unknown): BenchPoint =>
+    typeof input === "string" && input ? { ...p, input: input.slice(0, MAX_BENCH_NAME) } : p;
+
+/**
+ * A benchmark job's results (`{ source, sha?, machine?, unit?, rows: [{ name, value, input? }] }`,
+ * tools/results/post-benchmarks.mjs),
  * each added to its benchmark's item (model/benchmarks.ts) as this run's point. Only from master's workflows: a pull
  * request's numbers would move master's trend.
  * @param b - the posted body
@@ -596,7 +627,7 @@ async function benchItems(b: Record<string, unknown>, who: Who, db: Store, now: 
         }
         const benchmark = `${source}: ${(r.name as string).slice(0, MAX_BENCH_NAME)}`;
         const point = { at: now, v: r.value as number, run, ...(sha ? { sha } : {}), ...(machine ? { machine } : {}) };
-        out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, point, now));
+        out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, withInput(point, r.input), now));
     }
     return [...out.values()];
 }
@@ -692,23 +723,32 @@ function slotWait(r: Record<string, unknown>): ObservationItem {
 
 // ---------------------------------------------------------------------------------------------------------------
 
-async function localTokenOk(authorization: string | undefined): Promise<boolean> {
+async function localTokenOk(authorization: string | undefined, now: number): Promise<boolean> {
     const token = /^Bearer (\S+)$/.exec(authorization ?? "")?.[1];
     if (!token) {
         return false;
     }
-    localTokenHash ??= ssm
-        .send(new GetParameterCommand({ Name: LOCAL_TOKEN_PARAMETER, WithDecryption: true }))
-        .then((r) => r.Parameter?.Value?.trim().toLowerCase())
-        .catch((error: unknown) => {
-            localTokenHash = undefined; // retry on the next request
-            console.error(JSON.stringify({ route: "local", error: String(error) }));
-            return undefined;
-        });
-    const expected = await localTokenHash;
-    if (!expected) {
-        return false;
+    if (!localTokenHash || now >= localTokenHash.until) {
+        localTokenHash = undefined;
+        // Any SSM failure but a missing parameter throws on to the handler's 500: an outage is not a bad token.
+        const value = await ssm
+            .send(new GetParameterCommand({ Name: LOCAL_TOKEN_PARAMETER, WithDecryption: true }))
+            .then(
+                (r) => r.Parameter?.Value,
+                (error: unknown) => {
+                    if ((error as { name?: unknown } | null)?.name === "ParameterNotFound") {
+                        return undefined;
+                    }
+                    throw error;
+                },
+            );
+        const hash = value?.trim().toLowerCase();
+        if (!hash) {
+            return false; // not cached: the next request reads SSM again
+        }
+        localTokenHash = { hash, until: now + LOCAL_TOKEN_TTL_MS };
     }
+    const expected = localTokenHash.hash;
     const actual = createHash("sha256").update(token).digest("hex");
     return actual.length === expected.length && timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 }

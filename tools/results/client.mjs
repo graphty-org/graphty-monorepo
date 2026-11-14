@@ -2,7 +2,8 @@
 //
 // Every call fails open: it never throws, each attempt gives up after 5 s (a plan or a record) or 2 s (a failure
 // event), a request with no answer is sent twice more (RETRY_MS), and a missing answer is `null`, which callers
-// read as "run everything, excuse nothing". An invocation record that could not be sent is written to the spool directory, for a later re-post.
+// read as "run everything, excuse nothing". An invocation record the store did not take is lost: the caller logs it,
+// and nothing re-posts it later (#7266).
 //
 // Configuration, from the environment, then the repository's .env for the local token:
 //   RESULTS_URL             the Worker's URL; unset, the client does nothing
@@ -11,13 +12,13 @@
 //                           (audience `graphty-results`, ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN)
 //   HEALTH_API_URL          the pipeline health API (issue #3602); with the store configured, in GitHub Actions every
 //                           POST is also sent there with its own OIDC token (audience `graphty-health`), fire and forget:
-//                           2 s at most, never awaited by the caller, never spooled; flushHealth() settles them
-//                           (so it may hold a body the store refused, and miss one the store spooled)
+//                           2 s at most, never awaited by the caller; flushHealth() settles them
+//                           (so it may hold a body the store refused, and miss one the store never got)
 //
 // Bodies carry `X-Results-Schema: 1`. A batch of failure events is `{ invocation, failures: [...] }`; a single
 // event is `{ invocation, file, name, status, message }`.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { cpus } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -103,7 +104,7 @@ const healthPending = new Set();
 
 /**
  * Sends one POST to the health API as well, fire and forget: its own OIDC token (audience graphty-health), 2 s in
- * all, never awaited by call(), never spooled, never throws. A CLI that ends with process.exit() awaits
+ * all, never awaited by call(), never throws. A CLI that ends with process.exit() awaits
  * flushHealth() first; one that ends on its own waits at most the 2 s.
  * @param cfg config() with `health`
  * @param path the route
@@ -156,6 +157,7 @@ export function postFlaky(env, shard, family, flaky) {
         file: f.file,
         name: f.name,
         message: (f.text ?? f.message ?? "").slice(0, 2000),
+        ...(f.pictures ? { pictures: f.pictures } : {}),
     }));
     sendHealth({ oidc: env, health: env.HEALTH_API_URL.replace(/\/$/, "") }, "/v1/failures", {
         invocation: `${id}.1`,
@@ -173,7 +175,7 @@ export function postFlaky(env, shard, family, flaky) {
  * land on CPUs about 2x apart, and the dashboard compares a result only with results of the same machine.
  * @param env the environment
  * @param source what measured them ("algorithms", "webgpu-graph-algorithms")
- * @param rows the results `{ name, value }`, milliseconds
+ * @param rows the results `{ name, value, input? }`, milliseconds
  * @returns whether it was sent
  */
 export function postBenchmarks(env, source, rows) {
@@ -206,7 +208,8 @@ export function flushHealth() {
 // A request that got no HTTP response at all (no answer in time, a network error) or a 5xx is sent again after
 // these waits: a Worker cold start, a network blip or one failed store answer must not fail a release job (#4183).
 // One that got any other response (2xx, 4xx) is never sent again. Every write route of the store is idempotent (INSERT OR IGNORE / OR REPLACE on its key, or deduped
-// on it), so a write that arrived but whose answer was lost is safe to send again.
+// on it), and answers a re-send from the same run as it answered the first (a base check's claim is the run's, and
+// a re-posted record is judged again: #7265), so a write that arrived but whose answer was lost is safe to send again.
 export const RETRY_MS = [1000, 3000];
 
 /**
@@ -224,9 +227,25 @@ export async function call(cfg, method, path, body = undefined, ms = RECORD_MS) 
     const waits = cfg.retryMs ?? RETRY_MS;
     for (let i = 0; ; i++) {
         const r = await attempt(cfg, method, path, body, ms);
-        if (r.answered || i >= waits.length) return r.result;
+        if (r.answered) return r.result;
+        // `down`: no answer at all, or a 5xx, after every retry; a 4xx refusal is an answer
+        if (i >= waits.length) return { ...r.result, down: true };
         await new Promise((resolve) => setTimeout(resolve, waits[i]));
     }
+}
+
+/**
+ * A refused answer's body as one short line for a log: whitespace collapsed, 200 characters at most, and anything
+ * shaped like a bearer credential masked, in case a store error ever echoes a request header.
+ * @param text the response body
+ * @returns the summary, or "" for an empty body
+ */
+export function bodySummary(text) {
+    return text
+        .replaceAll(/bearer\s+\S+/gi, "Bearer ***")
+        .replaceAll(/\s+/g, " ")
+        .trim()
+        .slice(0, 200);
 }
 
 async function attempt(cfg, method, path, body, ms) {
@@ -244,30 +263,31 @@ async function attempt(cfg, method, path, body, ms) {
             body: body === undefined ? undefined : JSON.stringify(body),
             signal: deadline,
         });
-        if (!res.ok) return { answered: res.status < 500, result: { ok: false, why: `HTTP ${res.status}` } };
+        if (!res.ok) {
+            const summary = bodySummary(await res.text().catch(() => ""));
+            const why = summary ? `HTTP ${res.status}: ${summary}` : `HTTP ${res.status}`;
+            return { answered: res.status < 500, result: { ok: false, why } };
+        }
         const text = await res.text();
         return { answered: true, result: { ok: true, data: text ? JSON.parse(text) : null } };
     } catch (e) {
-        const why = e.name === "TimeoutError" ? `no answer in ${ms / 1000} s` : e.message;
+        // fetch() says only "fetch failed"; the cause names the network error (ECONNREFUSED, ENOTFOUND, ...)
+        const cause = e.cause?.message ?? e.cause?.code;
+        let why = cause ? `${e.message} (${cause})` : e.message;
+        if (e.name === "TimeoutError") why = `no answer in ${ms / 1000} s`;
         return { answered: res !== undefined, result: { ok: false, why } };
     }
 }
 
 /**
- * Posts one test group's record; when that fails, writes it to `<spool>/<id>.json`.
+ * Posts one test group's record.
  * @param cfg config()
  * @param rec the record (results-service.md 5.1)
- * @param spool the spool directory
  * @param [ms] the timeout
- * @returns call()'s result, with `spooled` set to the file written on failure
+ * @returns call()'s result
  */
-export async function postInvocation(cfg, rec, spool, ms = RECORD_MS) {
-    const r = await call(cfg, "POST", "/v1/invocations", rec, ms);
-    if (r.ok) return r;
-    mkdirSync(spool, { recursive: true });
-    const file = join(spool, `${rec.id}.json`);
-    writeFileSync(file, JSON.stringify(rec));
-    return { ...r, spooled: file };
+export function postInvocation(cfg, rec, ms = RECORD_MS) {
+    return call(cfg, "POST", "/v1/invocations", rec, ms);
 }
 
 /**
@@ -283,14 +303,24 @@ export function postFailures(cfg, invocation, failures) {
 }
 
 /**
+ * The run's plan (results-service.md 5.3) as call() answers it, so a caller can log why there is none.
+ * @param cfg config()
+ * @param query `{ sha, base, variants, inputs, files }`; arrays are joined with commas
+ * @returns `{ ok: true, data }` or `{ ok: false, why }` (an HTTP status and body summary, a timeout or a network error)
+ */
+export function fetchPlan(cfg, query) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(query)) if (v !== undefined) q.set(k, Array.isArray(v) ? v.join(",") : v);
+    return call(cfg, "GET", `/v1/plan?${q}`, undefined, PLAN_MS);
+}
+
+/**
  * The run's plan (results-service.md 5.3), or null: no plan means no reuse, no quarantine, no excuse.
  * @param cfg config()
  * @param query `{ sha, base, variants, inputs, files }`; arrays are joined with commas
  * @returns the plan or null
  */
 export async function readPlan(cfg, query) {
-    const q = new URLSearchParams();
-    for (const [k, v] of Object.entries(query)) if (v !== undefined) q.set(k, Array.isArray(v) ? v.join(",") : v);
-    const r = await call(cfg, "GET", `/v1/plan?${q}`, undefined, PLAN_MS);
+    const r = await fetchPlan(cfg, query);
     return r.ok ? r.data : null;
 }

@@ -46,6 +46,7 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "collide-cell-key": 3,
     "collide-gather": 6,
     "collide-apply": 2,
+    "to-drawn": 3,
     "grid-cell-key": 4,
     "grid-centroid": 6,
     "grid-centroid-hub": 6,

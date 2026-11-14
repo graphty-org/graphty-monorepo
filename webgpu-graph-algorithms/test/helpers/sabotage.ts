@@ -2193,10 +2193,11 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: MST_TEST,
         },
         {
-            // a plain read of the atomic minimum: mixed atomic and plain access, which no runtime compiles
-            name: "tie-pass-plain-read",
+            // the second endpoint's tie test reads the first endpoint's minimum: a component takes an edge whose key
+            // is not its own minimum, or none at all
+            name: "tie-pass-wrong-component",
             find: "k == atomicLoad(&bestKey[cv])",
-            replace: "k == bestKey[cv]",
+            replace: "k == atomicLoad(&bestKey[cu])",
             minFactor: 10,
             test: MST_TEST,
         },
@@ -2766,12 +2767,12 @@ export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze([
 ]);
 
 /**
- * Kernels with no oracle-sensitive arithmetic to mutate: a wrong fill / toScene fails the exact-equality tests
+ * Kernels with no oracle-sensitive arithmetic to mutate: a wrong fill / toScene / toDrawn fails the exact-equality tests
  * directly, and `wcc-sample` (M8b plan PD-6) only selects WHICH component is called the giant -- Afforest is correct
  * for any choice, so a mutated sampler makes the last rounds slower and changes no label, and no mutation of it can
  * break a tolerance by the `minFactor >= 10` the table demands.
  */
-export const SABOTAGE_EXEMPT: readonly KernelId[] = Object.freeze(["fill", "fa2-to-scene", "wcc-sample"]);
+export const SABOTAGE_EXEMPT: readonly KernelId[] = Object.freeze(["fill", "fa2-to-scene", "to-drawn", "wcc-sample"]);
 
 /**
  * The mutated body (throws when `find` is absent or not unique in the normative body).

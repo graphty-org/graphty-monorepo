@@ -176,14 +176,41 @@ describe("ingest: who may write", () => {
         expect(ssmSend).toHaveBeenCalledTimes(1);
     });
 
-    it("refuses local writes when the parameter is missing, and retries the lookup", async () => {
+    it("refuses local writes when the parameter is missing or blank, and retries the lookup", async () => {
+        const hash = { Parameter: { Value: createHash("sha256").update(TOKEN).digest("hex") } };
         ssmSend.mockReset();
-        ssmSend.mockRejectedValueOnce(new Error("ParameterNotFound"));
+        ssmSend.mockRejectedValueOnce(Object.assign(new Error("gone"), { name: "ParameterNotFound" }));
+        ssmSend.mockResolvedValueOnce({ Parameter: { Value: "  " } });
+        ssmSend.mockResolvedValueOnce(hash);
         const h = await ingest();
         const body = { rows: [] };
         expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(401);
-        ssmSend.mockResolvedValueOnce({ Parameter: { Value: createHash("sha256").update(TOKEN).digest("hex") } });
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(401);
         expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+        expect(ssmSend).toHaveBeenCalledTimes(3);
+    });
+
+    it("answers 500, not 401, when SSM fails, and reads SSM again next time", async () => {
+        ssmSend.mockRejectedValueOnce(Object.assign(new Error("slow down"), { name: "ThrottlingException" }));
+        const h = await ingest();
+        const body = { rows: [] };
+        const res = await h(event("/v1/local/waits", body, { auth: TOKEN }));
+        expect(res.statusCode).toBe(500);
+        expect(JSON.parse(String(res.body))).toEqual({ code: "internal" });
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+    });
+
+    it("re-reads the hash after five minutes, so a rotated token reaches a warm container", async () => {
+        const h = await ingest();
+        const body = { rows: [] };
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+        ssmSend.mockResolvedValue({ Parameter: { Value: createHash("sha256").update("rotated").digest("hex") } });
+        vi.setSystemTime(NOW + 5 * 60_000 - 1);
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+        vi.setSystemTime(NOW + 5 * 60_000);
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(401);
+        expect((await h(event("/v1/local/waits", body, { auth: "rotated" }))).statusCode).toBe(200);
+        expect(ssmSend).toHaveBeenCalledTimes(2);
     });
 
     it("refuses a local row whose id is not local", async () => {
@@ -230,6 +257,11 @@ describe("ingest: benchmarks", () => {
                 )
             ).statusCode,
         ).toBe(400);
+        // a row may name its input, kept on its point
+        const seeded = { ...body(7), rows: [{ name: "PageRank n=1000", value: 7, input: "3fa2c1d0e9b8" }] };
+        expect((await h(event("/v1/benchmarks", seeded, { claims: full("603") }))).statusCode).toBe(200);
+        const after = await mem.get({ pk: "BENCH", sk: "algorithms: PageRank n=1000" });
+        expect((after?.points as { input?: string }[]).at(-1)?.input).toBe("3fa2c1d0e9b8");
     });
 });
 
@@ -322,7 +354,9 @@ describe("ingest: what it stores", () => {
         const rows = [{ workflow: "deploy.yml", job: "deploy", ms: 9000, runId: 700, attempt: 1 }];
         const res = await h(event("/v1/durations", { rows }, { claims: site }));
         expect(res.statusCode).toBe(200);
-        expect([...mem.items.values()].find((i) => i.kind === "step")?.repo).toBe("graphty-org/graphty-nightly");
+        // Taken and checked, but not stored: nothing reads a step row (#6813).
+        expect(JSON.parse(res.body as string)).toMatchObject({ stored: 0 });
+        expect([...mem.items.values()].some((i) => i.kind === "step")).toBe(false);
         // A site deploy's timings never make ci-results look fresh.
         const sources = [...mem.items.values()].map((i) => i.source).filter(Boolean);
         expect(sources).toContain("site");
@@ -683,6 +717,8 @@ describe("recompute and read", () => {
         expect(routeOf("/v1/page/issues", { range: "24h" })).toEqual({ status: 400, code: "bad_range" });
         expect(routeOf("/v1/page/costs", {})).toEqual({ kind: "page", page: "costs", range: "7d" });
         expect(routeOf("/v1/page/master", { range: "all" })).toEqual({ status: 400, code: "bad_range" });
+        expect(routeOf("/v1/page/overview", {})).toEqual({ kind: "page", page: "overview", range: "1h" });
+        expect(routeOf("/v1/page/overview/x", {})).toEqual({ status: 404, code: "unknown_section" });
     });
 
     it("answers no_data before the first recompute, and 4xx for unknown routes", async () => {
@@ -699,6 +735,82 @@ describe("recompute and read", () => {
 });
 
 describe("drill-down routes", () => {
+    it("serves a hotspot's /flaky/test link at /v1/page/flaky/test, with each event's run, job, commit and pictures", async () => {
+        const h = await ingest();
+        const id = "500.1.stories.graphty-element-stories-2.1";
+        const first = "a".repeat(64);
+        const second = "b".repeat(64);
+        const post = {
+            invocation: id,
+            flaky: true,
+            family: "graphty-element-stories",
+            failures: [
+                {
+                    file: "s.stories.ts",
+                    name: "Zoomed",
+                    message: "visual-review: z.png is unstable",
+                    pictures: [first, second],
+                },
+            ],
+        };
+        expect((await h(event("/v1/failures", post))).statusCode).toBe(200);
+        const { putRaw } = await import("../src/model/raw.ts");
+        await putRaw(
+            mem,
+            [
+                {
+                    kind: "run",
+                    id: "graphty-org/graphty-monorepo/500",
+                    attempt: 1,
+                    repo: "graphty-org/graphty-monorepo",
+                    runId: 500,
+                    workflow: "ci.yml",
+                    event: "pull_request",
+                    branch: "b",
+                    sha: "abc",
+                    pr: 9,
+                    status: "completed",
+                    conclusion: "success",
+                    createdAt: NOW - 600_000,
+                },
+            ] as never,
+            NOW,
+        );
+        const { handler: read } = await import("../src/handlers/read.ts");
+        const get = async (q: Record<string, string>) =>
+            read({ ...event("/v1/page/flaky/test", "", {}), queryStringParameters: q });
+        const res = await get({ file: "s.stories.ts", test: "Zoomed" });
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body as string)).toMatchObject({
+            range: "7d",
+            file: "s.stories.ts",
+            test: "Zoomed",
+            family: "graphty-element-stories",
+            events: [
+                {
+                    kind: "pr",
+                    pr: 9,
+                    run: 500,
+                    attempt: 1,
+                    job: "stories",
+                    shard: "graphty-element-stories-2",
+                    sha: "abc",
+                    outcome: "flaky",
+                    signature: "visual-review: z.png is unstable",
+                    pictures: [first, second],
+                },
+            ],
+        });
+        // An unknown test is a clear empty result, not unknown_section.
+        const unknown = await get({ file: "s.stories.ts", test: "Nope" });
+        expect(unknown.statusCode).toBe(200);
+        expect(JSON.parse(unknown.body as string)).toMatchObject({ test: "Nope", family: null, events: [] });
+        expect((await get({})).statusCode).toBe(400);
+        // Picture hashes are two sha256 or refused.
+        const bad = { ...post, failures: [{ ...post.failures[0], pictures: ["x"] }] };
+        expect((await h(event("/v1/failures", bad))).statusCode).toBe(400);
+    });
+
     it("answers /v1/test-history from what ingest stored, and /v1/run/<id> from the run index", async () => {
         const h = await ingest();
         expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(200);
@@ -714,7 +826,13 @@ describe("drill-down routes", () => {
         });
         expect((await get("/v1/test-history", {})).statusCode).toBe(400);
         expect((await get("/v1/test-history", { file: "a.test.ts", range: "1h" })).statusCode).toBe(400);
-        expect((await get("/v1/test-history", { file: "none.test.ts" })).statusCode).toBe(503);
+        const long = await get("/v1/test-history", { file: "a.test.ts", test: "x".repeat(513) });
+        expect([long.statusCode, JSON.parse(long.body as string)]).toEqual([400, { code: "bad_field", field: "test" }]);
+        expect((await get("/v1/test-history", { file: "x".repeat(513) })).statusCode).toBe(400);
+        // An unknown test answers an empty history, never no_data or unknown_section.
+        const none = await get("/v1/test-history", { file: "none.test.ts" });
+        expect(none.statusCode).toBe(200);
+        expect(JSON.parse(none.body as string)).toMatchObject({ file: "none.test.ts", family: null, events: [] });
 
         expect((await get("/v1/run/123", {})).statusCode).toBe(503);
         const { putRaw } = await import("../src/model/raw.ts");

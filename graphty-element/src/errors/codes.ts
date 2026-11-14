@@ -201,6 +201,13 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_ELEMENT"
     /**
+     * A graph was constructed with the id of a page element that the document does not hold, so
+     * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
+     * or passes the element itself.
+     * @since 3.40.0
+     */
+    | "E_HOST_NOT_FOUND"
+    /**
      * A saved document's content is malformed: not the kind it claims, a required member missing
      * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
      * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -267,15 +274,19 @@ export type GraphtyErrorCode =
     | "E_LOCKED"
     /**
      * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
-     * unreadable file. `details` carry the url and the status where there was one, and `cause`
+     * unreadable file. `details` carry the url (or the file's name), the status where there was
+     * one and `timeoutMs` when the last request ran out of time, and `cause`
      * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
      * than 408 and 429), which fails after one request with `recoverable: false`.
      */
     | "E_FETCH_FAILED"
     /**
      * A source was fetched but could not be parsed as the format it claimed to be. `details`
-     * carry the format, the line and, where the parser reported one, the column. The caller
-     * corrects the file, or re-imports naming the true format.
+     * carry the format, the line and, where the parser reported one, the column; when graph-io
+     * read it, `details.issue` is graph-io's code for what stopped it (`"E_XML_SYNTAX"`,
+     * `"E_CSV_UNCLOSED_QUOTE"`...) and `details.element` where. A reader that threw without a
+     * code of its own is reported as this too, with its error as `cause`. The caller corrects
+     * the file, or re-imports naming the true format.
      */
     | "E_PARSE_FAILED"
     /**
@@ -479,6 +490,13 @@ export type GraphtyErrorCode =
      */
     | "E_DEVICE_LOST"
     /**
+     * The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+     * device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+     * The session and its data are untouched; the element asks for the device back, and
+     * `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+     */
+    | "E_RENDER_LOST"
+    /**
      * No WebGL context could be created, so nothing can be rendered. `details` carry what the
      * canvas reported. The session's data and results still work; only the view is unavailable.
      */
@@ -491,6 +509,14 @@ export type GraphtyErrorCode =
      * leaves empty. Reported as `graph-error`.
      */
     | "E_SHADER_REFUSED"
+    /**
+     * The browser or the headset would not start an immersive (VR or AR) session: the reader
+     * refused permission, the device was busy, or the session could not be set up. `details.mode`
+     * is `"vr"` or `"ar"`, `details.reason` is `"active"` when another session was already running,
+     * and `cause` carries what the browser rejected with. Nothing was left half built: the graph
+     * stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
+     */
+    | "E_XR_SESSION_FAILED"
     /**
      * A feature the caller asked for needs an optional peer package that is not installed.
      * `details.package` names the package to install and `details.feature` the feature that
@@ -711,9 +737,28 @@ export type GraphtyErrorCode =
      */
     | "E_MODEL_DIGEST_MISMATCH"
     /**
-     * A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+     * A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed". Also a skybox background image that could not be loaded, as the detail of the element's `graphty-skybox-failed` event, `params.url` its first 256 characters.
      */
     | "E_IMAGE_LOAD"
+    /**
+     * A picture the browser cannot decode, so it cannot be drawn (`prepareBackgroundImage`): HEIC in a browser without HEIC support, a damaged file, or a file that is not a picture. `params.format` (its media type, or "" when unknown), `params.fileName` when it is a file.
+     */
+    | "E_IMAGE_DECODE"
+    /**
+     * A screenshot, a video or a clipboard copy was started and could not be finished: the
+     * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
+     * no camera to draw from. `details.media` is `"image"` or `"video"`, `details.destination` is
+     * `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
+     * @since 3.40.0
+     */
+    | "E_CAPTURE_FAILED"
+    /**
+     * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
+     * out. `details.timeoutMs` is the wait. The caller captures again later, raises
+     * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
+     * @since 3.40.0
+     */
+    | "E_NOT_SETTLED"
     | "E_INTERNAL";
 
 /**
@@ -768,6 +813,20 @@ export type GraphtyWarningCode =
      */
     | "W_ALPHA_IGNORED"
     /**
+     * The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
+     * shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
+     * @experimental cosmograph
+     */
+    | "W_LIMITS_IGNORED"
+    /**
+     * More rows ask to be drawn as objects of their own (a look no batch draws, such as a border)
+     * than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
+     * plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
+     * many asked, `params.cap` the budget.
+     * @experimental cosmograph
+     */
+    | "W_OBJECT_CAP"
+    /**
      * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
      * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
      * size sits, and `params.value` the size.
@@ -802,6 +861,12 @@ export type GraphtyWarningCode =
      * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
      */
     | "W_DIMENSION_OVERRIDDEN"
+    /**
+     * `antialias` was changed after the element built its engine, which reads it only then: the
+     * engine keeps the value it was built with. Raised as a `graphty-warning` event.
+     * `params.requested` is the value given, `params.active` the one in use.
+     */
+    | "W_ANTIALIAS_LATE"
     /**
      * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
      * `node.modelSourceUp` turns it.
@@ -975,6 +1040,7 @@ const CODE_TABLE = {
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
     E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
     E_UNKNOWN_ELEMENT: "E_UNKNOWN_ELEMENT",
+    E_HOST_NOT_FOUND: "E_HOST_NOT_FOUND",
     E_BAD_DOCUMENT: "E_BAD_DOCUMENT",
     E_UNSUPPORTED_VERSION: "E_UNSUPPORTED_VERSION",
     E_UNSAVED_CHANGES: "E_UNSAVED_CHANGES",
@@ -1016,8 +1082,10 @@ const CODE_TABLE = {
     E_SOFTWARE_ONLY: "E_SOFTWARE_ONLY",
     E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
+    E_RENDER_LOST: "E_RENDER_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
     E_SHADER_REFUSED: "E_SHADER_REFUSED",
+    E_XR_SESSION_FAILED: "E_XR_SESSION_FAILED",
     E_MISSING_PACKAGE: "E_MISSING_PACKAGE",
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",
@@ -1063,6 +1131,9 @@ const CODE_TABLE = {
     E_MODEL_UNKNOWN_ASSET: "E_MODEL_UNKNOWN_ASSET",
     E_MODEL_DIGEST_MISMATCH: "E_MODEL_DIGEST_MISMATCH",
     E_IMAGE_LOAD: "E_IMAGE_LOAD",
+    E_IMAGE_DECODE: "E_IMAGE_DECODE",
+    E_CAPTURE_FAILED: "E_CAPTURE_FAILED",
+    E_NOT_SETTLED: "E_NOT_SETTLED",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

@@ -194,7 +194,7 @@ describe("an unset color line shows no color until one is picked", () => {
         });
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
         await screen.findByTestId("style-tab", {});
-        const line = await addLine("fill", "node.color");
+        const line = await addLine("fill", "node.color", "Color");
         const box = within(line).getByRole<HTMLInputElement>("textbox", { name: /^Node color(,|$)/ });
         assertBlank(line, box);
         await userEvent.keyboard("red{Enter}");

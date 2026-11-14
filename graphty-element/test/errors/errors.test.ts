@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, expectTypeOf, it } from "vitest";
 
 import {
     ACCELERATION_ERROR_CODES,
@@ -40,6 +40,11 @@ const CODES_FROM_THE_DESIGN = [
     "E_MODEL_DIGEST_MISMATCH",
     // a node picture that cannot be loaded (issue #4515)
     "E_IMAGE_LOAD",
+    // a picture the browser cannot decode (issue #6818)
+    "E_IMAGE_DECODE",
+    // a screenshot or video that could not be made (issue #6826)
+    "E_CAPTURE_FAILED",
+    "E_NOT_SETTLED",
     // the network sources (design/graph-io/network-sources-design.md section 8), experimental
     "E_SOURCE_BLOCKED",
     "E_SOURCE_AUTH",
@@ -88,6 +93,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_RUN",
     "E_UNKNOWN_LAYER",
     "E_UNKNOWN_ELEMENT",
+    "E_HOST_NOT_FOUND",
     "E_BAD_DOCUMENT",
     "E_UNSUPPORTED_VERSION",
     "E_UNSAVED_CHANGES",
@@ -129,8 +135,11 @@ const CODES_FROM_THE_DESIGN = [
     "E_SOFTWARE_ONLY",
     "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
+    "E_RENDER_LOST",
     "E_NO_WEBGL",
     "E_SHADER_REFUSED",
+    // an immersive session the browser or headset would not start (issue #7236)
+    "E_XR_SESSION_FAILED",
     "E_MISSING_PACKAGE",
     "E_UNSUPPORTED",
     "E_READONLY",
@@ -178,6 +187,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_RUN":
         case "E_UNKNOWN_LAYER":
         case "E_UNKNOWN_ELEMENT":
+        case "E_HOST_NOT_FOUND":
             return "unknown-name";
         case "E_UNSTABLE_RUN_ID":
         case "E_DUPLICATE_ID":
@@ -215,8 +225,10 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SOFTWARE_ONLY":
         case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
+        case "E_RENDER_LOST":
         case "E_NO_WEBGL":
         case "E_SHADER_REFUSED":
+        case "E_XR_SESSION_FAILED":
         case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":
@@ -251,6 +263,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MODEL_UNKNOWN_ASSET":
         case "E_MODEL_DIGEST_MISMATCH":
         case "E_IMAGE_LOAD":
+        case "E_IMAGE_DECODE":
             return "model";
         case "E_SOURCE_BLOCKED":
         case "E_SOURCE_AUTH":
@@ -274,6 +287,9 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "source";
         case "E_EXTENSION_FAILED":
             return "extension";
+        case "E_CAPTURE_FAILED":
+        case "E_NOT_SETTLED":
+            return "capture";
         default: {
             const unreachable: never = code;
             return unreachable;
@@ -755,6 +771,27 @@ describe("the error module stays Node-safe", () => {
             for (const pattern of banned) {
                 assert.notMatch(code, pattern);
             }
+        }
+    });
+});
+
+describe("isGraphtyError narrows details by code", () => {
+    it("types a documented code's facts once the code is checked", () => {
+        const thrown: unknown = new GraphtyError({
+            code: "E_UNKNOWN_ATTRIBUTE",
+            message: "no column named nmae",
+            source: "data",
+            details: { candidates: ["name"] },
+        });
+
+        assert.isTrue(isGraphtyError(thrown));
+        if (isGraphtyError(thrown) && thrown.code === "E_UNKNOWN_ATTRIBUTE") {
+            expectTypeOf(thrown.details.candidates).toEqualTypeOf<readonly string[] | undefined>();
+            assert.deepEqual(thrown.details.candidates, ["name"]);
+        }
+
+        if (isGraphtyError(thrown) && thrown.code === "E_TOO_LARGE") {
+            expectTypeOf(thrown.details.limit).toEqualTypeOf<number | undefined>();
         }
     });
 });

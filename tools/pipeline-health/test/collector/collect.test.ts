@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import rates from "../../config/rates.json" with { type: "json" };
-import { collect, type Deps } from "../../src/collector/collect.js";
+import { collect, type Deps, openWithChecks } from "../../src/collector/collect.js";
 import { type Fetch, GitHub } from "../../src/collector/github.js";
-import type { GhJob, GhRun, Rates } from "../../src/collector/parse.js";
+import type { GhJob, GhRun, GqlPr, Rates } from "../../src/collector/parse.js";
 import { quarantineReader, SLICE_STORE_PARAMS } from "../../src/collector/slices.js";
+import { type HoldersSnapshot, SNAPSHOT } from "../../src/collector/snapshots.js";
 import { MIN, type ObservationItem, sourceKey } from "../../src/model/items.js";
 import { getCursor } from "../../src/model/raw.js";
 import { readSnapshot } from "../../src/model/snapshots.js";
@@ -52,6 +53,26 @@ describe("collector without the GitHub App", () => {
 });
 
 describe("collector with the GitHub App", () => {
+    it("a cycle that finds a JSON cursor unchanged does not write it again (#6813)", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        await collect(deps(store, fake));
+        const before = new Map([...store.items].filter(([k]) => k.startsWith("CURSOR#")));
+        const puts: string[] = [];
+        const put = store.put.bind(store);
+        store.put = (item, condition) => {
+            puts.push(item.pk);
+            return put(item, condition);
+        };
+        await collect(deps(store, fake, NOW + 5 * MIN));
+        // The same answers: the JSON cursors every cycle sets stay as they were, so none is written again.
+        for (const name of ["chronic-jobs", "pr-stocks", "owner-wait"]) {
+            expect(before.has(`CURSOR#${name}\u0000-`), name).toBe(true);
+            expect(puts, name).not.toContain(`CURSOR#${name}`);
+        }
+        expect(puts).toContain("CURSOR#cycle"); // the time cursors still advance
+    });
+
     it("writes runs, jobs, pull requests, issues, release lanes and observations, and advances its cursors", async () => {
         const store = new MemoryStore();
         const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
@@ -331,7 +352,10 @@ describe("collector with the GitHub App", () => {
 
 type Fake = ReturnType<typeof fakeGitHub>;
 
-/** The open pull requests answer with only as many as `branches`, headed by them (the recorded runs' others closed). */
+/**
+ * The open pull requests answer with as many as `branches`, headed by them: the recorded ones, then copies of the
+ * first (the recorded runs' others closed).
+ */
 function withOpenBranches(fake: Fake, branches: string[]): Fake {
     const recorded = fake.fetch;
     fake.fetch = async (url, init) => {
@@ -339,18 +363,21 @@ function withOpenBranches(fake: Fake, branches: string[]): Fake {
         if (!url.endsWith("/graphql") || !(init?.body as string).includes("pullRequests")) {
             return res;
         }
-        const body = (await res.json()) as { data: { repository: { open: { nodes: { headRefName?: string }[] } } } };
+        const body = (await res.json()) as { data: { repository: { open: { nodes: Record<string, unknown>[] } } } };
         const { open } = body.data.repository;
-        open.nodes = open.nodes.slice(0, branches.length).map((p, i) => ({ ...p, headRefName: branches[i] }));
+        open.nodes = branches.map((headRefName, i) => ({
+            ...(open.nodes[i] ?? { ...open.nodes[0], number: 9000 + i, id: `X_${i}` }),
+            headRefName,
+        }));
         return new Response(JSON.stringify(body), { headers: res.headers });
     };
     return fake;
 }
 
 /** Adds the recorded ghost: "Lint PR Title" queued since 02:58Z on #3940, which merged at 03:29Z. */
-function withGhost(fake: Fake): Fake {
+function withGhost(fake: Fake, event = "pull_request"): Fake {
     const recorded = fake.fetch;
-    const ghost = fixture("run-ghost-40441556963.json") as GhRun;
+    const ghost = { ...(fixture("run-ghost-40441556963.json") as GhRun), name: "Lint PR Title", event };
     fake.fetch = async (url, init) => {
         const u = new URL(url);
         if (/\/actions\/runs\/40441556963\/jobs$/.test(u.pathname)) {
@@ -392,29 +419,41 @@ describe("runner job counts", () => {
         expect(observed(store, "ci.jobs_queued")).toBe(2);
         // The runners page's count: only Linux and Windows jobs queued for a runner over 2 minutes.
         expect(observed(store, "ci.jobs_waiting_runner")).toBe(2);
+        expect(observed(store, "ci.jobs_held_by_run")).toBe(0);
     });
 
     it("leaves out a queued run whose pull request is no longer open", async () => {
         const now = Date.parse("2026-10-27T20:49:00Z");
         const ghostAt = Date.parse("2026-10-27T02:58:55Z");
-        const run = async (open: string[], ghost = true) => {
+        const run = async (open: string[], ghost = true, event = "pull_request") => {
             const store = new MemoryStore();
             const fake = withOpenBranches(fakeGitHub(), open);
-            await collect(deps(store, ghost ? withGhost(fake) : fake, now));
+            await collect(deps(store, ghost ? withGhost(fake, event) : fake, now));
+            const holders = JSON.parse((await getCursor(store, SNAPSHOT.holders)) ?? "{}") as HoldersSnapshot;
             return {
                 queued: observed(store, "ci.jobs_queued", now),
                 longest: observed(store, "ci.longest_queued_ms", now),
+                stuck: holders.stuck?.[`Lint PR Title, ${event}`],
             };
         };
         // No pull request of the recorded runs is open: none of them waits on a runner.
         const without = await run([], false);
-        expect(without).toEqual({ queued: 0, longest: 0 });
-        // #3940 merged: its branch heads no open pull request, so the ghost changes nothing.
-        expect(await run([])).toEqual(without);
+        expect(without).toEqual({ queued: 0, longest: 0, stuck: undefined });
+        // #3940 merged: its branch heads no open pull request, so the ghost counts nowhere but "stuck at GitHub".
+        // Its age runs from the run's creation, a second before its job's.
+        const stuck = { ...without, stuck: { runs: 1, since: Date.parse("2026-10-27T02:58:54Z") } };
+        expect(await run([])).toEqual(stuck);
+        // Nor does a run of another pull request event: #6729's pull_request_target and pull_request_review runs (#7358).
+        expect(await run([], true, "pull_request_target")).toEqual(stuck);
+        expect(await run([], true, "pull_request_review")).toEqual(stuck);
+        // 60 open pull requests, more than the 50 one query once read: the list is still complete, so the ghost is
+        // still left out (#7815).
+        expect((await run(Array.from({ length: 60 }, (_, i) => `other/${i}`))).stuck).toEqual(stuck.stuck);
         // While #3940 was open, the same job was a real wait.
         expect(await run(["fix/3938-master-builds-finish"])).toEqual({
             queued: without.queued! + 1,
             longest: now - ghostAt,
+            stuck: undefined,
         });
     });
 });
@@ -678,5 +717,66 @@ describe("a merged pull request's last run", () => {
         await collect(deps(store, fake, NOW + 10 * MIN));
         expect(second.errors["pull requests"]).toBeUndefined();
         expect(lookups).toBe(1);
+    });
+});
+
+describe("open pull requests with their checks (#7815)", () => {
+    const pr = (n: number): GqlPr => ({ id: `PR_${n}`, number: n }) as GqlPr;
+    const page = (nodes: GqlPr[], next: boolean, cursor = "c") => ({
+        nodes,
+        pageInfo: { hasNextPage: next, endCursor: cursor },
+    });
+    /** GitHub answering OPEN_QUERY from `rest` pages and the checks query by id, recording each request. */
+    const github = (rest: ReturnType<typeof page>[], fail?: (ids: string[]) => boolean) => {
+        const asked: { after?: string; ids?: string[] }[] = [];
+        const gh = new GitHub(
+            () => Promise.resolve("ghs_test"),
+            (_url, init) => {
+                const { variables } = JSON.parse(init?.body as string) as {
+                    variables: { after?: string; ids?: string[] };
+                };
+                asked.push(variables);
+                if (variables.ids) {
+                    if (fail?.(variables.ids)) {
+                        return Promise.resolve(new Response("<html>504</html>", { status: 504 }));
+                    }
+                    const nodes = variables.ids.map((id) => ({ id, commits: { nodes: [{ commit: { oid: id } }] } }));
+                    return Promise.resolve(Response.json({ data: { nodes } }));
+                }
+                return Promise.resolve(Response.json({ data: { repository: { open: rest.shift() } } }));
+            },
+        );
+        return { gh, asked };
+    };
+    const range = (from: number, n: number) => Array.from({ length: n }, (_, i) => pr(from + i));
+
+    it("reads every page of the open list and asks for the checks in batches of 10", async () => {
+        const { gh, asked } = github([page(range(100, 45), false)]);
+        const r = await openWithChecks(gh, "o", "n", page(range(0, 100), true, "p1"));
+        expect(r.complete).toBe(true);
+        expect(r.open.map((p) => p.number)).toEqual(range(0, 145).map((p) => p.number));
+        expect(r.open.every((p) => p.commits?.nodes[0].commit.oid === p.id)).toBe(true);
+        expect(asked[0]).toMatchObject({ after: "p1" });
+        const batches = asked.slice(1).map((v) => v.ids?.length);
+        expect(batches).toEqual([...Array<number>(14).fill(10), 5]);
+    });
+
+    it("stops at the cap and says the list is incomplete", async () => {
+        const { gh } = github([page(range(100, 100), true, "p2"), page(range(200, 100), true, "p3")]);
+        const r = await openWithChecks(gh, "o", "n", page(range(0, 100), true, "p1"));
+        expect(r.open).toHaveLength(300);
+        expect(r.complete).toBe(false);
+    });
+
+    it("an open list of exactly one page is complete", async () => {
+        const { gh, asked } = github([]);
+        const r = await openWithChecks(gh, "o", "n", page(range(0, 50), false));
+        expect(r.complete).toBe(true);
+        expect(asked.map((v) => v.ids?.length)).toEqual([10, 10, 10, 10, 10]);
+    });
+
+    it("throws when one batch of checks fails, never returning a partial list", async () => {
+        const { gh } = github([], (ids) => ids.includes("PR_20"));
+        await expect(openWithChecks(gh, "o", "n", page(range(0, 50), false))).rejects.toThrow(/504/);
     });
 });

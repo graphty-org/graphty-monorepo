@@ -475,6 +475,129 @@ describe("StylePainter channels", () => {
     });
 });
 
+describe("StylePainter shared edge paints", () => {
+    it("hands every edge of one look the same paint, built once (#6026)", async () => {
+        // A time window's Ghost row moves thousands of edges a frame between two looks; building
+        // each one's paint afresh was a third of the frame.
+        const held = harness();
+        await held.paintAll();
+
+        const first = held.painter.edgePaint(0);
+        assert.isNotNull(first);
+        assert.isTrue(held.painter.edgePaint(1) === first, "the other edge of the same look shares it");
+        assert.isTrue(held.painter.edgePaint(0) === first, "and asking again builds nothing");
+    });
+
+    it("builds a new paint once the look changes", async () => {
+        const held = harness();
+        await held.paintAll();
+        const before = held.painter.edgePaint(0);
+
+        await held.styles.add({
+            name: "edge colour",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": "#FF0000" },
+        });
+        await held.paintAll();
+
+        const after = held.painter.edgePaint(0);
+        assert.isFalse(after === before);
+        assert.strictEqual(after?.style.line?.color, "#ff0000");
+        assert.isTrue(held.painter.edgePaint(1) === after);
+    });
+
+    it("never shares the paint of an edge that carries content of its own", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "labels",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.label": "wire" },
+        });
+        await held.paintAll();
+
+        const first = held.painter.edgePaint(0);
+        assert.strictEqual(first?.style.label?.text, "wire");
+        assert.isFalse(held.painter.edgePaint(1) === first, "a label is per edge, so its paint is too");
+    });
+});
+
+describe("StylePainter row paints, one look per mesh key", () => {
+    const RAMP: LayerSpec = {
+        name: "degree ramp",
+        target: "node",
+        selector: { match: "has", path: "results.degree.value" },
+        encode: { "node.color": { by: "results.degree.value", scale: "linear", palette: "viridis" } },
+    };
+
+    it("paints a row with no Node exactly as its Node would be painted", async () => {
+        const held = harness();
+        await held.styles.add(RAMP);
+        await held.paintAll();
+
+        for (let index = 0; index < NODES.length; index++) {
+            assert.deepStrictEqual(held.painter.rowPaint(index), held.painter.nodePaint(index));
+        }
+    });
+
+    it("builds one style per mesh key, not one per row, whatever color each row has", async () => {
+        const held = harness();
+        await held.styles.add(RAMP);
+        await held.paintAll();
+
+        const paints = NODES.map((_, index) => held.painter.rowPaint(index));
+        const styles = new Set(paints.map((paint) => paint?.style));
+        assert.strictEqual(styles.size, 1, "four rows of one shape share one style");
+        assert.strictEqual(new Set(paints.map((paint) => paint?.color?.r)).size, NODES.length, "each keeps its color");
+    });
+
+    it("hands rows of one look and one color the same paint object, not one per row (G11)", async () => {
+        const held = harness();
+        await held.paintAll();
+
+        const paints = NODES.map((_, index) => held.painter.rowPaint(index));
+        assert.isNotNull(paints[0]?.color, "the default style paints a color");
+        assert.strictEqual(new Set(paints).size, 1, "a paint and its color object per row was 52 MB at 1M rows");
+    });
+
+    it("builds a style per size when the size is data-driven", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "size by degree",
+            target: "node",
+            selector: { match: "has", path: "results.degree.value" },
+            encode: { "node.size": { by: "results.degree.value", scale: "linear", range: [1, 4] } },
+        });
+        await held.paintAll();
+
+        const styles = new Set(NODES.map((_, index) => held.painter.rowPaint(index)?.style));
+        assert.strictEqual(styles.size, NODES.length);
+    });
+
+    it("never shares the style of a row that carries content of its own", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "labels",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "host" },
+        });
+        await held.paintAll();
+
+        const first = held.painter.rowPaint(0);
+        assert.strictEqual(first?.style.label?.text, "host");
+        assert.isFalse(held.painter.rowPaint(1)?.style === first?.style, "a label is per row, so its style is too");
+    });
+
+    it("leaves nodePaint building a style of its own for every node, as the objects path always has", async () => {
+        const held = harness();
+        await held.paintAll();
+
+        assert.isFalse(held.painter.nodePaint(0)?.style === held.painter.nodePaint(1)?.style);
+    });
+});
+
 describe("StylePainter arrowheads", () => {
     it("draws a head on a directed graph's edges and none on an undirected graph's", async () => {
         const directed = harness(true);
@@ -744,7 +867,7 @@ describe("fillDefaults", () => {
 });
 
 describe("batchableOf", () => {
-    const plain = { scaled: false, flatOutline: false };
+    const plain = { flatOutline: false };
     const style = (over: object): NodeStyleConfig =>
         defaultsDeep({}, over, NodeStyle.parse(defaultNodeStyle)) as NodeStyleConfig;
 
@@ -759,24 +882,27 @@ describe("batchableOf", () => {
         [
             "a solid color with transparency",
             { texture: { color: { colorType: "solid", value: "#f00", opacity: 0.5 } } },
-            false,
+            true,
         ],
-        ["a gradient", { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } }, false],
-        ["an image", { texture: { image: "a.png" } }, false],
+        [
+            "a gradient, in its source's material",
+            { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } },
+            true,
+        ],
+        ["a radial gradient", { texture: { color: { colorType: "radial-gradient", colors: ["#f00", "#00f"] } } }, true],
+        ["a picture, in its source's material", { texture: { image: "a.png" } }, true],
         ["an icon", { texture: { icon: "star" } }, false],
         ["a glow", { effect: { glow: { color: "#ff0000", strength: 1 } } }, false],
+        ["a z order, baked into the source's vertices", { shape: { zIndex: -3, drawOrder: 20 } }, true],
         ["a shape option no batch draws", { shape: { width: 2 } }, false],
-        ["a label", { label: { enabled: true } }, false],
-        ["a tooltip", { tooltip: { enabled: true } }, false],
+        ["a label, which hangs from the row's anchor", { label: { enabled: true } }, true],
+        ["a tooltip", { tooltip: { enabled: true } }, true],
         ["a style option added later", { laterOption: true }, false],
     ])("%s", (_name, over, batchable) => {
         assert.equal(batchableOf({ style: style(over) }, plain), batchable);
     });
 
-    it.each([
-        ["a size that follows the view", { scaled: true, flatOutline: false }],
-        ["a flat outline", { scaled: false, flatOutline: true }],
-    ])("%s keeps every row an object", (_name, view) => {
-        assert.isFalse(batchableOf({ style: style({}) }, view));
+    it("a flat outline keeps every row an object", () => {
+        assert.isFalse(batchableOf({ style: style({}) }, { flatOutline: true }));
     });
 });

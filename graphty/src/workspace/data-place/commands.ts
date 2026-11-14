@@ -10,7 +10,7 @@ import {
 import type { WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { openFilterDraft, selectRule } from "./filterCards";
-import { remap } from "./words";
+import { remap, sourceName } from "./words";
 
 /** One network load, as `data.loads()` records it. */
 type LoadRecord = ReturnType<GraphSession["data"]["loads"]>[number];
@@ -21,7 +21,7 @@ type LoadRecord = ReturnType<GraphSession["data"]["loads"]>[number];
  * @param source - the row's load.
  * @returns the record, or undefined for a load from no network source.
  */
-export function loadOf(session: GraphSession | null, source: LoadedSource): LoadRecord | undefined {
+function loadOf(session: GraphSession | null, source: LoadedSource): LoadRecord | undefined {
     return source.loadKey === undefined ? undefined : session?.data.loads().find((each) => each.key === source.loadKey);
 }
 
@@ -104,7 +104,7 @@ function nodesOf(session: GraphSession, key: LoadedSource["key"]): number {
 }
 
 /** The Data place's own Sources row commands; other packages add theirs by registering more. */
-export const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
+const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
     {
         id: "source.load-more",
         label: "Load more",
@@ -163,7 +163,21 @@ export const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
         id: "source.remove",
         label: "Remove",
         order: 90,
-        run: (ctx, source) => attempt(ctx, (session) => session.data.removeSource(source.key), "Not removed"),
+        run: (ctx, source) =>
+            attempt(
+                ctx,
+                async (session) => {
+                    const sources = session.data.sources();
+                    const { alsoRemoved } = await session.data.removeSource(source.key);
+                    const names = sources.filter((each) => alsoRemoved.includes(each.key)).map(sourceName);
+                    if (names.length > 0) {
+                        ctx.workspace.set({
+                            notice: { message: `Also removed what was joined to it: ${names.join(", ")}` },
+                        });
+                    }
+                },
+                "Not removed",
+            ),
     },
 ];
 

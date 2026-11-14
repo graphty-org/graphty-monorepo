@@ -19,19 +19,19 @@ secret (runs, pull requests, test names and truncated failure messages are alrea
 A left navigation lists the overview, seven categories and Issues. Each category link carries a colored bar
 with that category's state, so every page repeats the status line; Issues has no state and no bar.
 
-| Page          | What it shows                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                                                                                                                                                                                                                          |
-| Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                                                                                                                                                                                                                                     |
-| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                                                                                                                                                                                                                                       |
-| CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; **Shard times**: median and p90 per shard against budget; **Chronically failing jobs**, gating or not; **Allowed to fail, and failing**: each non-gating job's pass rate; and **Benchmarks**: each benchmark's trend.                                                  |
-| Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                                                                                                                                                                                                                             |
-| Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                                                                                                                                                                                                                                |
-| Flaky tests   | **Hotspots**: where flaky failures cluster (group, family, shard, file, test, per 1,000 runs); **Quarantine**: the quarantine entries, if any.                                                                                                                                                                                                                                                         |
-| Releases      | The lanes of the newest tested release candidate, every train attempt (including skipped ones), and the release workflows.                                                                                                                                                                                                                                                                             |
-| Costs         | Money spent this month against budget, the projection to month-end, unit costs and spend by workflow. The LLM regression line is an estimate of CI's Gemini spend only (see "The LLM regression line").                                                                                                                                                                                                |
-| Data sources  | Each source's last write, its age limit, volume and last error; then "Not set up": what has no writer or token yet, and what unblocks it.                                                                                                                                                                                                                                                              |
-| Issues        | Open issues now by type and priority; **Open bugs by priority** stacked, per day (28 d) or per week from Monday UTC (all) (the burn-down); bugs and all issues **opened vs closed** per day or week, closes split into completed and not planned, with opened less closed as a line; open issues by type; issues opened by type; and the oldest open critical and high bugs. Facts only, never judged. |
+| Page          | What it shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                                                                                                                                                                                                                                                                                                                                                                      |
+| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; **Shard times**: median and p90 per shard against budget, and for full runs each test group's members added up per run against its test step's deadline (not OK past 80%), with the members slower than their `GROUP_MEMBER_SECONDS` entry; **Chronically failing jobs**, gating or not; **Allowed to fail, and failing**: each non-gating job's pass rate; and **Benchmarks**: each benchmark's trend. |
+| Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                                                                                                                                                                                                                                                                                                                                                              |
+| Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Flaky tests   | **Hotspots**: where flaky failures cluster (group, family, shard, file, test, per 1,000 runs); **Quarantine**: the quarantine entries, if any.                                                                                                                                                                                                                                                                                                                                                                                          |
+| Releases      | The lanes of the newest tested release candidate, every train attempt (including skipped ones), and the release workflows.                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Costs         | Money spent this month against budget, the projection to month-end, unit costs and spend by workflow. The LLM regression line is an estimate of CI's Gemini spend only (see "The LLM regression line").                                                                                                                                                                                                                                                                                                                                 |
+| Data sources  | Each source's last write, its age limit, volume and last error; then "Not set up": what has no writer or token yet, and what unblocks it.                                                                                                                                                                                                                                                                                                                                                                                               |
+| Issues        | Open issues now by type and priority; **Open bugs by priority** stacked, per day (28 d) or per week from Monday UTC (all) (the burn-down); bugs and all issues **opened vs closed** per day or week, closes split into completed and not planned, with opened less closed as a line; open issues by type; issues opened by type; and the oldest open critical and high bugs. Facts only, never judged.                                                                                                                                  |
 
 Every row with a chevron drills down: to the run with its jobs, the pull request, or a test's history
 (its flaky and failed results, newest first). The page, section and range are in the URL
@@ -83,23 +83,26 @@ Base URL: the `ApiUrl` output of the `graphty-health` stack, today
 https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com. Every route is a public `GET`, cached for 60
 seconds and throttled (20 requests/s, burst 40). CORS allows https://health.graphty.app.
 
-| Route                                                 | Returns                                                                      |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `/v1/health`                                          | Whether the API is up                                                        |
-| `/v1/status`                                          | Each category's state and the last 24 h of episodes                          |
-| `/v1/page/overview?range=1h\|6h\|24h`                 | The status, with each headline's value and sparkline                         |
-| `/v1/page/<page>?range=1h\|6h\|24h`                   | One page: its members (value, SLA, state) and sections                       |
-| `/v1/page/costs?range=7d\|28d`                        | The Costs page                                                               |
-| `/v1/page/issues?range=28d\|all`                      | The Issues page (default 28d)                                                |
-| `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins` | Shard times, for full runs or pull request runs                              |
-| `/v1/page/flaky/hotspots?range=7d\|28d`               | Flake hotspots                                                               |
-| `/v1/page/runners/jobs?range=7d`                      | Runner history: 15-minute running, queued, longest queued and saturated time |
-| `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`  | One test file's (or test's) flaky and failed results                         |
-| `/v1/run/<run id>`                                    | One workflow run with its jobs                                               |
+| Route                                                   | Returns                                                                      |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `/v1/health`                                            | Whether the API is up                                                        |
+| `/v1/status`                                            | Each category's state and the last 24 h of episodes                          |
+| `/v1/page/overview?range=1h\|6h\|24h`                   | The status, with each headline's value and sparkline                         |
+| `/v1/page/<page>?range=1h\|6h\|24h`                     | One page: its members (value, SLA, state) and sections                       |
+| `/v1/page/costs?range=7d\|28d`                          | The Costs page                                                               |
+| `/v1/page/issues?range=28d\|all`                        | The Issues page (default 28d)                                                |
+| `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins`   | Shard times, for full runs or pull request runs                              |
+| `/v1/page/flaky/hotspots?range=7d\|28d`                 | Flake hotspots                                                               |
+| `/v1/page/runners/jobs?range=7d`                        | Runner history: 15-minute running, queued, longest queued and saturated time |
+| `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`    | One test file's (or test's) flaky and failed results                         |
+| `/v1/page/flaky/test?file=<f>[&test=<t>]&range=7d\|28d` | The same, at the API path of each hotspot's `/flaky/test?...` link           |
+| `/v1/run/<run id>`                                      | One workflow run with its jobs                                               |
 
 `<page>` is `master`, `pull-requests`, `ci`, `runners`, `flaky`, `releases`, `data-sources` or
 `local-runs`. The range defaults to `1h` (`7d` for Costs and the slow sections). A view with nothing
-computed yet answers 503 `{"code": "no_data"}`.
+computed yet answers 503 `{"code": "no_data"}`. A test's history lists each event's time, run and attempt, GitHub
+job key and shard, commit, pull request (if any), and its failure text or, for an unstable story, the two shots'
+sha256 (`pictures`); a test with nothing stored answers 200 with no events and `family: null`.
 
 Values are neutral facts: numbers with units, ids, ISO times in UTC, and `{ code, params }` statements
 that the page turns into words. A missing number is `null`, never 0. The TypeScript types of every
@@ -213,6 +216,10 @@ aws ssm put-parameter --profile graphty-deploy --region us-east-2 --type SecureS
   --name /graphty-health/local-token-sha256 --value "$(printf %s "$HEALTH_LOCAL_TOKEN" | sha256sum | cut -d' ' -f1)"
 ```
 
+To rotate the token, store the new token's hash the same way. The API re-reads the hash at most five minutes
+after it last read it, so the old token stops working within five minutes. If SSM cannot be read, a local
+write gets 500 `internal`, not 401.
+
 It also needs `HEALTH_API_URL` (the API's base URL), from the environment or `.env`.
 
 ```bash
@@ -259,7 +266,7 @@ and keeps the cursor, so the next pass sends the same rows; delete the cursor to
 | `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher dispatches as     |
 
 **When everything goes dark.** The backend stops itself before it costs money: a daily write budget
-(past it, writes get 429 and Data sources turns red), a 10 USD monthly AWS Budget whose action denies
+(past it, writes get 429 and Data sources turns red), a 50 USD monthly AWS Budget whose action denies
 the Lambdas at 100%, and the AWS project's own spend limit. Any of them silences the collector; the
 CloudWatch alarm `graphty-health-collector-dead-man` (no successful collector run in 20 minutes) emails
 the SNS topic `graphty-health-alarms` when that happens.
@@ -352,7 +359,8 @@ servherd_start({ name: "pipeline-health-web", cwd: "<repo>",
 
 `VITE_HEALTH_API_URL` sets the API it reads (unset: the live API). The dev server reads it through its own
 proxy at `/health-api`, so it works on any host and port without a CORS entry. `?fixtures` reads the
-sample data in `web/fixtures/` instead.
+sample data in `web/fixtures/` instead. `vite preview` has no proxy and calls the API across origins: to
+read live data from a preview, deploy with its origin as the cdk context `devOrigin` (in `cdk.json`).
 
 ### When the page cannot reach the API
 
@@ -362,7 +370,8 @@ its own, and shows the last data this browser loaded for the view, with its age,
 
 - **"failed with no answer (Failed to fetch)"**: the browser got no usable answer. Either the request was
   blocked by CORS, because the page's origin is not one the API allows (CORS allows only
-  https://health.graphty.app and `http://localhost:5173`; a dev server uses its proxy and needs neither),
+  https://health.graphty.app, plus the cdk context `devOrigin` when it is set for a `vite preview`; a dev server
+  uses its proxy and needs no entry),
   or the network or the API is down. The browser console names which.
 - **"answered HTTP 5xx"**: the API is up and the read Lambda failed; its CloudWatch log has the error.
 - **"answered HTTP 404"**: the page asked for a route the deployed API does not have, usually a page newer

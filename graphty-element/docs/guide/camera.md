@@ -87,7 +87,8 @@ A file load can set it to how the file's own program frames it, with the file st
 await element.session.data.import(source, { styles: "file", styleOptions: { framing: "file" } });
 ```
 
-The setting is saved in a project file and undone like any other project setting.
+The setting is saved in a project file and undone like any other project setting. A load with
+`styles: "file"` needs the `file-styles` experiment; see [Styles from Files](./file-styles).
 
 ### Zoom In and Out
 
@@ -237,6 +238,36 @@ function nextView() {
     graph.loadCameraPreset(presets[current], { animate: true });
 }
 ```
+
+### Tours that stop and hold
+
+`playTour` flies through a list of stops and stays at each one, in 2D and in 3D. A stop names a
+view -- one you saved, or a camera view such as `"fitToGraph"` -- or gives a camera state.
+`duration` is the flight to the stop and `hold` the time spent there, both in milliseconds.
+
+```typescript
+const el = document.querySelector("graphty-element");
+
+// Save the views the tour visits
+await el.session.views.save([{ name: "cluster-a", camera: el.getCameraState() }]);
+
+const tour = [
+    { view: "fitToGraph", hold: 2000 },
+    { view: "cluster-a", duration: 1500, hold: 3000 },
+    { view: "fitToGraph", duration: 1500 },
+];
+
+await el.playTour(tour); // settles after the last stop
+el.cancelCameraAnimation(); // ends a tour that is still playing
+
+// Record the same tour: its length is the sum of its durations and holds
+const video = await el.captureAnimation({ cameraMode: "animated", cameraPath: tour, duration: 8000 });
+```
+
+Every stop is checked before the camera moves: a view name nothing answers to is refused with
+`E_UNKNOWN_CAMERA`, and a stop with nothing the current mode can use (a 2D view in 3D) with
+`E_UNSUPPORTED`. When `cameraTransitionDuration` is set -- for example to 0 for a reader who prefers
+reduced motion -- it replaces each flight's duration, so the tour jumps between stops and still holds.
 
 ## 2D vs 3D Camera
 

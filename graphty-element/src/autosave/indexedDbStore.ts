@@ -28,10 +28,10 @@ import {
 } from "./types";
 
 /** The database every element on an origin shares; entries are told apart by their key. */
-export const AUTOSAVE_DATABASE = "graphty-autosave";
+const AUTOSAVE_DATABASE = "graphty-autosave";
 
 /** A part whose value is longer than this (characters for text, bytes for binary) goes to `blobs`. */
-export const AUTOSAVE_BLOB_THRESHOLD = 1024 * 1024;
+const AUTOSAVE_BLOB_THRESHOLD = 1024 * 1024;
 
 const DB_VERSION = 1;
 const ENTRIES = "entries";

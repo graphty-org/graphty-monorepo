@@ -94,16 +94,11 @@ describe("an empty row", () => {
         assert.strictEqual(session.styles.counts(row.id).matched, 2, "b and c have no email");
         assert.isAbove(Object.keys(session.styles.counts(row.id).painted).length, 0, "it paints once it has a value");
 
-        let refused: unknown;
-        try {
-            await session.styles.update(row.id, { set: {} });
-        } catch (error) {
-            refused = error;
-        }
-        assert.strictEqual(
-            (refused as { code?: string } | undefined)?.code,
-            "E_BAD_LAYER",
-            "emptying a layer with a value still needs keepEmpty",
+        await session.styles.update(row.id, { set: {} });
+        assert.deepStrictEqual(
+            session.styles.counts(row.id).painted,
+            {},
+            "emptied again, it stays and paints nothing, as any layer may (issue #5905)",
         );
         session.dispose();
     });

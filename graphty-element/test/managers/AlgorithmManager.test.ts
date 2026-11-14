@@ -35,8 +35,6 @@ describe("AlgorithmManager", () => {
             getDataManager: vi.fn().mockReturnValue({
                 nodes: new Map(),
                 edges: new Map(),
-                applyStylesToExistingNodes: vi.fn(),
-                applyStylesToExistingEdges: vi.fn(),
             }),
         } as unknown as Graph;
 

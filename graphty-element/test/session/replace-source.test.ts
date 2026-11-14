@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+import { withConsumerStrictState } from "./helpers";
 
 /** Supplier ids s01 to s40, or as many as asked. */
 const supplier = (at: number, count = 40): string => `s${String((at % count) + 1).padStart(2, "0")}`;
@@ -210,14 +211,15 @@ describe("replacing a load with a newer copy", () => {
 
     it("SessionDataApi.replaceSource: no more than linear in the graph", async () => {
         await assertScalesLinearly(
-            async (size) => {
-                const { session, october } = await supplyChain(size, size / 4);
-                const visits = await visitsDuring(() =>
-                    session.data.replaceSource("s2", file(october, "ships-to-2024-10.csv")),
-                );
-                session.dispose();
-                return visits;
-            },
+            (size) =>
+                withConsumerStrictState(async () => {
+                    const { session, october } = await supplyChain(size, size / 4);
+                    const visits = await visitsDuring(() =>
+                        session.data.replaceSource("s2", file(october, "ships-to-2024-10.csv")),
+                    );
+                    session.dispose();
+                    return visits;
+                }),
             { sizes: [200, 800], growth: "linear", counter: "elements visited by SessionDataApi.replaceSource" },
         );
     });

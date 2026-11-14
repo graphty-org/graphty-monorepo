@@ -12,10 +12,12 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
+import { assistantShown } from "../assistant-door/commands";
 import { filterChange } from "../data-place/filterCards";
 import { findTreeRow } from "../graph-place/rows";
 import { count } from "../inspector/words";
 import { runName } from "../runWords";
+import type { WorkspaceStore } from "../state/store";
 import { channelPhrase, SHADER_STEP_WORDS } from "../style/words";
 
 /** A fact's params, read as the element documents them. */
@@ -132,6 +134,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "algo.legacy": (p, s) => `running ${algorithmName(s, p.algorithm)}`,
     "algo.remove": (p, s) => `removing ${runWords(s, p.run)}`,
     "algo.move": (p, s) => `moving ${runWords(s, p.run)}`,
+    "algo.rename": (p, s) => `renaming ${runWords(s, p.run)}`,
     "algo.batch": (p) => `running ${counted(p, "method")}`,
     "algo.template": () => "running the template's methods",
     batch: (p) => text(p, "label", counted(p, "change", "steps")),
@@ -146,6 +149,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.set": () => "replacing the data",
     "data.replace-nodes": () => "replacing the nodes",
     "data.replace-edges": () => "replacing the edges",
+    "data.merge-nodes": (p) => `merging ${counted(p, "node")}`,
     "data.import": (p) => `importing ${text(p, "name", "data")}`,
     "data.expand": (p) => `expanding ${text(p, "node", "a node")}`,
     "data.declare": (p) => `changing the column ${text(p, "column", "")}`.trimEnd(),
@@ -211,6 +215,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "visibility.condition-remove": (p) => `deleting ${conditionName(p)}`,
     "visibility.steps": () => "changing the filter steps",
     "visibility.playback": () => "changing how time plays",
+    "visibility.hide-nodes": (p) => `hiding ${counted(p, "node")}`,
+    "visibility.show-nodes": (p) => `showing ${counted(p, "node")}`,
     "time.field": () => "setting the time field",
     "time.clear-field": () => "clearing the time field",
     "set.create": (p) => `creating ${text(p, "name", "a set")}`,
@@ -233,6 +239,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "positions.release": (p) => `releasing ${counted(p, "node")}`,
     "node.drag": (p) => `moving ${text(p, "node", "a node")}`,
     "layout.set": () => "changing the layout",
+    "layout.rerun": () => "re-running the layout",
     "layout.behavior": () => "changing how the layout runs",
     "layout.scope": () => "laying out part of the graph",
     "layout.whole-graph": () => "laying out the whole graph",
@@ -245,6 +252,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
 interface Step {
     readonly fact: CodedFact<HistoryCode>;
     readonly ops: readonly string[];
+    /** Where it came from: an Assistant message's steps carry `message`. */
+    readonly provenance?: Readonly<Record<string, string>>;
 }
 
 /** Codes whose words say something only their params decide (on or off, 2D or 3D). */
@@ -340,14 +349,17 @@ export function historyTip(session: GraphSession | null, undo: boolean): string 
 }
 
 /**
- * Runs Undo or Redo and gives the status line's words: "Undid Size by PageRank." Named before it
- * runs, since what the step names (a run, a filter step) may be gone after; a filter step that
- * only exists after (a Redo of its adding) is named after.
+ * Runs Undo or Redo and says what it took back on the status line: "Undid Size by PageRank" (a
+ * notice takes no final period). Named before it runs, since what the step names (a run, a filter
+ * step) may be gone after; a filter step that only exists after (a Redo of its adding) is named
+ * after. It is also a notice, except for an Assistant message's step with the Assistant panel open:
+ * that turn reads Undone (or no longer does) in the panel, and a turn's notice is for a closed panel.
  * @param session - the element's session.
  * @param undo - true for Undo, false for Redo.
+ * @param store - the workspace store the words are posted to.
  * @returns the words, or null when there was nothing to take back.
  */
-export async function undoOrRedo(session: GraphSession, undo: boolean): Promise<string | null> {
+export async function undoOrRedo(session: GraphSession, undo: boolean, store: WorkspaceStore): Promise<string | null> {
     const next = nextStep(session, undo);
     const before = next === null ? null : historyWords(session, next);
     const filterStep = next === null ? null : filterChange(session, next.fact);
@@ -357,5 +369,8 @@ export async function undoOrRedo(session: GraphSession, undo: boolean): Promise<
     }
     // Undo names the filter as it was before (what comes back); Redo as it is after the redo.
     const words = (undo ? filterStep : filterChange(session, next.fact)) ?? filterStep ?? before ?? "the last change";
-    return `${undo ? "Undid" : "Redid"} ${words}.`;
+    const message = `${undo ? "Undid" : "Redid"} ${words}`;
+    const inTurn = next.provenance?.message !== undefined && assistantShown(store);
+    store.set(inTurn ? { announcement: message } : { notice: { message } });
+    return message;
 }

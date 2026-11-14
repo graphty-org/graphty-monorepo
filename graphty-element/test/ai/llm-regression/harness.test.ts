@@ -6,11 +6,11 @@
  * These tests verify the harness works correctly with both mocked and real LLM providers.
  */
 
-import { APICallError, RetryError } from "ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
-import { toSafeError } from "../../../src/ai/safeError";
+import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
+import { ProviderApiEngine } from "../../../src/ai/engine/ProviderApiEngine";
+import type { TurnEvent } from "../../../src/ai/engine/types";
 import {
     getLlmRegressionApiKey,
     getLlmRegressionKeyVariable,
@@ -22,20 +22,15 @@ import {
 } from "../../helpers/llm-regression-env";
 import {
     accountRefusalOf,
-    type LlmRegressionResult,
+    isTransientFailure,
     LlmRegressionTestHarness,
+    RecordingEngine,
+    type RequestFailure,
     type TestGraphFixture,
 } from "../../helpers/llm-regression-harness";
 
 describe("LlmRegressionTestHarness", () => {
     describe("Environment Utilities", () => {
-        it("getLlmRegressionApiKey returns undefined when not set", () => {
-            // This test will pass when API key is not set
-            // and will still work when it is set (just returns the key)
-            const key = getLlmRegressionApiKey();
-            assert.ok(key === undefined || typeof key === "string");
-        });
-
         describe("provider selection", () => {
             afterEach(() => {
                 vi.unstubAllEnvs();
@@ -85,11 +80,6 @@ describe("LlmRegressionTestHarness", () => {
             });
         });
 
-        it("isLlmRegressionEnabled returns boolean", () => {
-            const enabled = isLlmRegressionEnabled();
-            assert.strictEqual(typeof enabled, "boolean");
-        });
-
         it("skipIfNoApiKey returns inverse of isLlmRegressionEnabled", () => {
             const skip = skipIfNoApiKey();
             const enabled = isLlmRegressionEnabled();
@@ -99,13 +89,6 @@ describe("LlmRegressionTestHarness", () => {
         it("getSkipReason returns descriptive message", () => {
             const reason = getSkipReason();
             assert.ok(reason.includes(getLlmRegressionKeyVariable()));
-        });
-
-        it("getLlmRegressionModel returns gpt-4o-mini by default", () => {
-            const model = getLlmRegressionModel();
-            // Either returns default or custom value if env var is set
-            assert.ok(typeof model === "string");
-            assert.ok(model.length > 0);
         });
     });
 
@@ -152,11 +135,6 @@ describe("LlmRegressionTestHarness", () => {
             assert.ok(harness.getGraph());
         });
 
-        it("configures the selected provider from environment", () => {
-            // If we got here, the harness was created successfully with the API key
-            assert.ok(harness);
-        });
-
         it("tracks tool calls made during execution", async () => {
             const result = await harness.testPrompt("How many nodes are there?");
 
@@ -165,24 +143,6 @@ describe("LlmRegressionTestHarness", () => {
             if (result.toolWasCalled) {
                 assert.strictEqual(typeof result.toolName, "string");
                 assert.ok(result.toolParams !== null);
-            }
-        });
-
-        it("measures latency for each prompt", async () => {
-            const result = await harness.testPrompt("How many nodes are there?");
-
-            assert.ok(result.latencyMs > 0);
-            assert.strictEqual(typeof result.latencyMs, "number");
-        });
-
-        it("captures token usage from responses", async () => {
-            const result = await harness.testPrompt("How many nodes are there?");
-
-            // Token usage may or may not be present depending on model response
-            if (result.tokenUsage) {
-                assert.strictEqual(typeof result.tokenUsage.prompt, "number");
-                assert.strictEqual(typeof result.tokenUsage.completion, "number");
-                assert.ok(result.tokenUsage.prompt > 0);
             }
         });
 
@@ -199,110 +159,109 @@ describe("LlmRegressionTestHarness", () => {
     });
 
     describe("account refusals", () => {
-        /** A provider error as the AI SDK reports it. */
-        function apiError(statusCode: number, responseBody: string): APICallError {
-            return new APICallError({
-                message: "request failed",
-                url: "https://provider.example/v1",
-                requestBodyValues: {},
-                statusCode,
-                responseBody,
-                isRetryable: statusCode === 429,
-            });
+        /** A provider failure as the element codes it. */
+        function providerError(status: number, message: string) {
+            return {
+                code: status === 401 || status === 403 ? ("AI_KEY_REJECTED" as const) : ("AI_PROVIDER_ERROR" as const),
+                params: { provider: "google", status },
+                message,
+            };
         }
 
         it("a rejected key is the owner's to fix", () => {
-            assert.strictEqual(accountRefusalOf(apiError(401, '{"type":"authentication_error"}')), "HTTP 401");
-            assert.strictEqual(accountRefusalOf(apiError(403, '{"type":"permission_error"}')), "HTTP 403");
+            assert.strictEqual(accountRefusalOf(providerError(401, "authentication_error")), "HTTP 401");
+            assert.strictEqual(accountRefusalOf(providerError(403, "permission_error")), "HTTP 403");
         });
 
         it("an empty balance is the owner's to fix, whatever status the provider uses", () => {
-            assert.ok(accountRefusalOf(apiError(400, "Your credit balance is too low to access the Anthropic API.")));
-            const quota = apiError(429, '{"error":{"code":"insufficient_quota"}}');
             assert.ok(
-                accountRefusalOf(new RetryError({ message: "gave up", reason: "maxRetriesExceeded", errors: [quota] })),
+                accountRefusalOf(providerError(400, "Your credit balance is too low to access the Anthropic API.")),
             );
+            assert.ok(accountRefusalOf(providerError(429, "You exceeded your current quota (insufficient_quota)")));
         });
 
-        it("a depleted prepaid balance is the owner's to fix, as the AiController keeps the error", () => {
-            // Google, 2026-10-27: HTTP 402. The controller's last error is toSafeError's plain Error, not
-            // an APICallError: only its name, message and statusCode are left.
-            const depleted = apiError(
+        it("a depleted prepaid balance is the owner's to fix", () => {
+            // Google, 2026-10-27: HTTP 402.
+            const depleted = providerError(
                 402,
                 "Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.",
             );
-            assert.ok(accountRefusalOf(depleted));
-            assert.strictEqual(accountRefusalOf(toSafeError(depleted)), "HTTP 402");
-            assert.strictEqual(accountRefusalOf(toSafeError(apiError(401, ""))), "HTTP 401");
+            assert.strictEqual(accountRefusalOf(depleted), "HTTP 402");
+            assert.strictEqual(accountRefusalOf(providerError(402, "")), "HTTP 402");
         });
 
         it("a rate limit or an ordinary failure is not an account refusal", () => {
-            assert.strictEqual(accountRefusalOf(toSafeError(apiError(429, '{"type":"rate_limit_error"}'))), null);
-            assert.strictEqual(accountRefusalOf(apiError(429, '{"type":"rate_limit_error"}')), null);
-            assert.strictEqual(accountRefusalOf(apiError(500, "overloaded")), null);
-            assert.strictEqual(accountRefusalOf(new Error("tool failed")), null);
+            assert.strictEqual(accountRefusalOf(providerError(429, "rate_limit_error")), null);
+            assert.strictEqual(accountRefusalOf(providerError(500, "overloaded")), null);
+            assert.strictEqual(
+                accountRefusalOf({ code: "AI_TOOL_THREW", params: {}, message: "billing tool failed" }),
+                null,
+            );
         });
     });
 
-    describe("Result Structure Validation", () => {
-        it("LlmRegressionResult interface matches expected structure", () => {
-            // Create a mock result to verify the interface
-            const mockResult: LlmRegressionResult = {
-                prompt: "test prompt",
-                toolWasCalled: true,
-                toolCalls: [{ name: "testTool", arguments: { param1: "value1" } }],
-                toolName: "testTool",
-                toolParams: { param1: "value1" },
-                commandResult: { success: true, message: "done" },
-                llmText: "Some response text",
-                latencyMs: 1500,
-                tokenUsage: { prompt: 100, completion: 50 },
-            };
-
-            assert.strictEqual(mockResult.prompt, "test prompt");
-            assert.strictEqual(mockResult.toolWasCalled, true);
-            assert.strictEqual(mockResult.toolName, "testTool");
-            assert.deepStrictEqual(mockResult.toolParams, { param1: "value1" });
-            assert.strictEqual(mockResult.commandResult?.success, true);
-            assert.strictEqual(mockResult.llmText, "Some response text");
-            assert.strictEqual(mockResult.latencyMs, 1500);
-            assert.strictEqual(mockResult.tokenUsage?.prompt, 100);
-            assert.strictEqual(mockResult.tokenUsage?.completion, 50);
-        });
-
-        it("supports null values for optional fields", () => {
-            const mockResult: LlmRegressionResult = {
-                prompt: "test",
-                toolWasCalled: false,
-                toolCalls: [],
-                toolName: null,
-                toolParams: null,
-                commandResult: null,
-                llmText: null,
-                latencyMs: 500,
-            };
-
-            assert.strictEqual(mockResult.toolName, null);
-            assert.strictEqual(mockResult.toolParams, null);
-            assert.strictEqual(mockResult.commandResult, null);
-            assert.strictEqual(mockResult.llmText, null);
+    describe("retries", () => {
+        it("asks again after a rate limit, a provider failure or a network failure, and after nothing else", () => {
+            const failure = (
+                code: "AI_PROVIDER_ERROR" | "AI_KEY_REJECTED",
+                status?: number,
+                message = "failed",
+            ): RequestFailure => ({
+                code,
+                params: status === undefined ? { provider: "google" } : { provider: "google", status },
+                message,
+            });
+            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", 429)));
+            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", 503)));
+            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "fetch failed")));
+            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "read ECONNRESET")));
+            // No status and no network failure: a response that failed validation fails the same way again.
+            assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "Invalid JSON response")));
+            assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", 400)));
+            assert.isFalse(isTransientFailure(failure("AI_KEY_REJECTED", 401)));
+            assert.isFalse(isTransientFailure({ code: "AI_FAILED", params: {}, message: "failed" }));
+            // The transport already retried these: asking again only waits past the case's limit.
+            assert.isFalse(
+                isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "E_LLM_FLEX_CAPACITY: fetch failed")),
+            );
+            assert.isFalse(
+                isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "E_LLM_REQUEST_TIMEOUT: socket")),
+            );
         });
     });
 
-    describe("TestGraphFixture Interface", () => {
-        it("supports custom node and edge data", () => {
-            const fixture: TestGraphFixture = {
-                nodes: [
-                    { id: "1", data: { type: "server", name: "web-01" } },
-                    { id: "2", data: { type: "database", name: "db-01" } },
-                ],
-                edges: [{ source: "1", target: "2", data: { weight: 0.8 } }],
-            };
+    describe("RecordingEngine", () => {
+        it("records every turn's tool calls in order and sums the usage, passing every event on", async () => {
+            const engine = new RecordingEngine(
+                new FakeEngine([
+                    [
+                        { type: "tool-call", id: "t1", name: "findNodes", arguments: { selector: "a" } },
+                        { type: "usage", inputTokens: 10, outputTokens: 2 },
+                        { type: "finish", reason: "tool-calls" },
+                    ],
+                    [
+                        { type: "tool-call", id: "t2", name: "zoomToNodes", arguments: {} },
+                        { type: "usage", inputTokens: 20, outputTokens: 4 },
+                        { type: "finish", reason: "tool-calls" },
+                    ],
+                ]),
+            );
+            const request = { system: "", messages: [], tools: [], toolMode: "auto" } as const;
+            const seen: string[] = [];
+            for (let turn = 0; turn < 2; turn++) {
+                for await (const event of engine.turn(request, new AbortController().signal)) {
+                    seen.push(event.type);
+                }
+            }
 
-            assert.strictEqual(fixture.nodes.length, 2);
-            assert.strictEqual(fixture.edges.length, 1);
-            assert.strictEqual(fixture.nodes[0].data.type, "server");
-            assert.strictEqual(fixture.edges[0].data.weight, 0.8);
+            assert.deepStrictEqual(
+                engine.capturedToolCalls.map((call) => call.name),
+                ["findNodes", "zoomToNodes"],
+            );
+            assert.deepStrictEqual(engine.capturedTokenUsage, { prompt: 30, completion: 6 });
+            assert.deepStrictEqual(seen, ["tool-call", "usage", "finish", "tool-call", "usage", "finish"]);
+            engine.clearCaptured();
+            assert.deepStrictEqual(engine.capturedToolCalls, []);
         });
     });
 
@@ -388,34 +347,24 @@ describe("LlmRegressionTestHarness", () => {
         });
     });
 
-    describe("Skip Behavior", () => {
-        it("skips tests gracefully when API key not available", () => {
-            // This test documents the skip behavior
-            const shouldSkip = skipIfNoApiKey();
-
-            if (shouldSkip) {
-                // When we reach here without API key, skipIf would skip the test
-                // We just verify the skip function returns true correctly
-                assert.strictEqual(isLlmRegressionEnabled(), false);
-            } else {
-                assert.strictEqual(isLlmRegressionEnabled(), true);
-            }
-        });
-    });
     describe("a 400 on a message's first request (#4220)", () => {
-        /** Gemini's 400 as the provider throws it: cleaned by toSafeError. */
-        const invalidArgument = (): Error =>
-            toSafeError(
-                new APICallError({
-                    message: "Request contains an invalid argument.",
-                    url: "https://provider.example/v1",
-                    requestBodyValues: {},
-                    statusCode: 400,
-                    responseBody: '{"error":{"status":"INVALID_ARGUMENT"}}',
-                    isRetryable: false,
-                }),
-            );
-        const answer = { text: "There are 5 nodes.", toolCalls: [], usage: undefined };
+        /**
+         * Gemini's 400 as the engine reports it.
+         * @yields The error.
+         */
+        async function* invalidArgument(): AsyncGenerator<TurnEvent> {
+            yield await Promise.resolve({
+                type: "error",
+                code: "AI_PROVIDER_ERROR",
+                params: { provider: "google", status: 400 },
+                cause: new Error("Request contains an invalid argument."),
+            });
+        }
+        const text = "There are 5 nodes.";
+        async function* answer(): AsyncGenerator<TurnEvent> {
+            yield await Promise.resolve({ type: "text", delta: text });
+            yield { type: "finish", reason: "stop" };
+        }
 
         beforeEach(() => {
             vi.stubEnv(getLlmRegressionKeyVariable(), "test-key");
@@ -428,22 +377,22 @@ describe("LlmRegressionTestHarness", () => {
         });
 
         it("sends the unchanged first request once more and returns its answer", async () => {
-            const generate = vi
-                .spyOn(VercelAiProvider.prototype, "generate")
-                .mockRejectedValueOnce(invalidArgument())
-                .mockResolvedValueOnce(answer);
+            const turn = vi
+                .spyOn(ProviderApiEngine.prototype, "turn")
+                .mockImplementationOnce(invalidArgument)
+                .mockImplementationOnce(answer);
             const harness = await LlmRegressionTestHarness.create();
 
             const result = await harness.testPrompt("How many nodes are there?");
 
-            assert.strictEqual(generate.mock.calls.length, 2);
-            assert.deepStrictEqual(generate.mock.calls[1][0], generate.mock.calls[0][0]);
-            assert.strictEqual(result.llmText, answer.text);
+            assert.strictEqual(turn.mock.calls.length, 2);
+            assert.deepStrictEqual(turn.mock.calls[1][0], turn.mock.calls[0][0]);
+            assert.strictEqual(result.llmText, text);
             harness.dispose();
         });
 
         it("fails when the resent request is refused too", async () => {
-            const generate = vi.spyOn(VercelAiProvider.prototype, "generate").mockRejectedValue(invalidArgument());
+            const turn = vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(invalidArgument);
             const harness = await LlmRegressionTestHarness.create();
 
             let thrown: unknown;
@@ -455,8 +404,121 @@ describe("LlmRegressionTestHarness", () => {
 
             assert.ok(thrown instanceof Error);
             assert.match(thrown.message, /failed before any tool ran: Request contains an invalid argument/);
-            assert.strictEqual(generate.mock.calls.length, 2);
+            assert.strictEqual(turn.mock.calls.length, 2);
             harness.dispose();
+        });
+    });
+
+    describe("retrying a failed request", () => {
+        /**
+         * A rate limit as the engine reports it.
+         * @yields The error.
+         */
+        async function* rateLimited(): AsyncGenerator<TurnEvent> {
+            yield await Promise.resolve({
+                type: "error",
+                code: "AI_PROVIDER_ERROR",
+                params: { provider: "google", status: 429 },
+                cause: new Error("Resource has been exhausted."),
+            });
+        }
+        async function* answer(): AsyncGenerator<TurnEvent> {
+            yield await Promise.resolve({ type: "text", delta: "There are 5 nodes." });
+            yield { type: "finish", reason: "stop" };
+        }
+
+        beforeEach(() => {
+            vi.stubEnv(getLlmRegressionKeyVariable(), "test-key");
+        });
+
+        afterEach(() => {
+            vi.unstubAllEnvs();
+            vi.restoreAllMocks();
+            vi.useRealTimers();
+        });
+
+        /**
+         * Send one prompt and keep what it threw.
+         * @param retryOptions - The retry options, if any.
+         * @returns The result or the error.
+         */
+        async function send(retryOptions?: Parameters<LlmRegressionTestHarness["testPrompt"]>[2]) {
+            const harness = await LlmRegressionTestHarness.create();
+            try {
+                return await harness.testPrompt("How many nodes are there?", undefined, retryOptions);
+            } catch (error) {
+                return error;
+            } finally {
+                harness.dispose();
+            }
+        }
+
+        it("asks once and fails with maxRetries 0", async () => {
+            const turn = vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(rateLimited);
+
+            const thrown = await send({ maxRetries: 0 });
+
+            assert.strictEqual(turn.mock.calls.length, 1);
+            assert.ok(thrown instanceof Error);
+            assert.match(thrown.message, /failed before any tool ran: Resource has been exhausted/);
+        });
+
+        it("asks maxRetries more times, then fails", async () => {
+            const turn = vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(rateLimited);
+
+            const thrown = await send({ maxRetries: 2 });
+
+            assert.strictEqual(turn.mock.calls.length, 3);
+            assert.ok(thrown instanceof Error);
+            assert.match(thrown.message, /failed before any tool ran: Resource has been exhausted/);
+        });
+
+        it("returns the answer of the first retry that succeeds", async () => {
+            const turn = vi
+                .spyOn(ProviderApiEngine.prototype, "turn")
+                .mockImplementationOnce(rateLimited)
+                .mockImplementationOnce(rateLimited)
+                .mockImplementationOnce(answer);
+
+            const result = await send({ maxRetries: 2 });
+
+            assert.strictEqual(turn.mock.calls.length, 3);
+            assert.ok(!(result instanceof Error));
+            assert.strictEqual((result as { llmText: string | null }).llmText, "There are 5 nodes.");
+        });
+
+        it("does not ask again when retryOn rejects the failure", async () => {
+            const turn = vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(rateLimited);
+            const seen: (number | undefined)[] = [];
+
+            const thrown = await send({
+                maxRetries: 2,
+                retryOn: (failure) => {
+                    seen.push(failure.params?.status as number | undefined);
+                    return false;
+                },
+            });
+
+            assert.strictEqual(turn.mock.calls.length, 1);
+            assert.deepStrictEqual(seen, [429]);
+            assert.ok(thrown instanceof Error);
+        });
+
+        it("reports the message's latency and the engine's token usage", async () => {
+            vi.useFakeTimers({ toFake: ["Date"] });
+            vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(async function* () {
+                vi.setSystemTime(Date.now() + 250);
+                yield await Promise.resolve<TurnEvent>({ type: "text", delta: "There are 5 nodes." });
+                yield { type: "usage", inputTokens: 12, outputTokens: 3 };
+                yield { type: "finish", reason: "stop" };
+            });
+
+            const result = await send();
+
+            assert.ok(!(result instanceof Error));
+            const { latencyMs, tokenUsage } = result as { latencyMs: number; tokenUsage?: unknown };
+            assert.strictEqual(latencyMs, 250);
+            assert.deepStrictEqual(tokenUsage, { prompt: 12, completion: 3 });
         });
     });
 });

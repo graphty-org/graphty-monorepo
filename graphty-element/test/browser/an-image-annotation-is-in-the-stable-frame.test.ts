@@ -16,6 +16,9 @@ import "../../src/graphty-element";
 import { afterEach, assert, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const TYPE = "org.cytoscape.view.presentation.annotations.";
 

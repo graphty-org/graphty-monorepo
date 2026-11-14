@@ -1,29 +1,24 @@
 // Installs Mesh.prototype.createInstance, which createModelInstance calls.
 import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import {
-    AbstractMesh,
-    type BaseTexture,
-    Color3,
-    Color4,
-    DynamicTexture,
-    type ICanvasGradient,
-    type ICanvasRenderingContext,
-    type InstancedMesh,
-    Material,
-    Matrix,
-    Mesh,
-    MeshBuilder,
-    Scene,
-    StandardMaterial,
-    TransformNode,
-    VertexBuffer,
-} from "@babylonjs/core";
+import type { BaseTexture, ICanvasGradient, ICanvasRenderingContext, InstancedMesh } from "@babylonjs/core";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Material } from "@babylonjs/core/Materials/material.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Matrix } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import type { ModelTemplate } from "../models/ModelCache";
+import { addGradientStops } from "./edgeGradient";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
@@ -74,6 +69,9 @@ export const NODE_EXTENT_PER_SIZE = 1.5;
 
 /** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
 const THIN_DEPTH_RATIO = 0.02;
+
+/** The copies of its outline a node's soft shadow is drawn in, from its blur in to its blur out. */
+const SHADOW_LAYERS = 4;
 
 /**
  * How far apart along the 2D camera's view, in scene units, the front faces of two neighbouring
@@ -189,7 +187,8 @@ const GRADIENT_TEXTURE_SIZE = 128;
  * and therefore a distinct material, per node, so a gradient computed per node would otherwise
  * allocate a texture per node. At 32 the worst case is about 2 MB, which is affordable; past the
  * ceiling the material falls back to the gradient's first stop as a flat colour rather than
- * allocating without bound.
+ * allocating without bound. It counts gradients some material still draws: a texture is disposed
+ * and its slot freed when the last material using it is disposed.
  */
 const MAX_GRADIENT_TEXTURES_PER_SCENE = 32;
 
@@ -197,9 +196,13 @@ const MAX_GRADIENT_TEXTURES_PER_SCENE = 32;
  * Gradient ramps interned per scene, keyed by the gradient VALUE rather than by style id.
  *
  * A WeakMap so the whole table is collected with the scene it belongs to -- textures never leak
- * between scenes, and a test that builds and drops a scene leaves nothing behind.
+ * between scenes, and a test that builds and drops a scene leaves nothing behind. `users` counts
+ * the live materials drawing the texture.
  */
-const gradientTextureCache = new WeakMap<Scene, Map<string, DynamicTexture>>();
+const gradientTextureCache = new WeakMap<Scene, Map<string, { texture: DynamicTexture; users: number }>>();
+
+/** A gradient color with an alpha under full: `#rgba` or `#rrggbbaa`. */
+const SEE_THROUGH = /^#(?:[0-9a-f]{3}[0-9a-e]|[0-9a-f]{6}(?!ff)[0-9a-f]{2})$/i;
 
 interface ColorObject {
     colorType: string;
@@ -357,37 +360,71 @@ export class NodeMesh {
         createOptions: NodeMeshCreateOptions,
         scene?: Scene,
     ): AbstractMesh {
-        const cacheKey = `node-style-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
+        return cache.get(this.cacheKeyOf(options), () => this.createSource(options, createOptions, scene));
+    }
 
-        return cache.get(cacheKey, () => {
-            const mesh = this.createMeshWithoutCache(options, createOptions, scene);
-            placeByZIndex(mesh, createOptions.shape, options.is2D);
+    /**
+     * The source mesh {@link NodeMesh.create} instances, with no instance of it: what a row with
+     * no `Node` is drawn from by its batch.
+     * @param cache - The mesh cache.
+     * @param options - As for {@link NodeMesh.create}.
+     * @param createOptions - As for {@link NodeMesh.create}.
+     * @param scene - The scene.
+     * @returns The source mesh.
+     */
+    static source(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        scene?: Scene,
+    ): Mesh {
+        return cache.sourceFor(this.cacheKeyOf(options), () => this.createSource(options, createOptions, scene));
+    }
 
-            // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
-            // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
-            // every node sharing this style id shares the faceted geometry; `node.flat` is a mesh
-            // column in the style interner, so flat and smooth nodes never share a source mesh.
-            // An unindexed mesh (only a registered shape can be one) has no faces to split.
-            if (createOptions.effect?.flatShaded && !mesh.isUnIndexed && mesh.getTotalIndices() > 0) {
-                mesh.convertToFlatShadedMesh();
-            }
+    /**
+     * The cache key of a node's source mesh.
+     * @param options - Its style id and view.
+     * @returns The key.
+     */
+    private static cacheKeyOf(options: NodeMeshOptions): string {
+        return `node-style-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
+    }
 
-            const material = this.createMaterial(createOptions, options.is2D, scene);
-            mesh.material = material;
-            if (isNodeMaterial(material)) {
-                outlineNodeMesh(mesh, sceneLighting(scene));
-            }
+    /**
+     * Build a node's source mesh and its material.
+     * @param options - As for {@link NodeMesh.create}.
+     * @param createOptions - As for {@link NodeMesh.create}.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static createSource(options: NodeMeshOptions, createOptions: NodeMeshCreateOptions, scene?: Scene): Mesh {
+        const mesh = this.createMeshWithoutCache(options, createOptions, scene);
+        placeByZIndex(mesh, createOptions.shape, options.is2D);
 
-            if (
-                createOptions.texture?.color &&
-                typeof createOptions.texture.color === "object" &&
-                "opacity" in createOptions.texture.color
-            ) {
-                mesh.visibility = createOptions.texture.color.opacity ?? 1;
-            }
+        // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
+        // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
+        // every node sharing this style id shares the faceted geometry; `node.flat` is a mesh
+        // column in the style interner, so flat and smooth nodes never share a source mesh.
+        // An unindexed mesh (only a registered shape can be one) has no faces to split.
+        if (createOptions.effect?.flatShaded && !mesh.isUnIndexed && mesh.getTotalIndices() > 0) {
+            mesh.convertToFlatShadedMesh();
+        }
 
-            return mesh;
-        });
+        const material = this.createMaterial(createOptions, options.is2D, scene);
+        mesh.material = material;
+        if (isNodeMaterial(material)) {
+            outlineNodeMesh(mesh, sceneLighting(scene));
+        }
+
+        if (
+            createOptions.texture?.color &&
+            typeof createOptions.texture.color === "object" &&
+            "opacity" in createOptions.texture.color
+        ) {
+            mesh.visibility = createOptions.texture.color.opacity ?? 1;
+        }
+
+        return mesh;
     }
 
     /**
@@ -857,6 +894,87 @@ export class NodeMesh {
     }
 
     /**
+     * Build a node's shadow (`shadow`, yEd's drop shadow) and hand back its instances, none when the
+     * node draws no shadow: the node's outline moved `offsetX` right and `offsetY` down, behind the
+     * node's back. A soft edge (`blur` above 0) is `SHADOW_LAYERS` copies of the outline grown from
+     * `blur` in to `blur` out, each a share of the opacity, so where they all overlap the shadow is
+     * `opacity` and it fades evenly to nothing across the edge. Each layer is cached under the node's
+     * style key, as its underlay is.
+     * @param cache - The mesh cache the node's own mesh came from.
+     * @param options - The node's mesh options.
+     * @param shape - The node's shape block.
+     * @param shadow - The shadow.
+     * @param fill - The node's own mesh, whose outline and depth it follows.
+     * @param scene - The scene.
+     * @returns The layers' instances, outermost first; empty for no shadow.
+     */
+    static createShadow(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        shape: NodeStyleConfig["shape"],
+        shadow: NodeStyleConfig["shadow"],
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): InstancedMesh[] {
+        const opacity = shadow?.opacity ?? 0;
+        if (shape?.type === undefined || opacity <= 0) {
+            return [];
+        }
+
+        const perSize = this.extentPerSize(shape);
+        const blur = (shadow?.blur ?? 0) * perSize;
+        const [dx, dy] = [(shadow?.offsetX ?? 0) * perSize, -(shadow?.offsetY ?? 0) * perSize];
+        const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
+        const flat = isFlatShape(shape.type);
+        const count = blur > 0 ? SHADOW_LAYERS : 1;
+        // a layer drawn alone at `share` and `count` of them over one another make `opacity`
+        const share = 1 - (1 - opacity) ** (1 / count);
+        // a layer grown inward never passes the node's middle
+        const deepest = 0.45 * Math.min(sized.x ?? sized.across, sized.y ?? sized.across);
+        const instances: InstancedMesh[] = [];
+        for (let layer = 0; layer < count; layer++) {
+            // outermost first; layers at the middles of `count` equal steps across the edge
+            const pad = count === 1 ? 0 : Math.max(blur * (1 - (2 * layer + 1) / count), -deepest);
+            const key = `node-shadow-${String(layer)}-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
+            const instance = cache.get(key, () => {
+                const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
+                const outline = offsetOutline(nodeOutline, pad).map(([x, y]): Point2 => [x + dx, y + dy]);
+                fill.computeWorldMatrix(true);
+                const box = fill.getBoundingInfo().boundingBox;
+                const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
+                const mesh = ringSlab(
+                    "node-shadow",
+                    [{ inner: outline.map((): Point2 => [dx, dy]), outer: outline, closed: true }],
+                    depth,
+                    scene,
+                );
+                // behind the node's back and its underlay (2D looks along +z), the outermost layer furthest
+                const gap = depth * 0.01;
+                const at = box.maximum.z + (depth + gap) * (1 + count - layer) + depth / 2;
+                const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+                if (positions !== null) {
+                    for (let z = 2; z < positions.length; z += 3) {
+                        positions[z] += at;
+                    }
+                    mesh.setVerticesData(VertexBuffer.PositionKind, positions);
+                    mesh.refreshBoundingInfo();
+                }
+                mesh.material = this.createBorderMaterial(shadow?.color ?? "#000000", share, scene);
+
+                return mesh;
+            });
+            instance.sourceMesh.isPickable = false;
+            instance.isPickable = false;
+            if (!flat && !options.is2D) {
+                instance.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+            }
+            instances.push(instance);
+        }
+
+        return instances;
+    }
+
+    /**
      * The border of a group drawn over its members' box: a ring built at the box's own width and
      * height, so its line is the style's width however far the box is stretched. Not cached, since
      * every box has its own size; the caller gives it the cached border's material.
@@ -1066,8 +1184,10 @@ export class NodeMesh {
     ): void {
         const styleColor = createOptions.texture?.color;
         let color3 = this.extractColor(styleColor);
-        const gradient = color3 ? undefined : this.extractGradient(styleColor);
-        const gradientTexture = gradient ? this.getGradientTexture(gradient, scene) : undefined;
+        const { picture } = createOptions;
+        const hasPicture = picture !== undefined && picture !== null;
+        const gradient = color3 || hasPicture ? undefined : this.extractGradient(styleColor);
+        const gradientTexture = gradient ? this.getGradientTexture(gradient, mat, scene) : undefined;
 
         if (gradient && !gradientTexture) {
             // The ramp could not be allocated -- no scene, no 2D canvas in this environment, or
@@ -1077,15 +1197,16 @@ export class NodeMesh {
             // a flat approximation of a gradient is legible, an unstyled default is not.
             const [firstStop] = gradient.colors;
             if (firstStop) {
-                color3 = Color3.FromHexString(firstStop);
+                // its color, without an alpha Color3 cannot hold
+                color3 = Color3.FromHexString(firstStop.length === 9 ? firstStop.slice(0, 7) : firstStop);
             }
         }
 
         // `node.unlit` draws a 3D node the way 2D draws every node: its own colour, no light.
         const unlit = is2D || createOptions.effect?.unlit === true;
 
-        if (createOptions.picture !== undefined && createOptions.picture !== null) {
-            this.setUpPictureMaterial(mat, createOptions, createOptions.picture, is2D, unlit);
+        if (hasPicture) {
+            this.setUpPictureMaterial(mat, createOptions, picture, is2D, unlit);
         } else {
             this.setUpColorMaterial(mat, gradientTexture, color3, unlit, scene);
         }
@@ -1148,6 +1269,11 @@ export class NodeMesh {
         scene: Scene | undefined,
     ): void {
         if (gradientTexture) {
+            if (gradientTexture.hasAlpha) {
+                // blended, not alpha-tested: a diffuse texture with an alpha is otherwise cut where it fades
+                mat.opacityTexture = gradientTexture;
+                mat.transparencyMode = Material.MATERIAL_ALPHABLEND;
+            }
             if (unlit) {
                 // EMISSIVE ONLY. With lighting off the shader draws the emissive term times the
                 // diffuse texture, so the ramp in both drew it squared: a #E8EEF7 to #B7C9E3 fill
@@ -1272,15 +1398,21 @@ export class NodeMesh {
      *      provenance is invisible here, but unbounded allocation is not.
      *
      * The cache is a WeakMap keyed by scene, so the entries die with the scene and never leak
-     * across scenes or across tests. `MeshCache` disposes a source mesh's material but never its
-     * textures, so a cached texture stays valid across a 2D/3D switch.
+     * across scenes or across tests. Each entry counts the materials drawing it: `MeshCache`
+     * disposes a source mesh's material (never its textures), and the last material's disposal
+     * disposes the texture and frees its slot, so the ceiling counts gradients in use rather than
+     * every gradient the scene has ever seen (issue #7122).
      * @param gradient - The normalised gradient to paint
+     * @param mat - The material that will draw the texture, holding it until disposed
      * @param scene - Babylon.js scene that will own the texture
      * @returns The shared texture, or undefined if one cannot or should not be allocated
      */
-    private static getGradientTexture(gradient: GradientColor, scene?: Scene): DynamicTexture | undefined {
-        // One stop cannot make a ramp: the stop offsets below are `i / (colors.length - 1)`, which
-        // is NaN for a single stop and throws in `addColorStop`. The caller paints it flat.
+    private static getGradientTexture(
+        gradient: GradientColor,
+        mat: StandardMaterial,
+        scene?: Scene,
+    ): DynamicTexture | undefined {
+        // One stop is no ramp: the caller paints it flat, which needs no texture.
         if (!scene || gradient.colors.length < 2) {
             return undefined;
         }
@@ -1289,26 +1421,34 @@ export class NodeMesh {
 
         let sceneCache = gradientTextureCache.get(scene);
         if (!sceneCache) {
-            sceneCache = new Map<string, DynamicTexture>();
+            sceneCache = new Map();
             gradientTextureCache.set(scene, sceneCache);
         }
 
-        const cached = sceneCache.get(key);
-        if (cached) {
-            return cached;
+        let entry = sceneCache.get(key);
+        if (!entry) {
+            if (sceneCache.size >= MAX_GRADIENT_TEXTURES_PER_SCENE) {
+                return undefined;
+            }
+            const texture = this.createGradientTexture(gradient, scene, key);
+            if (!texture) {
+                return undefined;
+            }
+            entry = { texture, users: 0 };
+            sceneCache.set(key, entry);
         }
 
-        if (sceneCache.size >= MAX_GRADIENT_TEXTURES_PER_SCENE) {
-            return undefined;
-        }
-
-        const texture = this.createGradientTexture(gradient, scene, key);
-        if (!texture) {
-            return undefined;
-        }
-
-        sceneCache.set(key, texture);
-        return texture;
+        const held = entry;
+        const cache = sceneCache;
+        held.users++;
+        mat.onDisposeObservable.addOnce(() => {
+            held.users--;
+            if (held.users === 0 && cache.get(key) === held) {
+                cache.delete(key);
+                held.texture.dispose();
+            }
+        });
+        return held.texture;
     }
 
     /**
@@ -1354,12 +1494,13 @@ export class NodeMesh {
                 : this.createLinearRamp(ctx, gradient.direction, size);
 
             const { colors, stops } = gradient;
-            for (let i = 0; i < colors.length; i++) {
-                ramp.addColorStop(stops?.[i] ?? i / (colors.length - 1), colors[i] ?? "transparent");
-            }
+            addGradientStops(ramp, colors, stops);
 
             ctx.fillStyle = ramp;
             ctx.fillRect(0, 0, size, size);
+            // A stop with an alpha (`#rgba`, `#rrggbbaa`) is see-through, so the material reads the
+            // texture's alpha too (setUpColorMaterial); an opaque ramp keeps its node opaque.
+            texture.hasAlpha = colors.some((c) => SEE_THROUGH.test(c));
             // Default invertY, matching RichTextLabel's texture updates, so a canvas painted with
             // a top-left origin ends up upright on the mesh and "direction 90" means the same
             // thing on a node as it does behind a label.

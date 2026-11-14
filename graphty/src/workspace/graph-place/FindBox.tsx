@@ -1,12 +1,6 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
-import {
-    type GraphSession,
-    isGraphtyError,
-    renamePaths,
-    type RuleCheck,
-    rulePath,
-} from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError, type RuleCheck, rulePath } from "@graphty/graphty-element/session";
 import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -16,7 +10,7 @@ import { focusValuesNext, takeValuesFocus } from "../inspector/reads";
 import { edgeJoiner, edgeName, selectedNameWords, sizeWords, valueWord, yesNoWord } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { selectorName } from "../style/cards";
-import { attributeName, readableName } from "../style/words";
+import { attributeName, plainRule, readableName, shownName, shownRule } from "../style/words";
 import { useSessionVersion } from "./useSessionVersion";
 
 /** The find box's id, which `find.focus` ("/") moves focus to. */
@@ -92,53 +86,6 @@ function exampleRule(session: GraphSession): string | null {
         }
     }
     return null;
-}
-
-/**
- * A rule as the reader reads and types it: its numbers without the backticks the element writes
- * around them. Only numbers: a backticked text or `true` means something else bare.
- * @param rule - the rule, without "=".
- * @returns the rule.
- */
-function plainRule(rule: string): string {
-    return rule.replaceAll(/`(-?\d+(?:\.\d+)?)`/g, "$1");
-}
-
-/**
- * The name the panels show a column a rule reads by: a run's value under its run's name, a node's
- * structure under its own (Degree, never graphty.degree).
- * @param session - the element's session.
- * @param path - the path as the rule names it: a bare column name or a dotted path.
- * @returns the name, or undefined for a path no value answers.
- */
-function shownName(session: GraphSession, path: string): string | undefined {
-    const value = session.data
-        .readableValues()
-        .find((each) => each.end === undefined && (each.path === path || rulePath(each.path) === path));
-    if (value !== undefined) {
-        return readableName(session, value).name;
-    }
-    const structure = session.data.structureValues().find((each) => each.path === path);
-    if (structure !== undefined) {
-        return structure.plainName;
-    }
-    const named = attributeName(session, path);
-    return named === path ? undefined : named;
-}
-
-/**
- * A rule as the find box shows it: each column under the name the panels give it, numbers bare.
- * It is shown, never typed back: a rule reads columns by their paths.
- * @param session - the element's session.
- * @param rule - the rule, without "=".
- * @returns the words.
- */
-function shownRule(session: GraphSession, rule: string): string {
-    try {
-        return plainRule(renamePaths(rule, (path) => shownName(session, path)));
-    } catch {
-        return plainRule(rule);
-    }
 }
 
 /**

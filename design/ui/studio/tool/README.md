@@ -52,6 +52,8 @@ person watching would have read it.
   (up to 30 seconds), the setup's end empties the history through graphty-element's
   `session.history.clear()`, so Undo starts off ("Nothing to undo") and the setup's steps cannot
   be undone; history that cannot be emptied fails the start with `SETUP FAILED`.
+  A start whose setup failed ends its own session: `01.png` and `setup.log` stay, and nothing keeps a
+  browser.
 - `--start <folder> empty --sr` (or `setup:<file> --sr`) starts a session in screen-reader mode;
   see below.
 - The folder gets `01.png`, `02.png`, ..., `session.json`, `session.log` (the session process's
@@ -210,7 +212,10 @@ stable`, `<div ...> intercepts pointer events` when something covers it).
 - `stopped after "--click Layer": the rest of this step (--click --type) did not run` when a batch
   met a miss or a failed check before its end.
 - Every script error, `console.error` and failed request since the last step. In the real app
-  each is a defect worth a bug report. They make the command exit 1.
+  each is a defect worth a bug report. They make the command exit 1. The browser's own report of a
+  cross-origin call it refused (a remote service that answers a refused key with no CORS header: the
+  CORS line, its `net::ERR_FAILED` request and resource lines) goes to `session.log` only, since no
+  reader sees it; the reader sees the app's words for the failure.
 
 ## Screen-reader mode
 
@@ -273,7 +278,10 @@ this file's "A session", "Steps" and "Names, dialogs and lists". The task, half,
 come from the session's row in the round's `plan.md` (the folder's name is the session id; a
 re-run `r3-s05b` takes `r3-s05`'s row); `--task T17A --persona Grace` names them for a folder with
 no plan. A participant reads only its own folder: never `tasks.md` (it holds the avoided words and
-the follow-ups), `answers.md`, `roster.md` or a persona file directly.
+the follow-ups), `answers.md`, `roster.md` or a persona file directly. What lands in that folder keeps
+a setup's steps out of it (`session.json` gives their number and `setup.log` is empty unless the setup
+failed), and the start command shows a setup's file name, so a name says where a session starts and
+never what the task measures.
 
 `--start` refuses, starting nothing:
 
@@ -309,7 +317,9 @@ What the tool keeps in every session folder for the graders (the participant nev
 - For bar 2 (earlier work kept), `work-start.json` lists the open work the participant arrives to
   -- runs, style layers, notes, filter steps and sources, each by its id and name -- and `--end`
   writes `work.json`: that list, the same list at the end, and `gone`, what the start held and the
-  end does not (a renamed run, an edited note or a step turned off is not gone). Graders judge
+  end does not (a renamed run, an edited note or a step turned off is not gone). A list that could not
+  be read, or a setup's start list with nothing in it, is named in `unread`: `--end` prints a `FAIL`
+  line and exits 1, since no `gone` is not then a clean session. Graders judge
   only whether each item in `gone` was the participant's choice. The participant never sees
   either file.
   A filter step is recorded with its whole rule (`step-1 off {"kind":"range",...,"min":5,...}`),
@@ -366,9 +376,9 @@ A session is void, and is re-run rather than graded, if any call opened:
   read) and the data files in `tool/files/`
 - a path with `..`, or a Grep or Glob with no folder (it searches wherever the agent runs)
 
-Only what a call opens is read: a Write's or Edit's target, never its content, and a shell command
-without its heredoc bodies (unless the shell would run a `$(...)` or a backtick in one). A
-participant who quotes a tool message naming `plan.md` into its own transcript opened nothing.
+Text a call writes is not read as opened: a Write's content, an Edit's strings, a call's description,
+and the body of a heredoc that `cat` or `tee` writes to a file (a participant appending its notes).
+A heredoc fed to anything else, such as a script, is still read.
 
 It prints one `VOID: the participant opened <what>, <path> (<tool>, <transcript>)` line per call
 and exits 1; with none, one `leak check:` line with the counts and exit 0; with no transcript
@@ -407,7 +417,10 @@ tier's `criteria.md`:
   `n4-quick-actions`: a walk named for where it goes is never taken for the success walk). A walk counts when its commit is the frozen build or
   holds the same app code (no difference in `graphty`, `graphty-element`, `compact-mantine` or
   `pnpm-lock.yaml`, by `git diff`); a walk on other app code is named and does not count;
-- the bars run on that build: `<round folder>/bars/bars.json` from `bars.mjs <round folder>/bars
+- for tier 6, enough of the tier's Gemini requests left for every session of the plan at the criteria's
+  limit of 40 (`callsShort` in `tier6.mjs`): a session the cap stops is void;
+- unless the tier's `criteria.md` says "No bar here is scored by a script" (tier 6: `bars.mjs` measures
+  no screen its criteria name), the bars run on that build: `<round folder>/bars/bars.json` from `bars.mjs <round folder>/bars
 --dist <frozen build>`, with every planted case caught and no `MISS` line (a failing bar does not
   stop the gate). For tier 3 also the light run, `<round folder>/bars-light/`, each a `--tier 3`
   run that reached every screen, focus action and typing check bar 6 lists (`BAR6` in
@@ -462,7 +475,10 @@ machine's browser slots (`with-browser.sh`) when it starts and holds it until `-
 waits, saying so, while every slot is taken. The slots are the main checkout's
 `tmp/browser-slots/slot1` to `slot8`. Slots 1 to 4 are the same ones `tools/with-browser.sh`
 hands to the pre-push gate's browser test shards and to visual-preview captures, so a study round
-and the machine's test runs share them; slots 5 and up are the studio's alone. A command that
+and the machine's test runs share them; slots 5 and up are the studio's alone. A tier 6 session is held
+to 4, the criteria's "at most 4 participants" (`BROWSER_SLOTS` on the command sets another number),
+and its start first closes every warm browser, which it could never take, so 4 is also the count of
+study browsers alive. A command that
 draws on the GPU (`real.mjs` sets `BROWSER_GPU=1` for its sessions) may take up to 8; any other
 command, drawn in software, up to 4. `BROWSER_SLOTS` (1 to 16) sets the cap; above 16 the gate
 refuses to run (exit 2). Eight GPU sessions with a graph open used 6.8 GB of memory in all (about
@@ -480,12 +496,15 @@ second. `bars.mjs` is the same: its walks are `real.mjs` sessions that each take
 1 screens run as `bars.mjs --inner`, which it puts through the gate itself, so the gate passes a
 `bars.mjs` command through without a slot (wrapped, it used to hold one idle slot for the whole run).
 
-Waiting starts are served first come, first served: each waiter takes a ticket in the pool's
-`queue/` folder, named by when it asked, and only the oldest live ticket may take the next free
-slot; a waiter that was killed leaves a ticket the next waiter removes. `node --test
-design/ui/studio/tool/with-browser.test.mjs` checks the order, the dead waiter and the `bars.mjs`
-pass-through with no browser. Commands that take the machine's slots without this script (the
-pre-push gate's browser shards) do not queue; they take a slot when they find one free.
+`with-browser.sh` waits through the machine's one gate, `tools/with-browser.sh`, so a study
+session follows the same rules as every other browser command. Waiting starts are served first
+come, first served: each waiter takes a ticket in the pool's `queue/` folder, named by when it
+asked, and takes a free slot only while no older live ticket could take that slot too; a waiter
+that was killed leaves a ticket the next waiter removes. The low-priority lane
+(`BROWSER_SLOT_PRIORITY=low`) keeps tickets of its own and takes only slot 4 and up, so it never
+holds up an ordinary waiter, and while a high-lane command (the cut's screenshot preview) waits,
+no other command takes a slot. `node --test design/ui/studio/tool/with-browser.test.mjs` checks the
+order, the dead waiter, the lanes and the `bars.mjs` pass-through with no browser.
 
 **Warm browsers.** A cold start launches a browser, opens the app on a clean profile and lets it
 settle: 7 to 11 seconds after its slot. So the tool keeps a few browsers warm: launched, the app
@@ -655,6 +674,56 @@ reviewed, so a real change on a route that also flickers between runs is hidden 
 made stable. Pilots walk the detours and the keyboard walk; a route that passes is not looked at
 screen by screen.
 
+## Tier 6 sessions: the Assistant with live Gemini
+
+A session of tier 6 (a folder under `tier6/`, or `REAL_TIER=6`) runs the same production build with
+the Assistant on and a real model behind it. Nothing changes for any other tier: production's `site.json`, no
+network route, and the warm pool as before. The code is in `tier6.mjs`.
+
+- **The flag.** The session's own server answers `/site.json` with `{ "features": ["assistant"] }`,
+  so the rail shows Assistant with nothing in the page address and no site chip. The app reads that
+  file once, when it loads, and a warm browser loaded it before it had a session, so a tier 6 session
+  never takes a warm browser and never starts one: it always starts cold. Check a takeover with no
+  `REAL_TIER` set.
+- **The key.** The session process takes `GOOGLE_API_KEY` from the main checkout's root `.env`, that
+  one value only (`node:util` `parseEnv`, so no other token reaches `process.env`), and removes the
+  variable from its own environment before launching the browser. A missing key fails `--start` with
+  one line. Requests to `generativelanguage.googleapis.com`, and no other host, have their
+  `x-goog-api-key` header replaced on the way out of the browser; the answer still streams.
+- **Starting a conversation.** The participant types any placeholder of at least 11 characters into
+  the app's own setup: open a project, Assistant, AI provider..., click the API key box, type, Save.
+  The real key is never in the page.
+
+    ```bash
+    S=<session dir>; real="node design/ui/studio/tool/real.mjs"
+    REAL_TIER=6 $real --start $S empty
+    $real --step $S --click "New project" --click "Assistant" --click "AI provider..."
+    $real --step $S --click-at 815,331 --type "study-placeholder" --click "Save"
+    $real --step $S --type "Which nodes matter most?" --click "Send"
+    ```
+
+- **The model.** Whatever the app's setup shows; its default is `gemini-3.8-flash`, from the
+  element's catalog. `session.log` holds one line per call, with its count and path and no key.
+- **The cap.** 5,000 requests per tier, counted in
+  `tmp/design-studio/tier6/gemini-requests.count` under the main checkout, one byte per request, so
+  every worktree and every session shares it. CORS preflights are not counted, and neither is a refused
+  request; each of the app's own retries is. A live voice session's WebSocket is neither routed nor
+  counted, only the one token that opens it. At the cap a call is answered 429, the app shows its
+  own failure after its retries, and every later step and `--end` print a line saying the cap is
+  reached. `REAL_GEMINI_COUNT=<file>` counts in another file, for trying the refusal with no paid
+  call: fill it with 5,000 bytes.
+- **The key check.** `--end` scans every file of the session's folder, bytes included, and then of
+  the copy returned to the round. A hit prints `FAIL` with the file's name, never the key, exits 1,
+  and keeps a session's folder from being copied to the round. It sees the key as written, not an
+  encoded copy. `--end` on a finished session runs the check again.
+
+- **What the bars read.** No bar is scored by a script, so the gate asks for no `bars.mjs` run. The
+  records and tests the counted bars lean on, each with a failure of its own: bar 7's `work.json`
+  and `styles.json` from `--end`, which exits 1 with a `FAIL` line and an `unread` field when a list
+  read nothing (`workUnread`, checked in `measure.test.mjs`; a planted removal in `--prove`); the
+  state list's row 6.4, `graphty/src/workspace/assistant/__tests__/words.test.ts`, which puts each
+  result code through `words.ts`.
+
 ## Checking the tool
 
 ```bash
@@ -677,7 +746,7 @@ one whose step names nothing, one whose click never becomes clickable), a screen
 text, the highlighted option of the find box, a planted region that arrives filled marked
 unconfirmed, `--read` in the Export dialog, the first Tab after a setup landing on Main menu), a
 planted position pick between the open Attribute list's option "weight" and the Data panel's row
-"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, a start refused for a session of a round whose plan holds no gate evidence, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan; then, with every slot of a planted one-slot pool full, a start bounded by `REAL_SLOT_WAIT_SECONDS` that exits 4 with nothing started, and the same start run again that starts the session once the slot frees), and the faster tool's own checks (the session draws on the GPU, not SwiftShader, and `session.json` names the renderer; a batch stops at its first miss; a walk saves its route; a replay of an unchanged route matches every check point and ends; a planted change in what a step printed stops a replay at that step with the session left open; a rewalk that sorts an unchanged route from a missing control and a changed screen, keeping the diverged folders aside; and, in a pool of its own, a start that tops up the warm pool and the next start that takes the warm browser over). It prints `ok` or `FAIL` per check and exits 1 on any failure. `node --test design/ui/studio/tool/with-browser.test.mjs` checks the gate's caps and its try mode without a browser.
+"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, a start refused for a session of a round whose plan holds no gate evidence, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan; then, with every slot of a planted one-slot pool full, a start bounded by `REAL_SLOT_WAIT_SECONDS` that exits 4 with nothing started, and the same start run again that starts the session once the slot frees), and the faster tool's own checks (the session draws on the GPU, not SwiftShader, and `session.json` names the renderer; a batch stops at its first miss; a walk saves its route; a replay of an unchanged route matches every check point and ends; a planted change in what a step printed stops a replay at that step with the session left open; a rewalk that sorts an unchanged route from a missing control and a changed screen, keeping the diverged folders aside; and, in a pool of its own, a start that tops up the warm pool and the next start that takes the warm browser over; in that same pool, a session of another tier on production's `site.json`, with no Assistant or Gemini route, and a tier 6 session on a planted key with its count at the cap: a start with no key that fails in one line, a cold start beside a ready warm browser, the Assistant with nothing in the address and no site chip, a browser environment with no `GOOGLE_API_KEY`, a refused call the step and `--end` report, a key planted in the folder that fails `--end` by file name, one in the round's copy that fails it too, and one in a session that is never copied to the round; no check spends a call). It prints `ok` or `FAIL` per check and exits 1 on any failure. `node --test design/ui/studio/tool/with-browser.test.mjs` checks the gate's caps and its try mode without a browser.
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set
 `REAL_PROVE_DIR=<folder>` to run it beside another self-test.
 

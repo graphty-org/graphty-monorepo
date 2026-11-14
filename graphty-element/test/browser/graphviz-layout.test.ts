@@ -11,6 +11,9 @@ import { Graph, operationQueueOf } from "../../src/Graph";
 import { graphvizAvailability } from "../../src/layout/graphviz/availability";
 import { runGraphviz } from "../../src/layout/graphviz/host";
 import { drawnFrames } from "../helpers/drawn-frames";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** A graph that takes Graphviz far longer than a millisecond: a 300-node grid for circo. */
 const SLOW_DOT = `graph { ${Array.from({ length: 300 }, (_unused, i) => `n${String(i)} -- n${String((i * 7 + 1) % 300)}; n${String(i)} -- n${String((i + 1) % 300)};`).join(" ")} }`;
@@ -176,14 +179,13 @@ describe("Graphviz layouts in the element", () => {
         await graph.waitForStableFrame();
 
         const edge = [...graph.getDataManager().edges.values()].find((e) => e.srcId === "a" && e.dstId === "c");
-        const dashes = edge?.drawnPattern ?? [];
-        assert.isAbove(dashes.length, 2, "the edge is drawn as dashes");
+        // a dashed line is a joined line whose shader draws its dashes along its run (issue #7404)
+        const run = edge?.drawnCurve ?? [];
+        assert.isAbove(run.length, 2, "the edge is drawn along a run of points");
         const [a, c] = [at("a"), at("c")];
         const length = Math.hypot(c.x - a.x, c.y - a.y);
         const off = Math.max(
-            ...dashes.map(
-                ({ position: p }) => Math.abs((p.x - a.x) * (c.y - a.y) - (p.y - a.y) * (c.x - a.x)) / length,
-            ),
+            ...run.map((p) => Math.abs((p.x - a.x) * (c.y - a.y) - (p.y - a.y) * (c.x - a.x)) / length),
         );
         assert.isAbove(off / length, 0.05, "its dashes bow off the line between its nodes, round b");
     });

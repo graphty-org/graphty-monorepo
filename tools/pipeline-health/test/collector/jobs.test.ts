@@ -136,24 +136,25 @@ describe("chronically failing jobs", () => {
     });
 
     it("gives an issue only the job of the workflow it names, not another workflow's job of the same name", async () => {
-        // 2026-10-29: #4530, about release.yml's CI call, was shown on the CodeQL workflow's "All Checks Pass" row.
+        // 2026-10-29: #4530, about release.yml's CI call, was shown on the CodeQL workflow's "All Checks Pass" row. That
+        // job is an aggregator and no longer judged (#6068), so a job every workflow names alike stands in for it.
         const same = (workflow: string, name: string, load: JobItem["load"]) =>
             PERF.map(([run, end, c]) =>
                 jobItem(run, name, end, c, { id: `${REPO}/${run}/${workflow}/${name}`, workflow, load }),
             );
         const store = await stored([
-            ...same("release.yml", "CI / All Checks Pass", "full"),
-            ...same("ci.yml", "All Checks Pass", "master"),
-            ...same("codeql", "All Checks Pass", "other"),
+            ...same("release.yml", "CI / Checks", "full"),
+            ...same("ci.yml", "Checks", "master"),
+            ...same("codeql", "Checks", "other"),
         ]);
         const { gh } = searchGitHub([
-            { number: 4530, title: "Full run: CI / All Checks Pass red in 5 of 10 full runs", body: "" },
+            { number: 4530, title: "Full run: CI / Checks red in 5 of 10 full runs", body: "" },
         ]);
         const { list, obs } = await jobMembers(store, gh, REPO, NOW);
         expect(list.map((j) => [j.workflow, j.job, j.issue]).sort()).toEqual([
-            ["ci.yml", "All Checks Pass", undefined],
-            ["codeql", "All Checks Pass", undefined],
-            ["release.yml", "CI / All Checks Pass", 4530],
+            ["ci.yml", "Checks", undefined],
+            ["codeql", "Checks", undefined],
+            ["release.yml", "CI / Checks", 4530],
         ]);
         expect(obs).toEqual({ "ci.chronic_jobs": 3, "ci.chronic_no_issue": 2 });
     });
@@ -167,6 +168,15 @@ describe("chronically failing jobs", () => {
         const mac = { workflow: "work-protection-macos.yml", job: "Autosave (webkit)" };
         expect(titleOwnsJob("work protection (macOS): Autosave (webkit) red since 2026-10-20", mac)).toBe(true);
         expect(titleOwnsJob("Autosave (webkit) red since 2026-10-20", mac)).toBe(false);
+    });
+
+    it("reads a workflow or run kind in the singular or the plural", () => {
+        const lint = { workflow: "release.yml", job: "CI / Lint" };
+        expect(titleOwnsJob("Full run: CI / Lint red", lint)).toBe(true);
+        expect(titleOwnsJob("CI / Lint failed 9 of 10 full runs", lint)).toBe(true);
+        expect(titleOwnsJob("CI / Lint fails in releases", lint)).toBe(true);
+        expect(titleOwnsJob("CI / Build failed 9 of 10 full runs", lint)).toBe(false);
+        expect(titleOwnsJob("CI / Lint failed 9 of 10 nightly runs", lint)).toBe(false);
     });
 
     it("is a job that the release lanes still call passed", () => {
@@ -321,6 +331,33 @@ describe("chronicJobs", () => {
         });
     });
 
+    it("does not judge an aggregator, which fails whenever a job it summarizes fails (#6068)", () => {
+        const runs: [number, boolean][] = [
+            [0.1, false],
+            [0.2, false],
+            [0.3, false],
+            [0.4, true],
+        ];
+        const agg = { ...h(runs), workflow: "release.yml", job: "CI / All Checks Pass" };
+        const own = { ...h(runs), workflow: "release.yml", job: "CI / Test (graphty-features-on)" };
+        expect(chronicJobs([agg, own], NOW).map((j) => j.job)).toEqual(["CI / Test (graphty-features-on)"]);
+        expect(chronicJobs([{ ...agg, job: "All Checks Pass", workflow: "ci.yml" }], NOW)).toEqual([]);
+    });
+
+    it("does not judge bisect.yml's point jobs, which fail at a bad commit by design (#6710)", () => {
+        const runs: [number, boolean][] = [
+            [0.1, false],
+            [0.2, false],
+            [0.3, false],
+            [0.4, false],
+            [0.5, true],
+        ];
+        const point = { ...h(runs), workflow: "bisect.yml", job: "Point 9c90fdeaa2616c58f65097c85ff484b1793d6844" };
+        expect(chronicJobs([point], NOW)).toEqual([]);
+        expect(chronicJobs([{ ...point, workflow: "release.yml" }], NOW)).toHaveLength(1);
+        expect(chronicJobs([{ ...point, job: "Judge the round" }], NOW)).toHaveLength(1);
+    });
+
     it("does not judge a share of fewer than 4 runs, a recent first failure, or a job that stopped running", () => {
         expect(
             chronicJobs(
@@ -354,6 +391,26 @@ describe("chronicJobs", () => {
         expect(chronicJobs([h(removed.map(([d, ok]): [number, boolean] => [d - 2, ok]))], NOW)).toHaveLength(1);
     });
 
+    it("judges the share only over the last 7 days, so a fixed job is not chronic on older failures (#7369)", () => {
+        // Dependabot on 2026-11-12: passing since its fix, five failures 12 days before it
+        const dependabot: [number, boolean][] = [
+            [0.1, true],
+            [0.4, true],
+            [0.5, true],
+            [1.5, false],
+            [7.3, true],
+            [11.6, false],
+            [11.6, false],
+            [11.6, false],
+            [12.1, false],
+            [12.1, false],
+        ];
+        expect(chronicJobs([h(dependabot)], NOW)).toEqual([]);
+        // a week earlier, the same failures were recent and chronic
+        const before = dependabot.slice(4).map(([d, ok]): [number, boolean] => [d - 7, ok]);
+        expect(chronicJobs([h(before)], NOW)).toHaveLength(1);
+    });
+
     it("still judges a weekly job between its runs", () => {
         expect(
             chronicJobs(
@@ -366,6 +423,17 @@ describe("chronicJobs", () => {
                 NOW,
             ),
         ).toHaveLength(1);
+        expect(
+            chronicJobs(
+                [
+                    h([
+                        [8, false],
+                        [15, false],
+                    ]),
+                ],
+                NOW,
+            )[0],
+        ).toMatchObject({ runs: 2, failed: 2 });
     });
 
     it("reads each job's runs in order from the rollup's pass and fail times", () => {

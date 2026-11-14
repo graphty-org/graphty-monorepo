@@ -47,20 +47,6 @@ export function toGraphtyError(error: unknown, extra: Readonly<Record<string, un
 }
 
 /**
- * The refusal of a source feature the element has not built yet.
- * @param feature - what was asked for
- * @returns the error
- */
-export function notBuiltYet(feature: string): GraphtyError {
-    return new GraphtyError({
-        code: "E_SOURCE_UNSUPPORTED",
-        message: `${feature} from a network source is not available yet.`,
-        source: "data",
-        details: { feature },
-    });
-}
-
-/**
  * The refusal of a fetch for a load an opened project holds that has not run since it opened: a
  * file's entry fetches nothing until the application runs it with `runPendingSourceLoad`, after
  * the reader approved (sources.md, "Reopening").

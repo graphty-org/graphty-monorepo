@@ -132,6 +132,7 @@ export {
 export { defineSource } from "./sources/define.js";
 export {
     CYPHER_SOURCE_ID,
+    GITHUB_SOURCE_ID,
     NDEX_SOURCE_ID,
     NEO4J_SOURCE_ID,
     NEPTUNE_SOURCE_ID,
@@ -175,6 +176,7 @@ export {
     type SourceCredentialSlot,
     type SourceCursor,
     type SourceDescriptor,
+    type SourceExample,
     type SourceFeature,
     type SourceFile,
     type SourceFinish,
@@ -193,7 +195,6 @@ export {
     type SourceRequestInit,
     type SourceRuntime,
     type SourceRuntimeReason,
-    type SourceSample,
     type SourceTotal,
     type SourceValidators,
 } from "./sources/types.js";

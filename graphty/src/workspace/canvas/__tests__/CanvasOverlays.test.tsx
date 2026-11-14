@@ -87,6 +87,14 @@ function standIn(facts: StandInFacts = {}): {
         data: {
             statistics: () => ({ nodeCount: facts.nodeCount ?? 77, edgeCount: facts.edgeCount ?? 254 }),
             name: (id: string) => ({ a: "Ava", b: "Ben" })[id],
+            nodeName: (id: string) => {
+                const label = ({ a: "Ava", b: "Ben" } as Record<string, string | undefined>)[id];
+                return { id, name: label ?? id, labeled: label !== undefined };
+            },
+            edgeName: (ends: { source: string; target: string }) => ({
+                source: { id: ends.source, name: ({ a: "Ava", b: "Ben" } as Record<string, string>)[ends.source] },
+                target: { id: ends.target, name: ({ a: "Ava", b: "Ben" } as Record<string, string>)[ends.target] },
+            }),
             edge: (id: string) => (id === "e1" ? { id, source: "a", target: "b" } : undefined),
             source: () => undefined,
             attributes: () => Object.entries(facts.columns ?? {}).map(([path, plainName]) => ({ path, plainName })),

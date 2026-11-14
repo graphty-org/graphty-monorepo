@@ -115,10 +115,16 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(ours.rank("#a")).toBeCloseTo(37 / 114, 12);
         expect(ours.rank("#b")).toBeCloseTo(20 / 114, 12);
         expect(ours.converged).toBe(true);
-        // Cytoscape adds the teleport (1 - d) / n to every column without scaling the links by d, then
-        // renormalises, so its dampingFactor d behaves as the standard damping 1 / (2 - d).
+        // Before 3.34.5, Cytoscape added the teleport (1 - d) / n to every column without scaling the links by d,
+        // then renormalised, so its dampingFactor d behaved as the standard damping 1 / (2 - d). 3.34.5 fixed that
+        // (upstream commit acaa3ad, "Apply the damping factor to the link term in pageRank()"), so from then on
+        // its d is the standard damping and needs no conversion.
+        const [major, minor, patch] = (cytoscape as unknown as { version: string }).version.split(".").map(Number);
+        const fixed = major > 3 || (major === 3 && (minor > 34 || (minor === 34 && patch >= 5)));
         const theirs = cy.elements().pageRank({ dampingFactor: 0.85, precision: 1e-14, iterations: 10000 });
-        const same = cy.elements().graphtyPageRank({ directed: true, dampingFactor: 1 / 1.15, tolerance: 1e-14 });
+        const same = cy
+            .elements()
+            .graphtyPageRank({ directed: true, dampingFactor: fixed ? 0.85 : 1 / 1.15, tolerance: 1e-14 });
         for (const n of cy.nodes()) {
             expect(same.rank(n)).toBeCloseTo(theirs.rank(n), 6);
         }
@@ -321,6 +327,22 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         const dobfs = cy.elements().graphtyDirectionOptimizedBfs({ root: "#a", field: "hops" });
         expect(dobfs.depth("#f")).toBe(3);
         expect(cy.$("#f").data("hops")).toBe(3);
+    });
+
+    it("breadthFirstSearch and depthFirstSearch: one tree edge per node on a multigraph, the one the walk took", () => {
+        // b-a then a-b twice: the walk from a reaches b over its first arc, edge e0, in either direction
+        const cy = graph([
+            ["b", "a"],
+            ["a", "b"],
+            ["a", "b"],
+            ["b", "c"],
+        ]);
+        for (const directed of [false, true]) {
+            const tree = directed ? ["a", "e1", "b", "e3", "c"] : ["a", "e0", "b", "e3", "c"];
+            expect(ids(cy.graphtyBreadthFirstSearch({ root: "#a", directed }).path)).toEqual(tree);
+            expect(ids(cy.graphtyDepthFirstSearch({ root: "#a", directed }).path)).toEqual(tree);
+            expect(ids(cy.graphtyDirectionOptimizedBfs({ root: "#a", directed }).path)).toEqual(tree);
+        }
     });
 
     it("closenessCentrality and nodeClosenessCentrality: known values, and the same order as closenessCentralityNormalized", () => {
@@ -851,8 +873,9 @@ describe("results and errors in Cytoscape terms", () => {
             ["f", "g"],
         ]);
         cy.add({ data: { id: "h" } });
+        expect(() => cy.graphtyDeltaPageRank({ maxIterations: 2000 })).toThrow(/DeltaPageRank: the ranks overflowed/);
         expect(() => cy.graphtyDeltaPageRank({ maxIterations: 2000 })).toThrow(
-            /graphtyDeltaPageRank: the ranks overflowed/,
+            expect.objectContaining({ code: "E_BAD_OPTION" }),
         );
         const prio = cy.graphtyDeltaPageRank({ priority: true, maxIterations: 2000 });
         expect(prio.rank("#a")).toBeCloseTo(cy.graphtyPageRank({ directed: true }).rank("#a") ?? NaN, 6);

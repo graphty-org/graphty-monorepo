@@ -1,4 +1,7 @@
-import { type Scene, type TransformNode, type WebXRDefaultExperience, WebXRState } from "@babylonjs/core";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
+import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
+import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 
 import { GraphtyLogger, type Logger } from "../logging";
 import { PivotController } from "./PivotController";
@@ -26,6 +29,7 @@ export class XRPivotCameraController {
     private readonly xr: WebXRDefaultExperience;
     private readonly scene: Scene;
     private frameCount = 0;
+    private detachXRListeners: () => void = () => undefined;
 
     /**
      * Creates a new XRPivotCameraController instance.
@@ -60,7 +64,8 @@ export class XRPivotCameraController {
             this.enableXRMode();
         }
 
-        this.xr.baseExperience.onStateChangedObservable.add((state) => {
+        const { onStateChangedObservable, onInitialXRPoseSetObservable } = this.xr.baseExperience;
+        const stateObserver = onStateChangedObservable.add((state) => {
             const stateName = WebXRState[state];
             logger.debug("XR state changed", { state: stateName });
 
@@ -72,12 +77,17 @@ export class XRPivotCameraController {
         });
 
         // Also listen for initial XR pose to log camera position
-        this.xr.baseExperience.onInitialXRPoseSetObservable.add((xrCamera) => {
+        const poseObserver = onInitialXRPoseSetObservable.add((xrCamera) => {
             logger.debug("Initial XR pose set", {
                 cameraName: xrCamera.name,
                 position: { x: xrCamera.position.x, y: xrCamera.position.y, z: xrCamera.position.z },
             });
         });
+
+        this.detachXRListeners = () => {
+            onStateChangedObservable.remove(stateObserver);
+            onInitialXRPoseSetObservable.remove(poseObserver);
+        };
     }
 
     /**
@@ -217,6 +227,7 @@ export class XRPivotCameraController {
      * Dispose of resources.
      */
     dispose(): void {
+        this.detachXRListeners();
         this.inputHandler.disable();
         this.pivotController.pivot.dispose();
     }

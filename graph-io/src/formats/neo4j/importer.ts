@@ -87,8 +87,8 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { checkRecordSyntax, RecordReader, type RecordSyntax } from "../csv/records.js";
-import { type FieldKind, type HeaderField, isHeaderRecord, parseHeaderField } from "./header.js";
+import { checkRecordSyntax, RecordReader, type RecordSyntax, splitRecords } from "../csv/records.js";
+import { allHeaderCells, type FieldKind, type HeaderField, isHeaderRecord, parseHeaderField } from "./header.js";
 
 /**
  * The format-specific options of the Neo4j importer.
@@ -106,8 +106,8 @@ export interface Neo4jImportOptions extends CommonImportOptions {
      */
     relationships?: ImportInput | readonly ImportInput[] | undefined;
     /**
-     * The field delimiter, one character (neo4j-admin's `--delimiter`). The default is to detect
-     * "," or a tab from the first rows, so a `.tsv` file needs no option. It must differ from
+     * The field delimiter, one character (neo4j-admin's `--delimiter`). The default is a comma, or
+     * a tab when a header row is tab-separated, so a `.tsv` file needs no option. It must differ from
      * `arrayDelimiter`: with `delimiter: ";"`, also pass `arrayDelimiter: ","` or `"|"`.
      * @defaultValue detected
      */
@@ -176,7 +176,7 @@ export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
 export const MISSING_ENDPOINT_CODE = SHARED_MISSING_ENDPOINT_CODE;
 
 /**
- * A node id was declared twice (same id space); the later row's properties win.
+ * A node id was declared twice (same id space); the first row is kept and the later one skipped.
  * @category Issue and loss codes
  */
 export const DUPLICATE_NODE_CODE = SHARED_DUPLICATE_NODE_CODE;
@@ -315,15 +315,18 @@ interface PropertySlot {
     readonly companionDecl: ColumnDecl | null;
     /** The companion's handle once a value needed it (design section 5.1); INVALID_INDEX before. */
     companion: ColumnHandle;
+    /** The item count a `vector{dimensions:n}` property requires, or null. */
+    readonly dimensions: number | null;
 }
 
 /** A node section: the header interpreted. */
 interface NodeSection {
     readonly kind: "node";
     readonly width: number;
-    readonly idCell: number;
-    /** The column holding the id as a property (`name:ID`), or INVALID_INDEX. */
-    readonly idHandle: ColumnHandle;
+    /** The `:ID` cells: one, or several forming a composite key. */
+    readonly idCells: readonly number[];
+    /** The columns holding an id cell as a property (`name:ID`). */
+    readonly idProperties: readonly { readonly cell: number; readonly handle: ColumnHandle }[];
     readonly space: string | null;
     readonly spaceCode: number;
     readonly labelCells: readonly number[];
@@ -335,8 +338,9 @@ interface NodeSection {
 interface RelationshipSection {
     readonly kind: "relationship";
     readonly width: number;
-    readonly startCell: number;
-    readonly endCell: number;
+    /** The `:START_ID` / `:END_ID` cells: one each, or several referencing a composite key. */
+    readonly startCells: readonly number[];
+    readonly endCells: readonly number[];
     /** The id space of `:START_ID` / `:END_ID`, or null when the header declares none. */
     readonly startSpace: string | null;
     readonly endSpace: string | null;
@@ -354,6 +358,22 @@ type Section = NodeSection | RelationshipSection;
 
 /** The delimiters sniffed between when none is given: neo4j-admin's default and the TSV tab. */
 const NEO4J_DELIMITER_CANDIDATES: readonly string[] = Object.freeze([",", "\t"]);
+
+/**
+ * The field delimiter of a file read without the delimiter option: neo4j-admin's comma, unless a
+ * header row of the preview splits into several header cells on tabs (a `.tsv` export). Data rows
+ * never decide: an id holding tabs repeats them as evenly as a real delimiter would.
+ * @param preview - the first rows of the input
+ * @param quote - the quote character
+ * @returns "," or a tab
+ */
+function sniffNeo4jDelimiter(preview: string, quote: string): string {
+    const rows = splitRecords(preview, "\t", quote, Number.POSITIVE_INFINITY) ?? [];
+    const tabbed = rows.some(
+        (row) => row.length > 1 && isHeaderRecord(row, row.length) && allHeaderCells(row, row.length),
+    );
+    return tabbed ? "\t" : ",";
+}
 
 /**
  * Resolve the format-specific options.
@@ -378,10 +398,12 @@ function resolveNeo4jOptions(options: Neo4jImportOptions | undefined): ResolvedN
             { option: "arrayDelimiter", found: arrayDelimiter },
         );
     }
+    const quote = o.quote ?? '"';
     const syntax = checkRecordSyntax({
         delimiter: o.delimiter ?? null,
-        quote: o.quote ?? '"',
+        quote,
         candidates: NEO4J_DELIMITER_CANDIDATES.filter((d) => d !== arrayDelimiter),
+        sniff: (preview) => sniffNeo4jDelimiter(preview, quote),
     });
     if (syntax.delimiter === arrayDelimiter) {
         throw new GraphFormatError(
@@ -780,13 +802,10 @@ class Neo4jImportSession {
      */
     private declareNodeHeader(fields: readonly HeaderField[], kinds: Map<FieldKind, number[]>, line: number): Section {
         const ids = kinds.get("ID") ?? [];
-        if (ids.length > 1) {
-            throw headerError("a node header has more than one :ID column");
-        }
         if (kinds.has("TYPE")) {
             throw headerError("a node header cannot have a :TYPE column");
         }
-        return this.declareNodeSection(fields, ids[0], kinds.get("LABEL") ?? [], line);
+        return this.declareNodeSection(fields, ids, kinds.get("LABEL") ?? [], line);
     }
 
     /**
@@ -803,8 +822,8 @@ class Neo4jImportSession {
     ): Section {
         const starts = kinds.get("START_ID") ?? [];
         const ends = kinds.get("END_ID") ?? [];
-        if (starts.length !== 1 || ends.length !== 1) {
-            throw headerError("a relationship header needs exactly one :START_ID and one :END_ID column");
+        if (starts.length === 0 || ends.length === 0) {
+            throw headerError("a relationship header needs a :START_ID and an :END_ID column");
         }
         if (kinds.has("LABEL")) {
             throw headerError("a relationship header cannot have a :LABEL column");
@@ -813,7 +832,7 @@ class Neo4jImportSession {
         if (types.length > 1) {
             throw headerError("a relationship header has more than one :TYPE column");
         }
-        return this.declareRelationshipSection(fields, starts[0], ends[0], types.length === 1 ? types[0] : -1, line);
+        return this.declareRelationshipSection(fields, starts, ends, types.length === 1 ? types[0] : -1, line);
     }
 
     /**
@@ -838,24 +857,24 @@ class Neo4jImportSession {
     /**
      * Declare the columns of a node section.
      * @param fields - the parsed header
-     * @param idCell - the `:ID` cell
+     * @param idCells - the `:ID` cells (several form a composite key)
      * @param labelCells - the `:LABEL` cells
      * @param line - the header line
      * @returns the section
      */
     private declareNodeSection(
         fields: readonly HeaderField[],
-        idCell: number,
+        idCells: readonly number[],
         labelCells: readonly number[],
         line: number,
     ): NodeSection {
-        const idField = fields[idCell];
+        const space = sharedSpace(fields, idCells, ":ID");
         const extraLabels: string[] = [];
         for (const field of fields) {
             for (const [key, value] of field.options) {
                 if (key === "label" && field.kind === "ID") {
                     extraLabels.push(value);
-                } else {
+                } else if (!isVectorOption(field, key)) {
                     this.report.warning(
                         "unsupported",
                         HEADER_OPTION_CODE,
@@ -868,27 +887,30 @@ class Neo4jImportSession {
         if (labelCells.length > 0 || extraLabels.length > 0) {
             this.ensureLabels();
         }
-        if (idField.space !== null) {
+        if (space !== null) {
             this.ensureIdSpace();
         }
-        let idHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
-        if (idField.name.length > 0) {
-            idHandle = this.declareProperty(
-                "node",
-                { ...idField, type: null },
-                idCell,
-                { origin: { format: NEO4J, id: idField.name, title: null, type: "ID", namespace: idField.space } },
-                line,
-            ).handle;
-        }
+        const idProperties = idCells
+            .filter((cell) => fields[cell].name.length > 0)
+            .map((cell) => {
+                const idField = fields[cell];
+                const { handle } = this.declareProperty(
+                    "node",
+                    { ...idField, type: null },
+                    cell,
+                    { origin: { format: NEO4J, id: idField.name, title: null, type: "ID", namespace: space } },
+                    line,
+                );
+                return { cell, handle };
+            });
         const properties = this.declareProperties("node", fields, line, null);
         return {
             kind: "node",
             width: fields.length,
-            idCell,
-            idHandle,
-            space: idField.space,
-            spaceCode: this.registry.codeOf(idField.space),
+            idCells,
+            idProperties,
+            space,
+            spaceCode: this.registry.codeOf(space),
             labelCells,
             extraLabels,
             properties,
@@ -898,21 +920,24 @@ class Neo4jImportSession {
     /**
      * Declare the columns of a relationship section.
      * @param fields - the parsed header
-     * @param startCell - the `:START_ID` cell
-     * @param endCell - the `:END_ID` cell
+     * @param startCells - the `:START_ID` cells
+     * @param endCells - the `:END_ID` cells
      * @param typeCell - the `:TYPE` cell, or -1
      * @param line - the header line
      * @returns the section
      */
     private declareRelationshipSection(
         fields: readonly HeaderField[],
-        startCell: number,
-        endCell: number,
+        startCells: readonly number[],
+        endCells: readonly number[],
         typeCell: number,
         line: number,
     ): RelationshipSection {
         for (const field of fields) {
             for (const [key, value] of field.options) {
+                if (isVectorOption(field, key)) {
+                    continue;
+                }
                 this.report.warning(
                     "unsupported",
                     HEADER_OPTION_CODE,
@@ -933,13 +958,13 @@ class Neo4jImportSession {
             }
         }
         const properties = this.declareProperties("edge", fields, line, weightCell);
-        const { space: startSpace } = fields[startCell];
-        const { space: endSpace } = fields[endCell];
+        const startSpace = sharedSpace(fields, startCells, ":START_ID");
+        const endSpace = sharedSpace(fields, endCells, ":END_ID");
         return {
             kind: "relationship",
             width: fields.length,
-            startCell,
-            endCell,
+            startCells,
+            endCells,
             startSpace,
             endSpace,
             startSpaceCode: startSpace === null ? 0 : this.registry.codeOf(startSpace),
@@ -998,11 +1023,12 @@ class Neo4jImportSession {
     ): PropertySlot {
         const { sink, report } = this;
         const { listSyntax } = this.options;
+        const vector = vectorOf(field);
         const input: AttributeDeclarationInput = {
             format: NEO4J,
             id: field.name,
             title: null,
-            type: field.type,
+            type: vector?.type ?? field.type,
             namespace: null,
             listSyntax,
             long: this.common.long,
@@ -1030,6 +1056,7 @@ class Neo4jImportSession {
             spec: declared.spec,
             companionDecl: declared.companion,
             companion: INVALID_INDEX as ColumnHandle,
+            dimensions: vector?.dimensions ?? null,
         };
     }
 
@@ -1117,23 +1144,19 @@ class Neo4jImportSession {
             report.counts.skippedNodes++;
             return;
         }
-        const idText = cells[section.idCell];
-        if (idText.length === 0 && !quoted[section.idCell]) {
+        const idText = keyText(cells, quoted, section.idCells);
+        if (idText === null) {
             // a quoted empty cell is the id "" (neo4j-admin: an empty quoted field is an empty string)
             report.error("missing-value", MISSING_ID_CODE, "empty :ID cell", { line });
             report.counts.skippedNodes++;
             return;
         }
-        const coerced = this.coerceId(idText, line);
-        if (coerced === null || !this.parseProperties(section.properties, cells, quoted, line, idText)) {
+        const coerced = this.keyId(idText, section.idCells, line);
+        if (coerced === null) {
             report.counts.skippedNodes++;
             return;
         }
         const id = qualify(coerced, section.space);
-        let labels: string[] | undefined;
-        if (section.labelCells.length > 0 || section.extraLabels.length > 0) {
-            labels = this.labelsOf(section, cells, quoted);
-        }
         this.nodeRows = true;
         const existed = sink.indexOf(id) !== INVALID_INDEX;
         let index: number;
@@ -1156,38 +1179,41 @@ class Neo4jImportSession {
             return;
         }
         if (status === "duplicate") {
-            report.warning(
-                "merged",
-                DUPLICATE_NODE_CODE,
-                `node ${idText} is declared twice; the later properties win`,
-                {
-                    line,
-                    element: idText,
-                },
-            );
+            // neo4j-admin (--skip-duplicate-nodes) keeps the node of the first row
+            report.warning("merged", DUPLICATE_NODE_CODE, `node ${idText} is declared twice; the first row is kept`, {
+                line,
+                element: idText,
+            });
+            report.counts.skippedNodes++;
+            return;
         }
+        // counted before its cells are read: a cell error at the error limit ends the import with the
+        // node already in the sink. A node a relationship created before its row is counted once.
+        if (!existed) {
+            report.counts.nodes++;
+        }
+        this.parseProperties(section.properties, cells, quoted, line, idText);
         // a write the sink refuses is recorded and the rest of the row is still written
         const set = (column: ColumnHandle, value: unknown): void => {
             this.guarded(line, idText, () => {
                 sink.setNodeValue(column, index, value);
             });
         };
-        if (section.idHandle !== INVALID_INDEX) {
-            set(section.idHandle, idText);
+        for (const { cell, handle } of section.idProperties) {
+            set(handle, cells[cell]);
         }
         if (section.space !== null) {
             set(this.idSpaceHandle, section.space);
             set(this.originalIdHandle, idText);
         }
-        if (labels !== undefined) {
-            set(this.labelsHandle, labels);
+        if (section.labelCells.length > 0 || section.extraLabels.length > 0) {
+            const labels = this.labelsOf(section, cells, quoted);
+            if (labels !== undefined) {
+                set(this.labelsHandle, labels);
+            }
         }
         this.writeProperties("node", section.properties, index, line, idText);
         this.reportPrecision(line, idText);
-        // a node a relationship created before its row (or an earlier row) is counted once
-        if (!existed) {
-            report.counts.nodes++;
-        }
     }
 
     /**
@@ -1243,10 +1269,10 @@ class Neo4jImportSession {
     ): { source: NodeId; target: NodeId; element: string } | null {
         const { report } = this;
         const { cells, quoted, line } = reader;
-        const startText = cells[section.startCell];
-        const endText = cells[section.endCell];
-        const startMissing = startText.length === 0 && !quoted[section.startCell];
-        if (startMissing || (endText.length === 0 && !quoted[section.endCell])) {
+        const startText = keyText(cells, quoted, section.startCells);
+        const endText = keyText(cells, quoted, section.endCells);
+        const startMissing = startText === null;
+        if (startText === null || endText === null) {
             report.error(
                 "missing-value",
                 MISSING_ENDPOINT_CODE,
@@ -1258,8 +1284,8 @@ class Neo4jImportSession {
             return null;
         }
         const element = `${startText}->${endText}`;
-        const start = this.coerceId(startText, line);
-        const end = start === null ? null : this.coerceId(endText, line);
+        const start = this.keyId(startText, section.startCells, line);
+        const end = start === null ? null : this.keyId(endText, section.endCells, line);
         if (start === null || end === null) {
             return null;
         }
@@ -1357,10 +1383,7 @@ class Neo4jImportSession {
                 return;
             }
         }
-        if (!this.parseProperties(section.properties, cells, quoted, line, element)) {
-            report.counts.skippedEdges++;
-            return;
-        }
+        this.parseProperties(section.properties, cells, quoted, line, element);
         const created = [source, target].filter(
             (id, k) => (k === 0 || id !== source) && sink.indexOf(id) === INVALID_INDEX,
         );
@@ -1377,10 +1400,11 @@ class Neo4jImportSession {
             report.counts.nodes++;
             this.placeholders.push({ id, index: sink.indexOf(id) });
         }
+        // counted before its writes, which may end the import at the error limit with the edge in the sink
+        report.counts.edges++;
         this.setRelationshipType(section, cells, edge, line, element);
         this.writeProperties("edge", section.properties, edge, line, element);
         this.reportPrecision(line, element);
-        report.counts.edges++;
     }
 
     /**
@@ -1401,6 +1425,17 @@ class Neo4jImportSession {
         }
         const declared = this.registry.codeAt(index);
         return declared !== 0 && declared !== spaceCode;
+    }
+
+    /**
+     * The id of a key: one id cell coerced by the ids option, or a composite key's text as is.
+     * @param text - the key text (keyText)
+     * @param keyCells - the key's cells
+     * @param line - the row's line
+     * @returns the id, or null when the cell was rejected (the error is recorded)
+     */
+    private keyId(text: string, keyCells: readonly number[], line: number): NodeId | null {
+        return keyCells.length === 1 ? this.coerceId(text, line) : text;
     }
 
     /**
@@ -1437,7 +1472,6 @@ class Neo4jImportSession {
      * @param quoted - whether each cell was quoted
      * @param line - the row's line
      * @param element - the row's element name for issues
-     * @returns true when every cell parsed; false after recording the first error
      */
     private parseProperties(
         slots: readonly PropertySlot[],
@@ -1445,7 +1479,7 @@ class Neo4jImportSession {
         quoted: readonly boolean[],
         line: number,
         element: string,
-    ): boolean {
+    ): void {
         const { values, texts, precisionSlots } = this;
         precisionSlots.length = 0;
         this.overflows.length = 0;
@@ -1460,8 +1494,11 @@ class Neo4jImportSession {
             try {
                 this.parseCell(slot, text);
             } catch (err) {
-                this.report.recordError(err, { line, element: `${element} ${slot.name}` });
-                return false;
+                // neo4j-admin reports a bad value and imports the entity without it
+                this.report.recordError(err, { line, element: `${element} ${slot.name}` }, { skipped: "value" });
+                values[slot.cell] = undefined;
+                texts[slot.cell] = null;
+                continue;
             }
             if (overflows(spec, values[slot.cell], text)) {
                 this.overflows.push(slot.name);
@@ -1470,7 +1507,6 @@ class Neo4jImportSession {
                 precisionSlots.push(slot);
             }
         }
-        return true;
     }
 
     /**
@@ -1490,6 +1526,7 @@ class Neo4jImportSession {
         } else {
             values[slot.cell] = parseDeclaredValue(text, spec, this.options.listSyntax);
             checkNeo4jRange(spec, values[slot.cell], text);
+            checkDimensions(slot, values[slot.cell], text);
         }
     }
 
@@ -1593,6 +1630,107 @@ class Neo4jImportSession {
         }
         return labels;
     }
+}
+
+/** The list type a `vector{coordinateType:...}` property is stored as, by coordinate type (lower case). */
+const VECTOR_ITEM_TYPES: Readonly<Partial<Record<string, string>>> = {
+    float64: "double[]",
+    double: "double[]",
+    float32: "float[]",
+    float: "float[]",
+    integer64: "long[]",
+    integer: "long[]",
+    long: "long[]",
+    integer32: "int[]",
+    int: "int[]",
+    integer16: "short[]",
+    short: "short[]",
+    integer8: "byte[]",
+    byte: "byte[]",
+};
+
+/**
+ * The storage of a `vector{coordinateType:..., dimensions:...}` property (Neo4j 2025.10): a list of
+ * numbers of the coordinate type (FLOAT64 when none is given), and the item count it requires.
+ * @param field - the header field
+ * @returns the list type and dimensions, or null for a field that is not a vector
+ */
+function vectorOf(field: HeaderField): { type: string; dimensions: number | null } | null {
+    if (field.kind !== "PROPERTY" || field.type?.trim().toLowerCase() !== "vector") {
+        return null;
+    }
+    const coordinate = field.options.get("coordinatetype");
+    const type = coordinate === undefined ? "double[]" : (VECTOR_ITEM_TYPES[coordinate.toLowerCase()] ?? null);
+    if (type === null) {
+        throw headerError(`vector coordinate type "${coordinate ?? ""}" of "${field.text}" is unknown`);
+    }
+    const dimensionsText = field.options.get("dimensions");
+    if (dimensionsText === undefined) {
+        return { type, dimensions: null };
+    }
+    const dimensions = Number(dimensionsText);
+    if (!Number.isInteger(dimensions) || dimensions < 1) {
+        throw headerError(`vector dimensions "${dimensionsText}" of "${field.text}" is not a positive integer`);
+    }
+    return { type, dimensions };
+}
+
+/**
+ * Whether a header option is one a vector property acts on.
+ * @param field - the header field
+ * @param key - the option key (lower case)
+ * @returns true for coordinateType and dimensions of a vector field
+ */
+function isVectorOption(field: HeaderField, key: string): boolean {
+    return (key === "coordinatetype" || key === "dimensions") && vectorOf(field) !== null;
+}
+
+/**
+ * Check a vector value's item count against its declared dimensions.
+ * @param slot - the property slot
+ * @param value - the parsed list
+ * @param text - the cell text, for the error
+ */
+function checkDimensions(slot: PropertySlot, value: unknown, text: string): void {
+    if (slot.dimensions !== null && Array.isArray(value) && value.length !== slot.dimensions) {
+        throw new GraphFormatError(
+            "E_COLUMN_TYPE",
+            `"${text}" has ${value.length} coordinates; the vector has ${slot.dimensions} dimensions`,
+            { value: text, expected: slot.dimensions, found: value.length },
+        );
+    }
+}
+
+/**
+ * The text of a node key in a row: the one id cell, or the cells of a composite key (several
+ * `:ID` columns, or as many `:START_ID` / `:END_ID` columns) as a JSON array, `["aa","11"]`.
+ * @param cells - the row's cells
+ * @param quoted - whether each cell was quoted
+ * @param keyCells - the key's cells
+ * @returns the text, or null when a key cell is empty and unquoted (a quoted empty cell is the id "")
+ */
+function keyText(cells: readonly string[], quoted: readonly boolean[], keyCells: readonly number[]): string | null {
+    for (const cell of keyCells) {
+        if (cells[cell].length === 0 && !quoted[cell]) {
+            return null;
+        }
+    }
+    return keyCells.length === 1 ? cells[keyCells[0]] : JSON.stringify(keyCells.map((cell) => cells[cell]));
+}
+
+/**
+ * The id space of a key's columns, which must all name the same one.
+ * @param fields - the parsed header
+ * @param keyCells - the key's cells
+ * @param kind - the field type, for the error
+ * @returns the space, or null for none
+ */
+function sharedSpace(fields: readonly HeaderField[], keyCells: readonly number[], kind: string): string | null {
+    const { space } = fields[keyCells[0]];
+    if (keyCells.some((cell) => fields[cell].space !== space)) {
+        throw headerError(`the ${kind} columns of a composite key name different id spaces`);
+    }
+    return space;
 }
 
 /**
@@ -1736,7 +1874,8 @@ function withZoneOffset(text: string, spec: DeclaredTypeSpec): string {
     } catch {
         throw new GraphFormatError("E_COLUMN_TYPE", `"${text}" names an unknown time zone ${zone}`, { value: text });
     }
-    if (/(Z|z|[+-]\d{2}(:?\d{2})?)$/.test(local)) {
+    // an offset counts only after a time: in a date-only text the day (`-01`) looks like one
+    if (/[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|z|[+-]\d{2}(:?\d{2})?)$/.test(local)) {
         return local;
     }
     const wall = parseTemporal(local, "localDateTime").value;

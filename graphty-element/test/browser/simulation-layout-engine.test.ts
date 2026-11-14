@@ -27,6 +27,7 @@ import { Graph } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { measureEnvelope, SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import { createFakeAccelerator, type FakeAccelerator, type FakeSimulation } from "../../src/testing/fakeAccelerator";
 import { cleanupE2EGraph, createE2EGraph } from "../helpers/e2e-graph-setup";
 
@@ -307,8 +308,23 @@ describe("the simulation layout bridge", () => {
         // What `UpdateManager` iterates. A bridge that kept no list of its own and answered these
         // with nothing would let the simulation rewrite the position array every frame while not
         // one mesh moved, no bounding box was computed and the camera never framed the graph.
-        assert.lengthOf(Array.from(layout.nodes), 5, "every node reaches the frame loop");
-        assert.lengthOf(Array.from(layout.edges), 4, "and every edge");
+        // Under renderPath "batched" a row may be stored with no `Node`: it is drawn and moved by its row, so it is not
+        // handed out here (building a `Node` for every row stalled a 100k-row layout's start for seconds, #6389).
+        const nodesBuilt = dataManagerInternals.nodesBuilt(graph.getDataManager());
+        assert.lengthOf(Array.from(layout.nodes), nodesBuilt, "every node with a Node reaches the frame loop");
+        if (graph.getEdgeRowLines() === null) {
+            assert.strictEqual(nodesBuilt, 5, "which on the objects path is every node");
+        }
+
+        // Under renderPath "batched" an edge may be stored with no `Edge`: the frame draws it as a row line, so it is
+        // not handed out here (building its `Edge` each frame ran a million-edge tab out of memory).
+        const dm = graph.getDataManager();
+        assert.strictEqual(dm.edges.size, 4, "every edge is stored");
+        const built = dataManagerInternals.edgesBuilt(dm);
+        assert.lengthOf(Array.from(layout.edges), built, "and every edge with an Edge");
+        if (graph.getEdgeRowLines() === null) {
+            assert.strictEqual(built, 4, "which on the objects path is every edge");
+        }
 
         const node = graph.getDataManager().getNode("n0");
         assert.isDefined(node);
@@ -725,6 +741,41 @@ describe("the simulation layout bridge", () => {
         graph.setRunning(true);
         assert.strictEqual(fake.calls.reheat, 1, "play restarted the settle count on the settled simulation");
         assert.isFalse(rig.engine.isSettled, "so the layout has work to do again");
+    });
+
+    it("session.layout.motion follows a pause, a resume, coming to rest and a re-run, and publishes each change", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator({ settleAfter: 2 });
+        graph.acceleration.setAccelerator(fake);
+
+        const rig = await bridge(graph);
+        const session = graph.getSession();
+        const heard: string[] = [];
+        session.on("layout:motion-changed", ({ motion }) => heard.push(motion));
+        assert.strictEqual(session.layout.motion, "running", "a layout just set runs");
+        assert.isTrue(graph.isRunning(), "as isRunning() says");
+
+        graph.setRunning(false);
+        assert.strictEqual(session.layout.motion, "paused", "stopped before it came to rest");
+        assert.isFalse(graph.isRunning());
+
+        graph.setRunning(true);
+        assert.strictEqual(session.layout.motion, "running");
+
+        rig.step();
+        rig.step();
+        await drain(fake);
+        assert.isTrue(rig.engine.isSettled, "two landed batches settle this fake");
+        // What the frame loop does on the first frame that finds the layout settled; the loop is
+        // stopped in this fixture.
+        graph.getLayoutManager().running = false;
+        assert.strictEqual(session.layout.motion, "settled");
+
+        await session.layout.rerun();
+        assert.strictEqual(session.layout.motion, "running", "a re-run starts it again");
+        assert.strictEqual(session.history.steps.at(-1)?.fact.code, "layout.rerun");
+
+        assert.deepStrictEqual(heard, ["paused", "running", "settled", "running"], "one event per change");
     });
 
     it("a consumer pause holds through a load, a freeze and an accelerator attaching: nothing is submitted or reheated", async () => {

@@ -32,6 +32,7 @@ import type {
 import { quoteEach } from "../../utils/quote-each";
 import type { Caveats, Run, RunDistinction } from "../runs/types";
 import type { CodedFact } from "../shared";
+import type { CompareSide, ResultComparison } from "./compare";
 
 // ---------------------------------------------------------------------------------------------
 // The published path
@@ -668,7 +669,7 @@ export interface RankingEntry {
  * 4), a group of size `s` at rank `r` is in exactly when `r + s - 1 <= n`. So the top never holds
  * more than `n` elements and never splits a tie by an arbitrary order -- and it can hold FEWER
  * than `n`, or none at all on a graph whose top value is shared by more than `n` elements.
- * {@link TopRanking.leftOut} and {@link TopRanking.reason} say when that happened.
+ * {@link TopRanking.leftOut} says when that happened.
  */
 export interface TopRanking {
     /** The elements taken, best first: whole tie groups only, never more than the limit. */
@@ -678,8 +679,6 @@ export interface TopRanking {
      * value and its size. Null when nothing was left out on account of a tie.
      */
     readonly leftOut: { readonly value: number; readonly count: number } | null;
-    /** Why fewer elements were taken than the limit allowed, in a sentence; null when none were left out. */
-    readonly reason: string | null;
     /**
      * The value of the highest-ranked element left out, or null when every measured element is in
      * the top. An `{ above }` selection target or a `threshold` filter at this value selects
@@ -873,8 +872,10 @@ export interface ResultSummary {
     readonly normalization: Normalization;
     /** The highest-ranked elements, best first. Bounded however large the graph is. */
     readonly top: readonly SummaryEntry[];
-    /** The groups, largest first, for a result that partitions. */
+    /** The largest groups, largest first, for a result that partitions. Stops at ten. */
     readonly groups?: readonly SummaryGroup[];
+    /** How many groups there are, however few of them `groups` lists. Set whenever `groups` is. */
+    readonly groupCount?: number;
     /** What qualifies these numbers. */
     readonly caveats: Caveats;
     /** How long the run took, in milliseconds. */
@@ -923,6 +924,21 @@ export interface RunResult {
      * @returns A view over the values, without an object per element.
      */
     column(field: string): NumericColumnView;
+    /**
+     * The element at each position of {@link RunResult.column}: `ids(field)[i]` is the node or edge
+     * whose value is `column(field).get(i)`. One array for the whole column, so a consumer pairs ids
+     * with values without a {@link RunResult.node} call per element.
+     *
+     * ```ts
+     * const ids = result.ids("value");
+     * const values = result.column("value");
+     * for (let i = 0; i < values.length; i++) scores.set(ids[i], values.get(i));
+     * ```
+     * @param field - The field name, as {@link RunResult.column} takes it.
+     * @returns The ids, in column order.
+     * @since 3.40.0
+     */
+    ids(field: string): readonly NodeId[];
     /**
      * The highest-ranked elements on one field.
      * @param field - The field to rank on.
@@ -1087,6 +1103,25 @@ export interface ResultsApi {
      * @returns True when the path would resolve.
      */
     has(run: RunRef, field?: string): boolean;
+    /**
+     * Compare two runs' results element by element: two rankings (who kept their place, who moved
+     * and by how much, who is tied) or two groupings (which groups map onto which, and who left the
+     * rest of their group). A grouping field (a community's `group`) gives a partition comparison;
+     * a measurement (a centrality's `value`) gives a ranking comparison.
+     *
+     * ```ts
+     * const c = session.results.compare(pagerank, degree);
+     * if (c.kind === "ranking") console.log(c.correlation, c.changes[0]);
+     * ```
+     * @param a - The first run, or `{ run, field }` for a field other than its primary one.
+     * @param b - The second run, or `{ run, field }`.
+     * @returns The comparison.
+     * @throws A GraphtyError coded E_UNKNOWN_RUN when the session holds no finished run by that
+     *   name, or E_BAD_COMMAND when a field is not published per element, the two fields are on
+     *   different elements, or one is a grouping and the other a measurement.
+     * @since 3.38.0
+     */
+    compare(a: RunRef | CompareSide, b: RunRef | CompareSide): ResultComparison;
     /** Every run that has published a result, as an expression editor reads them. */
     readonly roots: readonly ResultRoot[];
 }

@@ -17,12 +17,14 @@
  */
 
 import type { FieldDescriptor, Path, Query, ResultShape, RunId } from "../../catalog/types";
-import type { RunDistinction } from "../runs/types";
 // The DEEP path on purpose. `../styles` re-exports StylesApi, which imports this file, so
 // importing the barrel here closes a cycle; `predicate` itself reaches only a type and the error
 // class, so this edge is one-way.
+import { GraphtyError } from "../../errors/GraphtyError";
+import type { RunDistinction } from "../runs/types";
 import type { ResultRef } from "../shared";
 import { quotePath } from "../styles/predicate";
+import { compareResults, type CompareSide, type ResultComparison } from "./compare";
 import {
     RESULT_ROOT,
     resultPath,
@@ -313,6 +315,43 @@ class Results implements ResultsApi {
         }
 
         return field === undefined || publishes(result, field);
+    }
+
+    /**
+     * Compare two runs' results element by element.
+     * @param a - The first run, or `{ run, field }`.
+     * @param b - The second run, or `{ run, field }`.
+     * @returns The comparison.
+     */
+    compare(a: RunRef | CompareSide, b: RunRef | CompareSide): ResultComparison {
+        const first = this.#finished(a);
+        const second = this.#finished(b);
+
+        return compareResults(first.result, second.result, first.field, second.field);
+    }
+
+    /**
+     * One side of a comparison, resolved to a finished result.
+     * @param side - The run, or `{ run, field }`.
+     * @returns The result and the field asked for.
+     * @throws E_UNKNOWN_RUN when the session holds no finished run by that name.
+     */
+    #finished(side: RunRef | CompareSide): { result: RunResult; field: string | undefined } {
+        const isSide = typeof side === "object" && "run" in side;
+        const run = isSide ? side.run : side;
+        const result = this.get(run);
+        if (result === undefined) {
+            const id = runIdOf(run);
+            const available = this.roots.map((root) => root.runId);
+            throw new GraphtyError({
+                code: "E_UNKNOWN_RUN",
+                source: "run",
+                message: `There is no finished run called "${id}" in this session.`,
+                details: { run: id, available, candidates: nearestNames(id, available) },
+            });
+        }
+
+        return { result, field: isSide ? side.field : undefined };
     }
 
     /**

@@ -1,4 +1,7 @@
-import { Axis, Quaternion, type Scene, Space, TransformNode, Vector3 } from "@babylonjs/core";
+import { Axis, Space } from "@babylonjs/core/Maths/math.axis.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { GraphtyLogger, type Logger } from "../logging";
 
@@ -52,8 +55,9 @@ export class PivotController {
     rotate(yawDelta: number, pitchDelta: number): void {
         this.frameCount++;
 
-        const hasYaw = Math.abs(yawDelta) > 0.0001;
-        const hasPitch = Math.abs(pitchDelta) > 0.0001;
+        // Any angle turns: an arrow key near a globe's surface turns by millionths of a radian.
+        const hasYaw = yawDelta !== 0;
+        const hasPitch = pitchDelta !== 0;
 
         if (!hasYaw && !hasPitch) {
             return;
@@ -87,12 +91,14 @@ export class PivotController {
 
     /**
      * Rotate the pivot around an arbitrary axis.
-     * Used for two-hand gesture rotation in XR.
+     * Used for two-hand gesture rotation in XR and for turning a globe under a drag. Any angle
+     * turns, however small: near a globe's surface a drag's whole turn is millionths of a radian,
+     * and so is the axis from the cross product of the two points it grabbed.
      * @param axis - The axis to rotate around (will be normalized)
      * @param angle - The rotation angle in radians
      */
     rotateAroundAxis(axis: Vector3, angle: number): void {
-        if (Math.abs(angle) < 0.0001 || axis.length() < 0.0001) {
+        if (angle === 0 || axis.lengthSquared() === 0) {
             return;
         }
 
@@ -176,8 +182,8 @@ export class PivotController {
     }
 
     /**
-     * Pan relative to the current view direction.
-     * Uses accumulated yaw to calculate view-relative movement.
+     * Pan along the reader's horizontal right and forward: the pivot's own axes, however it has
+     * been turned (by `rotate`, `rotateAroundAxis` or `spin`), flattened onto the ground.
      * @param right - Movement along view's right vector
      * @param forward - Movement along view's forward vector
      */
@@ -186,16 +192,18 @@ export class PivotController {
             return;
         }
 
-        // Calculate view-relative directions using accumulated yaw
-        const cosYaw = Math.cos(this.accumulatedYaw);
-        const sinYaw = Math.sin(this.accumulatedYaw);
+        const rightAxis = this.pivot.getDirection(Axis.X);
+        rightAxis.y = 0;
+        if (rightAxis.lengthSquared() < 1e-8) {
+            // The pivot is rolled onto its side: its right points straight up, so use its forward.
+            const forwardAxis = this.pivot.getDirection(Axis.Z);
+            rightAxis.set(forwardAxis.z, 0, -forwardAxis.x);
+        }
 
-        // Right vector: (cos(yaw), 0, sin(yaw))
-        // Forward vector: (-sin(yaw), 0, cos(yaw))
-        const worldX = right * cosYaw - forward * sinYaw;
-        const worldZ = right * sinYaw + forward * cosYaw;
-
-        this.pan(new Vector3(worldX, 0, worldZ));
+        rightAxis.normalize();
+        // Babylon is left-handed: right x up is forward.
+        const forwardAxis = Vector3.Cross(rightAxis, Axis.Y);
+        this.pan(rightAxis.scale(right).addInPlace(forwardAxis.scale(forward)));
     }
 
     /**

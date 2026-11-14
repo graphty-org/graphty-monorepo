@@ -1,17 +1,15 @@
-import {
-    type AbstractMesh,
-    Color4,
-    Constants,
-    type InstancedMesh,
-    type Mesh,
-    type RawTexture,
-    RenderTargetTexture,
-    type Scene,
-    ShaderMaterial,
-    Vector2,
-} from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector2 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
-import { isRowBatch } from "../meshes/RowPullPlugin";
+import { isRowBatch, isUnscaledRowBatch } from "../meshes/RowPullPlugin";
 
 /**
  * @file The node ID target: what hover reads instead of picking (design/rendering/row-renderer.md 4.4).
@@ -55,6 +53,9 @@ uniform float shapeRadius;
 varying float vId;
 void main(void) {
 #include<instancesVertex>
+#ifdef ROW_UNSCALED
+    finalWorld = world;
+#endif
     vec4 worldPos = finalWorld * vec4(position, 1.0);
 #ifdef ROW_PULL
     int grRow = int(graphtyRow + 0.5);
@@ -107,7 +108,24 @@ class IdTexture extends RenderTargetTexture {
     onDrawn: (() => void) | null = null;
 
     override render(useCameraPostProcess?: boolean, dumpForDebug?: boolean): void {
-        super.render(useCameraPostProcess, dumpForDebug);
+        // Drawn as a frame draws its targets: as intermediate rendering. Outside it -- a read
+        // redrawing a stale target between frames -- the scene's effect layers (the node glow's
+        // highlight layer) composite their glow into whatever is bound after each rendering
+        // group, which here is this target, writing colors that name no row (#6121).
+        const scene = this.getScene();
+        const was = scene?._intermediateRendering ?? false;
+        if (scene) {
+            scene._intermediateRendering = true;
+        }
+
+        try {
+            super.render(useCameraPostProcess, dumpForDebug);
+        } finally {
+            if (scene) {
+                scene._intermediateRendering = was;
+            }
+        }
+
         this.onDrawn?.();
     }
 }
@@ -127,6 +145,8 @@ export class NodeIdTarget {
 
     private readonly target: IdTexture;
     private readonly rowMaterial: ShaderMaterial;
+    /** {@link rowMaterial} for a batch that sends no matrices, its rows all unscaled. */
+    private readonly unscaledRowMaterial: ShaderMaterial;
     private readonly objectMaterial: ShaderMaterial;
     private readonly list: AbstractMesh[] = [];
     private readonly texel = new Uint8Array(4);
@@ -164,9 +184,11 @@ export class NodeIdTarget {
         );
         this.target.clearColor = new Color4(0, 0, 0, 0);
         this.target.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
-        this.rowMaterial = this.material("graphty-node-id-rows", [
-            "#define ROW_PULL",
-            `#define MIN_RADIUS_PX ${MIN_RADIUS_PX.toFixed(1)}`,
+        const rowDefines = ["#define ROW_PULL", `#define MIN_RADIUS_PX ${MIN_RADIUS_PX.toFixed(1)}`];
+        this.rowMaterial = this.material("graphty-node-id-rows", rowDefines);
+        this.unscaledRowMaterial = this.material("graphty-node-id-unscaled-rows", [
+            ...rowDefines,
+            "#define ROW_UNSCALED",
         ]);
         this.objectMaterial = this.material("graphty-node-id-objects", []);
         // What the scene chose to draw at its last evaluation: the batches and every visible mesh.
@@ -179,9 +201,11 @@ export class NodeIdTarget {
                 this.collect(drawn.data, drawn.length);
             }),
             observe(this.target.onBeforeRenderObservable, () => {
-                this.rowMaterial.setTexture("rowPosition", this.host.positionTexture());
                 const { width, height } = this.target.getSize();
-                this.rowMaterial.setVector2("idPixels", this.pixels.set(width, height));
+                for (const material of [this.rowMaterial, this.unscaledRowMaterial]) {
+                    material.setTexture("rowPosition", this.host.positionTexture());
+                    material.setVector2("idPixels", this.pixels.set(width, height));
+                }
             }),
             observe(scene.onBeforeRenderObservable, () => {
                 this.fit();
@@ -194,10 +218,12 @@ export class NodeIdTarget {
             }),
         );
         // Each batch's own size, which its source mesh was built at.
-        this.rowMaterial.onBindObservable.add((mesh) => {
-            const { extendSize } = mesh.getRawBoundingInfo().boundingBox;
-            mesh.subMeshes[0]?.effect?.setFloat("shapeRadius", Math.max(extendSize.x, extendSize.y, extendSize.z));
-        });
+        for (const material of [this.rowMaterial, this.unscaledRowMaterial]) {
+            material.onBindObservable.add((mesh) => {
+                const { extendSize } = mesh.getRawBoundingInfo().boundingBox;
+                mesh.subMeshes[0]?.effect?.setFloat("shapeRadius", Math.max(extendSize.x, extendSize.y, extendSize.z));
+            });
+        }
         this.target.onDrawn = () => {
             // Babylon skips a mesh whose material has not compiled and draws the rest: such a
             // drawing does not count, and the next read draws again.
@@ -264,6 +290,7 @@ export class NodeIdTarget {
 
         this.target.dispose();
         this.rowMaterial.dispose();
+        this.unscaledRowMaterial.dispose();
         this.objectMaterial.dispose();
         this.settle(true);
     }
@@ -309,7 +336,7 @@ export class NodeIdTarget {
         for (let i = 0; i < length; i++) {
             const mesh = drawn[i];
             if (isRowBatch(mesh)) {
-                mesh.setMaterialForRenderPass(target.renderPassId, this.rowMaterial);
+                mesh.setMaterialForRenderPass(target.renderPassId, this.rowMaterialFor(mesh));
             } else if (mesh.isPickable) {
                 const owner = mesh.isAnInstance ? (mesh as InstancedMesh).sourceMesh : mesh;
                 owner.setMaterialForRenderPass(target.renderPassId, this.objectMaterial);
@@ -325,6 +352,15 @@ export class NodeIdTarget {
             list.length = kept;
             this.drawnIn = -1;
         }
+    }
+
+    /**
+     * The material a batch is drawn with in the target.
+     * @param mesh - The batch.
+     * @returns The material.
+     */
+    private rowMaterialFor(mesh: AbstractMesh): ShaderMaterial {
+        return isUnscaledRowBatch(mesh) ? this.unscaledRowMaterial : this.rowMaterial;
     }
 
     /**
@@ -346,7 +382,7 @@ export class NodeIdTarget {
         for (const mesh of this.list) {
             const batch = isRowBatch(mesh);
             const owner = mesh.isAnInstance ? (mesh as InstancedMesh).sourceMesh : (mesh as Mesh);
-            const material = batch ? this.rowMaterial : this.objectMaterial;
+            const material = batch ? this.rowMaterialFor(mesh) : this.objectMaterial;
             if (!material.isReady(mesh, batch || owner.hasInstances)) {
                 return false;
             }
@@ -413,8 +449,9 @@ export class NodeIdTarget {
             return now ? ID_NONE : Promise.resolve(ID_NONE);
         }
 
-        // A WebGL texture's first row is the bottom of the picture.
-        const py = engine.isWebGPU ? row : height - 1 - row;
+        // A render target's first row is the bottom of the picture on either engine: Babylon draws
+        // into a target upside down on WebGPU (its invertY uniform) so that one samples as on WebGL.
+        const py = height - 1 - row;
         this.counts.reads++;
         if (now) {
             engine._readTexturePixelsSync(texture, 1, 1, -1, 0, this.texel, true, false, px, py);

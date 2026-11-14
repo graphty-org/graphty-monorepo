@@ -493,14 +493,15 @@ function linePieces(
 
 /**
  * The lines a flat node draws over itself (`shape.lines`), in its border's color, `shape.lineWidth` wide (else its
- * border's width), each list of points relative to the node's center as fractions of its half width and half height,
- * plus any lengths in the units of the style's lengths.
+ * border's width), each over a wider line down the same path in `shape.lineHaloColor`, `shape.lineHaloWidth` wide,
+ * where those are set; each list of points relative to the node's center as fractions of its half width and half
+ * height, plus any lengths in the units of the style's lengths.
  * @param shape - The node's shape block.
  * @param border - The node's border.
  * @param width - The face's width.
  * @param height - Its height.
  * @param scale - World units per unit of the style's lengths.
- * @returns The pieces.
+ * @returns The pieces, each halo before the line drawn over it.
  */
 export function shapeLinePieces(
     shape: NodeStyleConfig["shape"],
@@ -509,18 +510,14 @@ export function shapeLinePieces(
     height: number,
     scale = 1,
 ): ColorPiece[] {
-    const color = paint(border?.color, border?.opacity);
-    const line = (shape?.lineWidth ?? border?.width ?? 0) * scale;
-    if (color === null || !isPositive(line)) {
-        return [];
-    }
-    return pointLists(shape?.lines).flatMap((list) =>
-        linePieces(
-            list.map((p) => placePoint(p, width / 2, height / 2, scale)),
-            line,
-            color,
-        ),
-    );
+    const strokes = [
+        { color: paint(shape?.lineHaloColor), line: (shape?.lineHaloWidth ?? 0) * scale },
+        { color: paint(border?.color, border?.opacity), line: (shape?.lineWidth ?? border?.width ?? 0) * scale },
+    ].filter((s) => s.color !== null && isPositive(s.line));
+    return pointLists(shape?.lines).flatMap((list) => {
+        const points = list.map((p) => placePoint(p, width / 2, height / 2, scale));
+        return strokes.flatMap(({ color, line }) => (color === null ? [] : linePieces(points, line, color)));
+    });
 }
 
 /**
@@ -617,7 +614,8 @@ function numbers(text: string | undefined): number[] {
  * (bottom to top, or with `horizontal` left to right); the values' categories along the other (left to right, or top
  * to bottom), each an equal share of it after `margin` at each end and `gap` between them. Item i is drawn in color
  * i of `colors`, the last one again for the rest; a box draws its whiskers in the first color too and its median in
- * the second. A bar and a box are outlined `borderWidth` wide in `borderColor`.
+ * the second. A bar and a box are outlined `borderWidth` wide in `borderColor`. `backgroundColor` at
+ * `backgroundOpacity` fills the whole plot box under the rest, first.
  * @param chart - The node style's chart block.
  * @param width - The node's width.
  * @param height - Its height.
@@ -684,41 +682,46 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
     const step = band + (slots > 1 ? gap / (slots - 1) : 0);
     const slot = (i: number): [number, number] => [margin + i * step, margin + i * step + band];
     const base = along(Math.max(lo, Math.min(hi, 0)));
-    switch (kind) {
-        case "bar":
-            return values.flatMap((v, i) => filled(rect(...slot(i), base, along(v)), color(i)));
-        case "stacked-bar": {
-            let sum = 0;
-            return values.flatMap((v, i) => {
-                const from = along(sum);
-                sum += Math.max(0, v);
-                return filled(rect(...slot(0), from, along(sum)), color(i));
-            });
+    const backdrop = paint(chart.backgroundColor, chart.backgroundOpacity);
+    const background: ChartPiece[] = backdrop === null ? [] : [{ outline: rect(0, 1, 0, 1), ...backdrop }];
+    const body = ((): ChartPiece[] => {
+        switch (kind) {
+            case "bar":
+                return values.flatMap((v, i) => filled(rect(...slot(i), base, along(v)), color(i)));
+            case "stacked-bar": {
+                let sum = 0;
+                return values.flatMap((v, i) => {
+                    const from = along(sum);
+                    sum += Math.max(0, v);
+                    return filled(rect(...slot(0), from, along(sum)), color(i));
+                });
+            }
+            case "cells":
+                return values.flatMap((_, i) => filled(rect(...slot(i), 0, 1), color(i)));
+            case "line": {
+                const points = values.map((v, i) => at((slot(i)[0] + slot(i)[1]) / 2, along(v)));
+                return points.slice(1).flatMap((p, i) => stroke([points[i], p], color(0)));
+            }
+            case "box": {
+                const [low, q1, median, q3, high] = [0, 1, 2, 3, 4].map((j) => values[Math.min(j, values.length - 1)]);
+                const [c0, c1] = slot(0);
+                const mid = (c0 + c1) / 2;
+                const fill = color(0);
+                return [
+                    ...stroke([at(mid, along(high)), at(mid, along(q3))], fill),
+                    ...stroke([at(c0, along(high)), at(c1, along(high))], fill),
+                    ...stroke([at(mid, along(low)), at(mid, along(q1))], fill),
+                    ...stroke([at(c0, along(low)), at(c1, along(low))], fill),
+                    ...filled(rect(c0, c1, along(q1), along(q3)), fill),
+                    ...stroke(
+                        [at(c0, along(median)), at(c1, along(median))],
+                        colors.length > 1 ? color(1) : paint("#000000"),
+                    ),
+                ];
+            }
+            default:
+                return [];
         }
-        case "cells":
-            return values.flatMap((_, i) => filled(rect(...slot(i), 0, 1), color(i)));
-        case "line": {
-            const points = values.map((v, i) => at((slot(i)[0] + slot(i)[1]) / 2, along(v)));
-            return points.slice(1).flatMap((p, i) => stroke([points[i], p], color(0)));
-        }
-        case "box": {
-            const [low, q1, median, q3, high] = [0, 1, 2, 3, 4].map((j) => values[Math.min(j, values.length - 1)]);
-            const [c0, c1] = slot(0);
-            const mid = (c0 + c1) / 2;
-            const fill = color(0);
-            return [
-                ...stroke([at(mid, along(high)), at(mid, along(q3))], fill),
-                ...stroke([at(c0, along(high)), at(c1, along(high))], fill),
-                ...stroke([at(mid, along(low)), at(mid, along(q1))], fill),
-                ...stroke([at(c0, along(low)), at(c1, along(low))], fill),
-                ...filled(rect(c0, c1, along(q1), along(q3)), fill),
-                ...stroke(
-                    [at(c0, along(median)), at(c1, along(median))],
-                    colors.length > 1 ? color(1) : paint("#000000"),
-                ),
-            ];
-        }
-        default:
-            return [];
-    }
+    })();
+    return [...background, ...body];
 }

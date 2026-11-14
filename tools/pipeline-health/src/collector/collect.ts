@@ -26,8 +26,8 @@ import {
     type ReleaseSeen,
     type WorkflowState,
 } from "../model/snapshots.js";
-import type { Store } from "../model/store.js";
-import type { DeployBuilds } from "./aws.js";
+import { isLive, type Item, type Store } from "../model/store.js";
+import type { AwsCostDay, DeployBuilds } from "./aws.js";
 import { flakyMembers } from "./flaky.js";
 import { type Fetch, type GitHub, HttpError, runJobs } from "./github.js";
 import { definedJobs, jobMembers, nonGatingJobs } from "./jobs.js";
@@ -36,6 +36,8 @@ import {
     classifyCancel,
     codeownerPatterns,
     type CompareCommit,
+    coverageAsOf,
+    family,
     fixedCosts,
     type GhJob,
     type GhRun,
@@ -85,15 +87,18 @@ import {
     workflowFile,
     workflowState,
 } from "./parse.js";
-import { markPrCaused } from "./pr-caused.js";
+import { addUnmarked, markPrCaused } from "./pr-caused.js";
 import {
+    ANNOTATIONS_QUERY,
     CHANNEL_REFS_QUERY,
+    CHECKS_BATCH,
+    CHECKS_QUERY,
     ISSUE_QUERY,
-    OPEN_PAGE,
+    OPEN_CAP,
+    OPEN_QUERY,
     ownerFilesQuery,
     PR_QUERY,
     REPO_FILES_QUERY,
-    STEPS_QUERY,
     SUITE_QUERY,
     TAG_QUERY,
 } from "./queries.js";
@@ -117,6 +122,7 @@ import {
     type SharedSnapshot,
     SNAPSHOT,
     supersededRuns,
+    testSignatures,
 } from "./snapshots.js";
 
 const WEEK = 7 * DAY;
@@ -129,7 +135,7 @@ export interface Deps {
     /** Plain fetch for public sources (npm, Coveralls). */
     fetch: Fetch;
     /** Cost Explorer's daily cost, ISO days [from, to). Undefined: the AWS line is skipped. */
-    awsCosts?: (from: string, to: string) => Promise<{ day: string; usd: number }[]>;
+    awsCosts?: (from: string, to: string) => Promise<AwsCostDay[]>;
     rates: Rates;
     limits: { linux_windows: number; macos: number };
     org: string;
@@ -209,13 +215,19 @@ class Cycle {
     openRuns?: GhRun[];
     /** Open pull requests with their checks (pull requests part), for "Blocked by a flake". */
     openPrs?: GqlPr[];
+    /** False when more than OPEN_CAP pull requests are open, so openPrs leaves some out. */
+    openComplete = false;
     /** This cycle's runner use (runners part) and master's newest green build (github part), for the slices. */
     runnerSample?: RunnerSample;
     newestGreen?: { sha: string };
+    /** Master's newest finished ci.yml push build (github part), for the checks it failed (pull requests part). */
+    newestMasterRun?: GhRun;
     /** Merge times of screenshot approval pull requests (visual/approve-*) seen this cycle, for the review lag. */
     approvalMerges: number[] = [];
     slice?: SliceDecision & { dispatched: boolean };
     private readonly jsonCursors = new Map<string, unknown>();
+    /** Each JSON cursor's stored text, as last read or written this cycle. */
+    private readonly jsonStored = new Map<string, string | undefined>();
 
     readonly d: Deps;
 
@@ -240,6 +252,7 @@ class Cycle {
             return this.jsonCursors.get(name) as T;
         }
         const raw = await this.cursor(name);
+        this.jsonStored.set(name, raw);
         let v = fallback;
         try {
             if (raw) {
@@ -252,9 +265,21 @@ class Cycle {
         return v;
     }
 
+    /**
+     * Stores a JSON cursor, unless it holds that JSON already: most of them (a 45 KB review-lag state among them) are
+     * the same from one cycle to the next, and a put costs a write unit per KB (#6813). Compared with the stored text,
+     * not the parsed value json() handed out, which a caller may have changed in place.
+     * @param name - the cursor name
+     * @param v - the value to store as JSON
+     */
     async setJson(name: string, v: unknown): Promise<void> {
         this.jsonCursors.set(name, v);
-        await setCursor(this.d.store, name, JSON.stringify(v), this.now);
+        const text = JSON.stringify(v);
+        const stored = this.jsonStored.has(name) ? this.jsonStored.get(name) : await this.cursor(name);
+        this.jsonStored.set(name, text);
+        if (stored !== text) {
+            await setCursor(this.d.store, name, text, this.now);
+        }
     }
 
     /**
@@ -525,7 +550,7 @@ async function writeRuns(
             c.items.push(...jobItems(c, { run, repo, workflow, hung: cancel?.hung.has(j.name) ?? false }, j));
         }
     }
-    await markPrCaused(c.d.store, gh, c.d.repo, runItems, c.now);
+    addUnmarked(c.items, await markPrCaused(c.d.store, gh, c.d.repo, runItems, c.now));
 }
 
 /**
@@ -747,9 +772,9 @@ async function withStages(c: Cycle, item: PullRequestItem): Promise<PullRequestI
  */
 async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void> {
     const prs = c.openPrs;
-    const ghost = (x: Collected): boolean =>
-        !!prs && x.repo === c.d.repo && isGhostRun(x.run, prs, prs.length < OPEN_PAGE);
+    const ghost = (x: Collected): boolean => !!prs && x.repo === c.d.repo && isGhostRun(x.run, prs, c.openComplete);
     const open = xs.filter((x) => x.run.status !== "completed" && !ghost(x));
+    const ghosts = xs.filter((x) => x.run.status !== "completed" && ghost(x));
     const jobs = open.flatMap((x) => x.jobs ?? []);
     const unfinished = (repo: string): GhRun[] => open.filter((x) => x.repo === repo).map((x) => x.run);
     const noJobs = open
@@ -766,6 +791,8 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
     c.o("ci.jobs_queued", use.queued);
     // Only the jobs waiting for a runner, by the not-assigned flag's own rule: the runners page's count and gate.
     c.o("ci.jobs_waiting_runner", use.queuedOver2);
+    // Jobs our own workflows hold back (max-parallel) while runners are free: not GitHub's runner limit.
+    c.o("ci.jobs_held_by_run", use.heldByRun);
     c.o("ci.longest_queued_ms", use.longestQueuedMs);
     c.o("ci.saturated_ms", saturated ? elapsed : 0);
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);
@@ -784,7 +811,7 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
         c.o("slices.queue_wait_min", cost.queueWaitMin);
     }
     const prev = await c.json<HoldersSnapshot | undefined>(SNAPSHOT.holders, undefined);
-    await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now));
+    await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now, ghosts));
 }
 
 /**
@@ -815,27 +842,115 @@ async function master(
     c.o("master.building_ms", s.buildingSince === undefined ? 0 : c.now - s.buildingSince);
 }
 
+/** The failure annotation GitHub adds to every failed job: it says nothing about why. */
+const GENERIC_ANNOTATION = /^Process completed with exit code \d+\.?$/;
+const RUN_OF = /\/actions\/runs\/(\d+)\//;
+
 /**
- * Names the failed step of each failing check run on the open pull requests' heads, from one query per 50 runs, so
- * the shared failures group by step (an unreturned run keeps no step and groups by its check alone).
+ * Fills in each failing check run's signatures on the open pull requests' heads (#6177): its failure annotations'
+ * first lines (one query per 50 runs) and, for a shard check ("Test (layout-2)"), the tests the results store
+ * recorded failing in that shard of the run's newest attempt, as "file > name" (one store query per run).
+ * @param c - the cycle
  * @param gh - the GitHub client
  * @param open - the open pull requests with their checks
  */
-async function failedSteps(gh: GitHub, open: GqlPr[]): Promise<void> {
+async function failureSignatures(c: Cycle, gh: GitHub, open: GqlPr[]): Promise<void> {
     const runs = open
         .flatMap((p) => p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? [])
         .filter((ch) => ch.id && ["FAILURE", "TIMED_OUT"].includes(ch.conclusion ?? ""));
     for (let i = 0; i < runs.length; i += 50) {
         const chunk = runs.slice(i, i + 50);
-        type Node = { id: string; steps?: { nodes: { name: string; conclusion: string | null }[] } } | null;
-        const data = await gh.graphql<{ nodes: Node[] }>(STEPS_QUERY, { ids: chunk.map((ch) => ch.id) });
+        type Node = { id: string; annotations?: { nodes: { message: string; annotationLevel: string }[] } } | null;
+        const data = await gh.graphql<{ nodes: Node[] }>(ANNOTATIONS_QUERY, { ids: chunk.map((ch) => ch.id) });
         chunk.forEach((ch, k) => {
-            const step = data.nodes[k]?.steps?.nodes.find((st) => st.conclusion === "FAILURE")?.name;
-            if (step) {
-                ch.failedStep = step;
-            }
+            const lines = (data.nodes[k]?.annotations?.nodes ?? [])
+                .filter((a) => a.annotationLevel === "FAILURE")
+                .map((a) => (a.message.split("\n")[0] ?? "").trim().slice(0, 200))
+                .filter((m) => m && !GENERIC_ANNOTATION.test(m));
+            ch.signatures = [...new Set(lines)];
         });
     }
+    const tests = new Map<string, Promise<Item[]>>();
+    for (const ch of runs) {
+        const run = RUN_OF.exec(ch.detailsUrl ?? "")?.[1];
+        if (!run || !(ch.name ?? "").endsWith(")")) {
+            continue;
+        }
+        if (!tests.has(run)) {
+            tests.set(
+                run,
+                c.d.store.query(`RUNTESTS#${run}`).then((rows) => rows.filter((r) => isLive(r, c.now))),
+            );
+        }
+        const rows = await (tests.get(run) as Promise<Item[]>);
+        ch.signatures = [...new Set([...(ch.signatures ?? []), ...testSignatures(rows, ch.name ?? "")])];
+    }
+}
+
+/**
+ * The checks (families folded) master's newest finished ci.yml push build failed, from its stored jobs; empty until
+ * the cycle after it finished, when its jobs are in the store.
+ * @param c - the cycle
+ * @returns the failed checks
+ */
+async function masterFailingChecks(c: Cycle): Promise<Set<string>> {
+    const run = c.newestMasterRun;
+    if (!run) {
+        return new Set();
+    }
+    const rows = await c.d.store.query(`RUN#${run.id}`, { from: "job#", to: "job#~" });
+    return new Set(
+        rows
+            .filter((r) => isLive(r, c.now) && r.attempt === run.run_attempt && FAILED_JOB.has(String(r.conclusion)))
+            .map((r) => family(String(r.name)) ?? String(r.name)),
+    );
+}
+
+const FAILED_JOB = new Set(["failure", "timed_out"]);
+
+type PrPage = { nodes: GqlPr[]; pageInfo: { hasNextPage: boolean; endCursor: string } };
+
+/**
+ * Every open pull request (at most OPEN_CAP) with its head's checks: the rest of the open list after its first page,
+ * then the checks in batches of CHECKS_BATCH by node id. One query for the open pull requests with their checks took
+ * GitHub over 10 s at 50 open (a 504, #7815). A failing request throws, so the part fails as before and no partial
+ * list passes for complete.
+ * @param gh - the GitHub client
+ * @param owner - the repository owner
+ * @param name - the repository name
+ * @param first - the open list's first page
+ * @returns the open pull requests, and false for complete when more than OPEN_CAP are open
+ */
+export async function openWithChecks(
+    gh: GitHub,
+    owner: string,
+    name: string,
+    first: PrPage,
+): Promise<{ open: GqlPr[]; complete: boolean }> {
+    const open = [...first.nodes];
+    let page = first.pageInfo;
+    while (page.hasNextPage && open.length < OPEN_CAP) {
+        const data: { repository: { open: PrPage } } = await gh.graphql(OPEN_QUERY, {
+            owner,
+            name,
+            after: page.endCursor,
+        });
+        open.push(...data.repository.open.nodes);
+        page = data.repository.open.pageInfo;
+    }
+    const complete = !page.hasNextPage && open.length <= OPEN_CAP;
+    const listed = open.slice(0, OPEN_CAP);
+    const checks = new Map<string, Partial<GqlPr>>();
+    for (let i = 0; i < listed.length; i += CHECKS_BATCH) {
+        const ids = listed.slice(i, i + CHECKS_BATCH).map((p) => p.id);
+        const data: { nodes: (Partial<GqlPr> | null)[] } = await gh.graphql(CHECKS_QUERY, { ids });
+        for (const n of data.nodes) {
+            if (n?.id) {
+                checks.set(n.id, n);
+            }
+        }
+    }
+    return { open: listed.map((p) => ({ ...p, ...(p.id ? checks.get(p.id) : undefined) })), complete };
 }
 
 /**
@@ -848,19 +963,16 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
     const [owner, name] = c.d.repo.split("/");
     const since = Date.parse((await c.cursor("prs")) ?? iso(c.now - DAY));
     let cursor: string | null = null;
-    let open: GqlPr[] = [];
+    let firstOpen: PrPage | undefined;
     const recentSeen: GqlPr[] = [];
     for (let page = 0; page < 20; page++) {
-        type Page = { nodes: GqlPr[]; pageInfo: { hasNextPage: boolean; endCursor: string } };
-        const data: { repository: { open: Page; recent: Page } } = await gh.graphql(PR_QUERY, {
+        const data: { repository: { open: PrPage; recent: PrPage } } = await gh.graphql(PR_QUERY, {
             owner,
             name,
             cursor,
             withOpen: page === 0,
         });
-        if (page === 0) {
-            open = data.repository.open.nodes;
-        }
+        firstOpen ??= data.repository.open;
         const { recent } = data.repository;
         const newer = recent.nodes.filter((p) => Date.parse(p.updatedAt) >= since - 5 * MIN);
         recentSeen.push(...newer);
@@ -869,7 +981,8 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
         }
         cursor = recent.pageInfo.endCursor;
     }
-    await failedSteps(gh, open);
+    const { open, complete } = await openWithChecks(gh, owner, name, firstOpen as PrPage);
+    await failureSignatures(c, gh, open);
     await pendingPrRuns(c, gh, [...open, ...recentSeen]);
     for (const p of recentSeen) {
         c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
@@ -881,8 +994,10 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
         c.items.push(toPrItem(p, c.d.repo));
     }
     c.openPrs = open;
+    c.openComplete = complete;
     await ownerWaits(c, gh, open);
-    const s = prStocks(open, c.now);
+    const masterFailing = await masterFailingChecks(c);
+    const s = prStocks(open, c.now, masterFailing);
     c.o("pr.open", s.open);
     c.o("pr.oldest_open_ms", s.oldestOpenMs);
     c.o("pr.automerge_green_stuck", s.autoMergeGreenStuck);
@@ -891,7 +1006,7 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
     c.o("pr.max_failing_same_check", s.maxFailingSameCheck);
     await c.setJson("pr-stocks", s.prs);
     const prevShared = await c.json<SharedSnapshot | undefined>(SNAPSHOT.shared, undefined);
-    await c.setJson(SNAPSHOT.shared, nextShared(prevShared, open, recentSeen, c.now));
+    await c.setJson(SNAPSHOT.shared, nextShared(prevShared, open, recentSeen, c.now, masterFailing));
     if (c.openRuns) {
         const sup = supersededRuns(c.openRuns, open, c.now);
         await c.setJson(SNAPSHOT.superseded, sup);
@@ -1109,6 +1224,7 @@ async function readReleaseAttempt(
         jobs: a.jobs,
         ...(a.failedJob ? { failedJob: a.failedJob } : {}),
         nightly: a.nightly,
+        coverage: a.coverage,
         ...(r.conclusion ? { conclusion: r.conclusion } : {}),
     };
     c.items.push(toRunItem(r, repo, { tested: a.tested }));
@@ -1425,7 +1541,8 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
 // Parts that need no GitHub App.
 
 /**
- * Coverage freshness: the newest Coveralls build on master (yellow past 24 h, red past 48 h).
+ * Coverage freshness: the newest Coveralls build on master (yellow past 24 h, red past 48 h), judged against the
+ * last full run that reached its Coverage job (coverageAsOf), so a red full run is not a second alarm.
  * @param c - the cycle
  */
 async function coverage(c: Cycle): Promise<void> {
@@ -1439,11 +1556,15 @@ async function coverage(c: Cycle): Promise<void> {
     if (!body.created_at) {
         throw new Error("coveralls: no build");
     }
-    await recordSource(c.d.store, "coverage", Date.parse(body.created_at), { ok: true });
+    const seen = await c.json<Record<string, ReleaseSeen>>("release", {});
+    await recordSource(c.d.store, "coverage", coverageAsOf(Date.parse(body.created_at), Object.values(seen)), {
+        ok: true,
+    });
 }
 
 /**
- * Money lines by day for this month: AWS from Cost Explorer, the fixed plans spread over the month.
+ * Money lines by day for this month: AWS from Cost Explorer (with its split by service), the fixed plans spread over
+ * the month.
  * @param c - the cycle
  */
 async function costs(c: Cycle): Promise<void> {
@@ -1461,6 +1582,7 @@ async function costs(c: Cycle): Promise<void> {
                 line: "aws",
                 day: Date.parse(r.day),
                 usd: r.usd,
+                ...(r.services ? { services: r.services } : {}),
             });
         }
     }
@@ -1613,6 +1735,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         collected = xs;
         c.openRuns = xs.filter((x) => x.run.status !== "completed").map((x) => x.run);
         await master(c, masterList, cancels, elapsed);
+        c.newestMasterRun = masterList.find((x) => x.run.status === "completed")?.run;
         const green = newestGreen(masterList.map((x) => x.run));
         if (green) {
             c.newestGreen = green;

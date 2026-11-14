@@ -33,7 +33,7 @@ const FORBIDDEN_OPTIONS = ["data", "file", "url", "credential", "write", "signal
  * @param name - The parameter's name.
  * @returns True when it does.
  */
-export function isSecretParam(name: string): boolean {
+function isSecretParam(name: string): boolean {
     const lower = name.toLowerCase();
     return (
         ["key", "auth", "sig", "jwt", "code", "sid", "policy", "key-pair-id"].includes(lower) ||
@@ -80,7 +80,13 @@ const PARTS = ["file", "url", "source", "sample"] as const;
 type ProblemCode = GraphtyErrorCode | GraphtyWarningCode;
 
 /** A problem with the member, as a code and the values it is about. */
-export type SourcesProblem = CodedFact<ProblemCode>;
+type SourcesProblem = CodedFact<ProblemCode>;
+
+/**
+ * The saved `loadedAt` of a load upgraded from version 1, which kept no time for a file, a URL or a
+ * sample: the member requires a time, and `data.sources()` publishes none for this one.
+ */
+const NO_TIME = "1970-01-01T00:00:00.000Z";
 
 /** What the session keeps about one load beside `data.sources()`: what an entry records that a listed load does not. */
 export interface LoadFacts {
@@ -245,6 +251,8 @@ export interface SourcesWriteInput {
     readonly loads: readonly SourceLoadRecord[];
     /** The facts each load left, by its key; a load without any is given them now. */
     readonly facts: Map<SourceKey, LoadFacts>;
+    /** The keys of the network loads still waiting to be run (`data.pendingSourceLoads()`). */
+    readonly waiting?: readonly string[];
 }
 
 /** What a save writes about the loads. */
@@ -286,6 +294,21 @@ function validatorsOf(values: unknown): Record<string, unknown> {
             typeof held[name] === "string" ? [[name, held[name]]] : [],
         ),
     );
+}
+
+/**
+ * A mapping request's relative path, redacted as {@link redactRelative} does.
+ * @param path - The path.
+ * @param dropped - Collects the parameter names left out.
+ * @returns The path.
+ */
+function relativeOf(path: string, dropped: Set<string>): string {
+    const redacted = redactRelative(path);
+    for (const name of redacted.dropped) {
+        dropped.add(name);
+    }
+
+    return redacted.address;
 }
 
 /**
@@ -339,15 +362,18 @@ function withoutSecretNames(value: unknown, dropped: Set<string>): unknown {
 }
 
 /**
- * A network load's params as an entry writes them: a REST mapping without a key written into its
- * endpoint, a request's query or the top level of its body, and every URL redacted
- * (sources.md, "Network loads" rule 3).
+ * A network load's params as an entry writes them: without a param whose name marks a
+ * credential, a REST mapping without a key written into its endpoint, a request's query or the
+ * top level of its body, and every URL redacted (sources.md, "Network loads" rule 3).
  * @param config - The params.
  * @param dropped - Collects the names left out.
  * @returns The params.
  */
 function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string>): Record<string, unknown> {
-    const params = withoutSecretUrls(jsonOf(config) ?? {}, dropped) as Record<string, unknown>;
+    const params = withoutSecretNames(withoutSecretUrls(jsonOf(config) ?? {}, dropped), dropped) as Record<
+        string,
+        unknown
+    >;
     const { mapping } = params;
     if (!isObject(mapping) || !isObject(mapping.requests)) {
         return params;
@@ -359,6 +385,7 @@ function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string
             isObject(request)
                 ? defined({
                       ...request,
+                      path: typeof request.path === "string" ? relativeOf(request.path, dropped) : request.path,
                       query: request.query === undefined ? undefined : withoutSecretNames(request.query, dropped),
                       body: request.body === undefined ? undefined : withoutSecretNames(request.body, dropped),
                   })
@@ -376,6 +403,91 @@ function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string
  */
 export function redactedParams(config: Readonly<Record<string, unknown>>): Record<string, unknown> {
     return paramsOf(config, new Set());
+}
+
+/**
+ * Params shown redacted ({@link redactedParams}) and sent back to read a load again, with the
+ * secrets the redaction left out put back from the params the load was read with: a value the
+ * reader left as it was shown is the original, and a URL to the same address keeps the keys its
+ * query held. The reader's own changes win.
+ * @param next - The params sent back.
+ * @param raw - The params the load was read with.
+ * @returns The params to read with.
+ */
+export function withKeptSecrets(next: unknown, raw: unknown): unknown {
+    if (JSON.stringify(jsonOf(next)) === JSON.stringify(redactedValue(raw))) {
+        return raw;
+    }
+
+    if (typeof next === "string" && typeof raw === "string") {
+        return withKeptQueryKeys(next, raw);
+    }
+
+    if (Array.isArray(next) && Array.isArray(raw)) {
+        return next.map((each, at) => withKeptSecrets(each, raw[at]));
+    }
+
+    if (!isObject(next) || !isObject(raw)) {
+        return next;
+    }
+
+    const kept = Object.entries(raw).filter(([name]) => isSecretParam(name) && !(name in next));
+    return {
+        ...Object.fromEntries(kept),
+        ...Object.fromEntries(Object.entries(next).map(([name, each]) => [name, withKeptSecrets(each, raw[name])])),
+    };
+}
+
+/**
+ * A value as {@link paramsOf} writes it, wherever in the params it sits.
+ * @param value - The value.
+ * @returns The redacted copy.
+ */
+function redactedValue(value: unknown): unknown {
+    return isObject(value) ? paramsOf(value, new Set()) : withoutSecretUrls(jsonOf(value) ?? null, new Set());
+}
+
+/**
+ * A URL sent back with the keys the original's query held, when it names the same address.
+ * @param next - The URL sent back.
+ * @param raw - The URL the load was read with.
+ * @returns The URL to read.
+ */
+function withKeptQueryKeys(next: string, raw: string): string {
+    // A mapping request's path is relative: read both against one stand-in origin.
+    const base = "https://relative.invalid/";
+    const absolute = (text: string): boolean => /^([a-z][a-z\d+.-]*:|\/\/)/i.test(text);
+    if (absolute(next) !== absolute(raw)) {
+        return next;
+    }
+
+    let before: URL;
+    let after: URL;
+    try {
+        before = new URL(raw, base);
+        after = new URL(next, base);
+    } catch {
+        return next;
+    }
+
+    if (before.origin !== after.origin || before.pathname !== after.pathname) {
+        return next;
+    }
+
+    for (const [name, value] of before.searchParams) {
+        if (isSecretParam(name) && !after.searchParams.has(name)) {
+            after.searchParams.append(name, value);
+        }
+    }
+
+    if (absolute(next)) {
+        after.username ||= before.username;
+        after.password ||= before.password;
+        return after.toString();
+    }
+
+    const text = after.toString();
+    return next.startsWith("/") ? text.slice(base.length - 1) : text.slice(base.length);
 }
 
 /**
@@ -483,8 +595,8 @@ function localPart(
     return {
         kind: "file",
         part: defined({
-            name: file?.name,
-            size: file?.size ?? load.size,
+            name: load.fileName ?? file?.name,
+            size: load.size ?? file?.size,
             sha256: file?.sha256,
             mediaType: file?.mediaType,
         }),
@@ -521,7 +633,7 @@ function entryOf(
         id: load.key,
         kind,
         name: load.name,
-        loadedAt: facts.loadedAt,
+        loadedAt: load.loadedAt ?? facts.loadedAt,
         mode: facts.mode,
         format: network || load.type === undefined ? undefined : load.type,
         [kind]: part,
@@ -623,8 +735,20 @@ export function writeSourcesMember(input: SourcesWriteInput): SourcesWrite {
     });
     const order = new Map<string, number>();
     loads.forEach((entry, at) => order.set(String(entry.id), at));
+    // The entries still waiting, by their ids in the member: an autosave restore keeps them waiting.
+    // Written whenever the writer was told, even empty, so a restore can tell "none waited" from a
+    // member written before the list existed (in which every load waits again).
+    const waiting = (input.waiting ?? []).map((key) => rename.get(key) ?? key).filter((id) => order.has(id));
     return {
-        member: loads.length === 0 ? null : { kind: KIND, version: SOURCES_MEMBER_VERSION, loads },
+        member:
+            loads.length === 0
+                ? null
+                : {
+                      kind: KIND,
+                      version: SOURCES_MEMBER_VERSION,
+                      loads,
+                      ...(input.waiting === undefined ? {} : { waiting }),
+                  },
         problems,
         idOf: (value) => rename.get(value) ?? value,
         rank: (id) => {
@@ -795,6 +919,7 @@ const JOIN: Shape = {
                 name: text(0, 1024),
                 columns,
                 rows: (value) => Array.isArray(value) && value.every(isObject),
+                unreadRows: count,
             },
             required: ["name", "columns", "rows"],
         },
@@ -1014,6 +1139,8 @@ export interface SourcesRead {
     readonly facts: ReadonlyMap<SourceKey, LoadFacts>;
     /** The member as the file held it, when it was skipped: written back in place. */
     readonly skipped?: Readonly<Record<string, unknown>>;
+    /** The ids of the entries that were still waiting to be run when the member was written. */
+    readonly waiting?: readonly string[];
 }
 
 /** One entry as read. */
@@ -1034,13 +1161,15 @@ interface ReadEntry {
 function loadedOf(raw: Record<string, unknown>): Record<string, unknown> {
     const kinds: Readonly<Record<string, string>> = { file: "file", url: "url", source: "server", sample: "sample" };
     const kind = typeof raw.kind === "string" ? raw.kind : "file";
-    const { size } = partOf(raw, "file");
+    const { size, name: fileName } = partOf(raw, "file");
     const joinedOnto = typeof raw.joinedOnto === "string" ? raw.joinedOnto : undefined;
     const join = isObject(raw.join) ? { source: raw.id, onto: joinedOnto ?? null, ...raw.join } : undefined;
     return defined({
         ...describedOf(raw, kind === "source"),
         name: typeof raw.name === "string" ? raw.name : undefined,
         size: typeof size === "number" ? size : undefined,
+        fileName: typeof fileName === "string" ? fileName : undefined,
+        loadedAt: typeof raw.loadedAt === "string" && raw.loadedAt !== NO_TIME ? raw.loadedAt : undefined,
         key: raw.id,
         kind: joinedOnto === undefined && join === undefined ? (kinds[kind] ?? kind) : "join",
         joinedOnto,
@@ -1278,10 +1407,17 @@ function memberProblem(member: Record<string, unknown>, pointer: string): Source
         params: { kind: KIND, pointer: `${pointer}${at}`, ...more },
     });
     const unknown = Object.keys(member).find(
-        (name) => !["kind", "version", "data", "loads", "extensions"].includes(name),
+        (name) => !["kind", "version", "data", "loads", "extensions", "waiting"].includes(name),
     );
     if (unknown !== undefined) {
         return problem("E_BAD_DOCUMENT", `/${unknown}`);
+    }
+
+    if (
+        member.waiting !== undefined &&
+        !(Array.isArray(member.waiting) && member.waiting.every((id) => typeof id === "string"))
+    ) {
+        return problem("E_BAD_DOCUMENT", "/waiting");
     }
 
     if (!Array.isArray(member.loads) || !member.loads.every(isObject)) {
@@ -1456,6 +1592,7 @@ function readVersion2(
         },
         records: entries.flatMap((entry) => (entry.record === undefined ? [] : [entry.record])),
         facts: new Map(entries.map((entry) => [entry.id, entry.facts])),
+        ...(Array.isArray(member.waiting) ? { waiting: member.waiting as string[] } : {}),
     };
 }
 
@@ -1559,9 +1696,9 @@ function entryFromItem(
 ): Record<string, unknown> {
     const config = isObject(item.config) ? item.config : {};
     const { url: _url, ...options } = config;
-    const loadedAt = (joined?.loadedAt as string | undefined) ?? ctx.now;
+    const loadedAt = (joined?.loadedAt as string | undefined) ?? NO_TIME;
     const name = typeof item.name === "string" ? item.name : undefined;
-    const part = itemPart(item, joined, ctx, loadedAt);
+    const part = itemPart(item, joined, ctx, joined === undefined ? ctx.now : loadedAt);
     const kind = Object.keys(part)[0];
     return defined({
         id: item.key,

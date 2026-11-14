@@ -71,8 +71,9 @@ await graph.loadFromUrl("https://example.com/proteins.cx2", { styles: "file" });
 
 `loadFromFile`, the element's `dataSourceConfig` (`{ url, styles: "file" }`) and
 `session.data.import(source, { styles: "file" })` take the same choice. Without it, the default
-`"none"`, a load reads the data alone. See [Styles from Files](./file-styles) for what the layers
-look like, the choices that shape them and how to save them back into a file.
+`"none"`, a load reads the data alone. Styles from files are the `file-styles` experiment, off
+unless the page switches it on. See [Styles from Files](./file-styles) for what the layers look
+like, the choices that shape them and how to save them back into a file.
 
 ## Text or Bytes
 
@@ -160,7 +161,9 @@ With nothing loaded, `renameSource` rejects with `E_BAD_COMMAND` and `details.re
 an empty name rejects with `"empty-name"`.
 
 `source()` describes the last load. When loads are added together with `{ mode: "merge" }`,
-`sources()` lists every load still in the graph, oldest first, with the tables each read and how
+`sources()` lists every load still in the graph, oldest first, when it was last read (`loadedAt`,
+absent in a project saved before it was kept), where from (`url`, without credentials, for a URL
+or a network load), the file it came from (`fileName`), with the tables each read and how
 many nodes and edges each added. A replacing load starts the list again; undo, redo and the
 project file keep it with the graph, and `renameSource` renames the last entry:
 
@@ -179,7 +182,7 @@ names they gave. The field is there only when at least one row was left out.
 
 Loads land in the order you ask for them, whichever finishes reading first. Every door that loads
 into the graph takes its place in one line when you call it: `session.data.import`, `generate`,
-`loadDataset`, `loadSample`, `more`, `expand`, `runPendingSourceLoad`, a prepared draft's
+`loadDataset`, `loadExample`, `more`, `expand`, `runPendingSourceLoad`, a prepared draft's
 `load()`, the element's `addDataFromSource`, `loadFromFile` and `loadFromUrl`, its `data-source`
 attributes and its `nodeData` and `edgeData` properties. That holds for a load that adds to the
 graph as much as for one that replaces it. So a dataset you pick while another is still downloading
@@ -189,13 +192,14 @@ A load waits for the loads ahead of it to finish reading. A download that never 
 back every load asked for after it. Pass a `signal` and abort it to let the next load through:
 
 ```typescript
+const baseUrl = DEFAULT_DATASET_BASE_URL; // from @graphty/graph-samples, or your own copy
 let download = new AbortController();
-void session.data.loadDataset("karate", { signal: download.signal });
+void session.data.loadDataset("karate", { baseUrl, signal: download.signal });
 
 // The reader picked another graph: stop the old download so the new one is not held behind it.
 download.abort();
 download = new AbortController();
-await session.data.loadDataset("dolphins", { signal: download.signal });
+await session.data.loadDataset("dolphins", { baseUrl, signal: download.signal });
 ```
 
 A load aborted before its turn comes rejects and changes nothing, even when its download had
@@ -208,6 +212,13 @@ does not wait for the element's own earlier loads: those reject with `E_SUPERSED
 columns, choose which column is the node id, the edge endpoints or the weight, and see the counts
 the load would produce before anything is added to the graph. See
 [Previewing a Load](./load-preview).
+
+## Joining a Table Onto the Graph
+
+A table that describes the graph already loaded -- values per gene, door entries naming a person
+and a building, the phones each account used -- can be joined onto it instead of loaded on its
+own: its rows become values on the nodes they name, new edges, or links between nodes that share a
+value. See [Joining Data](./joins).
 
 ## Replacing the Graph
 
@@ -235,7 +246,8 @@ naming the format and, when the parser knows it, the line. A graphty project or 
 `session.project.save` writes) is not graph data: it fails with `E_PROJECT_FILE_AS_DATA`, whose
 `details.use` names `project.open`, the verb that opens it. A replacing load that stops at
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
-keeps the current graph.
+keeps the current graph; its `details` carry `format`, `rowErrors` and `limit`. A JSON or CSV
+reader that reaches the limit stops the load with the same code, whether or not it was replacing.
 
 GML, DOT and Pajek files are read by `@graphty/graph-io`. A file of one of those formats that
 cannot be read at all -- a GML list or DOT brace still open when the text ends, a Pajek file with

@@ -1,9 +1,13 @@
-import { type AbstractMesh, Camera, type Scene, TransformNode, Vector3 } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { FrameRoster } from "./FrameRoster";
 
 /** The labels drawn in front of their node, each kept on the line from its node to the eye; see {@link keepOnEyeLine}. */
-export const eyeLineFrames = new FrameRoster();
+const eyeLineFrames = new FrameRoster();
 
 /** The shifts {@link keepOnEyeLine} moves; see {@link withoutEyeLine}. */
 const shifts = new WeakSet<TransformNode>();

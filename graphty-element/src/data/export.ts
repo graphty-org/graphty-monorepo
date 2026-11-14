@@ -68,8 +68,10 @@ import {
     COMMON_WRITER_OPTIONS,
     type FormatWriterRegistration,
     registeredFormatWriter,
+    withCommonWriterOptions,
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
+import { featureOff } from "../features/resolve";
 import { dispatcherOf, scopeResolverOfSession } from "../session/GraphSession";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
@@ -78,7 +80,7 @@ import type { CodedFact, CodedFactParam } from "../session/shared";
 import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
-import type { EdgeRecord, GraphSession, NodeRecord } from "../session/types";
+import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
 import { writtenPositions } from "./filePositions";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
@@ -89,20 +91,46 @@ export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
  * - `"shown"`: what the visibility filter and the time window leave showing.
  * - `"selection"`: the selected nodes and the edges between them.
  * - `{ set }`: a kept set's members.
+ * - `{ nodes }`: these nodes and the edges between them.
  * - a {@link RuleTree}: the nodes and edges it keeps, read as the visibility filter reads it.
  *
  * An edge is written only when both its ends are.
  */
-export type ExportScope = RuleTree | "shown" | "selection" | { readonly set: SetId };
+export type ExportScope =
+    RuleTree | "shown" | "selection" | { readonly set: SetId } | { readonly nodes: readonly NodeId[] };
 
 /**
  * Options of one export: the writer's own, graph-io's common ones, and the element's `scope`
- * (which nodes and edges, {@link ExportScope}; the whole graph when absent) and `columns` (which
+ * (which nodes and edges, {@link ExportScope}; the whole graph when absent), `columns` (which
  * attribute columns, by name, `data.<name>` or result path; every column when absent -- the id,
- * the ends of an edge, positions and styles are always written).
+ * the ends of an edge, positions and styles are always written) and `groupTable` (write one row
+ * per group instead of the graph, {@link ExportGroupTable}).
  */
 export type ExportGraphOptions = Readonly<Record<string, unknown>> &
-    CommonExportOptions & { readonly scope?: ExportScope; readonly columns?: readonly string[] };
+    CommonExportOptions & {
+        readonly scope?: ExportScope;
+        readonly columns?: readonly string[];
+        readonly groupTable?: ExportGroupTable;
+    };
+
+/**
+ * The `groupTable` option of `exportGraph`: write the table `session.data.groupTable(groupBy,
+ * { summaries })` returns -- one row per group, with its size and the summaries asked for --
+ * instead of the graph. `"csv"` writes a header row of the column keys and one line per group
+ * (only `neutraliseFormulas` of the writer options applies); `"json"` writes the rows as an array
+ * of objects. Any other format, `scope` or `columns` beside it is refused with `E_OPTION_RANGE`.
+ *
+ * ```ts
+ * const result = await graph.exportGraph("csv", {
+ *     groupTable: { groupBy: "results.louvain.group", summaries: { "data.age": ["mean"] } },
+ * });
+ * await result.text(); // "group,size,data.age.mean\n3,14,31.5\n..."
+ * ```
+ */
+export interface ExportGroupTable extends GroupTableOptions {
+    /** The node path holding each node's group, such as a community run's `results.<run>.group`. */
+    readonly groupBy: string;
+}
 
 /** The codes of one of graph-io's loss tables. */
 type CodesOf<Table> = Extract<Table[keyof Table], string>;
@@ -334,7 +362,10 @@ interface ExportBuildOptions {
     readonly groupRanks?: boolean;
     /** The writer writes the node table alone (a CSV node table): report no edge or graph loss. */
     readonly nodesOnly?: boolean;
-    /** Write the graph's styles through the format's style writer. The `styles` option every writer takes; off by default. */
+    /**
+     * Write the graph's styles through the format's style writer. The `styles` option every writer takes; off by default.
+     * @experimental file-styles
+     */
     readonly styles?: boolean;
     /** The format written, which decides how node coordinates are spelled. */
     readonly format?: string;
@@ -396,11 +427,7 @@ function scopeInputOf(scope: ExportScope): ScopeInput {
         return "selection";
     }
 
-    if ("set" in scope) {
-        return { set: scope.set };
-    }
-
-    return { define: { kind: "rule", where: scope, reading: "clipped" } };
+    return "kind" in scope ? { define: { kind: "rule", where: scope, reading: "clipped" } } : scope;
 }
 
 /**
@@ -640,6 +667,63 @@ export function buildExportSnapshot(
     return { snapshot: builder.freeze(), notes };
 }
 
+/**
+ * Write a group table (the `groupTable` option) as CSV or JSON rows.
+ * @param session - The session.
+ * @param format - `"csv"` or `"json"`.
+ * @param options - The export's options, `groupTable` among them.
+ * @returns The export.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` for another format, or `scope` or `columns` beside it.
+ */
+function exportGroupTable(session: GraphSession, format: FormatId, options: ExportGraphOptions): ExportResult {
+    const { groupTable, scope, columns } = options;
+    if ((format !== "csv" && format !== "json") || scope !== undefined || columns !== undefined) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: "groupTable writes only csv or json, and takes no scope or columns",
+            source: "data",
+            details: { option: "groupTable", format, available: ["csv", "json"] },
+        });
+    }
+
+    const table = session.data.groupTable(groupTable?.groupBy ?? "", groupTable ?? {});
+    let output: string;
+    const notes: LossNote[] = [];
+    if (format === "json") {
+        output = JSON.stringify(table.rows);
+    } else {
+        const { cell, count } = formulaGuard(options.neutraliseFormulas !== false);
+        const quote = (value: string | number | boolean | null | undefined): string => {
+            const written = value === null || value === undefined ? "" : String(cell(value));
+            return /[",\r\n]/.test(written) ? `"${written.replaceAll('"', '""')}"` : written;
+        };
+        output = [table.columns, ...table.rows.map((row) => table.columns.map((key) => row[key]))]
+            .map((line) => line.map(quote).join(","))
+            .join("\n");
+        if (count() > 0) {
+            notes.push({
+                code: "W_GRAPHTY_CSV_NEUTRALIZED",
+                message: `${String(count())} cell(s) a spreadsheet would run as a formula were prefixed with an apostrophe`,
+                column: null,
+                count: count(),
+            });
+        }
+    }
+
+    const lossNotes = Object.freeze(notes);
+    return {
+        format,
+        losses: Object.freeze(lossNotes.map(lossOf)),
+        lossNotes,
+        text: () => Promise.resolve(output),
+        bytes: {
+            async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
+                yield await Promise.resolve(new TextEncoder().encode(output));
+            },
+        },
+    };
+}
+
 /** The weight column every exporter writes under its format's own weight name. */
 const EXPORT_WEIGHT_KEY = "weight";
 
@@ -834,6 +918,9 @@ interface ResultColumns {
  * @param groupRanks - Write a partition's group as its rank by size instead of its group id.
  */
 function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote[], groupRanks: boolean): void {
+    // A field only a directed graph can tell apart (a degree's in and out halves) means nothing on
+    // an undirected one, so it is left out there, as the readable fields leave it out.
+    const { directed } = session.data.snapshot();
     for (const root of session.results.roots) {
         const result = session.results.get(root.runId);
         if (result === undefined) {
@@ -844,7 +931,7 @@ function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote
         // can name it by ("Group 2"), so a table read beside the picture joins it. Otherwise the
         // file holds the algorithm's own group ids, as the live result does.
         const ranks = groupRanks ? partitionGroupRanks(result) : undefined;
-        writeResultFields(session, out, notes, { runId: root.runId, result, ranks });
+        writeResultFields(session, out, notes, { runId: root.runId, result, ranks, directed });
     }
 }
 
@@ -857,6 +944,7 @@ function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote
  * @param run.runId - The result's run id.
  * @param run.result - The result.
  * @param run.ranks - A partition's group ranks, when groups are written as ranks.
+ * @param run.directed - Whether the graph is directed; on an undirected one a `directedOnly` field is left out.
  */
 function writeResultFields(
     session: GraphSession,
@@ -866,12 +954,13 @@ function writeResultFields(
         readonly runId: Parameters<GraphSession["results"]["path"]>[0];
         readonly result: PublishedResult;
         readonly ranks: ReturnType<typeof partitionGroupRanks> | undefined;
+        readonly directed: boolean;
     },
 ): void {
-    const { runId, result, ranks } = run;
+    const { runId, result, ranks, directed } = run;
     for (const field of result.fields) {
         const path = session.results.path(runId, field.name);
-        if (!out.kept(path)) {
+        if (!out.kept(path) || (!directed && field.directedOnly === true)) {
             continue;
         }
 
@@ -986,7 +1075,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     if (neo4j) {
         declared = NEO4J_WRITER_OPTIONS;
     } else if (registered !== undefined) {
-        declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
+        declared = withCommonWriterOptions(registered.writerOptions);
     }
     // `notes`, `groupRanks` and `styles` are the element's own options; no exporter reads them as they are.
     const { notes, groupRanks, styles, ...resolved } = resolveOptionValues(declared, options, {
@@ -1079,7 +1168,11 @@ export function exportSession(
         return exportProject(session, options);
     }
 
-    const { scope, columns, ...writerOptions } = options;
+    if (options.groupTable !== undefined) {
+        return exportGroupTable(session, format, options);
+    }
+
+    const { scope, columns, groupTable: _groupTable, ...writerOptions } = options;
     if (columns !== undefined && (!Array.isArray(columns) || columns.some((name) => typeof name !== "string"))) {
         throw new GraphtyError({
             code: "E_OPTION_RANGE",
@@ -1087,6 +1180,12 @@ export function exportSession(
             source: "data",
             details: { option: "columns" },
         });
+    }
+
+    // Writing a graph's styles into a file is the file styles experiment.
+    const fileStyles = session.features.enabled.includes("file-styles");
+    if (writerOptions.styles === true && !fileStyles) {
+        throw featureOff("file-styles", "styles");
     }
 
     const writer = writerFor(format, writerOptions);
@@ -1112,7 +1211,7 @@ export function exportSession(
         return writeWith(writer, built.snapshot, format, [...built.notes, ...styles.notes], styles);
     }
 
-    const layers = ownLayers(session);
+    const layers = fileStyles ? ownLayers(session) : 0;
     const notExported: ElementLossNote[] =
         layers === 0
             ? []

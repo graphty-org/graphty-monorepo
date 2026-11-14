@@ -12,9 +12,7 @@
  * - 8.6: ImportReport counts, errorCount / warningCount, truncation at errorLimit, ImportError
  *   with the partial report, every IssueCategory reachable through a built-in importer;
  * - 8.5: every LOSS code reachable through a built-in exporter's check(), sanitizeIds "error" /
- *   "mangle" (Q26) and restoreMangledIds, onMixedDirection on export;
- *
- * Tests that fail deliberately pin the audit's findings and say so in their names.
+ *   "mangle" (Q26) and restoreMangledIds, onMixedDirection on export.
  */
 
 import { type Column, GraphBuilder, GraphFormatError, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";

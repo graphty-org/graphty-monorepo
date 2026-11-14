@@ -46,10 +46,11 @@ interface Covered {
 
 const INVENTORY: Record<string, Covered> = {
     "src/Graph.ts": {
-        count: 11,
+        count: 12,
         kind: "load",
         reason:
-            "format detection and a URL's download run inside a load that holds a place in the load line; " +
+            "format detection runs inside a load that holds a place in the load line (a URL's download goes " +
+            "through source-bytes' fetchBytes); " +
             "the rest (screenshot capability, video capture and estimation, AI, the XR camera) draw nothing " +
             "of the graph's picture, or run during an immersive session, when the picture is never final",
     },
@@ -58,14 +59,28 @@ const INVENTORY: Record<string, Covered> = {
         reason: "the element's first render waits two animation frames; it waits, it draws nothing itself",
     },
     "src/session/data.ts": {
-        count: 11,
+        count: 14,
         kind: "load",
         reason:
-            "a load's module import and read hold a place in the load line until its step dispatches; " +
-            "test, list, preview and check read a source and draw nothing",
+            "a load's module import and read hold a place in the load line until its step dispatches, " +
+            "a network replace's read and a sample dataset's download included; " +
+            "test, list, preview, read and check read a source and draw nothing",
     },
     "src/data/DataSource.ts": { count: 2, kind: "load", reason: "a data source's download, inside a load" },
-    "src/data/source-bytes.ts": { count: 1, kind: "load", reason: "a source's download, inside a load" },
+    "src/data/source-bytes.ts": {
+        count: 1,
+        kind: "load",
+        reason:
+            "a source's download, inside a load; also fetchJson's, for Styles.fromUrl (a style object handed " +
+            "to its caller, drawing nothing) and InputManager's playback file (the input it replays moves the " +
+            "camera like a reader)",
+    },
+    "src/session/backgroundImage.ts": {
+        count: 1,
+        reason:
+            "prepareBackgroundImage decodes a chosen picture and hands its data URL to the caller; it draws " +
+            "nothing itself; the skybox the caller then writes is drawn by the render manager",
+    },
     "src/session/assets/unzip.ts": { count: 1, kind: "load", reason: "unzipping a file being loaded" },
     "src/session/assets/AssetsApi.ts": {
         count: 3,
@@ -133,14 +148,6 @@ const INVENTORY: Record<string, Covered> = {
             "timeline playback started by the reader, like a drag; each step it writes is repainted, and a " +
             "repaint holds the frame",
     },
-    "src/managers/InputManager.ts": {
-        count: 1,
-        reason: "an input recording read for playback; the input it replays moves the camera like a reader",
-    },
-    "src/Styles.ts": {
-        count: 1,
-        reason: "Styles.fromUrl builds a style object for its caller, who hands it to the graph; it draws nothing",
-    },
     "src/screenshot/ScreenshotCapture.ts": {
         count: 5,
         reason: "a screenshot's own images, composed after the frame was drawn; they never reach the canvas",
@@ -155,13 +162,30 @@ const INVENTORY: Record<string, Covered> = {
     },
     "src/ai/providers/index.ts": { count: 2, reason: "an AI provider's module; it draws nothing" },
     "src/ai/providers/WebLlmProvider.ts": {
-        count: 3,
+        count: 2,
         reason: "the in-browser model's module and the AI SDK it converts tools with; it draws nothing",
     },
-    "src/ai/providers/VercelAiProvider.ts": {
-        count: 4,
-        reason: "the AI SDK and its three provider packages, optional peers; they draw nothing",
+    "src/ai/AiController.ts": {
+        count: 12,
+        reason: "the assistant's own modules, loaded for a message; what a message changes goes through the session",
     },
+    "src/ai/AiManager.ts": { count: 3, reason: "the assistant's voice and XR modules; they draw nothing" },
+    "src/ai/conversation/Conversation.ts": { count: 1, reason: "the saved conversations' store; it draws nothing" },
+    "src/ai/engine/load.ts": { count: 4, reason: "the model engines' modules; they draw nothing" },
+    "src/ai/engine/tanstack/anthropic.ts": { count: 2, reason: "the provider's own requests; they draw nothing" },
+    "src/ai/engine/tanstack/index.ts": { count: 3, reason: "the providers' SDKs; they draw nothing" },
+    "src/ai/engine/tanstack/live.ts": { count: 2, reason: "a live connection's modules; they draw nothing" },
+    "src/ai/engine/tanstack/voice.ts": { count: 3, reason: "the voice providers' SDKs; they draw nothing" },
+    "src/ai/tools/families/data.ts": {
+        count: 1,
+        reason: "what the import tool reads; the load it hands that to holds its own place in the load line",
+    },
+    "src/ai/voice/LiveSession.ts": {
+        count: 2,
+        reason: "a live voice connection's level meter frames; they draw nothing",
+    },
+    "src/ai/voice/SpeechInput.ts": { count: 2, reason: "the microphone's level meter frames; they draw nothing" },
+    "src/ai/voice/VoiceSession.ts": { count: 2, reason: "the voice modules; they draw nothing" },
     "src/ai/keys/encryptStorage.ts": {
         count: 1,
         reason: "encrypt-storage, the optional peer that persists API keys; it draws nothing",
@@ -173,8 +197,12 @@ const INVENTORY: Record<string, Covered> = {
     "src/shaders/chunk.ts": { count: 1, kind: "shader", reason: "the shader runtime, loaded the first time one draws" },
     "src/meshes/NodeShaderDrawing.ts": {
         count: 3,
-        kind: "shader",
+        kind: "node-shader",
         reason: "the node shader renderer modules, loaded inside the token a resolving node shader holds",
+    },
+    "src/meshes/GlyphLabels.ts": {
+        count: 1,
+        reason: "document.fonts.check() is a synchronous test; a label whose font is not loaded yet is drawn by canvas meanwhile",
     },
     "src/meshes/EdgeShaderDrawing.ts": {
         count: 1,
@@ -248,8 +276,10 @@ for (const path of files) {
     entered += text;
 }
 
-/** Every kind something in `src/` enters in the record, as a token or a watch. */
-const KINDS = new Set([...entered.matchAll(/\.(?:watch|begin|track)\(\s*"([\w-]+)"/g)].map((m) => m[1]));
+/** Every kind something in `src/` enters in the record, as a token or a watch, directly or through `trackOnScene`. */
+const KINDS = new Set(
+    [...entered.matchAll(/(?:\.(?:watch|begin|track)\(|trackOnScene\([^,()]+,)\s*"([\w-]+)"/g)].map((m) => m[1]),
+);
 
 describe("every asynchronous source is in the record of pending picture work", () => {
     it("finds the entry points it looks for", () => {

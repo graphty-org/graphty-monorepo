@@ -247,6 +247,37 @@ function bugsSection(c: Ctx): SeriesSection {
 }
 
 /**
+ * Every open issue at each bucket's end, stacked by type group (an issue counts once, as its first type), so the top
+ * edge is every open issue; groups never open in the range are left out.
+ * @param c - the build's context
+ * @returns the section
+ */
+function byTypeSection(c: Ctx): SeriesSection {
+    const ls = lines(
+        c,
+        GROUPS.map((g): [string, (i: IssueItem) => boolean] => [
+            g === "other" ? "issues.group.other" : `issues.type.${g}`,
+            (i) => groupOf(typeOf(i)) === g,
+        ]),
+    ).filter((l) => l.key === "issues.type.bug" || l.values.some((v) => v > 0));
+    const total = { values: stock(c.issues, c.b, all) };
+    const enh = ls.find((l) => l.key === "issues.type.enhancement") ?? { values: [0] };
+    return series(
+        c,
+        "by-type",
+        "area",
+        ls,
+        f("issues.sub.open", {
+            open: last(total),
+            change: change(total),
+            enhancements: last(enh),
+            enhancementsChange: change(enh),
+            range: c.range,
+        }),
+    );
+}
+
+/**
  * Opened against closed per bucket (closed split into completed and not planned) and their difference.
  * @param c - the build's context
  * @param id - the section id
@@ -449,6 +480,7 @@ export function issuesPage(
         members: [],
         sections: [
             openTable(c, open),
+            byTypeSection(c),
             bugsSection(c),
             flowSection(c, "bug-flow", isBug),
             flowSection(c, "flow", all),

@@ -9,6 +9,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
+import type { ExecutionResult } from "../../../src/ai/AiController";
 import type { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import type { Graph } from "../../../src/Graph";
 import { cleanupE2EGraph, createE2EGraph } from "../../helpers/e2e-graph-setup";
@@ -18,6 +19,26 @@ import { cleanupE2EGraph, createE2EGraph } from "../../helpers/e2e-graph-setup";
  */
 interface QueryData {
     nodeCount?: number;
+}
+
+/**
+ * Assert a command succeeded and ran a tool, naming its code when it did not.
+ * @param result - The command's result.
+ */
+function assertSucceeded(result: ExecutionResult): void {
+    assert.strictEqual(result.success, true, `${result.code}: ${result.message}`);
+    assert.isAbove(Number(result.params?.toolCalls), 0, "no tool ran");
+}
+
+/**
+ * Assert setLayout refused, with the session's own code as the cause.
+ * @param result - The command's result.
+ * @param cause - The session code the layout was refused with.
+ */
+function assertLayoutRefused(result: ExecutionResult, cause: string): void {
+    assert.strictEqual(result.success, false);
+    assert.strictEqual(result.code, "AI_TOOL_FAILED");
+    assert.deepInclude(result.params, { tool: "setLayout", cause });
 }
 
 describe("AI Layout Commands - All Layout Types", () => {
@@ -38,11 +59,14 @@ describe("AI Layout Commands - All Layout Types", () => {
         "forceatlas2",
         "arf",
         "spectral",
-        "bfs",
-        "bipartite",
-        "multipartite",
         "fixed",
     ];
+
+    /**
+     * Layouts that need an option the fixture's call does not pass (bfs a `start` node, the
+     * partite layouts `groupBy`), so setLayout refuses them with the session's E_OPTION_RANGE.
+     */
+    const layoutsNeedingOptions = ["bfs", "bipartite", "multipartite"];
 
     let graph: Graph;
 
@@ -91,17 +115,24 @@ describe("AI Layout Commands - All Layout Types", () => {
 
             const result = await graph.aiCommand(layoutType);
 
-            // Some layouts may not be available in all environments
-            if (result.success) {
-                const layoutManager = graph.getLayoutManager();
-                assert.strictEqual(layoutManager.layoutEngine?.type, layoutType);
-            } else {
-                // If layout fails, ensure it's a meaningful error
-                assert.ok(result.message.length > 0);
-                // Log for debugging but don't fail - some layouts may require
-                // specific graph properties or configurations
-                console.warn(`Layout ${layoutType} not available: ${result.message}`);
-            }
+            assertSucceeded(result);
+            assert.strictEqual(graph.getLayoutManager().layoutEngine?.type, layoutType);
+        });
+    }
+
+    for (const layoutType of layoutsNeedingOptions) {
+        it(`refuses ${layoutType} layout without its required option`, async () => {
+            const provider = getProvider();
+
+            provider.setResponse(layoutType, {
+                text: "",
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: layoutType } }],
+            });
+
+            const result = await graph.aiCommand(layoutType);
+
+            assertLayoutRefused(result, "E_OPTION_RANGE");
+            assert.notStrictEqual(graph.getLayoutManager().layoutEngine?.type, layoutType);
         });
     }
 
@@ -118,10 +149,12 @@ describe("AI Layout Commands - All Layout Types", () => {
 
                 const result = await graph.aiCommand(layout);
 
-                if (result.success) {
-                    const layoutManager = graph.getLayoutManager();
-                    assert.strictEqual(layoutManager.layoutEngine?.type, layout, `Expected layout to be ${layout}`);
-                }
+                assertSucceeded(result);
+                assert.strictEqual(
+                    graph.getLayoutManager().layoutEngine?.type,
+                    layout,
+                    `Expected layout to be ${layout}`,
+                );
             }
         });
 
@@ -134,6 +167,7 @@ describe("AI Layout Commands - All Layout Types", () => {
                 toolCalls: [{ id: "1", name: "queryGraph", arguments: { query: "nodeCount" } }],
             });
             const initialResult = await graph.aiCommand("count nodes");
+            assertSucceeded(initialResult);
             const initialNodeCount = (initialResult.data as QueryData).nodeCount;
 
             // Change layouts
@@ -141,13 +175,13 @@ describe("AI Layout Commands - All Layout Types", () => {
                 text: "",
                 toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "circular" } }],
             });
-            await graph.aiCommand("circular");
+            assertSucceeded(await graph.aiCommand("circular"));
 
             provider.setResponse("spiral", {
                 text: "",
                 toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "spiral" } }],
             });
-            await graph.aiCommand("spiral");
+            assertSucceeded(await graph.aiCommand("spiral"));
 
             // Check node count is preserved
             provider.setResponse("count after", {
@@ -155,6 +189,7 @@ describe("AI Layout Commands - All Layout Types", () => {
                 toolCalls: [{ id: "1", name: "queryGraph", arguments: { query: "nodeCount" } }],
             });
             const finalResult = await graph.aiCommand("count after change");
+            assertSucceeded(finalResult);
 
             assert.strictEqual((finalResult.data as QueryData).nodeCount, initialNodeCount);
         });
@@ -169,7 +204,7 @@ describe("AI Layout Commands - All Layout Types", () => {
                 text: "",
                 toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
-            await graph.aiCommand("2d");
+            assertSucceeded(await graph.aiCommand("2d"));
             assert.strictEqual(graph.getViewMode() === "2d", true);
 
             // Apply circular layout
@@ -179,7 +214,7 @@ describe("AI Layout Commands - All Layout Types", () => {
             });
             const result = await graph.aiCommand("circular");
 
-            assert.strictEqual(result.success, true);
+            assertSucceeded(result);
             const layoutManager = graph.getLayoutManager();
             assert.strictEqual(layoutManager.layoutEngine?.type, "circular");
         });
@@ -197,7 +232,7 @@ describe("AI Layout Commands - All Layout Types", () => {
             });
             const result = await graph.aiCommand("spiral");
 
-            assert.strictEqual(result.success, true);
+            assertSucceeded(result);
             const layoutManager = graph.getLayoutManager();
             assert.strictEqual(layoutManager.layoutEngine?.type, "spiral");
         });
@@ -210,7 +245,7 @@ describe("AI Layout Commands - All Layout Types", () => {
                 text: "",
                 toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "circular" } }],
             });
-            await graph.aiCommand("circular");
+            assertSucceeded(await graph.aiCommand("circular"));
 
             // Then change dimension
             provider.setResponse("2d", {
@@ -219,7 +254,7 @@ describe("AI Layout Commands - All Layout Types", () => {
             });
             const result = await graph.aiCommand("2d");
 
-            assert.strictEqual(result.success, true);
+            assertSucceeded(result);
             assert.strictEqual(graph.getViewMode() === "2d", true);
         });
     });
@@ -238,36 +273,30 @@ describe("AI Layout Commands - All Layout Types", () => {
 
                 const result = await graph.aiCommand(layout);
 
-                // Force-directed layouts should succeed
-                if (result.success) {
-                    const layoutManager = graph.getLayoutManager();
-                    assert.strictEqual(layoutManager.layoutEngine?.type, layout);
-                }
+                assertSucceeded(result);
+                assert.strictEqual(graph.getLayoutManager().layoutEngine?.type, layout);
             });
         }
     });
 
     describe("hierarchical layouts", () => {
-        it("bfs layout works with connected graph", async () => {
+        it("bfs layout works with connected graph and a start node", async () => {
             const provider = getProvider();
 
             provider.setResponse("bfs", {
                 text: "",
-                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "bfs" } }],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "bfs", options: { start: "A" } } }],
             });
 
             const result = await graph.aiCommand("bfs");
 
-            // BFS may or may not be available depending on graph structure
-            if (result.success) {
-                const layoutManager = graph.getLayoutManager();
-                assert.strictEqual(layoutManager.layoutEngine?.type, "bfs");
-            }
+            assertSucceeded(result);
+            assert.strictEqual(graph.getLayoutManager().layoutEngine?.type, "bfs");
         });
     });
 
     describe("partitioning layouts", () => {
-        it("bipartite layout handles graph without explicit partitions", async () => {
+        it("bipartite layout refuses a graph without explicit partitions", async () => {
             const provider = getProvider();
 
             provider.setResponse("bipartite", {
@@ -277,11 +306,11 @@ describe("AI Layout Commands - All Layout Types", () => {
 
             const result = await graph.aiCommand("bipartite");
 
-            // Bipartite may fail gracefully if graph isn't bipartite
-            assert.ok(result.message.length > 0);
+            // The path graph is bipartite, but the layout reads its parts from groupBy, which no node carries.
+            assertLayoutRefused(result, "E_OPTION_RANGE");
         });
 
-        it("multipartite layout handles graph", async () => {
+        it("multipartite layout refuses a graph without explicit partitions", async () => {
             const provider = getProvider();
 
             provider.setResponse("multipartite", {
@@ -291,8 +320,7 @@ describe("AI Layout Commands - All Layout Types", () => {
 
             const result = await graph.aiCommand("multipartite");
 
-            // Multipartite may fail gracefully without explicit partitions
-            assert.ok(result.message.length > 0);
+            assertLayoutRefused(result, "E_OPTION_RANGE");
         });
     });
 
@@ -307,14 +335,12 @@ describe("AI Layout Commands - All Layout Types", () => {
 
             const result = await graph.aiCommand("fixed");
 
-            // Fixed layout should succeed (uses current positions)
-            if (result.success) {
-                const layoutManager = graph.getLayoutManager();
-                assert.strictEqual(layoutManager.layoutEngine?.type, "fixed");
-            }
+            // Fixed layout uses the current positions
+            assertSucceeded(result);
+            assert.strictEqual(graph.getLayoutManager().layoutEngine?.type, "fixed");
         });
 
-        it("planar layout attempts to create planar embedding", async () => {
+        it("planar layout embeds the planar path graph", async () => {
             const provider = getProvider();
 
             provider.setResponse("planar", {
@@ -324,8 +350,8 @@ describe("AI Layout Commands - All Layout Types", () => {
 
             const result = await graph.aiCommand("planar");
 
-            // Planar layout may not succeed for all graphs
-            assert.ok(result.message.length > 0);
+            assertSucceeded(result);
+            assert.strictEqual(graph.getLayoutManager().layoutEngine?.type, "planar");
         });
     });
 });

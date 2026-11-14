@@ -42,6 +42,7 @@ function assertSameAsPick(build: (scene: Scene) => Mesh): void {
         rowBounds.set([x, y, z, radius], row * 4);
         return {
             drawnPickMesh: mesh,
+            drawnAnchor: mesh,
             drawnSourceMesh: source,
             drawnScaling: mesh.scaling,
             drawnByRowScan: true,

@@ -61,7 +61,7 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("reduce")).toBe(19);
         expect(counts.get("fill")).toBe(1);
         expect(counts.get("segmented-reduce")).toBe(148);
-        expect(counts.get("fa2-attraction")).toBe(145);
+        expect(counts.get("fa2-attraction")).toBe(289);
         expect(counts.get("spmv-pull")).toBe(49);
         expect(counts.get("fa2-repulsion-exact")).toBe(25);
         expect(counts.get("fa2-speed-finalize")).toBe(3);
@@ -78,6 +78,7 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("collide-cell-key")).toBe(1);
         expect(counts.get("collide-gather")).toBe(1);
         expect(counts.get("collide-apply")).toBe(1);
+        expect(counts.get("to-drawn")).toBe(1);
         expect(counts.get("grid-centroid")).toBe(1);
         expect(counts.get("grid-centroid-hub")).toBe(1);
         expect(counts.get("grid-downsample")).toBe(1);

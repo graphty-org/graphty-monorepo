@@ -5,6 +5,7 @@
  *
  *   betweenness exact karate                     every vertex a source, n = 34
  *   betweenness exact random 2k/8k               every vertex a source, seeded G(n, m)
+ *   betweenness exact random 2k/8k <form>        the same, the forward body pinned (frontier, edge; issue #776)
  *   betweenness sampled 256 <form> at <rung>     `sources` = 256 drawn vertices of the RMAT rung, the forward body
  *                                                pinned (`frontier`, `edge`) or chosen per batch (`auto`); `edge` and
  *                                                `frontier` only at 100k / 1M
@@ -117,6 +118,10 @@ export async function runBetweennessBenchmarks(ctx: GpuContext): Promise<BenchRe
     results.push(await row(ctx, "betweenness exact karate", karate, null, "auto"));
     const random = unweightedSnapshotOf(randomEdges(2000, 8000, SEED), "betweenness/random2k");
     results.push(await row(ctx, "betweenness exact random 2k/8k", random, null, "auto"));
+    // the small-graph rows of issue #776: both forms pinned where "auto" now keeps the frontier form
+    for (const form of ["frontier", "edge"] as const) {
+        results.push(await row(ctx, `betweenness exact random 2k/8k ${form}`, random, null, form));
+    }
     for (const rung of BFS_RMAT_RUNGS) {
         const s = unweightedSnapshotOf(rmatEdges(rung.scale, rung.edgeFactor, SEED), `betweenness/${rung.name}`);
         const sources = spreadSources(s.nodeCount, SAMPLED_SOURCES);

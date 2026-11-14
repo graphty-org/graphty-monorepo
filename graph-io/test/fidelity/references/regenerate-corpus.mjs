@@ -24,6 +24,7 @@ import console from "node:console";
 import process from "node:process";
 
 import { CORPUS_SAMPLES } from "../corpus-samples.ts";
+import { unchangedScene } from "./common.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fidelity = resolve(here, "..");
@@ -230,9 +231,12 @@ for (const sample of samples) {
         } else {
             try {
                 // a scene committed on one line (most corpus scenes) is written back on one line
-                const oneLine = existsSync(dest) && !readFileSync(dest, "utf8").trimEnd().includes("\n");
+                const prior = existsSync(dest) ? readFileSync(dest, "utf8") : null;
+                const oneLine = prior !== null && !prior.trimEnd().includes("\n");
                 step();
                 if (oneLine) writeFileSync(dest, `${JSON.stringify(JSON.parse(readFileSync(dest, "utf8")))}\n`);
+                // a scene that changed only its generatedAt keeps the committed file, byte for byte
+                if (prior !== null && unchangedScene(prior, readFileSync(dest, "utf8"))) writeFileSync(dest, prior);
                 result = check ? compare(join(fidelity, "scenes", sample.id, `${route}.ref.json`), dest) : "WRITTEN";
             } catch (e) {
                 result = `FAILED ${String(e.message).split("\n").slice(0, 3).join(" | ")}`;

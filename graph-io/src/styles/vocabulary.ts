@@ -4,7 +4,7 @@
  * planning; a value of the wrong kind is a note, never a style.
  */
 
-import type { StyleTarget } from "./types.js";
+import type { StyleProperty, StyleTarget } from "./types.js";
 
 /**
  * The kinds of style value: a canonical `#rrggbb` color, a number (lengths and factors at least 0), a signed number
@@ -68,6 +68,7 @@ export const STYLE_PROPERTIES: {
         ["labelWrapEllipsis", "boolean"],
         ["labelWrapAnywhere", "boolean"],
         ["labelWrapSpaceCount", "number"],
+        ["labelKeepBlankLines", "boolean"],
         ["labelRunAlign", "text"],
         ["labelOffsetX", "signed"],
         ["labelOffsetY", "signed"],
@@ -89,6 +90,8 @@ export const STYLE_PROPERTIES: {
         ["shapeParts", "text"],
         ["shapeLines", "text"],
         ["shapeLineWidth", "number"],
+        ["shapeLineHaloColor", "color"],
+        ["shapeLineHaloWidth", "number"],
         ["shapeTexts", "text"],
         ["borderStyle", "borderStyle"],
         ["borderPosition", "borderPosition"],
@@ -103,6 +106,11 @@ export const STYLE_PROPERTIES: {
         ["raisedBorderWidth", "number"],
         ["raisedBorderLightColor", "color"],
         ["raisedBorderDarkColor", "color"],
+        ["shadowColor", "color"],
+        ["shadowOpacity", "opacity"],
+        ["shadowBlur", "number"],
+        ["shadowOffsetX", "signed"],
+        ["shadowOffsetY", "signed"],
         ["underlayColor", "color"],
         ["underlayOpacity", "opacity"],
         ["underlayPadding", "number"],
@@ -192,6 +200,8 @@ export const STYLE_PROPERTIES: {
         ["chartLineWidth", "number"],
         ["chartBorderColor", "color"],
         ["chartBorderWidth", "number"],
+        ["chartBackgroundColor", "color"],
+        ["chartBackgroundOpacity", "opacity"],
         ["groupPadding", "number"],
         ["groupPaddingRatio", "number"],
         ["groupPaddingOf", "text"],
@@ -206,6 +216,8 @@ export const STYLE_PROPERTIES: {
         ["color", "color"],
         ["sourceArrowColor", "color"],
         ["targetArrowColor", "color"],
+        ["sourceArrowFillColor", "color"],
+        ["targetArrowFillColor", "color"],
         ["labelColor", "color"],
         ["opacity", "opacity"],
         ["width", "number"],
@@ -284,6 +296,7 @@ export const STYLE_PROPERTIES: {
         ["labelWrapEllipsis", "boolean"],
         ["labelWrapAnywhere", "boolean"],
         ["labelWrapSpaceCount", "number"],
+        ["labelKeepBlankLines", "boolean"],
         ["labelRunAlign", "text"],
         ["labelPosition", "position"],
         ["labelRotation", "number"],
@@ -444,4 +457,14 @@ export function isStyleValue(target: StyleTarget | "graph", property: string, va
                     (OPEN_ENUMS.has(kind) && value.startsWith("other:") && value.length > "other:".length))
             );
     }
+}
+
+/**
+ * Whether a name is one of a target's properties: a neutral one or a `graphty:<channel>`.
+ * @param target - nodes or edges
+ * @param property - the name
+ * @returns true for a property in `STYLE_PROPERTIES` or a `graphty:` one
+ */
+export function isStyleProperty(target: StyleTarget, property: string): property is StyleProperty {
+    return property.startsWith("graphty:") || STYLE_PROPERTIES[target].has(property);
 }

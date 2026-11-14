@@ -10,7 +10,7 @@
 import { unknownFormat } from "../catalog/detect";
 import type { NodeId } from "../catalog/types";
 import { CSVDataSource, readGephiTypeColumn } from "../data/CSVDataSource";
-import { DataSource, type DeclaredDirection } from "../data/DataSource";
+import { DataSource, type DeclaredDirection, TIMELINE_READERS } from "../data/DataSource";
 import { readEndpoint, resolveEndpoints } from "../data/endpoints";
 import type { DataLoadingError } from "../data/ErrorAggregator";
 import type { LoadReport } from "../data/report";
@@ -39,6 +39,7 @@ import type {
     EdgeEnd,
     Endpoint,
     JoinChoices,
+    JoinLookup,
     JoinReport,
     JoinShape,
     JoinSuggestion,
@@ -48,6 +49,8 @@ import type {
     LoadMappingRead,
     ProjectConfigPatch,
     RecordPage,
+    RowReason,
+    RowReasonCode,
     SessionDataConfig,
     TableMapping,
     TableMappingRead,
@@ -135,7 +138,7 @@ const EDGE_ENDS: readonly EdgeEnd[] = ["source", "target"];
 
 /** The keys a table's mapping takes: `rowsAre` and its roles. */
 const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
-    nodes: new Set(["rowsAre", ...LOAD_ROLES.nodes.takes]),
+    nodes: new Set(["rowsAre", ...LOAD_ROLES.nodes.takes, "kindName"]),
     edges: new Set(["rowsAre", ...LOAD_ROLES.edges.takes, "sourceKind", "targetKind"]),
 };
 
@@ -402,6 +405,7 @@ function errorsOf(reader: DataSource): Pick<ReadSource, "errors" | "errorLimit">
  * @param signal - Abandons the read.
  * @param progress - Told the rows read so far, after each table or chunk, and, for a CSV file,
  *     the share of its text read.
+ * @param timeline - Whether the timeline experiment is on, so the reader keeps the time data it reads.
  * @returns What it holds.
  * @throws What the source's reader throws, with its code.
  */
@@ -409,12 +413,17 @@ export async function readSource(
     source: ImportSource,
     signal?: AbortSignal,
     progress: (rows: number, fraction?: number) => void = () => undefined,
+    timeline = false,
 ): Promise<ReadSource> {
     const type = source.type ?? "";
     const config = source.config ?? {};
     const reader = DataSource.get(type, config);
     if (reader === null) {
         throw unknownFormat(type);
+    }
+
+    if (timeline) {
+        TIMELINE_READERS.add(reader);
     }
 
     const named = source.name ?? type;
@@ -1031,18 +1040,17 @@ export class Draft implements LoadDraft {
         const read = this.live("rows");
         const held = this.table(read, table);
         const { offset = 0, limit = 100, only, choices = {} } = options;
-        const missing = new Map<number, readonly EdgeEnd[]>();
-        const picked = only === undefined ? null : this.filter(read, held, only, choices, missing);
+        const reasons = new Map<number, RowFacts>();
+        const picked = only === undefined ? null : this.filter(read, held, only, choices, reasons);
         const total = picked?.length ?? held.rows.length;
         const records: DraftRow[] = [];
         for (let i = offset; i < Math.min(total, offset + limit); i++) {
             const index = picked?.[i] ?? i;
-            const missingEnds = only === "unmatched" ? missing.get(index) : undefined;
             records.push(
                 Object.freeze({
                     line: held.lines?.[index] ?? index + 1,
                     values: held.rows[index],
-                    ...(missingEnds === undefined ? {} : { missingEnds }),
+                    ...(only === "loaded" ? {} : reasons.get(index)),
                 }),
             );
         }
@@ -1101,6 +1109,16 @@ export class Draft implements LoadDraft {
     }
 
     /**
+     * The table read as a mapping table for a join's `lookup`, held apart from the graph.
+     * @returns The table.
+     */
+    lookup(): JoinLookup {
+        const read = this.live("lookup");
+        const { name, columns, rows } = tableOf(read, joinedHeld(read));
+        return Object.freeze({ name, columns: Object.freeze([...columns]), rows: Object.freeze([...rows]) });
+    }
+
+    /**
      * The host's join half, or a refusal for a draft not prepared onto the graph.
      * @param verb - The method asked.
      * @returns The host.
@@ -1148,6 +1166,7 @@ export class Draft implements LoadDraft {
         const starts = historyMark(choices);
         const command: DataImportCommand = {
             ...importCommand(read.source, choices, plan.held),
+            ...(choices.origin === undefined ? {} : { origin: choices.origin }),
             tables: [...named.keys()],
             // A graph file's one name holds both kinds, so it says nothing of what it held.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
@@ -1316,6 +1335,7 @@ export class Draft implements LoadDraft {
             {
                 key: key ?? ROW_ID,
                 nodeKind: nodeRoles?.kind ?? null,
+                kindName: nodeRoles?.kindName ?? null,
                 edges: edgeRoles,
                 synthesize: nodeTable === undefined,
                 scoped: choices.kindIds === "scoped",
@@ -1331,6 +1351,8 @@ export class Draft implements LoadDraft {
             nodes,
             edges,
             edgeLines: edgeTable?.lines ?? null,
+            // The node table's rows come first, in order; the rows made for ends after them have no line.
+            ...(nodeTable?.lines ? { nodeLines: nodeTable.lines } : {}),
             declaredDirection: readGephiTypeColumn(edges),
             errors: read.errors,
             errorLimit: read.errorLimit,
@@ -1352,7 +1374,7 @@ export class Draft implements LoadDraft {
      * @param held - The table.
      * @param only - Which rows.
      * @param choices - The choices `report` and `load` take.
-     * @param missing - Filled, by row index, with the ends of each unmatched edge row that name no node.
+     * @param reasons - Filled, by row index, with why each rejected or unmatched row is so.
      * @returns Their indexes.
      */
     private filter(
@@ -1360,7 +1382,7 @@ export class Draft implements LoadDraft {
         held: HeldTable,
         only: DraftRowFilter,
         choices: LoadChoices,
-        missing: Map<number, readonly EdgeEnd[]>,
+        reasons: Map<number, RowFacts>,
     ): number[] {
         // Only this table need be ready: another table's missing role does not stop reading this one.
         const { mapping, held: rows } = this.plan(read, choices, held.table.id);
@@ -1377,6 +1399,9 @@ export class Draft implements LoadDraft {
                 held.rows.forEach((row, index) => {
                     const id = roles.key === null ? index : value(row, idPath);
                     const rejected = !isStorableId(id);
+                    if (rejected) {
+                        reasons.set(index, { reason: rowReason("refused-row", { rowsAre: "nodes" }) });
+                    }
                     // A row repeating an earlier row's id makes no node of its own.
                     const loaded = !rejected && !seen.has(id);
                     seen.add(id);
@@ -1402,14 +1427,19 @@ export class Draft implements LoadDraft {
         const matching = known.size > 0 || graph.size > 0;
         held.rows.forEach((row, index) => {
             const ends = expressions === null ? [null, null] : expressions.map((each) => value(row, each));
-            const rejected = !ends.every(isStorableId);
-            const missingEnds = EDGE_ENDS.filter((_, at) => {
+            const unusable = EDGE_ENDS.filter((_, at) => !isStorableId(ends[at]));
+            const rejected = unusable.length > 0;
+            const missingAt = [0, 1].filter((at) => {
                 const end = ends[at];
                 return isStorableId(end) && !known.has(end) && !graph.has(end);
             });
-            const unmatched = matching && !rejected && missingEnds.length > 0;
-            if (unmatched) {
-                missing.set(index, Object.freeze(missingEnds));
+            const unmatched = matching && !rejected && missingAt.length > 0;
+            if (rejected) {
+                reasons.set(index, { reason: rowReason("refused-row", { rowsAre: "edges", ends: unusable }) });
+            } else if (unmatched) {
+                const missingEnds = Object.freeze(missingAt.map((at) => EDGE_ENDS[at]));
+                const ids = Object.freeze(missingAt.map((at) => ends[at]));
+                reasons.set(index, { missingEnds, reason: rowReason("unknown-end", { ends: missingEnds, ids }) });
             }
             // ponytail: "loaded" counts every repeat as its own edge, as the default `keep` policy
             // does; a folding policy would have to fold repeats here too.
@@ -1422,8 +1452,21 @@ export class Draft implements LoadDraft {
     }
 }
 
+/** Why a rejected or unmatched draft row is so: the fields `LoadDraft.rows` adds to it. */
+type RowFacts = Pick<DraftRow, "missingEnds" | "reason">;
+
+/**
+ * A frozen row reason.
+ * @param code - The reason's code.
+ * @param params - Its facts.
+ * @returns The reason.
+ */
+function rowReason(code: RowReasonCode, params: Readonly<Record<string, unknown>>): RowReason {
+    return Object.freeze({ code, params: Object.freeze(params) });
+}
+
 /** A graph with nothing in it, for a host that lends none. */
-const NO_GRAPH: JoinGraph = { nodes: [], edges: [], joins: new Map() };
+const NO_GRAPH: JoinGraph = { nodes: [], edges: [], table: () => undefined, directed: true };
 
 /**
  * The table a join reads: the first table with rows, a table of the reader's own before a
@@ -1443,11 +1486,13 @@ function joinedHeld(read: ReadSource): HeldTable {
  * @returns The table.
  */
 function tableOf(read: ReadSource, held: HeldTable): JoinedTable {
+    const unreadRows = read.errors.filter((each) => each.params?.issue === "E_CSV_FIELD_COUNT").length;
     return {
         name: read.source.name ?? held.table.name,
         columns: held.order,
         rows: held.rows,
         source: read.source,
+        ...(unreadRows === 0 ? {} : { unreadRows }),
     };
 }
 
@@ -1721,7 +1766,7 @@ function checkedRole(held: HeldTable, rowsAre: "nodes" | "edges", role: string, 
     }
 
     // A bare string is a kind name, not a column.
-    if ((role === "sourceKind" || role === "targetKind") && typeof value === "string") {
+    if ((role === "sourceKind" || role === "targetKind" || role === "kindName") && typeof value === "string") {
         return value;
     }
 
@@ -1842,6 +1887,8 @@ interface KindRoles {
     readonly key: string;
     /** The node table's kind column, or null. */
     readonly nodeKind: string | null;
+    /** The kind every row of the node table takes, or null. */
+    readonly kindName: string | null;
     /** The edge table's roles, when there is one. */
     readonly edges: TableMappingRead | undefined;
     /** Whether the edges' nodes come from the edges alone, so their kinds need node rows of their own. */
@@ -1890,7 +1937,9 @@ function withKinds(
     edges: readonly Record<string, unknown>[];
     report?: LoadReport["kinds"];
 } {
-    const { key, nodeKind } = roles;
+    const { key, nodeKind, kindName } = roles;
+    const rowKind = (row: Readonly<Record<string, unknown>>): string | undefined =>
+        kindName ?? kindOf(row, nodeKind, false);
     const source = roles.edges?.source?.column;
     const target = roles.edges?.target?.column;
     const ends = [
@@ -1901,7 +1950,7 @@ function withKinds(
             end.column !== undefined && end.kind !== undefined && end.kind !== null,
     );
     const edgeKind = roles.edges?.kind ?? null;
-    if (nodeKind === null && ends.length === 0 && edgeKind === null) {
+    if (nodeKind === null && kindName === null && ends.length === 0 && edgeKind === null) {
         return { nodes, edges };
     }
 
@@ -1920,7 +1969,7 @@ function withKinds(
         kindsOf.set(id, seen);
     };
     for (const row of nodes) {
-        note(row[key], kindOf(row, nodeKind, false));
+        note(row[key], rowKind(row));
     }
 
     for (const row of edges) {
@@ -1933,7 +1982,7 @@ function withKinds(
         roles.scoped && kind !== undefined && (kindsOf.get(id)?.length ?? 0) > 1 ? `${kind}:${String(id)}` : id;
     // ponytail: a node row with no kind of its own takes the first kind an edge gave its id.
     const outNodes = nodes.map((row) => {
-        const kind = kindOf(row, nodeKind, false) ?? kindsOf.get(row[key])?.[0];
+        const kind = rowKind(row) ?? kindsOf.get(row[key])?.[0];
         return kind === undefined ? row : { ...row, [key]: idOf(row[key], kind), [KIND]: kind };
     });
     const made = new Set<unknown>();
@@ -1958,7 +2007,7 @@ function withKinds(
         return out;
     });
 
-    if (nodeKind === null && ends.length === 0) {
+    if (nodeKind === null && kindName === null && ends.length === 0) {
         return { nodes: outNodes, edges: outEdges };
     }
 

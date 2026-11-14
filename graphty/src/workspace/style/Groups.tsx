@@ -14,13 +14,24 @@ import type { GraphSession, Layer, LayerGroup, ValueGroup } from "@graphty/graph
 import { ActionIcon, Box, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { cosmographOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { offeredChannel } from "./offered";
 import { type DataBinding, type LayerBinding, sourceName, startingValue } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
-import { channelWord, failureWords, SECTIONS, takesBinding, valueFieldKind, valueWords } from "./words";
+import {
+    channelWord,
+    failureWords,
+    logUnexpected,
+    SECTIONS,
+    sectionsFor,
+    takesBinding,
+    valueFieldKind,
+    valueWords,
+} from "./words";
 
 /** How many groups the list shows before "N more" (tier3 decisions, round 6). */
 const GROUPS_SHOWN = 8;
@@ -121,8 +132,9 @@ function paintsOf(session: GraphSession, layer: Layer, path: string): Map<Channe
             if (binding !== undefined && "by" in binding) {
                 try {
                     ({ bins } = session.styles.preview(binding, { channel, span: "data" }));
-                } catch {
+                } catch (error) {
                     // A binding the element refuses paints nothing to show.
+                    logUnexpected("styles.preview", error);
                 }
             }
             return [channel, new Map(bins.map((bin) => [String(bin.value), bin.paints]))];
@@ -437,8 +449,9 @@ function heldSource(
     let bins: readonly { value?: unknown; count: number; paints: unknown }[] = [];
     try {
         ({ bins } = session.styles.preview(binding, { channel, span: "data" }));
-    } catch {
+    } catch (error) {
         // A binding the element refuses has no groups to list.
+        logUnexpected("styles.preview", error);
     }
     const labels = session.data.valueLabels(path);
     const hidden = new Set((binding.hidden ?? []).map(String));
@@ -510,9 +523,11 @@ function pinnedGroup(
         if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
             return {};
         }
-        const has = "node" in at ? (session.data.name(at.node) ?? String(at.node)) : "the selected edge";
+        const has = "node" in at ? session.data.nodeName(at.node).name : "the selected edge";
         return { pinned: { key: String(value), has } };
-    } catch {
+    } catch (error) {
+        // An element gone since it was selected pins nothing.
+        logUnexpected("styles.valueAt", error, ["E_BAD_COMMAND"]);
         return {};
     }
 }
@@ -555,7 +570,8 @@ export function LayerGroupList({
     let groups: readonly LayerGroup[];
     try {
         groups = session.styles.layerGroups(layers, binding, { channel });
-    } catch {
+    } catch (error) {
+        logUnexpected("styles.layerGroups", error);
         return null;
     }
     const fail = (error: unknown): void => {
@@ -1257,7 +1273,7 @@ const VISUALLY_HIDDEN: React.CSSProperties = {
     width: 1,
     height: 1,
     overflow: "hidden",
-    clip: "rect(0 0 0 0)",
+    clipPath: "inset(50%)",
     whiteSpace: "nowrap",
 };
 
@@ -1402,10 +1418,11 @@ export function GroupDetail({
         );
 
     // Every property the Style tab draws that can vary, by section, for "+ Set another property".
-    const offered = SECTIONS[target].map((section) => ({
+    // A picture does not vary by a value yet (node-models design 13.7), so Fill offers no Picture here.
+    const offered = sectionsFor(target, { cosmograph: cosmographOn(session), nodeModels: false }).map((section) => ({
         title: section.title,
         items: section.channels.flatMap((channel) => {
-            const descriptor = descriptorOf(target, channel);
+            const descriptor = offeredChannel(session, target, channel);
             if (descriptor === undefined || !takesBinding(descriptor) || bound.includes(channel)) {
                 return [];
             }
@@ -1480,7 +1497,8 @@ export function GroupDetail({
                 />
             )}
             {bound.map((channel) => {
-                const descriptor = descriptorOf(target, channel);
+                // Its choices as the element offers them; a value the layer holds is still shown.
+                const descriptor = offeredChannel(session, target, channel) ?? descriptorOf(target, channel);
                 if (descriptor === undefined) {
                     return null;
                 }

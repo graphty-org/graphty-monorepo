@@ -33,6 +33,8 @@ import {
     ciCommand,
     fitsCheckout,
     groupEntry,
+    GRAPHTY_PARTS,
+    GROUP_MEMBER_SECONDS,
     GROUPS,
     MATRIX_CAP,
     matrixLine,
@@ -55,15 +57,14 @@ import {
     decide,
     examineRed,
     fileIssue,
-    FREEZE_PREFIX,
-    frozenSha,
     mergedPrs,
+    RED_PREFIX,
     revertBody,
     revertTitle,
     superseded,
 } from "./master-guard.mjs";
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
-import { summarize } from "./pr-status-broker.mjs";
+import { fetchAll, summarize } from "./pr-status-broker.mjs";
 import { BIN_LIMIT_MS, binCost, packBins } from "./test-select.mjs";
 import {
     fingerprint,
@@ -129,6 +130,21 @@ describe("the test matrix", () => {
         assert.ok(TEST_STEP_LIMIT_MS + 100_000 + 120_000 <= minutes * 60_000);
     });
 
+    // #7848: a full run runs every member of a group one after another; a member added unmeasured
+    // (graphty-element-webgpu) took small-browser to 24 min 58 s of its 26 minute deadline
+    it("fits every group's slowest measured members, with a quarter to spare, inside its test step's deadline", () => {
+        const gapSeconds = 10; // between members: the results wrapper and nx starting the next one
+        for (const [group, members] of Object.entries(GROUPS)) {
+            for (const m of members) assert.ok(GROUP_MEMBER_SECONDS[m] > 0, `${group}: ${m} has no measured time`);
+            const worst = members.reduce((t, m) => t + GROUP_MEMBER_SECONDS[m] + gapSeconds, 0);
+            assert.ok(
+                worst * 1.25 * 1000 <= TEST_STEP_LIMIT_MS,
+                `${group}: ${worst} s measured, x1.25 is over the deadline`,
+            );
+        }
+        assert.deepEqual(Object.keys(GROUP_MEMBER_SECONDS).sort(), Object.values(GROUPS).flat().sort());
+    });
+
     it("runs every shard exactly once on a full run, in one job per shard or group", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
@@ -160,7 +176,7 @@ describe("the test matrix", () => {
             plan(["graphty-element"])
                 .flatMap((e) => e.members ?? [e.shard])
                 .sort(),
-            SHARDS.filter((s) => s.package === "graphty-element")
+            SHARDS.filter((s) => s.package === "graphty-element" || s["affected-by"]?.includes("graphty-element"))
                 .map((s) => s.shard)
                 .sort(),
         );
@@ -197,8 +213,8 @@ describe("the test matrix", () => {
     // coverage-<shard> name; graphty-element and webgpu-graph-algorithms have upload steps of their own.
     it("uploads coverage for every shard with a job of its own that writes it", () => {
         const own = Object.fromEntries(plan(PACKAGES).map((e) => [e.shard, e.coverage]));
-        // the five graphty parts keep their reports apart
-        for (const n of [1, 2, 3, 4, 5]) {
+        // the graphty parts keep their reports apart
+        for (let n = 1; n <= GRAPHTY_PARTS; n++) {
             assert.equal(own[`graphty-${n}`], `graphty-${n}=graphty/.coverage-parts/graphty-${n}/lcov.info`);
         }
         assert.equal(own["graph-io"], "graph-io=graph-io/coverage/lcov.info");
@@ -249,6 +265,32 @@ describe("the test matrix", () => {
         assert.equal(plan(["graph-samples"])[0].lfs, "", "a group whose members read no LFS file pulls none");
         const bin = { name: "graph-io-storybook-9", shard: "graph-io-storybook-1", command: "true", files: [] };
         assert.equal(plan(["graph-io"], undefined, { bins: [bin] }).find((e) => e.shard === bin.name).lfs, oracles);
+    });
+
+    // graph-io's fidelity stories import graphty-element's source, a dependency graph-io/project.json negates
+    // (#7196): a graphty-element change runs them, and graph-io's own lint, whose typecheck covers them.
+    it("runs graph-io's fidelity stories and lints them when only graphty-element is affected", () => {
+        // only the stories: graph-io's own shards wait for graph-io to be affected
+        const graphIo = plan(["graphty-element"]).filter((e) => e.package.split(" ").includes("graph-io"));
+        assert.deepEqual(
+            graphIo.map((e) => e.shard),
+            ["graph-io-storybook-1", "graph-io-storybook-2"],
+        );
+        const whole = {
+            name: "graph-io-storybook-1",
+            shard: "graph-io-storybook-1",
+            whole: "graph-io",
+            command: "true",
+        };
+        assert.ok(plan(["graphty-element"], undefined, { bins: [whole] }).some((e) => e.shard === whole.name));
+        const lint = parseYaml(workflow("ci.yml")).jobs.lint.steps.find((s) =>
+            s.name?.startsWith("Lint graph-io's fidelity stories"),
+        );
+        assert.match(lint.if, /contains\(fromJSON\(needs\.packages\.outputs\.affected\), 'graphty-element'\)/u);
+        assert.match(lint.run, /nx run graph-io:lint\b/u);
+        // or nx replays master's cached lint, whose hash would not include graphty-element
+        const project = JSON.parse(readFileSync(new URL("../graph-io/project.json", import.meta.url), "utf8"));
+        assert.ok(project.targets.lint.inputs.some((i) => i.projects?.includes("graphty-element")));
     });
 
     it("runs every member of a group even after one fails, then fails naming it", () => {
@@ -1622,7 +1664,7 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(ci, "story-tests"), /RESULTS_PART: \$\{\{ matrix\.part \}\}/);
         assert.match(job(ci, "story-tests"), /name: story-parts-\$\{\{ matrix\.name \}\}-/);
         // every attempt's parts, then each part's newest attempt: a re-run of failed jobs re-runs only the failed parts
-        assert.match(job(ci, "story-tests-merge"), /pattern: story-parts-\$\{\{ matrix\.project \}\}-\*\n/);
+        assert.match(job(ci, "story-tests-merge"), /pattern: story-parts-\$\{\{ matrix\.project \}\}-\[0-9\]\*\n/);
         assert.match(job(ci, "story-tests-merge"), /sort -V \| awk .*sub\(\/-\[0-9\]\+\$\/, "", part\)/);
         assert.match(job(ci, "story-tests-merge"), /merge-results --project .* "\$RUNNER_TEMP"\/parts\/\*\/part-\*\//);
         assert.match(
@@ -1630,7 +1672,10 @@ describe("verification runs of ci.yml", () => {
             /name: visual-\$\{\{ matrix\.project \}\}-\$\{\{ github\.run_attempt \}\}/,
         );
         // One matrix leg per project, each skipped when the run does not test its storybook shard.
-        assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
+        assert.match(
+            job(ci, "story-tests"),
+            /- project: graphty-element\n\s+name: graphty-element-1\n\s+part: 1\n\s+parts: 3\n\s+shard: graphty-element-storybook-1\n/,
+        );
         assert.match(
             job(ci, "story-tests"),
             /- project: graphty\n\s+name: graphty-1\n\s+part: 1\n\s+parts: 2\n\s+shard: graphty-storybook\n/,
@@ -1667,7 +1712,7 @@ describe("verification runs of ci.yml", () => {
         const jobs = parseYaml(ci).jobs;
         const include = jobs["story-tests"].strategy.matrix.include;
         const split = [...new Set(include.filter((r) => r.parts).map((r) => r.project))].sort();
-        assert.deepEqual(split, ["graph-io-fidelity", "graphty"]);
+        assert.deepEqual(split, ["graph-io-fidelity", "graphty", "graphty-element"]);
         assert.deepEqual([...jobs["story-tests-merge"].strategy.matrix.project].sort(), split);
         for (const project of split) {
             const legs = include.filter((r) => r.project === project);
@@ -1685,11 +1730,14 @@ describe("verification runs of ci.yml", () => {
             // and every leg tests the same files of the same project
             assert.equal(new Set(legs.map((r) => r.command.replace(/ --shard=\S+$/, ""))).size, 1, project);
         }
-        // story-tests-merge's artifact pattern for one split project never matches another project's parts
+        // story-tests-merge's artifact pattern for one split project (story-parts-<project>-[0-9]*) never matches
+        // another project's parts: graphty's must not take graphty-element's (#6178)
         for (const a of split)
-            for (const b of include.map((r) => r.name).filter(Boolean)) {
-                if (!b.startsWith(`${a}-`)) continue;
-                assert.match(b.slice(a.length + 1), /^\d+$/, `story-parts-${a}-* would match ${b}`);
+            for (const r of include.filter((x) => x.name)) {
+                const artifact = `story-parts-${r.name}-1`;
+                const matches =
+                    artifact.startsWith(`story-parts-${a}-`) && /^\d/.test(artifact.slice(`story-parts-${a}-`.length));
+                assert.equal(matches, r.project === a, `story-parts-${a}-[0-9]* and ${artifact}`);
             }
     });
 
@@ -2769,8 +2817,16 @@ describe("pr-title.yml", () => {
         assert.equal(pr.split(QUEUE).length, 2);
     });
     // The breaking-change step's script, against a stub gh: one GraphQL page with the commits, the labels and
-    // who added them; `fail` is gh's error output for a failed call.
-    const breaking = ({ title = "fix(tools): a", commits = ["fix: a"], labels = [], by = [], fail = "" } = {}) => {
+    // who added them; `fail` is gh's error output for a failed call; `ruled` is master's release-not-breaking.json
+    // list (commit `i` has the id `c<i>`).
+    const breaking = ({
+        title = "fix(tools): a",
+        commits = ["fix: a"],
+        labels = [],
+        by = [],
+        fail = "",
+        ruled,
+    } = {}) => {
         const pr = workflow("pr-title.yml");
         const body = pr.slice(pr.indexOf("- name: No breaking change without the owner's go"));
         const script = /run: \|\n([\s\S]*?)\n\n/.exec(body)[1].replaceAll(/^ {18}/gm, "");
@@ -2778,6 +2834,9 @@ describe("pr-title.yml", () => {
         const page = {
             data: {
                 repository: {
+                    notBreaking: ruled && {
+                        text: JSON.stringify({ notBreaking: ruled.map((commit) => ({ commit })) }),
+                    },
                     pullRequest: {
                         labels: { nodes: labels.map((name) => ({ name })) },
                         timelineItems: {
@@ -2785,7 +2844,7 @@ describe("pr-title.yml", () => {
                         },
                         commits: {
                             pageInfo: { hasNextPage: false, endCursor: null },
-                            nodes: commits.map((message) => ({ commit: { message } })),
+                            nodes: commits.map((message, i) => ({ commit: { oid: `c${i}`, message } })),
                         },
                     },
                 },
@@ -2824,6 +2883,16 @@ describe("pr-title.yml", () => {
         assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["graphty-agent"] }), 1);
         assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["apowers313"] }), 0);
         assert.equal(breaking({ commits: ["feat!: x"], by: ["apowers313"] }), 1, "the label was removed");
+    });
+    it("skips a breaking commit master's release-not-breaking.json rules not breaking", () => {
+        assert.equal(breaking({ commits: ["fix: a", "feat(x)!: y"], ruled: ["c1"] }), 0);
+        assert.equal(breaking({ commits: ["feat(x)!: y", "fix: b\n\nBREAKING CHANGE: z"], ruled: ["c0"] }), 1);
+        assert.equal(breaking({ commits: ["feat(x)!: y"], ruled: [] }), 1);
+        assert.equal(
+            breaking({ title: "feat!: x", commits: ["feat!: x"], ruled: ["c0"] }),
+            1,
+            "the title still counts",
+        );
     });
     it("fails closed, naming the cause, when the GitHub API cannot be asked", () => {
         assert.equal(breaking({ fail: "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" }), 1);
@@ -2922,6 +2991,173 @@ describe("the lanes outside CI", () => {
     });
 });
 
+describe("no outside download at run time (#6308, #6390)", () => {
+    // A job that fetches from a host on every run fails whenever that host is briefly down: GitHub release
+    // downloads answered 504 for over an hour on 2026-11-08 (lychee; master, the full run and pull requests
+    // went red three times) and a T4 runner could not reach archive.ubuntu.com (run 42555029230).
+    const stub = (bin, name, body) => writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
+
+    it("installs lychee from the cache keyed on its pinned version and sha256 before every link check", () => {
+        const action = parseYaml(readFileSync(new URL("../.github/actions/lychee/action.yml", import.meta.url), "utf8"))
+            .runs.steps;
+        assert.match(action[0].run, /LYCHEE_VERSION=.*\n.*LYCHEE_SHA256=/s);
+        assert.match(action[0].run, /key=lychee-\$version-\$\{sha:\?\}/);
+        assert.match(action[1].uses, /^actions\/cache\/restore@/);
+        assert.equal(action[2].run, "./tools/check-links.sh --install");
+        assert.match(action[3].uses, /^actions\/cache\/save@/);
+        assert.match(action[3].if, /github\.event_name != 'pull_request'/);
+        assert.equal(action[1].with.path, action[3].with.path);
+        assert.match(action[1].with.path, /lychee\.tar\.gz$/, "caches the tarball, whose sha256 the script checks");
+        let checked = 0;
+        for (const file of ["ci.yml", "links-weekly.yml"]) {
+            for (const [name, j] of Object.entries(parseYaml(workflow(file)).jobs)) {
+                const steps = j.steps ?? [];
+                const check = steps.findIndex((st) => /tools\/check-links\.sh/.test(st.run ?? ""));
+                if (check === -1) continue;
+                const install = steps.findIndex((st) => st.uses === "./.github/actions/lychee");
+                assert.ok(install !== -1 && install < check, `${file} ${name}: installs lychee first`);
+                checked++;
+            }
+        }
+        assert.equal(checked, 3, "the checks, links and weekly jobs");
+    });
+
+    const lychee = (cached, { sha } = {}) => {
+        const root = mkdtempSync(join(TMP, "lychee-"));
+        const bin = join(root, "bin");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        mkdirSync(bin);
+        let script = readFileSync(new URL("./check-links.sh", import.meta.url), "utf8");
+        const dir = join(root, "node_modules/.cache/lychee", script.match(/^LYCHEE_VERSION=(.*)$/m)[1]);
+        mkdirSync(dir, { recursive: true });
+        if (cached) {
+            const src = join(root, "src/lychee-x86_64-unknown-linux-musl");
+            mkdirSync(src, { recursive: true });
+            writeFileSync(join(src, "lychee"), "#!/bin/sh\necho lychee fake\n", { mode: 0o755 });
+            execFileSync("tar", [
+                "-czf",
+                join(dir, "lychee.tar.gz"),
+                "-C",
+                join(root, "src"),
+                "lychee-x86_64-unknown-linux-musl",
+            ]);
+            const real = createHash("sha256")
+                .update(readFileSync(join(dir, "lychee.tar.gz")))
+                .digest("hex");
+            script = script.replace(/^LYCHEE_SHA256=.*$/m, `LYCHEE_SHA256=${sha ?? real}`);
+        }
+        writeFileSync(join(root, "tools/check-links.sh"), script, { mode: 0o755 });
+        stub(bin, "curl", `echo "curl $*" >> "${root}/calls"; exit 22`);
+        const path = `${bin}:${process.env.PATH.split(":")
+            .filter((d) => !existsSync(join(d, "lychee")))
+            .join(":")}`;
+        const r = spawnSync("bash", [join(root, "tools/check-links.sh"), "--install"], {
+            encoding: "utf8",
+            env: { ...process.env, PATH: path },
+        });
+        const calls = existsSync(join(root, "calls")) ? readFileSync(join(root, "calls"), "utf8") : "";
+        return {
+            ...r,
+            calls,
+            tarball: existsSync(join(dir, "lychee.tar.gz")),
+            binary: existsSync(join(dir, "lychee")),
+        };
+    };
+
+    it("check-links.sh --install extracts a cached tarball whose sha256 matches, with no download", () => {
+        const r = lychee(true);
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.equal(r.calls, "");
+        assert.match(r.stdout, /lychee fake/);
+        assert.ok(r.binary && r.tarball, "keeps the tarball for the cache save");
+    });
+
+    it("check-links.sh --install refuses and deletes a cached tarball whose sha256 does not match", () => {
+        const r = lychee(true, { sha: "0".repeat(64) });
+        assert.equal(r.status, 2);
+        assert.equal(r.calls, "");
+        assert.ok(!r.binary && !r.tarball);
+    });
+
+    it("check-links.sh --install downloads when nothing is cached and fails loudly when it cannot", () => {
+        const r = lychee(false);
+        assert.equal(r.status, 2);
+        assert.match(r.calls, /^curl .*releases\/download\/lychee-v/);
+        assert.ok(!r.tarball, "leaves no partial tarball for the cache to save");
+    });
+
+    // Runs a T4 job's bootstrap step against a fake apt and dpkg, with the cache directory and apt's
+    // configuration moved into a temporary directory.
+    const bootstrap = (file, { hit, cached = [], installed }) => {
+        const root = mkdtempSync(join(TMP, "t4-debs-"));
+        const bin = join(root, "bin");
+        const debs = join(root, "debs");
+        const conf = join(root, "apt.conf.d");
+        for (const d of [bin, debs, conf]) mkdirSync(d);
+        for (const d of cached) writeFileSync(join(debs, d), "");
+        const steps = parseYaml(workflow(file)).jobs;
+        const step = Object.values(steps)
+            .flatMap((j) => j.steps ?? [])
+            .find((st) => /^Bootstrap the container/.test(st.name ?? ""));
+        const run = step.run.replaceAll("/var/cache/t4-debs", debs).replaceAll("/etc/apt/apt.conf.d", conf);
+        const log = (name) => stub(bin, name, `echo "${name} $*" >> "${root}/calls"`);
+        log("apt-get");
+        log("dpkg");
+        const all = step.env.PACKAGES;
+        stub(
+            bin,
+            "dpkg-query",
+            `for p in "\${@:3}"; do case " ${installed ?? all} " in *" $p "*) echo "ii  $p";; *) echo "dpkg-query: no packages found matching $p" >&2;; esac; done`,
+        );
+        const r = spawnSync("bash", ["-e", "-c", run], {
+            encoding: "utf8",
+            env: { ...process.env, HIT: hit, PACKAGES: all, PATH: `${bin}:${process.env.PATH}` },
+        });
+        const calls = existsSync(join(root, "calls")) ? readFileSync(join(root, "calls"), "utf8") : "";
+        return { ...r, calls, debs, conf: readdirSync(conf) };
+    };
+
+    for (const file of ["gpu.yml", "gpu-weekly-paired.yml"]) {
+        it(`${file}: a cache hit installs the T4 container's packages with dpkg and never runs apt`, () => {
+            const r = bootstrap(file, { hit: "true", cached: ["a.deb", "b.deb"] });
+            assert.equal(r.status, 0, r.stdout + r.stderr);
+            assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n$/);
+        });
+
+        it(`${file}: a cache hit that installed too little fails the bootstrap`, () => {
+            const r = bootstrap(file, { hit: "true", cached: ["a.deb"], installed: "git" });
+            assert.equal(r.status, 1);
+            assert.match(r.stdout, /::error::the container's packages are not all installed: .*libvulkan1/s);
+        });
+
+        it(`${file}: a miss installs with apt, retrying, into the directory the cache saves`, () => {
+            const r = bootstrap(file, { hit: "" });
+            assert.equal(r.status, 0, r.stdout + r.stderr);
+            assert.match(
+                r.calls,
+                /^apt-get update\napt-get install -y --no-install-recommends -o Dir::Cache::Archives=(\S+) .*\blibvulkan1 libegl1\b/,
+            );
+            assert.ok(r.calls.includes(`Dir::Cache::Archives=${r.debs} `));
+            assert.deepEqual(r.conf, ["99-ci-timeouts"]);
+        });
+    }
+
+    it("gpu.yml keys the cached sets on the bare image and installs Chromium's packages through the cached action", () => {
+        const steps = parseYaml(workflow("gpu.yml")).jobs["test-gpu"].steps;
+        const key = steps.findIndex((st) => st.id === "t4-debs-key");
+        const boot = steps.findIndex((st) => /^Bootstrap the container/.test(st.name ?? ""));
+        assert.ok(key !== -1 && key < boot, "the key reads dpkg before anything is installed");
+        assert.match(steps[key].run, /dpkg-query -W/);
+        assert.match(steps[boot].run, /rm -f \/etc\/apt\/apt\.conf\.d\/docker-clean\n/);
+        const deps = steps.find((st) => st.uses === "./.github/actions/playwright-system-deps");
+        assert.equal(deps.with.image, "${{ steps.t4-debs-key.outputs.key }}");
+        assert.ok(
+            !steps.some((st) => /--with-deps|install-deps/.test(st.run ?? "")),
+            "no apt outside the cached paths",
+        );
+    });
+});
+
 describe("apt in the workflows", () => {
     it("drops the Microsoft apt sources before every job's first apt use", () => {
         // packages.microsoft.com, a source the hosted Ubuntu images ship and nothing here installs from,
@@ -2977,16 +3213,18 @@ describe("actions/cache in the workflows", () => {
         for (const project of ["graphty-element", "graphty"]) {
             const target = JSON.parse(readFileSync(new URL(`../${project}/project.json`, import.meta.url), "utf8"))
                 .targets.lint;
-            // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file
-            assert.match(
-                target.options.command,
-                /^(node \.\.\/tools\/test-slots\.mjs --lint )?eslint [^&]*\$ESLINT_CACHE &&/,
-            );
+            // the nx target and `npm run lint` are one command, so they run the same checks under the same slot
+            assert.equal(target.options.command, "npm run lint");
+            const script = JSON.parse(readFileSync(new URL(`../${project}/package.json`, import.meta.url), "utf8"))
+                .scripts.lint;
+            // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file; eslint runs
+            // in the machine-wide lint slot so agents' eslints never stack up and get killed (#5904)
+            assert.match(script, /^node \.\.\/tools\/test-slots\.mjs --lint eslint [^&]*\$ESLINT_CACHE &&/);
             assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
             // never "--concurrency auto": it starts one type-aware worker (2.5 GB or more each) per two cores, 16 on
             // the 32-core dev machine, which drove the machine out of memory and got the lint killed with SIGTERM
             // ("Terminated", #5181); a fixed 2 is what auto gives on CI's 4-core runner
-            assert.doesNotMatch(target.options.command, /--concurrency auto/);
+            assert.doesNotMatch(script, /--concurrency auto/);
         }
     });
 
@@ -3054,7 +3292,8 @@ describe("actions/cache in the workflows", () => {
         for (const file of files) {
             const text = readFileSync(new URL(file, import.meta.url), "utf8");
             const code = text.replace(/^\s*#.*$/gm, "");
-            if (!/actions\/cache(\/\w+)?@|cache: "?(pnpm|npm|yarn)|playwright-system-deps/.test(code)) continue;
+            if (!/actions\/cache(\/\w+)?@|cache: "?(pnpm|npm|yarn)|playwright-system-deps|actions\/lychee/.test(code))
+                continue;
             const mins = Number(parseYaml(text)?.env?.SEGMENT_DOWNLOAD_TIMEOUT_MINS);
             assert.ok(mins > 0 && mins <= 2, `${file}: env SEGMENT_DOWNLOAD_TIMEOUT_MINS is 1 or 2 (got ${mins})`);
             checked++;
@@ -3074,7 +3313,7 @@ describe("Playwright's system packages", () => {
     it("keys the cache on the runner image and the Playwright version", () => {
         assert.match(
             action,
-            /key=playwright-debs-\$\{ImageOS:\?\}-\$\{ImageVersion:\?\}-\$\(pnpm exec playwright --version/,
+            /key=playwright-debs-\$\{IMAGE:-\$\{ImageOS:\?\}-\$\{ImageVersion:\?\}\}-\$\(pnpm exec playwright --version/,
         );
         assert.match(action, /path: ~\/\.cache\/playwright-debs/);
         assert.match(action, /run: '"\$GITHUB_ACTION_PATH\/install\.sh"'\n/);
@@ -3190,6 +3429,11 @@ describe("Mergify is retired", () => {
             assert.doesNotMatch(workflow(name), /gha-mergify-ci|Mergify Test Insights/, name);
         }
     });
+    it("has master-guard stop no merges: no Mergify freeze, no Mergify key (#7261)", () => {
+        const guard = readFileSync(new URL("./master-guard.mjs", import.meta.url), "utf8");
+        assert.doesNotMatch(guard, /mergify|freeze/i);
+        assert.doesNotMatch(workflow("master-guard.yml"), /mergify|freeze/i);
+    });
 });
 
 describe("gpu.yml", () => {
@@ -3208,6 +3452,40 @@ describe("gpu.yml", () => {
             /- uses: actions\/checkout@v\d+\n {14}with: \{ ref: "\$\{\{ inputs.ref \}\}" \}/,
         );
         assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
+    });
+
+    it("checks the large-graph GPU screenshots, uploads them, and fails the job naming the stories that differ", () => {
+        const t4 = job(gpu, "test-gpu");
+        assert.match(
+            t4,
+            /git lfs pull --include "visual-fonts\/\*\*,cytoscape-extensions\/test\/gpu-screenshots\/\*\*"/,
+        );
+        assert.match(
+            t4,
+            /id: shots\n\s+if: \$\{\{ !inputs\.files \}\}\n\s+continue-on-error: true\n[\s\S]*?run: node scripts\/gpu-screenshots\.mjs --check\n/,
+        );
+        // a bisect point (inputs.files set) runs only its failing test files: no LFS pull, Storybook build or screenshots
+        for (const name of [
+            "Fetch the pinned fonts and the GPU screenshot references from Git LFS",
+            "Build the cytoscape-extensions Storybook",
+            "Large-graph story screenshots on NVIDIA against the reference images",
+        ]) {
+            const at = t4.indexOf(`- name: ${name}\n`);
+            assert.ok(at > 0, name);
+            const step = t4.slice(at, t4.indexOf("\n            - ", at + 1));
+            assert.match(step, /\n\s+if: \$\{\{ !inputs\.files \}\}\n/, name);
+        }
+        // git-lfs comes from the container's cached bootstrap packages, in both the cache key and the install
+        assert.equal(t4.match(/PACKAGES: ca-certificates curl git git-lfs /g)?.length, 2);
+        assert.match(t4, /name: "gpu-screenshots-\$\{\{ github\.run_id \}\}"/);
+        assert.match(
+            t4,
+            /if: \$\{\{ !cancelled\(\) && steps\.shots\.outcome == 'failure' \}\}[\s\S]*?::error::[\s\S]*?exit 1\n/,
+        );
+        // never cached: a dispatch of any branch could save a cache the release train restores (CodeQL cache poisoning)
+        assert.doesNotMatch(t4, /path: \.git\/lfs\/objects/);
+        // --update writes references; only a person on a GPU machine runs it
+        assert.doesNotMatch(gpu, /gpu-screenshots\.mjs --update/);
     });
 
     it("runs on an on-demand T4 by default, the release train included, with spot and hosted as dispatch options", () => {
@@ -3240,8 +3518,13 @@ describe("gpu.yml", () => {
                 const where = `${file}: ${body.trim().split("\n")[0]}`;
                 assert.match(body, /\n {8}container:\n {12}image: ubuntu:24\.04\n {12}options: --gpus all\b/, where);
                 assert.match(body, /NVIDIA_DRIVER_CAPABILITIES: all\n/, where);
-                // the whole apt-get install command, with its backslash-continued lines
-                const install = body.match(/apt-get install(?:[^\n]*\\\n)*[^\n]*/)?.[0] ?? "";
+                // the bootstrap's package list, which the cached .deb set is keyed on and checked against (#6390)
+                const install = body.match(/\n {18}PACKAGES: [^\n]*/)?.[0] ?? "";
+                assert.match(
+                    body,
+                    /apt-get install -y --no-install-recommends -o Dir::Cache::Archives="\$dir" \$PACKAGES\n/,
+                    where,
+                );
                 assert.match(install, /\blibvulkan1 libegl1\b/, where);
                 assert.match(
                     install,
@@ -3572,7 +3855,7 @@ describe("hosts.yml", () => {
 describe("master-guard", () => {
     const run = (name, conclusion, event = "push") => ({ name, conclusion, event });
 
-    it("freezes on a red master CI, lifts on a green one, and leaves the hardware lanes to the release train", () => {
+    it("acts on a red or green master CI, and leaves the hardware lanes to the release train", () => {
         assert.equal(decide(run("CI", "failure")), "red");
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "success")), "green");
@@ -3591,7 +3874,7 @@ describe("master-guard", () => {
         assert.equal(decide(run("CI", "cancelled")), "stopped");
         assert.equal(decide(run("CI", "startup_failure")), "stopped");
         assert.equal(decide(run("CI", "cancelled", "pull_request")), "none");
-        // timed_out and failure stay red: freeze, revert and issue as before
+        // timed_out and failure stay red: revert and issue as before
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "failure")), "red");
 
@@ -3648,14 +3931,9 @@ describe("master-guard", () => {
         assert.match(workflow("deploy-pages.yml"), /^name: Deploy to GitHub Pages$/m);
     });
 
-    it("finds the commit in its own freezes and the pull request in a merge commit", () => {
-        const sha = "a".repeat(40);
-        assert.equal(frozenSha(`${FREEZE_PREFIX}${sha} (url)`), sha);
-        assert.equal(frozenSha("release freeze"), null);
+    it("finds the pull request in a merge commit", () => {
         assert.deepEqual(mergedPrs("Merge pull request #1011 from graphty-org/x\n\nbody"), [1011]);
-        assert.deepEqual(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue"), [42, 43, 44]);
-        assert.deepEqual(mergedPrs("Merged #42\n\nMerged by Mergify Merge Queue"), [42]);
-        // the merges inside a batch branch are not landings of their own
+        assert.deepEqual(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue"), []);
         assert.deepEqual(mergedPrs("Merge of #42"), []);
         assert.deepEqual(mergedPrs("chore(release): publish"), []);
     });
@@ -3689,8 +3967,8 @@ describe("master-guard", () => {
         return { gh, writes };
     };
     const red = (sha) => ({
-        prefix: FREEZE_PREFIX,
-        title: `${FREEZE_PREFIX}${sha}`,
+        prefix: RED_PREFIX,
+        title: `${RED_PREFIX}${sha}`,
         labels: ["bug"],
         body: `body ${sha}`,
         comment: `also ${sha}`,
@@ -3700,7 +3978,7 @@ describe("master-guard", () => {
         const { gh, writes } = repo([
             { number: 7, title: "Something else" },
             { number: 9, title: "Fix the thing", pull_request: {} },
-            { number: 1124, title: `${FREEZE_PREFIX}7edecd1` },
+            { number: 1124, title: `${RED_PREFIX}7edecd1` },
         ]);
         assert.equal(await fileIssue(gh, red("056ee80")), 1124);
         assert.deepEqual(writes, [["POST", "/issues/1124/comments", { body: "also 056ee80" }]]);
@@ -3710,12 +3988,12 @@ describe("master-guard", () => {
         const { gh, writes } = repo([{ number: 7, title: "GPU lane red on master" }]);
         assert.equal(await fileIssue(gh, red("7edecd1")), 2000);
         assert.deepEqual(writes, [
-            ["POST", "/issues", { title: `${FREEZE_PREFIX}7edecd1`, labels: ["bug"], body: "body 7edecd1" }],
+            ["POST", "/issues", { title: `${RED_PREFIX}7edecd1`, labels: ["bug"], body: "body 7edecd1" }],
         ]);
     });
 
     it("closes its own issue as a duplicate when a racing run opened one first", async () => {
-        const { gh, writes } = repo([], { number: 1128, title: `${FREEZE_PREFIX}056ee80` });
+        const { gh, writes } = repo([], { number: 1128, title: `${RED_PREFIX}056ee80` });
         assert.equal(await fileIssue(gh, red("df92205")), 1128);
         assert.deepEqual(writes.slice(1), [
             ["POST", "/issues/2000/comments", { body: "Duplicate of #1128." }],
@@ -3725,7 +4003,7 @@ describe("master-guard", () => {
     });
 
     it("keeps its issue when the racing run's issue is the newer one", async () => {
-        const { gh, writes } = repo([], { number: 3000, title: `${FREEZE_PREFIX}056ee80` });
+        const { gh, writes } = repo([], { number: 3000, title: `${RED_PREFIX}056ee80` });
         assert.equal(await fileIssue(gh, red("df92205")), 2000);
         assert.equal(writes.length, 1);
     });
@@ -3740,24 +4018,16 @@ describe("master-guard", () => {
         const sha = "0123456789abcdef0123456789abcdef01234567";
         assert.equal(lint(revertTitle(sha, [1011])), 0);
         assert.equal(lint(revertTitle(sha, [])), 0);
-        assert.equal(lint(revertTitle(sha, [42, 43, 44])), 0);
-    });
-
-    it("names every pull request of a reverted batch", () => {
-        const sha = "0123456789abcdef0123456789abcdef01234567";
-        assert.equal(revertTitle(sha, [42, 43, 44]), "revert: batch #42, #43, #44, master CI red at 0123456");
         assert.equal(revertTitle(sha, [1011]), "revert: pull request #1011, master CI red at 0123456");
     });
 
     it("tells authors to revert the revert, never to re-queue a merged pull request", () => {
         const sha = "0123456789abcdef0123456789abcdef01234567";
-        for (const prs of [[], [1011], [42, 43, 44]]) {
+        for (const prs of [[], [1011]]) {
             const body = revertBody(sha, "https://run", prs);
             assert.match(body, /reverts this revert/);
-            assert.doesNotMatch(body, /re-enter/);
+            assert.doesNotMatch(body, /re-enter|queue/);
         }
-        // a batch went red on the tree the queue passed: point at master-only jobs and flakes first
-        assert.match(revertBody(sha, "https://run", [42, 43, 44]), /#42, #43, #44.*jobs that run only on master/s);
     });
 
     // A red CI run on master as the jobs API and the logs show it. `logs` maps a failed job's name to the lines
@@ -3910,6 +4180,11 @@ describe("release.yml", () => {
     const landSh = readFileSync(new URL("./channel/land.sh", import.meta.url), "utf8");
     const publish = job(release, "publish");
     const approve = job(release, "approve");
+
+    it("gives the land its identity in the environment, so a local run cannot write the shared .git/config", () => {
+        assert.doesNotMatch(landSh, /^\s*git config/m);
+        assert.match(landSh, /^export GIT_AUTHOR_NAME=/m);
+    });
 
     it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
         assert.doesNotMatch(release, /gh pr create|head_commit/);
@@ -5940,6 +6215,37 @@ describe("pr-status-broker", () => {
         assert.equal(b.author, null, "a deleted account");
         assert.deepEqual(b.checks, {});
     });
+
+    it("follows the pages of open pull requests and sums their cost", async () => {
+        const asked = [];
+        const page = (after, nodes, next) => ({
+            rateLimit: { remaining: 100 - asked.length, resetAt: "r", cost: 1 },
+            repository: { pullRequests: { pageInfo: { hasNextPage: next, endCursor: `c${asked.length}` }, nodes } },
+        });
+        const data = await fetchAll(async (after) => {
+            asked.push(after);
+            return asked.length === 1 ? page(after, [{ number: 1 }], true) : page(after, [{ number: 2 }], false);
+        });
+        assert.deepEqual(asked, [null, "c1"]);
+        assert.deepEqual(
+            data.repository.pullRequests.nodes.map((pr) => pr.number),
+            [1, 2],
+        );
+        assert.equal(data.repository.pullRequests.pageInfo.hasNextPage, false);
+        assert.deepEqual(data.rateLimit, { remaining: 98, resetAt: "r", cost: 2 });
+    });
+
+    it("stops after its last page and says the list is incomplete", async () => {
+        let n = 0;
+        const data = await fetchAll(async () => ({
+            rateLimit: { cost: 1 },
+            repository: {
+                pullRequests: { pageInfo: { hasNextPage: true, endCursor: `c${++n}` }, nodes: [{ number: n }] },
+            },
+        }));
+        assert.equal(n, 10);
+        assert.equal(data.repository.pullRequests.pageInfo.hasNextPage, true);
+    });
 });
 
 describe("the commit and push hooks", () => {
@@ -6299,6 +6605,10 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "figma-lock\\n");\n`,
             );
             writeFileSync(
+                join(dir, "tools/check-saved-format-allowlist.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "saved-format\\n");\n`,
+            );
+            writeFileSync(
                 join(dir, "tools/release-dry-run.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "release\\n");\n`,
             );
@@ -6375,6 +6685,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
             writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
             writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
+            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), sonar("gate-saved-format"));
             writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
             writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
@@ -7222,10 +7533,12 @@ describe("release.yml's nightly promotion (#1020)", () => {
         );
         const decide = gate.steps.find((st) => st.id === "promote");
         assert.deepEqual([decide.run, decide.env.STATE], ["node tools/channel/nightly.mjs decide", "approved"]);
-        // only a gate refusal is recorded (rejected), never a wait for a publish hold
-        const rejected = gate.steps.find((st) => st.run === "node tools/channel/resume.mjs record");
-        assert.equal(rejected.if, "${{ steps.gate.outputs.outcome == 'failure' }}");
-        assert.equal(rejected.env.STATE, "rejected");
+        // only a gate refusal is recorded (refused, never the owner's rejected: #6783), with the judging run a retry
+        // needs, never a wait for a publish hold
+        const refused = gate.steps.find((st) => st.run === "node tools/channel/resume.mjs record");
+        assert.equal(refused.if, "${{ steps.gate.outputs.outcome == 'failure' }}");
+        assert.equal(refused.env.STATE, "refused");
+        assert.equal(refused.env.SOURCE_RUN, "${{ needs.pick.outputs.source_run }}");
         // the builds the promotion ships: those the judging run kept for its held green-images head
         assert.equal(
             steps.keep_builds.if,

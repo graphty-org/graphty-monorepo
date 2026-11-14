@@ -8,7 +8,10 @@ import { assert, describe, it } from "vitest";
 import { isGraphtyError } from "../../src/errors";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import { fileStylesOn } from "../helpers/file-styles-on";
 import { makeSession } from "./helpers";
+
+fileStylesOn();
 
 /** One file of each graph format shape: files whose format, not the reader, sets the columns. */
 const FILES: readonly (readonly [string, string])[] = [
@@ -78,9 +81,11 @@ async function loaded(name: string, text: string, via: "import" | "open"): Promi
 
     // As plain data, key order included: frozen records and class instances compare by what they hold.
     const state = JSON.stringify(stateOf(session), (key: string, value: unknown) =>
-        // How a CSV load was made, not what it loaded: the draft keeps the mapping it chose (so a
-        // reload repeats it) and its report names the columns it declared as the ends.
-        name.endsWith(".csv") && ["mapping", "tableRows", "endpoints"].includes(key) ? undefined : value,
+        // When a load happened, and how a CSV load was made, not what it loaded: the draft keeps the
+        // mapping it chose (so a reload repeats it) and its report names the columns it declared as the ends.
+        key === "loadedAt" || (name.endsWith(".csv") && ["mapping", "tableRows", "endpoints"].includes(key))
+            ? undefined
+            : value,
     );
     session.dispose();
     return state;

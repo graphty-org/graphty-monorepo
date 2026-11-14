@@ -12,6 +12,7 @@ import type { DuplicatePolicy } from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
 import type { LoadStyleReport } from "../session/styles/fileStyles/apply";
+import type { DraftRow, EdgeEnd } from "../session/types";
 import type { EndpointSpelling } from "./endpoints";
 import type { DataLoadingError } from "./ErrorAggregator";
 
@@ -152,6 +153,7 @@ export interface LoadReport extends ImportReport {
      * What the load did with the file's styles, when it was asked to read them (`styles: "file"`):
      * the layers they made, bottom first, and what reading and translating them met, as codes and
      * facts. Absent when the load was not asked to read styles.
+     * @experimental file-styles
      */
     readonly styles?: LoadStyleReport;
     /**
@@ -162,7 +164,23 @@ export interface LoadReport extends ImportReport {
      * choice. Absent when the mapping names no kind.
      */
     readonly kinds?: { readonly sharedIds: number; readonly byKind: Readonly<Record<string, number>> };
+    /**
+     * The rows themselves, so a reader can fix the file: `rejected`, the rows `counts.rejected`
+     * counts, and `unmatched`, the edge rows `unmatched.rows` counts, each in the order met with
+     * its `reason` (`"refused-row"` or `"unknown-end"`). Each list keeps the first
+     * {@link IMPORT_ROWS_KEPT} (100) rows; `counts.rejected` and `unmatched.rows` less the length
+     * of the list is how many more there were. A row's `line` is the line `LoadDraft.rows` gives
+     * it, for a load from a draft; otherwise its position among the load's node (or edge)
+     * records, from 1. Absent when the load rejected no row and every edge end matched, and in a
+     * report saved before it was kept. A row the reader could not read at all is not here: it is
+     * in `errors`, with its line and the reader's code.
+     * @since 3.40.0
+     */
+    readonly rows?: { readonly rejected: readonly DraftRow[]; readonly unmatched: readonly DraftRow[] };
 }
+
+/** How many rejected and how many unmatched rows a {@link LoadReport} keeps in `rows`. */
+export const IMPORT_ROWS_KEPT = 100;
 
 /**
  * The mutable tally a load keeps while it runs, before it is frozen into an {@link ImportReport}.
@@ -215,6 +233,10 @@ export interface ImportTally {
     readonly droppedRows: { readonly id: string | number; readonly record: Readonly<Record<string, unknown>> }[];
     /** The rows refused for an id or an end the store would not take, for `session.data.issues()`. */
     readonly refusedRows: { readonly rowsAre: "nodes" | "edges"; readonly record: Readonly<Record<string, unknown>> }[];
+    /** The first {@link IMPORT_ROWS_KEPT} rejected rows, with line and reason, for the report's `rows`. */
+    readonly rejectedKept: DraftRow[];
+    /** The first {@link IMPORT_ROWS_KEPT} unmatched edge rows, with line and reason. */
+    readonly unmatchedKept: DraftRow[];
 }
 
 /** The error limit a data source has when none is configured, and so of a load with no source. */
@@ -248,7 +270,58 @@ export function newImportTally(): ImportTally {
         edgeIds: [],
         droppedRows: [],
         refusedRows: [],
+        rejectedKept: [],
+        unmatchedKept: [],
     };
+}
+
+/**
+ * Keep a rejected row in the tally (the first {@link IMPORT_ROWS_KEPT}), with its reason.
+ * @param tally - the load's tally
+ * @param line - where the row is
+ * @param values - the row
+ * @param rowsAre - what the row was to be
+ * @param ends - an edge row's unusable ends
+ */
+export function keepRejectedRow(
+    tally: ImportTally,
+    line: number,
+    values: Readonly<Record<string, unknown>>,
+    rowsAre: "nodes" | "edges",
+    ends?: readonly EdgeEnd[],
+): void {
+    if (tally.rejectedKept.length < IMPORT_ROWS_KEPT) {
+        const params = ends === undefined ? { rowsAre } : { rowsAre, ends: Object.freeze([...ends]) };
+        tally.rejectedKept.push(
+            Object.freeze({
+                line,
+                values,
+                reason: Object.freeze({ code: "refused-row", params: Object.freeze(params) }),
+            }),
+        );
+    }
+}
+
+/**
+ * Keep an unmatched edge row in the tally (the first {@link IMPORT_ROWS_KEPT}), with its reason.
+ * @param tally - the load's tally
+ * @param line - where the row is
+ * @param values - the row
+ * @param ends - the ends that name no node, and the ids they name
+ */
+export function keepUnmatchedRow(
+    tally: ImportTally,
+    line: number,
+    values: Readonly<Record<string, unknown>>,
+    ends: readonly { readonly end: EdgeEnd; readonly id: unknown }[],
+): void {
+    if (tally.unmatchedKept.length < IMPORT_ROWS_KEPT) {
+        const missingEnds = Object.freeze(ends.map((each) => each.end));
+        const params = Object.freeze({ ends: missingEnds, ids: Object.freeze(ends.map((each) => each.id)) });
+        tally.unmatchedKept.push(
+            Object.freeze({ line, values, missingEnds, reason: Object.freeze({ code: "unknown-end", params }) }),
+        );
+    }
 }
 
 /** Everything a tally cannot know about itself: who loaded what, and what the graph holds now. */
@@ -318,5 +391,13 @@ export function sealImportReport(tally: ImportTally, context: ImportReportContex
         tooLarge: tally.tooLarge,
         duplicates: Object.freeze({ rows: tally.duplicateRows, ids: Object.freeze([...tally.duplicateIds]) }),
         errors: Object.freeze(tally.errors.slice(0, tally.errorLimit).map((error) => Object.freeze(error))),
+        ...(tally.rejectedKept.length + tally.unmatchedKept.length === 0
+            ? {}
+            : {
+                  rows: Object.freeze({
+                      rejected: Object.freeze([...tally.rejectedKept]),
+                      unmatched: Object.freeze([...tally.unmatchedKept]),
+                  }),
+              }),
     });
 }

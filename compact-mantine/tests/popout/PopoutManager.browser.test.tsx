@@ -4,7 +4,7 @@ import { useState } from "react";
 import { beforeAll, describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { Popout, PopoutManager, usePopoutManager } from "../../src/components/popout";
+import { Popout, PopoutManager, usePopout, usePopoutManager } from "../../src/components/popout";
 import { compactTheme } from "../../src/theme";
 
 /**
@@ -854,6 +854,56 @@ describe("usePopoutManager", () => {
         await waitFor(() => {
             expect(screen.queryByTestId("panel-content")).toBeNull();
         });
+    });
+});
+
+describe("usePopout", () => {
+    /**
+     * Closes the pop-out it sits in, the way an "Apply" button does.
+     * @returns the control.
+     */
+    function ApplyButton() {
+        const { close } = usePopout();
+        return <button onClick={() => close()}>Apply</button>;
+    }
+
+    it("closes the pop-out from a button inside it and returns focus to the trigger", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Panel" }}>
+                    <Popout.Content>
+                        <ApplyButton />
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        await user.click(await screen.findByRole("button", { name: "Apply" }));
+
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).toBeNull();
+        });
+        expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
+    });
+
+    it("throws outside a Popout", () => {
+        function Outside() {
+            usePopout();
+            return null;
+        }
+        const originalError = console.error;
+        console.error = () => undefined;
+        try {
+            expect(() => renderPopout(<Outside />)).toThrow("usePopoutContext must be used within a Popout component");
+        } finally {
+            console.error = originalError;
+        }
     });
 });
 

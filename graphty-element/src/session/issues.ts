@@ -113,7 +113,7 @@ export type FixCode =
  * OPEN UNION: states may be added in a minor release.
  * @since 3.30.0
  */
-export type IssueStatus = "open" | "ignored" | "fixed";
+type IssueStatus = "open" | "ignored" | "fixed";
 
 /**
  * One problem with the loaded data: what `session.data.issues()` lists. Neutral facts: a reader
@@ -188,7 +188,7 @@ export interface LoadFacts {
 }
 
 /** An issue as it stood when a fix settled it. */
-export type FixedIssue = Omit<DataIssue, "fixes" | "current" | "status" | "ignored"> & { readonly fixedBy: FixCode };
+type FixedIssue = Omit<DataIssue, "fixes" | "current" | "status" | "ignored"> & { readonly fixedBy: FixCode };
 
 /** The `issues` graph value. */
 export interface IssueState {
@@ -268,7 +268,7 @@ export function withLoadFacts(state: IssueState | undefined, key: SourceKey, fac
  * @param directed - Whether the graph is directed.
  * @returns The key.
  */
-export function pairKey(source: NodeId, target: NodeId, directed: boolean): string {
+function pairKey(source: NodeId, target: NodeId, directed: boolean): string {
     const ends = [String(source), String(target)];
     if (!directed) {
         ends.sort(); // NOSONAR(S2871): code-unit order is the point: a locale-free key for the pair
@@ -288,7 +288,7 @@ export interface IssueInput {
 }
 
 /** A node column of place names read through the gazetteer: its unmatched and ambiguous rows. */
-export interface PlaceRows {
+interface PlaceRows {
     readonly column: string;
     /** Rows of `nodes` whose name no place matches. */
     readonly unmatched: readonly number[];
@@ -877,7 +877,7 @@ export interface DataIssuesCommand {
  * @param value - The value.
  * @returns True when it has the shape.
  */
-export function isIssueState(value: unknown): value is IssueState {
+function isIssueState(value: unknown): value is IssueState {
     if (typeof value !== "object" || value === null) {
         return false;
     }

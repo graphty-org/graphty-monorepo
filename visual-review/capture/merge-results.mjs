@@ -202,6 +202,11 @@ export async function mergeResults({ project, baselines, out, dirs, blocking = f
     for (const key of ["dir", "partial"]) {
         delete header[key];
     }
+    // Each shard ran on its own runner: every CPU model they drew on, not the first shard's alone (#6351).
+    const cpus = [...new Set(parts.map((p) => p.environment?.cpu).filter((c) => typeof c === "string"))];
+    if (header.environment && cpus.length > 0) {
+        header.environment = { ...header.environment, cpu: cpus.join(" | ") };
+    }
     const earliest = parts.map((p) => p.capturedAt).sort((a, b) => a.localeCompare(b))[0];
     const results = {
         ...header,

@@ -7,7 +7,7 @@
 
 import "../../src/graphty-element";
 
-import { type AbstractMesh, FreeCamera, Mesh, Vector3 } from "@babylonjs/core";
+import { FreeCamera, Mesh, type TransformNode, Vector3 } from "@babylonjs/core";
 import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import {
@@ -175,7 +175,7 @@ function compare(element: Graphty, seed: number): Tally {
     const scan = rowScanOf(scene);
     assert.isDefined(scan, "the open table has a scan");
     const tally: Tally = { hits: 0, scanned: 0, differ: [] };
-    const idOf = (mesh: AbstractMesh | null | undefined): unknown =>
+    const idOf = (mesh: TransformNode | null | undefined): unknown =>
         (mesh?.metadata as { nodeId?: unknown } | null | undefined)?.nodeId;
     for (const { x, y } of pointsOn(element, seed)) {
         const screen = scan?.pickPoint(x, y);

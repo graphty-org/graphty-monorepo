@@ -198,6 +198,9 @@ describe("graphty-element.clearData", () => {
         await settled;
 
         // The old engine kept the first graph's two disposed nodes beside the three new ones.
+        // Under renderPath "batched" a row has no `Node` until one is asked for, and the engine
+        // lists only `Node`s: asking builds each, on the body the engine already holds for it.
+        assert.strictEqual([...graph.getDataManager().nodes.keys()].length, 3);
         const layoutNodes = [...graph.getLayoutManager().nodes].map((node) => node.id).sort();
         assert.deepStrictEqual(layoutNodes, ["x", "y", "z"]);
         assert.isTrue(graph.getLayoutManager().isSettled);

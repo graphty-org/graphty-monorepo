@@ -332,6 +332,30 @@ describe("the oracle SVG reader", () => {
         assert.closeTo(prims[2].stroke?.gradient?.angle ?? Number.NaN, 45, 0.01);
     });
 
+    it("reads a fill's linear gradient along the direction its color changes, not its stretched vector", () => {
+        // yEd Live's corner-to-corner ramp (graphml-yfiles-html-stag-flowchart) on a 220 x 94 box: its vector runs
+        // along 23.1 degrees on screen, its lines of one color are stretched with it, and its color changes along 66.9
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">
+            <defs>
+                <linearGradient id="corner" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/>
+                </linearGradient>
+                <linearGradient id="user" gradientUnits="userSpaceOnUse" x1="10" y1="150" x2="230" y2="244">
+                    <stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/>
+                </linearGradient>
+            </defs>
+            <rect x="10" y="10" width="220" height="94" fill="url(#corner)"/>
+            <rect x="10" y="150" width="220" height="94" fill="url(#user)"/>
+            <path d="M 10 280 L 230 290" stroke="url(#corner)" stroke-width="4" fill="none"/>
+        </svg>`;
+        const { prims } = readSvgPrimitives(svg);
+        assert.closeTo(prims[0].fill?.gradient?.angle ?? Number.NaN, 66.87, 0.01);
+        // in user space a vector is drawn as it is: its color changes along it
+        assert.closeTo(prims[1].fill?.gradient?.angle ?? Number.NaN, 23.13, 0.01);
+        // a stroke's is its vector on screen, which an edge's chord judges
+        assert.closeTo(prims[2].stroke?.gradient?.angle ?? Number.NaN, 2.6, 0.01);
+    });
+
     it("reads a dash array under a round cap, and samples an open path densely enough for its route", () => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
             <path d="M 10 10 L 190 10" stroke="#000" stroke-width="2" stroke-dasharray="0 6" stroke-linecap="round" fill="none"/>
@@ -546,6 +570,77 @@ describe("the oracle SVG reader", () => {
                 [undefined, "#ffffff", 0, 80],
                 ["#ffffff", undefined, 104, 176],
             ],
+        );
+    });
+
+    it("reads a text whose every word is in one styled tspan in the tspan's font (yEd Live's markup labels)", () => {
+        // yed-live-graphml-specimen-labels-p5.svg: a MarkupLabelStyle's <b>, <h2> and colored <span>
+        const label = (run: string, x: number): string =>
+            `<text font-family="'DejaVu Sans'" font-size="12px" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" x="${String(x)}" y="50">${run}</text>`;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100">
+            ${label('<tspan dy="11px" x="0" style="font-weight: bold;">Bold</tspan>', 20)}
+            ${label('<tspan dy="16.5px" x="0" style="font-size: 1.5em; font-weight: bold;">H2</tspan>', 120)}
+            ${label('<tspan dy="11px" x="0" style="color: rgb(255, 0, 0); fill: rgb(255, 0, 0);">Red</tspan>', 220)}
+            ${label('<tspan dy="11px" x="0" style="font-weight: bold;">A long</tspan>...', 320)}
+            ${label('<tspan dy="27px" x="0"><tspan style="font-weight: bold;">Red arrows</tspan></tspan><tspan dy="45px" x="0"><tspan style="font-weight: bold;">rather</tspan></tspan>', 20)}
+        </svg>`;
+        const texts = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : []));
+        assert.deepEqual(
+            texts.map((t) => [t.content, t.weight, t.sizePx, t.color]),
+            [
+                ["Bold", 700, 12, "#000000"],
+                ["H2", 700, 18, "#000000"],
+                ["Red", 400, 12, "#ff0000"],
+                // a word outside the tspan: the text's own font
+                ["A long...", 400, 12, "#000000"],
+                // graphml-yfiles-html-ss13-tree.svg: paragraphs of <strong>, a tspan in a tspan
+                ["Red arrows\nrather", 700, 12, "#000000"],
+            ],
+        );
+    });
+
+    it("reads yEd's framed edge as its line, outlined, and its arrowheads, not as one shape", () => {
+        // graphml-galaxy-lcms-workflow: the edge with delta arrowheads at both ends, a band 3 wide, and a node's
+        // outline drawn the same way, 150 x 30, which stays a shape
+        const band =
+            "M-387.2928 642.0977 L-394.4788 657.2507 L-388.4801 657.1257 L-388.4801 657.1257 L-388.2516 668.0958 L-388.2516 668.0958 L-394.2503 668.2208 L-386.4395 683.0613 L-379.2535 667.9083 L-379.2535 667.9083 L-385.2522 668.0333 L-385.2522 668.0333 L-385.4808 657.0632 L-385.4808 657.0632 L-379.4821 656.9382 L-387.2928 642.0977 Z";
+        const box = "M105 83.5 L105 113.5 L255 113.5 L255 83.5 Z";
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" stroke="black" fill="black">
+            <!--Generated by ySVG 2.6-->
+            <g transform="translate(400,-560)" fill="white" stroke="white" stroke-width="3">
+                <path d="${band}" stroke="none"/>
+                <path fill="none" d="${band}" stroke-width="1" stroke="rgb(95,128,157)"/>
+            </g>
+            <g fill="rgb(255,204,0)" stroke="black">
+                <path d="${box}" stroke="none"/>
+                <path fill="none" d="${box}"/>
+            </g>
+        </svg>`;
+        const { prims } = readSvgPrimitives(svg);
+        const lines = prims.filter((p) => p.kind === "path");
+        assert.strictEqual(lines.length, 1);
+        assert.strictEqual(lines[0].stroke?.color, "#ffffff");
+        assert.closeTo(lines[0].stroke?.width ?? 0, 2, 0.01);
+        assert.deepEqual(lines[0].lineOutline, { color: "#5f809d", opacity: 1, width: 4 });
+        const heads = prims.filter((p) => p.kind === "shape" && p.box.x1 < 50);
+        assert.strictEqual(heads.length, 2);
+        assert.isTrue(heads.every((h) => h.fill?.color === "#ffffff" && h.stroke?.color === "#5f809d"));
+        // the node's outline is no band
+        assert.strictEqual(prims.filter((p) => p.kind === "shape" && p.box.x0 >= 104).length, 2);
+    });
+    it("reads an SVG embedded in the drawing as one picture, not as the shapes inside it", () => {
+        // yEd's SVGNode (yed-graphml-specimen-images-charts): the node's own SVG, scaled into the node's 36 px box
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <g transform="matrix(0.9,0,0,0.9,62,14)">
+                <svg viewBox="0 0 40 40" width="40" height="40">
+                    <rect fill="#dc2828" x="0" width="20" y="0" height="20"/>
+                    <rect fill="#f0c800" x="20" width="20" y="20" height="20"/>
+                </svg>
+            </g>
+        </svg>`;
+        assert.deepEqual(
+            readSvgPrimitives(svg).prims.map((p) => [p.kind, p.box.x0, p.box.y0, p.box.x1, p.box.y1]),
+            [["image", 62, 14, 98, 50]],
         );
     });
 });

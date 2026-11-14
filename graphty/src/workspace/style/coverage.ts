@@ -13,8 +13,6 @@ const no = (notOffered: string): Home => ({ notOffered });
 
 /** A channel golden added after the unified Style panel was designed; the panel has no row for it yet. */
 const NOT_PLACED = no("added to graphty-element after the Style panel's design; no row for it yet");
-/** A node's 3D model or picture: put on nodes by dropping a file on the canvas; the panel has no row for it yet. */
-const MODEL = no("set by dropping a model or a picture on the canvas; the Style panel has no row for it yet");
 /** A label's font, weight or italic as its own channel; the panel sets them inside the label style. */
 const TEXT_FIELD = no("the panel sets it inside the label style, Label settings, Type");
 
@@ -23,13 +21,13 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.color": at("Nodes, Fill, Color"),
     "node.size": at("Nodes, Shape, Size"),
     "node.shape": at("Nodes, Shape, Shape"),
-    "node.model": MODEL,
-    "node.modelSourceUp": MODEL,
-    "node.modelTurn": MODEL,
-    "node.modelTint": MODEL,
-    "node.modelFit": MODEL,
-    "node.modelCenter": MODEL,
-    "node.texture": MODEL,
+    "node.model": at("Nodes, Shape, Model... (the node-models experiment)"),
+    "node.modelSourceUp": at("Nodes, Shape, Model settings, Up (node-models)"),
+    "node.modelTurn": at("Nodes, Shape, Model settings, Turn (node-models)"),
+    "node.modelTint": at("Nodes, Shape, Model settings, Color (node-models)"),
+    "node.modelFit": at("Nodes, Shape, Model settings, Fit (node-models)"),
+    "node.modelCenter": at("Nodes, Shape, Model settings, Center (node-models)"),
+    "node.texture": at("Nodes, Fill, Picture (node-models)"),
     "node.opacity": at("Nodes, Fill, Color opacity (its own line when it varies by a value)"),
     "node.wireframe": at("Nodes, Shape, Wireframe (on with a low-detail mesh)"),
     "node.meshDetail": no("no row of its own: Shape's Wireframe row writes it low with the wireframe"),
@@ -45,6 +43,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.tooltipColor": at("Nodes, Text, Tooltip entry Tooltip settings, Text color"),
     "node.tooltipBackground": at("Nodes, Text, Tooltip entry Tooltip settings, Background"),
     "node.outline": at("Nodes, Shape, Outline"),
+    "node.outlineWidth": at("Nodes, Shape, Outline width"),
     "node.glow": at("Nodes, Shape, Glow"),
     "node.glowStrength": at("Nodes, Shape, Glow strength"),
     "node.haloColor": at("Nodes, Shape, Halo"),
@@ -167,6 +166,11 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.raisedBorderWidth": NOT_PLACED,
     "node.raisedBorderLightColor": NOT_PLACED,
     "node.raisedBorderDarkColor": NOT_PLACED,
+    "node.shadowColor": NOT_PLACED,
+    "node.shadowOpacity": NOT_PLACED,
+    "node.shadowBlur": NOT_PLACED,
+    "node.shadowOffsetX": NOT_PLACED,
+    "node.shadowOffsetY": NOT_PLACED,
     "node.underlayColor": NOT_PLACED,
     "node.underlayOpacity": NOT_PLACED,
     "node.underlayPadding": NOT_PLACED,
@@ -187,6 +191,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.shapeTexts": NOT_PLACED,
     "node.labelTable": NOT_PLACED,
     "node.shapeLineWidth": NOT_PLACED,
+    "node.shapeLineHaloColor": NOT_PLACED,
+    "node.shapeLineHaloWidth": NOT_PLACED,
     "node.labelFit": NOT_PLACED,
     "node.labelPaddingX": NOT_PLACED,
     "node.labelPaddingY": NOT_PLACED,
@@ -253,11 +259,13 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.chartLineWidth": NOT_PLACED,
     "node.chartBorderColor": NOT_PLACED,
     "node.chartBorderWidth": NOT_PLACED,
+    "node.chartBackgroundColor": NOT_PLACED,
+    "node.chartBackgroundOpacity": NOT_PLACED,
     "edge.minScreenWidth": NOT_PLACED,
-    "edge.fadeEnd": NOT_PLACED,
-    "edge.fadeStart": NOT_PLACED,
-    "edge.fadeOpacity": NOT_PLACED,
-    "edge.blending": NOT_PLACED,
+    "edge.fadeEnd": at("Edges, Line, Fade end (the cosmograph experiment)"),
+    "edge.fadeStart": at("Edges, Line, Fade end, Fade start (the cosmograph experiment)"),
+    "edge.fadeOpacity": at("Edges, Line, Fade end, Fade opacity (the cosmograph experiment)"),
+    "edge.blending": at("Edges, Line, Blending (the cosmograph experiment)"),
     "edge.outlineColor": NOT_PLACED,
     "edge.outlineWidth": NOT_PLACED,
     "edge.outlineOpacity": NOT_PLACED,
@@ -273,6 +281,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.gradientKind": NOT_PLACED,
     "edge.waveAmplitude": NOT_PLACED,
     "edge.wavePeriod": NOT_PLACED,
+    "edge.dashLength": NOT_PLACED,
+    "edge.dashGap": NOT_PLACED,
     "edge.fanSpacing": NOT_PLACED,
     "edge.fanned": NOT_PLACED,
     "edge.bendCurve": NOT_PLACED,
@@ -285,6 +295,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.arrowHeadWidth": NOT_PLACED,
     "edge.arrowHeadSide": NOT_PLACED,
     "edge.arrowHeadOutlineWidth": NOT_PLACED,
+    "edge.arrowHeadFillColor": NOT_PLACED,
     "edge.arrowHeadPosition": NOT_PLACED,
     "edge.arrowHeadGap": NOT_PLACED,
     "edge.arrowHeadStack": NOT_PLACED,
@@ -300,6 +311,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.arrowTailWidth": NOT_PLACED,
     "edge.arrowTailSide": NOT_PLACED,
     "edge.arrowTailOutlineWidth": NOT_PLACED,
+    "edge.arrowTailFillColor": NOT_PLACED,
     "edge.arrowTailPosition": NOT_PLACED,
     "edge.arrowTailGap": NOT_PLACED,
     "edge.arrowTailStack": NOT_PLACED,
@@ -317,6 +329,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.arrowMiddleHeadWidth": NOT_PLACED,
     "edge.arrowMiddleHeadSide": NOT_PLACED,
     "edge.arrowMiddleHeadOutlineWidth": NOT_PLACED,
+    "edge.arrowMiddleHeadFillColor": NOT_PLACED,
     "edge.arrowMiddleHeadPosition": NOT_PLACED,
     "edge.arrowMiddleHeadColor": NOT_PLACED,
     "edge.arrowMiddleHeadOpacity": NOT_PLACED,
@@ -326,6 +339,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.arrowMiddleTailWidth": NOT_PLACED,
     "edge.arrowMiddleTailSide": NOT_PLACED,
     "edge.arrowMiddleTailOutlineWidth": NOT_PLACED,
+    "edge.arrowMiddleTailFillColor": NOT_PLACED,
     "edge.arrowMiddleTailPosition": NOT_PLACED,
     "edge.arrowMiddleTailColor": NOT_PLACED,
     "edge.arrowMiddleTailOpacity": NOT_PLACED,
@@ -455,6 +469,8 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     wrapEllipsis: NOT_PLACED,
     wrapAnywhere: NOT_PLACED,
     wrapSpaceCount: NOT_PLACED,
+    maxLines: NOT_PLACED,
+    keepBlankLines: NOT_PLACED,
     runAlign: NOT_PLACED,
     rotation: NOT_PLACED,
     minScreenSize: NOT_PLACED,
@@ -478,7 +494,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
  * Why a property the Style tab draws has no vary glyph. These are decisions, not omissions: the
  * coverage test fails when a drawn property has neither a vary glyph nor a reason here.
  */
-export const VARY_DECISIONS = {
+const VARY_DECISIONS = {
     yesOrNo:
         "A yes-or-no property (wireframe, show, curved) has no vary by: picking which elements are on is what Which elements does, so a layer for those elements sets it",
     look: "A label's look is a set of fields, each set in its settings; its size, text color and background vary through their own properties",
@@ -497,6 +513,7 @@ export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
     "node.visible": VARY_DECISIONS.yesOrNo,
     "edge.visible": VARY_DECISIONS.yesOrNo,
     "edge.curvature": VARY_DECISIONS.yesOrNo,
+    "edge.blending": VARY_DECISIONS.yesOrNo,
     "node.labelStyle": VARY_DECISIONS.look,
     "node.tooltipStyle": VARY_DECISIONS.look,
     "edge.labelStyle": VARY_DECISIONS.look,
@@ -568,7 +585,7 @@ export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
     "layoutBehavior.labels": at("Graph settings, Labels"),
     "layoutBehavior.node.depthIndependentSize": at("Graph settings, Canvas, Same size at any depth"),
     highlightColor: no("the app keeps one highlight color; a route's color is its layer's Fill"),
-    "layoutBehavior.node.outlineWidth": at("Graph settings, Canvas, Outline width"),
+    "layoutBehavior.node.outlineWidth": no("each layer sets its own: Nodes, Shape, Outline width"),
     twoD: no("deprecated: View sets it"),
     addDefaultStyle: no("ignored by graphty-element"),
     startingRows: no("a project setting, not a style"),
@@ -635,6 +652,10 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
     "workspace/style/row.ts": {
         count: 5,
         reason: "startFor reads a color beneath as its hex, and every other kind as it is; Vary by Layer starts a color on a palette with every layer its own color, a number on the app's range, a shape on the channel's own list with the distinct shapes first",
+    },
+    "workspace/style/ShaderParamRows.tsx": {
+        count: 2,
+        reason: "A Color shader parameter on a clock ramps between two colors it needs pickers for; a Number on a clock is the clock's own value and has no range to pick",
     },
     "workspace/style/StylePanel.tsx": {
         count: 1,

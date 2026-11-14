@@ -151,7 +151,7 @@ export function resolveRunWeight(
 }
 
 /** What a layout's warning about its weight says: a code and its parameters, never a sentence. */
-export interface LayoutWeightWarning {
+interface LayoutWeightWarning {
     readonly code: "W_WEIGHT_MEANING_ASSUMED" | "W_WEIGHT_MEANING_MISMATCH";
     readonly params: Readonly<Record<string, unknown>>;
 }
@@ -207,4 +207,19 @@ export function resolveLayoutWeight(loaded: LoadedWeightFact | null): LayoutWeig
  */
 export function asStrength(weight: number, meaning: "strength" | "distance"): number {
     return meaning === "distance" ? 1 / Math.max(weight, 1e-6) : weight;
+}
+
+/**
+ * The `weight` a run asks for: its own option, else the default its algorithm's `weight` option
+ * declares (an algorithm whose weighted form is opt-in declares null). Absent from both, the run
+ * reads the weight the graph was loaded with.
+ * @param asked - The run's `weight` option.
+ * @param options - The algorithm's option descriptors.
+ * @returns What to hand {@link resolveRunWeight} as `asked`.
+ */
+export function askedWeight(
+    asked: unknown,
+    options: readonly { readonly name: string; readonly default?: unknown }[] | undefined,
+): unknown {
+    return asked === undefined ? options?.find((option) => option.name === "weight")?.default : asked;
 }

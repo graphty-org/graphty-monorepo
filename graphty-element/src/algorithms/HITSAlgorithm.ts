@@ -114,6 +114,12 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
     static readonly type: string = "hits";
     /** Computes over the run's scope: the node list and the graph both come from the input. */
     static readonly scopeInput: ScopeInputDeclaration = "subgraph";
+    /**
+     * The weight this algorithm reads: a strength; see `Algorithm.weightMeaning`. Only when the
+     * run's `weight` option names one: a run without it counts edges, as HITS always has.
+     */
+    static readonly weightMeaning = "strength" as const;
+    static readonly loadedWeightByDefault: boolean = false;
 
     static readonly zodOptionsSchema: ZodOptionsSchema = hitsOptionsSchema;
 
@@ -182,6 +188,7 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         const { maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
         refuseEndpoints("HITS", endpoints);
+        const weighted = this.weightReading().weight !== null;
 
         // Directed: hubs and authorities are the out- and in-directions, so HITS is meaningless
         // without them. On data with no real direction every score simply converges together.
@@ -191,16 +198,16 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
             phase: "iterating",
             completed: 0,
             total: nodeIds.length,
-            message: `Hub and authority scores refine each other, up to ${String(maxIterations)} passes.`,
+            params: { maxIterations },
         });
         const { value: results, precision } = await run((dispatch, s) =>
-            dispatch.hits(s, { maxIterations, tolerance, normalized }),
+            dispatch.hits(s, { maxIterations, tolerance, normalized, weighted }),
         );
         context.signal.throwIfAborted();
 
         const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+        await walkInChunks(nodeIds, context, "reading-scores", (nodeId) => {
             const index = ids.indexOf(nodeId);
 
             if (index === INVALID_INDEX) {
@@ -221,8 +228,8 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
             normalization: "none",
             caveats: {
                 exact: true,
-                direction: "directed",
-                weight: null,
+                direction: snapshot.directed ? "directed" : "undirected",
+                ...this.weightCaveats(),
                 precision,
                 method: "hits",
                 converged: results.converged,
@@ -232,7 +239,7 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
                     caveat(normalized ? "hits.unit-length" : "hits.max-scaled"),
                     caveat("iteration.stop-rule", { tolerance, maxIterations }),
                     ...(results.converged ? [] : [caveat("iteration.cap-reached", { maxIterations })]),
-                    caveat("weights.unread"),
+                    ...(weighted ? [] : [caveat("weights.unread")]),
                 ]),
             },
         };

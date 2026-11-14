@@ -34,7 +34,7 @@ const dataUrl = await graph.captureScreenshot({
 Before capturing, a screenshot waits for queued operations and for a moving layout to come to
 rest. `timing` changes that: `{ waitForOperations: false }` or `{ waitForSettle: false }` skips a
 wait, and `{ settleTimeoutMs: 5000 }` sets how long to wait for the layout (default 30,000 ms)
-before the capture fails with the `LAYOUT_SETTLE_TIMEOUT` error code.
+before the capture fails with the `E_NOT_SETTLED` error code.
 
 ### Examples
 
@@ -59,16 +59,75 @@ const transparent = await graph.captureScreenshot({
 });
 ```
 
+### A legend in the image
+
+`legend` draws a key into the image, at the capture's resolution, so a colour-encoded picture
+still says what its colours mean once it leaves the page. It is drawn from the element's legend
+model (`session.styles.legend()`), not copied from the page.
+
+```typescript
+// The element's own legend, in the bottom-right corner
+await graph.captureScreenshot({ legend: true });
+
+// Only when a layer binds a value (a colour by degree, a size by betweenness)
+await graph.captureScreenshot({ legend: "auto" });
+
+// Another corner, and a heading in your own words
+await graph.captureScreenshot({ legend: { position: "top-left", title: "Degree" } });
+```
+
+| `legend` value          | What the image gets                                                  |
+| ----------------------- | -------------------------------------------------------------------- |
+| absent or `false`       | No key (the default)                                                 |
+| `true`                  | The element's legend, bottom right                                   |
+| `"auto"`                | The same, only when a layer binds a value                            |
+| `{ position?, title? }` | The same in `top-left`, `top-right`, `bottom-left` or `bottom-right` |
+| an array of sections    | Exactly the sections you pass, top left, every word yours            |
+
+The element's legend writes no words of its own: each section is headed by the field's name, and
+lists the data's values (or the names readers gave them) beside their colours, or a ramp between
+the lowest and highest value. To word the key yourself, build the sections from
+`session.styles.legend()` and pass the array:
+
+```typescript
+await graph.captureScreenshot({
+    legend: [{ title: "Community", rows: [{ label: "Group 1", color: "#4e79a7", value: "17" }] }],
+});
+```
+
 ## Checking Capabilities
 
 Before capturing, verify support:
 
 ```typescript
-const canCapture = graph.canCaptureScreenshot();
-if (!canCapture) {
-    console.log("Screenshot capture not supported");
+const check = await graph.canCaptureScreenshot({ width: 7680, height: 4320 });
+if (!check.supported) {
+    // A code and its values, such as { code: "E_TOO_LARGE", params: { of: "pixels", limit: 33177600, ... } }
+    console.log(check.reason?.code, check.reason?.params);
+}
+for (const warning of check.warnings ?? []) {
+    // "W_LARGE_CAPTURE" ({ width, height, megapixels }) or "W_HIGH_MEMORY" ({ memoryMB })
+    console.log(warning.code, warning.params);
 }
 ```
+
+The reason and the warnings are codes with their values, never sentences: your application words them.
+
+## Errors
+
+A screenshot, a video or a clipboard copy that fails throws (or, for a copy, reports as
+`clipboardError`) a `GraphtyError` like every other failure of the element. Switch on its `code`
+and read its `details`:
+
+| Code               | When                                                                                       | `details`                                                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_TOO_LARGE`      | The image is past the browser's limit on one side or on its pixel count                    | `of` (`"dimension"` or `"pixels"`), `width`, `height`, `limit`, `count`                                                                      |
+| `E_OPTION_RANGE`   | A size that is not a positive number, a `strictAspectRatio` mismatch, or an unknown preset | `option` (`"size"`, `"strictAspectRatio"` or `"preset"`) and the values                                                                      |
+| `E_BAD_COMMAND`    | `transparentBackground` with a format that cannot hold it (JPEG)                           | `fields`, `format`                                                                                                                           |
+| `E_UNSUPPORTED`    | The browser cannot do it                                                                   | `reason`: `"format"` (with `format`), `"preserve-drawing-buffer"`, `"clipboard"`, `"clipboard-insecure-context"` or `"clipboard-permission"` |
+| `E_OUT_OF_MEMORY`  | The browser would not give a canvas for the image                                          | `of: "canvas"`                                                                                                                               |
+| `E_NOT_SETTLED`    | The layout was still moving when the wait for it ran out                                   | `timeoutMs`                                                                                                                                  |
+| `E_CAPTURE_FAILED` | Rendering, encoding, recording or the clipboard write failed                               | `media` (`"image"` or `"video"`), `destination` for a copy; `cause`                                                                          |
 
 ## Downloading Screenshots
 
@@ -116,24 +175,31 @@ async function downloadScreenshotBlob() {
 Capture animated video of the visualization:
 
 ```typescript
-const blob = await graph.captureAnimation({
+const { blob, metadata } = await graph.captureAnimation({
     duration: 5000, // 5 seconds
+    cameraMode: "stationary", // the camera stays where it is
     fps: 30, // 30 frames per second
-    format: "webm", // Video format
 });
 
-// blob is a video Blob
+// blob is the video; metadata.format says which format the browser recorded
 ```
+
+`metadata.framesCaptured` counts the frames the graph drew while recording (at most one in each
+1/fps interval), and `framesDropped` and `dropRate` the frames expected that it did not draw in
+time, so a busy machine shows up as a drop rate above 0.
 
 ## Video Options
 
-| Option     | Type              | Default       | Description             |
-| ---------- | ----------------- | ------------- | ----------------------- |
-| `duration` | `number`          | `5000`        | Recording duration (ms) |
-| `fps`      | `number`          | `30`          | Frames per second       |
-| `format`   | `'webm' \| 'mp4'` | `'webm'`      | Video format            |
-| `width`    | `number`          | canvas width  | Output width            |
-| `height`   | `number`          | canvas height | Output height           |
+| Option         | Type                                | Default        | Description                                                                                  |
+| -------------- | ----------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `duration`     | `number`                            | required       | Recording duration (ms)                                                                      |
+| `cameraMode`   | `'stationary' \| 'animated'`        | required       | Hold the camera, or fly it along `cameraPath` or `tour`                                      |
+| `fps`          | `number`                            | `30`           | Frames per second                                                                            |
+| `format`       | `'webm' \| 'mp4' \| 'auto'`         | `'auto'`       | Video format; `'auto'` picks WebM where the browser records it, else MP4                     |
+| `videoBitrate` | `number`                            | `5000000`      | Bits per second                                                                              |
+| `width`        | `number`                            | canvas width   | Output width; alone, the height follows the canvas's aspect                                  |
+| `height`       | `number`                            | canvas height  | Output height; with `width`, the picture is fitted inside both, centered, with black margins |
+| `camera`       | `CameraState \| { preset: string }` | current camera | Stationary mode: where the camera stands while recording; it is put back afterwards          |
 
 ## Animation Capture Controls
 
@@ -155,8 +221,9 @@ graph.cancelAnimationCapture();
 
 ```typescript
 async function recordAndDownload() {
-    const blob = await graph.captureAnimation({
+    const { blob } = await graph.captureAnimation({
         duration: 10000,
+        cameraMode: "stationary",
         fps: 30,
     });
 
@@ -199,6 +266,7 @@ async function captureTour() {
     // Start recording
     const capturePromise = graph.captureAnimation({
         duration: 10000,
+        cameraMode: "stationary",
     });
 
     // Animate camera during recording
@@ -215,7 +283,7 @@ async function captureTour() {
     graph.zoomToFit();
 
     // Wait for recording to complete
-    const blob = await capturePromise;
+    const { blob } = await capturePromise;
 
     // Download
     downloadBlob(blob, "tour.webm");
@@ -283,12 +351,18 @@ Add a screenshot button to your UI:
 
         capturePromise = graph.captureAnimation({
             duration: 30000, // Max 30 seconds
+            cameraMode: "stationary",
             fps: 30,
         });
 
         try {
-            const blob = await capturePromise;
-            downloadBlob(blob, "recording.webm");
+            const { blob, metadata } = await capturePromise;
+            downloadBlob(blob, `recording.${metadata.format}`);
+        } catch (error) {
+            // Stop cancels the recording: a cancelled recording keeps no video
+            if (error.name !== "AnimationCancelledError") {
+                throw error;
+            }
         } finally {
             recordBtn.disabled = false;
             stopBtn.disabled = true;

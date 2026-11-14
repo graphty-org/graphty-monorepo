@@ -34,12 +34,8 @@ const NodeBehaviorOpts = z
         depthIndependentSize: z.boolean().optional(),
 
         /*
-         * How wide every node outline is drawn, as a multiple of the renderer's own stroke (about
-         * four device pixels at 1).
-         *
-         * ONE WIDTH FOR EVERY OUTLINE, which is why it is a graph setting and not a style channel:
-         * the renderer draws all outlines in one full-screen pass, and the stroke's width belongs
-         * to that pass (see the `node.outline` channel's caveat). Unset, the renderer's own width.
+         * How wide a node outline is drawn when its style sets no width (the `node.outlineWidth`
+         * channel), as a multiple of the ring's own band. Unset, the ring's own width (1).
          */
         outlineWidth: z.number().positive().max(10).optional(),
     })
@@ -68,6 +64,32 @@ const LabelBehaviorOpts = z
          * style puts it. Decided again whenever `declutter` is.
          */
         avoidNodesAndEdges: z.boolean().default(false),
+        /*
+         * The size, in CSS pixels, of the square screen cells label sampling keeps one node label
+         * in.
+         *
+         * UNSET BY DEFAULT, so every label a style asks for is built. Set, the element divides the
+         * canvas into cells of this size and, once the view has settled (the camera, the canvas
+         * and the node positions held still for a frame), builds the label of one node per cell:
+         * a selected node first, then the node with more edges. Every other node label is not
+         * built at all, which keeps a graph with a label on every node as fast as one with none;
+         * `nodeLabelCounts.hiddenBySampling` counts them. `declutter` then thins the labels that
+         * were built.
+         */
+        sampleCell: z.number().positive().optional(),
+        /*
+         * How node labels draw their words.
+         *
+         * UNSET BY DEFAULT, which is "canvas": every label is drawn on its own canvas, as it always was. "glyphs"
+         * draws every plain label (words in one style, with no panel, pointer, badge, table, close
+         * button, animation or depth fade) from one shared atlas of glyphs in one draw, which keeps
+         * thousands of labels cheap to build and draw; its letters are drawn from a distance field,
+         * so their edges differ slightly from the canvas's. A label the atlas cannot draw --
+         * right-to-left and Indic scripts, emoji, combining marks, a font with ligatures, or a
+         * glyph that no longer fits in the atlas -- is drawn on its own canvas, label by label.
+         * Applies to labels built after it is set.
+         */
+        labelText: z.enum(["canvas", "glyphs"]).optional(),
     })
     .prefault({});
 
@@ -81,7 +103,9 @@ const CameraBehaviorOpts = z
          * pivot: the 3D camera glides to look at it and orbits, spins and zooms about it, the 2D view
          * glides to center it, and in VR or AR the reader's turns and scaling happen about it without
          * moving the reader. The pivot follows the selected nodes while they move, and stays where it
-         * is when the selection is cleared.
+         * is when the selection is cleared. A selection made by a right-click or a touch-and-hold
+         * (a request for a context menu, including one the page's own `contextmenu` handler makes)
+         * leaves the camera where it is, so a menu opened at the pointer stays beside its node.
          */
         pivotOnSelection: z.boolean().default(false),
         /*
@@ -107,6 +131,18 @@ const CameraBehaviorOpts = z
          * when the layout and the styles are, however the camera moves.
          */
         autoRotate: z.number().min(0).default(0),
+        /*
+         * How long `autoRotate` waits after the reader last moved the camera -- a press or drag on
+         * the canvas, a pinch, a wheel, a camera key, a node drag -- before it turns again, in
+         * milliseconds of frames drawn, or "never".
+         *
+         * 0 BY DEFAULT, so the turning carries on as soon as the reader lets go. A number waits
+         * that long once they stop, and every move of theirs starts the wait again. "never" stops
+         * the turning at the reader's first move until `autoRotate` or this setting is changed.
+         * Only read while `autoRotate` is above 0. The element's own framing (zoom-to-fit, a glide
+         * to the pivot) and `setCameraState` are not the reader's moves and never start a wait.
+         */
+        autoRotateResume: z.union([z.number().min(0), z.literal("never")]).default(0),
         /*
          * Room, in CSS pixels, that framing the graph leaves clear at each edge of the canvas, for
          * a page that draws its own panels over the graph.
@@ -244,6 +280,29 @@ const GraphLayoutOpts = z.strictObject({
      * box either way. Unset means true.
      */
     groupsFollowMembers: z.boolean().optional(),
+
+    /*
+     * Whether a layout runs over only what the visibility filter shows.
+     *
+     * True: a node the filter hides takes no part in the layout -- it pushes and pulls nothing,
+     * its edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot
+     * -- and it stays where it was, so taking the filter away shows it where it was. The layout
+     * runs again whenever what the filter shows changes, and when this is switched. Every layout
+     * honours it. Unset or false, the default, a layout runs over the whole graph, hidden nodes
+     * included.
+     */
+    visibleOnly: z.boolean().optional(),
+
+    /*
+     * What `visibleOnly` does while time plays, when the moving time window changes what the
+     * filter shows every frame.
+     *
+     * "follow": it runs again at every change, as it does when time is still -- a full layout per
+     * frame, thrown away by the next one. "hold": the layout keeps the nodes where they are while
+     * time plays and runs again once, over what is shown, when the play pauses or ends. Unset means
+     * "follow". A layout over the whole graph ignores it.
+     */
+    visibleOnlyWhilePlaying: z.enum(["hold", "follow"]).optional(),
 });
 
 /** How the element drives a layout, as the behaviour configuration resolves it. */
@@ -251,6 +310,20 @@ export type GraphLayoutBehavior = z.infer<typeof GraphLayoutOpts>;
 
 /** How the element drives the layout, as a caller supplies it: every field optional. */
 export type GraphBehaviorConfig = z.input<typeof GraphBehaviorOpts>;
+
+const SelectionBehaviorOpts = z
+    .strictObject({
+        /*
+         * What Shift and a drag that starts on empty canvas does.
+         *
+         * "off" BY DEFAULT, so it pans or turns the camera as it always has. "rectangle" draws a
+         * rectangle from the press to the pointer, and "lasso" a free shape along the pointer's
+         * path; releasing adds every drawn node whose center is inside to the selection, as
+         * `select({ region: { polygon } }, "add")` would. A press on a node still drags the node.
+         */
+        region: z.enum(["off", "rectangle", "lasso"]).default("off"),
+    })
+    .prefault({});
 
 export const GraphBehaviorOpts = z.strictObject({
     // dimensions: z.int().min(2).max(3).default(3),
@@ -260,6 +333,7 @@ export const GraphBehaviorOpts = z.strictObject({
     rendering: RenderingBehaviorOpts,
     camera: CameraBehaviorOpts,
     expand: ExpandBehaviorOpts,
+    selection: SelectionBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

@@ -6,6 +6,8 @@
  *
  * Usage: tsx benchmarks/node/algorithms-benchmark.ts [--quick] [--only <name>[,<name>...]]
  */
+import { createHash } from "node:crypto";
+
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import * as algorithms from "../../src/index";
@@ -65,6 +67,19 @@ const ENTRIES: readonly Entry[] = [
     },
 ];
 
+/**
+ * A fingerprint of a benchmark's graph: the health dashboard compares a result only with results of the same
+ * fingerprint, so a change of graph (a new seed or generator) starts a new series instead of reading as a regression.
+ * @param graph - The generated graph
+ * @returns 12 hex digits of the SHA-256 of its vertex count and edge list
+ */
+function fingerprint(graph: GraphImpl): string {
+    return createHash("sha256")
+        .update(JSON.stringify([graph.vertices.length, graph.edges]))
+        .digest("hex")
+        .slice(0, 12);
+}
+
 async function main(): Promise<void> {
     const quick = process.argv.includes("--quick");
     const onlyAt = process.argv.indexOf("--only");
@@ -94,6 +109,7 @@ async function main(): Promise<void> {
                     graphSize: s.nodeCount,
                     edges: s.edgeCount,
                     graphGenerationAlgorithm: generated.metadata.generationAlgorithm,
+                    input: fingerprint(generated),
                 },
                 { minSamples: quick ? 5 : 10, initCount: 1, minTime: 0.05 },
             );

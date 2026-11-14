@@ -172,14 +172,14 @@ console.log(result.backend.ran, result.backend.reason); // "cpu" and why, on a m
 
 ## Supported versions
 
-| Package                 | Range            | Why                                               |
-| ----------------------- | ---------------- | ------------------------------------------------- |
-| `cytoscape`             | `^3.31.0`        | The first release with its own TypeScript typings |
-| `@graphty/algorithms`   | `^3.0.0`         | Peer dependency                                   |
-| `@graphty/layout`       | `^2.0.0`         | Peer dependency                                   |
-| `@graphty/graph-format` | `^1.0.0`         | Peer dependency                                   |
-| `webgpu`                | `>=0.4.0 <1.0.0` | Optional; only for WebGPU in Node                 |
-| Node                    | `>=18.19.0`      | `require()` needs 20.19+ or 22.12+                |
+| Package                 | Range            | Why                                                                                                                       |
+| ----------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `cytoscape`             | `^3.31.0`        | The first release with its own TypeScript typings                                                                         |
+| `@graphty/algorithms`   | `^3.4.0`         | The first release with every algorithm and option this package calls, such as `cutAt` on a hierarchical clustering result |
+| `@graphty/layout`       | `^2.5.14`        | The first release with every layout option this package documents, such as forceatlas2's `barnesHutOptimize`              |
+| `@graphty/graph-format` | `^1.0.0`         | Peer dependency                                                                                                           |
+| `webgpu`                | `>=0.4.0 <1.0.0` | Optional; only for WebGPU in Node                                                                                         |
+| Node                    | `>=18.19.0`      | `require()` needs 20.19+ or 22.12+                                                                                        |
 
 ## Next
 

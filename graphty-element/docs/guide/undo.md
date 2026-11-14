@@ -82,7 +82,7 @@ session.history.clear({ pending: "keep" });
 ```
 
 To open a graph as a new project, pass `history: "start"` to any load: `session.data.import`,
-`generate`, `loadDataset`, `loadSample`, a load draft's `load`, or `session.project.open` for a
+`generate`, `loadDataset`, `loadExample`, a load draft's `load`, or `session.project.open` for a
 document that is not a project (a project file always starts the history). The loaded graph
 becomes the baseline: Undo and `history.restoreTo` never cancel the load while it is pending,
 and never undo it after. Steps recorded before the call are dropped once the load is in. Work
@@ -129,6 +129,7 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 | `data.add-nodes`, `data.add-edges`, `data.remove-nodes`, `data.remove-edges`                                         | `count`                                                    |
 | `data.edit`                                                                                                          | `target` (`"node"` or `"edge"`), `count`                   |
 | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges`                                                 | none                                                       |
+| `data.merge-nodes`                                                                                                   | `count` (how many nodes became one)                        |
 | `data.import`                                                                                                        | `name` (the source's name, or null), `type` (or null)      |
 | `data.expand`                                                                                                        | `node`                                                     |
 | `data.declare`                                                                                                       | `kind` (`"node"` or `"edge"`), `column`                    |

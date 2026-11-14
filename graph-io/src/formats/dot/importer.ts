@@ -88,6 +88,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { dotGraphLabel } from "./graph-label.js";
 import { dotLayout } from "./layout.js";
 import {
     CLUSTER_COLUMN,
@@ -375,6 +376,7 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     styles: dotStyles,
     positions: dotPositions,
     layout: dotLayout,
+    annotations: dotGraphLabel,
 
     /**
      * Confidence that the head of an input is DOT: the `[strict] graph | digraph` header after
@@ -1167,7 +1169,7 @@ class DotParser {
         if (isKeyword(token, "subgraph")) {
             token = lexer.next();
             if (token.kind === "id") {
-                name = token.text;
+                name = token.html ? token.text.slice(1, -1) : token.text;
                 token = lexer.next();
             }
         }
@@ -1663,7 +1665,8 @@ class DotParser {
      * @returns the endpoint, or null when the node could not be created (recorded)
      */
     private mentionEndpoint(scope: Scope, id: DotToken, port: string | null): Endpoint | null {
-        const nodeId = this.coerceId(id.text, id.line);
+        // an HTML-string id names the node by the text inside its angle brackets, as Graphviz does
+        const nodeId = this.coerceId(id.html ? id.text.slice(1, -1) : id.text, id.line);
         if (nodeId === null) {
             return null;
         }

@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { formReady, freshForm, serverKinds, serverRequest, withExample } from "../commands";
+import { formReady, freshForm, serverKinds, serverRequest } from "../commands";
 
 /**
  * A source of the catalog, by id.
@@ -81,19 +81,5 @@ describe("the server form's request", () => {
         const ndex = kind("ndex");
         assert.isFalse(formReady(ndex, freshForm(ndex)), "NDEx needs its network UUID");
         assert.isTrue(formReady(ndex, { ...freshForm(ndex), params: { uuid: "x" } }));
-    });
-
-    it("fills from an example but keeps the reader's Start and takes the example's transport", () => {
-        const neo4j = kind("neo4j");
-        const hetionet = withExample(neo4j, freshForm(neo4j), "hetionet");
-        assert.equal(hetionet.params.mode, "query", "the reader's Start stays");
-        assert.equal(hetionet.params.transport, "bolt");
-        const movies = withExample(neo4j, hetionet, "neo4j-movies");
-        assert.equal(movies.params.mode, "query", "Everything is not forced");
-        assert.notProperty(movies.params, "transport", "Bolt does not carry over");
-        assert.notProperty(movies.params, "idProperty");
-        assert.equal(movies.params.database, "movies");
-        assert.equal(movies.endpoint, "https://demo.neo4jlabs.com:7473");
-        assert.equal(movies.user, "movies");
     });
 });

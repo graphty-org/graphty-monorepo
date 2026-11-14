@@ -1,9 +1,12 @@
 // What the studio's scripts measure on a page of the real graphty app, shared by real.mjs (inside a
 // live session) and bars.mjs. Page functions are handed to page.evaluate, so each is self-contained.
-import { dirname, join, resolve } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const AXE = join(resolve(dirname(fileURLToPath(import.meta.url)), "../../../.."), "node_modules/axe-core/axe.min.js");
+// axe-core is a dependency of the graphty app, so it is resolved from there, not from a hoisted root
+const APP = join(dirname(fileURLToPath(import.meta.url)), "../../../../graphty/package.json");
+const AXE = createRequire(APP).resolve("axe-core/axe.min.js");
 export const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 export const serious = (v) => v.impact === "serious" || v.impact === "critical";
 // Playwright's headless Chromium starts with --hide-scrollbars, so a scrolling pane looked cut in
@@ -140,13 +143,8 @@ export function styleTree(withCounts = true) {
     const s = document.querySelector("graphty-element")?.session;
     if (!s) return null;
     const plain = (x) => JSON.parse(JSON.stringify(x ?? null));
-    const counts = (id) => {
-        try {
-            return plain(s.styles.counts(id));
-        } catch {
-            return null;
-        }
-    };
+    // counts documents no throw and the id comes from list(), so a throw is an element defect: let it surface
+    const counts = (id) => plain(s.styles.counts(id));
     return {
         tree: plain(s.styles.tree()),
         layers: s.styles.list().map((l) => (withCounts ? { ...plain(l), counts: counts(l.id) } : plain(l))),
@@ -181,11 +179,8 @@ export function layerMembers() {
         }
     };
     read(s.data.nodes(), "node");
-    try {
-        read([...s.data.edges()], "edge");
-    } catch {
-        // a graph with no edge list: nodes only
-    }
+    // edges() always returns an array, so a throw is an element defect, never "no edges": let it surface
+    read([...s.data.edges()], "edge");
     const ws = [...document.querySelectorAll(".sel-ws")].some((e) => e.checkVisibility({ visibilityProperty: true }));
     return { showingBranches: s.styles.showingBranches === true, workspaceOpen: ws, unreadable, layers };
 }
@@ -312,6 +307,15 @@ export function workGone(start, end) {
         if (lost.length) gone[kind] = lost;
     }
     return gone;
+}
+
+// Why a session's two work lists cannot be read as "nothing gone", or null. A start with no setup can
+// hold no graph (null), but a setup opened one, so a list with nothing in it read nothing.
+export function workUnread(start, end, hadSetup) {
+    const failed = start?.error ?? end?.error;
+    if (failed) return failed;
+    const items = Object.values(start ?? {}).flat().length;
+    return hadSetup && !items ? "the setup opened a graph and the start's list holds nothing" : null;
 }
 
 // Bar 9: the app's own words on screen -- visible light-DOM text outside graphty-element, one entry
@@ -664,7 +668,7 @@ export function unplant() {
 
 // axe-core on the whole page; every violation with its nodes
 export async function axeViolations(page) {
-    await page.addScriptTag({ path: AXE }).catch(() => {});
+    await page.addScriptTag({ path: AXE });
     const r = await page.evaluate(
         (tags) => window.axe.run(document, { runOnly: { type: "tag", values: tags }, resultTypes: ["violations"] }),
         AXE_TAGS,

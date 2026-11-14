@@ -4,18 +4,28 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
+import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
-import { type PasteInit, PasteShaderDialog } from "./PasteShaderDialog";
+import { shownChannel } from "./offered";
 import { Field, type RowContext } from "./PropertyRow";
 import { carriedOpacity, lineIn, partlySet, startingAdds, writeIn } from "./row";
+import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
-import { addShader, moveShader, shaderEntries, writeWireframe } from "./shaderSlots";
+import { addShader, moveShader, pickedShader, shaderEntries, writeWireframe } from "./shaderSlots";
 import { focusLineNext, headerBottom } from "./useFocusLine";
-import { channelWord, failureWords, fieldName, OPACITY_OF, type SectionSpec, settingWord, TWO_WORDS } from "./words";
+import {
+    channelWord,
+    failureWords,
+    fieldName,
+    OPACITY_OF,
+    PICTURE_WORD,
+    type SectionSpec,
+    settingWord,
+    TWO_WORDS,
+} from "./words";
 
 /**
  * The tab's own style options a gallery search also finds (decisions-v2, section 2.2): Outline,
@@ -38,7 +48,26 @@ const optionAdds = new Set<(side: "node" | "edge", channel: Channel) => boolean>
  */
 function isSet(ctx: RowContext, descriptor: ChannelDescriptor): boolean {
     const line = lineIn(ctx, descriptor.channel);
-    return (line !== undefined && !line.layer.locked) || partlySet(ctx, descriptor.channel) !== undefined;
+    return (
+        (line !== undefined && !line.layer.locked) ||
+        partlySet(ctx, descriptor.channel) !== undefined ||
+        modelSet(ctx, descriptor.channel)
+    );
+}
+
+/**
+ * Whether the Shape field holds a model in place of a built-in shape (node-models design 13.2),
+ * with the experiment on.
+ * @param ctx - the row.
+ * @param channel - the property.
+ * @returns true for Shape on a row whose own layer names a model.
+ */
+function modelSet(ctx: RowContext, channel: Channel): boolean {
+    if (channel !== "node.shape" || !nodeModelsOn(ctx.session)) {
+        return false;
+    }
+    const model = lineIn(ctx, "node.model");
+    return model !== undefined && !model.layer.locked;
 }
 
 /**
@@ -58,6 +87,10 @@ function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
         // An on/off option: picking it turns the wireframe on, with the low-detail mesh.
         return [{ key: "node.wireframe=true", label: channelWord(descriptor.channel) }];
     }
+    if (descriptor.channel === "node.texture") {
+        // Only Fill with the node-models experiment on lists it, by the panel's word for it.
+        return [{ key: descriptor.channel, label: PICTURE_WORD }];
+    }
     return [{ key: descriptor.channel, label: channelWord(descriptor.channel) }];
 }
 
@@ -74,27 +107,6 @@ function notAvailable(ctx: RowContext, spec: SectionSpec): string | null {
     return ctx.side === "edge" && spec.id === "ends" && ctx.session.data.statistics().directedness === "undirected"
         ? NO_ARROWHEADS
         : null;
-}
-
-/**
- * A section's one help line, or null: on edges, Arrowheads says they are not available on an
- * undirected graph; on nodes, Shape with an outline says where its width is set.
- * @param ctx - the row and kind.
- * @param spec - the section.
- * @param set - the properties the row sets in it.
- * @returns the words, or null.
- */
-function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDescriptor[]): string | null {
-    const blocked = notAvailable(ctx, spec);
-    if (blocked !== null) {
-        return blocked;
-    }
-    if (ctx.side === "node" && spec.id === "shape" && set.some((d) => d.channel === "node.outline")) {
-        return selectionWorkspaceOn(ctx.session)
-            ? "Width: Graph settings"
-            : "Every outline is drawn at one width, set in Graph settings. For a ring this layer sizes, use Halo.";
-    }
-    return null;
 }
 
 /**
@@ -127,12 +139,16 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     // The properties "+" added that the row does not set yet, waiting for a value, so adding one
     // writes nothing until the reader picks one.
     const [waiting, setWaiting] = useState<readonly string[]>([]);
-    const descriptors = spec.channels.flatMap(
-        (channel) => channelsFor(ctx.side).find((d) => d.channel === channel && d.renderable) ?? [],
-    );
+    // What the element offers, and a property the row already sets even when it is not offered,
+    // so the reader can see it and take it out.
+    const descriptors = spec.channels.flatMap((channel) => {
+        const held = channelsFor(ctx.side).find((d) => d.channel === channel && d.renderable);
+        const shown = held === undefined ? undefined : shownChannel(ctx.session, ctx.side, channel, isSet(ctx, held));
+        return shown?.renderable === true ? [shown] : [];
+    });
     const set = descriptors.filter((d) => isSet(ctx, d));
     const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
-    const note = sectionNote(ctx, spec, set);
+    const note = notAvailable(ctx, spec);
     // Opacity is set in the color's own box, so "+" never offers it, and a color line set to a
     // value carries it; a row that sets opacity alone, or varies it by data, keeps its own line.
     const folded = new Set(
@@ -374,11 +390,18 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     const fail = (verb: string) => (error: unknown) => {
         store.set({ notice: { message: failureWords(spec.title, verb, error), error: true } });
     };
-    const pick = (id: string): Promise<void> => {
-        const name = ctx.session.catalog.shaders().find((each) => each.id === id)?.plainName ?? id;
-        return addShader(ctx, id).then(() => {
-            store.set({ announcement: `${name} added` });
-        });
+    // Show in Style on a notice asks for this side's "+": it takes focus once the section is drawn.
+    const shaderNext = useWorkspaceState((state) => state.shaderNext);
+    useEffect(() => {
+        if (shaderNext === tab) {
+            store.set({ shaderNext: null });
+            sectionBox.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
+        }
+    }, [shaderNext, tab, store]);
+    const pick = async (id: string): Promise<void> => {
+        const name = ctx.session.shaders.describe(id)?.plainName ?? id;
+        await addShader(ctx, await pickedShader(ctx.session, id));
+        store.set({ announcement: `${name} added` });
     };
     return (
         <div // NOSONAR(S6848): only catches the paste shortcut bubbling from the section's own controls
@@ -461,8 +484,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                                 setCode({});
                             }}
                             onDelete={(id) => {
-                                const name =
-                                    ctx.session.catalog.shaders().find((each) => each.id === id)?.plainName ?? id;
+                                const name = ctx.session.shaders.describe(id)?.plainName ?? id;
                                 ctx.session.shaders
                                     .remove(id)
                                     .then(() => {
@@ -475,10 +497,10 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                 </Popout.Panel>
             </Popout>
             {code !== null && (
-                <PasteShaderDialog
+                <ShaderEditorDialog
                     session={ctx.session}
                     tab={tab}
-                    put={(scope, id, params) => addShader({ ...ctx, session: scope }, id, params)}
+                    put={(scope, id, params) => addShader(ctx, id, params, scope)}
                     init={code}
                     onClose={() => {
                         setCode(null);
@@ -550,7 +572,7 @@ export function AddButton({
     expanded,
     inRow = false,
 }: Readonly<{
-    kind: "node" | "edge";
+    kind: "node" | "edge" | "background";
     title: string;
     options: readonly AddOption[];
     onAdd: (key: string) => void;

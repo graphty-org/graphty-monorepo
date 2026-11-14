@@ -426,6 +426,13 @@ const WEIGHT_OPTION: OptionDescriptor = {
     description: "The edge column read as the weight. Absent: the weight the graph was loaded with; null: none.",
 };
 
+/** The `weight` option of an algorithm whose weighted form is opt-in: absent, it reads none. */
+const OPT_IN_WEIGHT_OPTION: OptionDescriptor = {
+    ...WEIGHT_OPTION,
+    default: null,
+    description: "The edge column read as the weight. Absent or null: none, so every edge counts the same.",
+};
+
 /** The built-in descriptors as written, before what is read from the classes is added. */
 const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
     {
@@ -1124,7 +1131,11 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
 /** Every built-in class, by the 1.10 key its `static type` carries, for what the table derives from them. */
 const CLASSES: ReadonlyMap<
     string,
-    { readonly scopeInput?: string; readonly weightMeaning: AlgorithmDescriptor["weightMeaning"] }
+    {
+        readonly scopeInput?: string;
+        readonly weightMeaning: AlgorithmDescriptor["weightMeaning"];
+        readonly loadedWeightByDefault: boolean;
+    }
 > = new Map(
     [
         AStarAlgorithm,
@@ -1173,11 +1184,13 @@ const CLASSES: ReadonlyMap<
  */
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHORED_ALGORITHMS.map((descriptor) => {
     // Every class behind a folded key reads the same meaning (both shortest-path engines read a distance).
-    const weightMeaning = CLASSES.get(descriptor.legacyKeys[0].key)?.weightMeaning ?? null;
+    const cls = CLASSES.get(descriptor.legacyKeys[0].key);
+    const weightMeaning = cls?.weightMeaning ?? null;
+    const weightOption = cls?.loadedWeightByDefault === false ? OPT_IN_WEIGHT_OPTION : WEIGHT_OPTION;
 
     return {
         ...descriptor,
-        options: weightMeaning === null ? descriptor.options : [...descriptor.options, WEIGHT_OPTION],
+        options: weightMeaning === null ? descriptor.options : [...descriptor.options, weightOption],
         weightMeaning,
         scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph")
             ? "subgraph"
@@ -1196,6 +1209,44 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHOR
  */
 export function algorithmByKey(key: string): BuiltInAlgorithmDescriptor | undefined {
     return BUILT_IN_ALGORITHMS.find((descriptor) => descriptor.key === key);
+}
+
+/**
+ * The catalog key a name means: its own key, any case, `_` for `-`, a `graphty:` prefix, or a
+ * legacy key (`dijkstra` is `shortest-path` with `method: "dijkstra"`).
+ * @param name - The name, as the model wrote it.
+ * @param algorithms - The algorithms to look in.
+ * @returns The key and the parameters the legacy key implies, or undefined.
+ */
+export function algorithmKeyOf(
+    name: string,
+    algorithms: readonly AlgorithmDescriptor[],
+): { key: string; params: Readonly<Record<string, unknown>> } | undefined {
+    const bare = name.trim().replace(/^graphty:/i, "");
+    const lower = bare.toLowerCase().replaceAll("_", "-");
+    const direct = algorithms.find((entry) => entry.key === bare || entry.key.toLowerCase() === lower);
+    if (direct !== undefined) {
+        return { key: direct.key, params: {} };
+    }
+
+    const legacy = algorithmByLegacyKey(lower) ?? algorithmByLegacyKey(lower.replaceAll("-", ""));
+    return legacy === undefined ? undefined : { key: legacy.descriptor.key, params: legacy.params };
+}
+
+/**
+ * The built-in algorithm an assistant's tool call runs, however the model spelled its name.
+ * @param tool - The call's tool.
+ * @param args - The call's arguments.
+ * @returns The descriptor, or undefined when the call runs none.
+ * @experimental assistant
+ */
+export function calledAlgorithm(
+    tool: string,
+    args: Readonly<Record<string, unknown>> | undefined,
+): BuiltInAlgorithmDescriptor | undefined {
+    const name = tool === "run_algorithm" ? args?.name : undefined;
+    const found = typeof name === "string" ? algorithmKeyOf(name, BUILT_IN_ALGORITHMS) : undefined;
+    return found === undefined ? undefined : algorithmByKey(found.key);
 }
 
 /** Where a 1.10 key ended up: the descriptor that replaced it, and the parameters it needs. */

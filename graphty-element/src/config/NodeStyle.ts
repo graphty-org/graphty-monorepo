@@ -24,6 +24,7 @@ export const NodeModelCenters = z.enum(["bounds", "origin"]);
  * How a node grows to hold its label, when `shape.labelFit` is set: "inside" fits the label's
  * padded box inside the node's outline, so an ellipse or a diamond reaches past the box's corners;
  * "bounds" makes the padded box the node's width and height, whatever its shape.
+ * @experimental file-styles
  */
 export const NodeLabelFits = z.enum(["inside", "bounds"]);
 
@@ -183,6 +184,7 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
  * running round the node, short strokes across the ring (leaning either way or straight), a ring of small
  * arrows chasing each other round it, or a bar of arrows joined head to tail (Cytoscape desktop's border line
  * types). @public
+ * @experimental file-styles
  */
 export const NodeBorderStyles = z.enum([
     "solid",
@@ -203,6 +205,7 @@ export const NodeBorderStyles = z.enum([
  * Where a node border sits against the node's size: wholly outside it (the default), centered on
  * it, half in and half out (an SVG or canvas stroke), or wholly inside it, so the node is no larger
  * than its size (Cytoscape desktop). @public
+ * @experimental file-styles
  */
 export const NodeBorderPositions = z.enum(["outside", "center", "inside"]);
 
@@ -301,6 +304,10 @@ export const NodeStyle = z.strictObject({
             // wide (unset, the border's width): a Graphviz `promoter`'s baseline, a `box3d`'s edges.
             lines: z.string().optional(),
             lineWidth: z.number().nonnegative().optional(),
+            // A wider line drawn under each of `lines`, down the same path, in its own color: `lineHaloWidth` wide
+            // (unset or 0, none), as yFiles draws a bevel's line of 1 over a lighter one of 2.
+            lineHaloColor: ColorStyle.optional(),
+            lineHaloWidth: z.number().nonnegative().optional(),
             // Further texts drawn over a flat node in its label's font, size and color, each one line centered on its
             // point: a JSON list of `[x, y, text]`, the point relative to the node's center as fractions of its half
             // width and half height, y up, as `parts` places its corners (Graphviz's record fields:
@@ -373,10 +380,12 @@ export const NodeStyle = z.strictObject({
                 .optional(),
             outline: z
                 .strictObject({
-                    // COLOUR ONLY. The outline is a ring around the node whose width is a fixed
-                    // share of the node's size (NodeEffects.applyOutlineEffect), so a declared
-                    // `width` would be accepted and ignored.
+                    // The ring around the node (NodeEffects.applyOutlineEffect). A width alone,
+                    // with no colour, draws nothing, as a glow strength alone draws nothing.
                     color: ColorStyle.optional(),
+                    // How wide the ring's band is drawn, as a multiple of its own width (1).
+                    // Unset, the graph's `layoutBehavior.node.outlineWidth`, else 1.
+                    width: z.number().nonnegative().max(10).optional(),
                 })
                 .optional(),
             // The halo the selection is drawn with (`selectionStyle`), in the node's own shape, for any
@@ -453,6 +462,20 @@ export const NodeStyle = z.strictObject({
             width: z.number().nonnegative().optional(),
             lightColor: ColorStyle.optional(),
             darkColor: ColorStyle.optional(),
+        })
+        .optional(),
+    /**
+     * A shadow drawn behind the node (yEd's drop shadow): the node's own shape in `color` at `opacity`, moved
+     * `offsetX` right and `offsetY` down, its edge fading over `blur` on each side; lengths in the units of
+     * `shape.size`. No opacity, or 0, draws none.
+     */
+    shadow: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            opacity: z.number().min(0).max(1).optional(),
+            blur: z.number().nonnegative().optional(),
+            offsetX: z.number().optional(),
+            offsetY: z.number().optional(),
         })
         .optional(),
     /**
@@ -572,7 +595,8 @@ export const NodeStyle = z.strictObject({
      * bottom, each an equal share after `margin` (a share of the side, default 0) at each end and
      * `gap` (a share of the side, default 0) split between them. A bar runs from 0 (or the nearer
      * end of the range) to its value. `lineWidth` is a line's and a whisker's width, `borderWidth` /
-     * `borderColor` a bar's and a box's outline, in the units of `shape.size`.
+     * `borderColor` a bar's and a box's outline, in the units of `shape.size`. `backgroundColor` at
+     * `backgroundOpacity` (default 1) fills the plot box under the chart; unset, the plot has no fill.
      */
     chart: z
         .strictObject({
@@ -592,6 +616,8 @@ export const NodeStyle = z.strictObject({
             lineWidth: z.number().nonnegative().optional(),
             borderColor: ColorStyle.optional(),
             borderWidth: z.number().nonnegative().optional(),
+            backgroundColor: ColorStyle.optional(),
+            backgroundOpacity: z.number().min(0).max(1).optional(),
         })
         .optional(),
     /**

@@ -1,4 +1,8 @@
-import { Matrix, Mesh, type Scene, Vector3, VertexBuffer, VertexData } from "@babylonjs/core";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { earClip, fansFromOrigin, type Point2, type RingPiece } from "./shapeOutlines";
 
@@ -22,6 +26,19 @@ export function setLabelBox(mesh: Mesh, outline: readonly Point2[]): void {
         min: new Vector3(Math.min(...xs), Math.min(...ys), minimum.z),
         max: new Vector3(Math.max(...xs), Math.max(...ys), maximum.z),
     });
+}
+
+/**
+ * Give a mesh the label box another mesh has, if it has one: a batched row's anchor stands in for
+ * its source mesh.
+ * @param from - The mesh whose box is shared.
+ * @param to - The mesh that takes it.
+ */
+export function shareLabelBox(from: Mesh, to: Mesh): void {
+    const box = LABEL_BOXES.get(from);
+    if (box !== undefined) {
+        LABEL_BOXES.set(to, box);
+    }
 }
 
 /**

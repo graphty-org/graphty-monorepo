@@ -26,6 +26,8 @@ import { isDeepStrictEqual, parseArgs } from "node:util";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { readPolicy } from "../release-hold.mjs";
+
 export const REPO = "graphty-org/graphty-monorepo";
 export const TARGETS = {
     production: { distTag: "latest", siteRepo: "graphty-org/graphty-site", url: "https://graphty.app" },
@@ -99,12 +101,14 @@ function nightlyRefusals(facts) {
  * @param versions - channel.json's versions, project to version
  * @param npm - package to { versions, distTags }, or null when it could not be read
  * @param distTag - latest or next
+ * @param held - projects release-hold.json keeps off npm: never moved, never refused
  * @returns the refusals and the moves
  */
-function tagMoves(versions, npm, distTag) {
+function tagMoves(versions, npm, distTag, held) {
     const refusals = [];
     const moves = [];
     for (const [project, version] of Object.entries(versions ?? {})) {
+        if (held.includes(project)) continue;
         const name = packageOf(project);
         const info = npm[name];
         if (!info) refusals.push(`npm has no ${name}, or its dist-tags could not be read`);
@@ -118,14 +122,15 @@ function tagMoves(versions, npm, distTag) {
 /**
  * Decides a promotion from the facts gather collected. Pure: every refusal case is a test.
  * @param facts - { target, configOnly, tag, nightly, hashes: { site, channel }, store, current,
- *   ancestry: "same" | "newer" | "older" | "diverged" | null, publishHoldOpen, npm: { <package>: { versions, distTags } | null } }
+ *   ancestry: "same" | "newer" | "older" | "diverged" | null, publishHoldOpen, npm: { <package>: { versions, distTags } | null },
+ *   held: [<project>] (release-hold.json's, never on npm) }
  * @returns the refusals (strings, empty when it may go) and the plan
  */
 export function decide(facts) {
-    const { target, configOnly, tag, nightly, store, current, ancestry, npm } = facts;
+    const { target, configOnly, tag, nightly, store, current, ancestry, npm, held = [] } = facts;
     const distTag = TARGETS[target]?.distTag;
     // config_only redeploys what the channel serves: it moves no tag, so only the assets' trust matters
-    const tags = configOnly ? { refusals: [], moves: [] } : tagMoves(nightly.versions, npm, distTag);
+    const tags = configOnly ? { refusals: [], moves: [] } : tagMoves(nightly.versions, npm, distTag, held);
     const refusals = [...trustRefusals(facts), ...(configOnly ? [] : nightlyRefusals(facts)), ...tags.refusals];
     const record = configOnly ? current : nightly;
     return {
@@ -319,10 +324,12 @@ async function gather({ nightly: wanted, channel: target, "config-only": configO
             "title",
         ),
     );
+    // master's release-hold.json: a held project was never published, so npm is not asked about it
+    const held = readPolicy("release-hold.json").hold.map((h) => h.project);
     const npm = {};
     if (!configOnly)
         for (const project of Object.keys(nightly.versions ?? {}))
-            npm[packageOf(project)] = npmInfo(packageOf(project));
+            if (!held.includes(project)) npm[packageOf(project)] = npmInfo(packageOf(project));
     const facts = {
         target,
         configOnly: Boolean(configOnly),
@@ -334,6 +341,7 @@ async function gather({ nightly: wanted, channel: target, "config-only": configO
         ancestry,
         publishHoldOpen: holds.some((i) => i.title.startsWith(HOLD_TITLE)),
         npm,
+        held,
     };
     writeFileSync(join(out, "facts.json"), `${JSON.stringify(facts, null, 2)}\n`);
     return 0;

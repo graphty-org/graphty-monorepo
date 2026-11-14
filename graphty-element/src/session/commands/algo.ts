@@ -1,5 +1,5 @@
 /**
- * @file The run ops: `algo.run`, `algo.legacy`, `algo.remove` and `algo.move`.
+ * @file The run ops: `algo.run`, `algo.legacy`, `algo.remove`, `algo.move` and `algo.rename`.
  *
  * `algo.run` takes a slot on the queue under `algorithm-run`, computes, and then, in one
  * synchronous commit tail, writes the finished run into the `runs` slice together with the style
@@ -13,6 +13,8 @@
  *
  * `algo.move` moves the layers bound to a run, as one block in their own order, to sit below
  * another layer, in one draft.
+ *
+ * `algo.rename` gives a finished run the reader's own name, or takes it away, in one draft.
  *
  * `algo.legacy` runs a plugin algorithm that declares no catalogue descriptor, and so has no run:
  * it writes onto node and edge records and `graphResults` as it goes, and may call the graph's
@@ -54,6 +56,15 @@ export interface AlgoMoveCommand {
     readonly runId: RunId;
     /** The layer the block sits immediately below, or null for the top of the stack. */
     readonly before: LayerId | null;
+}
+
+/** `algo.rename`: give a finished run the reader's own name, or take it away. */
+export interface AlgoRenameCommand {
+    readonly op: "algo.rename";
+    /** The run. */
+    readonly runId: RunId;
+    /** The new name, or null to go back to the name the element gives it. */
+    readonly name: string | null;
 }
 
 /**
@@ -105,6 +116,12 @@ export interface RunService {
      * @param draft - The command's draft.
      */
     move(command: AlgoMoveCommand, draft: Draft): void;
+    /**
+     * Name a finished run through the command's draft, or refuse a run the session does not hold.
+     * @param command - The rename.
+     * @param ctx - The command's context: its state and its draft.
+     */
+    rename(command: AlgoRenameCommand, ctx: UndoableContext): void;
 }
 
 /**
@@ -141,7 +158,7 @@ const algoRun: UndoableDefinition<AlgorithmRunCommand> = {
     // Written only in the commit tail, which is synchronous, so a run holds nothing while it
     // computes and never blocks a style edit.
     // `valueLabels`: a re-run carries the names given to its groups to the groups they became.
-    keys: () => ["runs", "styles", "valueLabels"],
+    keys: () => ["runs", "styles", "valueLabels", "shaders"],
     lane: { kind: "queued", category: "algorithm-run" },
     execute: (command, ctx) => required(ctx.services.runs).run(command, ctx),
 };
@@ -157,7 +174,7 @@ const algoLegacy: UndoableDefinition<AlgoLegacyCommand> = {
     draws: true,
     renderer: true,
     // The whole graph: a plugin may write any record, and add or remove rows through the facade.
-    keys: () => ["graph", "styles"],
+    keys: () => ["graph", "styles", "shaders"],
     lane: { kind: "queued", category: "algorithm-run" },
     execute: (command, ctx) => {
         if (ctx.services.legacy === undefined) {
@@ -187,7 +204,7 @@ const algoRemove: UndoableDefinition<AlgoRemoveCommand> = {
     },
     moves: false,
     draws: true,
-    keys: () => ["runs", "styles"],
+    keys: () => ["runs", "styles", "shaders"],
     lane: { kind: "immediate" },
     execute: (command, ctx) => required(ctx.services.runs).remove(command, ctx.draft),
 };
@@ -221,8 +238,31 @@ const algoMove: UndoableDefinition<AlgoMoveCommand> = {
     },
 };
 
+const algoRename: UndoableDefinition<AlgoRenameCommand> = {
+    op: "algo.rename",
+    undo: {
+        kind: "undoable",
+        label: (command, state) => `Renamed ${runLabel(state, command.runId)}`,
+        fact: (command, state) => ({
+            code: "algo.rename",
+            params: {
+                run: command.runId,
+                algorithm: state.runs.get(command.runId)?.command.algorithm ?? null,
+                name: command.name,
+            },
+        }),
+    },
+    moves: false,
+    draws: false,
+    keys: () => ["runs"],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        required(ctx.services.runs).rename(command, ctx);
+    },
+};
+
 /** The run ops' definitions. */
-export const ALGO_DEFINITIONS = [algoRun, algoLegacy, algoRemove, algoMove] as const;
+export const ALGO_DEFINITIONS = [algoRun, algoLegacy, algoRemove, algoMove, algoRename] as const;
 
 // ---------------------------------------------------------------------------------------------
 // Copy-on-write records

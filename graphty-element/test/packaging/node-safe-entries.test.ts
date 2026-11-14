@@ -66,6 +66,11 @@ function emit(file: string): string {
         return cached;
     }
 
+    // A JSON module (the shipped shader hash lists) imports nothing.
+    if (file.endsWith(".json")) {
+        return "";
+    }
+
     const output = ts.transpileModule(readFileSync(file, "utf8"), {
         fileName: file,
         compilerOptions: {
@@ -205,7 +210,7 @@ describe("the Node-safe entry points", () => {
         // Without this, a walker that silently resolved nothing would pass every case above.
         const reached = graphOf("index.ts").map((found) => found.specifier);
 
-        assert.include(reached, "@babylonjs/core");
+        assert.isTrue(reached.some((specifier) => specifier.startsWith("@babylonjs/core/")));
         assert.include(reached, "lit");
     });
 

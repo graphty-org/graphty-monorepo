@@ -14,7 +14,7 @@ export function focusIsLost(): boolean {
  * Data page closes), so focus lands where the reader goes next, not on the drawing's outline or
  * on the page.
  */
-export function focusCurrentPlace(): void {
+function focusCurrentPlace(): void {
     const rowOf = (): HTMLElement | null =>
         document.querySelector<HTMLElement>('.ws-left [role="tree"] [role="treeitem"][tabindex="0"]');
     const row = rowOf();
@@ -263,13 +263,18 @@ export function cyclePanel(step: 1 | -1): void {
 }
 
 /**
- * Where focus lands in a panel: the control that last had it there, else the drawing itself for
+ * Where focus lands in a panel: where it always lands, else the control that last had it there, else the drawing itself for
  * the canvas, else the panel's first Tab stop.
  * @param selector - the panel's selector.
  * @param element - the panel.
  * @returns the control, or undefined when the panel has none.
  */
 function panelTarget(selector: string, element: HTMLElement): HTMLElement | undefined {
+    // A panel can name where focus always lands (the Assistant's composer).
+    const always = element.querySelector<HTMLElement>("[data-panel-always]");
+    if (always !== null) {
+        return tabStops(always)[0];
+    }
     const last = lastInPanel.get(selector);
     if (last !== undefined && element.contains(last) && canFocus(last) && !last.matches(NOT_A_LANDING)) {
         return last;
@@ -437,19 +442,4 @@ export function installFocusGuard(): () => void {
         document.removeEventListener("focusin", onFocusIn, true);
         document.removeEventListener("keydown", onKeyDown);
     };
-}
-
-/**
- * After a row's menu closes: its row takes focus, unless something the menu opened (a rename box)
- * took it first.
- * @param from - an element inside the row
- */
-export function focusRowOf(from: HTMLElement | null): void {
-    const row = from?.closest<HTMLElement>("[data-row]");
-    requestAnimationFrame(() => {
-        const now = document.activeElement;
-        if (row?.isConnected === true && (now === null || now === document.body || now === from)) {
-            row.focus();
-        }
-    });
 }

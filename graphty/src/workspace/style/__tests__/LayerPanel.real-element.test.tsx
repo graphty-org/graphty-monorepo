@@ -18,6 +18,7 @@ import { page, userEvent } from "vitest/browser";
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
+import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { DEFAULT_NAME_KEY } from "../cards";
@@ -199,9 +200,14 @@ describe("the layer panel", () => {
             await session.selection.apply({ nodes: [idOf("Cosette")] });
         });
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        // Fill holds one property: its "+" adds it, with no menu of one item.
+        // Fill holds one property: its "+" adds it, with no menu of one item. With the node-models
+        // experiment on it also offers Picture, so the "+" opens a menu.
         await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-        assert.isNull(screen.queryByRole("menu"), "no menu");
+        if (nodeModelsOn(session)) {
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+        } else {
+            assert.isNull(screen.queryByRole("menu"), "no menu");
+        }
         await waitFor(() => {
             assert.isNotNull(document.activeElement?.closest('[data-line="node.color"]'), "focus in the new line");
         });
@@ -251,7 +257,7 @@ describe("the layer panel", () => {
         assert.strictEqual(card.querySelector<HTMLInputElement>("input:not([type=hidden])")?.value, "Has a value");
     });
 
-    it("opens a new layer on its Node tab, and a Node tab starts with node lines", async () => {
+    it("opens a new layer on its Node tab, and its tab has no line for the other kind", async () => {
         await openScene();
         await clickRow("Everything");
         await userEvent.click(await screen.findByRole("tab", { name: /^Edge/ }));
@@ -266,16 +272,9 @@ describe("the layer panel", () => {
         await clickRow("Everything");
         await userEvent.click(await screen.findByRole("tab", { name: /^Node/ }));
         const panel = await within(screen.getByTestId("style-tab")).findByRole("tabpanel");
-        const other = panel.querySelector(".ws-other-line");
-        const sections = panel.querySelector(".ws-style-group");
-        assert.isNotNull(other);
-        assert.isNotNull(sections);
-        if (other === null || sections === null) {
-            return;
-        }
-        assert.isTrue(
-            (sections.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-            "the Edges line comes after the node lines",
-        );
+        // The other kind is reached by its own tab: no "Edges: ..." line, no Edit edges (issue #6811).
+        assert.isNotNull(panel.querySelector(".ws-style-group"));
+        assert.notMatch(panel.textContent ?? "", /Edges: |Edit edges/);
+        assert.isNull(within(panel).queryByRole("button", { name: "Edit edges" }));
     });
 });

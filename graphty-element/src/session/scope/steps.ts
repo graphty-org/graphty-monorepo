@@ -12,6 +12,8 @@
 import type {
     EdgeId,
     NodeId,
+    Path,
+    Query,
     RuleTree,
     RunId,
     Scope,
@@ -23,7 +25,9 @@ import type {
 import { GraphtyError } from "../../errors";
 import type { NumericColumnSource } from "../results/statistics";
 import type { Histogram, HistogramOptions } from "../results/types";
+import { dependenciesOf } from "../sets/dependencies";
 import type { CodedFact } from "../shared";
+import { expressionPaths } from "../styles/predicate";
 import type { FilterRunResult } from "../visibility/filter";
 import type { Bytes, UnionRead } from "../visibility/union";
 import type { ScopeApi } from "./ScopeApi";
@@ -465,7 +469,7 @@ function freezeRule(
  * @param options.effect - `"exclude"` for what the rule leaves, read as what stays.
  * @returns The leaf, or null.
  */
-export function asUnion(
+function asUnion(
     rule: RuleTree,
     options: {
         readonly side: UnionLeaf["side"];
@@ -595,7 +599,7 @@ function leftBy(
 // ---------------------------------------------------------------------------------------------
 
 /** What turning a raw reading into a public one needs. */
-export interface ReadingSources {
+interface ReadingSources {
     /**
      * A half's members as a scope.
      * @param side - The side.
@@ -657,7 +661,7 @@ function lazy(make: () => Scope): () => Scope {
  * @param palette - The branch palette, which bounds how many branches the rule can take.
  * @returns The reading.
  */
-export function stepsReadingOf(
+function stepsReadingOf(
     leaf: UnionLeaf,
     read: UnionRead,
     sources: ReadingSources,
@@ -812,7 +816,7 @@ export interface ScopeStepsSources {
 }
 
 /** The part of the step runs the surface reaches. */
-export interface StepRunsLike {
+interface StepRunsLike {
     allow(step: UnionStep, within: UnionLeaf["within"]): void;
     cancel(step: UnionStep, within: UnionLeaf["within"]): void;
     runOf(step: UnionStep, within: UnionLeaf["within"]): RunId | null;
@@ -870,24 +874,25 @@ function stepOf(rule: UnionLeaf, stepId: string): UnionStep {
 }
 
 /**
- * The paths of the runs a rule reads, `results.<run>.*`.
+ * The runs a rule reads: through a `results.<run>.*` path in any leaf or query, or an `item`
+ * leaf naming a result.
  * @param tree - The rule.
  * @returns The run ids.
  */
-function runsRead(tree: RuleTree): string[] {
-    const loose = tree as unknown as Readonly<Record<string, unknown>>;
-    const path = [loose.path, loose.attribute, loose.reads].find(
-        (each): each is string => typeof each === "string" && each.startsWith("results."),
-    );
-    const own = path === undefined ? [] : [path.slice("results.".length).split(".")[0]];
-    switch (tree.kind) {
-        case "all":
-        case "any":
-            return [...own, ...tree.of.flatMap(runsRead)];
-        case "not":
-            return [...own, ...runsRead(tree.of)];
-        default:
-            return own;
+function runsRead(tree: RuleTree): RunId[] {
+    return dependenciesOf(tree, queryPaths).flatMap((each) => (each.kind === "run" ? [each.run] : []));
+}
+
+/**
+ * The paths a query reads, or none when it does not parse (the rule's own check refuses it).
+ * @param where - The query.
+ * @returns The paths.
+ */
+function queryPaths(where: Query): readonly Path[] {
+    try {
+        return expressionPaths(where);
+    } catch {
+        return [];
     }
 }
 

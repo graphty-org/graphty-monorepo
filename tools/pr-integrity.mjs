@@ -8,7 +8,13 @@
  *     weakened; an agent review of the head that answers the finding clears it (`agentCleared`), and so does
  *     a code owner's approval of the head; a finding about screenshot capture settings needs the owner;
  *   - no breaking change: a `!` in the title or a commit subject, or a `BREAKING CHANGE:` footer, fails
- *     unless a code owner approved the head;
+ *     unless a code owner approved the head; a commit master's release-not-breaking.json lists is the owner's
+ *     ruling that it is not breaking, and is skipped;
+ *   - saved format: a change to the save-file checks (graphty-element/test/saved-format/, their exceptions
+ *     list among them, tools/check-saved-format-allowlist.mjs, graphty-element/eslint.config.js that turns its lint
+ *     rule on, and the shipped and revoked shader hash lists) fails unless a code owner approved the head,
+ *     since anyone can type the `Saved-Format-Exception-Approved:` trailer the push check reads
+ *     (design/architecture/self-contained-save-files.md, 2.6);
  *   - baselines signed: a change to a PNG or story settings file under visual-baselines/ (review
  *     records aside) needs the owner's signed approval of the head's tree, checked with master's own
  *     visual-review/trusted/gate.mjs (`git archive`, never the pull request's copy);
@@ -39,14 +45,31 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { judge, LISTS as SAVED_FORMAT_LISTS } from "./check-saved-format-allowlist.mjs";
 import { check as testIntegrity } from "./check-test-integrity.mjs";
+import { ruledNotBreaking } from "./release-not-breaking.mjs";
 
 export const AGENT = "graphty-agent";
 /** The repository owner: the only account whose approval counts as a code owner's. */
 export const OWNER = "apowers313";
 export const DEPENDABOT = "dependabot[bot]";
 const BASELINES = "visual-baselines";
+/**
+ * The files that decide what a save file may name and still be self-contained: only a code owner widens them.
+ * @param f a changed path
+ * @returns boolean
+ */
+export const isSavedFormatGuard = (f) =>
+    f.startsWith("graphty-element/test/saved-format/") ||
+    f === "tools/check-saved-format-allowlist.mjs" ||
+    // Spreads the lint rule in: deleting that line switches the rule off.
+    f === "graphty-element/eslint.config.js" ||
+    // A listed shipped hash is trusted wherever a file carries it, so adding one grants trust.
+    f === "graphty-element/src/catalog/shipped-shader-hashes.json" ||
+    f === "graphty-element/src/catalog/revoked-shader-hashes.json";
 const APPROVALS = "visual-review-approvals";
+/** The self-contained kinds' rows: a change that only adds lines adds a kind, which needs no owner. */
+const SAVED_FORMAT_KINDS = "graphty-element/test/saved-format/kinds.ts";
 
 const git = (cwd, args, input) =>
     execFileSync("git", args, { cwd, input, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["pipe", "pipe", "pipe"] });
@@ -200,6 +223,36 @@ export function revertedMerge(cwd, { base, mergeBase, head, text }) {
 }
 
 /**
+ * The saved-format guard paths a pull request changes that need a code owner. A change limited to
+ * the exception lists (and lines added to the kinds' rows) needs one only when the allowlist check's
+ * judge says it widens them; anything else under the guard always does.
+ * @param cwd the repository
+ * @param mergeBase the merge base
+ * @param head the head
+ * @param files the changed paths
+ * @returns the paths that need a code owner, or none
+ */
+export function savedFormatNeedingOwner(cwd, mergeBase, head, files) {
+    const guarded = files.filter(isSavedFormatGuard);
+    if (guarded.length === 0 || !guarded.every((f) => f === SAVED_FORMAT_LISTS || f === SAVED_FORMAT_KINDS)) {
+        return guarded;
+    }
+    if (guarded.includes(SAVED_FORMAT_KINDS)) {
+        const stat = tryGit(cwd, ["diff", "--numstat", mergeBase, head, "--", SAVED_FORMAT_KINDS]) ?? "-";
+        if (stat.split("\t")[1] !== "0") return guarded;
+    }
+    const lists = (rev) => {
+        try {
+            return { lists: JSON.parse(git(cwd, ["show", `${rev}:${SAVED_FORMAT_LISTS}`])), shipped: [], revoked: [] };
+        } catch {
+            return { lists: {}, shipped: [], revoked: [] };
+        }
+    };
+    const { needsOwner, forbidden } = judge(lists(mergeBase), lists(head), []);
+    return needsOwner.length + forbidden.length === 0 ? [] : guarded;
+}
+
+/**
  * What kind of pull request this is, for the exemptions.
  * @param cwd the repository
  * @param pr `{ base, mergeBase, head, author, byDependabot, text, files }`; byDependabot false when a
@@ -265,10 +318,15 @@ function agentProblems(cwd, pr) {
 export function prIntegrity(cwd, pr) {
     const mergeBase = git(cwd, ["merge-base", pr.base, pr.head]).trim();
     const files = git(cwd, ["diff", "--name-only", "--no-renames", mergeBase, pr.head]).split("\n").filter(Boolean);
-    const messages = git(cwd, ["log", "--format=%B%x00", `${mergeBase}..${pr.head}`])
+    const commits = git(cwd, ["log", "--format=%H %B%x00", `${mergeBase}..${pr.head}`])
         .split("\0")
         .map((m) => m.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        .map((m) => ({ id: m.slice(0, 40), message: m.slice(41).trim() }));
+    const messages = commits.map((c) => c.message);
+    // master's list, never the head's: a pull request cannot rule its own commit not breaking
+    const notBreaking = ruledNotBreaking(pr.base, cwd);
+    const breaking = [pr.title, ...commits.filter((c) => !notBreaking.has(c.id)).map((c) => c.message)];
     const full = { ...pr, mergeBase, files, text: [pr.title, pr.body ?? "", ...messages].join("\n") };
     const kind = classify(cwd, full);
     const approved = ownerApproved(pr.reviews, pr.owners, pr.head);
@@ -288,9 +346,15 @@ export function prIntegrity(cwd, pr) {
             }
         }
     }
-    if (!approved && [pr.title, ...messages].some(isBreaking)) {
+    if (!approved && breaking.some(isBreaking)) {
         problems.push(
             "Breaking change: the title or a commit is marked `!` or has a BREAKING CHANGE footer; it needs a code owner's approval of the head",
+        );
+    }
+    const savedFormat = savedFormatNeedingOwner(cwd, mergeBase, pr.head, files);
+    if (!approved && !kind.revert && savedFormat.length) {
+        problems.push(
+            `Saved format: ${savedFormat.join(", ")} decide what a save file may name; a change needs a code owner's approval of the head`,
         );
     }
     if (!kind.revert && changesBaselines(files)) {

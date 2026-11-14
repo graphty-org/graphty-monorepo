@@ -361,6 +361,11 @@ export interface RunnerUse {
     queued: number;
     /** Linux and Windows jobs waiting for a runner (status "queued") over 2 minutes, and runs queued with no jobs. */
     queuedOver2: number;
+    /**
+     * Linux and Windows jobs "queued" over 2 minutes that wait on their own workflow, not on GitHub: a job created
+     * later already holds a runner, so a runner was free. A matrix job held back by its `max-parallel` reads "queued".
+     */
+    heldByRun: number;
     longestQueuedMs: number;
 }
 
@@ -383,15 +388,20 @@ export function waitsForRunner(j: GhJob, nowMs: number): boolean {
  * @param j - the job
  * @param p - the job's pool
  * @param nowMs - the current epoch ms
+ * @param newestRunning - the creation epoch ms of the newest Linux or Windows job that holds a runner
  */
-function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number): void {
+function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number, newestRunning: number): void {
     if (p === "other") {
         return;
     } // machine.dev and self-hosted pools are outside GitHub's limit
     const age = nowMs - Date.parse(j.created_at);
     use.queued++;
     if (waitsForRunner(j, nowMs)) {
-        use.queuedOver2++;
+        if (Date.parse(j.created_at) < newestRunning - 2 * MIN) {
+            use.heldByRun++;
+        } else {
+            use.queuedOver2++;
+        }
     }
     use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
 }
@@ -408,8 +418,17 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
         running: { linux_windows: 0, macos: 0, other: 0 },
         queued: 0,
         queuedOver2: 0,
+        heldByRun: 0,
         longestQueuedMs: 0,
     };
+    // ponytail: assumes GitHub hands Linux runners out roughly first come, first served; a job created over 2 minutes
+    // after a queued one that already runs means runners were free. Exact per-matrix max-parallel needs the workflow files.
+    const newestRunning = Math.max(
+        0,
+        ...jobs
+            .filter((j) => j.status === "in_progress" && pool(j.labels) === "linux_windows")
+            .map((j) => Date.parse(j.created_at)),
+    );
     for (const j of jobs) {
         const p = pool(j.labels);
         if (j.status === "in_progress") {
@@ -418,7 +437,7 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
                 use.running.linux_windows++;
             } // a macOS job counts against the 60 too
         } else if (j.status === "queued" || j.status === "waiting" || j.status === "pending") {
-            countWaiting(use, j, p, nowMs);
+            countWaiting(use, j, p, nowMs, newestRunning);
         }
     }
     for (const r of runsWithoutJobs) {
@@ -433,8 +452,10 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
 }
 
 /**
- * An unfinished pull_request run of the home repository whose pull request is no longer open (merged or closed):
- * GitHub can leave it queued for hours (run 40441556963, "Lint PR Title" queued 21 h after #3940 merged). It holds no
+ * An unfinished pull request run (any `pull_request*` event: pull_request, pull_request_target,
+ * pull_request_review, ...) of the home repository whose pull request is no longer open (merged or closed): GitHub can
+ * leave it queued for hours (run 40441556963, "Lint PR Title" queued 21 h after #3940 merged; #6729's six runs of
+ * three such events queued a day after it merged, issue #7358). It holds no
  * runner and nobody waits on it, so runner use leaves it out. GitHub empties a merged pull request's runs'
  * pull_requests, so a run is matched to an open pull request by number or head branch. `open` must be every open pull
  * request: with a truncated list nothing is called a ghost.
@@ -444,7 +465,7 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
  * @returns true when the run is a ghost
  */
 export function isGhostRun(run: GhRun, open: GqlPr[], complete: boolean): boolean {
-    if (!complete || run.event !== "pull_request" || run.status === "completed") {
+    if (!complete || !run.event.startsWith("pull_request") || run.status === "completed") {
         return false;
     }
     const listed = new Set((run.pull_requests ?? []).map((p) => p.number));
@@ -497,8 +518,12 @@ export interface GqlCheck {
     __typename: string;
     id?: string;
     name?: string;
-    /** The failing check run's first failed step, filled in by the collector from STEPS_QUERY. */
-    failedStep?: string;
+    /**
+     * What the failing check run failed on, filled in by the collector (collect.ts failureSignatures): each failed
+     * test as "file > name", and each failure annotation's first line. Empty or absent when nothing says.
+     */
+    signatures?: string[];
+    detailsUrl?: string | null;
     status?: string;
     conclusion?: string | null;
     context?: string;
@@ -508,6 +533,8 @@ export interface GqlCheck {
 }
 
 export interface GqlPr {
+    /** GraphQL node id (only on the open list, to ask for its checks). */
+    id?: string;
     number: number;
     title: string;
     state: string;
@@ -772,12 +799,13 @@ function screenshotWaitMs(p: GqlPr, nowMs: number): number {
 
 /**
  * The "now" members of 4.2 and "Red on the same check" of 4.1, from the open pull requests.
- * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
+ * ponytail: reads at most OPEN_CAP (300) open pull requests; past that the counts stop growing, already red.
  * @param open - the open pull requests
  * @param nowMs - the current epoch ms
+ * @param masterFailing - the checks (families folded) master's newest build failed
  * @returns the counts and the pull requests behind them
  */
-export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
+export function prStocks(open: GqlPr[], nowMs: number, masterFailing?: ReadonlySet<string>): PrStocks {
     const s: PrStocks = {
         open: 0,
         oldestOpenMs: 0,
@@ -812,7 +840,10 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
         s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, screenshotWaitMs(p, nowMs));
     }
     // An aggregator failing alone counts too (4, "Excluded checks"); a stack of pull requests counts once.
-    s.maxFailingSameCheck = Math.max(0, ...[...failureGroups(open, nowMs).values()].map((g) => g.units.size));
+    s.maxFailingSameCheck = Math.max(
+        0,
+        ...[...failureGroups(open, nowMs, masterFailing).values()].map((g) => g.units.size),
+    );
     return s;
 }
 
@@ -957,6 +988,8 @@ export interface ReleaseAttempt {
     failedJob?: string;
     /** Its "Deploy the nightly site" job: passed means it promoted the candidate to nightly. */
     nightly: LaneResult;
+    /** Its "Coverage" job (publishes to Coveralls): skipped when the run's CI did not pass. */
+    coverage: LaneResult;
 }
 
 /**
@@ -1036,7 +1069,37 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
         .filter((j) => BAD.has(j.conclusion ?? ""))
         .sort((a, b) => msOr(a.completed_at) - msOr(b.completed_at))[0];
     const nightly = laneOf(jobs, NIGHTLY_SITE);
-    return { mode, lanes, tested, red, jobs: laneJobs, nightly, ...(failed ? { failedJob: failed.name } : {}) };
+    const coverage = laneOf(jobs, "Coverage");
+    return {
+        mode,
+        lanes,
+        tested,
+        red,
+        jobs: laneJobs,
+        nightly,
+        coverage,
+        ...(failed ? { failedJob: failed.name } : {}),
+    };
+}
+
+/**
+ * When the coverage source was last current (#6119): Coveralls is fed only by a full run whose Coverage job ran,
+ * and that job runs only when the run's CI passed, so a red full run publishes nothing. While no finished attempt
+ * reached Coverage after the newest Coveralls build, that build is all there is to publish, and the source is
+ * current as of the newest finished attempt; the red run itself is already master.full_run_failed's alarm. An
+ * attempt that reached Coverage after the build and published nothing leaves the build's own time, so a broken
+ * publish still goes stale. Attempts read before the Coverage result was kept count as reaching it.
+ * @param builtAt - the newest Coveralls build on master, epoch ms
+ * @param attempts - the finished release attempts the collector has read
+ * @returns epoch ms the coverage source counts as current at
+ */
+export function coverageAsOf(builtAt: number, attempts: { at: number; created?: number; coverage?: string }[]): number {
+    const after = attempts.filter((a) => a.at > builtAt);
+    const reached = (a: { coverage?: string }): boolean => a.coverage !== "skipped" && a.coverage !== "absent";
+    if (after.some((a) => reached(a) && (a.created ?? a.at) > builtAt)) {
+        return builtAt;
+    }
+    return Math.max(builtAt, ...after.map((a) => a.at));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

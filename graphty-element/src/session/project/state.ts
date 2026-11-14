@@ -121,6 +121,8 @@ export interface RunEntry {
     readonly painting?: RunPainting;
     /** Whether its id was derived rather than author-assigned. */
     readonly derived: boolean;
+    /** The reader's own name for it (`runs.rename`); absent while it has none. */
+    readonly name?: string;
     /** Whether the graph changed while it computed. */
     readonly stale: boolean;
 }
@@ -137,6 +139,11 @@ export interface VisibilityState {
     readonly conditions: readonly FilterCondition[];
     /** How `session.time` moves windows, or null for every default. */
     readonly playback?: TimePlayback | null;
+    /**
+     * The nodes hidden from the drawing only (`session.hidden`), sorted; absent or empty when none.
+     * Nothing else reads it: they stay in the data, the results, layout and every count.
+     */
+    readonly hidden?: readonly NodeId[];
 }
 
 /** One note, as the `notes` slice keeps it: the record, and where it was opened from. */

@@ -14,6 +14,7 @@ export const DISCO_BALL: ShaderDescriptor = Object.freeze({
     target: "node",
     place: "paint",
     categories: Object.freeze(["Sparkle"]),
+    tags: Object.freeze(["shiny", "3D", "metal"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "facets", plainName: "Tiles", type: "integer", default: 22, min: 6, max: 64, primary: true },
         { name: "sparkle", plainName: "Sparkle", type: "number", default: 1, min: 0, max: 3, varies: true },

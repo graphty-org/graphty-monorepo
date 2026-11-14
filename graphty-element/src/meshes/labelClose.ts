@@ -7,7 +7,9 @@
  * what a test reads and what a click hits cannot drift apart.
  */
 
-import { type AbstractMesh, type Scene, Vector3 } from "@babylonjs/core";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /** A rectangle: on the label's canvas, or in CSS pixels on the graph's canvas. */
 export interface CloseRect {
@@ -122,7 +124,7 @@ const projected = new Vector3();
  * @param part.bottom - Its bottom edge.
  * @returns The box, or undefined when there is no camera or the part is behind it.
  */
-export function planePartOnScreen(
+function planePartOnScreen(
     mesh: AbstractMesh,
     part: { left: number; right: number; top: number; bottom: number },
 ): CloseRect | undefined {

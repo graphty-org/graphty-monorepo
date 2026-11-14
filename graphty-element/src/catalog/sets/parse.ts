@@ -27,6 +27,8 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { noteFieldOf } from "../../session/notes/paths";
+import { parseFileStylePath } from "../../session/styles/fileStyles/path";
 import type { EdgeMember, EdgeReading, Scope, SetDefinition } from "../types";
 import { canonicalSetDefinition, DEFINITION_FIELDS, EDGE_MEMBER_FIELDS, runIdOfRef } from "./canonical";
 
@@ -366,21 +368,27 @@ function checkThreshold(value: Loose, walker: Walker): void {
 const FIELD_ROOTS = new Set(["data", "results"]);
 
 /** The structure values a rule reads with no run and no column: a node's degree. */
-export const STRUCTURE_PATHS: ReadonlySet<string> = new Set([
-    "graphty.degree",
-    "graphty.inDegree",
-    "graphty.outDegree",
-]);
+const STRUCTURE_PATHS: ReadonlySet<string> = new Set(["graphty.degree", "graphty.inDegree", "graphty.outDegree"]);
+
+/**
+ * Whether a `graphty.` path names a value graphty-element provides today: a degree, a note value
+ * or a file's style value. Each already has its meaning, so a rule may read it (#6630).
+ * @param path - The candidate path.
+ * @returns True for a known element path.
+ */
+function isElementPath(path: string): boolean {
+    return STRUCTURE_PATHS.has(path) || noteFieldOf(path) !== undefined || parseFileStylePath(path) !== undefined;
+}
 
 /**
  * Refuse a field path whose root is reserved: `graph.<measure>` and every other root but `data`
- * and `results` may be given a meaning later, and a stored path must not change meaning when it
- * is (design/sets 15.3, item 36).
+ * and `results`, and every `graphty.` path but the values the element provides, may be given a
+ * meaning later, and a stored path must not change meaning when it is (design/sets 15.3, item 36).
  * @param path - The candidate path.
  * @throws `E_BAD_COMMAND` with `details.reason: "reserved-root"`.
  */
 function checkRoot(path: unknown): void {
-    if (typeof path !== "string" || path === "" || STRUCTURE_PATHS.has(path)) {
+    if (typeof path !== "string" || path === "" || isElementPath(path)) {
         return;
     }
 
@@ -697,6 +705,14 @@ function checkUnion(value: Loose, walker: Walker): void {
         throw bad('A "union" leaf\'s within is "graph" or "visible".', { within: value.within });
     }
 
+    if (
+        value.sources !== undefined &&
+        (!Array.isArray(value.sources) ||
+            !(value.sources as readonly unknown[]).every((key) => typeof key === "string" && key !== ""))
+    ) {
+        throw bad('A "union" leaf\'s sources are a list of load keys.', { sources: value.sources });
+    }
+
     if (!Array.isArray(value.branches)) {
         throw bad('A "union" leaf\'s branches are a list.', { branches: value.branches });
     }
@@ -916,7 +932,7 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "union":
-            known(["side", "within", "branches"]);
+            known(["side", "within", "sources", "branches"]);
             checkUnion(value, walker);
 
             return;

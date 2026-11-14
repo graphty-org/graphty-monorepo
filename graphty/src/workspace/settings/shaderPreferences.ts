@@ -108,7 +108,7 @@ export function writeShaderPreference(change: {
  * Remembers that the reader approved a shader text.
  * @param hash - its SHA-256 hash, from `shader:approved`.
  */
-export function rememberApproval(hash: string): void {
+function rememberApproval(hash: string): void {
     const kept = readTrusted();
     if (!HASH.test(hash) || kept.includes(hash)) {
         return;

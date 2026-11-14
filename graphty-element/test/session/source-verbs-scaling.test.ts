@@ -13,6 +13,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, defineSource, type GraphSession, registerSource } from "../../session";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+import { withConsumerStrictState } from "./helpers";
 
 /** The two graph sizes: big enough that a quadratic path is 16x, small enough to stay cheap. */
 const SIZES = [200, 800] as const;
@@ -51,7 +52,7 @@ registerSource(
             defaultEndpoint: ENDPOINT,
             params: [{ name: "size", plainName: "Size", type: "integer", required: true }],
             features: ["expand"],
-            samples: SIZES.map((size) => ({
+            examples: SIZES.map((size) => ({
                 id: `scaling-path-${String(size)}`,
                 plainName: `Path of ${String(size)}`,
                 params: { size },
@@ -99,14 +100,7 @@ registerSource(
  * @returns The session.
  */
 function fresh(): GraphSession {
-    const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
-    const strict = scope.__GRAPHTY_STRICT_STATE__;
-    scope.__GRAPHTY_STRICT_STATE__ = false;
-    try {
-        return createGraphSession();
-    } finally {
-        scope.__GRAPHTY_STRICT_STATE__ = strict;
-    }
+    return withConsumerStrictState(() => createGraphSession());
 }
 
 /**
@@ -135,12 +129,12 @@ interface Case {
 
 const CASES: readonly Case[] = [
     {
-        method: "SessionDataApi.loadSample",
+        method: "SessionDataApi.loadExample",
         prepare: (size) => {
             const session = fresh();
             return Promise.resolve({
                 session,
-                call: () => session.data.loadSample(`scaling-path-${String(size)}`),
+                call: () => session.data.loadExample("scaling-path", `scaling-path-${String(size)}`),
                 check: () => {
                     assert.strictEqual(session.data.snapshot().nodeCount, size);
                 },

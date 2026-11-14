@@ -26,6 +26,7 @@
  * one called from inside a listener runs after the current call has returned.
  */
 
+import type { ShaderProblem } from "../../catalog/shaders";
 import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
@@ -55,7 +56,7 @@ import {
     touchedBy,
     withoutNoOps,
 } from "./draft";
-import { createdNodes, GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
+import { createdNodes, GraphOps, type GraphPass, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
 import { frozenFact, History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { retainedVersion } from "./retained";
 import { createProjectState, type ProjectState } from "./state";
@@ -108,6 +109,29 @@ interface CommandServices {
     config?: () => ProjectConfig;
     /** Whether the timeline experiment is on; absent reads on, as a store with no session has no switch. */
     timeline?: () => boolean;
+    /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. */
+    batched?: () => boolean;
+    /** Whether the file styles experiment is on; absent reads on, as a store with no session has no switch. */
+    fileStyles?: () => boolean;
+    /**
+     * The text to copy into the project for a shader id a write names that the project does not
+     * hold: a catalog entry's canonical text, the problem when its body has not loaded, or
+     * undefined when the project holds it or nothing lists it.
+     */
+    shaderCopy?: (id: string) => string | ShaderProblem | undefined;
+    /** Whether the project holds this id as an unchanged copy of the catalog shader of the same id. */
+    shaderIsCopy?: (id: string) => boolean;
+    /** Whether the project holds a shader under this id whose text reads; a use naming any other is dropped on open. */
+    shaderReadable?: (id: string) => boolean;
+    /**
+     * The catalog's text for a shader id, its body loaded first: what a file saved before files
+     * carried their shaders meant by that id. Undefined when the catalog lists no such shader.
+     */
+    legacyShaderText?: (id: string) => Promise<string | undefined>;
+    /** True while a project open restores the style values its file saved, which it does with the experiment off. */
+    restoringFileStyles?: boolean;
+    /** Tells `time:field` listeners the designated field changed other than through `time.setField`. */
+    timeFieldChanged?: () => void;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */
     progress?: (change: ProgressChange) => void;
 }
@@ -232,10 +256,13 @@ interface DefinitionBase<C extends CommandLike> {
 export interface UndoableDefinition<C extends CommandLike> extends DefinitionBase<C> {
     readonly undo: {
         readonly kind: "undoable";
-        /** What the step is called in the history ("Changed colour of Hubs"). */
-        label(command: C, state: ProjectState): string;
+        /**
+         * What the step is called in the history ("Changed colour of Hubs"). `services` reaches
+         * what sits beside the state, such as a removed set's name.
+         */
+        label(command: C, state: ProjectState, services: CommandServices): string;
         /** What the step did, as a code and its values, for an application to word. */
-        fact(command: C, state: ProjectState): CodedFact<HistoryCode>;
+        fact(command: C, state: ProjectState, services: CommandServices): CodedFact<HistoryCode>;
         /** Steps with equal keys recorded close together become one step. */
         coalesce?(command: C): string | null;
     };
@@ -309,6 +336,8 @@ interface ProjectChange {
      * when the change does not say (an undo, a redo, a restore, a rollback): compare the slice.
      */
     readonly notes?: readonly string[];
+    /** The graph op logs the change applied, in order, for the `data:changed` publisher. */
+    readonly graph?: readonly GraphPass[];
 }
 
 /** Why the history, or what the next undo will do, changed. */
@@ -715,13 +744,30 @@ function slicesOf(patch: Patch): readonly Slice[] {
 }
 
 /**
- * The note ids a patch wrote, each once, for a change; nothing when it wrote no note.
+ * What a command's change says beyond its slices: the note ids its patch wrote, each once (absent
+ * when it wrote no note), and its op log, for `data:changed`.
  * @param patch - The patch.
- * @returns The change's `notes`, or an empty object.
+ * @returns The change's `notes` and `graph`.
  */
-function notesOf(patch: Patch): Pick<ProjectChange, "notes"> {
+function detailsOf(patch: Patch): Pick<ProjectChange, "notes" | "graph"> {
     const notes = [...new Set(patch.entries.filter((entry) => entry.slice === "notes").map((entry) => entry.key))];
-    return notes.length === 0 ? {} : { notes };
+    return {
+        ...(notes.length === 0 ? {} : { notes }),
+        ...graphOf(
+            patch.log.some((entry) => entry.slice === "graph"),
+            [{ log: patch.log, undo: false }],
+        ),
+    };
+}
+
+/**
+ * A change's `graph`, only when it wrote the graph slice.
+ * @param wrote - Whether it did.
+ * @param passes - The op logs it applied.
+ * @returns The change's `graph`, or an empty object.
+ */
+function graphOf(wrote: boolean, passes: readonly GraphPass[]): Pick<ProjectChange, "graph"> {
+    return wrote ? { graph: passes } : {};
 }
 
 /**
@@ -864,6 +910,8 @@ export class Dispatcher {
     private emitting = 0;
     /** The ids the steps passed by the history call under way touched; null outside one. */
     private touching: TouchedIds | null = null;
+    /** The op logs the history call under way applied, in order. */
+    private passing: GraphPass[] = [];
     /** What an immediate command threw synchronously, for {@link Dispatcher.dispatchNow}. */
     private syncFailure: { error: unknown } | null = null;
     /** Whether commits still become the baseline rather than steps (design section 3.3). */
@@ -907,6 +955,10 @@ export class Dispatcher {
             strict: this.strict,
             session: true,
             countsRewrites: () => this.services.timeline?.() === true,
+            batched: () => this.services.batched?.() === true,
+            touchLater: (key) => {
+                this.lane.touchLater("graph", key);
+            },
         });
         this.events = { ...options.events };
         // A pass with no commit behind it (a deferred repaint, an import's end) is owed an event
@@ -923,10 +975,12 @@ export class Dispatcher {
         this.history = new History<Patch>({
             forward: (patch) => {
                 this.store.applyForward(patch);
+                this.passing.push({ log: patch.log, undo: false });
                 this.collect(patch);
             },
             backward: (patch) => {
                 this.store.applyBackward(patch);
+                this.passing.push({ log: patch.log, undo: true });
                 this.collect(patch);
             },
             merge: mergePatches,
@@ -1407,6 +1461,7 @@ export class Dispatcher {
             this.lane.restore(direction);
             this.arrangement.stop();
             this.touching = this.startTouching();
+            this.passing = [];
             const moved = direction === "undo" ? this.history.undo() : this.history.redo();
             if (moved !== null) {
                 this.arrangement.restore(this.history.takeArrangement());
@@ -1420,7 +1475,11 @@ export class Dispatcher {
         }
 
         this.markUndone(direction, [step]);
-        const change = { slices: step.slices, cause: direction };
+        const change = {
+            slices: step.slices,
+            cause: direction,
+            ...graphOf(step.slices.includes("graph"), this.passing),
+        };
         this.emit(change, [change]);
         this.selectTouched();
         return { kind: direction === "undo" ? "undone" : "redone", steps: Object.freeze([step]) };
@@ -1507,6 +1566,7 @@ export class Dispatcher {
             this.lane.restore();
             this.arrangement.stop();
             this.touching = this.startTouching();
+            this.passing = [];
             const steps = this.history.restoreTo(id);
             this.arrangement.restore(this.history.takeArrangement());
             return steps;
@@ -1514,7 +1574,7 @@ export class Dispatcher {
         this.markUndone(target < position ? "undo" : "redo", passed);
         const slices = [...new Set(passed.flatMap((step) => step.slices))];
         this.emit(
-            { slices, cause: "restore" },
+            { slices, cause: "restore", ...graphOf(slices.includes("graph"), this.passing) },
             passed.map((step) => ({ slices: step.slices, cause: "restore" as const })),
         );
         this.selectTouched();
@@ -1795,19 +1855,34 @@ export class Dispatcher {
             group.keys.add(key);
         }
 
-        options.signal?.addEventListener(
-            "abort",
-            () => {
-                this.obsolete(job, "cancel");
-            },
-            { once: true },
-        );
+        this.cancelOnAbort(job, options.signal);
         this.launch(job, concrete, group, options.beside === true, state);
         if (options.signal?.aborted === true) {
             this.obsolete(job, "cancel");
         }
 
         return job.promise;
+    }
+
+    /**
+     * Cancel a job when its caller's signal aborts, and stop listening once it settles: a signal
+     * that outlives the job would otherwise keep it, and its command's records, alive.
+     * @param job - The job.
+     * @param signal - The caller's signal, if it passed one.
+     */
+    private cancelOnAbort(job: Job, signal: AbortSignal | undefined): void {
+        if (signal === undefined) {
+            return;
+        }
+
+        const cancel = (): void => {
+            this.obsolete(job, "cancel");
+        };
+        const off = (): void => {
+            signal.removeEventListener("abort", cancel);
+        };
+        signal.addEventListener("abort", cancel, { once: true });
+        job.promise.then(off, off);
     }
 
     /**
@@ -1926,7 +2001,10 @@ export class Dispatcher {
         state: ProjectState,
     ): Group {
         return this.group(
-            { label: undoable.undo.label(concrete, state), fact: undoable.undo.fact(concrete, state) },
+            {
+                label: undoable.undo.label(concrete, state, this.services),
+                fact: undoable.undo.fact(concrete, state, this.services),
+            },
             origin === null ? (undoable.undo.coalesce?.(concrete) ?? null) : null,
             {},
             origin?.step ?? null,
@@ -1960,7 +2038,7 @@ export class Dispatcher {
             job.slot = this.scheduler.enqueue(
                 lane.categoryOf?.(concrete) ?? lane.category,
                 (context) => this.turn(job, context),
-                job.definition.undo.label(concrete, state),
+                job.definition.undo.label(concrete, state, this.services),
             );
             job.status = "queued";
             group.jobs.add(job);
@@ -2068,8 +2146,8 @@ export class Dispatcher {
             // Its own writes, reverted when it fails; the job that dispatched it goes on.
             job.revert = group.draft.checkpoint();
         } else if (group.tx === null && group.after === null && group.named === undefined) {
-            group.label = definition.undo.label(command, state);
-            group.fact = definition.undo.fact(command, state);
+            group.label = definition.undo.label(command, state, this.services);
+            group.fact = definition.undo.fact(command, state, this.services);
             group.key = definition.undo.coalesce?.(command) ?? null;
             if (this.open.has(group)) {
                 group.view = undefined;
@@ -2262,8 +2340,8 @@ export class Dispatcher {
                 recorded === null
                     ? { label: group.label, fact: group.fact }
                     : {
-                          label: job.definition.undo.label(job.command, this.store.state),
-                          fact: job.definition.undo.fact(job.command, this.store.state),
+                          label: job.definition.undo.label(job.command, this.store.state, this.services),
+                          fact: job.definition.undo.fact(job.command, this.store.state, this.services),
                       },
                 null,
                 // Recorded as its own step when the transaction's is no longer on top: it is
@@ -2338,7 +2416,7 @@ export class Dispatcher {
         }
 
         if (baseline) {
-            const change = { slices: slicesOf(patch), cause: "command" as const, ...notesOf(patch) };
+            const change = { slices: slicesOf(patch), cause: "command" as const, ...detailsOf(patch) };
             this.emit(change, [change]);
             this.release(group, true);
             this.startDeferred(group, null);
@@ -2405,7 +2483,7 @@ export class Dispatcher {
         // else is a pin no step records.
         this.arrangement.checkPins();
 
-        const change = { slices, cause: "command" as const, ...notesOf(patch) };
+        const change = { slices, cause: "command" as const, ...detailsOf(patch) };
         this.emit(change, [change]);
         return id;
     }

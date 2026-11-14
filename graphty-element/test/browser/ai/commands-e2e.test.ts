@@ -9,6 +9,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
+import type { ExecutionResult } from "../../../src/ai/AiController";
 import type { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import type { Graph } from "../../../src/Graph";
 import { cleanupE2EGraph, createE2EGraph, DEFAULT_TEST_EDGES, DEFAULT_TEST_NODES } from "../../helpers/e2e-graph-setup";
@@ -42,6 +43,16 @@ interface RunAlgorithmData {
     summary: { count: number; top: { id: string }[]; max: number | null };
     graph: Record<string, unknown>;
     path?: { nodeIds: string[]; total: number; truncated: boolean };
+}
+
+/**
+ * Assert a command succeeded and ran at least one tool: a reader's words that match no scripted
+ * response get the mock's plain-text answer, which succeeds without running anything.
+ * @param result - The command's result.
+ */
+function assertCommandRan(result: ExecutionResult): void {
+    assert.strictEqual(result.success, true, `${result.code}: ${result.message}`);
+    assert.isAbove(Number(result.params?.toolCalls), 0, "no tool ran");
 }
 
 describe("AI Commands End-to-End", () => {
@@ -86,7 +97,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("count nodes");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.strictEqual((result.data as QueryData).nodeCount, 5);
         });
 
@@ -100,7 +111,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("count edges");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.strictEqual((result.data as QueryData).edgeCount, 5);
         });
 
@@ -114,7 +125,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("summary");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             const data = result.data as QueryData;
             assert.ok(data.nodeCount !== undefined);
             assert.ok(data.edgeCount !== undefined);
@@ -130,7 +141,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("what layout");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.ok((result.data as QueryData).layout !== undefined);
         });
     });
@@ -146,7 +157,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("circular");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
 
             // Verify layout actually changed
             const layoutManager = graph.getLayoutManager();
@@ -163,7 +174,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("force");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             const layoutManager = graph.getLayoutManager();
             assert.strictEqual(layoutManager.layoutEngine?.type, "ngraph");
         });
@@ -179,12 +190,8 @@ describe("AI Commands End-to-End", () => {
             const result = await graph.aiCommand("invalid");
 
             assert.strictEqual(result.success, false);
-            assert.ok(
-                result.message.includes("Invalid layout") ||
-                    result.message.includes("not found") ||
-                    result.message.includes("unknown") ||
-                    result.message.toLowerCase().includes("layout"),
-            );
+            assert.strictEqual(result.code, "AI_TOOL_FAILED");
+            assert.deepInclude(result.params, { tool: "setLayout", cause: "E_UNKNOWN_LAYOUT" });
         });
 
         it("changes to spiral layout", async () => {
@@ -197,7 +204,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("spiral");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             const layoutManager = graph.getLayoutManager();
             assert.strictEqual(layoutManager.layoutEngine?.type, "spiral");
         });
@@ -212,7 +219,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("shell");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             const layoutManager = graph.getLayoutManager();
             assert.strictEqual(layoutManager.layoutEngine?.type, "shell");
         });
@@ -227,7 +234,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("random");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             const layoutManager = graph.getLayoutManager();
             assert.strictEqual(layoutManager.layoutEngine?.type, "random");
         });
@@ -247,7 +254,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("2d");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.strictEqual(graph.getViewMode() === "2d", true);
         });
 
@@ -270,7 +277,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("3d");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.strictEqual(graph.getViewMode() === "2d", false);
         });
 
@@ -284,7 +291,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("flat");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.strictEqual(graph.getViewMode() === "2d", true);
         });
 
@@ -305,7 +312,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("3d");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.strictEqual(graph.getViewMode() === "2d", false);
         });
     });
@@ -321,13 +328,10 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("vr");
 
-            // Should fail gracefully since WebXR is not available in test environment
-            assert.ok(
-                result.message.includes("VR") ||
-                    result.message.includes("WebXR") ||
-                    result.message.includes("not") ||
-                    result.message.toLowerCase().includes("support"),
-            );
+            // Refused: WebXR is not available in the test browser
+            assert.strictEqual(result.success, false);
+            assert.strictEqual(result.code, "AI_TOOL_FAILED");
+            assert.deepInclude(result.params, { tool: "setImmersiveMode", cause: "AI_NOT_AVAILABLE" });
         });
 
         it("gracefully handles AR when WebXR not available", async () => {
@@ -340,13 +344,10 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("ar");
 
-            // Should fail gracefully since WebXR is not available in test environment
-            assert.ok(
-                result.message.includes("AR") ||
-                    result.message.includes("WebXR") ||
-                    result.message.includes("not") ||
-                    result.message.toLowerCase().includes("support"),
-            );
+            // Refused: WebXR is not available in the test browser
+            assert.strictEqual(result.success, false);
+            assert.strictEqual(result.code, "AI_TOOL_FAILED");
+            assert.deepInclude(result.params, { tool: "setImmersiveMode", cause: "AI_NOT_AVAILABLE" });
         });
 
         it("handles exit immersive mode", async () => {
@@ -359,13 +360,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("exit");
 
-            assert.strictEqual(result.success, true);
-            assert.ok(
-                result.message.includes("exit") ||
-                    result.message.includes("Exit") ||
-                    result.message.includes("normal") ||
-                    result.message.includes("returned"),
-            );
+            assertCommandRan(result);
         });
     });
 
@@ -379,7 +374,7 @@ describe("AI Commands End-to-End", () => {
                 toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "circular" } }],
             });
             const layoutResult = await graph.aiCommand("circular");
-            assert.strictEqual(layoutResult.success, true);
+            assertCommandRan(layoutResult);
 
             // Change dimension
             provider.setResponse("2d", {
@@ -387,7 +382,7 @@ describe("AI Commands End-to-End", () => {
                 toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
             const dimResult = await graph.aiCommand("2d");
-            assert.strictEqual(dimResult.success, true);
+            assertCommandRan(dimResult);
 
             // Verify dimension changed
             assert.strictEqual(graph.getViewMode() === "2d", true);
@@ -411,7 +406,7 @@ describe("AI Commands End-to-End", () => {
             });
             const result = await graph.aiCommand("count");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.strictEqual((result.data as QueryData).nodeCount, 5);
         });
 
@@ -452,9 +447,8 @@ describe("AI Commands End-to-End", () => {
             const result = await graph.aiCommand("bad");
 
             assert.strictEqual(result.success, false);
-            assert.ok(
-                result.message.toLowerCase().includes("unknown") || result.message.toLowerCase().includes("not found"),
-            );
+            assert.strictEqual(result.code, "AI_TOOL_UNKNOWN");
+            assert.deepInclude(result.params, { tool: "nonExistentCommand" });
         });
 
         it("recovers after error and can execute new commands", async () => {
@@ -474,7 +468,7 @@ describe("AI Commands End-to-End", () => {
             });
             const result = await graph.aiCommand("circular");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("handles AI not enabled gracefully", async () => {
@@ -489,10 +483,7 @@ describe("AI Commands End-to-End", () => {
             const result = await noAiResult.graph.aiCommand("count nodes");
 
             assert.strictEqual(result.success, false);
-            assert.ok(
-                result.message.toLowerCase().includes("not enabled") ||
-                    result.message.toLowerCase().includes("enableaicontrol"),
-            );
+            assert.strictEqual(result.code, "AI_NOT_ENABLED");
         });
     });
 
@@ -507,7 +498,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("find all nodes");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.strictEqual((result.data as FindNodesData).count, 5);
             assert.strictEqual((result.data as FindNodesData).total, 5);
             assert.strictEqual((result.data as FindNodesData).truncated, false);
@@ -523,7 +514,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("find servers");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             // We have 2 server nodes (A and C)
             assert.strictEqual((result.data as FindNodesData).count, 2);
         });
@@ -538,7 +529,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("find first 2");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.strictEqual((result.data as FindNodesData).count, 2);
             assert.strictEqual((result.data as FindNodesData).total, 5);
             assert.strictEqual((result.data as FindNodesData).truncated, true);
@@ -568,7 +559,7 @@ describe("AI Commands End-to-End", () => {
                 options: { source: "A", target: "E" },
             });
 
-            assert.strictEqual(result.success, true, result.message);
+            assertCommandRan(result);
             const data = result.data as RunAlgorithmData;
             assert.strictEqual(data.algorithm, "shortest-path");
             assert.deepEqual(data.path, { nodeIds: ["A", "C", "E"], total: 3, truncated: false });
@@ -582,7 +573,7 @@ describe("AI Commands End-to-End", () => {
                 options: { dampingFactor: 0.9 },
             });
 
-            assert.strictEqual(result.success, true, result.message);
+            assertCommandRan(result);
             assert.strictEqual((result.data as RunAlgorithmData).summary.count, 5);
         });
 
@@ -598,7 +589,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await runAlgorithmCall({ namespace: "graphty", type: "degree" });
 
-            assert.strictEqual(result.success, true, result.message);
+            assertCommandRan(result);
             const data = result.data as RunAlgorithmData;
             assert.strictEqual(data.summary.count, 41);
             assert.isAtMost(data.summary.top.length, 10);
@@ -614,6 +605,8 @@ describe("AI Commands End-to-End", () => {
             });
 
             assert.strictEqual(result.success, false);
+            assert.strictEqual(result.code, "AI_TOOL_FAILED");
+            assert.deepInclude(result.params, { tool: "runAlgorithm", cause: "E_UNKNOWN_OPTION" });
             assert.include(result.message, "dampingFactr");
         });
 
@@ -625,6 +618,8 @@ describe("AI Commands End-to-End", () => {
             });
 
             assert.strictEqual(result.success, false);
+            assert.strictEqual(result.code, "AI_TOOL_FAILED");
+            assert.deepInclude(result.params, { tool: "runAlgorithm", cause: "E_OPTION_RANGE" });
             assert.include(result.message, "dampingFactor");
         });
     });
@@ -648,9 +643,9 @@ describe("AI Commands End-to-End", () => {
                 ],
             });
 
-            const result = await graph.aiCommand("make all nodes red");
+            const result = await graph.aiCommand("make red");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("styles nodes matching selector", async () => {
@@ -674,7 +669,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("highlight servers in blue");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("applies size style to nodes", async () => {
@@ -697,7 +692,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("make nodes bigger");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("handles non-matching selector gracefully", async () => {
@@ -717,9 +712,9 @@ describe("AI Commands End-to-End", () => {
                 ],
             });
 
-            const result = await graph.aiCommand("style nonexistent nodes");
+            const result = await graph.aiCommand("no match");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
     });
 
@@ -742,9 +737,9 @@ describe("AI Commands End-to-End", () => {
                 ],
             });
 
-            const result = await graph.aiCommand("make all edges green");
+            const result = await graph.aiCommand("green edges");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("applies width style to edges", async () => {
@@ -765,9 +760,9 @@ describe("AI Commands End-to-End", () => {
                 ],
             });
 
-            const result = await graph.aiCommand("make edges thicker");
+            const result = await graph.aiCommand("thick edges");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
     });
 
@@ -790,8 +785,8 @@ describe("AI Commands End-to-End", () => {
                     },
                 ],
             });
-            const addResult = await graph.aiCommand("make red");
-            assert.strictEqual(addResult.success, true);
+            const addResult = await graph.aiCommand("add red");
+            assertCommandRan(addResult);
 
             // Now clear it
             provider.setResponse("clear red", {
@@ -809,7 +804,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("clear red styling");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("clears all AI-added styles", async () => {
@@ -830,8 +825,8 @@ describe("AI Commands End-to-End", () => {
                     },
                 ],
             });
-            const addResult = await graph.aiCommand("make red");
-            assert.strictEqual(addResult.success, true);
+            const addResult = await graph.aiCommand("add red");
+            assertCommandRan(addResult);
 
             // Clear all
             provider.setResponse("clear all", {
@@ -841,7 +836,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("clear all styling");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
     });
 
@@ -863,9 +858,9 @@ describe("AI Commands End-to-End", () => {
                 ],
             });
 
-            const result = await graph.aiCommand("show from top");
+            const result = await graph.aiCommand("top view");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("applies sideView preset", async () => {
@@ -885,9 +880,9 @@ describe("AI Commands End-to-End", () => {
                 ],
             });
 
-            const result = await graph.aiCommand("view from side");
+            const result = await graph.aiCommand("side view");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("applies frontView preset", async () => {
@@ -907,9 +902,9 @@ describe("AI Commands End-to-End", () => {
                 ],
             });
 
-            const result = await graph.aiCommand("view from front");
+            const result = await graph.aiCommand("front view");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("applies isometric preset", async () => {
@@ -931,7 +926,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("isometric view");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("applies fitToGraph preset", async () => {
@@ -953,7 +948,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("fit all in view");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("sets camera to custom position", async () => {
@@ -974,9 +969,9 @@ describe("AI Commands End-to-End", () => {
                 ],
             });
 
-            const result = await graph.aiCommand("move camera to 10,20,30");
+            const result = await graph.aiCommand("custom pos");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("handles animation option", async () => {
@@ -996,15 +991,15 @@ describe("AI Commands End-to-End", () => {
                 ],
             });
 
-            const result = await graph.aiCommand("smoothly show from top");
+            const result = await graph.aiCommand("animated");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("handles invalid preset gracefully", async () => {
             const provider = getProvider();
 
-            provider.setResponse("bad preset", {
+            provider.setResponse("bad camera preset", {
                 text: "",
                 toolCalls: [
                     {
@@ -1019,23 +1014,25 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("bad camera preset");
 
-            // Command execution happens - result depends on how Graph handles unknown preset
-            // The key is that this doesn't crash
-            assert.ok(typeof result.message === "string");
+            assert.strictEqual(result.success, false);
+            assert.strictEqual(result.code, "AI_TOOL_FAILED");
+            assert.deepInclude(result.params, { tool: "setCameraPosition", cause: "AI_UNKNOWN_ENTRY" });
         });
 
         it("handles missing parameters gracefully", async () => {
             const provider = getProvider();
 
-            provider.setResponse("no params", {
+            provider.setResponse("move camera", {
                 text: "",
                 toolCalls: [{ id: "1", name: "setCameraPosition", arguments: {} }],
             });
 
             const result = await graph.aiCommand("move camera");
 
-            // Command executes without crashing - behavior depends on validation
-            assert.ok(typeof result.message === "string");
+            // Neither a preset nor a position: refused, nothing moved
+            assert.strictEqual(result.success, false);
+            assert.strictEqual(result.code, "AI_TOOL_FAILED");
+            assert.deepInclude(result.params, { tool: "setCameraPosition", cause: "AI_ARG_INVALID" });
         });
     });
 
@@ -1059,8 +1056,8 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("zoom to fit all");
 
-            assert.strictEqual(result.success, true);
-            assert.include(result.message, "Zoomed to fit");
+            assertCommandRan(result);
+            assert.strictEqual(result.affectedNodes?.length, graph.getNodeCount());
         });
 
         it("zooms to nodes matching selector", async () => {
@@ -1083,7 +1080,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("zoom to servers");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             // We have 2 server nodes (A and C)
             assert.deepStrictEqual([...(result.affectedNodes ?? [])].sort(), ["A", "C"]);
         });
@@ -1107,7 +1104,7 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("smoothly zoom to fit");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.deepStrictEqual(result.data, { nodeCount: graph.getNodeCount(), animated: true });
         });
 
@@ -1130,9 +1127,8 @@ describe("AI Commands End-to-End", () => {
             const result = await graph.aiCommand("zoom to nonexistent");
 
             // Succeeds, moves nothing, and says nothing matched
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
             assert.isEmpty(result.affectedNodes ?? []);
-            assert.include(result.message, "No nodes matched");
         });
     });
 
@@ -1155,8 +1151,8 @@ describe("AI Commands End-to-End", () => {
                     },
                 ],
             });
-            const styleResult = await graph.aiCommand("make red");
-            assert.strictEqual(styleResult.success, true);
+            const styleResult = await graph.aiCommand("style");
+            assertCommandRan(styleResult);
 
             // Change camera
             provider.setResponse("camera", {
@@ -1172,8 +1168,8 @@ describe("AI Commands End-to-End", () => {
                     },
                 ],
             });
-            const cameraResult = await graph.aiCommand("top view");
-            assert.strictEqual(cameraResult.success, true);
+            const cameraResult = await graph.aiCommand("camera");
+            assertCommandRan(cameraResult);
 
             // Both commands should succeed - style persistence depends on implementation
         });
@@ -1196,7 +1192,7 @@ describe("AI Commands End-to-End", () => {
                     },
                 ],
             });
-            await graph.aiCommand("highlight servers");
+            await graph.aiCommand("style servers");
 
             // Zoom to all nodes
             provider.setResponse("zoom servers", {
@@ -1212,9 +1208,9 @@ describe("AI Commands End-to-End", () => {
                     },
                 ],
             });
-            const result = await graph.aiCommand("zoom to servers");
+            const result = await graph.aiCommand("zoom servers");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
 
         it("clears styles then reapplies new ones", async () => {
@@ -1236,7 +1232,7 @@ describe("AI Commands End-to-End", () => {
                 ],
             });
             const redResult = await graph.aiCommand("red");
-            assert.strictEqual(redResult.success, true);
+            assertCommandRan(redResult);
 
             // Clear all
             provider.setResponse("clear", {
@@ -1244,7 +1240,7 @@ describe("AI Commands End-to-End", () => {
                 toolCalls: [{ id: "1", name: "clearStyles", arguments: {} }],
             });
             const clearResult = await graph.aiCommand("clear");
-            assert.strictEqual(clearResult.success, true);
+            assertCommandRan(clearResult);
 
             // Add blue style
             provider.setResponse("blue", {
@@ -1263,7 +1259,7 @@ describe("AI Commands End-to-End", () => {
             });
             const result = await graph.aiCommand("blue");
 
-            assert.strictEqual(result.success, true);
+            assertCommandRan(result);
         });
     });
 });

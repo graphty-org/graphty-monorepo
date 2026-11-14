@@ -14,10 +14,10 @@ import type { Host } from "./values";
 export const PICK_ON_CANVAS = "pick";
 
 /** How many sets or nodes the list draws at most. */
-export const SHOWN_REFERENCES = 8;
+const SHOWN_REFERENCES = 8;
 
 /** One option of the list. */
-export interface ReferenceOption {
+interface ReferenceOption {
     readonly value: string;
     readonly label: string;
     readonly disabled?: boolean;
@@ -122,7 +122,7 @@ export function referenceSections(
     const { nodeCount } = session.data.statistics();
     const found = typed === "" ? null : findNodes(session, typed);
     const nodes = (found?.nodes ?? []).map((each) => {
-        const label = session.data.name(each.id) ?? String(each.id);
+        const label = session.data.nodeName(each.id).name;
         const hint = matchedValue(each, label, lower);
         return { value: `node:${String(each.id)}`, label, ...(hint === undefined ? {} : { hint }) };
     });

@@ -14,6 +14,9 @@
  * - fraud/transfers.csv: 450 rows: 18 name an unknown account, 5 repeat an earlier pair, 3 amounts
  *   use a decimal comma, 1 is "N/A", line 412 has one field too many
  * - events/auth-log.csv: 400 sign-ins over 14 days; "admin" is both a user and a host
+ * - proteins/biogrid-interactions.tsv, symbol-ensembl.tsv, expression-ensembl.tsv,
+ *   supply-chain/contracts-2024-09.csv, suppliers-erp.csv and door-entry/*: for trying each kind
+ *   of join; each file's row count is checked below
  *
  * Run: node scripts/make-prototype-data.mjs (from graphty/). `--check` writes nothing and fails
  * when a file on disk differs from what the script would write.
@@ -446,13 +449,169 @@ function authLog() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Files for trying each kind of join.
+
+/**
+ * A second interaction list: 32 pairs the TP53 network already holds, 40 pairs of its genes it
+ * does not, and 8 pairs reaching 4 proteins it lacks.
+ * @returns {string} the TSV
+ */
+function biogrid() {
+    const next = stream(481);
+    const pairs = [];
+    for (let at = 1; at <= 20; at++) {
+        pairs.push([SYMBOLS[0], SYMBOLS[at]]);
+    }
+    for (let at = 1; at <= 12; at++) {
+        pairs.push([SYMBOLS[at], SYMBOLS[at + 1]]);
+    }
+    for (let at = 0; at < 40; at++) {
+        pairs.push([SYMBOLS[(at % 58) + 1], SYMBOLS[((at + 13) % 58) + 1]]);
+    }
+    const added = ["KMT2A", "NCOR1", "SMARCA4", "TP63"];
+    for (let at = 0; at < 8; at++) {
+        pairs.push([SYMBOLS[at * 3], added[at % added.length]]);
+    }
+    return lines([
+        "symbol_a\tsymbol_b\texperiments",
+        ...pairs.map(([a, b]) => `${a}\t${b}\t${String(1 + Math.floor(next() * 12))}`),
+    ]);
+}
+
+/**
+ * A made-up Ensembl id for one of the network's genes.
+ * @param {number} at - the gene's place
+ * @returns {string} the id
+ */
+const ensembl = (at) => `ENSG${String(141510 + at * 137).padStart(11, "0")}`;
+
+/**
+ * The genes' ids in another system: the network's first 54 symbols.
+ * @returns {string} the TSV
+ */
+function symbolEnsembl() {
+    return lines(["symbol\tensembl", ...SYMBOLS.slice(0, 54).map((symbol, at) => `${symbol}\t${ensembl(at)}`)]);
+}
+
+/**
+ * Expression keyed by Ensembl id: 46 of the mapped genes, then 4 ids no mapping holds.
+ * @returns {string} the TSV
+ */
+function expressionEnsembl() {
+    const next = stream(4610);
+    const ids = [...Array.from({ length: 46 }, (_unused, at) => ensembl(at)), ...[900, 901, 902, 903].map(ensembl)];
+    return lines(["ensembl\ttpm", ...ids.map((id) => `${id}\t${between(next, 0.5, 480, 1)}`)]);
+}
+
+/**
+ * Contract values on September's shipments, keyed by the from and to pair: every pair but each
+ * 15th, then 3 pairs no shipment holds.
+ * @param {string} september - September's CSV
+ * @returns {string} the CSV
+ */
+function contracts(september) {
+    const next = stream(909);
+    const pairs = september
+        .trim()
+        .split("\n")
+        .slice(1)
+        .map((row) => row.split(",").slice(0, 2))
+        .filter((_pair, at) => at % 15 !== 14);
+    return lines([
+        "from,to,contract_value",
+        ...[...pairs, ["s01", "s10"], ["s05", "s20"], ["s09", "s30"]].map(
+            ([from, to]) => `${from},${to},${String(1000 + Math.floor(next() * 90000))}`,
+        ),
+    ]);
+}
+
+/**
+ * A second supplier list from another system: 12 of the same ids, 2 with another country, and 3
+ * suppliers the first list lacks, in countries it never names.
+ * @returns {string} the CSV
+ */
+function suppliersErp() {
+    const next = stream(1542);
+    const shared = Array.from({ length: 12 }, (_unused, at) => {
+        const country = at === 1 || at === 6 ? "NO" : COUNTRIES[at % COUNTRIES.length];
+        return [supplier(at), SUPPLIER_NAMES[at].trim(), country];
+    });
+    const added = [
+        ["s41", "Fjord Metals", "IS"],
+        ["s42", "Andes Polymers", "PE"],
+        ["s43", "Atlas Forge", "MA"],
+    ];
+    return lines([
+        "id,name,country,rating",
+        ...[...shared, ...added].map(([id, name, country]) => `${id},${name},${country},${between(next, 1, 5, 1)}`),
+    ]);
+}
+
+/** What a person's department can be. */
+const DEPARTMENTS = ["Research", "Finance", "Legal", "Facilities"];
+
+/** The buildings a door log covers. */
+const BUILDINGS = [
+    ["b1", "12 Harbor Way", 4],
+    ["b2", "48 Foundry Road", 9],
+    ["b3", "7 Orchard Lane", 2],
+    ["b4", "230 Summit Avenue", 15],
+    ["b5", "91 Canal Street", 6],
+    ["b6", "3 Quarry Court", 3],
+];
+
+/** A person id: p01 to p24. */
+const person = (at) => `p${String(at + 1).padStart(2, "0")}`;
+
+/**
+ * The owner's own example: 24 people, 6 buildings and 200 door entries between them, one row
+ * repeated and one from a person the list lacks.
+ * @returns {{ people: string, buildings: string, entries: string }} the CSVs
+ */
+function doorEntry() {
+    const next = stream(24);
+    const start = Date.UTC(2024, 5, 3, 8);
+    const rows = Array.from({ length: 198 }, (_unused, at) => [
+        person(Math.floor(next() * 24)),
+        BUILDINGS[Math.floor(next() * BUILDINGS.length)][0],
+        new Date(start + at * 17 * 60000).toISOString().replace(".000Z", "Z"),
+    ]);
+    return {
+        people: lines([
+            "person_id,name,department",
+            ...Array.from({ length: 24 }, (_unused, at) => {
+                const name = `${FIRST[at % FIRST.length]} ${LAST[(at * 3) % LAST.length]}`;
+                return `${person(at)},${name},${DEPARTMENTS[at % DEPARTMENTS.length]}`;
+            }),
+        ]),
+        buildings: lines([
+            "building_id,address,floors",
+            ...BUILDINGS.map(([id, address, floors]) => `${id},${address},${String(floors)}`),
+        ]),
+        entries: lines([
+            "person_id,building_id,time",
+            ...[...rows, rows[0], ["p99", BUILDINGS[0][0], "2024-06-06T09:00:00Z"]].map((row) => row.join(",")),
+        ]),
+    };
+}
+
+// ---------------------------------------------------------------------------------------------
 
 /** Every file, by its path under public/prototype-data/. */
 function files() {
     const { september, october } = shipments();
+    const door = doorEntry();
     return {
         "proteins/tp53-interactions.tsv": interactions(),
         "proteins/tumor-expression.tsv": expression(),
+        "proteins/biogrid-interactions.tsv": biogrid(),
+        "proteins/symbol-ensembl.tsv": symbolEnsembl(),
+        "proteins/expression-ensembl.tsv": expressionEnsembl(),
+        "supply-chain/contracts-2024-09.csv": contracts(september),
+        "supply-chain/suppliers-erp.csv": suppliersErp(),
+        "door-entry/people.csv": door.people,
+        "door-entry/buildings.csv": door.buildings,
+        "door-entry/door-entries.csv": door.entries,
         "supply-chain/suppliers.csv": suppliers(),
         "supply-chain/ships-to-2024-09.csv": september,
         "supply-chain/ships-to-2024-10.csv": october,
@@ -462,10 +621,27 @@ function files() {
     };
 }
 
+/** How many data rows each file holds; the app's sample list says the same. */
+const ROWS = {
+    "proteins/biogrid-interactions.tsv": 80,
+    "proteins/symbol-ensembl.tsv": 54,
+    "proteins/expression-ensembl.tsv": 50,
+    "supply-chain/contracts-2024-09.csv": 143,
+    "supply-chain/suppliers-erp.csv": 15,
+    "door-entry/people.csv": 24,
+    "door-entry/buildings.csv": 6,
+    "door-entry/door-entries.csv": 200,
+};
+
 const check = process.argv.includes("--check");
 let stale = 0;
 for (const [path, text] of Object.entries(files())) {
     const target = resolve(OUT, path);
+    const rows = text.trimEnd().split("\n").length - 1;
+    if (ROWS[path] !== undefined && rows !== ROWS[path]) {
+        stale++;
+        console.error(`${path} has ${String(rows)} rows, not ${String(ROWS[path])}`);
+    }
     if (check) {
         let current = null;
         try {

@@ -14,6 +14,9 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
 import type { UpdateManager } from "../../src/managers/UpdateManager";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const DOT = `digraph {
   a -> b;

@@ -106,6 +106,7 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 | `release-scheduler/`                | A Cloudflare Worker that dispatches `release.yml` at 00:00, 06:00, 12:00 and 18:00 UTC; see its `README.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `sonar-gate.mjs`                    | SonarQube on the lines a branch changes. See "SonarQube"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `check-links.sh`                    | Dead-link check (see "Dead Links"). `--offline` for the fast half                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `check-provider-links.mjs`          | Checks that the graphty app's AI provider key and billing links still land where recorded; run by `check-links.sh` (offline half every PR, network weekly)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `assemble-pages-site.sh`            | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `check-committed-images.mjs`        | Fails a push that adds more than 20 images or 20 MB outside the folders that hold them; an `Images-Approved: <reason>` trailer passes a deliberate addition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `check-figma-lock.mjs`              | Fails a commit that changes compact-mantine's Figma spec, tests or token values without the owner's `Figma-Approved: <reason>` trailer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -117,9 +118,10 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 
 ### Secret Scan and Secret Files
 
-`.husky/pre-commit` runs secretlint (`.secretlintrc.json`) on the staged files and refuses a commit that holds
+`.husky/pre-commit` runs secretlint (`.secretlintrc.json`) on the staged changes and refuses a commit that holds
 something shaped like a credential, then runs prettier on the staged files (`tools/format-staged.sh`).
-`.husky/pre-push` runs the same scan on every file the branch changed since it left `origin/master`, the Git LFS
+`.husky/pre-push` runs the same scan on every file the branch changed since it left `origin/master` and on every
+line each of its commits adds (a secret a later commit removes is still pushed, so it is still refused), the Git LFS
 upload (`tools/lfs-pre-push.sh`) and the committed-images limit; `pr-open.sh` runs the scan and the LFS upload
 too. For a false positive, add the path to `.secretlintignore`. Tokens live in the root `.env` (gitignored);
 scripts read them from there and never print them. `.claude/settings.json` denies agents `Read` on `.env` files,
@@ -204,7 +206,7 @@ section). The two packages without a CLAUDE.md:
 **cytoscape-extensions:**
 
 - Single test project (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. Dataset downloads are answered from `graph-samples/dist/data/v1/` (`test/setup/local-datasets.mjs`), never the network. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
-- Storybook demo (`npm run storybook`, `stories/`): every layout, algorithm, generator, small dataset and file format in a real Cytoscape instance, one story per tile; `test/demo-catalog.test.ts` fails when the extension registers something `stories/catalog.ts` does not list. The capture browser has no WebGPU, so the screenshots show the CPU path; the GPU path is covered by the package's GPU tests
+- Storybook demo (`npm run storybook`, `stories/`): every layout, algorithm, generator, small dataset and file format in a real Cytoscape instance, one story per tile; `test/demo-catalog.test.ts` fails when the extension registers something `stories/catalog.ts` does not list. The capture browser has no WebGPU, so the screenshots show the CPU path and leave the Large graphs stories out; those are screenshotted WITH WebGPU on the full run's T4 against owner-approved references (cytoscape-extensions/CLAUDE.md, "GPU screenshots"), and the rest of the GPU path is covered by the package's GPU tests
 
 ### Running Specific Test Projects
 
@@ -213,7 +215,9 @@ section). The two packages without a CLAUDE.md:
 
 ### Coverage Thresholds
 
-All packages: 80% lines/functions/statements, 75% branches
+At least 80% lines, functions and statements and 75% branches in every package; graph-format, graph-io,
+graph-samples, babylonjs-map, algorithms and layout require 90% in all four. Every package is moving to 90
+(issue #3043); a package's thresholds rise to 90 in the pull request that brings it there.
 
 ## Testing
 
@@ -354,8 +358,9 @@ requests an hour, shared by everything acting as it. Until the limit resets, eve
 
 - **Read pull request status from the local broker, not from GitHub.** `tools/pr-status-broker.mjs`
   runs under servherd and writes every open pull request's labels, draft and merge state, rollup
-  and checks to `<main checkout>/tmp/pr-status/status.json` once a minute, in one GraphQL query
-  (about 3 points a query, 180 an hour; the file's `rateLimit.cost` has the real figure). Where a
+  and checks to `<main checkout>/tmp/pr-status/status.json` once a minute, in GraphQL pages of 10
+  pull requests (1 point a page: about 4 points a minute, 240 an hour for 35 open; the file's
+  `rateLimit.cost` has the real figure). Where a
   check ran more than once on the head commit, the file keeps the newest; `truncated` or
   `checksTruncated` means the list is incomplete.
   Read that file (check `fetchedAt` and `error`). If `servherd_list` does not show

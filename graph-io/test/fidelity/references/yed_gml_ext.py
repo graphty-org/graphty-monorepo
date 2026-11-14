@@ -2,7 +2,7 @@
 Independent of graph-io (networkx read_gml + stdlib). It reads more than yed_gml.py:
 
 - node border width is yEd's `outlineWidth` (yEd writes `width` only on edges); `hasOutline 0` = no border
-- `hasFill 0` = no fill
+- `hasFill 0` = no fill; a `fill2` gradient is `paintedOver` (the flat `fill` is not the color drawn)
 - label position from LabelGraphics `anchor` (yEd's internal model: c, t, b, ... and n/s/e/w)
 - edge label from LabelGraphics `text` as well as the edge's `label` key
 - legacy `arrow "last" | "first" | "both"` on edges
@@ -66,6 +66,10 @@ def scene(path):
                           outline[0] if outline else None,
                           float(gr.get("outlineWidth", 1)) if outline else 0,
                           gr.get("outlineStyle", "line"), label, i))
+        # a `fill2` is a gradient yEd paints across the node from `fill` (its SVG export of gml-synthetic-coverage
+        # reflects it, so a side shows neither color alone): `fill` is not the color drawn, the oracle judges the ramp
+        if fill and gr.get("fill2") is not None:
+            nodes[-1]["paintedOver"] = True
     for n in [k for k in geo if k not in groups]:
         p, seen = parent.get(n), set()
         while p is not None and p in groups and p not in seen:

@@ -130,10 +130,14 @@ export const PARENT_COLUMN = "parent";
 
 /**
  * The json node column that keeps the yFiles data of a node's `<port>` elements: one entry per port, its `name` and
- * each of its yFiles values by its key's name (yEd Live's `PortLocationParameter` and `PortStyle`).
+ * each of its yFiles values by its key's name (yEd Live's `PortLocationParameter` and `PortStyle`). Its `extra.portKeys`
+ * holds each key's yFiles type (its `yfiles.type` or `y:attr.uri`) by that name, so a save writes the ports back.
  * @category Plugin helpers
  */
 export const PORTS_COLUMN = "ports";
+
+/** The ports column's `extra` entry holding each port key's yFiles type by its name. */
+export const PORT_KEYS_EXTRA = "portKeys";
 
 /**
  * The bool node column marking the hub nodes synthesized for hyperedges under `hyperedges: "star"`.
@@ -239,10 +243,12 @@ export const GRAPHML_ISSUE = Object.freeze({
     UNKNOWN_PARENT: UNKNOWN_PARENT_CODE,
     /** Two `<data>` of one key on one element, two `<default>` in one key, or two weight keys; one is kept. */
     DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
-    /** A `<data>` whose key was never declared. */
-    UNKNOWN_KEY: "E_GRAPHML_UNKNOWN_KEY",
-    /** A `<key>` declared after `<data>` that used it; those values were already reported and dropped. */
+    /** A `<data>` whose key was never declared; the key is read as an untyped (string) key named by its id. */
+    UNKNOWN_KEY: "W_GRAPHML_UNKNOWN_KEY",
+    /** A `<key>` declared after `<data>` that used it; that data was already read as text and the key is ignored. */
     KEY_DECLARED_LATE: "W_GRAPHML_KEY_DECLARED_LATE",
+    /** A `<key>` declared inside `<graph>` instead of `<graphml>`; it is read as if declared in `<graphml>`. */
+    KEY_IN_GRAPH: "W_GRAPHML_KEY_IN_GRAPH",
     /** A `<data>` whose key is declared for another domain. */
     KEY_DOMAIN: "W_GRAPHML_KEY_DOMAIN",
     /** A `<data>` without a key attribute. */
@@ -261,8 +267,10 @@ export const GRAPHML_ISSUE = Object.freeze({
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge id already used by another edge. */
     DUPLICATE_EDGE_ID: DUPLICATE_EDGE_ID_CODE,
-    /** A `directed` attribute that is neither true nor false. */
+    /** A `directed` attribute that is neither true nor false; the edge takes its graph's direction. */
     INVALID_DIRECTED: "E_GRAPHML_INVALID_DIRECTED",
+    /** A `directed` attribute written `True`, `FALSE` or with spaces, not an xs:boolean spelling; read as the boolean. */
+    DIRECTED_SPELLING: "W_GRAPHML_DIRECTED_SPELLING",
     /** An `edgedefault` that is neither directed nor undirected. */
     INVALID_EDGEDEFAULT: "E_GRAPHML_INVALID_EDGEDEFAULT",
     /** A `<graph>` without edgedefault; the `defaultDirected` option applies. */
@@ -384,8 +392,13 @@ export const GRAPHML_LOSS = Object.freeze({
     EDGE_ID_TEXT: "W_GRAPHML_EDGE_ID_TEXT",
     /** A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. */
     YFILES_GRAPHICS_STALE: "W_GRAPHML_YFILES_GRAPHICS_STALE",
-    /** The yFiles data of a node's ports (its `ports` column), which a save does not write back as `<port>` elements. */
+    /**
+     * Port values of a node's `ports` column a save cannot write back as `<port>` data: a value under a name with no
+     * yFiles key type in the column's `extra.portKeys`, a value that is not an XML tree, or an entry with no name.
+     */
     PORTS_DROPPED: "W_GRAPHML_PORTS_DROPPED",
+    /** A kept namespace prefix that is not an XML NCName, or is `xml` or `xmlns`, is not written on the root tag. */
+    NAMESPACE_DROPPED: "W_GRAPHML_NAMESPACE_DROPPED",
     /** A yEd graphics value that is not valid XML; the save fails with E_COLUMN_TYPE. */
     YFILES_TREE: "E_GRAPHML_YFILES_TREE",
 });

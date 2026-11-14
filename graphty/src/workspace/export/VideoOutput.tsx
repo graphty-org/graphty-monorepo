@@ -118,8 +118,8 @@ export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<Vi
             const dropped = result.metadata.framesDropped;
             onDone(dropped > 0 ? `Exported ${file}, ${String(dropped)} frames dropped` : `Exported ${file}`, file);
         } catch (error) {
-            const code = (error as { code?: unknown } | null)?.code;
-            if (code === "E_UNSUPPORTED") {
+            const { code, details } = (error ?? {}) as { code?: unknown; details?: { reason?: unknown } };
+            if (code === "E_UNSUPPORTED" && details?.reason !== "format") {
                 setFailure("Tour needs 3D views");
             } else if (error instanceof Error && error.name === "AnimationCancelledError") {
                 setFailure(null);

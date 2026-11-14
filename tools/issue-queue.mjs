@@ -33,13 +33,14 @@ const SKIP_LABELS = [
     "release-status",
     "dead-links",
     "research",
-    "enhancement",
+    "ux-owner",
     "githerd-heartbeat",
     "ci-budget",
 ];
 const HELD_MAJOR = new Set([676, 702, 843, 1370]);
 const PRIORITIES = ["high", "medium", "low"];
 const EFFORTS = ["low", "medium", "high"];
+const TYPES = ["bug", "infrastructure", "enhancement"];
 
 /**
  * Whether a GraphQL actor is on the allowlist.
@@ -77,6 +78,8 @@ export function skipReason(issue) {
     const labels = labelsOf(issue);
     const label = SKIP_LABELS.find((l) => labels.includes(l));
     if (label) return `label ${label}`;
+    // An enhancement only when labelled ux-safe (owner, 2026-11-10); ux-owner ones are owner-ordered only.
+    if (labels.includes("enhancement") && !labels.includes("ux-safe")) return "label enhancement";
     if (labels.includes("documentation") && !labels.includes("bug")) return "documentation, not a bug";
     if (HELD_MAJOR.has(issue.number)) return "held major";
     if (issue.title.startsWith("Release held:")) return "release held";
@@ -97,6 +100,7 @@ export function describe(issue, now) {
     let type = "other";
     if (labels.includes("bug")) type = "bug";
     else if (labels.includes("infrastructure")) type = "infrastructure";
+    else if (labels.includes("enhancement")) type = "enhancement";
     return {
         number: issue.number,
         title: issue.title,
@@ -113,7 +117,7 @@ export function describe(issue, now) {
 const rank = (list, v) => (list.includes(v) ? list.indexOf(v) : list.length);
 
 /**
- * The round's order: load-sensitive first, then priority, then bug before infrastructure, then effort, then oldest.
+ * The round's order: load-sensitive first, then priority, then bug, infrastructure, enhancement, then effort, then oldest.
  * @param a described issue
  * @param b described issue
  * @returns a sort comparison
@@ -122,7 +126,7 @@ export function compare(a, b) {
     return (
         Number(b.loadSensitive) - Number(a.loadSensitive) ||
         rank(PRIORITIES, a.priority) - rank(PRIORITIES, b.priority) ||
-        rank(["bug", "infrastructure"], a.type) - rank(["bug", "infrastructure"], b.type) ||
+        rank(TYPES, a.type) - rank(TYPES, b.type) ||
         rank(EFFORTS, a.effort) - rank(EFFORTS, b.effort) ||
         Date.parse(a.createdAt) - Date.parse(b.createdAt)
     );

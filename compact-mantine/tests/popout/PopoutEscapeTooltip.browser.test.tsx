@@ -1,7 +1,7 @@
 import { ActionIcon, MantineProvider, Tooltip } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { Popout, PopoutManager } from "../../src/components/popout";
 import { compactTheme } from "../../src/theme";
@@ -36,7 +36,12 @@ describe("Escape in a pop-out (browser)", () => {
         renderWithTooltip();
         await user.click(screen.getByRole("button", { name: "Open" }));
         const reset = await screen.findByRole("button", { name: "Reset size" });
-        reset.focus();
+        // Reach it from the keyboard: the tooltip opens for focus a key moved, and the click that
+        // opened the pop-out was a pointer, so focus a script put there would not open it.
+        for (let presses = 0; presses < 5 && document.activeElement !== reset; presses++) {
+            await user.tab();
+        }
+        expect(reset).toHaveFocus();
         // Mantine names the tooltip on its trigger while it is open.
         await waitFor(() => {
             expect(reset.getAttribute("aria-describedby")).toBeTruthy();

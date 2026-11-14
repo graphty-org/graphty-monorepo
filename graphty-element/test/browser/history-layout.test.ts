@@ -15,6 +15,7 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
+import { isGraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
@@ -65,7 +66,7 @@ async function loadedGraph(): Promise<Graph> {
  */
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
-    for (let wait = 0; wait < 600 && graph.getLayoutManager().running; wait++) {
+    while (graph.getLayoutManager().running) {
         await nextFrame();
     }
 
@@ -130,7 +131,43 @@ function gatePreSteps(): { waiting: () => boolean; open: () => void; published: 
     return { waiting: () => waiting, open: release, published: () => published };
 }
 
+/**
+ * Settles on the element's next finished framing.
+ * @param graph - The graph.
+ * @returns When the camera has framed the graph.
+ */
+function framed(graph: Graph): Promise<void> {
+    return new Promise((resolve) => {
+        const stop = graph.on("zoom-to-fit-complete", () => {
+            stop();
+            resolve();
+        });
+    });
+}
+
 describe("the layout as a step", () => {
+    it("undo of a wider layout frames the old arrangement again, as a new layout is framed", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
+        const first = framed(graph);
+        graph.zoomToFit();
+        await first;
+        await atRest(graph);
+        const before = graph.getCameraState().cameraDistance ?? 0;
+
+        const wide = framed(graph);
+        await session.layout.set("circular", { options: { scale: 20 } });
+        await wide;
+        await atRest(graph);
+        assert.isAbove(graph.getCameraState().cameraDistance ?? 0, before * 4, "the wide ring is framed wider");
+
+        const back = framed(graph);
+        await session.undo();
+        await back;
+        await atRest(graph);
+        assert.approximately(graph.getCameraState().cameraDistance ?? 0, before, before * 0.25);
+    });
+
     it("undo brings back the alternate engine that was chosen, with its options", async () => {
         const graph = await loadedGraph();
         const session = graph.getSession();
@@ -241,8 +278,12 @@ describe("the layout as a step", () => {
         await graph.setViewMode("2d");
         const steps = session.history.steps.length;
 
-        // This browser has no WebXR, so entry fails.
-        await graph.setViewMode("vr");
+        // XR is off here, so entry fails, and says so.
+        const refused: unknown = await graph.setViewMode("vr").then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+        assert.isTrue(isGraphtyError(refused) && refused.code === "E_UNSUPPORTED", "the entry did not reject, coded");
 
         assert.lengthOf(session.history.steps, steps, "no step for a switch the reader never got");
         assert.strictEqual(graph.getViewMode(), "2d");

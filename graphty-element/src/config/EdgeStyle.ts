@@ -127,6 +127,12 @@ const ArrowStyle = z.strictObject({
      * with caps at both ends was drawn with a magenta tail and a grey head.
      */
     color: ColorStyle.optional(),
+    /**
+     * The colour an open cap's inside is filled with (open-normal, open-diamond, open-dot, open-inverted, open-box),
+     * inside its outline, which stays in `color`: yEd's framed edges fill their arrowheads so. Unset, the inside is left
+     * empty. Other cap types ignore it.
+     */
+    fillColor: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).default(1).optional(),
     /**
      * The picture an `image` cap draws, a URL or a data URL: stretched over the cap with its top
@@ -170,7 +176,10 @@ export const EdgeLineTypes = z.enum([
     "contiguous-arrow", // A line with chevrons along it, pointing to the target (Cytoscape CONTIGUOUS_ARROW)
 ]);
 
-/** The patterns an edge's outline band (`line.outline.type`) can be drawn in. */
+/**
+ * The patterns an edge's outline band (`line.outline.type`) can be drawn in.
+ * @experimental file-styles
+ */
 export const EdgeOutlineTypes = z.enum(["solid", "dash", "dot", "dash-dot"]);
 
 const LineStyle = z.strictObject({
@@ -218,6 +227,21 @@ const LineStyle = z.strictObject({
      * half period. Cytoscape desktop repeats every 20 px.
      */
     wavePeriod: z.number().nonnegative().optional(),
+    /**
+     * How long each dash of a "dash" line is, in the line's own width units. Unset, 3. On a "dot" line with a
+     * `dashGap`, the length of each dot in a program's pattern: the dot is still drawn round, one width across, and
+     * the dots repeat every `dashLength + dashGap` widths, as the program's do. Unset there, 1.
+     * @experimental file-styles
+     */
+    dashLength: z.number().nonnegative().optional(),
+    /**
+     * The clear space between two dashes of a "dash" line, or two dots of a "dot" line, in the line's own width units.
+     * Set, the pattern repeats from the line's start, as a dash pattern does, and the last dash is cut where the line
+     * ends (unless `patternCount` is set). Unset, the first and last element touch the line's ends and the rest
+     * spread between them at least half an element apart.
+     * @experimental file-styles
+     */
+    dashGap: z.number().nonnegative().optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
     /**

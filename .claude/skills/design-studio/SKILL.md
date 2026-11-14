@@ -180,8 +180,8 @@ Studio fixes reach master like every other change, through their own pull reques
 workflow merges origin/master into the studio branch, builds, lints, commits, and logs one line:
 `ready to land: <branch> at <sha> (<pass>)`. The session that launched the workflow answers that
 line by running `tools/pr-open.sh --proof <file>` in the branch's worktree and fixing the branch if
-its pull request goes red; the line also names any breaking commit, which merges only with the
-owner's go. The workflow then waits until the commit is on `origin/master` (the pull request merged)
+its pull request goes red; a breaking change lands with no `!` (CLAUDE.md "Public API and breaking
+changes"). The workflow then waits until the commit is on `origin/master` (the pull request merged)
 before it goes on. Pass
 `landEachPass: false` only for a run whose fixes must not reach master.
 
@@ -339,7 +339,7 @@ Each rule below exists because breaking it cost a run.
   facts (`{ code, params }`, never English, never grouping or order); words and arrangement in the
   app; shared components in compact-mantine. A fix that works around an element defect in the app
   is a defect.
-- **Additive API changes are the team's call; only breaking ones go to the owner.** The owner said
+- **API changes are the team's call, breaking ones too for now (owner, 2026-11-10).** The owner said
   so on 2026-10-08: asking about every new method or option was the bottleneck. Record the
   reasoning under "decided by the team" in `owner-decisions.md`; never block the study on an
   owner item.
@@ -408,8 +408,8 @@ Each rule below exists because breaking it cost a run.
   check `design/ui/framework` (`glossary.md`, `interaction-patterns.md`, `decided-doors.md`), the
   approved specs, the tier's `decided.md`, and the owner's own statements in `.claudehistory`. An
   item those settle is decided by the team, recorded with its citation in `owner-decisions.md`
-  under "decided by the team", and built. Only a true one-way door -- a breaking change to a
-  published API, a departure from compact-mantine's Figma lock -- goes to the owner. On 2026-10-29
+  under "decided by the team", and built. Only a true one-way door, such as
+  a departure from compact-mantine's Figma lock, goes to the owner. On 2026-10-29
   all nine tier 4 data management questions raised for the owner turned out to be settled by those
   sources (the glossary already named the filter effects, the owner had already said where a
   column's type is set), and the study waited on questions that had answers.

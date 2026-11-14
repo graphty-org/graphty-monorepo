@@ -5,6 +5,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
+import { AiConfigError } from "../../../src/ai/agents";
 import { AiManager } from "../../../src/ai/AiManager";
 import type { Graph } from "../../../src/Graph";
 import { createMockGraphContext } from "../../helpers/mock-graph-context";
@@ -31,9 +32,30 @@ describe("AiManager", () => {
             assert.ok(commands.includes("setImmersiveMode"), "should include setImmersiveMode command");
         });
 
+        it("initializes with the generated tools under toolset: generated", () => {
+            const generated = new AiManager();
+            generated.init(mockGraph, { provider: "mock", toolset: "generated" });
+            const commands = generated.getRegisteredCommands();
+            assert.ok(commands.includes("query"), "should include the query tool");
+            assert.ok(commands.includes("layout"), "should include the layout tool");
+            assert.ok(commands.includes("immersive"), "should include the immersive tool");
+            generated.dispose();
+        });
+
         it("initializes with mock provider", () => {
             const status = manager.getStatus();
             assert.strictEqual(status.state, "ready");
+        });
+
+        it("rejects helpers that cannot run before building anything, as enableAiControl does", () => {
+            const another = new AiManager();
+            assert.throws(() => {
+                another.init(mockGraph, {
+                    provider: "mock",
+                    agents: [{ name: "counter", purpose: "Count nodes.", commands: ["paint"] }],
+                });
+            }, AiConfigError);
+            assert.deepStrictEqual(another.getRegisteredCommands(), [], "nothing was registered");
         });
 
         it("can be initialized with different providers", () => {
@@ -56,11 +78,30 @@ describe("AiManager", () => {
             manager.dispose();
             const result = await manager.execute("test");
             assert.strictEqual(result.success, false);
-            assert.ok(result.message.toLowerCase().includes("disposed"));
+            assert.strictEqual(result.code, "AI_DISPOSED");
         });
     });
 
     describe("API key management", () => {
+        it("keeps every key the page gave out of a saved conversation, a replaced one too", async () => {
+            const remembering = new AiManager();
+            remembering.init(createMockGraphContext({ nodeCount: 3, edgeCount: 2 }), {
+                provider: "mock",
+                history: "memory",
+            });
+            await remembering.ready();
+            remembering.setApiKey("openai", "sk-old-key-0123456789");
+            remembering.setApiKey("openai", "sk-new-key-9876543210");
+
+            await remembering.execute("my old key was sk-old-key-0123456789");
+            const json = await remembering.exportConversation(remembering.getConversation()?.id ?? "");
+            remembering.dispose();
+
+            assert.isString(json);
+            assert.include(json, "my old key was [api-key]");
+            assert.notInclude(json, "sk-old-key-0123456789");
+        });
+
         it("can set API keys without throwing", () => {
             // Should not throw
             manager.setApiKey("openai", "sk-test-key");
@@ -70,11 +111,11 @@ describe("AiManager", () => {
     });
 
     describe("dispose", () => {
-        it("disposes cleanly", () => {
+        it("returns to the initial status after dispose", async () => {
+            await manager.execute("How many nodes?");
             manager.dispose();
-            // Attempting to get status after dispose should still work (returns disposed state)
-            const status = manager.getStatus();
-            assert.ok(status);
+            // There is no disposed state: dispose resets the status to the one a new manager starts with.
+            assert.deepStrictEqual(manager.getStatus(), new AiManager().getStatus());
         });
 
         it("can be disposed multiple times without error", () => {
@@ -105,12 +146,12 @@ describe("AiManager", () => {
     });
 
     describe("cancel", () => {
-        it("can cancel in-progress commands", () => {
-            // Start a command (don't await)
-            void manager.execute("test");
-
-            // Cancel should not throw
+        it("ends an in-progress command as cancelled", async () => {
+            const running = manager.execute("test");
             manager.cancel();
+            const result = await running;
+            assert.strictEqual(result.success, false);
+            assert.strictEqual(result.code, "AI_CANCELLED");
         });
     });
 });

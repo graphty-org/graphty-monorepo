@@ -163,15 +163,17 @@ then run as a closure. It supports paths, comparisons (`==`, `!=`, `<`, `<=`, `>
 
 It supports **no functions at all** -- no `starts_with`, no `length`, no projections, slices,
 pipes, multi-selects or wildcards. Everything outside the subset is refused where it was typed,
-by name, with the offset. A selector that is accepted means exactly what JMESPath means by it.
+by name, with the offset. A selector that is accepted means exactly what JMESPath means by it,
+but for one convenience below: a lone `true`, `false` or `null` is that value.
 
 Two spelling rules catch everyone once:
 
 - **A record's own fields live under `data.`** So a node imported as `{id: "n1", type: "server"}`
   is selected with `data.type == 'server'`, not `type == 'server'`.
 - **A number or a boolean goes between backticks**, as JMESPath requires: `` data.weight > `0.5` ``
-  and `` data.active == `true` ``. A bare `5` is refused with a message saying so. A string
-  literal takes single quotes: `'server'`.
+  and `` data.active == `true` ``. A bare `5` is refused with a message saying so. A lone `true`,
+  `false` or `null` also reads as that value, so `data.active == true` works too, while
+  `data.false` still names a column. A string literal takes single quotes: `'server'`.
 
 **An edge's endpoints are `data.source` and `data.target`**, the ids of the nodes it leaves and
 reaches, whatever keys the edge record used for them (`src`/`dst` by default). So
@@ -265,6 +267,8 @@ A channel is one visual property with one name. These are all of them:
 | `node.shapeParts`             | further pieces of the node's body: polygons as `node.shapePoints` writes them, separated by `;`, filled and outlined as the node is              |
 | `node.shapeLines`             | lines over the node in its border's color: polylines as `node.shapeParts` writes polygons; one that ends where it starts is closed               |
 | `node.shapeLineWidth`         | 0 or more: how wide `node.shapeLines` are, in the units of `node.borderWidth`; unset, the border's width                                         |
+| `node.shapeLineHaloColor`     | a color: of a wider line drawn under each of `node.shapeLines`, down the same path                                                               |
+| `node.shapeLineHaloWidth`     | 0 or more: how wide that line under `node.shapeLines` is, in the units of `node.borderWidth`; unset or 0, none                                   |
 | `node.label`                  | the words to draw                                                                                                                                |
 | `node.labelStyle`             | `{font, sizePx, weight, color, background, outline, padding, ...}`                                                                               |
 | `node.labelColor`             | any CSS colour: the label's colour                                                                                                               |
@@ -287,6 +291,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                                                            |
 | `node.opacity`                | 0 to 1                                                                                                                                           |
 | `node.outline`                | a colour                                                                                                                                         |
+| `node.outlineWidth`           | 0 to 10: the outline's width, a multiple of its own (1); unset, `layoutBehavior.node.outlineWidth`; alone it draws none                          |
 | `node.glow`                   | a colour                                                                                                                                         |
 | `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
 | `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
@@ -487,7 +492,7 @@ await element.session.styles.add({
 });
 ```
 
-A border is not `node.outline`: an outline is a screen-space glow of one fixed width, drawn for
+A border is not `node.outline`: an outline is a ring around the node, drawn for
 emphasis, while a border is part of the node's shape. Each distinct border is one more mesh,
 shared by every node drawn with it.
 
@@ -555,16 +560,16 @@ for (const channel of channelsFor("edge")) {
 }
 ```
 
-| Field               | What it holds                                                                                                                      |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `plainName`         | the full name, "Arrow Head Size"                                                                                                   |
-| `shortName`         | the name once the target is already said, in sentence case: "Head size"                                                            |
-| `group`             | `shape`, `color`, `effects` or `text` for a node; `line`, `arrows` or `text` for an edge                                           |
-| `accepts`           | the kind of control: `color`, `number`, `text`, `boolean`, `enum`, `labelStyle`, `nothing`                                         |
-| `values`            | every choice, for an `enum`                                                                                                        |
-| `min`, `max`        | the bounds, for a `number`                                                                                                         |
-| `default`           | what the element draws when no layer sets the channel (absent when that is nothing); an unset arrow cap color follows `edge.color` |
-| `unsupportedReason` | why the channel cannot be set, for a disabled control; present only when it cannot                                                 |
+| Field         | What it holds                                                                                                                      |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `plainName`   | the full name, "Arrow Head Size"                                                                                                   |
+| `shortName`   | the name once the target is already said, in sentence case: "Head size"                                                            |
+| `group`       | `shape`, `color`, `effects` or `text` for a node; `line`, `arrows` or `text` for an edge                                           |
+| `accepts`     | the kind of control: `color`, `number`, `text`, `boolean`, `enum`, `labelStyle`, `nothing`                                         |
+| `values`      | every choice, for an `enum`                                                                                                        |
+| `min`, `max`  | the bounds, for a `number`                                                                                                         |
+| `default`     | what the element draws when no layer sets the channel (absent when that is nothing); an unset arrow cap color follows `edge.color` |
+| `unsupported` | why the channel cannot be set, as a code (`channel.not-drawn`) for a disabled control; present only when it cannot                 |
 
 ### Labels that would overlap
 
@@ -704,6 +709,12 @@ no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"s
 `"pattern"` or `"extend"`) says what a categorical colour does with more groups than its palette has colours;
 `encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
 
+When every value in the column is the same (a regular graph where every node has degree 3), a
+numeric scale has no spread to place anything in, so it paints the **middle** of its range or
+palette rather than either end, and the binding's legend block carries the fact
+`{ code: "legend.no-spread", params: { value } }` so a legend can say there is no spread. The
+legend's swatch shows the same middle colour the canvas paints.
+
 ### A table of values, and what it leaves alone
 
 `map` gives a value per key. With `scale: "passthrough"`, a key the table does not hold goes on
@@ -757,7 +768,12 @@ await element.session.styles.add({
 `stops` takes the place of `scale`, `domain`, `range` and `palette` (leave `scale` out or set it to
 `"linear"`); the others are refused beside it, because the points already say what each would. It
 is how a Cytoscape continuous mapping is drawn when a file's styles are loaded (see
-[Styles from Files](./file-styles)).
+[Styles from Files](./file-styles), the `file-styles` experiment).
+
+The channels and values added to draw other programs' files (flat node shapes, borders, widths and
+heights, more arrowheads and line patterns, and the rest) are part of the `file-styles` experiment:
+with it off, `session.catalog.channels(target)` leaves them out, and a layer that writes one is
+still drawn. See [Experiments](./experiments).
 
 A number outside what a channel can draw (a negative size, an opacity above 1) is still clamped,
 and a node color with alpha is still drawn opaque; `styles.counts(id)` reports both per layer, as

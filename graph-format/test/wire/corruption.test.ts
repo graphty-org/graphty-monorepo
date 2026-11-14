@@ -54,7 +54,7 @@ describe("container header corruption", () => {
     it("refuses a truncated header", () => {
         const error = expectError(() => fromBytes(bytes.subarray(0, 12)), "E_BAD_SERIALIZATION");
         expect(error.details.ref).toBe("header");
-        expectError(() => fromBytes(new ArrayBuffer(0)), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(new ArrayBuffer(0)), "E_BAD_SERIALIZATION").details.ref).toBe("header");
     });
 
     it("refuses an unknown wire major with E_UNSUPPORTED_VERSION kind wire", () => {
@@ -118,13 +118,20 @@ describe("container header corruption", () => {
 
     it("refuses a manifest that is not JSON, not UTF-8 or not an object", () => {
         const parts = splitContainer(bytes);
-        expectError(() => fromBytes(buildContainer("{ not json", parts.region)), "E_BAD_SERIALIZATION");
-        expectError(() => fromBytes(buildContainer("[1, 2]", parts.region)), "E_BAD_SERIALIZATION");
+        expect(
+            expectError(() => fromBytes(buildContainer("{ not json", parts.region)), "E_BAD_SERIALIZATION").details.ref,
+        ).toBe("manifest");
+        expect(
+            expectError(() => fromBytes(buildContainer("[1, 2]", parts.region)), "E_BAD_SERIALIZATION").details.ref,
+        ).toBe("manifest");
         const bad = buildContainer("{}", parts.region);
         bad[16] = 0xff;
         bad[17] = 0xfe;
         expect(expectError(() => fromBytes(bad), "E_BAD_SERIALIZATION").details.reason).toBe("not valid UTF-8");
-        expectError(() => fromBytes(buildContainer('{"format": "other"}', parts.region)), "E_BAD_SERIALIZATION");
+        expect(
+            expectError(() => fromBytes(buildContainer('{"format": "other"}', parts.region)), "E_BAD_SERIALIZATION")
+                .details.ref,
+        ).toBe("format");
     });
 
     it("refuses the prototype-pollution keys in the manifest and in json column text", () => {
@@ -140,7 +147,7 @@ describe("container header corruption", () => {
         expect(expectError(() => parseGuardedJson('{"prototype": 1}', "x"), "E_BAD_SERIALIZATION").details.key).toBe(
             "prototype",
         );
-        expectError(() => parseGuardedJson("nope", "x"), "E_BAD_SERIALIZATION");
+        expect(expectError(() => parseGuardedJson("nope", "x"), "E_BAD_SERIALIZATION").details.ref).toBe("x");
         const wire = s.toWire();
         const extra = { ...wire.manifest.meta.extra, __proto__: { polluted: true } } as Record<string, unknown>;
         expect(Object.keys(extra)).not.toContain("__proto__");
@@ -148,7 +155,9 @@ describe("container header corruption", () => {
             ...wire.manifest,
             meta: { ...wire.manifest.meta, extra: JSON.parse('{"__proto__": 1}') as never },
         };
-        expectError(() => fromWire({ manifest, buffers: wire.buffers }), "E_BAD_SERIALIZATION");
+        expect(
+            expectError(() => fromWire({ manifest, buffers: wire.buffers }), "E_BAD_SERIALIZATION").details.ref,
+        ).toBe("meta.extra");
     });
 
     it("refuses truncated regions at every level", () => {
@@ -191,7 +200,9 @@ describe("buffer reference corruption", () => {
         const negative = rebuildContainer(bytes, (m) => {
             at(m, "core.rowPtr").byteOffset = -4;
         });
-        expectError(() => fromBytes(negative), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(negative), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "core.rowPtr.byteOffset",
+        );
     });
 
     it("refuses an unknown wire dtype and a dtype that does not match the slot", () => {
@@ -210,7 +221,7 @@ describe("buffer reference corruption", () => {
         const notAnObject = rebuildContainer(bytes, (m) => {
             (m.core as Record<string, unknown>).rowPtr = 5;
         });
-        expectError(() => fromBytes(notAnObject), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(notAnObject), "E_BAD_SERIALIZATION").details.ref).toBe("core.rowPtr");
     });
 
     it("refuses a mutable column overlapping a core or immutable segment at the structure level", () => {
@@ -260,66 +271,76 @@ describe("buffer reference corruption", () => {
     });
 
     it("refuses core references that disagree with the flags and counts", () => {
-        const cases: readonly [string, (m: Record<string, unknown>) => void][] = [
+        const cases: readonly [string, (m: Record<string, unknown>) => void, string][] = [
             [
                 "colIdx null with arcs",
                 (m) => {
                     (m.core as Record<string, unknown>).colIdx = null;
                 },
+                "core.colIdx",
             ],
             [
                 "weights without flag",
                 (m) => {
                     (m.flags as Record<string, unknown>).weighted = false;
                 },
+                "core.weights",
             ],
             [
                 "weights null with flag",
                 (m) => {
                     (m.core as Record<string, unknown>).weights = null;
                 },
+                "core.weights",
             ],
             [
                 "arcToEdge null without identity",
                 (m) => {
                     (m.core as Record<string, unknown>).arcToEdge = null;
                 },
+                "core.arcToEdge",
             ],
             [
                 "edgeToArc null without identity",
                 (m) => {
                     (m.core as Record<string, unknown>).edgeToArc = null;
                 },
+                "core.edgeToArc",
             ],
             [
                 "identity flag on an undirected graph",
                 (m) => {
                     (m.flags as Record<string, unknown>).arcToEdgeIsIdentity = true;
                 },
+                "flags.arcToEdgeIsIdentity",
             ],
             [
                 "flag not a boolean",
                 (m) => {
                     (m.flags as Record<string, unknown>).multigraph = "yes";
                 },
+                "flags.multigraph",
             ],
             [
                 "count not an integer",
                 (m) => {
                     (m.counts as Record<string, unknown>).nodes = 1.5;
                 },
+                "counts.nodes",
             ],
             [
                 "directed not a boolean",
                 (m) => {
                     m.directed = 1;
                 },
+                "directed",
             ],
         ];
-        for (const [name, edit] of cases) {
+        for (const [name, edit, ref] of cases) {
             const corrupt = rebuildContainer(bytes, edit);
             expect(() => fromBytes(corrupt, { validate: "none" }), name).toThrow();
-            expectError(() => fromBytes(corrupt, { validate: "none" }), "E_BAD_SERIALIZATION");
+            const error = expectError(() => fromBytes(corrupt, { validate: "none" }), "E_BAD_SERIALIZATION");
+            expect(error.details.ref, name).toBe(ref);
         }
         const directed = idsSnapshot([0, 1, 2]).toBytes();
         const present = rebuildContainer(directed, (m) => {
@@ -380,30 +401,42 @@ describe("core data corruption", () => {
     });
 
     it("unsorting a row fails full validation with I4 and passes structure", () => {
-        const start = segmentStart(bytes, "colIdx");
-        const row = Array.from(s.colIdx.subarray(s.rowPtr[0], s.rowPtr[1]));
-        expect(row.length).toBeGreaterThan(1);
-        const unsorted = bytes.slice();
-        const view = new Uint32Array(unsorted.buffer, start, s.arcCount);
-        view[s.rowPtr[0]] = row[row.length - 1];
-        view[s.rowPtr[1] - 1] = row[0];
-        if (row[0] !== row[row.length - 1]) {
-            expect(expectError(() => fromBytes(unsorted), "E_INVALID_SNAPSHOT").details.invariant).toBe("I4");
-        }
-        expect(fromBytes(unsorted, { validate: "structure" }).nodeCount).toBe(4);
+        // the rich fixture has no row with two different targets, so use row 0 = [1, 2, 3]
+        const b = new GraphBuilder({ directed: true });
+        b.addNodes([0, 1, 2, 3]);
+        b.addEdge(0, 1);
+        b.addEdge(0, 2);
+        b.addEdge(0, 3);
+        const fan = b.freeze();
+        const fanBytes = fan.toBytes();
+        expect(Array.from(fan.colIdx.subarray(fan.rowPtr[0], fan.rowPtr[1]))).toEqual([1, 2, 3]);
+        const unsorted = fanBytes.slice();
+        const view = new Uint32Array(unsorted.buffer, segmentStart(fanBytes, "colIdx"), fan.arcCount);
+        view[0] = 3;
+        view[2] = 1;
+        expect(unsorted).not.toEqual(fanBytes);
+        const error = expectError(() => fromBytes(unsorted), "E_INVALID_SNAPSHOT");
+        expect(error.details).toMatchObject({ invariant: "I4", row: 0 });
+        expect(Array.from(fromBytes(unsorted, { validate: "structure" }).colIdx)).toEqual([3, 2, 1]);
     });
 
-    it("breaking a permutation fails full validation with I5 or I6", () => {
-        const start = segmentStart(bytes, "arcToEdge");
+    it("breaking a permutation fails full validation with I5", () => {
+        // the first arcs of rows 1 and 2 are in different rows, so the copy cannot break the I4
+        // order of parallel arcs; the edge that loses its arc is caught by the I5 round trip, which
+        // runs before the I6 permutation check (and makes it unreachable for a directed snapshot)
+        const a = s.rowPtr[1];
+        const b = s.rowPtr[2];
+        expect(b).toBeLessThan(s.rowPtr[3]);
+        const lost = s.arcToEdge[a];
         const broken = bytes.slice();
-        const view = new Uint32Array(broken.buffer, start, s.arcCount);
-        view[0] = view[1];
+        const view = new Uint32Array(broken.buffer, segmentStart(bytes, "arcToEdge"), s.arcCount);
+        view[a] = view[b];
         const error = expectError(() => fromBytes(broken), "E_INVALID_SNAPSHOT");
-        expect(["I4", "I5", "I6"]).toContain(error.details.invariant);
+        expect(error.details).toMatchObject({ invariant: "I5", edge: lost, arc: a });
         const orientation = bytes.slice();
         new Uint32Array(orientation.buffer, segmentStart(bytes, "edgeToArc"), s.edgeCount)[0] = s.edgeToArc[1];
         const error2 = expectError(() => fromBytes(orientation), "E_INVALID_SNAPSHOT");
-        expect(["I5", "I6"]).toContain(error2.details.invariant);
+        expect(error2.details).toMatchObject({ invariant: "I5", edge: 0 });
     });
 
     it("a NaN weight fails full validation with I8", () => {
@@ -473,11 +506,11 @@ describe("id map corruption", () => {
         const badSize = rebuildContainer(bytes, (m) => {
             (m.ids as Record<string, unknown>).size = -1;
         });
-        expectError(() => fromBytes(badSize), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(badSize), "E_BAD_SERIALIZATION").details.ref).toBe("ids.size");
         const badOffset = rebuildContainer(bytes, (m) => {
             (m.ids as Record<string, unknown>).offset = "one";
         });
-        expectError(() => fromBytes(badOffset), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(badOffset), "E_BAD_SERIALIZATION").details.ref).toBe("ids.offset");
     });
 });
 
@@ -542,11 +575,17 @@ describe("column corruption", () => {
         const badFill = rebuildContainer(bytes, (m) => {
             at(m, `nodeColumns.${index("score")}.meta`).fill = "zero";
         });
-        expectError(() => fromBytes(badFill), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(badFill), "E_BAD_SERIALIZATION").details).toMatchObject({
+            ref: "nodeColumns[3]",
+            cause: "E_COLUMN_TYPE",
+            field: "fill",
+        });
         const badTag = rebuildContainer(bytes, (m) => {
             at(m, `nodeColumns.${index("end")}.meta`).default = { $num: "huge" };
         });
-        expectError(() => fromBytes(badTag), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(badTag), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "nodeColumns[1].meta.default",
+        );
         const shortValidity = rebuildContainer(bytes, (m) => {
             const ref = at(m, `nodeColumns.${index("score")}.validity`);
             ref.length = 0;
@@ -558,26 +597,33 @@ describe("column corruption", () => {
         const validityOnSolid = rebuildContainer(bytes, (m) => {
             at(m, `nodeColumns.${index("solid")}`).validity = at(m, `nodeColumns.${index("score")}.validity`);
         });
-        expectError(() => fromBytes(validityOnSolid), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(validityOnSolid), "E_BAD_SERIALIZATION").details).toMatchObject({
+            ref: "nodeColumns[12]",
+            cause: "E_COLUMN_TYPE",
+        });
         const noName = rebuildContainer(bytes, (m) => {
             delete at(m, `nodeColumns.${index("score")}.meta`).name;
         });
-        expectError(() => fromBytes(noName), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(noName), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "nodeColumns[3].meta.name",
+        );
         const notAColumn = rebuildContainer(bytes, (m) => {
             (m.nodeColumns as unknown[])[0] = 5;
         });
-        expectError(() => fromBytes(notAColumn), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(notAColumn), "E_BAD_SERIALIZATION").details.ref).toBe("nodeColumns[0]");
         const notAList = rebuildContainer(bytes, (m) => {
             m.nodeColumns = {};
         });
-        expectError(() => fromBytes(notAList), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(notAList), "E_BAD_SERIALIZATION").details.ref).toBe("nodeColumns");
     });
 
     it("refuses duplicate names, duplicate roles and duplicate extension tables", () => {
         const dupName = rebuildContainer(bytes, (m) => {
             at(m, `nodeColumns.${index("score")}.meta`).name = "pos";
         });
-        expectError(() => fromBytes(dupName), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(dupName), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "nodeColumns[3].meta.name",
+        );
         const dupRole = rebuildContainer(bytes, (m) => {
             at(m, `nodeColumns.${index("score")}.meta`).role = "position";
         });
@@ -585,11 +631,15 @@ describe("column corruption", () => {
         const dupExtension = rebuildContainer(bytes, (m) => {
             (m.extensions as unknown[]).push((m.extensions as unknown[])[0]);
         });
-        expectError(() => fromBytes(dupExtension), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(dupExtension), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "extensions[1].name",
+        );
         const badExtension = rebuildContainer(bytes, (m) => {
             (m.extensions as unknown[])[0] = { name: 5 };
         });
-        expectError(() => fromBytes(badExtension), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(badExtension), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "extensions[0].name",
+        );
     });
 
     it("refuses broken dictionaries, string stores, lists and json text", () => {
@@ -601,7 +651,9 @@ describe("column corruption", () => {
         const decreasing = bytes.slice();
         new Uint32Array(decreasing.buffer, regionStart(bytes) + dictOffsets.byteOffset, 2)[1] = 1000;
         for (const options of LEVELS) {
-            expectError(() => fromBytes(decreasing, options), "E_BAD_SERIALIZATION");
+            expect(expectError(() => fromBytes(decreasing, options), "E_BAD_SERIALIZATION").details.ref).toBe(
+                "nodeColumns[7].dictionary",
+            );
         }
         const labelIndex = index("label");
         const strings = at(
@@ -630,7 +682,9 @@ describe("column corruption", () => {
             ref.length = 0;
             ref.byteLength = 0;
         });
-        expectError(() => fromBytes(emptyOffsets, { validate: "none" }), "E_BAD_SERIALIZATION");
+        expect(
+            expectError(() => fromBytes(emptyOffsets, { validate: "none" }), "E_BAD_SERIALIZATION").details.ref,
+        ).toBe("nodeColumns[8].strings.offsets");
         const tagsIndex = index("tags");
         const listOffsets = rebuildContainer(bytes, (m) => {
             const ref = at(m, `nodeColumns.${tagsIndex}.offsets`);
@@ -643,7 +697,7 @@ describe("column corruption", () => {
         const noChild = rebuildContainer(bytes, (m) => {
             at(m, `nodeColumns.${tagsIndex}`).child = null;
         });
-        expectError(() => fromBytes(noChild), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(noChild), "E_BAD_SERIALIZATION").details.ref).toBe("nodeColumns[9].child");
         const listChild = rebuildContainer(bytes, (m) => {
             const column = at(m, `nodeColumns.${tagsIndex}`);
             column.child = {
@@ -676,7 +730,11 @@ describe("column corruption", () => {
             at(m, `nodeColumns.${tagsIndex}.child`).data = at(m, "core.colIdx");
             at(m, `nodeColumns.${tagsIndex}.child`).strings = null;
         });
-        expectError(() => fromBytes(childMismatch), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(childMismatch), "E_BAD_SERIALIZATION").details).toMatchObject({
+            ref: "nodeColumns[9].child",
+            cause: "E_COLUMN_TYPE",
+            field: "fill",
+        });
         const blobIndex = index("blob");
         const jsonText = at(
             splitContainer(bytes).manifest,
@@ -735,7 +793,7 @@ describe("views and metadata", () => {
         const notObject = rebuildContainer(bytes, (m) => {
             m.views = 5;
         });
-        expectError(() => fromBytes(notObject), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(notObject), "E_BAD_SERIALIZATION").details.ref).toBe("views");
     });
 
     it("refuses metadata fields of the wrong type and accepts missing ones", () => {
@@ -750,23 +808,27 @@ describe("views and metadata", () => {
         const badKeywords = rebuildContainer(bytes, (m) => {
             (m.meta as Record<string, unknown>).keywords = [1];
         });
-        expectError(() => fromBytes(badKeywords), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(badKeywords), "E_BAD_SERIALIZATION").details.ref).toBe("meta.keywords[0]");
         const badOrigin = rebuildContainer(bytes, (m) => {
             (m.meta as Record<string, unknown>).weightOrigin = { format: 3 };
         });
-        expectError(() => fromBytes(badOrigin), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(badOrigin), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "meta.weightOrigin.format",
+        );
         const badMultigraph = rebuildContainer(bytes, (m) => {
             (m.meta as Record<string, unknown>).declaredMultigraph = "yes";
         });
-        expectError(() => fromBytes(badMultigraph), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(badMultigraph), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "meta.declaredMultigraph",
+        );
         const badExtra = rebuildContainer(bytes, (m) => {
             (m.meta as Record<string, unknown>).extra = [1];
         });
-        expectError(() => fromBytes(badExtra), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(badExtra), "E_BAD_SERIALIZATION").details.ref).toBe("meta.extra");
         const badLabel = rebuildContainer(bytes, (m) => {
             m.label = 5;
         });
-        expectError(() => fromBytes(badLabel), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromBytes(badLabel), "E_BAD_SERIALIZATION").details.ref).toBe("label");
         const missing = rebuildContainer(bytes, (m) => {
             m.meta = {};
             delete m.views;
@@ -798,7 +860,7 @@ describe("JSON tagging helpers and host checks", () => {
         expect(encodeJsonValue(undefined)).toBeUndefined();
         expect(decodeJsonValue(undefined, "x")).toBeUndefined();
         expect(decodeJsonValue({ $num: "1", extra: 2 }, "x")).toEqual({ $num: "1", extra: 2 });
-        expectError(() => decodeJsonValue({ $num: "huge" }, "x"), "E_BAD_SERIALIZATION");
+        expect(expectError(() => decodeJsonValue({ $num: "huge" }, "x"), "E_BAD_SERIALIZATION").details.ref).toBe("x");
         expectError(
             () => decodeJsonValue({ nested: JSON.parse('{"__proto__": 1}') as unknown }, "x"),
             "E_BAD_SERIALIZATION",
@@ -826,15 +888,29 @@ describe("JSON tagging helpers and host checks", () => {
             edit(manifest);
             return { manifest: manifest as never, buffers: wire.buffers };
         };
-        expectError(() => fromWire(bad((m) => (m.format = "x"))), "E_BAD_SERIALIZATION");
-        expectError(() => fromWire(bad((m) => (m.wire = "1.0"))), "E_BAD_SERIALIZATION");
-        expectError(() => fromWire(bad((m) => (m.wire = [1]))), "E_BAD_SERIALIZATION");
-        expectError(() => fromWire(bad((m) => (m.counts = null))), "E_BAD_SERIALIZATION");
-        expectError(() => fromWire(bad((m) => (m.core = []))), "E_BAD_SERIALIZATION");
-        expectError(() => fromWire(bad((m) => (m.ids = 1))), "E_BAD_SERIALIZATION");
-        expectError(() => fromWire(bad((m) => (m.meta = "meta"))), "E_BAD_SERIALIZATION");
-        expectError(() => fromWire(bad((m) => (m.extensions = [1]))), "E_BAD_SERIALIZATION");
-        expectError(() => fromWire(bad((m) => (m.nodeColumns = [{ meta: 1 }]))), "E_BAD_SERIALIZATION");
-        expectError(() => fromWire({ manifest: null as never, buffers: [] }), "E_BAD_SERIALIZATION");
+        expect(expectError(() => fromWire(bad((m) => (m.format = "x"))), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "format",
+        );
+        expect(expectError(() => fromWire(bad((m) => (m.wire = "1.0"))), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "wire",
+        );
+        expect(expectError(() => fromWire(bad((m) => (m.wire = [1]))), "E_BAD_SERIALIZATION").details.ref).toBe("wire");
+        expect(expectError(() => fromWire(bad((m) => (m.counts = null))), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "counts",
+        );
+        expect(expectError(() => fromWire(bad((m) => (m.core = []))), "E_BAD_SERIALIZATION").details.ref).toBe("core");
+        expect(expectError(() => fromWire(bad((m) => (m.ids = 1))), "E_BAD_SERIALIZATION").details.ref).toBe("ids");
+        expect(expectError(() => fromWire(bad((m) => (m.meta = "meta"))), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "meta",
+        );
+        expect(expectError(() => fromWire(bad((m) => (m.extensions = [1]))), "E_BAD_SERIALIZATION").details.ref).toBe(
+            "extensions[0]",
+        );
+        expect(
+            expectError(() => fromWire(bad((m) => (m.nodeColumns = [{ meta: 1 }]))), "E_BAD_SERIALIZATION").details.ref,
+        ).toBe("nodeColumns[0].meta");
+        expect(
+            expectError(() => fromWire({ manifest: null as never, buffers: [] }), "E_BAD_SERIALIZATION").details.ref,
+        ).toBe("manifest");
     });
 });

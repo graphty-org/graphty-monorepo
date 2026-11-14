@@ -191,6 +191,15 @@ and `layoutBehavior.camera.fitInsets`.
 
 The canvas still draws everywhere, so a node turned into an inset is drawn and can be pointed at.
 
+By default the turning carries on as soon as the reader lets go. `layoutBehavior.camera.autoRotateResume`
+makes it wait: a number of milliseconds after the reader's last drag, pinch, wheel or camera key,
+or `"never"` to stop at their first move until `autoRotate` is changed. Turning never cancels the
+element's framing, so a graph loaded with `autoRotate` on is still zoomed to fit:
+
+```javascript
+element.layoutBehavior = { camera: { autoRotate: 0.15, autoRotateResume: 3000 } }; // back after 3 s
+```
+
 ### Framing again when the canvas changes size
 
 A resize that lands while the element is still framing the graph is framed at the new size. One
@@ -712,6 +721,9 @@ element.stopVoiceInput();
 element.disableAiControl();
 ```
 
+Remembered conversations, approvals before a change, and the rules each promise follows are in
+the [AI Assistant guide](./ai-assistant).
+
 ### Screenshot and Capture
 
 ```javascript
@@ -724,7 +736,7 @@ const result = await element.captureScreenshot({
 // Check capabilities before asking for a large one
 const capability = await element.canCaptureScreenshot({ multiplier: 4 });
 if (!capability.supported) {
-    console.warn(capability.reason);
+    console.warn(capability.reason?.code, capability.reason?.params);
 }
 ```
 

@@ -2,6 +2,9 @@ import { assert, describe, it } from "vitest";
 
 import { PajekDataSource } from "../../src/data/PajekDataSource.js";
 import { createGraphSession } from "../../src/session";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 describe("PajekDataSource", () => {
     describe("constructor", () => {
@@ -30,7 +33,7 @@ describe("PajekDataSource", () => {
                 error = err as Error;
             }
             assert.ok(error);
-            assert.match(error.message, /requires data, file, or url/i);
+            assert.propertyVal(error, "code", "E_OPTION_RANGE");
         });
     });
 

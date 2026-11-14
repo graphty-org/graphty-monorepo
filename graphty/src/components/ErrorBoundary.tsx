@@ -3,6 +3,7 @@ import React from "react";
 
 import type { FallbackProps } from "@/types/error-boundary";
 
+import { bootSignal } from "../bootSignal";
 import { ErrorFallback } from "./ErrorFallback";
 
 interface ErrorBoundaryProps {
@@ -19,11 +20,23 @@ function renderFallback(props: FallbackProps): React.JSX.Element {
 }
 
 /**
+ * A crash shows the fallback, and the loading screen must not stay over it if it was held up.
+ * @param error - what was thrown.
+ */
+function releaseLoadingScreen(error: unknown): void {
+    bootSignal({ line: `render crashed: ${String(error)}`, error: true, done: true });
+}
+
+/**
  * Error boundary component that catches React errors and reports them to Sentry.
  * @param root0 - Component props
  * @param root0.children - Child components to wrap
  * @returns The error boundary wrapper component
  */
 export function ErrorBoundary({ children }: Readonly<ErrorBoundaryProps>): React.JSX.Element {
-    return <Sentry.ErrorBoundary fallback={renderFallback}>{children}</Sentry.ErrorBoundary>;
+    return (
+        <Sentry.ErrorBoundary fallback={renderFallback} onError={releaseLoadingScreen}>
+            {children}
+        </Sentry.ErrorBoundary>
+    );
 }

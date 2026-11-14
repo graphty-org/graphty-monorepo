@@ -82,7 +82,7 @@ export interface LayersToStylesInput {
 }
 
 /** One layer whose rule lost its editable form for other programs. */
-export interface FlattenedLayer {
+interface FlattenedLayer {
     /** The layer's name. */
     readonly layer: string;
     /** Nodes or edges. */
@@ -282,6 +282,8 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.targetPort", plan(text, "targetPort")],
         ["edge.arrowHeadColor", plan(color, "targetArrowColor")],
         ["edge.arrowTailColor", plan(color, "sourceArrowColor")],
+        ["edge.arrowHeadFillColor", plan(color, "targetArrowFillColor")],
+        ["edge.arrowTailFillColor", plan(color, "sourceArrowFillColor")],
         ["edge.label", plan(text, "label")],
         ["edge.arrowHeadText", plan(text, "targetLabel")],
         ["edge.arrowTailText", plan(text, "sourceLabel")],

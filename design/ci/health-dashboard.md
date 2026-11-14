@@ -351,7 +351,7 @@ Pass` belonged to the retired Mergify queue and never counts.
   review is owner wait, not a failure. A capture error is a failure.
 - **Failure cause**, in order: infrastructure (startup failure, lost runner, outside 5xx, a timeout
   in 3 or more pull requests); conflict; flaky (below); shared (an aggregator failing alone, or a
-  check or family failing without passing on rerun in 3 or more pull requests within 24 h, or on the
+  check or family failing without passing on rerun in 2 or more pull requests within 24 h, or on the
   next full run); change (the rest). Reclassified as evidence arrives. A "flaky" test that fails in 3
   or more pull requests at once is raised as shared: it may be a real break.
 - **Flaky**: a test that failed and passed on the same inputs key -- in the shard's own retry, a job
@@ -477,7 +477,7 @@ with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, 
 | Hangs                        | jobs ended at their own timeout, or past 2x budget                | 1 h             | --       | 0        | >= 2 (1 is yellow)     |
 | PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | 1 h, 6 h agrees | 5 runs   | <= 1x    | > 2x                   |
 | Pull request bins over 8 min | share of bins past the 8 min packing target                       | 1 h, 6 h agrees | 10 bins  | <= 10%   | > 25%                  |
-| Reruns                       | run attempts above 1 / runs finished                              | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                  |
+| Reruns                       | run attempts above 1 / runs finished, less release.yml attempt 2  | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                  |
 | Full-run shards over budget  | shards whose median passes their own budget (section 6)           | slow, 7 d       | 5 runs   | 0        | >= 3                   |
 | Runner-minutes per merge     | job minutes of every run kind / pull requests merged into master  | slow, 7 d       | 10       | <= 400   | > 600                  |
 | Superseded runs running      | see below; informational until it has fired on real data          | now             | --       | --       | --                     |
@@ -488,6 +488,9 @@ Saturated time was "1 h in 24 h"; over one hour a quarter of it saturated is red
 24 h"; over one hour one hang is yellow and two are red, and an earlier hang stays in the episode
 list. Full-run shard medians move only when a full run lands (at most four a day), so they are a slow
 measure; a shard that times out on a run is a hang, judged at once.
+
+Reruns leaves out release.yml's second attempt: `release-rerun.yml` re-runs a red full run once on the
+same commit by design, so that attempt is not a re-run in this sense (#6120).
 
 **Runner use is counted in jobs**, from the jobs API (`filter=latest`) of every unfinished run,
 never from run status: a run reports `queued` while some of its jobs run (run 40240348348 had 9 jobs
@@ -529,8 +532,12 @@ logic is unchanged, so a non-gating job still never fails a lane.
 
 - **Chronically failing jobs** (`ci.chronic_jobs`). Any job of a master push, a full run or another
   non-pull-request run, gating or not, bins and shards folded into their family, that failed in at
-  least half of its newest 10 finished runs (4 at least), or has failed in every run for 3 days
-  (however few). Cancelled and skipped jobs say nothing about a job and are not runs. A job with no
+  least half of its newest 10 finished runs of the last 7 days (4 at least; older failures kept
+  Dependabot red for two weeks after its fix, issue #7369), or has failed in every run for 3 days
+  (however few). Cancelled and skipped jobs say nothing about a job and are not runs. An aggregator
+  (`All Checks Pass`) is not judged: it fails whenever any job it summarizes fails, so its share is the
+  union of theirs, and it stood alone on the list at 8 of 10 while no lane was chronic (issue #6068).
+  A job with no
   run in 2 days, or in twice its usual gap between runs when that is longer (a weekly job), has
   stopped -- removed or renamed -- and is not judged. A ci.yml job (run on its own, or called as
   `CI / ...` by release.yml) that ci.yml on master no longer defines is not judged from the hour the
@@ -557,7 +564,10 @@ logic is unchanged, so a non-gating job still never fails a lane.
   (`tools/results/post-benchmarks.mjs`, `POST /v1/benchmarks`, OIDC like the flaky feed, fire and
   forget), only from master's workflows. Each result names the machine that measured it (the
   runner's CPU model): GitHub's hosted runners land on CPU models about 2x apart, so a result is
-  compared only with results of the same machine. Each benchmark keeps its newest 20 results per
+  compared only with results of the same machine. A result may also name its input (the algorithms
+  harness sends a fingerprint of the graph it timed), and is compared only with results of the same
+  input: a new seed or generator times different work and starts a new series rather than reading
+  as a regression. Each benchmark keeps its newest 20 results per
   machine, one per run, 100 in all (source `benchmarks`). A benchmark regressed when the median of
   its last 3 results on the newest result's machine is over 1.2 times the median of the 10 before
   them on that machine, so it is judged only with 13 such results and one slow run never counts.
@@ -999,7 +1009,7 @@ condition, and the words.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
 | Master red now                       | FAILING for 3 h (agents normally fix it within the hour), not while the runners page's own condition holds or its page is still open (a slowdown does not hold it back; a GitHub API outage leaves master NO DATA, so it cannot page either); says how long and that no agent has fixed it, and asks the owner to restart the pipeline-round loop (or start one if none runs); links master's failing builds                                                                                                                                                                                                                                                                                                                                                 | 1 (0 at night) |
 | Untested master age                  | FAILING (no full run has tested master's oldest untested commit for 13 h) while no scheduled full run (mode full) has started for 13 h (`release.since_slot_ms`): the release scheduler Worker has stopped, and its Cloudflare account or GitHub App credential only the owner can renew; daytime only; a 24 h floor; asks the owner to have any Claude session find the cause and to make the credential it names                                                                                                                                                                                                                                                                                                                                           | 0              |
-| Runners not assigned                 | FAILING for 1 h while GitHub runs at most 5 jobs and at least 5 wait (an outage or account block, not a slowdown); counts Linux and Windows jobs in status `queued` over 2 min, and runs queued with no jobs yet (`ci.jobs_waiting_runner`); the page gives both counts and links GitHub's status page. The outage gate does not depend on the plan's 500-job limit                                                                                                                                                                                                                                                                                                                                                                                          | 1 (0 at night) |
+| Runners not assigned                 | FAILING for 1 h while GitHub runs at most 5 jobs and at least 5 wait (an outage or account block, not a slowdown); counts Linux and Windows jobs in status `queued` over 2 min, and runs queued with no jobs yet (`ci.jobs_waiting_runner`); the page gives both counts and links GitHub's status page. The outage gate does not depend on the plan's 300-job limit. A queued job created before a job that already runs (over 2 min earlier) waits on its own workflow (a matrix's `max-parallel`), not on GitHub, and is counted apart as `ci.jobs_held_by_run`                                                                                                                                                                                            | 1 (0 at night) |
 | Nightly waiting on screenshot review | the open "Nightly held on" issue's newest verdict is green-images (all tests passed, changed screenshots) and it has waited 24 h for the owner's review; daytime only; again every 24 h while the hold waits (`repeatMs`); links the hold issue                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 0              |
 | Spend, T4, LLM                       | FAILING for 6 h, not before day 7 of the month unless month-to-date spend is already past red; daytime only; due together, one message; again every week while the forecast stays over (`repeatMs`, and a 7-day floor the group shares, so a member crossing its line after the group's page waits for the next one; a member red but short of its 6 h goes out with one that is due), so an overrun that lasts into the next month pages again from its day 7                                                                                                                                                                                                                                                                                               | 0              |
 | AWS                                  | for 1 h, spend past its $8 yellow line, with the Costs page's month-end projection as its forecast (billing data lags about a day, so this leaves room before the Budget's deny-all silences the collector at $10); its own page; daytime only; the title names the risk, losing these alerts, and asks to raise the limit                                                                                                                                                                                                                                                                                                                                                                                                                                   |

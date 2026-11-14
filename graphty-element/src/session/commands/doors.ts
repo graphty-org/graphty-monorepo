@@ -185,6 +185,21 @@ function removes(kind: "remove-nodes" | "remove-edges", ids: readonly string[]):
 /** The command emptying the graph. */
 const CLEAR: SessionCommand = { op: "data.apply", mutation: { kind: "clear" } };
 
+/** What merging merge-b into merge-a, with one edge between them, dispatches inside its batch. */
+const MERGE_STEPS: readonly SessionCommand[] = [
+    updateRow("node", "merge-a", { weight: 3 }),
+    removes("remove-nodes", ["merge-b"]),
+    {
+        op: "data.apply",
+        mutation: {
+            kind: "add-edges",
+            records: [{ source: "merge-a", target: "merge-a" }],
+            source: "source",
+            target: "target",
+        },
+    },
+];
+
 /** The code of the fact each batch the element builds carries, by its label. */
 const BATCH_CODES = {
     "Replaced the nodes": "data.replace-nodes",
@@ -1527,6 +1542,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinnedNodes: READ,
             getNode: READ,
             getNodes: READ,
+            getEdges: READ,
             getNodeCount: READ,
             getEdgeCount: READ,
             selectNode: SELECTION,
@@ -2938,6 +2954,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             structureValue: READ,
             histogram: READ,
             valueCounts: READ,
+            overRepresented: READ,
             // The column commands, each one batch.
             setRole: {
                 kind: "dispatches",
@@ -3084,6 +3101,32 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             updateEdges: calls([[{ id: "0", values: { weight: 2 } }]], [updateRow("edge", "0", { weight: 2 })]),
             removeEdges: calls([["0"]], [removes("remove-edges", ["0"])]),
             removeNodes: calls([["door-b"]], [removes("remove-nodes", ["door-b"])]),
+            mergeNodes: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: [["merge-a", "merge-b"], { values: { weight: 3 } }],
+                    around: async (target) => {
+                        const data = target as {
+                            addNodes(records: unknown[]): Promise<void>;
+                            addEdges(records: unknown[]): Promise<void>;
+                        };
+                        await data.addNodes([{ id: "merge-a" }, { id: "merge-b" }]);
+                        await data.addEdges([{ source: "merge-b", target: "merge-a" }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Merged 2 nodes",
+                        fact: { code: "data.merge-nodes", params: { count: 2 } },
+                        steps: MERGE_STEPS,
+                    },
+                    ...MERGE_STEPS,
+                ],
+            },
             clear: calls([], [CLEAR]),
             import: calls(
                 [{ type: "json", config: { data: TINY_JSON } }],
@@ -4090,6 +4133,7 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.updateEdges": "edit",
     "SessionDataApi.removeNodes": "edit",
     "SessionDataApi.removeEdges": "edit",
+    "SessionDataApi.mergeNodes": "edit",
     "SessionDataApi.collapse": "edit",
     "SessionDataApi.clear": "clear",
     // Doors that work out their change from the graph read it once the loads ahead have landed.

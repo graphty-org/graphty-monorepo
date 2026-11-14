@@ -866,17 +866,18 @@ jobs:
                   HUSKY: "0"
 
             # Every package's dist, as the packages job built it.
-            # The fidelity stories' reference pictures are Git LFS objects, cached like the story tests'
-            # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
-            # build-storybook pulls them (a no-op once the cache restored them).
+            # The style fidelity oracles' rasterized PNGs, which the fidelity stories draw, are Git LFS objects,
+            # cached like the story tests' baselines so a run downloads only the pictures added since the cache
+            # was saved. graph-io's build-storybook pulls them (a no-op once the cache restored them). The key
+            # hashes those same PNGs, so a new oracle picture saves a new cache.
             - name: Restore the style fidelity reference pictures
               id: fidelity-references
               if: steps.reuse-build.outputs.artifacts-run == ''
               uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
-                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
-                  restore-keys: lfs-fidelity-references-
+                  key: lfs-fidelity-oracles-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+                  restore-keys: lfs-fidelity-oracles-
 
             - name: Probe the nx remote cache
               if: steps.reuse-build.outputs.artifacts-run == ''
@@ -954,7 +955,7 @@ jobs:
               uses: actions/cache/save@v6
               with:
                   path: .git/lfs/objects
-                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
+                  key: lfs-fidelity-oracles-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the Stories job
@@ -1146,6 +1147,14 @@ jobs:
             - name: Lint affected (PR)
               if: needs.packages.outputs.full == 'false'
               run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --base=origin/${{ github.base_ref }} --head=HEAD
+
+            # graph-io's lint typechecks its fidelity stories, which import graphty-element's source and test
+            # helpers; graph-io/project.json negates that dependency (it would be a cycle), so nx never calls
+            # graph-io affected by a graphty-element change, and this step lints it then (#7196). graph-io's lint
+            # inputs (graph-io/project.json) name graphty-element, so nx's cache never replays master's result here.
+            - name: Lint graph-io's fidelity stories (PR, graphty-element affected)
+              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && !contains(fromJSON(needs.packages.outputs.affected), 'graph-io')
+              run: pnpm exec nx run graph-io:lint --exclude-task-dependencies
 
             - name: Lint all (master, a manual dispatch or the merge queue)
               if: needs.packages.outputs.full == 'true'

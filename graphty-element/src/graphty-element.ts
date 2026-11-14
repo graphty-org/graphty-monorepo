@@ -516,7 +516,7 @@ export class Graphty extends LitElement {
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
      * @returns Settles once the re-resolved layers are repainted; rejects when one could not be.
-     * @since 2.7.0
+     * @since 3.40.0
      * @example
      * ```ts
      * import { definePalette } from "@graphty/graphty-element/extend";
@@ -935,9 +935,7 @@ export class Graphty extends LitElement {
             new CustomEvent("graphty-features", { detail: this.session.features, bubbles: true, composed: true }),
         );
 
-        this.asyncFirstUpdated().catch((e: unknown) => {
-            throw e;
-        });
+        void this.asyncFirstUpdated();
     }
 
     /**
@@ -993,8 +991,14 @@ export class Graphty extends LitElement {
         // so we don't need to check changedProperties here. The setters have
         // already been called by the time we reach this lifecycle method.
 
-        // Initialize the graph (only needs to happen once)
-        await this.#graph.init();
+        // Initialize the graph (only needs to happen once). A failed init is reported by the
+        // `graph-error` event Graph.init emits; nothing holds this promise, so rethrowing it here
+        // would only add an unhandled rejection.
+        try {
+            await this.#graph.init();
+        } catch {
+            return;
+        }
 
         // Wait for first render frame to ensure graph is visible
         await new Promise((resolve) =>
@@ -4966,6 +4970,20 @@ export class Graphty extends LitElement {
      */
     getNodes(): import("./Node").Node[] {
         return this.#graph.getNodes();
+    }
+
+    /**
+     * Get all edges in the graph. `session.data.edges()` lists the same edges as plain records.
+     * @returns Array of all edges
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * const edges = element.getEdges();
+     * console.log('Edges:', edges.map((edge) => `${edge.srcId} -> ${edge.dstId}`));
+     * ```
+     */
+    getEdges(): import("./Edge").Edge[] {
+        return this.#graph.getEdges();
     }
 
     /**

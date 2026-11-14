@@ -49,9 +49,9 @@ export interface GraphOverview {
 
 /** How `getOverview()` chooses between points and a density grid. */
 export interface OverviewOptions {
-    /** The most points returned before a density grid replaces them. Default {@link OVERVIEW_MAX_POINTS}. */
+    /** The most points returned before a density grid replaces them. Default 5000. */
     maxPoints?: number;
-    /** The density grid's columns and rows. Default {@link OVERVIEW_GRID_SIZE}. */
+    /** The density grid's columns and rows. Default 64. */
     gridSize?: number;
 }
 

@@ -42,6 +42,7 @@ import { type DeclaredTypeSpec, overflowsToInfinity, parseBooleanText } from "..
 import { DirectionResolver, type EdgeKind, type EdgeLocation } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
+import { setOwn } from "../../common/json-elements.js";
 import { type ListSyntax } from "../../common/lists.js";
 import {
     type ImportFormatDefaults,
@@ -504,7 +505,7 @@ class GraphmlReader implements XmlHandler {
 
     private edgedefault: "directed" | "undirected" | null = null;
 
-    private namespaces: Record<string, string> = {};
+    private readonly namespaces: Record<string, string> = {};
 
     private weightOrigin: { id: string; title: string | null; type: string | null } | null = null;
 
@@ -794,7 +795,7 @@ class GraphmlReader implements XmlHandler {
     private readRoot(attrs: ReadonlyMap<string, string>): void {
         for (const [key, value] of attrs) {
             if (key.startsWith("xmlns:") && value !== GRAPHML_NAMESPACE && value !== XSI_NAMESPACE) {
-                this.namespaces[key.slice(6)] = value;
+                setOwn(this.namespaces, key.slice(6), value);
             }
         }
     }
@@ -1118,7 +1119,7 @@ class GraphmlReader implements XmlHandler {
         if (node === undefined) {
             return;
         }
-        port[key.name] = value;
+        setOwn(port, key.name, value);
         node.ports ??= [];
         if (!node.ports.includes(port)) {
             node.ports.push(port);
@@ -1581,7 +1582,7 @@ class GraphmlReader implements XmlHandler {
         const name = key.attrName !== null && key.attrName.length > 0 ? key.attrName : key.id;
         const skipped = yfiles && this.yfilesMode === "skip";
         if (key.port && key.yfilesType !== null && !skipped) {
-            this.portKeyTypes[name] = key.yfilesType;
+            setOwn(this.portKeyTypes, name, key.yfilesType);
         }
         if (skipped) {
             this.report.warning(

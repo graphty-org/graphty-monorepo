@@ -39,8 +39,9 @@ await graph.runAlgorithm("graphty", "betweenness");
 
 `eigenvector` stops after `maxIterations` power-iteration passes (default 1000, at most 10000). If it
 has not met `tolerance` by then the run fails with a `GraphtyError` whose code is
-`E_NOT_CONVERGED`, rather than publishing scores that are not the answer. Long paths and large
-grids need more passes; raise the param and run it again:
+`E_NOT_CONVERGED`, rather than publishing scores that are not the answer. `tolerance` is relative
+to the scores, so the answer is as close on a large graph as on a small one. Large grids and sparse
+random graphs (about one edge per node or fewer) need more passes; raise the param and run it again:
 
 ```typescript
 await graph.runAlgorithm("graphty", "eigenvector", { algorithmOptions: { maxIterations: 5000 } });
@@ -188,6 +189,29 @@ run. `band()` returns `undefined` for a field with no scale or no finite value. 
 removed in the next major.
 
 The result's [reading fact](#what-a-result-says) carries the band's id too, as `params.band`.
+
+#### Trying a range of settings
+
+A finding that holds across a range of settings is more trustworthy than one that holds at a
+single value. `runs.sweep()` runs one algorithm once per value of one option, as one batch with
+one progress stream and one cancel, and resolves to one row per value:
+
+```typescript
+const sweep = await element.session.runs.sweep("louvain", "resolution", [0.5, 1, 2], { seed: 1 });
+
+for (const row of sweep.rows) {
+    console.log(row.value, row.summary?.groupCount, row.graph?.modularity);
+}
+```
+
+Each row carries the value, whether its run succeeded (`ok`, and `failure` when it did not), the
+run's id, its `summary` and its graph-level values (`graph`, such as `modularity`). Each value is
+a listed run of its own, with the id `<algorithm>_<option>_<value>` (`louvain_resolution_0_5`),
+so its full result is `session.runs.get(row.runId)` and a later sweep over the same values answers
+from it. Options the sweep does not vary go in `params`; `scope`, `seed`, `label`, `signal` and
+`onProgress` are as `batch()` takes them. Nothing is painted unless `style` asks for it, and one
+undo takes the whole sweep away. A cancelled sweep keeps the values that finished, and their rows
+say so.
 
 ### Component Analysis
 

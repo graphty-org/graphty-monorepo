@@ -278,6 +278,30 @@ describe("JsonlWriter", () => {
         expect(content).toContain("Second write");
     });
 
+    it("keeps at most its open-file limit of handles, closing the least recently written", async () => {
+        const limited = new JsonlWriter(testBaseDir, 2);
+        const entry = (message: string): JsonlEntry => ({
+            time: new Date().toISOString(),
+            level: "INFO",
+            message,
+            sessionId: "s1",
+        });
+        await limited.write("m1", entry("one"));
+        await limited.write("m2", entry("two"));
+        await limited.write("m1", entry("one again"));
+        await limited.write("m3", entry("three"));
+        expect(limited.getOpenFileCount()).toBe(2);
+
+        // m2 was closed; writing to it again reopens it and appends
+        await limited.write("m2", entry("two again"));
+        await limited.close();
+
+        expect(fs.readFileSync(limited.getFilePath("m1"), "utf-8")).toContain("one again");
+        const m2 = fs.readFileSync(limited.getFilePath("m2"), "utf-8").trim().split("\n");
+        expect(m2).toHaveLength(2);
+        expect(fs.readFileSync(limited.getFilePath("m3"), "utf-8")).toContain("three");
+    });
+
     describe("cleanupOldFiles", () => {
         it("removes project directories older than retention days", async () => {
             const oldMarker = "old-project";
@@ -298,10 +322,11 @@ describe("JsonlWriter", () => {
             });
             await writer.flush();
 
-            // Manually set old project directory mtime to 10 days ago
+            // Manually set old project's last write to 10 days ago
             const oldDir = path.join(testBaseDir, oldMarker);
             const tenDaysAgo = new Date();
             tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+            fs.utimesSync(path.join(oldDir, "logs.jsonl"), tenDaysAgo, tenDaysAgo);
             fs.utimesSync(oldDir, tenDaysAgo, tenDaysAgo);
 
             // Run cleanup with 7 day retention
@@ -324,6 +349,22 @@ describe("JsonlWriter", () => {
 
             const removed = writer.cleanupOldFiles(7);
             expect(removed).toBe(0);
+        });
+
+        it("keeps a directory whose log file was written recently, however old the directory", async () => {
+            await writer.write("active-project", {
+                time: new Date().toISOString(),
+                level: "INFO",
+                message: "Still writing",
+                sessionId: "s1",
+            });
+            await writer.flush();
+            const tenDaysAgo = new Date();
+            tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+            fs.utimesSync(path.join(testBaseDir, "active-project"), tenDaysAgo, tenDaysAgo);
+
+            expect(writer.cleanupOldFiles(7)).toBe(0);
+            expect(fs.existsSync(writer.getFilePath("active-project"))).toBe(true);
         });
 
         it("handles empty base directory", () => {

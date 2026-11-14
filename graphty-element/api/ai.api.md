@@ -951,7 +951,7 @@ export interface PersistenceConfig {
 }
 
 // @public
-export type ProgressCallback = (progress: number, text: string) => void;
+export type ProgressCallback = (progress: number, stage: WebLlmProgressStage, detail?: string) => void;
 
 // @public
 export interface PropertySummary {
@@ -1089,6 +1089,7 @@ export class TextInputAdapter implements InputAdapter {
 export interface ToolCall {
     arguments: Record<string, unknown>;
     id: string;
+    invalidArguments?: true;
     name: string;
 }
 
@@ -1140,7 +1141,7 @@ export class VoiceInputAdapter implements InputAdapter {
     get isSupported(): boolean;
     onActiveChange(callback: VoiceActiveCallback): void;
     onError(callback: (error: string) => void): void;
-    onInput(callback: InputCallback): void;
+    onInput(callback: InputCallback): () => void;
     onSpeechEnd(callback: () => void): void;
     onStart(callback: VoiceStartCallback): void;
     start(options?: InputOptions): void;
@@ -1161,6 +1162,9 @@ export interface WebLlmModelInfo {
     size: string;
     supportsTools?: boolean;
 }
+
+// @public
+export type WebLlmProgressStage = "module" | "engine" | "ready";
 
 // @public
 export interface WebLlmProviderOptions {

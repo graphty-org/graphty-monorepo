@@ -115,8 +115,11 @@ describe("the OpenAlex credential slot", () => {
     it("keeps the key off a request to an origin it is not bound to", async () => {
         seen.length = 0;
         const credential = credentials.forSlot(slot(), KEY, { origins: ["https://elsewhere.example"] });
-        await loadFromSource(OPENALEX_SOURCE_ID, { work: "W1" }, { fetch: standIn, credential });
-        expect(seen.every((s) => s.apiKey === null)).toBe(true);
+        const { snapshot } = await loadFromSource(OPENALEX_SOURCE_ID, { work: "W1" }, { fetch: standIn, credential });
+        // the load ran and its requests reached the stand-in: the key was withheld, not left unused
+        expect(snapshot.ids.has("W102")).toBe(true);
+        expect(seen.length).toBeGreaterThan(0);
+        expect(seen.every((s) => s.apiKey === null && s.authorization === null)).toBe(true);
     });
 });
 

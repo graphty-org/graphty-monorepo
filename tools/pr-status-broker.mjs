@@ -6,9 +6,12 @@
  * limit out twice on 2026-10-04. This process asks once a minute, in ONE GraphQL query, for every
  * open pull request's labels, draft and merge state and check runs, and writes the answer to
  * tmp/pr-status/status.json (atomically: a reader never sees half a file). However many agents read
- * it, GitHub sees one query a minute. The query nests labels, commits and check runs under up to 100
- * pull requests, so by GitHub's cost formula it costs about 3 points: about 180 of the 5,000 GraphQL
- * points an hour, more as open pull requests grow. Each answer's cost is logged and kept in the file.
+ * it, GitHub sees one fetch a minute. The query asks for 10 pull requests a page and follows the pages:
+ * one query for 100 pull requests at once, each with up to 100 check runs, took GitHub more than its
+ * 10-second limit once pull requests carried several hundred check runs each, and it answered HTTP 504
+ * every time (2026-11-13, issue #7431), while a page of 10 answers in about 2 seconds. Each page costs
+ * 1 point, so 35 open pull requests cost 4 points a minute: about 240 of the 5,000 GraphQL points an
+ * hour, more as open pull requests grow. Each fetch's summed cost is logged and kept in the file.
  *
  * Run it under servherd from the main checkout (it needs no port; `gh` must be logged in):
  *   servherd_start({ name: "pr-status-broker", cwd: "<repo>", command: "node tools/pr-status-broker.mjs" })
@@ -34,10 +37,15 @@ const OUT = "tmp/pr-status/status.json";
 const INTERVAL_MS = 60_000;
 const RETRY_MS = 10 * 60_000;
 
-const QUERY = `{
+// Pull requests a page. Their check runs make the page heavy: 100 at once timed out (HTTP 504).
+const PAGE = 10;
+// Pages a fetch follows at most: 100 open pull requests, as many as the single query once listed.
+const MAX_PAGES = 10;
+
+const QUERY = `query($after: String) {
   rateLimit { remaining resetAt cost }
   repository(owner: "graphty-org", name: "graphty-monorepo") {
-    pullRequests(states: OPEN, first: 100) { pageInfo { hasNextPage } nodes {
+    pullRequests(states: OPEN, first: ${PAGE}, after: $after) { pageInfo { hasNextPage endCursor } nodes {
       number title author { login } headRefName headRefOid baseRefName isDraft mergeable
       labels(first: 20) { nodes { name } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state
@@ -96,6 +104,44 @@ export function summarize(data) {
     });
 }
 
+/**
+ * Every page of open pull requests, joined into one answer of the query's shape.
+ * @param page runs the query for one page: (cursor or null) => its `data`
+ * @returns the joined `data`, with the last page's rate limit, the summed cost, and `hasNextPage` set
+ *   when more pages remained than a fetch follows
+ */
+export async function fetchAll(page) {
+    const nodes = [];
+    let cost = 0;
+    let after = null;
+    for (let n = 0; ; n++) {
+        const data = await page(after);
+        const prs = data.repository.pullRequests;
+        nodes.push(...prs.nodes);
+        cost += data.rateLimit?.cost ?? 0;
+        if (!prs.pageInfo?.hasNextPage || n + 1 >= MAX_PAGES) {
+            return {
+                rateLimit: { ...data.rateLimit, cost },
+                repository: { pullRequests: { pageInfo: { hasNextPage: Boolean(prs.pageInfo?.hasNextPage) }, nodes } },
+            };
+        }
+        after = prs.pageInfo.endCursor;
+    }
+}
+
+async function queryPage(after) {
+    const args = ["api", "graphql", "-f", `query=${QUERY}`];
+    if (after) {
+        args.push("-f", `after=${after}`);
+    }
+    const { stdout } = await promisify(execFile)("gh", args, { maxBuffer: 64 * 1024 * 1024 });
+    const answer = JSON.parse(stdout);
+    if (!answer.data?.repository) {
+        throw new Error((answer.errors ?? []).map((e) => e.message).join("; ") || "no data");
+    }
+    return answer.data;
+}
+
 function write(record) {
     mkdirSync(dirname(OUT), { recursive: true });
     writeFileSync(`${OUT}.tmp`, `${JSON.stringify(record, null, 1)}\n`);
@@ -110,10 +156,7 @@ function write(record) {
 async function poll(last) {
     const fetchedAt = new Date().toISOString();
     try {
-        const { stdout } = await promisify(execFile)("gh", ["api", "graphql", "-f", `query=${QUERY}`], {
-            maxBuffer: 64 * 1024 * 1024,
-        });
-        const { data } = JSON.parse(stdout);
+        const data = await fetchAll(queryPage);
         const record = { fetchedAt, rateLimit: data.rateLimit, pullRequests: summarize(data) };
         if (data.repository.pullRequests.pageInfo?.hasNextPage) {
             record.truncated = true;

@@ -20,7 +20,7 @@
  * - Phase 4: Connected patterns (sinewave, zigzag) positioning
  */
 
-import { type Mesh, type Scene, Vector3 } from "@babylonjs/core";
+import { type Scene, Vector3 } from "@babylonjs/core";
 
 import type { ArrowCap } from "./ArrowCapBatch";
 import {
@@ -31,13 +31,6 @@ import {
     type PatternType,
 } from "./PatternedLineRenderer";
 import { type WaveShape, WHOLE_PERIOD, type ZigzagPiece, zigzagPieceKey } from "./shapeOutlines";
-
-/**
- * The closest two elements of a discrete pattern sit when `line.patternCount` is unset, in world
- * units: the period of a line of the default width (8, drawn 8 / 40 = 0.2 units wide, so 0.3).
- * It bounds the pieces one line draws to about its length / 0.3 whatever its width (issue #7404).
- */
-const MIN_PATTERN_PERIOD = 0.3;
 
 /**
  * Centre-to-centre distance between two consecutive elements of a discrete pattern.
@@ -52,22 +45,27 @@ const MIN_PATTERN_PERIOD = 0.3;
  * spacing is pushed entirely into the gap nearest the end of the line. One function, two
  * callers, no possible disagreement.
  *
- * THE FLOOR (issue #7404): one and a half element widths, but never closer than
- * {@link MIN_PATTERN_PERIOD}, the spacing of a line of the default width. Without it the
- * count was O(lineLength / lineWidth): a diamond line of width 0.5 put about 1,000 sub-pixel
- * pieces on a 20-unit edge, every one drawn every frame, and 500 such edges took seconds per
- * frame while the camera moved. With it a line thinner than the default keeps the default
- * line's spacing (its elements are smaller, not denser), and a line at or above the default
- * width is spaced exactly as before. A caller that wants a different density sets
- * `line.patternCount`, which overrides this rule.
+ * THE FIX THIS ENCODES:
+ * The period used to be derived from the element width alone, which made the count
+ * O(lineLength / lineWidth) with no lower bound on the period -- so halving the line width
+ * doubled the mesh count. `PATTERN_DEFINITIONS[*].spacing.min` already carried a per-pattern
+ * WORLD-SPACE spacing floor intended to stop exactly that, but it was dead code: the count
+ * routine read only `.connected` off the pattern definition and the positions routine took
+ * the definition as an underscore-prefixed unused parameter. Honouring `spacing.min` here is
+ * what makes the count stop growing as the width shrinks.
  * @param meshWidth - Rendered length of one pattern element ALONG the line, in world units
  * @returns Centre-to-centre period in world units, never less than `meshWidth`
  * @public
  */
 export function patternElementPeriod(meshWidth: number): number {
-    // Half an element of clear space between elements, the historical rule, floored so a thin
-    // line does not multiply its pieces as its width shrinks.
-    return Math.max(meshWidth + meshWidth * 0.5, MIN_PATTERN_PERIOD);
+    // Half an element of clear space between elements. This is the historical rule and it is
+    // what makes the default rendering match the original stories.
+    //
+    // It deliberately carries NO absolute floor. An earlier version took the larger of this and
+    // `PATTERN_DEFINITIONS[*].spacing.min`, which stopped the count growing as the line width
+    // shrank -- but it did so by changing the spacing the caller asked for. Density is now a
+    // caller decision (`line.patternCount`), not something the renderer overrides.
+    return meshWidth + meshWidth * 0.5;
 }
 
 /**
@@ -77,8 +75,8 @@ export function patternElementPeriod(meshWidth: number): number {
  *
  * Why 65536: the densest piece a default line draws is a dot of the default width (8, so 0.2 in
  * world units, one every 0.3), which reaches the cap only on an edge about 19,600 world units long;
- * a thinner line is spaced no closer ({@link MIN_PATTERN_PERIOD}) and a zigzag or sine wave (one
- * piece every 0.75) reaches it at about 49,000. The built-in layouts lay graphs out a few hundred units across at their default
+ * a width-1 dotted line reaches it at about 2,450 and a zigzag or sine wave (one piece every 0.75)
+ * at about 49,000. The built-in layouts lay graphs out a few hundred units across at their default
  * scales, so every realistic edge stays under the cap and draws exactly as before. A line at the cap
  * shown whole on even an 8K screen puts its pieces under a pixel apart, below what a reader sees.
  */
@@ -131,7 +129,7 @@ export function discreteMeshCount(lineLength: number, meshWidth: number, pattern
     // inside dynamicLength. Solving for K gives the line below.
     const numInterior = Math.floor((dynamicLength - minSpacing) / period);
 
-    // a NaN element width makes the count NaN
+    // a zero element width makes the period 0 and the count infinite
     return Math.min(MAX_PATTERN_PIECES, 2 + Math.max(0, Number.isNaN(numInterior) ? 0 : numInterior));
 }
 
@@ -281,7 +279,9 @@ export class PatternedLineMesh {
      * batch every element of its shape is drawn from (issue #444).
      */
     elements: ArrowCap[] = [];
+    /** The line type this line draws. */
     pattern: PatternType;
+    /** The unit direction from the route's start to its end, as the line was last laid. */
     lineDirection = new Vector3(1, 0, 0);
     private lastLength = 0;
     private readonly scene: Scene;
@@ -302,20 +302,8 @@ export class PatternedLineMesh {
     private laid: { points: Vector3[]; along: number[] } | null = null;
     private static readonly SEGMENT_LENGTH = 0.75; // Fixed segment length for all edges (for instancing)
 
-    // PHASE 5: Edge compatibility properties (mimic AbstractMesh interface)
-    // These aren't used by PatternedLineMesh but are set by Edge.ts for consistency
-    isPickable = false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    metadata: any = {};
-    // Properties to maintain compatibility with AbstractMesh interface in tests
-    position = new Vector3(0, 0, 0);
-    scaling = new Vector3(1, 1, 1);
-    visibility = 1;
-    name = "PatternedLineMesh";
-    isDisposed = false;
-    sourceMesh: Mesh | null = null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    material: any = null;
+    /** Whether `dispose()` has given up its elements. */
+    private disposed = false;
 
     /**
      * Creates a new patterned line mesh
@@ -343,6 +331,7 @@ export class PatternedLineMesh {
      * Called every frame by Edge.update() during physics simulation
      * @param start - Starting point of the line
      * @param end - Ending point of the line
+     * @internal
      */
     update(start: Vector3, end: Vector3): void {
         this.updatePath([start, end]);
@@ -352,11 +341,12 @@ export class PatternedLineMesh {
      * Lay the line along a route: its elements spread along the route's own length, each pointing along the route
      * where it sits, so a dashed or dotted line turns the route's corners and follows its curve (issue #3102).
      * @param route - The route's points, in order from where the line starts to where it ends; at least two.
+     * @internal
      */
     updatePath(route: readonly Vector3[]): void {
         // A disposed line stays disposed: re-sizing it would take fresh slots for elements nothing
         // will ever give back.
-        if (this.isDisposed || route.length < 2) {
+        if (this.disposed || route.length < 2) {
             return;
         }
 
@@ -387,6 +377,7 @@ export class PatternedLineMesh {
      * Only the hiding half does anything, as for a batched line: showing it again is the next
      * placement's job, which the visibility mask asks for by invalidating the edge's endpoints.
      * @param drawn - Whether the line is on screen.
+     * @internal
      */
     setDrawn(drawn: boolean): void {
         for (const element of this.elements) {
@@ -394,7 +385,10 @@ export class PatternedLineMesh {
         }
     }
 
-    /** Stop drawing the line because the visibility mask hid its edge, keeping each element's place. */
+    /**
+     * Stop drawing the line because the visibility mask hid its edge, keeping each element's place.
+     * @internal
+     */
     park(): void {
         for (const element of this.elements) {
             element.park();
@@ -404,6 +398,7 @@ export class PatternedLineMesh {
     /**
      * Draw the line again as it was when it was parked.
      * @returns True when every element was put back.
+     * @internal
      */
     unpark(): boolean {
         let back = true;
@@ -440,13 +435,22 @@ export class PatternedLineMesh {
     /**
      * Give up every element's slot. A batch goes with the last element drawn from it, taking its
      * mesh and its material, so nothing is left in the scene.
+     * @internal
      */
     dispose(): void {
         for (const element of this.elements) {
             element.dispose();
         }
         this.elements = [];
-        this.isDisposed = true;
+        this.disposed = true;
+    }
+
+    /**
+     * Whether the line was disposed, as `AbstractMesh.isDisposed()` answers for a mesh (issue #7127).
+     * @returns True once `dispose()` has run.
+     */
+    isDisposed(): boolean {
+        return this.disposed;
     }
 
     /**
@@ -782,6 +786,7 @@ export class PatternedLineMesh {
      * the near end of its first piece to the far end of its last, as drawn (a sine wave's first period
      * is centered on the line's start; a zigzag's last piece stops at its last turn, capped).
      * @returns The two ends, or null for any other line.
+     * @internal
      */
     drawnEnds(): [Vector3, Vector3] | null {
         const span = this.waveSpan();
@@ -792,6 +797,7 @@ export class PatternedLineMesh {
      * The route this line is drawn along, as it was last laid: the route's points from end to end, or for a wave
      * with a period of its own from where its first piece starts to where its last ends ({@link drawnEnds}).
      * @returns The points, in order, as fresh vectors; null before the line was laid.
+     * @internal
      */
     drawnRoute(): Vector3[] | null {
         if (this.laid === null) {
@@ -813,6 +819,7 @@ export class PatternedLineMesh {
     /**
      * The middle of the route this line was last laid along, halfway along its length.
      * @returns The point.
+     * @internal
      */
     routeMiddle(): Vector3 {
         return this.onRoute((this.laid?.along.at(-1) ?? 0) / 2).point;

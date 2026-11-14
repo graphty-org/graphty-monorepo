@@ -366,7 +366,7 @@ describe("node borders (#2316)", () => {
             const node = element.graph.getDataManager().nodes.get("n");
             assert.isDefined(node);
             const ring = (node as unknown as { border: AbstractMesh | null }).border;
-            assert.isNotNull(ring);
+            assert.exists(ring);
             const worldPoints = (mesh: AbstractMesh): Point2[] => {
                 mesh.computeWorldMatrix(true);
                 const source = (mesh as InstancedMesh).sourceMesh ?? mesh;

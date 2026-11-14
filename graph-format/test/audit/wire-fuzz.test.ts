@@ -14,9 +14,7 @@
  *   E_UNSUPPORTED_VERSION, E_UNSUPPORTED, E_INVALID_SNAPSHOT).
  *
  * Anything else (a TypeError / RangeError, an undocumented code, a snapshot failing validation) is
- * an anomaly and fails the test that produced it. Anomalies already pinned by a dedicated failing
- * test in wire-probes.test.ts are recognised by signature (KNOWN_DEFECTS) so that one open defect
- * does not hide a new one.
+ * an anomaly and fails the test that produced it.
  */
 
 import { describe, expect, it } from "vitest";
@@ -46,7 +44,7 @@ function prng(seed: number): () => number {
 
 const LEVELS: readonly ValidationLevel[] = ["full", "structure", "none"];
 
-// ============================================================ known defects (pinned in wire-probes.test.ts)
+// ============================================================ anomalies
 
 /** What the oracle found wrong with one mutated input. */
 interface Anomaly {
@@ -54,33 +52,6 @@ interface Anomaly {
     readonly mutation: string;
     readonly problem: string;
 }
-
-interface KnownDefect {
-    /** The wire-probes.test.ts test that pins the defect. */
-    readonly pinnedBy: string;
-    readonly matches: (anomaly: Anomaly) => boolean;
-}
-
-/**
- * Anomaly signatures already pinned by a dedicated (deliberately failing) test, so that the fuzz
- * suites keep reporting NEW anomalies while these are open. Remove an entry once its pin passes.
- */
-const KNOWN_DEFECTS: readonly KnownDefect[] = [
-    {
-        pinnedBy: "validate() reports a violated unique column as E_INVALID_SNAPSHOT",
-        matches: (a) => /undocumented code E_DUPLICATE_(EDGE_)?ID:/.test(a.problem),
-    },
-    {
-        pinnedBy: "a bigint or null-prototype manifest value is refused with E_BAD_SERIALIZATION",
-        matches: (a) =>
-            a.problem.includes("Do not know how to serialize a BigInt") ||
-            a.problem.includes("Cannot convert object to primitive value"),
-    },
-    {
-        pinnedBy: "negative zero is not accepted as a count or identity offset",
-        matches: (a) => a.mutation.includes(":= -0") && a.problem.includes("does not re-serialise"),
-    },
-];
 
 function describeError(err: unknown): string {
     if (err instanceof Error) {
@@ -323,13 +294,10 @@ function judge(outcome: Outcome, level: ValidationLevel, golden: string, mutatio
     }
 }
 
-/** Anomalies not covered by a known, separately pinned defect, grouped by message shape. */
+/** Every anomaly, grouped by message shape (empty when there is none). */
 function unexplained(anomalies: readonly Anomaly[]): string {
     const groups = new Map<string, number>();
     for (const a of anomalies) {
-        if (KNOWN_DEFECTS.some((known) => known.matches(a))) {
-            continue;
-        }
         const key = `[${a.golden}] ${a.mutation.replace(/[0-9]+/g, "#")}: ${a.problem.replace(/[0-9]+/g, "#")}`;
         groups.set(key, (groups.get(key) ?? 0) + 1);
     }

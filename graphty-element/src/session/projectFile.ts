@@ -865,15 +865,6 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
                       renamed: columnSettings.renamed,
                   },
               }),
-        // Written only when a value is named, so a project without names saves as before.
-        ...(dispatcher.state.valueLabels.size === 0
-            ? {}
-            : {
-                  valueLabels: [...dispatcher.state.valueLabels].map(([key, label]) => ({
-                      ...valueLabelOf(key),
-                      label,
-                  })),
-              }),
         // The data issues: what the loads saw, the ignored issues and the kept repeats, when any.
         ...(issueState === undefined ? {} : { issues: { version: ISSUES_VERSION, ...issueState } }),
     };
@@ -947,6 +938,8 @@ export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Rec
         graph: result.graph,
         caveats: entry.record.caveats,
         durationMs: entry.record.durationMs ?? 0,
+        // The reader's own name (`runs.rename`); a run without one writes no key.
+        ...(entry.name === undefined ? {} : { name: entry.name }),
         nodes: { ids: nodeColumn, columns: columns(nodeValues) },
         edges: { columns: columns(ids.edges.map((edge) => result.edge(edge))) },
     };
@@ -1951,54 +1944,7 @@ async function readProject(
         await attempt(
             opening,
             "runs",
-            async () => {
-                if (!sameData) {
-                    problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
-                }
-
-                // A file written before caveats carried facts has none to read back.
-                const caveats: Caveats = { facts: [], ...run.caveats };
-                const result = createRunResult({
-                    runId: run.id,
-                    shape: run.shape,
-                    fields: run.fields,
-                    measured: run.measured,
-                    graph: run.graph,
-                    nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
-                    // Edges are keyed by position in the data; data that differs leaves them out.
-                    edges: sameData
-                        ? rowsOf(
-                              edgeIds.map((_, at) => at),
-                              run.edges.columns,
-                              (at) => edgeIds[at],
-                          )
-                        : [],
-                    caveats,
-                    durationMs: run.durationMs,
-                });
-                // The summary too, as a fresh execution hands it over: the run's record (its count,
-                // its groups) is read from it.
-                canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
-                const { algorithm, params, scope, seed, sample, exact } = remap(run);
-                try {
-                    const restoring = tx.runs.start(algorithm, params, {
-                        as: run.id,
-                        style: false,
-                        ...(scope === undefined ? {} : { scope }),
-                        ...(seed === undefined ? {} : { seed }),
-                        ...(sample === undefined ? {} : { sample }),
-                        ...(exact === undefined ? {} : { exact }),
-                    });
-                    // Before it is recorded: a minted id stays minted, so a later start of the
-                    // same question answers to it rather than minting a second one (#6227).
-                    if (run.derived === true) {
-                        opening.restoreDerived(run.id);
-                    }
-                    await restoring;
-                } finally {
-                    canned.delete(run.id);
-                }
-            },
+            () => readRun(opening, run, { sameData, nodeIds, edgeIds, remap }, canned),
             run.id,
         );
     }
@@ -2350,6 +2296,79 @@ function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId |
     return typeof at === "number" ? edgeIds[at] : undefined;
 }
 
+/** What reading one saved run needs to know about the data it opens over. */
+interface RunReading {
+    /** Whether the data is the data the run was saved over. */
+    readonly sameData: boolean;
+    readonly nodeIds: ReadonlySet<NodeId>;
+    readonly edgeIds: readonly (EdgeId | undefined)[];
+    /** Rewrites the set ids a run names to the ones this session gave. */
+    readonly remap: <T>(value: T) => T;
+}
+
+/**
+ * Restart one saved run with its saved result waiting, then give it back its reader's name.
+ * @param opening - The open.
+ * @param run - The saved run.
+ * @param reading - The data it opens over.
+ * @param canned - Where the saved results wait for their runs.
+ */
+async function readRun(opening: Opening, run: SavedRun, reading: RunReading, canned: CannedOutcomes): Promise<void> {
+    const { tx, problems } = opening;
+    const { sameData, nodeIds, edgeIds, remap } = reading;
+    if (!sameData) {
+        problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
+    }
+
+    // A file written before caveats carried facts has none to read back.
+    const caveats: Caveats = { facts: [], ...run.caveats };
+    const result = createRunResult({
+        runId: run.id,
+        shape: run.shape,
+        fields: run.fields,
+        measured: run.measured,
+        graph: run.graph,
+        nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
+        // Edges are keyed by position in the data; data that differs leaves them out.
+        edges: sameData
+            ? rowsOf(
+                  edgeIds.map((_, at) => at),
+                  run.edges.columns,
+                  (at) => edgeIds[at],
+              )
+            : [],
+        caveats,
+        durationMs: run.durationMs,
+    });
+    // The summary too, as a fresh execution hands it over: the run's record (its count,
+    // its groups) is read from it.
+    canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
+    const { algorithm, params, scope, seed, sample, exact } = remap(run);
+    try {
+        const restoring = tx.runs.start(algorithm, params, {
+            as: run.id,
+            style: false,
+            ...(scope === undefined ? {} : { scope }),
+            ...(seed === undefined ? {} : { seed }),
+            ...(sample === undefined ? {} : { sample }),
+            ...(exact === undefined ? {} : { exact }),
+        });
+        // Before it is recorded: a minted id stays minted, so a later start of the
+        // same question answers to it rather than minting a second one (#6227).
+        if (run.derived === true) {
+            opening.restoreDerived(run.id);
+        }
+        await restoring;
+    } finally {
+        canned.delete(run.id);
+    }
+
+    // A file written before runs carried the reader's name has none to give back.
+    if (typeof run.name === "string") {
+        await tx.runs.rename(run.id, run.name);
+    }
+}
+
 /** One finished run as a results member keeps it. */
 interface SavedRun {
     readonly id: RunId;
@@ -2367,6 +2386,8 @@ interface SavedRun {
     readonly graph: Readonly<Record<string, unknown>>;
     readonly caveats: Caveats | Omit<Caveats, "facts">;
     readonly durationMs: number;
+    /** The reader's own name for the run (`runs.rename`); absent in older files and unnamed runs. */
+    readonly name?: string;
     readonly nodes: { readonly ids: readonly NodeId[]; readonly columns: Readonly<Record<string, unknown>> };
     readonly edges: { readonly columns: Readonly<Record<string, unknown>> };
 }

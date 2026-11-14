@@ -1,7 +1,6 @@
 import { afterEach, assert, expect, test } from "vitest";
 
 import type { Graph } from "../../../src/Graph";
-import { ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError.js";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -80,7 +79,7 @@ test("unknown preset throws error", async () => {
             preset: "unknown-preset" as "print",
         }),
     ).rejects.toMatchObject({
-        name: "ScreenshotError",
-        code: ScreenshotErrorCode.PRESET_NOT_FOUND,
+        name: "GraphtyError",
+        code: "E_OPTION_RANGE",
     });
 });

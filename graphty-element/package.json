@@ -156,6 +156,7 @@
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "lint": "node ../tools/test-slots.mjs --lint eslint --concurrency 2 $ESLINT_CACHE && node eslint-rules/node-position-funnel.test.mjs && node eslint-rules/node-mesh-funnel.test.mjs && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit && npm run typecheck:strict-consumer",
         "benchmark": "tsx benchmarks/run.ts",
+        "fidelity:issues": "tsx scripts/fidelity-issues.ts",
         "fidelity:ratchet": "tsx scripts/fidelity-ratchet.ts",
         "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json && tsc -p tsconfig.strict-consumer.json && tsc -p tsconfig.no-jsx-opt-in.json",
         "lint:fix": "eslint --fix",
@@ -230,30 +231,17 @@
         "webpack": "^5.111.1"
     },
     "peerDependencies": {
-        "@ai-sdk/anthropic": "^2.0.50",
-        "@ai-sdk/google": "^2.0.44",
-        "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.0.0",
         "@babylonjs/loaders": "^8.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": ">=1.29.0",
         "@mlc-ai/web-llm": ">=0.2.0",
         "@types/react": "*",
-        "ai": "^5.0.104",
         "encrypt-storage": "^2.14.7",
         "lit": "^3.0.0",
         "neo4j-driver": "^5.0.0"
     },
     "peerDependenciesMeta": {
-        "@ai-sdk/anthropic": {
-            "optional": true
-        },
-        "@ai-sdk/google": {
-            "optional": true
-        },
-        "@ai-sdk/openai": {
-            "optional": true
-        },
         "@graphty/webgpu-graph-algorithms": {
             "optional": true
         },
@@ -264,9 +252,6 @@
             "optional": true
         },
         "@types/react": {
-            "optional": true
-        },
-        "ai": {
             "optional": true
         },
         "encrypt-storage": {

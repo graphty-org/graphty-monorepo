@@ -19,7 +19,7 @@
 //        snapshot where vis-network ends its stabilization run and fits the view (physics then
 //        stopped), or at once when physics is off; then its own CanvasRenderer
 //        redraws once onto an svgcanvas 2.6.0 context (net.canvas.getContext swapped for the call).
-// sigma: sigma 4.0.1 draws everything (nodes, edges, labels) with WebGL2 and has no vector output.
+// sigma: sigma 4.0.6 draws everything (nodes, edges, labels) with WebGL2 and has no vector output.
 //        Its own export (@sigma/export-image 4.0.0 toBlob, PNG) is wrapped unmodified in an SVG
 //        <image>, so the SVG is the program's real pixels, not vectors.
 //
@@ -418,7 +418,8 @@ try {
                 }
                 const s = net.getViewPosition();
                 // where vis-network drew each node, in the SVG's pixels: its own position (getPositions, canvas
-                // units) through its own view (canvasToDOM), and its own bounding box the same way. A file with no
+                // units) through its own view (canvasToDOM), and its own bounding box the same way, corners and all, since a
+                // label drawn below the shape puts the box off center (json-vis-nodelegend, #7402). A file with no
                 // positions and labels too small to draw (json-vis-siblings) names its nodes nowhere else.
                 const positions = net.getPositions();
                 const nodes = net.body.nodeIndices.flatMap((nid) => {
@@ -430,7 +431,16 @@ try {
                         net.canvasToDOM({ x: b.left, y: b.top }),
                         net.canvasToDOM({ x: b.right, y: b.bottom }),
                     ];
-                    return [{ id: String(nid), x: c.x, y: c.y, w: p1.x - p0.x, h: p1.y - p0.y }];
+                    return [
+                        {
+                            id: String(nid),
+                            x: c.x,
+                            y: c.y,
+                            w: p1.x - p0.x,
+                            h: p1.y - p0.y,
+                            box: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y },
+                        },
+                    ];
                 });
                 return {
                     drawn: { nodes },
@@ -452,7 +462,7 @@ try {
             { doc, W, H },
         );
         result.drawnAbout =
-            "vis-network's own account of where it drew each node, for naming the SVG's shapes: each node's id, its center (net.getPositions() through net.canvasToDOM) and its bounding box's width and height (net.getBoundingBox through net.canvasToDOM), in the SVG's pixels";
+            "vis-network's own account of where it drew each node, for naming the SVG's shapes: each node's id, its center (net.getPositions() through net.canvasToDOM) and its bounding box's width and height and its corners (box: net.getBoundingBox through net.canvasToDOM; the box holds a label drawn below the shape, so it is not centered on the node), in the SVG's pixels";
         result.program = "vis-network";
         result.version = `vis-network ${versionOf("vis-network")} (standalone), svgcanvas ${versionOf("svgcanvas")}`;
         result.command = `new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); ${result.observed.physics ? `once("${result.observed.snapshotAt}"); stopSimulation(); ` : ""}net.renderer._redraw() onto an svgcanvas Context`;

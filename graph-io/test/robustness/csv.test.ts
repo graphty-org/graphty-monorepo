@@ -307,10 +307,10 @@ describe("csv robustness: quoting and syntax", () => {
         expect(report.issues[0].line).toBe(2);
     });
 
-    it("space-before-opening-quote: the cell is unquoted text (RFC 4180), reported", async () => {
+    it("space-before-opening-quote: the cell is unquoted text (RFC 4180), trimmed, reported", async () => {
         const { snapshot, report } = await load('source,target\n "a",b\n');
-        expect(edgesOf(snapshot)).toEqual([' "a"->b']);
-        expect(codes(report).sort()).toEqual(["W_CSV_PADDED_ID", "W_CSV_STRAY_QUOTE"]);
+        expect(edgesOf(snapshot)).toEqual(['"a"->b']);
+        expect(codes(report)).toEqual(["W_CSV_STRAY_QUOTE"]);
     });
 
     it("single-quote-quoting: there is no quote option; single quotes are text, so the row splits", async () => {
@@ -564,17 +564,20 @@ describe("csv robustness: header and column roles", () => {
 });
 
 describe("csv robustness: values and ids", () => {
-    it("quoted-empty-endpoint: the empty string is a legal id", async () => {
+    it("quoted-empty-endpoint: a blank endpoint, as in csv-spectrum's empty.csv", async () => {
         const { snapshot, report } = await load('"",b\nc,d\n');
-        expect(report.issues).toEqual([]);
-        expect(edgesOf(snapshot)).toEqual(["->b", "c->d"]);
+        expect(codes(report)).toEqual(["E_MISSING_ENDPOINT"]);
+        expect(edgesOf(snapshot)).toEqual(["c->d"]);
+        // a node table keeps the empty-string id
+        const nodes = await load('id\n""\nb\n', { table: "nodes" });
+        expect(nodes.snapshot.ids.toArray()).toEqual(["", "b"]);
     });
 
-    it("padded-ids: unquoted ids with surrounding whitespace are kept as written and reported once", async () => {
-        const { snapshot, report } = await load(`source,target\n a , b \na,b\n${NBSP}a,b\n`);
-        expect(snapshot.ids.toArray()).toEqual([" a ", " b ", "a", "b", `${NBSP}a`]);
+    it("padded-ids: spaces and tabs around unquoted ids are trimmed; other whitespace is kept and reported once", async () => {
+        const { snapshot, report } = await load(`source,target\n a , b \na,\tb\n${NBSP}a,b\n`);
+        expect(snapshot.ids.toArray()).toEqual(["a", "b", `${NBSP}a`]);
         expect(codes(report)).toEqual(["W_CSV_PADDED_ID"]);
-        expect(report.issues[0].line).toBe(2);
+        expect(report.issues[0].line).toBe(4);
         // a quoted padded id is deliberate
         const quoted = await load('source,target\n" a",b\n');
         expect(quoted.report.issues).toEqual([]);
@@ -694,10 +697,9 @@ describe("csv robustness: adjacency tables", () => {
         expect(weightsOf(snapshot)).toEqual([1, undefined]);
     });
 
-    // known failure: a weight that overflows to Infinity (`c:1e400`) is kept with no warning; the
-    // intended behavior reports it. Remove `.fails` when the shared weight parser reports overflow.
-    it.fails("adjacency-weight-overflow: a weight beyond the f64 range is reported", async () => {
-        const { report } = await load("a c:1e400\n", adjacency);
-        expect(report.issues.length).toBeGreaterThan(0);
+    it("adjacency-weight-overflow: a weight beyond the f64 range is reported", async () => {
+        const { snapshot, report } = await load("a c:1e400\n", adjacency);
+        expect(report.issues.map((i) => i.code)).toEqual(["W_PRECISION"]);
+        expect(weightsOf(snapshot)).toEqual([Infinity]);
     });
 });

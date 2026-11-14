@@ -205,6 +205,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
         { root, members: ["nodeThumbnail", "modelThumbnail"], reason: "raw-data", kind: BY_DESIGN },
+        { root, members: ["cancelCameraAnimation"], reason: "in-flight", kind: BY_DESIGN },
     ]),
     {
         root: "Graph",
@@ -534,7 +535,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
-    { root: "RunsApi", members: ["batch"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
+    { root: "RunsApi", members: ["batch", "sweep"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
     { root: "RunsApi", members: ["bindings", "painting"], reason: "covered-by", by: "style.list", kind: BY_DESIGN },
     { root: "ScopeApi", members: ["resolve"], reason: "covered-by", by: "query.count", kind: BY_DESIGN },
     { root: "ScopeApi", members: ["remove"], reason: "covered-by", by: "sets.remove", kind: BY_DESIGN },

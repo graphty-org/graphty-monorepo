@@ -24,6 +24,7 @@ import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import type { ModelTemplate } from "../models/ModelCache";
+import { addGradientStops } from "./edgeGradient";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
@@ -192,7 +193,8 @@ const GRADIENT_TEXTURE_SIZE = 128;
  * and therefore a distinct material, per node, so a gradient computed per node would otherwise
  * allocate a texture per node. At 32 the worst case is about 2 MB, which is affordable; past the
  * ceiling the material falls back to the gradient's first stop as a flat colour rather than
- * allocating without bound.
+ * allocating without bound. It counts gradients some material still draws: a texture is disposed
+ * and its slot freed when the last material using it is disposed.
  */
 const MAX_GRADIENT_TEXTURES_PER_SCENE = 32;
 
@@ -200,9 +202,10 @@ const MAX_GRADIENT_TEXTURES_PER_SCENE = 32;
  * Gradient ramps interned per scene, keyed by the gradient VALUE rather than by style id.
  *
  * A WeakMap so the whole table is collected with the scene it belongs to -- textures never leak
- * between scenes, and a test that builds and drops a scene leaves nothing behind.
+ * between scenes, and a test that builds and drops a scene leaves nothing behind. `users` counts
+ * the live materials drawing the texture.
  */
-const gradientTextureCache = new WeakMap<Scene, Map<string, DynamicTexture>>();
+const gradientTextureCache = new WeakMap<Scene, Map<string, { texture: DynamicTexture; users: number }>>();
 
 /** A gradient color with an alpha under full: `#rgba` or `#rrggbbaa`. */
 const SEE_THROUGH = /^#(?:[0-9a-f]{3}[0-9a-e]|[0-9a-f]{6}(?!ff)[0-9a-f]{2})$/i;
@@ -1187,8 +1190,10 @@ export class NodeMesh {
     ): void {
         const styleColor = createOptions.texture?.color;
         let color3 = this.extractColor(styleColor);
-        const gradient = color3 ? undefined : this.extractGradient(styleColor);
-        const gradientTexture = gradient ? this.getGradientTexture(gradient, scene) : undefined;
+        const { picture } = createOptions;
+        const hasPicture = picture !== undefined && picture !== null;
+        const gradient = color3 || hasPicture ? undefined : this.extractGradient(styleColor);
+        const gradientTexture = gradient ? this.getGradientTexture(gradient, mat, scene) : undefined;
 
         if (gradient && !gradientTexture) {
             // The ramp could not be allocated -- no scene, no 2D canvas in this environment, or
@@ -1206,8 +1211,8 @@ export class NodeMesh {
         // `node.unlit` draws a 3D node the way 2D draws every node: its own colour, no light.
         const unlit = is2D || createOptions.effect?.unlit === true;
 
-        if (createOptions.picture !== undefined && createOptions.picture !== null) {
-            this.setUpPictureMaterial(mat, createOptions, createOptions.picture, is2D, unlit);
+        if (hasPicture) {
+            this.setUpPictureMaterial(mat, createOptions, picture, is2D, unlit);
         } else {
             this.setUpColorMaterial(mat, gradientTexture, color3, unlit, scene);
         }
@@ -1399,15 +1404,21 @@ export class NodeMesh {
      *      provenance is invisible here, but unbounded allocation is not.
      *
      * The cache is a WeakMap keyed by scene, so the entries die with the scene and never leak
-     * across scenes or across tests. `MeshCache` disposes a source mesh's material but never its
-     * textures, so a cached texture stays valid across a 2D/3D switch.
+     * across scenes or across tests. Each entry counts the materials drawing it: `MeshCache`
+     * disposes a source mesh's material (never its textures), and the last material's disposal
+     * disposes the texture and frees its slot, so the ceiling counts gradients in use rather than
+     * every gradient the scene has ever seen (issue #7122).
      * @param gradient - The normalised gradient to paint
+     * @param mat - The material that will draw the texture, holding it until disposed
      * @param scene - Babylon.js scene that will own the texture
      * @returns The shared texture, or undefined if one cannot or should not be allocated
      */
-    private static getGradientTexture(gradient: GradientColor, scene?: Scene): DynamicTexture | undefined {
-        // One stop cannot make a ramp: the stop offsets below are `i / (colors.length - 1)`, which
-        // is NaN for a single stop and throws in `addColorStop`. The caller paints it flat.
+    private static getGradientTexture(
+        gradient: GradientColor,
+        mat: StandardMaterial,
+        scene?: Scene,
+    ): DynamicTexture | undefined {
+        // One stop is no ramp: the caller paints it flat, which needs no texture.
         if (!scene || gradient.colors.length < 2) {
             return undefined;
         }
@@ -1416,26 +1427,34 @@ export class NodeMesh {
 
         let sceneCache = gradientTextureCache.get(scene);
         if (!sceneCache) {
-            sceneCache = new Map<string, DynamicTexture>();
+            sceneCache = new Map();
             gradientTextureCache.set(scene, sceneCache);
         }
 
-        const cached = sceneCache.get(key);
-        if (cached) {
-            return cached;
+        let entry = sceneCache.get(key);
+        if (!entry) {
+            if (sceneCache.size >= MAX_GRADIENT_TEXTURES_PER_SCENE) {
+                return undefined;
+            }
+            const texture = this.createGradientTexture(gradient, scene, key);
+            if (!texture) {
+                return undefined;
+            }
+            entry = { texture, users: 0 };
+            sceneCache.set(key, entry);
         }
 
-        if (sceneCache.size >= MAX_GRADIENT_TEXTURES_PER_SCENE) {
-            return undefined;
-        }
-
-        const texture = this.createGradientTexture(gradient, scene, key);
-        if (!texture) {
-            return undefined;
-        }
-
-        sceneCache.set(key, texture);
-        return texture;
+        const held = entry;
+        const cache = sceneCache;
+        held.users++;
+        mat.onDisposeObservable.addOnce(() => {
+            held.users--;
+            if (held.users === 0 && cache.get(key) === held) {
+                cache.delete(key);
+                held.texture.dispose();
+            }
+        });
+        return held.texture;
     }
 
     /**
@@ -1481,9 +1500,7 @@ export class NodeMesh {
                 : this.createLinearRamp(ctx, gradient.direction, size);
 
             const { colors, stops } = gradient;
-            for (let i = 0; i < colors.length; i++) {
-                ramp.addColorStop(stops?.[i] ?? i / (colors.length - 1), colors[i] ?? "transparent");
-            }
+            addGradientStops(ramp, colors, stops);
 
             ctx.fillStyle = ramp;
             ctx.fillRect(0, 0, size, size);

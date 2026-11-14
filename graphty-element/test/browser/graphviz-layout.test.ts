@@ -179,14 +179,13 @@ describe("Graphviz layouts in the element", () => {
         await graph.waitForStableFrame();
 
         const edge = [...graph.getDataManager().edges.values()].find((e) => e.srcId === "a" && e.dstId === "c");
-        const dashes = edge?.drawnPattern ?? [];
-        assert.isAbove(dashes.length, 2, "the edge is drawn as dashes");
+        // a dashed line is a joined line whose shader draws its dashes along its run (issue #7404)
+        const run = edge?.drawnCurve ?? [];
+        assert.isAbove(run.length, 2, "the edge is drawn along a run of points");
         const [a, c] = [at("a"), at("c")];
         const length = Math.hypot(c.x - a.x, c.y - a.y);
         const off = Math.max(
-            ...dashes.map(
-                ({ position: p }) => Math.abs((p.x - a.x) * (c.y - a.y) - (p.y - a.y) * (c.x - a.x)) / length,
-            ),
+            ...run.map((p) => Math.abs((p.x - a.x) * (c.y - a.y) - (p.y - a.y) * (c.x - a.x)) / length),
         );
         assert.isAbove(off / length, 0.05, "its dashes bow off the line between its nodes, round b");
     });

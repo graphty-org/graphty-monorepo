@@ -32,12 +32,13 @@ import {
 } from "../../common/export.js";
 import { formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { isCanonicalIntegerText } from "../../common/ids.js";
+import { setOwn } from "../../common/json-elements.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
-import { xmlIllegalTextNotes } from "../../common/xml.js";
+import { isXmlName, xmlIllegalTextNotes } from "../../common/xml.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -294,9 +295,10 @@ function resolveFormatOptions(options: GraphmlExportOptions | undefined): Format
 /**
  * The importer's `meta.extra.graphml`, when the snapshot has one of the expected shape.
  * @param snapshot - the snapshot
+ * @param note - records a loss note
  * @returns the meta, or null
  */
-function graphmlMetaOf(snapshot: GraphSnapshot): GraphmlMeta | null {
+function graphmlMetaOf(snapshot: GraphSnapshot, note: NoteFn): GraphmlMeta | null {
     const value = snapshot.meta.extra[META_KEY];
     if (typeof value !== "object" || value === null) {
         return null;
@@ -305,15 +307,41 @@ function graphmlMetaOf(snapshot: GraphSnapshot): GraphmlMeta | null {
     const graphId = typeof record.graphId === "string" ? record.graphId : null;
     const edgedefault =
         record.edgedefault === "directed" || record.edgedefault === "undirected" ? record.edgedefault : null;
+    return { graphId, edgedefault, namespaces: keptNamespaces(record.namespaces, note) };
+}
+
+/**
+ * The kept namespace declarations a root tag can carry. A prefix that is not an XML NCName, or is `xml` or `xmlns`,
+ * cannot be declared: it is skipped with a loss note.
+ * @param raw - the kept `namespaces` value
+ * @param note - records a loss note
+ * @returns prefix to namespace URI
+ */
+function keptNamespaces(raw: unknown, note: NoteFn): Record<string, string> {
     const namespaces: Record<string, string> = {};
-    if (typeof record.namespaces === "object" && record.namespaces !== null) {
-        for (const [prefix, uri] of Object.entries(record.namespaces as Record<string, unknown>)) {
-            if (typeof uri === "string") {
-                namespaces[prefix] = uri;
-            }
+    if (typeof raw !== "object" || raw === null) {
+        return namespaces;
+    }
+    const dropped: string[] = [];
+    for (const [prefix, uri] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof uri !== "string") {
+            continue;
+        }
+        if (isXmlName(prefix) && !prefix.includes(":") && prefix !== "xml" && prefix !== "xmlns") {
+            setOwn(namespaces, prefix, uri);
+        } else {
+            dropped.push(prefix);
         }
     }
-    return { graphId, edgedefault, namespaces };
+    if (dropped.length > 0) {
+        note(
+            GRAPHML_LOSS.NAMESPACE_DROPPED,
+            `${dropped.length} namespace prefix${dropped.length === 1 ? "" : "es"} ${agree(dropped.length, "is", "are")} not a valid XML prefix and ${agree(dropped.length, "is", "are")} not written: ${dropped.map((p) => JSON.stringify(p)).join(", ")}`,
+            null,
+            dropped.length,
+        );
+    }
+    return namespaces;
 }
 
 /**
@@ -345,7 +373,7 @@ function planExport(
         notes.push(Object.freeze({ code, message, column, count }));
     };
     notes.push(...xmlIllegalTextNotes(snapshot));
-    const meta = graphmlMetaOf(snapshot);
+    const meta = graphmlMetaOf(snapshot, note);
     const keyIds = new KeyIds();
 
     const graphColumns = planTable(snapshot.graph, "graph", notes, note);

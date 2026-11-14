@@ -5,12 +5,12 @@
 import { MantineProvider, Menu } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, describe, expect, it } from "vitest";
-import { commands, page, userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { Popout, PopoutManager } from "../../src/components/popout";
 import { FLOATING_UI_Z_INDEX, POPOUT_Z_INDEX_BASE } from "../../src/constants/popout";
 import { compactTheme } from "../../src/theme";
-import { drag } from "../harness/mouse";
+import { drag, moveBy, press, release } from "../harness/mouse";
 
 /**
  * Helper to render Popout components with required providers
@@ -86,26 +86,29 @@ describe("Popout Regression Tests", () => {
             expect(parentPanel).toBeDefined();
             expect(childPanel).toBeDefined();
 
-            // Child should already be on top (opened last)
-            const initialChildZIndex = parseInt(childPanel!.style.zIndex, 10);
-            const initialParentZIndex = parseInt(parentPanel!.style.zIndex, 10);
-            expect(initialChildZIndex).toBeGreaterThan(initialParentZIndex);
+            const zIndex = (panel: HTMLElement): number => parseInt(panel.style.zIndex, 10);
 
-            // Find the drag trigger in the child panel header
-            const dragTrigger = childPanel!.querySelector("[data-drag-trigger]");
-            expect(dragTrigger).toBeInTheDocument();
+            // Child is on top (opened last)
+            expect(zIndex(childPanel!)).toBeGreaterThan(zIndex(parentPanel!));
 
-            // Start a drag: press on the header and hold
-            await userEvent.hover(dragTrigger!, { position: { x: 20, y: 8 } });
-            await commands.mouseDown();
+            // Raise the parent above the child by dragging its header. A drag, not a click: the
+            // click a release makes on the parent would close the child.
+            const parentHandle = parentPanel!.querySelector("[data-drag-trigger]")!;
+            await drag(parentHandle, { x: 40, y: 8 }, { x: 0, y: 40 });
+            await waitFor(() => {
+                expect(zIndex(parentPanel!)).toBeGreaterThan(zIndex(childPanel!));
+            });
+            expect(screen.getByTestId("child-content")).toBeInTheDocument();
 
-            // After drag starts, child should still be on top (bringToFront called)
-            const newChildZIndex = parseInt(childPanel!.style.zIndex, 10);
-            const newParentZIndex = parseInt(parentPanel!.style.zIndex, 10);
-            expect(newChildZIndex).toBeGreaterThanOrEqual(newParentZIndex);
-
-            // Cleanup
-            await commands.mouseUp();
+            // Dragging the child's header brings it back above the parent while the drag is under
+            // way, before the release's click (which raises a panel too).
+            const childHandle = childPanel!.querySelector("[data-drag-trigger]")!;
+            await press(childHandle, { x: 20, y: 8 });
+            await moveBy(-30, 0);
+            await waitFor(() => {
+                expect(zIndex(childPanel!)).toBeGreaterThan(zIndex(parentPanel!));
+            });
+            await release();
         });
     });
 

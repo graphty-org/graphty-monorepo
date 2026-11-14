@@ -10,7 +10,7 @@ import type { AiHostedToolId, AiResultCode, AiResultParams, AiTarget } from "./c
 import type { EdgeId, FormatId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
 import type { ExportLoss } from "./data/export";
-import type { ImportReport } from "./data/report";
+import type { ImportReport, LoadError } from "./data/report";
 import type { Edge } from "./Edge";
 import type { GraphtyWarningCode } from "./errors/codes";
 import type { Graph } from "./Graph";
@@ -322,8 +322,14 @@ export interface StyleChangedEvent {
 export interface DataLoadingProgressEvent {
     type: "data-loading-progress";
     format: string;
+    /** Bytes of the file the source has read so far; 0 for a source that reads no file. */
     bytesProcessed: number;
+    /**
+     * The file's size in bytes: a File's size, else the bytes read once the source has read the
+     * whole file (a URL is read whole before its first records). Absent while unknown.
+     */
     totalBytes?: number;
+    /** `bytesProcessed` as a percentage of `totalBytes`, whenever the total is known. */
     percentage?: number;
     /**
      * How many node RECORDS the source has handed over so far.
@@ -372,14 +378,30 @@ export interface DataLoadingErrorEvent {
     loadId?: number;
 }
 
+/**
+ * Emitted when a load skipped records it could not read or store. It carries facts, not words:
+ * a reader writes its own message from `code`, `params` and `errors`.
+ */
 export interface DataLoadingErrorSummaryEvent {
     type: "data-loading-error-summary";
     format: string;
+    /** What happened: `"load-errors"`, some records of the load were skipped. */
+    code: "load-errors";
+    /** The facts behind the code. */
+    params: {
+        /** How many errors the load recorded. */
+        totalErrors: number;
+        /** How many errors of each {@link LoadError.code}. */
+        byCategory: Readonly<Record<string, number>>;
+        /** The fields or columns the errors name, in the order first met. */
+        fields: readonly string[];
+    };
+    /** Each recorded error as a code and its facts (the same entries `LoadReport.errors` carries). */
+    errors: readonly LoadError[];
+    /** How many errors the load recorded. */
     totalErrors: number;
+    /** The most common {@link LoadError.code} among the errors. */
     primaryCategory?: string;
-    message: string;
-    suggestion?: string;
-    detailedReport: string;
     /**
      * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
      * resolve to, and that every event about one load carries. Absent on a report about records

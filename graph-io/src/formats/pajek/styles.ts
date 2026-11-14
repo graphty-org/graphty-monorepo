@@ -27,11 +27,12 @@ import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import { type ExporterStyleInput, replacedLabelNote } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     ImporterStyles,
+    NodeStyleProperty,
     StyleColumn,
     StyleReadContext,
     StyleRule,
@@ -1143,7 +1144,7 @@ const PAJEK_AP_TIP_AHEAD = 5;
 const PAJEK_AP_LEAST = 1e-6;
 
 /** The vertex properties its outline is drawn from (`outlineReach`). */
-const OUTLINE_PROPERTIES: readonly string[] = ["width", "height", "shape", "shapePoints", "shapeRotation"];
+const OUTLINE_PROPERTIES: readonly NodeStyleProperty[] = ["width", "height", "shape", "shapePoints", "shapeRotation"];
 
 /** How far a line runs from each end's center before it leaves that vertex's outline, in drawn units. */
 type Ends = readonly [source: number, target: number];
@@ -1168,11 +1169,9 @@ function outlineReach(value: (property: string) => unknown, ux: number, uy: numb
         return 0;
     }
     const shape = value("shape");
-    const listed = typeof value("shapePoints") === "string" ? String(value("shapePoints")) : "";
+    // a polygon without three readable corners is drawn as the ellipse
     const corners =
-        shape === "polygon"
-            ? listed.split(" ").map((pair) => pair.split(",").map(Number) as unknown as readonly [number, number])
-            : PAJEK_OUTLINES.get(String(shape));
+        shape === "polygon" ? (polygonCorners(value("shapePoints")) ?? undefined) : PAJEK_OUTLINES.get(String(shape));
     if (corners === undefined) {
         const t = ((numberOrNull(value("shapeRotation")) ?? 0) * Math.PI) / 180;
         const [x, y] = [ux * Math.cos(t) + uy * Math.sin(t), -ux * Math.sin(t) + uy * Math.cos(t)];
@@ -1195,6 +1194,26 @@ function outlineReach(value: (property: string) => unknown, ux: number, uy: numb
         }
     });
     return reach;
+}
+
+/**
+ * The corners of a `shapePoints` value: `x,y` pairs separated by spaces.
+ * @param points - the value
+ * @returns the corners, or null unless it is text of at least three pairs of two finite numbers
+ */
+function polygonCorners(points: unknown): (readonly [number, number])[] | null {
+    if (typeof points !== "string") {
+        return null;
+    }
+    const corners: (readonly [number, number])[] = [];
+    for (const pair of points.trim().split(/\s+/)) {
+        const xy = pair.split(",").map((t) => (t.trim() === "" ? Number.NaN : Number(t)));
+        if (xy.length !== 2 || !xy.every(Number.isFinite)) {
+            return null;
+        }
+        corners.push([xy[0], xy[1]]);
+    }
+    return corners.length >= 3 ? corners : null;
 }
 
 /**
@@ -1720,15 +1739,8 @@ function shapeKeyword(get: Get, approximate: Approximate): string {
  * @returns the diamond's `q`, or null
  */
 function diamondQ(get: Get): number | null {
-    const points = get("shapePoints");
-    const corners =
-        typeof points === "string"
-            ? points
-                  .trim()
-                  .split(/\s+/)
-                  .map((p) => p.split(",").map(Number))
-            : [];
-    if (corners.length !== 6) {
+    const corners = polygonCorners(get("shapePoints"));
+    if (corners?.length !== 6) {
         return null;
     }
     const q = corners[2][0];
@@ -2164,7 +2176,7 @@ export function pajekStyledExport(
     // the lines as a reader without the `pajekDraw` option places them
     const runOf = lineRuns(snapshot, PAJEK_SQUARE);
     // graphty measures an arrowhead's place between the outlines it draws
-    const vertex = elementValues((t, p) => input.picture(t, p as never), "node", OUTLINE_PROPERTIES);
+    const vertex = elementValues((t, p) => input.picture(t, p), "node", OUTLINE_PROPERTIES);
     const endsOf = lineEnds(snapshot, runOf, (v, property) => vertex(v)(property));
     const directed = directedEdges(snapshot);
     for (const target of ["node", "edge"] as const) {
@@ -2172,7 +2184,7 @@ export function pajekStyledExport(
         const approximate: Approximate = (property, value) => {
             approximated.add(target, property, value);
         };
-        const get = elementValues((t, p) => input.picture(t, p as never), target, PAJEK_STYLE_CAPABILITIES[target]);
+        const get = elementValues((t, p) => input.picture(t, p), target, PAJEK_STYLE_CAPABILITIES[target]);
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const params = (i: number): Map<string, Written> =>
             target === "node"
@@ -2194,6 +2206,10 @@ export function pajekStyledExport(
         },
     );
     const notes = approximated.notes("Pajek");
+    const replaced = replacedLabelNote(snapshot, LABEL_COLUMN, input.picture("node", "label"), "the vertex label");
+    if (replaced !== null) {
+        notes.push(replaced);
+    }
     const block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     notes.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
     return { snapshot: out, comment: PAJEK_STYLE_COMMENT + block, notes };

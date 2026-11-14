@@ -856,6 +856,8 @@ export type Channel =
     | "node.chartLineWidth"
     | "node.chartBorderColor"
     | "node.chartBorderWidth"
+    | "node.chartBackgroundColor"
+    | "node.chartBackgroundOpacity"
     | "node.model"
     | "node.modelSourceUp"
     | "node.modelTurn"
@@ -930,6 +932,7 @@ export type Channel =
     | "edge.arrowHeadGap"
     | "edge.arrowHeadStack"
     | "edge.arrowHeadColor"
+    | "edge.arrowHeadFillColor"
     | "edge.arrowHeadOpacity"
     | "edge.arrowHeadImage"
     | "edge.arrowHeadText"
@@ -953,6 +956,7 @@ export type Channel =
     | "edge.arrowTailGap"
     | "edge.arrowTailStack"
     | "edge.arrowTailColor"
+    | "edge.arrowTailFillColor"
     | "edge.arrowTailOpacity"
     | "edge.arrowTailImage"
     | "edge.arrowTailText"
@@ -974,6 +978,7 @@ export type Channel =
     | "edge.arrowMiddleHeadOutlineWidth"
     | "edge.arrowMiddleHeadPosition"
     | "edge.arrowMiddleHeadColor"
+    | "edge.arrowMiddleHeadFillColor"
     | "edge.arrowMiddleHeadOpacity"
     | "edge.arrowMiddleHeadImage"
     | "edge.arrowMiddleTail"
@@ -983,6 +988,7 @@ export type Channel =
     | "edge.arrowMiddleTailOutlineWidth"
     | "edge.arrowMiddleTailPosition"
     | "edge.arrowMiddleTailColor"
+    | "edge.arrowMiddleTailFillColor"
     | "edge.arrowMiddleTailOpacity"
     | "edge.arrowMiddleTailImage"
     | "edge.animationSpeed"
@@ -2064,10 +2070,24 @@ export interface MetricAvailability {
  * The result of checking an expression. Validation covers references, not only syntax: an
  * expression that parses perfectly and names a run or an attribute that does not exist matches
  * nothing, silently, which reads exactly like a correct answer of zero.
+ *
+ * `ok` is true only when the expression parses and every path it reads is answered.
  */
 export interface QueryValidation {
     ok: boolean;
-    error?: { code: GraphtyErrorCode; message: string; position: number };
+    /**
+     * Why the expression does not parse, as a code and its parameters, never as words: `code` is
+     * `E_BAD_SELECTOR`, `position` the character offset of the mistake, and `params` the error's
+     * `details` (`reason`, one of the selector refusal reasons, and the values it names). A
+     * `formula` is `E_UNSUPPORTED` at position 0, since the formula grammar is not implemented.
+     * Absent when it parses.
+     */
+    error?: { code: GraphtyErrorCode; position: number; params: Readonly<Record<string, unknown>> };
+    /**
+     * The paths it reads that nothing in this session answers: `unknown-run` for a `results.`
+     * path naming no run here, `unknown-attribute` for any other. `candidates` are the nearest
+     * paths that would be answered, nearest first. Empty when it does not parse.
+     */
     unresolvedPaths: readonly {
         path: Path;
         reason: "unknown-run" | "unknown-attribute";
@@ -2929,8 +2949,12 @@ export interface CatalogApi {
      */
     functions(): readonly FunctionDescriptor[];
     /**
-     * @deprecated Not implemented. Removed at the next major release unless it is implemented
-     * first (issue #333).
+     * The attributes that hold points in time, for a time slider: first those `data.attributes()`
+     * gives the `time` role (declared by the file or the load), then the columns whose values read
+     * as time, best first, as `session.time.candidates()` finds them -- dates in text, epochs, and
+     * whole numbers from 1000 to 2999 in a column whose name speaks of time.
+     * @returns The time attributes, nodes and edges both; empty when the graph has none.
+     * @since 3.40.0
      */
     timeAttributes(): readonly AttributeDescriptor[];
     metrics(): readonly MetricAvailability[];
@@ -2941,8 +2965,15 @@ export interface CatalogApi {
      */
     applicable(): readonly MetricAvailability[];
     /**
-     * @deprecated Not implemented. Removed at the next major release unless it is implemented
-     * first (issue #335).
+     * Check an expression against this session without running it, as a form field would on
+     * every keystroke: whether it parses, where it does not, and which paths it reads that
+     * nothing here answers. Selectors and filters share one expression grammar; a `formula` is
+     * refused with `E_UNSUPPORTED`, since the formula grammar is not implemented.
+     * @param query - The expression.
+     * @param o - Options.
+     * @param o.kind - Which kind of expression it is; a selector when absent.
+     * @returns The check. Never throws for a bad expression.
+     * @since 3.40.0
      */
     validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }): QueryValidation;
     /**
@@ -2970,7 +3001,7 @@ export interface CatalogApi {
  * Implementing one means deleting its name here: `SessionCatalogApi` is derived from this list,
  * so the two cannot drift apart.
  */
-export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
+export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
 
 // ---------------------------------------------------------------------------------------------
 // Guards

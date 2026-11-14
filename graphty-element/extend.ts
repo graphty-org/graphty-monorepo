@@ -281,6 +281,7 @@ export { clearRegisteredLayoutsForTesting, registeredLayoutDescriptors } from ".
 export type { AuthoredLayoutDescriptor, LayoutDescriptor, LayoutId } from "./src/catalog/types";
 export { KNOWN_LAYOUT_IDS } from "./src/catalog/types";
 export type { Edge, EdgeCapEnd } from "./src/Edge";
+// what `Edge.mesh` is for a line drawn as pattern elements, so a plugin can narrow it (issue #7127)
 export type {
     EdgePosition,
     LayoutEngineStatics,
@@ -289,6 +290,7 @@ export type {
     SimpleLayoutOpts,
 } from "./src/layout/LayoutEngine";
 export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
+export type { PatternedLineMesh } from "./src/meshes/PatternedLineMesh";
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it
 export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 export type {

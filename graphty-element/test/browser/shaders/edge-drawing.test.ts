@@ -19,6 +19,7 @@ import type { Edge } from "../../../src/Edge";
 import { operationQueueOf } from "../../../src/Graph";
 import { EdgeShaderDrawing } from "../../../src/meshes/EdgeShaderDrawing";
 import { defineShader } from "../../../src/simple/defineShader";
+import { leads, pixelAt as pixelAtScreen } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import { click, type Point } from "../../helpers/real-input";
 
@@ -184,25 +185,13 @@ async function thickness(element: Graphty, x: number, y: number): Promise<number
 }
 
 /**
- * Whether a color is mostly one channel.
- * @param pixel - The pixel.
- * @param channel - 0 red, 1 green, 2 blue.
- * @returns True when that channel leads the others by a margin.
- */
-function leads(pixel: readonly number[], channel: number): boolean {
-    return [0, 1, 2].every((other) => other === channel || pixel[channel] > pixel[other] + 60);
-}
-
-/**
- * The middle of a strip of pixels across a point.
+ * The canvas pixel at a world point.
  * @param element - The element.
  * @param at - The world point.
  * @returns The pixel there.
  */
 async function pixelAt(element: Graphty, at: { x: number; y: number; z: number }): Promise<number[]> {
-    const point = element.worldToScreen(at);
-    const [pixel] = await strip(element, point, { x: point.x + 1, y: point.y + 1 });
-    return pixel;
+    return pixelAtScreen(element, element.worldToScreen(at));
 }
 
 describe("edge surfaces", () => {

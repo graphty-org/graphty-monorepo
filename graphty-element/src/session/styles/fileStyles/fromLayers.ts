@@ -282,6 +282,8 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.targetPort", plan(text, "targetPort")],
         ["edge.arrowHeadColor", plan(color, "targetArrowColor")],
         ["edge.arrowTailColor", plan(color, "sourceArrowColor")],
+        ["edge.arrowHeadFillColor", plan(color, "targetArrowFillColor")],
+        ["edge.arrowTailFillColor", plan(color, "sourceArrowFillColor")],
         ["edge.label", plan(text, "label")],
         ["edge.arrowHeadText", plan(text, "targetLabel")],
         ["edge.arrowTailText", plan(text, "sourceLabel")],

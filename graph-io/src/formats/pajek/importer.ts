@@ -269,6 +269,8 @@ const FIRST_VERTEX_VALUES: ReadonlySet<unknown> = new Set([0, 1, "auto"]);
 /** A numeral that is not a finite number (`1e999`, `NaN`, `Infinity`): never a parameter key. */
 const NUMERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
 const NON_FINITE_WORD = /^[+-]?(?:nan|inf|infinity)$/i;
+/** An infinite line value as the exporter writes it (the spellings the weight grammar reads). */
+const INFINITE_VALUE = /^[+-]?(?:INF|Infinity)$/;
 /** A line value Pajek writes for a missing value. */
 const NAN_WORD = /^[+-]?nan$/i;
 
@@ -1477,7 +1479,7 @@ class PajekParser {
         const v = this.endpoint(Number(tokens[1]));
         let i = 2;
         let valueText: string | null = null;
-        if (i < tokens.length && isNumericText(tokens[i])) {
+        if (i < tokens.length && (isNumericText(tokens[i]) || INFINITE_VALUE.test(tokens[i]))) {
             valueText = tokens[i];
             i++;
         } else if (i < tokens.length && NAN_WORD.test(tokens[i])) {
@@ -2017,8 +2019,8 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
      * @returns 0.9 for a `*Vertices` start, 0.8 for `*Network`, 0 otherwise
      */
     sniff(head: Uint8Array): number {
-        const text = new TextDecoder("utf-8").decode(head);
-        const section = headSection(text.startsWith("\ufeff") ? text.slice(1) : text);
+        // the decoder removes a leading byte order mark
+        const section = headSection(new TextDecoder("utf-8").decode(head));
         if (section === null) {
             return 0;
         }

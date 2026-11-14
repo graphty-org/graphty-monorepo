@@ -52,9 +52,6 @@ const config: KnipConfig = {
                 // only in .secretlintrc.json)
                 "secretlint",
                 "@secretlint/secretlint-rule-preset-recommend",
-                // Semantic release plugins (used by nx release and child packages)
-                "@semantic-release/changelog",
-                "@semantic-release/git",
                 // The githerd CLI, linked at the root so `pnpm exec githerd` works from any
                 // checkout; nothing imports it
                 "@graphty/githerd",
@@ -168,6 +165,10 @@ const config: KnipConfig = {
         "babylonjs-map": {
             entry: ["src/index.ts!", "src/location/index.ts!", "src/projection/index.ts!", "test/**/*.test.ts"],
             project: ["src/**/*.ts!", "test/**/*.ts"],
+            // `@babylonjs/core` is an optional peer (and a devDependency): only the root entry imports it, and the
+            // two subpaths never load it. `lint:knip:prod` runs --strict and would report it as unlisted; the
+            // default run resolves it as a devDependency and hints an ignore as redundant.
+            ignoreDependencies: production ? ["@babylonjs/core"] : [],
         },
 
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test
@@ -183,8 +184,10 @@ const config: KnipConfig = {
                 "test/setup/*.ts",
                 "benchmarks/layout-run.ts",
                 "scripts/**/*.{ts,js}",
+                // the browser demo (`npm run demo`): its two pages and its vite config
+                "demo/{main,compile,vite.config}.ts",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}", "demo/**/*.ts"],
             // Optional peers (`webgpu`, imported inside `await import("webgpu")` in src/node/index.ts,
             // and the CPU packages its types name). `lint:knip:prod` runs --strict and would report
             // them as unlisted; the default run hints an ignore of them as redundant.
@@ -341,8 +344,6 @@ const config: KnipConfig = {
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",
-                // Testing utilities
-                "chai", // Provided by vitest
                 // Build tools
                 "vite-plugin-eslint",
                 // Type definitions

@@ -166,7 +166,7 @@ first-parent merges since the last green full run.
   `Refs #<red issue>` and a Proof naming the red run (a mechanical revert auto-merges on the light check; its merge
   starts the restart). Comment on the culprit's issue, and start the fix forward on an ordinary branch with a fix
   subagent. Fix forward instead of reverting when the revert conflicts or the fix is smaller.
-- **A full run red twice running** (the two newest completed full runs failed): swarm it. Start one fix subagent
+- **A full run red twice running** (the two newest full-run verdicts are `red`): swarm it. Start one fix subagent
   per failing test group or job, not one fix job for the whole run, each on its own issue (the `Full run red` issue
   for the first, one filed per further group), each with step 1's fix prompt plus: reproduce it under `taskset -c 0`,
   name the mechanism, fix it there, never a longer wait or a raised timeout. Skip a group another session already
@@ -283,11 +283,19 @@ From the broker file (`tmp/pr-status/status.json`): every open pull request into
 (its `author`) whose `All Checks Pass` concluded `failure` on its head, that conflicts with master, or has unanswered
 review findings. A pull request anyone else opened -- the owner's, a master-guard revert (step 1) -- is not this step's: skip it.
 
+**Most-blocking first.** Order them by how many issues list them in `tmp/issue-round/free-queue.json`
+`blocked[].prs`, and start one fix subagent per red or conflicting pull request with no live owner, with no fixed
+number (only issue-round's step 1 limits on slots, load, memory and disk). Write the `fix attempt` marker when it
+starts: issue-round counts the pull request's files again from then on.
+
 - Its branch's issue has a live `taken` marker (its session is alive, see "Alive"): that session owns it. Skip.
 - Otherwise classify the failure from the failed job (see "Failure classes"): outside, re-run the failed jobs once;
   code or a conflict, mark the issue and start a fix subagent on the existing branch (fix prompt above), which merges
   `origin/master` (never rebase), fixes and pushes. Already on master: wait.
-- Red for 24 hours with no new commit and a fix attempt already made: list it in the round's last line as stranded.
+- **Close** a pull request that cannot go green after 2 fix attempts (or has 150 or more changed files): close it
+  with `pipeline-round: closed -- <reason>; branch kept` (a closed pull request can be reopened) and give its issues
+  a `released` marker with the evidence. Never split it into a new pull request: that copies commits ("Never copy,
+  always merge"). Instead, pipeline-round may revert the red part on the same branch by an ordinary commit.
 
 **Dependabot pull requests** (author `dependabot[bot]`): `dependabot-automerge.yml` arms their auto-merge; one with
 auto-merge off gets it turned on as graphty-agent (`gh pr merge <n> --auto --merge`), except Actions updates, which
@@ -297,10 +305,10 @@ wait for the owner. A red one is classified like an agent pull request.
 
 A branch on GitHub with commits master lacks, whose issue's newest marker is `ready <branch> <sha>` at its tip, and
 no open pull request (a subagent whose `pr-open.sh` failed, or a job that stopped at its `ready` marker while master
-was red): open it, oldest first, at most 10 open at once, so master is not buried in conflicts. Only while master is
-green (see "While master is red" in the shared file), and a few per round, as many as CI's runners allow (the
-`pipeline-health` MCP tool `runners`: `ci.saturated` ok and `ci.runner_wait` not red); `pr-open.sh` merges master
-first. Run, from the branch's worktree (or a new worktree of the branch),
+was red): open it, oldest first, as many as CI's runners allow (the `pipeline-health` MCP tool `runners`:
+`ci.saturated` ok and `ci.runner_wait` not red), checked again after each one. `CI_PR_RUN_CAP` already limits how many
+pull requests CI runs at once. Only while master is green (see "While master is red" in the shared file);
+`pr-open.sh` merges master first. Run, from the branch's worktree (or a new worktree of the branch),
 `tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` with a Proof that cites the `ready` marker and the
 tests the branch ran. Exit 2 (a conflict with master) goes to a fix subagent.
 
@@ -384,6 +392,12 @@ Each: signal, meaning, action. Add to this list (see the next section).
   `tools/worktree-cleanup.mjs`, not a forced removal.
 - **The loop stopped running.** CronCreate jobs expire 7 days after they are created (the 2026-11-04 loop ran its last
   round 2026-11-11 and nobody noticed for a day). Start it again and follow "Renewing the loop" in `shared.md`.
+- **A full run cancelled with every lane green.** An advisory `continue-on-error` job that hits its timeout (ci.yml's
+  Performance Benchmarks, #7507) leaves a full run's GitHub conclusion `cancelled` (or `failure`) although every lane
+  passed and the Verdict job recorded `green-clean` or `green-images` (runs 43389691481 and 43421576817 on
+  2026-11-13). Judge master by that verdict (the `release.yml` line of `shared.md`'s state block), never by
+  the conclusion: such a run is green, master is not red, and nothing is bisected or reverted for it. Reading the
+  conclusion and skipping cancelled runs kept master red for hours on an older failure.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the
   Release status issue.
 

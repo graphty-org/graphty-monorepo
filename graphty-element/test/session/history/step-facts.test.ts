@@ -37,6 +37,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "algo.legacy": ["algo.legacy"],
     "algo.remove": ["algo.remove"],
     "algo.move": ["algo.move"],
+    "algo.rename": ["algo.rename"],
     batch: [
         "batch",
         "data.replace-nodes",
@@ -141,6 +142,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "algo.legacy": ["algorithm"],
     "algo.remove": ["algorithm", "run"],
     "algo.move": ["algorithm", "run"],
+    "algo.rename": ["algorithm", "name", "run"],
     "algo.batch": ["count", "label"],
     "algo.template": [],
     batch: ["label", "steps"],
@@ -357,6 +359,26 @@ describe("history step facts", () => {
 
         assert.deepEqual(sized, { code: "style.update-layer", params: { layer: "Mine", channels: ["node.size"] } });
         assert.deepEqual(renamed, { code: "style.update-layer", params: { layer: "Mine", channels: [] } });
+        session.dispose();
+    });
+
+    it("names every channel of layer updates merged into one step", async () => {
+        const session = await fixtureSession({ now: () => 0 });
+        const layer = await session.styles.add({
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000", "node.size": 1 },
+        });
+        const before = session.history.steps.length;
+        await session.styles.update(layer.id, { set: { "node.color": "#00ff00", "node.size": 1 } });
+        await session.styles.update(layer.id, { set: { "node.color": "#00ff00", "node.size": 2 } });
+
+        assert.equal(session.history.steps.length, before + 1);
+        assert.deepEqual(topOf(session.history.steps, session.history.position).fact, {
+            code: "style.update-layer",
+            params: { layer: "Mine", channels: ["node.color", "node.size"] },
+        });
         session.dispose();
     });
 

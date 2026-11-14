@@ -14,13 +14,13 @@
  */
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import type { InputType } from "storybook/internal/types";
 
 import type { ShaderParams } from "../../src/catalog/shaders";
 import type { Graphty } from "../../src/graphty-element";
 import { assertGraphLoaded, assertNodesInFromEdges, drawn, holds } from "../assertions";
 import { eventWaitingDecorator, isVisualCapture, waitForGraphSettled } from "../helpers";
 import { LIT_SURFACE_PRESETS, presetId } from "./litSurfacePresets";
+import { presetControls, presetParams } from "./presetControls";
 
 /** A 3 x 3 grid in three groups; the middle node is a box. */
 const NODES = Array.from({ length: 9 }, (_, i) => ({
@@ -133,32 +133,12 @@ function surfaceStory(id: string): Story {
     }
 
     const { descriptor } = preset;
-    const args: Record<string, number | string | boolean> = {};
-    const argTypes: Record<string, InputType> = {};
-    for (const param of descriptor.params) {
-        args[param.name] = param.default as number | string;
-        argTypes[param.name] =
-            param.type === "color"
-                ? { name: param.plainName, control: "color" }
-                : {
-                      name: param.plainName,
-                      control: {
-                          type: "range",
-                          min: param.min as number,
-                          max: param.max as number,
-                          step: param.type === "integer" ? 1 : 0.01,
-                      },
-                  };
-    }
-
     return {
         name: descriptor.plainName,
-        args,
-        argTypes,
+        ...presetControls(descriptor),
         // Storybook hands a story every global arg too (the element's event actions): only the
         // preset's own parameters go to the layer.
-        render: (storyArgs) =>
-            render(id, Object.fromEntries(descriptor.params.map((param) => [param.name, storyArgs[param.name]]))),
+        render: (storyArgs) => render(id, presetParams(descriptor, storyArgs)),
         play: async ({ canvasElement }) => {
             await waitForGraphSettled(canvasElement);
             const element = canvasElement.querySelector<Graphty>("graphty-element");

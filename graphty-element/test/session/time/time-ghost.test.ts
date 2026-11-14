@@ -7,7 +7,7 @@
 
 import { assert, beforeAll, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../../session";
+import { createGraphSession, type GraphSession, isGraphtyError } from "../../../session";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { ElementSession } from "../../../src/session/types";
 
@@ -442,14 +442,14 @@ describe("timeline ghosts", () => {
 
     it("refuses an outside setting it does not know", async () => {
         const session = await trace();
-        let refused = false;
+        let refused: unknown = null;
         try {
             await session.time.setSettings({ outside: "fade" as "ghost" });
-        } catch {
-            refused = true;
+        } catch (error) {
+            refused = error;
         }
 
-        assert.isTrue(refused);
+        assert.strictEqual(isGraphtyError(refused) ? refused.code : refused, "E_BAD_COMMAND");
         session.dispose();
     });
 });

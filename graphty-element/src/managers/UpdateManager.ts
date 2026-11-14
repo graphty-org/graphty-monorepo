@@ -1637,8 +1637,9 @@ export class UpdateManager implements Manager {
             !this.mapArcsEdges() &&
             !this.endBehindEdges(source) &&
             !this.endBehindEdges(target) &&
-            !this.rowMasked(index);
+            !this.rowSelected(index);
         if (lineable && lines.paintRow(index, source, target, paint)) {
+            lines.setHidden(index, this.rowHidden(index));
             return undefined;
         }
 
@@ -1650,6 +1651,7 @@ export class UpdateManager implements Manager {
             dataManagerInternals.edgesLive(this.dataManager) >= cap &&
             lines.paintRow(index, source, target, plainEdgePaint(paint))
         ) {
+            lines.setHidden(index, this.rowHidden(index));
             this.heldPlainEdges.add(index);
             return undefined;
         }
@@ -1658,16 +1660,27 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether the edge masks hide or select a row, which a row line, with no mask of its own, does not draw.
+     * Whether the edge visibility mask hides a row: a row line hides its piece (`EdgeRowLines.setHidden`).
      * @param index - The edge row.
-     * @returns True when they do.
+     * @returns True when it does.
      */
-    private rowMasked(index: number): boolean {
-        return this.edgeVisibilityMask?.has(index) === false || this.edgeSelectionMask?.has(index) === true;
+    private rowHidden(index: number): boolean {
+        return this.edgeVisibilityMask?.has(index) === false;
     }
 
     /**
-     * Build the `Edge` of each of some rows a row line draws that the edge masks hide or select.
+     * Whether the edge selection mask holds a row, which a row line does not draw: a selected edge is marked by its
+     * `Edge`.
+     * @param index - The edge row.
+     * @returns True when it does.
+     */
+    private rowSelected(index: number): boolean {
+        return this.edgeSelectionMask?.has(index) === true;
+    }
+
+    /**
+     * Bring each of some rows a row line draws into line with the edge masks: hide or show its line, and build its
+     * `Edge` when it is selected.
      * @param rows - The edge rows.
      */
     private buildMaskedRowLines(rows: Iterable<number>): void {
@@ -1677,13 +1690,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Build a row line's `Edge` when the edge masks hide or select its row.
+     * Bring a row line into line with the edge masks: build its `Edge` when its row is selected, else hide or show
+     * its line.
      * @param index - The edge row.
      * @returns The `Edge` built, or undefined when none was.
      */
     private maskedRowLineEdge(index: number): Edge | undefined {
         const lines = this.graphContext.getEdgeRowLines?.() ?? null;
-        return lines?.has(index) === true && this.rowMasked(index) ? this.buildRowEdge(index) : undefined;
+        if (lines?.has(index) !== true) {
+            return undefined;
+        }
+
+        if (this.rowSelected(index)) {
+            return this.buildRowEdge(index);
+        }
+
+        lines.setHidden(index, this.rowHidden(index));
+        return undefined;
     }
 
     /**

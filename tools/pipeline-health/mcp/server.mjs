@@ -7,22 +7,19 @@
 // `stale: true` past its limit (15 minutes when the source gives none). A route that does not
 // answer is an error result naming the route; the server never throws.
 //
-// HEALTH_API_URL sets the API base (default: the deployed us-east-2 HTTP API); only its origin is
+// HEALTH_API_URL sets the API base (default: LIVE_API in web/src/contract.ts); only its origin is
 // used (ponytail: the HTTP API has no stage path; keep the path if one is ever added).
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-import { apiPath, CATEGORY_IDS } from "../web/src/contract.ts";
+import { apiPath, LIVE_API, PAGE_IDS, PAGE_RANGES, RANGES, SLOW_RANGES } from "../web/src/contract.ts";
 
-const BASE = new URL(process.env.HEALTH_API_URL ?? "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com").origin;
+const BASE = new URL(process.env.HEALTH_API_URL ?? LIVE_API).origin;
 const MAX_ROWS = 50;
 const DEFAULT_LIMIT_S = 15 * 60;
 const TIMEOUT_MS = 15_000;
-const PAGES = [...CATEGORY_IDS, "runners", "local-runs", "issues"];
-/** Each page's ranges when not 1h, 6h and 24h; the default is the last. */
-const PAGE_RANGES = { costs: ["7d", "28d"], issues: ["all", "28d"] };
 const LEVELS = ["group", "family", "shard", "file", "test"];
 const MEMBER_STATES = ["ok", "warn", "bad", "nodata", "notsetup", "few", "partial", "idle", "slow", "info"];
 
@@ -132,13 +129,14 @@ function oneOf(value, allowed, name, fallback) {
     return v;
 }
 
-const range = { type: "string", enum: ["1h", "6h", "24h"], description: "Window of the page's values; default 1h." };
-const slowRange = { type: "string", enum: ["7d", "28d"], description: "Window of a slow measure; default 28d." };
+const range = { type: "string", enum: [...RANGES], description: `Window of the page's values; default ${RANGES[0]}.` };
+const slowRange = { type: "string", enum: [...SLOW_RANGES], description: "Window of a slow measure; default 28d." };
 const pageRange = {
     type: "string",
-    enum: ["1h", "6h", "24h", "7d", "28d", "all"],
-    description:
-        "Window of the page's values: 1h (default), 6h or 24h; costs 7d or 28d (default); issues 28d (default) or all.",
+    enum: [...new Set(Object.values(PAGE_RANGES).flat())],
+    description: `Window of the page's values, the first its default: ${Object.entries(PAGE_RANGES)
+        .map(([id, rs]) => `${id} ${rs.join(", ")}`)
+        .join("; ")}.`,
 };
 const schema = (properties = {}, required = []) => ({ type: "object", properties, required });
 
@@ -154,12 +152,11 @@ const TOOLS = [
     },
     {
         name: "category",
-        description: `One page: its state, members (value, SLA, state) and sections. name: ${PAGES.join(", ")}.`,
-        inputSchema: schema({ name: { type: "string", enum: PAGES }, range: pageRange }, ["name"]),
+        description: `One page: its state, members (value, SLA, state) and sections. name: ${PAGE_IDS.join(", ")}.`,
+        inputSchema: schema({ name: { type: "string", enum: [...PAGE_IDS] }, range: pageRange }, ["name"]),
         run: async (a) => {
-            const name = oneOf(a.name, PAGES, "name");
-            const ranges = PAGE_RANGES[name] ?? ["1h", "6h", "24h"];
-            const r = oneOf(a.range, ranges, "range", PAGE_RANGES[name] ? ranges.at(-1) : "1h");
+            const name = oneOf(a.name, PAGE_IDS, "name");
+            const r = oneOf(a.range, PAGE_RANGES[name], "range", PAGE_RANGES[name][0]);
             return { data: await page(name, r) };
         },
     },
@@ -167,14 +164,14 @@ const TOOLS = [
         name: "master",
         description: "Master: red spans, full-run verdict, untested age, shared failures with suspects.",
         inputSchema: schema({ range }),
-        run: async (a) => ({ data: await page("master", oneOf(a.range, ["1h", "6h", "24h"], "range", "1h")) }),
+        run: async (a) => ({ data: await page("master", oneOf(a.range, RANGES, "range", RANGES[0])) }),
     },
     {
         name: "runners",
         description:
             "Running and queued jobs against the limit, who holds the runners, saturated or not being assigned.",
         inputSchema: schema({ range }),
-        run: async (a) => ({ data: await page("runners", oneOf(a.range, ["1h", "6h", "24h"], "range", "1h")) }),
+        run: async (a) => ({ data: await page("runners", oneOf(a.range, RANGES, "range", RANGES[0])) }),
     },
     {
         name: "release_lanes",
@@ -199,7 +196,7 @@ const TOOLS = [
             "Pull requests page. number: only section rows naming that pull request. state: only members in that state.",
         inputSchema: schema({ number: { type: "integer" }, state: { type: "string", enum: MEMBER_STATES }, range }),
         run: async (a) => {
-            const p = await page("pull-requests", oneOf(a.range, ["1h", "6h", "24h"], "range", "1h"));
+            const p = await page("pull-requests", oneOf(a.range, RANGES, "range", RANGES[0]));
             const state = a.state === undefined ? undefined : oneOf(a.state, MEMBER_STATES, "state");
             const members = state ? p.members.filter((m) => m.state === state) : p.members;
             const sections =
@@ -226,7 +223,7 @@ const TOOLS = [
             "Flake hotspots flattened at one level (group, family, shard, file, test), worst per 1000 first. under: an ancestor's name.",
         inputSchema: schema({ range: slowRange, level: { type: "string", enum: LEVELS }, under: { type: "string" } }),
         run: async (a) => {
-            const r = oneOf(a.range, ["7d", "28d"], "range", "28d");
+            const r = oneOf(a.range, SLOW_RANGES, "range", "28d");
             const level = oneOf(a.level, LEVELS, "level", "test");
             const s = await get(apiPath({ kind: "section", page: "flaky", section: "hotspots", range: r }));
             const nodes = flatten(s.section?.nodes, [], [])
@@ -241,7 +238,7 @@ const TOOLS = [
         inputSchema: schema({ file: { type: "string" }, test: { type: "string" }, range: slowRange }, ["file"]),
         run: async (a) => {
             if (typeof a.file !== "string" || !a.file) invalid("file is required");
-            const r = oneOf(a.range, ["7d", "28d"], "range", "28d");
+            const r = oneOf(a.range, SLOW_RANGES, "range", "28d");
             return { data: await get(apiPath({ kind: "test-history", file: a.file, test: a.test, range: r })) };
         },
     },
@@ -255,7 +252,7 @@ const TOOLS = [
             shard: { type: "string" },
         }),
         run: async (a) => {
-            const r = oneOf(a.range, ["7d", "28d"], "range", "28d");
+            const r = oneOf(a.range, SLOW_RANGES, "range", "28d");
             const kind = oneOf(a.kind, ["full", "pr-bins"], "kind", "full");
             const s = await get(apiPath({ kind: "section", page: "ci", section: "shards", range: r, runKind: kind }));
             const rows = s.section?.rows ?? [];
@@ -275,7 +272,7 @@ const TOOLS = [
         description:
             "CI page: runner wait, first-attempt failures and their causes, hangs, reruns, shards over budget.",
         inputSchema: schema({ range }),
-        run: async (a) => ({ data: await page("ci", oneOf(a.range, ["1h", "6h", "24h"], "range", "1h")) }),
+        run: async (a) => ({ data: await page("ci", oneOf(a.range, RANGES, "range", RANGES[0])) }),
     },
     {
         name: "run",

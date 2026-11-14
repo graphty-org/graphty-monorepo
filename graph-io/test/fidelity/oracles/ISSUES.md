@@ -152,9 +152,6 @@ Gaps found while finishing, each open:
   `dot-specimen-groups-p12` draws its `default` label too large (label.size), because graphty does not stretch
   the layout by the sheet's `ratio=2` as Graphviz does (the same sheet already fails node.width and node.height).
   On a side that names no caption (an SVG of free texts), a specimen labeled as a caption is still dropped.
-- graph-io's vis writer writes a vis-network node fitted to its label as a sized `dot`, whose label the reader then
-  hangs below it (labelOffsetY 4 on reading back): six vis round trips in graph-io's harness, one in its block
-  tests and fourteen in graphty-element's export round trips run as expected failures until it is fixed.
 - The Cytoscape.js writer keeps a node's own opacity under a translucent class as an exceptions column that comes
   back as a layer of its own (graphty-element `export-styles` and `export-round-trip`, expected failures), and
   rounds a label offset to 5 decimals where the rules hold 4.333333333333334 (two harness plans, expected
@@ -166,8 +163,8 @@ Gaps found while finishing, each open:
   label Gephi hides is written as a label of opacity 0; graphology keeps a label's markup and line breaks only as
   text; the CSV writer names label settings CSV has no column for as written. Each is an expected failure in
   graphty-element's `export-round-trip`.
-- OGDF's `rootcluster` is read as a group node `cluster<id>`; GML cannot hold that id, so the GML export throws
-  E_INVALID_ID unless `sanitizeIds` is set (two conformance fixtures marked).
+- Fixed 2026-11-13 (#7648): OGDF's `rootcluster` is read as a group node `cluster<id>`, and the GML export threw
+  E_INVALID_ID on that id unless `sanitizeIds` was set; it now writes those group nodes back as `rootcluster`.
 - graphty-element's style-fidelity scorecard (`test/fidelity/scorecard.test.ts`) still judges against the older
   reference scenes, which are graph-io's own earlier reading and not the programs' drawings; 36 of its properties
   now read as each program draws them and score lower there, and are allowed drops in `requested-floors.json`.

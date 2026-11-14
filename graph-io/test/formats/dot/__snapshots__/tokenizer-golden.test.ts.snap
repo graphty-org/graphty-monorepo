@@ -145,7 +145,7 @@ exports[`DOT tokenizer golden transcripts > hashFirstLine 1`] = `
 exports[`DOT tokenizer golden transcripts > hashMidLine 1`] = `
 [
   "id @1 -- "a"",
-  "error @1 unexpected character "#"",
+  "eof @1 -- """,
 ]
 `;
 

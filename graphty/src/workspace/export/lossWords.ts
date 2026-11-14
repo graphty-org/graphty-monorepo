@@ -206,6 +206,7 @@ const LABELS: Readonly<Record<string, Label>> = {
     W_GRAPHML_EDGE_ID_TEXT: EDGE_IDS_TEXT,
     W_GRAPHML_YFILES_GRAPHICS_STALE: ["Outdated yEd graphics not written"],
     W_GRAPHML_PORTS_DROPPED: ["Ports not written", N],
+    W_GRAPHML_NAMESPACE_DROPPED: ["Invalid namespace prefixes not written"],
     // JSON and OBO Graphs
     W_NUMERIC_IDS_STRINGIFIED: ["Number ids read back as text", N],
     W_POSITION_Z_DROPPED: ["Depth (z) not written", N],

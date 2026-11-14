@@ -74,7 +74,12 @@ describe("dropdowns are capped at the visual viewport (browser)", () => {
             expect(box.bottom).toBeLessThanOrEqual(HEIGHT - 8);
             expect(box.height).toBeLessThanOrEqual(HEIGHT - 16);
         });
-        expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+        // The role="listbox" inside the dropdown is what scrolls.
+        const scroller = list.querySelector<HTMLElement>('[role="listbox"]');
+        if (!scroller) {
+            throw new Error("the open list has no role=listbox");
+        }
+        expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
 
         const last = screen.getByRole("option", { name: "Shape 60" });
         for (
@@ -82,7 +87,7 @@ describe("dropdowns are capped at the visual viewport (browser)", () => {
             turn < 20 && last.getBoundingClientRect().bottom > list.getBoundingClientRect().bottom;
             turn++
         ) {
-            await userEvent.wheel(list, { delta: { y: 400 } });
+            await userEvent.wheel(scroller, { delta: { y: 400 } });
         }
         await untilPasses(() => {
             const row = last.getBoundingClientRect();

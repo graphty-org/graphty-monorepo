@@ -1,7 +1,8 @@
 /**
  * @file The `extent` option of the camera views (issue #2668): `"drawn"` frames each node out to the
  * box it is drawn in, for `zoomToNodes`, `applyCameraView` and `resolveCameraPreset`, and for a third
- * party's view the same way as a built-in one. The default, `"centers"`, keeps measuring centres.
+ * party's view the same way as a built-in one. A subset is measured by centres by default; the whole
+ * graph by its drawn nodes (issue #6804), so Fit never cuts off a node at the rim.
  */
 
 import "../../src/graphty-element";
@@ -157,4 +158,56 @@ describe("camera views take an extent", () => {
         await element.waitForStableFrame();
         assert.isTrue(wholeOnScreen(element, "a"), "drawn: the node is whole on screen");
     });
+
+    it("frames the whole graph as the project's framing.extent says when the call names no extent", async () => {
+        const element = await mounted();
+
+        seen.length = 0;
+        await element.applyCameraView("acme-look", { animate: false });
+        await element.session.config.set({ framing: { extent: "centers" } });
+        await element.applyCameraView("acme-look", { animate: false });
+
+        const [drawn, centers] = seen;
+        assert.isDefined(drawn);
+        assert.isDefined(centers);
+        assert.isAtLeast(drawn.bounds.size.x, 200 + NODE_SIZE * 0.9, "no setting: the drawn nodes");
+        assert.closeTo(centers.bounds.size.x, 200, 0.01, "framing.extent centers: centre to centre");
+    });
+
+    it("leaves a hidden node out of the box, for the whole graph and for a subset", async () => {
+        const element = await mounted();
+        await element.session.styles.add({
+            name: "no far",
+            target: "node",
+            selector: { match: "ids", nodes: ["far"] },
+            set: { "node.visible": false },
+        });
+        await element.waitForStableFrame();
+
+        seen.length = 0;
+        await element.applyCameraView("acme-look", { animate: false, extent: "centers" });
+        await element.applyCameraView("acme-look", {
+            scope: { nodes: ["a", "b", "far"] },
+            animate: false,
+        });
+
+        for (const input of seen) {
+            assert.closeTo(input.bounds.size.y, 0, 0.01, "the hidden node far above does not stretch the box");
+            assert.strictEqual(input.bounds.measured, 2);
+        }
+
+        assert.lengthOf(seen, 2);
+    });
+
+    for (const mode of ["3d", "2d"] as const) {
+        it(`fitToGraph over the whole graph keeps every drawn node inside the view in ${mode}`, async () => {
+            const element = await mounted(mode);
+
+            await element.zoomToNodes("a", { animate: false });
+            await element.applyCameraView("fitToGraph", { animate: false });
+            await element.waitForStableFrame();
+            const cut = NODES.map((node) => node.id).filter((id) => !wholeOnScreen(element, id));
+            assert.deepEqual(cut, [], `after Fit in ${mode}, nodes ${cut.join(", ")} are cut off`);
+        });
+    }
 });

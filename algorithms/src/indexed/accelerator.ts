@@ -22,10 +22,16 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { ConvergenceError, PathCountOverflowError } from "../errors.js";
+import { checkWeights, ConvergenceError, PathCountOverflowError } from "../errors.js";
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BellmanFordResult } from "./bellman-ford.js";
-import { type BetweennessOptions, type EdgeBetweennessOptions, resolveSources } from "./betweenness.js";
+import {
+    type BetweennessOptions,
+    type BetweennessResult,
+    type EdgeBetweennessOptions,
+    pairDivisor,
+    resolveSources,
+} from "./betweenness.js";
 import type { ArcOrderOption, BfsOptions } from "./bfs.js";
 import type { ClosenessOptions } from "./closeness.js";
 import type { LabelResult } from "./components.js";
@@ -35,17 +41,17 @@ import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "
 import { type EigenvectorOptions, minMaxRescale } from "./eigenvector.js";
 import type { MaxFlowOptions, MaxFlowResult, MinCutResult } from "./flow.js";
 import type { GirvanNewmanOptions, GirvanNewmanResult } from "./girvan-newman.js";
-import type { HitsOptions } from "./hits.js";
+import { checkHitsOptions, type HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
-import type { KatzOptions } from "./katz.js";
+import { checkKatzOptions, type KatzOptions } from "./katz.js";
 import type { LabelPropagationOptions, SynchronousLabelPropagationOptions } from "./label-propagation.js";
 import type { LeidenOptions, LeidenResult } from "./leiden.js";
 import type { LinkPredictionOptions, LinkPredictionResult } from "./link-prediction.js";
-import type { LouvainOptions } from "./louvain.js";
+import { checkLouvainOptions, type LouvainOptions } from "./louvain.js";
 import type { BipartiteMatchingOptions, BipartiteMatchingResult } from "./matching.js";
 import type { KargerOptions, StoerWagnerOptions } from "./min-cut.js";
-import type { MstOptions, PrimOptions, PrimResult } from "./mst.js";
-import type { PageRankOptions } from "./pagerank.js";
+import { checkMstWeights, type MstOptions, type PrimOptions, type PrimResult } from "./mst.js";
+import { checkPageRankOptions, type PageRankOptions } from "./pagerank.js";
 import { clusteringFrom, simpleUndirectedRows, type TriangleCountResult } from "./triangles.js";
 
 // ============================================================ result shapes (design 9.2 lines 2909-2922)
@@ -293,14 +299,15 @@ export interface ClosenessResultLike extends ScoresResultLike {
  *
  * `eigenvectorCentrality` goes to the accelerator only for the question its kernel answers the
  * same way: an undirected snapshot with no parallel edges and no bipartite component, unweighted,
- * from the uniform start. The kernel iterates on `A` where the port iterates on `A + I`, and walks
- * every parallel arc where the port counts a neighbour once; on a bipartite component the
- * iteration on `A` oscillates forever. A directed snapshot always runs the port, since a
- * periodic strongly connected component oscillates the same way and is not cheap to rule out.
+ * from the uniform start. Older webgpu-graph-algorithms releases iterate on `A`, which oscillates
+ * forever on a bipartite component; current ones iterate on the port's shifted `A + cI` and stop at
+ * the port's pass, but the dispatcher cannot tell the two apart, so a bipartite component still runs
+ * the port. The kernel walks every parallel arc where the port counts a neighbour once. A directed
+ * snapshot always runs the port, since a periodic strongly connected component oscillates on `A`.
  * The accelerator is called with `{ maxIterations, tolerance, weighted: false }` and its
  * unit-length vector is rescaled to [0, 1] exactly as the port rescales its own unless
  * `normalized: false`. A result with `converged: false` raises `ConvergenceError`, as the port
- * does. The iteration counts of the two paths differ.
+ * does.
  *
  * `allPairsShortestPath` is the reverse case: the accelerator member reads none of the port's
  * options and has no negative-cycle flag, so the dispatcher calls it, without options, only when it
@@ -321,7 +328,8 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * counts a pair's parallel edges as one path, the WebGPU kernel as several), `endpoints` is set, or an
  * `alive` edge mask is given. The accelerator is always handed the sources the port would run -- the
  * caller's, the port's `k` draw, or every node -- so it never substitutes a draw or a sampling default of
- * its own. `closenessCentrality` goes only for the plain score -- no `normalized`, `cutoff` or
+ * its own. A `betweennessCentrality` result carries the port's `divisor` on either path, since the accelerator
+ * scales its scores by the same rule. `closenessCentrality` goes only for the plain score -- no `normalized`, `cutoff` or
  * `weights` override, and `harmonic` only on an exact run to an accelerator that declares
  * `harmonicCloseness` -- and hands the accelerator an explicit `weighted`,
  * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
@@ -381,7 +389,10 @@ export interface AcceleratedAlgorithms {
     ): Promise<LabelResultLike>;
     triangleCount(s: GraphSnapshot): Promise<TriangleCountResult>;
     allPairsShortestPath(s: GraphSnapshot, options?: ApspOptions): Promise<ApspCycleResultLike>;
-    betweennessCentrality(s: GraphSnapshot, options?: BetweennessOptions): Promise<ScoresResultLike>;
+    betweennessCentrality(
+        s: GraphSnapshot,
+        options?: BetweennessOptions,
+    ): Promise<ScoresResultLike & Pick<BetweennessResult, "divisor">>;
     edgeBetweennessCentrality(s: GraphSnapshot, options?: EdgeBetweennessOptions): Promise<EdgeScoresResultLike>;
     closenessCentrality(s: GraphSnapshot, options?: ClosenessOptions): Promise<ClosenessResultLike>;
     depthFirstSearch(g: AdjacencyView, start: NodeRef, options?: DfsOptions): Promise<DfsResult>;
@@ -504,11 +515,30 @@ function acceleratorAnswersApsp(s: GraphSnapshot, options: ApspOptions | undefin
 }
 
 /**
- * Whether a PageRank call asks for something the accelerator members do not take.
+ * Run a port's option check before a call goes to the accelerator, so both paths refuse the same input.
+ * @param check - The port's check, which throws on bad input
+ * @param s - The snapshot
+ * @param options - The caller's port options
+ * @returns True, when the check did not throw
+ */
+function passes<O>(
+    check: (s: GraphSnapshot, o: O | undefined) => void,
+    s: GraphSnapshot,
+    options: O | undefined,
+): boolean {
+    check(s, options);
+    return true;
+}
+
+/**
+ * Whether a PageRank call asks for something the accelerator members do not take. Options out of
+ * range are refused here first, as the port refuses them.
+ * @param s - The snapshot
  * @param options - The caller's port options
  * @returns True when the call must run the CPU port
  */
-function pageRankNeedsCpu(options: PageRankOptions | undefined): boolean {
+function pageRankNeedsCpu(s: GraphSnapshot, options: PageRankOptions | undefined): boolean {
+    checkPageRankOptions(s, options);
     return options?.initialRanks !== undefined || options?.convergenceNorm === "max";
 }
 
@@ -542,7 +572,7 @@ function personalizedNeedsCpu(
     options: PageRankOptions | undefined,
 ): boolean {
     const outW = options?.weighted === true && s.weights !== null ? s.weightedOutDegree() : s.outDegree();
-    return pageRankNeedsCpu(options) || !personalization.some((mass) => mass > 0) || outW.includes(0);
+    return pageRankNeedsCpu(s, options) || !personalization.some((mass) => mass > 0) || outW.includes(0);
 }
 
 /**
@@ -616,10 +646,10 @@ function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions |
  * Whether the accelerator's Katz member answers the port's question: the min-max rescaled score
  * of a vector that is not constant, from a series certain to converge. Raw sums (`normalized:
  * false`) are lost to the accelerator's own rescaling, and a constant vector -- `alpha` 0, or the
- * same in-degree (in-weight) everywhere -- is one the port leaves unscaled. The series converges
- * when `alpha` times the spectral radius is below 1; past that an accelerator iterating in f32 with
- * no per-iteration normaliser can overflow to Infinity where the f64 port stays finite and reports
- * `converged: false`. The radius is bounded, in one pass over the arcs, by the largest
+ * same in-degree (in-weight) everywhere -- is one the port leaves unscaled. The series converges when `alpha`
+ * times the spectral radius is below 1; past that an accelerator iterating in f32 with no
+ * per-iteration normaliser can overflow to Infinity, so such a graph goes to the port, which throws
+ * `ConvergenceError`. Options out of range are refused here first, as the port refuses them. The radius is bounded, in one pass over the arcs, by the largest
  * `sqrt(r_u * r_v)` over the arcs u -> v, where `r` is a node's in-arc total (absolute weights):
  * scale the in-arc matrix by `diag(sqrt(r))` and each row sum is at most that, by Cauchy-Schwarz.
  * It is never above the largest in-arc total, and it is tight on a star -- a hub of degree d has
@@ -629,6 +659,7 @@ function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions |
  * @returns True when the call may go to the accelerator
  */
 function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefined): boolean {
+    checkKatzOptions(s, options);
     if (options?.normalized === false || options?.alpha === 0) {
         return false;
     }
@@ -682,12 +713,17 @@ function katzRescale(x: F64): void {
 /**
  * Give an accelerator's Katz result the port's scale: min-max rescaled to [0, 1], into a new vector.
  * @param like - The accelerator's result
+ * @param options - The caller's port options, for the error
  * @returns The rescaled result
+ * @throws ConvergenceError when the accelerator reached its cap, as the port does
  */
-function finishKatz(like: ScoresResultLike): ScoresResultLike {
+function finishKatz(like: ScoresResultLike, options: KatzOptions | undefined): ScoresResultLike {
+    if (!like.converged) {
+        throw new ConvergenceError("katzCentrality", options?.maxIterations ?? 100, options?.tolerance ?? 1e-6);
+    }
     const scores = Float64Array.from(like.scores);
     katzRescale(scores);
-    return { scores, iterations: like.iterations, converged: like.converged };
+    return { scores, iterations: like.iterations, converged: true };
 }
 
 /**
@@ -772,7 +808,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
     return {
         accelerator: acc ?? null,
         pageRank: (s, options) =>
-            acc?.pageRank !== undefined && !pageRankNeedsCpu(options)
+            acc?.pageRank !== undefined && !pageRankNeedsCpu(s, options)
                 ? acc.pageRank(s, pageRankOptionsLike(options))
                 : Promise.resolve(indexed.pageRank(s, options)),
         personalizedPageRank: (s, personalization, options) =>
@@ -794,9 +830,16 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                   }),
         sssp: (s, sourceNode, options) => {
             const source = resolveNode(s, sourceNode);
-            return acc?.sssp !== undefined
-                ? acc.sssp(s, source, options).then((like) => decorateSssp(s, source, like))
-                : Promise.resolve(indexed.dijkstra(s, source, options));
+            const gpuSssp = acc?.sssp?.bind(acc);
+            // Both paths refuse the same weights, and the executor turns E_BAD_WEIGHT into a rejection.
+            return gpuSssp !== undefined
+                ? new Promise<SsspResultLike>((resolve) => {
+                      checkWeights("dijkstra", options?.weights ?? s.weights, s.arcCount);
+                      resolve(gpuSssp(s, source, options));
+                  }).then((like) => decorateSssp(s, source, like))
+                : new Promise((resolve) => {
+                      resolve(indexed.dijkstra(s, source, options));
+                  });
         },
         bellmanFord: (s, sourceNode, options) => {
             const source = resolveNode(s, sourceNode);
@@ -825,7 +868,9 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.weaklyConnectedComponents(s)
                 : Promise.resolve(indexed.weaklyConnectedComponents(s)),
         minimumSpanningTree: (s, options) =>
-            acc?.minimumSpanningTree !== undefined && options?.weights === undefined
+            acc?.minimumSpanningTree !== undefined &&
+            options?.weights === undefined &&
+            passes(checkMstWeights, s, options)
                 ? acc.minimumSpanningTree(s)
                 : Promise.resolve(indexed.kruskalMST(s, options)),
         kCoreDecomposition: (s) =>
@@ -842,10 +887,10 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                           tolerance: options?.tolerance,
                           weighted: options?.weighted === true,
                       })
-                      .then(finishKatz)
+                      .then((like) => finishKatz(like, options))
                 : Promise.resolve(indexed.katzCentrality(s, options)),
         hits: (s, options) =>
-            acc?.hits !== undefined
+            acc?.hits !== undefined && passes(checkHitsOptions, s, options)
                 ? acc
                       .hits(s, {
                           maxIterations: options?.maxIterations,
@@ -855,16 +900,20 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                       .then((like) => finishHits(like, options))
                 : Promise.resolve(indexed.hits(s, options)),
         louvain: (s, options) =>
-            acc?.louvain !== undefined ? acc.louvain(s, options) : Promise.resolve(indexed.louvain(s, options)),
+            acc?.louvain !== undefined && passes(checkLouvainOptions, s, options)
+                ? acc.louvain(s, options)
+                : Promise.resolve(indexed.louvain(s, options)),
         allPairsShortestPath: (s, options) =>
             acc?.allPairsShortestPath !== undefined && acceleratorAnswersApsp(s, options)
                 ? acc.allPairsShortestPath(s).then(({ dist, n }) => ({ dist, n, hasNegativeCycle: false }))
                 : Promise.resolve(indexed.allPairsShortestPath(s, options)),
         betweennessCentrality: (s, options) =>
             acc?.betweennessCentrality !== undefined && !s.flags.multigraph && options?.endpoints !== true
-                ? acc
-                      .betweennessCentrality(s, explicitSources(s, options))
-                      .then((r) => checkPathCounts(r, "betweennessCentrality"))
+                ? acc.betweennessCentrality(s, explicitSources(s, options)).then((r) => ({
+                      ...checkPathCounts(r, "betweennessCentrality"),
+                      // The accelerator scales as the port does; endpoints never reach it.
+                      divisor: pairDivisor(s, options?.normalized, (s.nodeCount - 1) * (s.nodeCount - 2)),
+                  }))
                 : Promise.resolve(indexed.betweennessCentrality(s, options)),
         edgeBetweennessCentrality: (s, options) =>
             acc?.edgeBetweennessCentrality !== undefined && !s.flags.multigraph && options?.alive === undefined

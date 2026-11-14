@@ -1,7 +1,9 @@
 tools/acceptance.test.mjs
+tools/assemble-pages-site.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
+tools/build-bundle.test.mjs
 tools/cache-hygiene.test.mjs
 tools/channel/approval-update.test.mjs
 tools/channel/baselines-tree.test.mjs
@@ -46,6 +48,7 @@ tools/lfs-pre-push.test.mjs
 tools/lint-base-drift.test.mjs
 tools/live.test.mjs
 tools/llm-spend.test.mjs
+tools/merge-coverage.test.mjs
 tools/nightly-scenarios.test.mjs
 tools/nx-cache-proxy.test.mjs
 tools/nx-cache-worker/test/index.test.mjs
@@ -68,6 +71,7 @@ tools/require-built.test.mjs
 tools/restricted-cpu-stress.test.mjs
 tools/results-service/test/index.test.mjs
 tools/results/results.test.mjs
+tools/scan-secrets.test.mjs
 tools/scratch-ruleset-cases.test.mjs
 tools/shard-verdict.test.mjs
 tools/ship-risks.test.mjs

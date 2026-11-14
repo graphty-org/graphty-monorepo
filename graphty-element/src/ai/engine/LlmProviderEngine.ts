@@ -1,6 +1,6 @@
 /**
- * @file The engine over any `LlmProvider`: the mock, WebLLM in the browser, a consumer's own, and
- * for now `VercelAiProvider`. It is also the seam a later in-browser engine joins.
+ * @file The engine over any `LlmProvider`: the mock, WebLLM in the browser and a consumer's own.
+ * The cloud providers (OpenAI, Anthropic, Google) run on `ProviderApiEngine` instead.
  */
 
 import type { LlmProvider, Message, ToolDefinition } from "../providers/types";
@@ -172,7 +172,13 @@ export class LlmProviderEngine implements AiEngine {
         }
 
         for (const call of response.toolCalls) {
-            yield { type: "tool-call", id: call.id, name: call.name, arguments: call.arguments };
+            yield {
+                type: "tool-call",
+                id: call.id,
+                name: call.name,
+                arguments: call.arguments,
+                ...(call.invalidArguments && { invalidArguments: true }),
+            };
         }
 
         if (response.usage) {

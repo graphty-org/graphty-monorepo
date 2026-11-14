@@ -1,8 +1,7 @@
 /**
- * Adversarial quality audit: each test pins one defect found by reading src/ against the design.
- * Every test here asserts the behaviour the design promises; a test that FAILS documents a live
- * defect (listed in the audit report with the file and line of the cause). Nothing in src is
- * changed by this file.
+ * Regression tests for the code-quality audit findings (design/graph-format/STATUS.md, "Audit
+ * round 1"): each test asserts the behaviour the design promises where the audit found it broken,
+ * and names the source location of the fix.
  */
 
 import { describe, expect, it } from "vitest";
@@ -37,8 +36,8 @@ function pathBuilder(): GraphBuilder {
     return b;
 }
 
-describe("builder: refersTo values are never checked, so freeze() emits snapshots that fail validate()", () => {
-    it("a refersTo node column holding an index >= nodeCount is refused at the write, so the freeze satisfies I12 (src/builder/graph-builder.ts checkReference)", () => {
+describe("builder: refersTo values are range-checked, so freeze() emits snapshots that pass validate()", () => {
+    it("setNodeValue and setNodeColumn refuse a refersTo index >= nodeCount, so the freeze satisfies I12 (src/builder/graph-builder.ts checkReference)", () => {
         const b = pathBuilder();
         const parent = b.declareNodeColumn({ name: "parent", dtype: "u32", refersTo: "node" });
         // design 11.1: malformed input is refused at the call; design 3.2 / 9.5: the builder
@@ -55,7 +54,7 @@ describe("builder: refersTo values are never checked, so freeze() emits snapshot
         expect(s.nodes.get("p2")).toBeNull();
     });
 
-    it("a non-nullable refersTo column whose target is removed keeps INVALID_INDEX in a SET row (src/builder/compact.ts gather)", () => {
+    it("a non-nullable refersTo column whose target is removed holds INVALID_INDEX in an UNSET row (src/builder/compact.ts gather)", () => {
         const b = pathBuilder();
         const parent = b.declareNodeColumn({ name: "parent", dtype: "u32", refersTo: "node", nullable: false });
         b.setNodeValue(parent, 0, 2);
@@ -71,8 +70,8 @@ describe("builder: refersTo values are never checked, so freeze() emits snapshot
     });
 });
 
-describe("AttributeTable.set(): a dict typed array is adopted without checking its codes", () => {
-    it("codes beyond the dictionary are accepted, value() returns undefined for a set row and validate() fails I12 (src/columns/column.ts columnFromTypedArray)", () => {
+describe("AttributeTable.set(): a dict typed array has its codes checked", () => {
+    it("codes beyond the dictionary are refused with E_COLUMN_TYPE, as the builder refuses them (src/columns/column.ts columnFromTypedArray)", () => {
         const s = fromEdgeArrays({
             directed: true,
             nodeCount: 2,
@@ -87,7 +86,7 @@ describe("AttributeTable.set(): a dict typed array is adopted without checking i
     });
 });
 
-describe("wire: the $num tag of design 5.9 collides with user JSON", () => {
+describe("wire: user JSON shaped like the $num tag of design 5.9 round-trips", () => {
     function withJsonCell(value: unknown): GraphSnapshot {
         const b = new GraphBuilder({ directed: true });
         b.addAnonymousNodes(1);
@@ -102,15 +101,15 @@ describe("wire: the $num tag of design 5.9 collides with user JSON", () => {
         expect(back.nodes.require("j").value(0)).toEqual({ $num: "text" });
     });
 
-    it("a json cell { $num: 'NaN' } must come back as the object, not as the number NaN (src/wire/to-wire.ts encodeJsonValue never escapes)", () => {
+    it("a json cell { $num: 'NaN' } must come back as the object, not as the number NaN (src/wire/to-wire.ts encodeJsonValue escapes it)", () => {
         const s = withJsonCell({ $num: "NaN" });
         const back = fromBytes(s.toBytes());
         expect(back.nodes.require("j").value(0)).toEqual({ $num: "NaN" });
     });
 });
 
-describe("owner count (design 9.1): Column.slice() aliasing is invisible to transferables()", () => {
-    it("a zero-copy slice attached to another snapshot lets transferables() list a buffer the source still views (src/columns/column.ts sliceData, src/columns/table.ts set)", () => {
+describe("owner count (design 9.1): Column.slice() aliasing is seen by transferables()", () => {
+    it("a zero-copy slice attached to another snapshot keeps the source's buffer out of transferables() and the transfer (src/columns/column.ts sliceData, src/columns/table.ts set)", () => {
         const source = fromEdgeArrays({
             directed: true,
             nodeCount: 4,
@@ -130,8 +129,8 @@ describe("owner count (design 9.1): Column.slice() aliasing is invisible to tran
     });
 });
 
-describe("builder: addGraph() is not atomic", () => {
-    it("onDuplicateNode 'error' throws after earlier nodes were already added (src/builder/graph-builder.ts addGraph)", () => {
+describe("builder: addGraph() is atomic", () => {
+    it("onDuplicateNode 'error' throws before any node is added (src/builder/graph-builder.ts addGraph)", () => {
         const incoming = fromEdgeArrays({
             directed: true,
             ids: ["fresh", "dup"],
@@ -148,8 +147,8 @@ describe("builder: addGraph() is not atomic", () => {
     });
 });
 
-describe("derived graphs: integer column reducers wrap silently", () => {
-    it("contract(..., edgeReducers: { w: 'sum' }) on a u8 column wraps modulo 256 instead of widening or throwing (src/snapshot/derived.ts reduceNumericColumn)", () => {
+describe("derived graphs: integer column reducers never wrap", () => {
+    it("contract(..., edgeReducers: { w: 'sum' }) on a u8 column keeps 300 instead of wrapping to 44 (src/snapshot/derived.ts reduceNumericColumn)", () => {
         const s = fromEdgeArrays({
             directed: true,
             nodeCount: 3,
@@ -166,7 +165,7 @@ describe("derived graphs: integer column reducers wrap silently", () => {
 });
 
 describe("bitmap convention: src/columns/bitmap.ts promises every bit >= length is clear", () => {
-    it("AttributeTable.set() with a JS array leaves the trailing validity bits SET (src/columns/column.ts columnOfValues fill(0xffffffff))", () => {
+    it("AttributeTable.set() with a JS array clears the trailing validity bits, as the builder does (src/columns/column.ts columnOfValues)", () => {
         const s = fromEdgeArrays({
             directed: true,
             nodeCount: 3,
@@ -187,8 +186,8 @@ describe("bitmap convention: src/columns/bitmap.ts promises every bit >= length 
     });
 });
 
-describe("Object.freeze gaps on frozen snapshots", () => {
-    it("ColumnMeta.default is a live reference: mutating it changes value() of an immutable column (src/columns/column.ts resolveColumnMeta)", () => {
+describe("frozen snapshots freeze their metadata and cached views", () => {
+    it("ColumnMeta is frozen and mutating its default never changes value() (src/columns/column.ts resolveColumnMeta)", () => {
         const b = new GraphBuilder({ directed: true });
         b.addAnonymousNodes(1);
         b.declareNodeColumn({ name: "d", dtype: "json", default: [1, 2] });
@@ -199,7 +198,7 @@ describe("Object.freeze gaps on frozen snapshots", () => {
         expect(column.value(0)).toEqual([1, 2]);
     });
 
-    it("cached view objects are plain mutable objects: a consumer can poison the shared cache (src/snapshot/views.ts cooViewOf)", () => {
+    it("a consumer cannot replace an array of a shared cached view (src/snapshot/views.ts cooViewOf)", () => {
         const s = fromEdgeArrays({
             directed: true,
             nodeCount: 2,

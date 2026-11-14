@@ -20,6 +20,24 @@ export interface Point {
     readonly y: number;
 }
 
+/**
+ * Where a node is drawn, as a point to send the pointer to.
+ * @param target - The graph or the element, whose `nodeScreenPosition` places the node.
+ * @param id - The node.
+ * @returns Its centre in CSS pixels from the canvas's top-left corner.
+ */
+export function nodePoint(
+    target: { nodeScreenPosition(id: string | number): { x: number; y: number; visible: boolean } | undefined },
+    id: string | number,
+): Point {
+    const at = target.nodeScreenPosition(id);
+    if (at?.visible !== true) {
+        throw new Error(`node ${String(id)} is not drawn on screen`);
+    }
+
+    return { x: at.x, y: at.y };
+}
+
 /** A protocol command and its parameters; the session's own type is too narrow to name them. */
 type Send = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 
@@ -315,6 +333,27 @@ export async function touchDrag(element: Element, from: Point, to: Point, steps 
  * @param steps - How many moves between.
  */
 export async function pinch(element: Element, center: Point, fromGap: number, toGap: number, steps = 8): Promise<void> {
+    const lift = await holdPinch(element, center, fromGap, toGap, steps);
+    await lift();
+}
+
+/**
+ * The fingers of a pinch, moved and left on the element, so other input can happen during it.
+ * @param element - The element the fingers are on.
+ * @param center - The midpoint between the fingers.
+ * @param fromGap - The distance between the fingers when they land.
+ * @param toGap - The distance they stop at.
+ * @param steps - How many moves between.
+ * @returns A function that lifts both fingers; passed true, the browser cancels the touches
+ *     instead, as it does when the system takes them over.
+ */
+export async function holdPinch(
+    element: Element,
+    center: Point,
+    fromGap: number,
+    toGap: number,
+    steps = 8,
+): Promise<(cancelled?: boolean) => Promise<void>> {
     const fingers = (gap: number): Record<string, number>[] =>
         [-1, 1].map((side, id) => {
             const at = toPage(element, { x: center.x + (side * gap) / 2, y: center.y });
@@ -330,7 +369,9 @@ export async function pinch(element: Element, center: Point, fromGap: number, to
         await nextFrame();
     }
 
-    await send()("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    return async (cancelled = false) => {
+        await send()("Input.dispatchTouchEvent", { type: cancelled ? "touchCancel" : "touchEnd", touchPoints: [] });
+    };
 }
 
 /**

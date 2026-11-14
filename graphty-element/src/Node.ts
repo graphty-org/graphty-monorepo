@@ -19,7 +19,6 @@ import {
     Vector3,
 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
-import jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 import omit from "lodash/omit.js";
@@ -27,7 +26,7 @@ import omit from "lodash/omit.js";
 import type { ShaderUse } from "./catalog/shaders";
 import type { Rgba } from "./catalog/types";
 import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
-import { drawnText } from "./config/RichTextStyle";
+import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
@@ -311,46 +310,6 @@ const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellip
 /** The shapes whose mesh is its box, see {@link Node.surfaceIsClosedForm}. */
 const CLOSED_FORM_SHAPES: ReadonlySet<string> = new Set(["box", "rectangle"]);
 
-type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
-
-/**
- * A label's background color as the one string the label renderer takes: an advanced color style's solid value,
- * or a gradient's first color as a fallback.
- * @param color - The style's background color.
- * @returns The color, or undefined for none.
- */
-function labelBackgroundColor(color: LabelStyle["backgroundColor"]): string | undefined {
-    if (!color) {
-        return undefined;
-    }
-    if (typeof color === "string") {
-        return color;
-    }
-    if (color.colorType === "solid") {
-        return color.value;
-    }
-    if (color.colorType === "gradient") {
-        return color.colors[0];
-    }
-    return undefined;
-}
-
-/**
- * A label's borders with a color each, the only ones the label renderer can draw.
- * @param borders - The style's borders.
- * @returns The borders, or undefined when none has a color, so the renderer's default empty list is used.
- */
-function labelBorders(borders: LabelStyle["borders"]): { width: number; color: string; spacing: number }[] | undefined {
-    const valid = (borders ?? [])
-        .filter((border): border is typeof border & { color: string } => border.color !== undefined)
-        .map((border) => ({
-            width: border.width,
-            color: border.color,
-            spacing: border.spacing,
-        }));
-    return valid.length > 0 ? valid : undefined;
-}
-
 /** The colour a node is drawn in when no layer a reader added colours it. */
 const DEFAULT_NODE_COLOR = String(CHANNEL_DESCRIPTORS["node.color"].default ?? "").toLowerCase();
 
@@ -396,6 +355,18 @@ function namesShader(uses: readonly ShaderUse[] | undefined): boolean {
 function hexOf(value: unknown, fallback: string): { hex: string; alpha: number } {
     const { rgb, alpha } = readColor(typeof value === "string" ? value : undefined, fallback);
     return { hex: rgb.toHexString(), alpha };
+}
+
+/**
+ * A batched row's measure as the CPU took it, when the row table's 32-bit copy is that measure rounded: the
+ * object path works in the doubles it measured, and a last bit of difference moves a trimmed edge end by a
+ * pixel (#6287).
+ * @param stored - What the row table holds.
+ * @param measured - What the node measured when it wrote the row, or null.
+ * @returns The measure, or what the table holds when it holds something else (a shrink part of the way).
+ */
+function exactOf(stored: number, measured: number | null): number {
+    return measured !== null && Math.fround(measured) === stored ? measured : stored;
 }
 
 /**
@@ -891,7 +862,8 @@ export class Node implements ModelUser {
     get roundRadius(): number | null {
         const batched = this.batchTable;
         if (batched !== null) {
-            return batched.extentOf(this.row).round;
+            const { round } = batched.extentOf(this.row);
+            return round === null ? null : exactOf(round, this.roundRadiusValue);
         }
 
         // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
@@ -1269,8 +1241,19 @@ export class Node implements ModelUser {
             return;
         }
 
-        this.context.getStatsManager().startMeasurement("Node.update");
+        const stats = this.context.getStatsManager();
+        stats.startMeasurement("Node.update");
+        try {
+            this.followLayout();
+        } finally {
+            stats.endMeasurement("Node.update");
+        }
+    }
 
+    /**
+     * Place the node where the layout says, or follow a drag: the measured part of `update`.
+     */
+    private followLayout(): void {
         // Check if mesh was disposed (e.g., from 2D/3D mode switch) and recreate it.
         if (this.#anchor.isDisposed()) {
             this.updateStyle();
@@ -1278,7 +1261,6 @@ export class Node implements ModelUser {
 
         if (this.dragging) {
             this.syncOverlayPositions();
-            this.context.getStatsManager().endMeasurement("Node.update");
             return;
         }
 
@@ -1304,8 +1286,6 @@ export class Node implements ModelUser {
 
         this.syncXlabelPlace();
         this.syncOverlayPositions();
-
-        this.context.getStatsManager().endMeasurement("Node.update");
     }
 
     /**
@@ -1906,7 +1886,7 @@ export class Node implements ModelUser {
     get drawnScaling(): Readonly<Vector3> {
         const batched = this.batchTable;
         if (batched !== null) {
-            const { scale } = batched.extentOf(this.row);
+            const scale = exactOf(batched.extentOf(this.row).scale, this.#anchor.scaling.x);
             return new Vector3(scale, scale, scale);
         }
 
@@ -1919,7 +1899,8 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnScale(): number {
-        return this.batchTable?.extentOf(this.row).scale ?? this.#anchor.scaling.x;
+        const scale = this.batchTable?.extentOf(this.row).scale;
+        return scale === undefined ? this.#anchor.scaling.x : exactOf(scale, this.#anchor.scaling.x);
     }
 
     /**
@@ -2874,7 +2855,22 @@ export class Node implements ModelUser {
      * @param color - The per-instance colour.
      */
     private drawPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
-        this.context.getStatsManager().startMeasurement("Node.updateMesh");
+        const stats = this.context.getStatsManager();
+        stats.startMeasurement("Node.updateMesh");
+        try {
+            this.drawShadedPaint(paintKey, paintStyle, color);
+        } finally {
+            stats.endMeasurement("Node.updateMesh");
+        }
+    }
+
+    /**
+     * The measured part of `drawPaint`.
+     * @param paintKey - Which source mesh the paint draws from.
+     * @param paintStyle - The resolved style.
+     * @param color - The per-instance colour.
+     */
+    private drawShadedPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
         const shaded = this.shadedPaint(paintKey, paintStyle);
         const { meshKey, style: o } = shaded;
         this.shaderPath = shaded.path;
@@ -2915,13 +2911,11 @@ export class Node implements ModelUser {
             this.syncLabel(o, false);
             this.syncTooltip(o);
             this.syncHalo();
-            this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }
 
         if (this.movesFor(meshKey, o)) {
             this.moveTo(meshKey, o, color);
-            this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }
 
@@ -3056,8 +3050,6 @@ export class Node implements ModelUser {
         // drops its halo, and repaints it in its source mesh's own colour.
         this.applyRenderState();
         this.applyInstancePaint(o, color);
-
-        this.context.getStatsManager().endMeasurement("Node.updateMesh");
     }
 
     /**
@@ -3573,7 +3565,9 @@ export class Node implements ModelUser {
     get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
         const batched = this.batchTable;
         if (batched !== null) {
-            return batched.extentOf(this.row).half;
+            const { half } = batched.extentOf(this.row);
+            const measured = this.halfExtentsValue;
+            return { x: exactOf(half.x, measured.x), y: exactOf(half.y, measured.y), z: exactOf(half.z, measured.z) };
         }
 
         const own = this.#anchor.scaling;
@@ -4282,33 +4276,13 @@ export class Node implements ModelUser {
         return label;
     }
 
+    /**
+     * The words this node's label or tooltip block draws: its own, or its id when the block names none.
+     * @param labelConfig - The block.
+     * @returns The words.
+     */
     private extractLabelText(labelConfig?: Record<string, unknown>): string {
-        if (!labelConfig) {
-            return this.id.toString();
-        }
-
-        // Check if text is directly provided
-        if (labelConfig.text !== undefined && labelConfig.text !== null) {
-            // Only convert to string if it's a primitive type
-            if (
-                typeof labelConfig.text === "string" ||
-                typeof labelConfig.text === "number" ||
-                typeof labelConfig.text === "boolean"
-            ) {
-                return String(labelConfig.text);
-            }
-        } else if (labelConfig.textPath && typeof labelConfig.textPath === "string") {
-            try {
-                const result = jmespath.search(this.data, labelConfig.textPath);
-                if (result !== null && result !== undefined) {
-                    return String(result);
-                }
-            } catch {
-                // Ignore jmespath errors
-            }
-        }
-
-        return this.id.toString();
+        return labelTextOf(this.data, labelConfig) ?? this.id.toString();
     }
 
     /**
@@ -4338,45 +4312,13 @@ export class Node implements ModelUser {
         }
         const attachOffset = (labelStyle.attachOffset ?? this.getDefaultAttachOffset(placed)) + along;
 
-        const backgroundColor = labelBackgroundColor(labelStyle.backgroundColor);
-
-        // Filter out undefined values from backgroundGradientColors
-        let backgroundGradientColors: string[] | undefined = undefined;
-        if (labelStyle.backgroundGradientColors) {
-            backgroundGradientColors = labelStyle.backgroundGradientColors.filter(
-                (color): color is string => color !== undefined,
-            );
-            if (backgroundGradientColors.length === 0) {
-                backgroundGradientColors = undefined;
-            }
-        }
-
-        const borders = labelBorders(labelStyle.borders);
-
-        // Create label options by spreading the entire labelStyle object
-        const labelOptions: RichTextLabelOptions = {
-            ...labelStyle,
-            // Override with computed values
+        return richTextLabelOptions(labelStyle, {
             text: labelText,
             attachTo: this.labelTarget(),
             attachPosition,
             attachOffset,
             ...(this.shapeType === "polygon" && { centerAtOrigin: true }),
-            backgroundColor,
-            backgroundGradientColors,
-            ...(borders !== undefined && { borders }),
-        };
-
-        // Handle special case for transparent background
-        if (labelOptions.backgroundColor === "transparent") {
-            labelOptions.backgroundColor = undefined;
-        }
-
-        // Remove properties that shouldn't be passed to RichTextLabel
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions;
-
-        return finalLabelOptions;
+        });
     }
 
     /**

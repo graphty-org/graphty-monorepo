@@ -188,9 +188,13 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
 
             it(`katz, ${name}`, async () => {
                 const graph = await graphWith(opts);
-                const { values, precision } = await measured(graph, new KatzCentralityAlgorithm(graph));
+                // Below 1 / lambda_max of every fixture: at the default 0.1 Les Miserables diverges.
+                const { values, precision } = await measured(
+                    graph,
+                    new KatzCentralityAlgorithm(graph, { alpha: 0.05 }),
+                );
                 const s = referenceSnapshot(graph.getDataManager(), "undirected");
-                const reference = byId(s, katzCentrality(s).scores);
+                const reference = byId(s, katzCentrality(s, { alpha: 0.05 }).scores);
                 assert.strictEqual(precision, "f64");
                 for (const [id, value] of values) {
                     close(value.value, reference.get(id), `score of ${String(id)}`);
@@ -212,11 +216,14 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
         it("hits unnormalised and katz raw agree too", async () => {
             const graph = await graphWith(LES_MIS);
             const hitsRun = await measured(graph, new HITSAlgorithm(graph, { normalized: false }));
-            const katzRun = await measured(graph, new KatzCentralityAlgorithm(graph, { normalized: false }));
+            const katzRun = await measured(
+                graph,
+                new KatzCentralityAlgorithm(graph, { normalized: false, alpha: 0.05 }),
+            );
             const directed = referenceSnapshot(graph.getDataManager(), "directed");
             const undirected = referenceSnapshot(graph.getDataManager(), "undirected");
             const hitsRef = byId(directed, hits(directed, { normalized: false }).hubs);
-            const katzRef = byId(undirected, katzCentrality(undirected, { normalized: false }).scores);
+            const katzRef = byId(undirected, katzCentrality(undirected, { normalized: false, alpha: 0.05 }).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
                 close(hitsRun.values.get(id)?.hub, hitsRef.get(id), `hub of ${String(id)}`);
                 close(katzRun.values.get(id)?.value, katzRef.get(id), `katz of ${String(id)}`);

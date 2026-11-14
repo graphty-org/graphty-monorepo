@@ -14,9 +14,11 @@
  * below pin exactly that.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { colorToHex } from "../src/config";
+import { ColorStyle } from "../src/config/common";
+import { GraphtyError } from "../src/errors/GraphtyError";
 import { Styles } from "../src/Styles";
 import badLayer from "./helpers/styles-bad-layer.json";
 import basicDualStyle from "./helpers/styles-basic-dual.json";
@@ -49,6 +51,34 @@ describe("Styles", () => {
             const s = Styles.fromJson('{"graphtyTemplate": true, "majorVersion": "1", "layers": []}');
 
             assert.isEmpty(s.config.layers);
+        });
+    });
+
+    describe("fromUrl", () => {
+        it("reads the document at the URL", async () => {
+            const s = await Styles.fromUrl(
+                'data:application/json,{"graphtyTemplate":true,"majorVersion":"1","layers":[]}',
+            );
+
+            assert.isEmpty(s.config.layers);
+        });
+
+        it("refuses an HTTP failure with E_FETCH_FAILED", async () => {
+            vi.stubGlobal("fetch", () => Promise.resolve(new Response("missing", { status: 404 })));
+            try {
+                const error: unknown = await Styles.fromUrl("missing.json").catch((e: unknown) => e);
+                assert.instanceOf(error, GraphtyError);
+                assert.strictEqual(error.code, "E_FETCH_FAILED");
+                assert.strictEqual(error.details.status, 404);
+            } finally {
+                vi.unstubAllGlobals();
+            }
+        });
+
+        it("refuses a body that is not JSON with E_PARSE_FAILED", async () => {
+            const error: unknown = await Styles.fromUrl("data:text/plain,not%20json").catch((e: unknown) => e);
+            assert.instanceOf(error, GraphtyError);
+            assert.strictEqual(error.code, "E_PARSE_FAILED");
         });
     });
 
@@ -199,6 +229,20 @@ describe("Styles", () => {
 
         it("converted by hwba, keeping its alpha like every other form", () => {
             assert.strictEqual(colorToHex("hwb(60, 3%, 60%, 0.6)"), "#66660899");
+        });
+
+        it("expands a collapsed #RGBA to eight digits", () => {
+            assert.strictEqual(colorToHex("#f008"), "#FF000088");
+        });
+
+        it("answers undefined for a string that is not a color", () => {
+            assert.isUndefined(colorToHex("notacolor"));
+        });
+
+        it("reports a style color that is not a color as an issue rather than throwing", () => {
+            const result = ColorStyle.safeParse("notacolor");
+            assert.isFalse(result.success);
+            assert.strictEqual(ColorStyle.parse("red"), "#FF0000");
         });
     });
 });

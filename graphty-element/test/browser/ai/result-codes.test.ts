@@ -23,6 +23,7 @@ import type { LlmProvider, LlmResponse } from "../../../src/ai/providers/types";
 import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import { Graph } from "../../../src/Graph";
+import { createMockGraphContext } from "../../helpers/mock-graph-context";
 
 const reached = new Set<string>();
 
@@ -342,6 +343,15 @@ describe("AI command result codes", () => {
         assert.strictEqual(seen(await manager.execute("hello")).code, "AI_NOT_ENABLED");
         manager.dispose();
         assert.strictEqual(seen(await manager.execute("hello")).code, "AI_DISPOSED");
+        assert.strictEqual(seen(await manager.retry()).code, "AI_DISPOSED");
+    });
+
+    it("AI_NO_PREVIOUS_COMMAND: a retry before any command ran", async () => {
+        const manager = new AiManager();
+        assert.strictEqual(seen(await manager.retry()).code, "AI_NOT_ENABLED");
+        manager.init(createMockGraphContext({ nodeCount: 2, edgeCount: 1 }), { provider: "mock" });
+        assert.strictEqual(seen(await manager.retry()).code, "AI_NO_PREVIOUS_COMMAND");
+        manager.dispose();
     });
 
     it("AI_CONFIG_INVALID: enableAiControl rejects helpers that cannot run, and builds no assistant", async () => {

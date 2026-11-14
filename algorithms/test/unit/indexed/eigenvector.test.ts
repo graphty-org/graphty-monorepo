@@ -1,4 +1,4 @@
-import { GraphBuilder } from "@graphty/graph-format";
+import { GraphBuilder, type U32 } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { ConvergenceError } from "../../../src/errors.js";
@@ -105,7 +105,7 @@ describe("indexed.eigenvectorCentrality", () => {
      * @param dst - Target indices
      * @returns The frozen snapshot
      */
-    function indexGraph(n: number, src: Uint32Array, dst: Uint32Array): ReturnType<GraphBuilder["freeze"]> {
+    function indexGraph(n: number, src: U32, dst: U32): ReturnType<GraphBuilder["freeze"]> {
         const b = new GraphBuilder({ directed: false });
         b.addAnonymousNodes(n);
         b.addEdges(src, dst);

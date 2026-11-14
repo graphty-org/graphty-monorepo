@@ -39,7 +39,7 @@ import {
     uniqueColumnName,
 } from "../../common/attributes.js";
 import { type DeclaredTypeSpec, overflowsToInfinity, parseBooleanText } from "../../common/declared-types.js";
-import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
+import { DirectionResolver, type EdgeKind, type EdgeLocation } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
 import { type ListSyntax } from "../../common/lists.js";
@@ -2416,31 +2416,42 @@ class GraphmlReader implements XmlHandler {
                 this.report.recordError(err, where);
             }
         }
-        const directedText = attrs.get("directed");
-        if (directedText !== undefined) {
-            // the schema types directed as xs:boolean: true, false, 1 or 0; networkx also reads True / FALSE
-            const directed = parseBooleanText(directedText);
-            if (directed === null) {
-                this.report.error(
-                    "validation-error",
-                    GRAPHML_ISSUE.INVALID_DIRECTED,
-                    `directed="${directedText}" is neither true nor false (nor 1 or 0); the edge takes its graph's direction`,
-                    where,
-                );
-            } else {
-                edge.kind = directed ? "directed" : "undirected";
-                if (!/^(true|false|1|0)$/.test(directedText)) {
-                    this.report.warnOnce(
-                        "validation-error",
-                        GRAPHML_ISSUE.DIRECTED_SPELLING,
-                        `directed="${directedText}" is not an xs:boolean spelling; read as ${directed}`,
-                        where,
-                    );
-                }
-            }
-        }
+        edge.kind = this.edgeKind(attrs.get("directed"), edge.kind, where);
         this.edge = edge;
         this.ctx.push(Ctx.Edge);
+    }
+
+    /**
+     * The direction of an edge from its `directed` attribute.
+     * @param directedText - the attribute, or undefined
+     * @param kind - the graph's direction, kept when the attribute is missing or not a boolean
+     * @param where - the edge's location
+     * @returns the edge's direction
+     */
+    private edgeKind(directedText: string | undefined, kind: EdgeKind, where: EdgeLocation): EdgeKind {
+        if (directedText === undefined) {
+            return kind;
+        }
+        // the schema types directed as xs:boolean: true, false, 1 or 0; networkx also reads True / FALSE
+        const directed = parseBooleanText(directedText);
+        if (directed === null) {
+            this.report.error(
+                "validation-error",
+                GRAPHML_ISSUE.INVALID_DIRECTED,
+                `directed="${directedText}" is neither true nor false (nor 1 or 0); the edge takes its graph's direction`,
+                where,
+            );
+            return kind;
+        }
+        if (!/^(true|false|1|0)$/.test(directedText)) {
+            this.report.warnOnce(
+                "validation-error",
+                GRAPHML_ISSUE.DIRECTED_SPELLING,
+                `directed="${directedText}" is not an xs:boolean spelling; read as ${String(directed)}`,
+                where,
+            );
+        }
+        return directed ? "directed" : "undirected";
     }
 
     /**

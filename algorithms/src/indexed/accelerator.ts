@@ -25,7 +25,13 @@ import {
 import { ConvergenceError, PathCountOverflowError } from "../errors.js";
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BellmanFordResult } from "./bellman-ford.js";
-import { type BetweennessOptions, type EdgeBetweennessOptions, resolveSources } from "./betweenness.js";
+import {
+    type BetweennessOptions,
+    type BetweennessResult,
+    type EdgeBetweennessOptions,
+    pairDivisor,
+    resolveSources,
+} from "./betweenness.js";
 import type { ArcOrderOption, BfsOptions } from "./bfs.js";
 import type { ClosenessOptions } from "./closeness.js";
 import type { LabelResult } from "./components.js";
@@ -322,7 +328,8 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * counts a pair's parallel edges as one path, the WebGPU kernel as several), `endpoints` is set, or an
  * `alive` edge mask is given. The accelerator is always handed the sources the port would run -- the
  * caller's, the port's `k` draw, or every node -- so it never substitutes a draw or a sampling default of
- * its own. `closenessCentrality` goes only for the plain score -- no `normalized`, `cutoff` or
+ * its own. A `betweennessCentrality` result carries the port's `divisor` on either path, since the accelerator
+ * scales its scores by the same rule. `closenessCentrality` goes only for the plain score -- no `normalized`, `cutoff` or
  * `weights` override, and `harmonic` only on an exact run to an accelerator that declares
  * `harmonicCloseness` -- and hands the accelerator an explicit `weighted`,
  * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
@@ -382,7 +389,10 @@ export interface AcceleratedAlgorithms {
     ): Promise<LabelResultLike>;
     triangleCount(s: GraphSnapshot): Promise<TriangleCountResult>;
     allPairsShortestPath(s: GraphSnapshot, options?: ApspOptions): Promise<ApspCycleResultLike>;
-    betweennessCentrality(s: GraphSnapshot, options?: BetweennessOptions): Promise<ScoresResultLike>;
+    betweennessCentrality(
+        s: GraphSnapshot,
+        options?: BetweennessOptions,
+    ): Promise<ScoresResultLike & Pick<BetweennessResult, "divisor">>;
     edgeBetweennessCentrality(s: GraphSnapshot, options?: EdgeBetweennessOptions): Promise<EdgeScoresResultLike>;
     closenessCentrality(s: GraphSnapshot, options?: ClosenessOptions): Promise<ClosenessResultLike>;
     depthFirstSearch(g: AdjacencyView, start: NodeRef, options?: DfsOptions): Promise<DfsResult>;
@@ -892,9 +902,11 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 : Promise.resolve(indexed.allPairsShortestPath(s, options)),
         betweennessCentrality: (s, options) =>
             acc?.betweennessCentrality !== undefined && !s.flags.multigraph && options?.endpoints !== true
-                ? acc
-                      .betweennessCentrality(s, explicitSources(s, options))
-                      .then((r) => checkPathCounts(r, "betweennessCentrality"))
+                ? acc.betweennessCentrality(s, explicitSources(s, options)).then((r) => ({
+                      ...checkPathCounts(r, "betweennessCentrality"),
+                      // The accelerator scales as the port does; endpoints never reach it.
+                      divisor: pairDivisor(s, options?.normalized, (s.nodeCount - 1) * (s.nodeCount - 2)),
+                  }))
                 : Promise.resolve(indexed.betweennessCentrality(s, options)),
         edgeBetweennessCentrality: (s, options) =>
             acc?.edgeBetweennessCentrality !== undefined && !s.flags.multigraph && options?.alive === undefined

@@ -941,30 +941,24 @@ function changedFields(into: Set<string>, prior: GraphRecord | undefined, next: 
 }
 
 /**
- * Report the elements an add names: a node, a run of nodes, an edge or a run of edges.
- * @param op - The add.
- * @param mark - Called per element.
- * @param fields - Collects the node keys a merge into an existing node changed.
+ * Report one node an add names: added, or rewritten when the graph already held it.
+ * @param op - The node, as a node op.
+ * @param mark - Called for it.
+ * @param fields - Collects the keys a merge into an existing node changed.
  */
-function diffAdd(
-    op: Extract<GraphOp, { kind: "node" | "nodes" | "edge" | "edges" }>,
-    mark: Mark,
-    fields: Set<string>,
-): void {
-    if (op.kind === "node" || op.kind === "nodes") {
-        const run = op.kind === "node" ? null : op;
-        const count = run === null ? 1 : run.ids.length;
-        for (let at = 0; at < count; at++) {
-            const one = run === null ? (op as NodeOp) : nodeAt(run, at);
-            mark("node", one.id, one.existed, true);
-            if (one.existed) {
-                changedFields(fields, one.prior, one.record);
-            }
-        }
-
-        return;
+function diffNode(op: NodeOp, mark: Mark, fields: Set<string>): void {
+    mark("node", op.id, op.existed, true);
+    if (op.existed) {
+        changedFields(fields, op.prior, op.record);
     }
+}
 
+/**
+ * Report the edges an add names, and the endpoints they brought in.
+ * @param op - An edge or a run of edges.
+ * @param mark - Called per element.
+ */
+function diffEdges(op: Extract<GraphOp, { kind: "edge" | "edges" }>, mark: Mark): void {
     const first = op.kind === "edge" ? op.edgeId : op.first;
     const count = op.kind === "edge" ? 1 : op.records.length;
     for (let at = 0; at < count; at++) {
@@ -985,10 +979,16 @@ function diffAdd(
 function diffOp(op: GraphOp, mark: Mark, fields: Record<RecordTarget, Set<string>>): void {
     switch (op.kind) {
         case "node":
+            diffNode(op, mark, fields.node);
+            break;
         case "nodes":
+            op.ids.forEach((_, at) => {
+                diffNode(nodeAt(op, at), mark, fields.node);
+            });
+            break;
         case "edge":
         case "edges":
-            diffAdd(op, mark, fields.node);
+            diffEdges(op, mark);
             break;
         case "weight":
             mark("edge", edgeIdOf(op.edgeId), true, true);

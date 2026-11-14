@@ -6,11 +6,12 @@
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
 import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { after, describe, it, mock } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
@@ -36,7 +37,7 @@ import { benchmarkRows } from "./post-benchmarks.mjs";
 import { unstableStories } from "./post-unstable-stories.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
-import { durationsOf, planRead, readersOf, variantsOf } from "./plan-read.mjs";
+import { durationsOf, planRead, readersOf, refreshSnapshot, variantsOf } from "./plan-read.mjs";
 import {
     baseId,
     fileIssues,
@@ -856,6 +857,93 @@ describe("planRead", () => {
             unavailable: "results store not configured",
         });
         assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {});
+    });
+    it("packs by the durations snapshot when the store gives no plan, only the families it asked about (#7851)", async () => {
+        const out = join(TMP, "plan-snapshot");
+        const snapshot = join(TMP, "plan-snapshot.json");
+        const at = Date.parse("2026-11-14T10:00:00Z");
+        writeFileSync(
+            snapshot,
+            JSON.stringify({
+                at,
+                durations: { layout: { "layout/a.test.ts": 4000 }, "remote-logger": { "r.test.ts": 1 } },
+            }),
+        );
+        mock.method(globalThis, "fetch", () =>
+            Promise.resolve(new Response('{"error":"internal error"}', { status: 500 })),
+        );
+        const { r, lines } = await logged({
+            out,
+            snapshot,
+            env: { RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        assert.equal(r.plan, null);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {
+            layout: { "layout/a.test.ts": 4000 },
+        });
+        assert.match(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")).unavailable, /HTTP 500/);
+        assert.deepEqual(lines, [
+            '::warning::results store: no plan (HTTP 500: {"error":"internal error"}); test bins are packed by the durations snapshot of 2026-11-14T10:00:00.000Z',
+        ]);
+        // a missing or empty snapshot packs without history, as before
+        const none = await logged({ out, snapshot: join(TMP, "no-such.json"), env: {} });
+        assert.match(none.lines[0], /packed without history/);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {});
+    });
+    it("refreshes the snapshot one family at a time, keeping a family whose read failed, once an hour (#7851)", async () => {
+        const root = join(TMP, "snapshot-root");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout" }, { shard: "graphty-1", package: "graphty" },
+                { shard: "graphty-2", package: "graphty" }];\nexport const STORY_SHARDS = ["layout"];\n`,
+        );
+        const { url, seen } = await serve((req) => {
+            const variants = new URL(req.url, "http://x").searchParams.get("variants").split(",");
+            if (variants[0].startsWith("graphty|")) return {}; // an answer with no durations keeps the previous ones
+            return {
+                variants: Object.fromEntries(variants.map((v) => [v, { fileMs: { [`${v.split("|")[0]}.ts`]: 7 } }])),
+            };
+        });
+        const file = join(root, "snap", "durations.json");
+        const old = { at: 0, durations: { graphty: { "old.ts": 3 }, layout: { "gone.ts": 9 } } };
+        mkdirSync(join(root, "snap"));
+        writeFileSync(file, JSON.stringify(old));
+        const env = { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" };
+        const now = Date.parse("2026-11-14T10:00:00Z");
+        const r = await refreshSnapshot({ root, file, env, now });
+        assert.equal(r.refreshed, true);
+        assert.deepEqual(r.answered, ["layout"]);
+        assert.match(r.failed[0], /^graphty /);
+        // one read per family, its `-shots` family with it
+        assert.deepEqual(
+            seen.map((s) => new URL(s.url, url).searchParams.get("variants")),
+            [
+                "graphty|flags=off|whole,graphty|flags=off|selected",
+                "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots",
+            ],
+        );
+        assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), {
+            at: now,
+            durations: {
+                graphty: { "old.ts": 3 },
+                layout: { "layout.ts": 7 },
+                "layout-shots": { "layout-shots.ts": 7 },
+            },
+        });
+        const again = await refreshSnapshot({ root, file, env, now: now + 60e3 });
+        assert.equal(again.refreshed, false);
+        assert.equal(seen.length, 2, "under an hour old: no read");
+    });
+    it("loads the real test matrix from only the files the Durations snapshot job checks out (#7851)", async () => {
+        // cone mode: the listed directories plus the root files
+        const job = readFileSync(".github/workflows/ci.yml", "utf8").split("\n    durations-snapshot:\n")[1];
+        const paths = /sparse-checkout: \|\n((?:\s+\S+\n)+)/.exec(job)[1].trim().split(/\s+/);
+        const root = join(TMP, "durations-job-checkout");
+        for (const p of paths) cpSync(p, join(root, p), { recursive: true });
+        for (const f of readdirSync(".", { withFileTypes: true })) if (f.isFile()) cpSync(f.name, join(root, f.name));
+        const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
+        assert.ok(SHARDS.length > 0);
     });
     it("reads the plan once and writes its durations", async () => {
         const { url, seen } = await serve();

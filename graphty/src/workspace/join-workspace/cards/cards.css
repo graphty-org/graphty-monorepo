@@ -24,11 +24,29 @@
     flex: none;
 }
 
+/* The body starts where the header's content does, clear of the card's colored bar. */
 .jr-body {
     display: flex;
     flex-direction: column;
     gap: 5px;
     padding-block: 4px;
+    padding-inline: 8px 6px;
+}
+
+/* A folded card's matches wrap to a second line rather than end in an ellipsis. */
+.jr-card[data-folded] .cm-card-head {
+    height: auto;
+    min-height: 30px;
+    padding-block: 3px;
+}
+
+.jr-card[data-folded] .cm-card-head > .cm-card-summary {
+    white-space: normal;
+}
+
+.jr-summary {
+    line-height: 14px;
+    overflow-wrap: anywhere;
 }
 
 .jr-row {

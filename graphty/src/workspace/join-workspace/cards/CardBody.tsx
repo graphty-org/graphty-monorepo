@@ -1,4 +1,10 @@
-import type { JoinKey, JoinStepEntry, JoinStepOutcome, JoinSuggestion } from "@graphty/graphty-element/session";
+import type {
+    JoinInput,
+    JoinKey,
+    JoinStepEntry,
+    JoinStepOutcome,
+    JoinSuggestion,
+} from "@graphty/graphty-element/session";
 import { Badge, Button, Radio, Select, Text } from "@mantine/core";
 import React, { useMemo } from "react";
 
@@ -23,26 +29,49 @@ import {
 import { Venn } from "./Venn";
 
 /**
- * The example line under an answer, from graphty-element's suggestion for that answer.
+ * A column's name as an edge's end: "person_id" reads "person".
+ * @param column - the column.
+ * @returns the name.
+ */
+function endName(column: string): string {
+    return column.replace(/[_ ]?id$/i, "") || column;
+}
+
+/**
+ * The example line under an answer, from the card's own table and graphty-element's suggestion
+ * for that answer: "door_entries -> edge: person -> building".
  * @param outcome - the answer.
  * @param suggestion - the element's suggestion for its shape.
+ * @param table - the card's table name.
+ * @param columns - the table's columns, for an answer the element suggests no key for.
+ * @param inputs - the draft's inputs, naming the load a key matches onto.
  * @returns the line.
  */
-function exampleLine(outcome: Outcome, suggestion: JoinSuggestion): string {
-    const files = suggestion.keys.map((key) => key.file);
+function exampleLine(
+    outcome: Outcome,
+    suggestion: JoinSuggestion,
+    table: string,
+    columns: readonly string[],
+    inputs: readonly JoinInput[],
+): string {
+    const keyed = suggestion.keys.map((key) => key.file);
+    const files = keyed.length > 0 ? keyed : columns.slice(0, 2);
+    const one = files[0] ?? "?";
     switch (outcome) {
         case "edge":
-            return files.length === 2 ? `${files[0]} - ${files[1]} -> edge` : "two keys -> one edge";
+            return `${table} -> edge: ${endName(one)} -> ${endName(files[1] ?? "?")}`;
         case "node":
-            return files.length > 0 ? `row -> node; edges to ${files.join(", ")}` : "row -> node; edge per key";
+            return `${table} -> node; edges: ${files.map(endName).join(", ") || "?"}`;
         case "links": {
-            const shared = suggestion.link?.columns ?? [];
-            return shared.length > 0 ? `shared ${shared.join(", ")} -> link` : "shared value -> link";
+            const shared = suggestion.link?.columns ?? columns.slice(1, 2);
+            return `${table} -> link: shared ${shared.join(", ") || "?"}`;
         }
-        default:
-            return files.length > 0
-                ? `${files[0]} = ${pathName(suggestion.keys[0].graph)} -> fields`
-                : "key -> fields on existing nodes";
+        default: {
+            const key = suggestion.keys[0];
+            return key === undefined
+                ? `${table} -> fields: ${one}`
+                : `${table} -> fields: ${key.file} = ${key.onto === undefined ? "" : `${inputName(inputs, key.onto)}.`}${pathName(key.graph)}`;
+        }
     }
 }
 
@@ -92,7 +121,13 @@ export function CardBody({
             examples: Object.fromEntries(
                 OUTCOMES.map((each) => [
                     each.value,
-                    exampleLine(each.value, draft.suggest(from, step?.id, { shape: each.shape })),
+                    exampleLine(
+                        each.value,
+                        draft.suggest(from, step?.id, { shape: each.shape }),
+                        inputName(draft.inputs, from),
+                        draft.inputs.find((input) => input.key === from)?.columns ?? [],
+                        draft.inputs,
+                    ),
                 ]),
             ) as Record<Outcome, string>,
         }),

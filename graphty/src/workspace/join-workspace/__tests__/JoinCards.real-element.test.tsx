@@ -229,6 +229,8 @@ describe("the join cards", () => {
             assert.lengthOf(suggested, 1);
             assert.include(suggested[0].closest("label")?.textContent, "An edge");
         });
+        // Each answer's example is the card's own table and columns.
+        assert.include(card.textContent, "door_entries -> edge: person -> building");
         // Nothing is matched or shown until the reader picks.
         assert.isNull(card.querySelector(".jc-match"));
         assert.lengthOf(session.data.edges(), 0);
@@ -426,6 +428,37 @@ describe("the join cards", () => {
         });
     });
 
+    it("offers At least only while links are drawn as edges", async () => {
+        const { dialog } = await openCards([{ name: "phones.csv", text: PHONES }]);
+        const card = await pickAnswer(dialog, await addCard(dialog), /^Links by shared value/, "links");
+        await within(card).findByRole("textbox", { name: "At least" });
+        await segment(card, "Draw", "Value nodes");
+        await waitFor(() => {
+            assert.isNull(within(card).queryByRole("textbox", { name: "At least" }));
+        });
+    });
+
+    it("holds Done while a card cannot run, the card saying why", async () => {
+        const { session, dialog } = await openCards([{ name: "phones.csv", text: PHONES }]);
+        const card = await pickAnswer(dialog, await addCard(dialog), /^Links by shared value/, "links");
+        await waitFor(() => {
+            assert.include(chips(card), "+1 e");
+        });
+        const shared = picker(card, "Shared");
+        if (shared === null) {
+            throw new Error("no Shared picker");
+        }
+        await userEvent.click(shared);
+        await userEvent.keyboard("{Backspace}");
+        await waitFor(() => {
+            assert.include(card.textContent, "pick shared");
+        });
+        const button = within(dialog).getByRole<HTMLButtonElement>("button", { name: /^Done/ });
+        assert.isTrue(button.disabled);
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }));
+        assert.lengthOf(session.data.joins(), 0);
+    });
+
     it("merges a second card's rows into the edges the first card made", async () => {
         const { dialog } = await openCards();
         await pickAnswer(dialog, await addCard(dialog), /^An edge/, "edge");
@@ -459,6 +492,11 @@ describe("the join cards", () => {
         await waitFor(() => {
             assert.strictEqual(door.querySelector("[data-count]")?.textContent, "3 new");
         });
+        const result = within(card).getByRole("group", { name: "Result" });
+        await waitFor(() => {
+            assert.include(result.textContent, "new node");
+        });
+        assert.notInclude(result.textContent, "new end");
     });
 
     it("keeps a named column's load when its No match flips to Add", async () => {
@@ -526,5 +564,43 @@ describe("the join cards", () => {
         assert.lengthOf(session.data.joins(), 1);
         await session.undo();
         assert.strictEqual(session.data.edges().length, pairs);
+    });
+
+    it("reopens two cards of one table as one table; editing one leaves the other's join as it is", async () => {
+        const { session, dialog } = await openCards();
+        await pickAnswer(dialog, await addCard(dialog), /^An edge/, "edge");
+        const next = await addCard(dialog);
+        await choose(next, "From", /^door_entries/);
+        await pickAnswer(dialog, next, /^A node with edges/, "node");
+        await done(dialog);
+        await waitFor(() => {
+            assert.lengthOf(session.data.joins(), 2);
+        });
+        // The reader's own value on an edge the first card made.
+        const [edgeJoin] = session.data.joins();
+        const edge = session.data.edges().find((each) => String(each.source).startsWith("P"));
+        assert.isDefined(edge);
+        await session.data.updateEdges([{ id: edge?.id ?? "", values: { checked: true } }]);
+
+        const again = await openJoin();
+        await within(again).findByText("1 table");
+        const card = await waitFor(() => {
+            const found = again.querySelector<HTMLElement>('[data-outcome="node"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(within(card).getByRole("button", { name: /^Expand/ }));
+        const kind = within(card).getByRole("textbox", { name: "Kind" });
+        await userEvent.clear(kind);
+        await userEvent.type(kind, "entry{Enter}");
+        await done(again);
+
+        await waitFor(() => {
+            const joins = session.data.joins();
+            assert.lengthOf(joins, 2);
+            assert.strictEqual(joins[1].choices.rowNode?.kind, "entry");
+        });
+        assert.strictEqual(session.data.joins()[0].source, edgeJoin.source);
+        assert.strictEqual(session.data.edges().find((each) => each.id === edge?.id)?.checked, true);
     });
 });

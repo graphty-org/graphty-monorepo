@@ -192,16 +192,19 @@ export function Options({
                         }}
                     />
                 </Row>
-                <Row label="At least">
-                    <CommitNumber
-                        label="At least"
-                        min={1}
-                        value={link.minShared ?? 1}
-                        onCommit={(value) => {
-                            set({ link: { ...link, minShared: value } });
-                        }}
-                    />
-                </Row>
+                {/* Value nodes draw every shared value: a minimum only counts toward a link. */}
+                {link.as === "nodes" ? null : (
+                    <Row label="At least">
+                        <CommitNumber
+                            label="At least"
+                            min={1}
+                            value={link.minShared ?? 1}
+                            onCommit={(value) => {
+                                set({ link: { ...link, minShared: value } });
+                            }}
+                        />
+                    </Row>
+                )}
             </>
         );
     }

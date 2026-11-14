@@ -365,8 +365,9 @@ function stepCard(api: JoinWorkspaceApi, step: JoinStepEntry, at: number): CardL
             "data-error": outcome.error === undefined ? undefined : "",
         },
         summary: (
-            <Text span size="sm" c="dimmed" truncate>
-                {[matchLine(step.choices), ...chips].join("; ")}
+            <Text component="span" size="sm" c="dimmed" lineClamp={2} className="jr-summary">
+                {/* The header's chips carry the counts: the summary is the matches alone. */}
+                {matchLine(step.choices)}
             </Text>
         ),
         header: (

@@ -280,7 +280,7 @@ export function fateWord(fate: JoinRowFate, choices: JoinChoices, from: string):
     }
     const words: Readonly<Record<JoinRowFate, string>> = {
         joined: "matched",
-        "new-end": choices.shape === "node-values" ? "new" : "new end",
+        "new-end": newEndWord(choices.shape),
         repeat: "repeat",
         "left-out": "left out",
         merged: "merged",
@@ -288,6 +288,18 @@ export function fateWord(fate: JoinRowFate, choices: JoinChoices, from: string):
         "over-cap": "over cap",
     };
     return words[fate];
+}
+
+/**
+ * The word for a row that made a node: what that node is to the shape.
+ * @param shape - the step's shape.
+ * @returns the word.
+ */
+function newEndWord(shape: JoinShape | undefined): string {
+    if (shape === "node-values") {
+        return "new";
+    }
+    return shape === "row-nodes" ? "new node" : "new end";
 }
 
 /**

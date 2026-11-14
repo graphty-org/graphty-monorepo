@@ -126,7 +126,9 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
     );
 
     const close = (how: "done" | "cancel"): void => {
-        if (closing) {
+        // A card that cannot run blocks Done: committing would leave it out, and it may be a
+        // committed join. The card says why.
+        if (closing || (how === "done" && failing(draft))) {
             return;
         }
         setClosing(true);
@@ -138,23 +140,44 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
         // The regions a compare step keeps become a keep filter on its membership column, once
         // the join has written it.
         const keep = keepRule(draft.steps, keeps);
-        // Each joined source goes by its card's title, numbered when two cards would share it.
-        const titles = new Map<string, number>();
-        for (const each of draft.steps) {
+        // Each joined source goes by its card's title, numbered when two cards would share it. A
+        // reopened card whose name still fits its title keeps it, so Done leaves its join as it is.
+        const taken = new Set<string>();
+        const named = draft.steps.map((each) => {
             const title = cardTitle(each, draft.inputs);
-            const seen = (titles.get(title) ?? 0) + 1;
-            titles.set(title, seen);
-            const name = seen === 1 ? title : `${title} ${String(seen)}`;
-            draft.change(each.id, { from: each.from, choices: each.choices, name });
+            const kept = each.joined !== undefined && each.name !== undefined && fitsTitle(each.name, title);
+            return { each, title, kept };
+        });
+        for (const { each, kept } of named) {
+            if (kept && each.name !== undefined) {
+                taken.add(each.name);
+            }
         }
-        void draft
+        for (const { each, title, kept } of named) {
+            if (kept) {
+                continue;
+            }
+            let name = title;
+            for (let n = 2; taken.has(name); n++) {
+                name = `${title} ${String(n)}`;
+            }
+            taken.add(name);
+            if (name !== each.name) {
+                draft.change(each.id, { from: each.from, choices: each.choices, name });
+            }
+        }
+        draft
             .commit()
             .then(async () => {
                 if (keep !== null) {
                     await session.visibility.addCondition({ effect: "keep", rule: keep });
                 }
+                onClose();
             })
-            .finally(onClose);
+            .catch(() => {
+                // The element refused (a card it cannot run): the workspace stays open on it.
+                setClosing(false);
+            });
     };
     const closeRef = useRef(close);
     closeRef.current = close;
@@ -273,6 +296,7 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
                         size="compact-xs"
                         aria-keyshortcuts={ariaKey(JOIN_KEYS.done)}
                         loading={closing}
+                        disabled={!closing && failing(draft)}
                         rightSection={
                             <Text span size="sm" className="sel-key">
                                 {formatKey(JOIN_KEYS.done)}
@@ -291,6 +315,25 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
         </JoinWorkspaceContext.Provider>,
         frame,
     );
+}
+
+/**
+ * Whether any card of the recipe cannot run.
+ * @param draft - the recipe
+ * @returns true when one cannot
+ */
+function failing(draft: JoinsDraft): boolean {
+    return draft.steps.some((each) => draft.outcome(each.id).error !== undefined);
+}
+
+/**
+ * Whether a joined source's name is a card's title, or the title numbered.
+ * @param name - the name
+ * @param title - the card's title
+ * @returns true when it fits
+ */
+function fitsTitle(name: string, title: string): boolean {
+    return name === title || (name.startsWith(`${title} `) && /^\d+$/.test(name.slice(title.length + 1)));
 }
 
 /**

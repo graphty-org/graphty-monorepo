@@ -1,10 +1,11 @@
 import { DataTable, type DataTableColumn } from "@graphty/compact-mantine";
-import type { JoinElementFate, JoinPreviewRow } from "@graphty/graphty-element/session";
+import type { JoinElementFate, JoinPreviewRow, JoinRowFate } from "@graphty/graphty-element/session";
 import { Button, Group, SegmentedControl, Text } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useMemo, useState } from "react";
 
 import { formatNumber } from "../inspector/words";
+import { fateWord as rowFateWord, inputName } from "./cards/outcomes";
 import { shownStep, useJoinWorkspace } from "./context";
 import { ELEMENT_FATE_WORDS, ROW_FATE_WORDS, ROWS_PAGE } from "./words";
 
@@ -57,12 +58,20 @@ export function RowsPane(): React.JSX.Element {
     const { lines, total } = useMemo((): { lines: readonly Line[]; total: number; version: number } => {
         if (shown === "rows" && step !== undefined) {
             const page = draft.rows(step, { offset, limit: ROWS_PAGE, ...(fate === null ? {} : { fate }) });
+            const entry = draft.steps.find((each) => each.id === step);
+            const rowFate = (each: JoinRowFate): string => {
+                if (entry === undefined) {
+                    return ROW_FATE_WORDS[each];
+                }
+                const word = rowFateWord(each, entry.choices, inputName(draft.inputs, entry.from));
+                return word.charAt(0).toUpperCase() + word.slice(1);
+            };
             return {
                 version,
                 total: page.total,
                 lines: page.items.map((row: JoinPreviewRow) => ({
                     key: String(row.index),
-                    fate: row.fate === undefined ? "" : ROW_FATE_WORDS[row.fate],
+                    fate: row.fate === undefined ? "" : rowFate(row.fate),
                     values: row.values,
                 })),
             };

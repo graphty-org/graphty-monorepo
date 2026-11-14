@@ -1,6 +1,6 @@
 /**
- * @file Small facts a style panel reads off the element: the Selected starting row's ring stands
- * off the default background and every default palette color, a legend block says how many
+ * @file Small facts a style panel reads off the element: the Selected starting row's gold ring, alone,
+ * stands off the dark backgrounds and dark colors, a legend block says how many
  * elements it paints, a rank binding's block names the rank, the node size descriptor refuses a
  * 0 that hides every node, a label size states its unit, and the layout catalog's descriptions
  * hold no code.
@@ -15,7 +15,6 @@ import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { CHANNEL_DESCRIPTORS, toColorValue } from "../../src/session/styles/channels";
 import { luminance } from "../../src/session/styles/legend";
-import { STARTING_SELECTED_LOOK } from "../../src/session/styles/rows";
 import { lesMiserables } from "../helpers/les-miserables";
 
 /** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
@@ -106,34 +105,30 @@ function selectedPart(session: GraphSession, target: "node" | "edge"): ReturnTyp
 }
 
 describe("the Selected starting row's ring", () => {
-    it("is the selection settings' gold, carried by a near-black glow wherever the gold alone is faint", async () => {
+    it("is the selection settings' gold alone, with no glow, standing off the dark backgrounds and dark colors", async () => {
         const session = await lesMis();
         await session.config.set({ startingRows: true });
         const set = selectedPart(session, "node")?.set ?? {};
         const ring = set["node.haloColor"] as string;
-        const glow = set["node.glow"] as string;
 
         assert.strictEqual(ring, session.config.selectionStyle.color, "the yellow highlight readers expect");
         assert.strictEqual(ring, "#FFD700");
-        assert.strictEqual(glow, STARTING_SELECTED_LOOK.glow);
+        assert.notProperty(set, "node.glow", "the owner's choice (#7448): no dark glow under the ring");
         assert.strictEqual(set["node.haloOpacity"], 1, "solid, so the ring is the color measured");
         const band = selectedPart(session, "edge")?.set?.["edge.bandColor"] as string;
         assert.strictEqual(band, session.config.selectionStyle.edgeColor);
         for (const background of [DEFAULT_BACKGROUND, ...DARK_BACKGROUNDS]) {
-            assert.isAtLeast(
-                Math.max(contrast(ring, background), contrast(glow, background)),
-                3,
-                `ring on ${background}`,
-            );
             assert.isAtLeast(contrast(band, background), 3, `band on ${background}`);
         }
-        for (const background of DARK_BACKGROUNDS) {
-            assert.isAtLeast(contrast(ring, background), 3, `the gold alone on ${background}`);
+        // Measured, with no second tone: the gold reads on the dark backgrounds, a black node, the
+        // default node color and the palette's blue (3:1 or better) ...
+        for (const color of [...DARK_BACKGROUNDS, "#000000", DEFAULT_NODE_COLOR, OKABE_ITO_COLORS[3]]) {
+            assert.isAtLeast(contrast(ring, color), 3, `the gold on ${color}`);
         }
-        // The halo is what touches a black node (a route's): the glow is the same dark as the node.
-        assert.isAtLeast(contrast(ring, "#000000"), 3, "ring on a black node");
-        for (const color of [...OKABE_ITO_COLORS, DEFAULT_NODE_COLOR, "#000000"]) {
-            assert.isAtLeast(Math.max(contrast(ring, color), contrast(glow, color)), 3, color);
+        // ... and is faint (under 3:1) on the light background and the palette's lighter colors.
+        // A consumer that needs more contrast there sets a darker selectionStyle color or a glow.
+        for (const color of [DEFAULT_BACKGROUND, ...OKABE_ITO_COLORS.filter((_, at) => at !== 3 && at !== 6)]) {
+            assert.isBelow(contrast(ring, color), 3, `the gold on ${color}`);
         }
         session.dispose();
     });

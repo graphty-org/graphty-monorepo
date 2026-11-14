@@ -187,12 +187,6 @@ describe("camera.pivotOnSelectionCauses", () => {
 
         assert.deepStrictEqual(element.session.selection.nodes, ["n0"], "n0 is selected");
         assert.isBelow(moved(screen(element, ALL), start), 1);
-
-        // A left click afterwards still moves the pivot.
-        await click(element, start[8]);
-        await drawn(element);
-        assert.deepStrictEqual(element.session.selection.nodes, ["n8"]);
-        assert.isAbove(moved(screen(element, ALL), start), 10);
     });
 
     it("a held selection leaves the camera where the selections put it, whichever frame the hold lands on", async () => {

@@ -29,7 +29,9 @@ writeFileSync(
 mkdirSync(bin);
 // The fake gh: one JSON line per call (its arguments and the identity it ran as); `pr list` answers
 // with FAKE_EXISTING, `pr view --json body` with FAKE_BODY, `pr create` with a new URL; create and the REST
-// PATCH of a pull request save the body they were given (the PATCH fails with FAKE_PATCH_FAIL).
+// PATCH of a pull request save the body they were given (the PATCH fails with FAKE_PATCH_FAIL); `pr merge
+// --disable-auto` fails with FAKE_DISABLE_FAIL, and `pr view --json autoMergeRequest` answers FAKE_AUTO_MERGE
+// ("true", "false" -- the default -- or "fail", which makes the call itself fail).
 writeFileSync(
     join(bin, "gh"),
     `#!/usr/bin/env node
@@ -37,7 +39,11 @@ const fs = require("node:fs");
 const a = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ a, gh: process.env.GH_CONFIG_DIR, git: process.env.GIT_CONFIG_GLOBAL, count: process.env.GIT_CONFIG_COUNT ?? null }) + "\\n");
 if (a[0] === "pr" && a[1] === "list") process.stdout.write(process.env.FAKE_EXISTING ?? "");
-if (a[0] === "pr" && a[1] === "view") process.stdout.write((a.includes("body") ? process.env.FAKE_BODY : process.env.FAKE_REVIEWS) ?? "");
+if (a[0] === "pr" && a[1] === "merge" && a.includes("--disable-auto") && process.env.FAKE_DISABLE_FAIL) process.exit(1);
+if (a[0] === "pr" && a[1] === "view" && a.includes("autoMergeRequest")) {
+    if (process.env.FAKE_AUTO_MERGE === "fail") process.exit(1);
+    process.stdout.write((process.env.FAKE_AUTO_MERGE ?? "false") + "\\n");
+} else if (a[0] === "pr" && a[1] === "view") process.stdout.write((a.includes("body") ? process.env.FAKE_BODY : process.env.FAKE_REVIEWS) ?? "");
 if (a[0] === "api" && a.includes("PATCH")) {
     if (process.env.FAKE_PATCH_FAIL) process.exit(1);
     fs.copyFileSync(a.find((x) => x.startsWith("body=@")).slice(6), ${JSON.stringify(join(dir, "body.md"))});
@@ -416,6 +422,39 @@ describe("pr-open.sh", () => {
             "--disable-auto",
         ]);
     });
+
+    it("carries on when turning auto-merge off fails because it was never on", () => {
+        branch("feat/1250-break", { "x.txt": "x\n" }, "feat(layout)!: drop the old layout");
+        const r = run(undefined, {
+            FAKE_EXISTING: "https://github.com/o/r/pull/12 graphty-agent",
+            FAKE_DISABLE_FAIL: "1",
+            FAKE_AUTO_MERGE: "false",
+        });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /auto-merge is NOT on for .*: it holds a breaking change/);
+        assert.equal(armed().length, 0);
+    });
+
+    for (const [state, why] of [
+        ["true", "still armed"],
+        ["fail", "unknown"],
+    ]) {
+        it(`fails loudly when turning auto-merge off on a held pull request fails and auto-merge is ${why}`, () => {
+            branch(`feat/1251-${state}`, { "x.txt": "x\n" }, "feat(layout)!: drop the old layout");
+            const r = run(undefined, {
+                FAKE_EXISTING: "https://github.com/o/r/pull/13 graphty-agent",
+                FAKE_DISABLE_FAIL: "1",
+                FAKE_AUTO_MERGE: state,
+            });
+            assert.equal(r.code, 1, r.out);
+            assert.match(
+                r.out,
+                /auto-merge could not be turned off for .*pull\/13 and may still be on .*the owner must merge it: it holds a breaking change/,
+            );
+            assert.doesNotMatch(r.out, /auto-merge is NOT on/);
+            assert.equal(armed().length, 0);
+        });
+    }
 
     it("leaves auto-merge off for a file that guards the owner", () => {
         branch("ci/1248-keys", { "visual-review/passkeys.json": "{}\n" }, "ci(visual-review): add a key");

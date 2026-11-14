@@ -7,6 +7,7 @@ import { type RegisterOptions, SharedImplementationMap } from "../catalog/plugin
 import { noteDescribedAlgorithm, noteUndescribedAlgorithm, publishAlgorithmDescriptor } from "../catalog/registry";
 import type { AlgorithmDescriptor, FieldDescriptor, NodeId, SuggestedName } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
+import { writableLane } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
@@ -472,7 +473,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             ...(weight === undefined ? {} : { weight }),
         };
 
-        return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this), this.columns());
+        const data = this.graph.getDataManager();
+        // The store's snapshot lends the lane by reference, so a layout's owed publish
+        // (design/rendering/row-renderer.md 4.5) is written before the run reads its positions.
+        writableLane(data)?.settle();
+        return createScopedInput(data, orientation, merged, runInputOf(this), this.columns());
     }
 
     /**

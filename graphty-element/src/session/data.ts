@@ -102,6 +102,7 @@ import {
     LOAD_ROLES,
     readSource,
 } from "./draft";
+import type { LaneStore } from "./GraphSession";
 import { columnMutations } from "./importColumns";
 import {
     type DataIssue,
@@ -799,7 +800,7 @@ export class SessionData implements SessionDataApi {
     readonly store: SessionGraphStore;
 
     /** The store itself, which the session's own readers read. */
-    private readonly graphStore: SessionGraphStore;
+    private readonly graphStore: LaneStore;
     private readonly records: SessionRecordSource | null;
     private readonly readConfig: () => SessionDataConfig;
     private readonly writes: DataWrites;
@@ -886,7 +887,7 @@ export class SessionData implements SessionDataApi {
      * @param pages - the revision and the scope resolver a page reads
      */
     constructor(
-        store: SessionGraphStore,
+        store: LaneStore,
         records: SessionRecordSource | null,
         readConfig: () => SessionDataConfig,
         writes: DataWrites,
@@ -1977,7 +1978,7 @@ export class SessionData implements SessionDataApi {
      */
     snapshot(): GraphSnapshot {
         this.requireLive("snapshot");
-        return consumerSnapshot(this.graphStore.getSnapshot());
+        return consumerSnapshot(this.graphStore);
     }
 
     /**
@@ -6347,10 +6348,10 @@ export function headlessDataService(
  * @param store - The store.
  * @returns The read-only store.
  */
-function readonlyStore(store: SessionGraphStore): SessionGraphStore {
+function readonlyStore(store: LaneStore): SessionGraphStore {
     const positions = readonlyPositions(() => store.positions);
     return {
-        getSnapshot: () => consumerSnapshot(store.getSnapshot()),
+        getSnapshot: () => consumerSnapshot(store),
         undirected: (snapshot) => store.undirected(snapshot),
         positions,
         get seededNodeCount() {
@@ -6374,10 +6375,16 @@ function readonlyStore(store: SessionGraphStore): SessionGraphStore {
  * of them would change what compute runs over, or place and pin nodes, with no step and nothing
  * for undo to restore. A copy keeps the published type, so an exporter reading
  * `byRole("position").data` works unchanged, and whatever the consumer writes stays theirs.
- * @param resident - The store's snapshot.
+ *
+ * The resident snapshot lends the lane by reference and is handed back cached without touching the
+ * lane, so a layout's owed publish (design/rendering/row-renderer.md 4.5) is written first: the copy
+ * carries the latest landing, not the coordinates of the last settle.
+ * @param store - The store.
  * @returns The consumer's snapshot.
  */
-function consumerSnapshot(resident: GraphSnapshot): GraphSnapshot {
+function consumerSnapshot(store: LaneStore): GraphSnapshot {
+    store.positions.settle();
+    const resident = store.getSnapshot();
     // ponytail: copies the whole snapshot per call (O(nodes + edges)); cache a copy per freeze and
     // lane generation, handed out as read-only views, if a consumer calls this every frame.
     const copy = fromBytes(resident.toBytes(), { validate: "none" });

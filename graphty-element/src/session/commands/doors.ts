@@ -3670,6 +3670,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,
+            // A layout drawing from the card owes the lane its frame; settling it writes the rows.
+            owe: LANE,
+            forgive: LANE,
+            settle: LANE,
+            keeps: READ,
+            unsettledView: READ,
         },
     },
     {

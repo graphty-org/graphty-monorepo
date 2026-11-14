@@ -905,6 +905,24 @@ export { credentials }
 export { credentialSlots }
 
 // @public
+export interface DataChange {
+    readonly added: DataChangeIds;
+    readonly cause: HistoryCause;
+    readonly fields: {
+        readonly nodes: readonly string[];
+        readonly edges: readonly string[];
+    };
+    readonly removed: DataChangeIds;
+    readonly updated: DataChangeIds;
+}
+
+// @public
+export interface DataChangeIds {
+    readonly edges: readonly EdgeId[];
+    readonly nodes: readonly NodeId_2[];
+}
+
+// @public
 export interface DataIssue {
     readonly code: IssueCode;
     readonly column?: ColumnRef;
@@ -6089,6 +6107,7 @@ export interface SessionEventMap {
     "capabilities:changed": {
         readonly capabilities: SessionCapabilities;
     };
+    "data:changed": DataChange;
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
     };

@@ -78,8 +78,6 @@ interface EigenvectorCentralityOptions extends Record<string, unknown> {
     mode: "in" | "out" | "total";
     /** Not supported: this method walks no paths, so `true` is refused */
     endpoints: boolean;
-    /** Custom initial vector for power iteration (programmatic only, not in schema) */
-    startVector: Map<string, number> | null;
 }
 
 /** What an eigenvector result publishes: the uniform node-metric fields and nothing else. */
@@ -148,7 +146,6 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
                 "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
-        // Note: startVector is a Map type - programmatic only, not in schema
     };
 
     /**
@@ -168,8 +165,6 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         const { maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
         refuseEndpoints("Eigenvector centrality", endpoints);
-        // Map types are programmatic-only (not in schema)
-        const startVector = this._schemaOptions.startVector ?? undefined;
 
         // "total" (the default), or a graph loaded undirected: influence flows across an edge in
         // either direction. "in" and "out" on a directed graph keep the declared direction and let
@@ -196,14 +191,6 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
                     maxIterations,
                     tolerance,
                     mode,
-                    // Keyed by node id; a node the map does not name starts at 1, as it always has.
-                    startVector:
-                        startVector === undefined
-                            ? undefined
-                            : Float64Array.from(
-                                  { length: s.nodeCount },
-                                  (_, i) => startVector.get(String(ids.idOf(i))) ?? 1,
-                              ),
                 }),
             ));
         } catch (error) {

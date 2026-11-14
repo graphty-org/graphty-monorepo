@@ -58,6 +58,7 @@ import { GraphtyError, isGraphtyError } from "../errors";
 import type { FeatureId } from "../features/registry";
 import { type EnabledFeatures, featureOff, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
+import { GraphtyLogger } from "../logging/GraphtyLogger";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -175,6 +176,8 @@ import {
     type FieldWords,
     type PathDirectory,
     type SessionStylesApi,
+    type StyleRepaintCause,
+    type StyleRepaintFailure,
 } from "./styles";
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
@@ -200,7 +203,7 @@ import {
     type SessionSelectorSource,
     STRUCTURE_PATHS,
 } from "./styles/sources";
-import { paintingOf } from "./styles/StylesApi";
+import { paintingOf, repaintFailure } from "./styles/StylesApi";
 import type { EdgeAgeFade } from "./time/ageFade";
 import { numericBound } from "./time/parse";
 import { createTimeApi, gatedTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
@@ -3681,6 +3684,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // accepted against a scale the repaint then could not find, which reads as a layer that
     // validated and paints nothing.
     const scales = createScaleRegistry();
+    const reportRepaintFailure = (failure: StyleRepaintFailure): void => {
+        GraphtyLogger.getLogger(["graphty", "style"]).error("Repaint failed", failure.error, {
+            cause: failure.cause,
+            code: failure.error.code,
+        });
+        publish(watchers, "style:repaint-failed", failure);
+    };
     // The columnar pass, over the session's own data. It resolves what every element shows and
     // stops there: binding a renderer to those columns is a separate step, and nothing here
     // reaches one.
@@ -3698,11 +3708,31 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),
             ...(internals.batched === undefined ? {} : { uniformFill: internals.batched }),
+            onProblem: (problem) => {
+                reportRepaintFailure({
+                    cause: "layer",
+                    error: new GraphtyError({
+                        code: problem.code,
+                        message: problem.message,
+                        source: "style",
+                        target: { kind: "layer", id: problem.layerId },
+                    }),
+                });
+            },
         }),
         snapshot,
     );
 
     const teardown = new AbortController();
+    // A repaint the element starts on its own has no caller to reject: its failure is logged and
+    // published as a coded `style:repaint-failed`, unless the session ending stopped it.
+    const repaintFailed =
+        (cause: StyleRepaintCause) =>
+        (error: unknown): void => {
+            if (!teardown.signal.aborted) {
+                reportRepaintFailure(repaintFailure(cause, error));
+            }
+        };
     // A `{match:"state"}` layer reads the selection and the pointer live, which change with no
     // step: each change repaints exactly the elements whose state moved, when a layer reads one.
     const readsState = (): boolean =>
@@ -3719,11 +3749,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         painter
             .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined, rowsOnly })
-            .catch((error: unknown) => {
-                if (!teardown.signal.aborted) {
-                    console.error("[graphty] Could not repaint the layers reading the selection.", error);
-                }
-            });
+            .catch(repaintFailed("selection"));
     };
     // The peek's layers leave the stack as it ends, so its repaint cannot ask what reads a state.
     repaintPeek = (dirty: ElementIndices): void => {
@@ -3733,11 +3759,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         painter
             .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
-            .catch((error: unknown) => {
-                if (!teardown.signal.aborted) {
-                    console.error("[graphty] Could not repaint the elements a peek moved.", error);
-                }
-            });
+            .catch(repaintFailed("peek"));
     };
     // A pin or a release moves nodes in or out of a `{ match: "state", state: "pinned" }` layer.
     dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
@@ -3855,11 +3877,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                     // The members moved without a command: a key and a count read again on this.
                     dispatcher.repaintedOutsidePass(["styles"]);
                 })
-                .catch((error: unknown) => {
-                    if (!teardown.signal.aborted) {
-                        console.error("[graphty] Could not repaint the layers naming a set that changed.", error);
-                    }
-                });
+                .catch(repaintFailed("sets"));
         },
     });
     teardown.signal.addEventListener("abort", () => {
@@ -3959,6 +3977,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onRefused: (refusal) => {
             publish(watchers, "style:refused", refusal);
         },
+        onRepaintFailed: reportRepaintFailure,
         onBatch: (batch) => {
             publish(watchers, "style:batch-changed", batch);
         },
@@ -3989,11 +4008,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 { node: all(graph.nodeCount), edge: all(graph.edgeCount) },
                 { signal: teardown.signal, report: () => undefined },
             )
-            .catch((error: unknown) => {
-                if (!teardown.signal.aborted) {
-                    console.error("[graphty] Could not repaint the layers that follow the pointer.", error);
-                }
-            });
+            .catch(repaintFailed("hover"));
     };
 
     // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has

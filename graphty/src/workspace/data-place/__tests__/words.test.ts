@@ -2,10 +2,10 @@ import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
 import type { LoadedSource } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
+import { count } from "../../inspector/words";
 import {
     attributeRows,
     columnOf,
-    count,
     countWords,
     fillOf,
     joinMatch,

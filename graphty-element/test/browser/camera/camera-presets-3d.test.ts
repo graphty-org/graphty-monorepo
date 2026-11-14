@@ -1,5 +1,4 @@
-import { assert } from "chai";
-import { afterAll, afterEach, beforeEach, describe, test } from "vitest";
+import { afterAll, afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { clearRegisteredCamerasForTesting, registerCameraView } from "../../../extend";
 import { Graph } from "../../../src/Graph.js";

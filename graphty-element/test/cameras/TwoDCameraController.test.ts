@@ -1,6 +1,5 @@
 import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { TwoDCameraController, type TwoDCameraControlsConfigType } from "../../src/cameras/TwoDCameraController";
 

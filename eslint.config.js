@@ -337,6 +337,8 @@ export default tseslint.config(
                 {
                     patterns: [
                         { regex: "^zod/v[34]", message: 'Import zod as "zod" (core types are z.core.*).' },
+                        // Tests assert with vitest's own assert, never a separate chai import (issue #7003).
+                        { regex: "^chai(/|$)", message: "import assert from vitest" },
                         // @babylonjs/* is "type": "module", so webpack 5 requires a fully specified
                         // deep import and refuses one without its extension (issue #3219).
                         {
@@ -369,7 +371,6 @@ export default tseslint.config(
             "**/__tests__/**/*.tsx",
         ],
         rules: {
-            "@typescript-eslint/no-explicit-any": "off",
             "@typescript-eslint/explicit-function-return-type": "off",
             "@typescript-eslint/no-non-null-assertion": "off",
             "@typescript-eslint/unbound-method": "off",

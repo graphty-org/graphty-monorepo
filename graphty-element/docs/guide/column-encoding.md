@@ -214,6 +214,7 @@ for (const block of session.styles.legend()) {
 | `legend.lumped`             | `{ count }`         | `count` elements are in the "other" row                                 |
 | `legend.not-measured`       | `{ count }`         | `count` elements the run measured nothing for                           |
 | `legend.painted-over`       | `{ layerId, name }` | A layer above paints this channel over every element this one reaches   |
+| `legend.no-spread`          | `{ value }`         | Every value is `value`, so the scale paints the middle of its range     |
 
 Treat a code you do not know as something to leave out: codes may be added in a minor release.
 The older English fields -- a row's `label`, the field's `plainName`, the scale's `label` and the

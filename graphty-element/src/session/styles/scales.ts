@@ -164,11 +164,11 @@ function mapToRange(position: number, context: ScaleContext): number {
 /**
  * Where one transformed value sits between two transformed domain endpoints.
  *
- * A DEGENERATE DOMAIN ANSWERS 0. When every value in the data is the same, or the domain is a
- * single point, there is no spread to place anything in: the value is simultaneously the
- * smallest and the largest, and the scale reports the smallest. It is not a miss -- the value
- * exists and is painted -- and it is not the midpoint, which would be a second arbitrary choice
- * dressed up as a neutral one.
+ * A DEGENERATE DOMAIN ANSWERS 0.5, THE MIDDLE OF THE SCALE (owner's decision, issue #118). When
+ * every value in the data is the same, or the domain is a single point, there is no spread to
+ * place anything in. Painting either end would claim every element scored the minimum (or the
+ * maximum); the middle claims neither. It is not a miss -- the value exists and is painted --
+ * and the binding reports the missing spread as the `legend.no-spread` fact.
  * @param value - The transformed value.
  * @param low - The transformed lower endpoint.
  * @param high - The transformed upper endpoint.
@@ -177,7 +177,7 @@ function mapToRange(position: number, context: ScaleContext): number {
  */
 function positionBetween(value: number, low: number, high: number, middle: number | undefined): number {
     if (low === high) {
-        return 0;
+        return 0.5;
     }
 
     if (middle !== undefined && Number.isFinite(middle) && middle !== low && middle !== high) {
@@ -324,7 +324,8 @@ export function groupCount(name: string, context: ScaleContext): number {
  * @param groups - How many groups there are.
  * @param context - The binding's options.
  * @returns The value for the channel, or NaN when the value belongs to no group. A single group
- *   sits at the near end of the range, for the same reason a degenerate domain does.
+ *   sits at the near end of the range: the binding asked for one group, which is not the same as
+ *   data with no spread.
  */
 function fromSlot(slot: number, groups: number, context: ScaleContext): number {
     if (slot < 0 || groups < 1) {
@@ -349,7 +350,8 @@ const binsScale: ScaleFn = (value, context) => {
 
     const groups = groupCount("bins", context);
     if (low === high) {
-        return fromSlot(0, groups, context);
+        // No spread to cut into groups: the middle of the range, as a continuous scale paints it.
+        return mapToRange(0.5, context);
     }
 
     const position = clamp((raw - low) / (high - low), 0, 1);
@@ -370,6 +372,12 @@ const quantileScale: ScaleFn = (value, context) => {
     }
 
     const thresholds = context.thresholds ?? [];
+    const [low, high] = context.domain;
+    if (low === high && thresholds.every((threshold) => threshold === low)) {
+        // Every value the same: no spread to cut, so the middle of the range, as bins paints it.
+        return mapToRange(0.5, context);
+    }
+
     const groups = thresholds.length + 1;
     let slot = 0;
     for (const threshold of thresholds) {

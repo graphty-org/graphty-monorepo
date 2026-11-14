@@ -7061,7 +7061,7 @@
             "background": 1,
             "raster.arrowhead": 0.9,
             "raster.canvas": 0.95,
-            "raster.edge": 0.85,
+            "raster.edge": 0.86,
             "raster.label": 0.91,
             "raster.nodeBody": 0.92,
             "raster.nodeOutline": 0.87,

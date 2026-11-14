@@ -100,6 +100,22 @@ describe("the Project package", () => {
         assert.isNotNull(screen.getByRole("heading", { level: 1, name: /^Analyze any network\./ }));
     });
 
+    it("puts Rename directly under New project in the main menu, and Rename opens the name", async () => {
+        render(<Workspace store={createWorkspaceStore(OPEN)} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        const menu = await screen.findByRole("menu");
+        const names = within(menu)
+            .getAllByRole("menuitem")
+            .map((item) => item.textContent ?? "");
+        const at = names.findIndex((name) => name.startsWith("New project"));
+        assert.isAtLeast(at, 0);
+        assert.match(names[at + 1], /^Rename/);
+
+        await userEvent.click(within(menu).getByRole("menuitem", { name: /^Rename/ }));
+        assert.isNotNull(await screen.findByRole("textbox", { name: "Project name" }));
+    });
+
     it("lists recent projects with their size, asks for a downloaded file with Locate..., and removes one", async () => {
         await rememberRecent({ id: "a", name: "Older", nodes: 1, at: 1 });
         await rememberRecent({ id: "b", name: "Les Miserables", nodes: 77, at: 2 });

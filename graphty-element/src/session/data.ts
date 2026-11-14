@@ -3973,7 +3973,8 @@ export class SessionData implements SessionDataApi {
         restored: Map<string, Readonly<Record<string, unknown>>>;
     } {
         const { join } = previous;
-        const kind: "node" | "edge" = join?.shape === "edge-values" ? "edge" : "node";
+        // An edges join's `before` holds the values it merged into edges the graph held.
+        const kind: "node" | "edge" = join?.shape === "edge-values" || join?.shape === "edges" ? "edge" : "node";
         const held = new Map(
             join?.before === undefined ? [] : this.joinRows(kind).map((row) => [String(row.id), row] as const),
         );
@@ -4101,6 +4102,11 @@ export class SessionData implements SessionDataApi {
                 sources: left,
                 provenance: leftProvenance,
             });
+        }
+
+        // Values merged into edges the graph holds (`existingEdges: "merge"`): not supplied by this load.
+        if (plan.edgeRows !== undefined && plan.edgeRows.length > 0) {
+            steps.push({ op: "data.apply", mutation: { kind: "update-rows", target: "edge", rows: plan.edgeRows } });
         }
 
         // A node the join only marks takes its value here, so the load does not count it as supplied.
@@ -4484,7 +4490,8 @@ export class SessionData implements SessionDataApi {
                 continue;
             }
 
-            const kind = join.shape === "node-values" || join.shape === "merge" ? "node" : "edge";
+            const kind =
+                join.shape === "node-values" || join.shape === "merge" || join.shape === "row-nodes" ? "node" : "edge";
             for (const name of join.columns) {
                 const rule = join.choices.clash?.[name];
                 if (rule !== "overwrite" && rule !== "keep") {
@@ -5827,7 +5834,7 @@ function withJoinsResting(sources: readonly LoadedSource[], key: SourceKey): Loa
  * @returns true when it does
  */
 function addsElements(join: JoinRecord | undefined): boolean {
-    return join?.shape === "edges" || join?.shape === "merge" || join?.shape === "link";
+    return join?.shape === "edges" || join?.shape === "merge" || join?.shape === "link" || join?.shape === "row-nodes";
 }
 
 /**

@@ -2973,6 +2973,7 @@ export interface JoinChoices {
         readonly source?: string;
         readonly target?: string;
     };
+    readonly existingEdges?: "add" | "merge";
     readonly flag?: string;
     readonly fuse?: Readonly<Record<string, JoinReduce>>;
     readonly ignore?: readonly JoinWarning[];
@@ -2986,6 +2987,7 @@ export interface JoinChoices {
     readonly membership?: string;
     readonly names?: Readonly<Record<string, string>>;
     readonly repeated?: "first" | "last" | "both";
+    readonly rowNode?: JoinRowNode;
     readonly shape?: JoinShape;
     readonly split?: Readonly<Record<string, string>>;
     readonly unknownEnds?: "add" | "leave-out";
@@ -3018,6 +3020,8 @@ export interface JoinInput {
 export interface JoinKey {
     readonly file: string;
     readonly graph: Path;
+    readonly kind?: string;
+    readonly unknown?: "add" | "leave-out";
 }
 
 // @beta
@@ -3141,6 +3145,7 @@ export interface JoinReport {
         readonly column: string;
         readonly code: "clash";
     }[];
+    readonly edgesMerged?: number;
     readonly extraIgnoringCase: number;
     readonly extraIgnoringSpaces: number;
     readonly fanOut: number;
@@ -3172,6 +3177,12 @@ export interface JoinReport {
 // @public
 export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out" | "merged" | "linked" | "over-cap";
 
+// @public
+export interface JoinRowNode {
+    readonly id?: string;
+    readonly kind?: string;
+}
+
 // @beta
 export interface JoinsDraft {
     add(step: JoinStep, at?: number): string;
@@ -3197,12 +3208,12 @@ export interface JoinsDraft {
     }): JoinPage<JoinPreviewRow>;
     samples(from: string, column: string): readonly unknown[];
     readonly steps: readonly JoinStepEntry[];
-    suggest(from: string, before?: string): JoinSuggestion;
+    suggest(from: string, before?: string, options?: JoinSuggestOptions): JoinSuggestion;
     undo(): void;
 }
 
 // @public
-export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link";
+export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link" | "row-nodes";
 
 // @beta
 export interface JoinStep {
@@ -3232,7 +3243,13 @@ export interface JoinSuggestion {
     readonly keys: readonly JoinKey[];
     readonly link?: JoinLink;
     readonly repeated?: "both";
+    readonly rowNode?: JoinRowNode;
     readonly shape: JoinShape;
+}
+
+// @beta
+export interface JoinSuggestOptions {
+    readonly shape?: JoinShape;
 }
 
 // @public

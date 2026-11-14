@@ -16,6 +16,7 @@ import {
     type JoinTable,
     keyMatchesOf,
     planJoin,
+    suggestFor,
     suggestJoin,
 } from "./join";
 import { isSourceFactKey } from "./sources/ids";
@@ -37,6 +38,7 @@ import type {
     JoinStepEntry,
     JoinStepOutcome,
     JoinSuggestion,
+    JoinSuggestOptions,
 } from "./types";
 
 /** One node or edge of the draft's copy of the graph. */
@@ -182,6 +184,14 @@ function applied(
         }
 
         return { graph: { nodes, edges }, fates };
+    }
+
+    for (const row of plan.edgeRows ?? []) {
+        const held = edges.get(row.id);
+        if (held !== undefined) {
+            edges.set(row.id, { ...held, data: { ...held.data, ...row.values } });
+            fates.set(`e:${row.id}`, changes(held.data, row.values) ? "updated" : "matched");
+        }
     }
 
     const merged = new Set(plan.matchedIds.map(String));
@@ -492,12 +502,14 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
                 cached = null;
             }
         },
-        suggest(from: string, before?: string): JoinSuggestion {
+        suggest(from: string, before?: string, options: JoinSuggestOptions = {}): JoinSuggestion {
             live("suggest a join");
             checkFrom({ from, choices: { keys: [] } });
             const graph = before === undefined ? (run().at(-1)?.after ?? start) : stepRun(before).before;
-            const table = tableOf(from, graph);
-            return suggestJoin(table ?? { name: from, columns: [], rows: [] }, joinGraph(graph));
+            const table = tableOf(from, graph) ?? { name: from, columns: [], rows: [] };
+            return options.shape === undefined
+                ? suggestJoin(table, joinGraph(graph))
+                : suggestFor(table, joinGraph(graph), options.shape);
         },
         samples(from: string, column: string): readonly unknown[] {
             live("read an input's values");

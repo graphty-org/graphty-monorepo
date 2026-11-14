@@ -2543,11 +2543,29 @@ export interface LoadedSource extends DataSourceDescriptor {
  * - `"link"`: one row per node, matched by a key; nodes whose rows share a value in
  *   `JoinChoices.link.columns` are linked. Never suggested as the shape; a values suggestion
  *   names the columns that fit in `JoinSuggestion.link`.
+ * - `"row-nodes"`: each row becomes a node of its own (`JoinChoices.rowNode`), with an edge to
+ *   the node each key names (a door entry linked to its person and its building); the nodes it
+ *   names are left as they are. Never suggested as the shape; ask for it with
+ *   `JoinsDraft.suggest(from, before, { shape: "row-nodes" })`. @since 3.39.0
  *
  * OPEN UNION: shapes may be added in a minor release.
  * @since 3.30.0
  */
-export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link";
+export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link" | "row-nodes";
+
+/**
+ * The node each row becomes in a join of `shape: "row-nodes"` ({@link JoinChoices.rowNode}).
+ * @since 3.39.0
+ */
+export interface JoinRowNode {
+    /**
+     * The column holding each row's node id (an entry_id). Default: `<table name>:<row number>`,
+     * counting from 1. A row whose id is blank is left out; a repeated id follows `repeated`.
+     */
+    readonly id?: string;
+    /** The `kind` every row node takes. Default: the table's name. */
+    readonly kind?: string;
+}
 
 /**
  * How many rows become one value ({@link JoinChoices.aggregate}): `"count"` the rows with a value,
@@ -2633,6 +2651,19 @@ export interface JoinKey {
      * `"data.<column>"`.
      */
     readonly graph: Path;
+    /**
+     * For `"row-nodes"`: a value naming no node either `"add"`s a node for it (id the value, `kind`
+     * this key's `kind`, by default its column) or is `"leave-out"`, drawing no edge for this key
+     * (the default).
+     * @since 3.39.0
+     */
+    readonly unknown?: "add" | "leave-out";
+    /**
+     * For `"row-nodes"`: match only nodes of this `kind`, and give the nodes `unknown: "add"` makes
+     * this kind. A made node whose id a node of another kind holds becomes `<kind>:<value>`.
+     * @since 3.39.0
+     */
+    readonly kind?: string;
 }
 
 /**
@@ -2659,6 +2690,24 @@ export interface JoinSuggestion {
      * each is its own event. Absent otherwise. @since 3.38.0
      */
     readonly repeated?: "both";
+    /** For `"row-nodes"`: the column unique to each row that names its node. @since 3.39.0 */
+    readonly rowNode?: JoinRowNode;
+}
+
+/**
+ * What {@link JoinsDraft.suggest} is asked for.
+ * @since 3.39.0
+ * @beta
+ */
+export interface JoinSuggestOptions {
+    /**
+     * The shape the reader chose: suggest the keys that fit it rather than the shape. `"edges"`:
+     * the two columns that best name nodes; `"row-nodes"`: every column naming nodes, and a
+     * column unique per row as `rowNode.id`; `"link"`: the key and the columns whose shared
+     * values would link nodes (`link.columns`, empty when none fits); values and `"merge"`: the
+     * best single key onto the nodes.
+     */
+    readonly shape?: JoinShape;
 }
 
 /**
@@ -2802,6 +2851,19 @@ export interface JoinChoices {
      * @since 3.38.0
      */
     readonly unmatchedRows?: "leave-out" | "add";
+    /**
+     * For `"row-nodes"`: the node each row becomes. Default: an id of `<table name>:<row number>`
+     * and the table's name as its `kind`.
+     * @since 3.39.0
+     */
+    readonly rowNode?: JoinRowNode;
+    /**
+     * For `"edges"`: a row whose two ends already have an edge (either way round in an undirected
+     * graph) either `"add"`s another edge (the default) or `"merge"`s its values into that edge,
+     * with `clash` and `repeated` (or `aggregate`) deciding as for values. Taken back with the join.
+     * @since 3.39.0
+     */
+    readonly existingEdges?: "add" | "merge";
 }
 
 /**
@@ -2911,6 +2973,12 @@ export interface JoinReport {
      * @since 3.38.0
      */
     readonly unreadRows: number;
+    /**
+     * For `"edges"` with `existingEdges: "merge"`: the edges the graph already held that rows
+     * write values onto. 0 otherwise.
+     * @since 3.39.0
+     */
+    readonly edgesMerged?: number;
 }
 
 /**
@@ -3209,12 +3277,14 @@ export interface JoinsDraft {
     redo(): void;
     /**
      * How an input most likely joins: `draft.suggestJoin()` for it, against the graph the recipe
-     * leaves (or the graph before a step).
+     * leaves (or the graph before a step). With `options.shape`, the keys that fit the shape the
+     * reader chose instead (`{ shape: "edges" }` the two columns naming each end).
      * @param from - The input's key.
      * @param before - A step: suggest against the graph before it.
+     * @param options - The shape chosen. @since 3.39.0
      * @returns The suggestion.
      */
-    suggest(from: string, before?: string): JoinSuggestion;
+    suggest(from: string, before?: string, options?: JoinSuggestOptions): JoinSuggestion;
     /**
      * A few of an input's values in one column, blanks skipped: what a column picker shows.
      * @param from - The input's key.

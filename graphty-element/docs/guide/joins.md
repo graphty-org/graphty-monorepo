@@ -64,6 +64,7 @@ end, then the target end, each on its own graph value.
 | `"edges"`       | an edge between two nodes | adds an edge; an end the graph lacks becomes a new node                 |
 | `"link"`        | the values one node holds | links the nodes that share a value in the columns you name              |
 | `"merge"`       | a node of a second list   | merges the row into the node it names; a row naming none becomes a node |
+| `"row-nodes"`   | a node of its own         | adds a node per row, with an edge to the node each key names            |
 
 ### Values onto nodes or edges
 
@@ -87,13 +88,17 @@ await draft.load({ join: { ...suggestion, aggregate: { time: ["count", "first", 
 // one edge per person and building, with "time (count)", "time (first)" and "time (last)"
 ```
 
-| Choice        | What it does                                                                                        |
-| ------------- | --------------------------------------------------------------------------------------------------- |
-| `unknownEnds` | A row with an end the graph lacks: `"add"` the end as a new node (default) or `"leave-out"` the row |
-| `repeated`    | Several rows for one pair: `"first"` (default) or `"both"` (one edge per row)                       |
-| `aggregate`   | One edge per pair, with its rows reduced (below)                                                    |
-| `endKinds`    | The `kind` of the nodes the join makes, by end: `{ target: "go-term" }`                             |
-| `kindIds`     | With `endKinds`: `"scoped"` matches an end only to nodes of its kind                                |
+| Choice          | What it does                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| `unknownEnds`   | A row with an end the graph lacks: `"add"` the end as a new node (default) or `"leave-out"` the row  |
+| `repeated`      | Several rows for one pair: `"first"` (default) or `"both"` (one edge per row)                        |
+| `aggregate`     | One edge per pair, with its rows reduced (below)                                                     |
+| `endKinds`      | The `kind` of the nodes the join makes, by end: `{ target: "go-term" }`                              |
+| `kindIds`       | With `endKinds`: `"scoped"` matches an end only to nodes of its kind                                 |
+| `existingEdges` | A pair the graph already links: `"add"` another edge (default) or `"merge"` the row's values into it |
+
+With `existingEdges: "merge"`, a column the edge already holds follows `clash`, and the report
+counts the edges written onto as `edgesMerged`. Removing the join puts their values back.
 
 A membership table (gene, GO term) is an edges join whose second end names things the graph
 lacks: `{ shape: "edges", keys, endKinds: { target: "go-term" } }` makes one node per term and an
@@ -145,6 +150,35 @@ join; linking is your choice. When no column fits, `link` is absent and a link j
 
 The report counts `pairsLinked`, `valuesOverCap` (shared too widely, skipped) and
 `pairsBelowMin`.
+
+### A node per row, linked to what it names
+
+A door entry names a person, a building and a door. To keep each entry as a node of its own, with
+an edge to each thing it names, use `"row-nodes"`. The nodes it names are left as they are:
+
+```ts
+const choices = {
+    shape: "row-nodes",
+    rowNode: { id: "entry_id", kind: "entry" },
+    keys: [
+        { file: "person_id", graph: "id" },
+        { file: "building_id", graph: "id" },
+        { file: "door", graph: "id", kind: "door", unknown: "add" },
+    ],
+} as const;
+await draft.load({ join: choices });
+// one "entry" node per row; edges of kind "person_id", "building_id" and "door"
+```
+
+| Choice           | What it does                                                                      |
+| ---------------- | --------------------------------------------------------------------------------- |
+| `rowNode.id`     | The column naming each row's node; `<table name>:<row number>` by default         |
+| `rowNode.kind`   | The row nodes' `kind`; the table's name by default                                |
+| `keys[].unknown` | A value naming no node: `"leave-out"` (default, no edge) or `"add"` a node for it |
+| `keys[].kind`    | Match only nodes of this kind, and give the nodes `"add"` makes this kind         |
+
+A row whose id is blank, repeats an earlier row's, or whose keys name nothing is left out. An edges
+join is the same thing with exactly two keys and no node in the middle.
 
 ### Merging a second list of the same things
 
@@ -229,6 +263,15 @@ values:
 
 ```ts
 recipe.keyMatches(entries, "building_id"); // [{ graph: "id", rows: 240, loose: 12, samples: ["bldg-01", ...] }, ...]
+```
+
+When the reader has chosen what each row becomes, `recipe.suggest(input, before, { shape })`
+suggests the keys that fit that shape instead of a shape: the two ends for `"edges"`, every column
+naming nodes and a `rowNode.id` for `"row-nodes"`, the key and `link.columns` for `"link"`:
+
+```ts
+recipe.suggest(entries, undefined, { shape: "row-nodes" });
+// { shape: "row-nodes", keys: [{ file: "person_id", ... }, { file: "building_id", ... }], rowNode: { id: "entry_id" } }
 ```
 
 ## Naming what a join writes

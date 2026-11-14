@@ -114,7 +114,15 @@ import type {
     SourceRefreshReport,
     SourceSettings,
 } from "./sources/types";
-import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
+import type {
+    ElementPaint,
+    SessionStylesApi,
+    StyleBatchChange,
+    StyleChange,
+    StyleRefusal,
+    StyleRepaintFailure,
+    StylesApi,
+} from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { EdgeAgeFade } from "./time/ageFade";
 import type { TimeUnit } from "./time/parse";
@@ -1943,8 +1951,11 @@ export interface SessionDataApi {
      *     asked for after this one waits until this download finishes or fails; aborting the
      *     signal, even once the download has finished, stops it and lets the next load through.
      * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_DATASET` for a name the
-     *     catalogue does not list (unless `baseUrl` is given) and `E_FETCH_FAILED` when the
-     *     download fails; nothing is recorded then.
+     *     catalogue does not list (unless `baseUrl` is given) or a name that is not one,
+     *     `E_FETCH_FAILED` when the download fails (`recoverable: false` for a client error other
+     *     than 408 and 429, `details.status` when the server answered), `E_PARSE_FAILED` when the
+     *     file came back but could not be read, and with the signal's own reason when it is
+     *     aborted; nothing is recorded then.
      */
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
 }
@@ -3481,6 +3492,14 @@ export interface SessionEventMap {
      * looking at an old picture that reads as an answer.
      */
     "style:problem": StyleProblem;
+    /**
+     * A repaint the element started on its own failed -- one following the selection, the
+     * pointer, a peek, a set's members or a branches view -- or a pass found a layer it could not
+     * paint at all. The picture on screen is stale until the next repaint. Carries a code, never
+     * words; a repaint stopped because the session ended is not reported.
+     * @since 3.52.0
+     */
+    "style:repaint-failed": StyleRepaintFailure;
     /**
      * Every acceleration transition, and every change to what VR and AR can do: the probe
      * settling, a WebXR device change, entering or leaving a session (including the headset

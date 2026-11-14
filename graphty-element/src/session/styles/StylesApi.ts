@@ -1345,6 +1345,15 @@ export interface StylesApi {
      */
     restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
     /**
+     * How many rows {@link StylesApi.restoreStartingRows} would add if it ran now: 0 when the tree
+     * already holds every one of them. It counts the Pinned row while the project setting
+     * `pinnedStyle` is set and the Ghost row while a time field is designated, as the restore does.
+     * Nothing changes; a reader can use it to decide whether to offer the restore.
+     * @returns The count.
+     * @since 3.53.0
+     */
+    rowsToRestore(): number;
+    /**
      * The stack as a style file: {@link StylesApi.toDocument} marked `kind: "graphty-style"`, the
      * same member a project file holds. It carries the layers (and the palettes they name) and
      * nothing else -- no data, no ids, no runs -- so it styles another dataset that has the same
@@ -5284,6 +5293,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 { op: "style.patch", action: "restoreStartingRows" },
                 options,
             );
+        },
+
+        rowsToRestore(): number {
+            // The plan the restore would commit, built and dropped: nothing changes.
+            const { result } = planOf({ op: "style.patch", action: "restoreStartingRows" });
+            return Array.isArray(result) ? result.length : 0;
         },
 
         deleteRow(id: StyleRowId, options: RunOptions = {}): Run<readonly LayerId[]> {

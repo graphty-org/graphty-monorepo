@@ -1349,6 +1349,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     hideRow: calls(["no-such-row", true], [{ op: "style.patch", action: "hideRow", id: "no-such-row", hidden: true }]),
     deleteRow: calls(["no-such-row"], [{ op: "style.patch", action: "deleteRow", id: "no-such-row" }]),
     restoreStartingRows: calls([], [{ op: "style.patch", action: "restoreStartingRows" }]),
+    rowsToRestore: READ,
     toFile: READ,
     setDefaultPalettes: PALETTE_DEFAULTS,
     setHighlightColor: HIGHLIGHT_DEFAULT,

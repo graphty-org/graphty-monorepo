@@ -709,29 +709,6 @@ function staleOf(session: GraphSession, row: StyleRow): StaleNote | null {
 }
 
 /**
- * Whether the tree lacks one of the starting rows (Everything, Selected, Hovered) while the
- * project draws them. TEMPORARY: it reads the element's template ids, which graphty-element does
- * not publish as a fact; owed there as a read of which starting rows are missing.
- * @param session - the element's session.
- * @returns true when Restore starting layers has something to restore.
- */
-function lacksStartingRows(session: GraphSession): boolean {
-    if (!session.config.startingRows) {
-        return false;
-    }
-    const present = new Set(
-        session.styles
-            .list()
-            .flatMap((layer) =>
-                layer.source.by === "template" && layer.source.templateId.startsWith("graphty:starting-")
-                    ? [layer.source.templateId]
-                    : [],
-            ),
-    );
-    return present.size < 3;
-}
-
-/**
  * Puts focus on a row of the style tree.
  * @param id - the row's id.
  */
@@ -779,7 +756,7 @@ function Footer({ session, store }: Readonly<{ session: GraphSession; store: Wor
             >
                 <GLYPHS.settings size={14} aria-hidden /> Graph settings
             </UnstyledButton>
-            {lacksStartingRows(session) && (
+            {session.config.startingRows && session.styles.rowsToRestore() > 0 && (
                 <UnstyledButton
                     className="ws-style-tree-foot-row cm-focus-inside"
                     onClick={() => {

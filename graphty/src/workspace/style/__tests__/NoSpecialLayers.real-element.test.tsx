@@ -147,6 +147,27 @@ describe.each([
         });
     });
 
+    it("offers Restore after one row is deleted while pinnedStyle adds a fourth row", async () => {
+        const session = await openProject();
+        // What the app sets for every project but the one it starts with.
+        await session.config.set({ pinnedStyle: { color: "#868e96", scale: 1.3, opacity: 1 } });
+        await waitFor(() => {
+            assert.isTrue(hasRow("Pinned"));
+        });
+        assert.isNull(screen.queryByRole("button", { name: "Restore starting layers" }));
+
+        await fromMenu("Hovered", "Delete");
+        await waitFor(() => {
+            assert.isFalse(hasRow("Hovered"));
+        });
+
+        await userEvent.click(await screen.findByRole("button", { name: "Restore starting layers" }));
+        await waitFor(() => {
+            assert.isTrue(hasRow("Hovered"));
+            assert.isNull(screen.queryByRole("button", { name: "Restore starting layers" }));
+        });
+    });
+
     it("takes a condition on Everything, and hides what it leaves out", async () => {
         const session = await openProject();
         await addCondition("Everything");

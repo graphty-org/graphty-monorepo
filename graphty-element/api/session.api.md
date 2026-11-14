@@ -7176,6 +7176,7 @@ export interface StylesApi {
     replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
     restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
+    rowsToRestore(): number;
     sequence(binding: Omit<RuleBinding, "by">, options: {
         readonly channel: Channel;
         readonly count: number;

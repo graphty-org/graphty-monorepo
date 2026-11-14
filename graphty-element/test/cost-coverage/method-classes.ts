@@ -1252,6 +1252,7 @@ export const READ_ONLY: readonly string[] = [
     "StylesApi.parts",
     "StylesApi.preview",
     "StylesApi.proposeEncoding",
+    "StylesApi.rowsToRestore",
     "StylesApi.sequence",
     "StylesApi.setDefaultPalettes",
     "StylesApi.settled",

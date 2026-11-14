@@ -146,3 +146,48 @@ describe("the Pinned row", () => {
         reopened.dispose();
     });
 });
+
+describe("rowsToRestore", () => {
+    /**
+     * Deletes the row of a name.
+     * @param session - The session.
+     * @param name - The row's name.
+     */
+    async function deleteNamed(session: GraphSession, name: string): Promise<void> {
+        const row = session.styles.tree().find((each) => each.name === name);
+        assert.isDefined(row);
+        await session.styles.deleteRow(row?.id ?? "");
+    }
+
+    it("is 0 with every starting row there, with and without pinnedStyle", async () => {
+        const session = await triangle();
+        assert.strictEqual(session.styles.rowsToRestore(), 0);
+        await session.config.set({ pinnedStyle: LOOK });
+        assert.strictEqual(session.styles.rowsToRestore(), 0);
+        session.dispose();
+    });
+
+    it("counts one deleted row without pinnedStyle, and changes nothing", async () => {
+        const session = await triangle();
+        await deleteNamed(session, "Hovered");
+        const before = session.styles.toDocument();
+        assert.strictEqual(session.styles.rowsToRestore(), 1);
+        assert.deepStrictEqual(session.styles.toDocument(), before);
+        await session.styles.restoreStartingRows();
+        assert.strictEqual(session.styles.rowsToRestore(), 0);
+        session.dispose();
+    });
+
+    for (const name of ["Everything", "Selected", "Hovered", "Pinned"]) {
+        it(`counts a deleted ${name} row with pinnedStyle set`, async () => {
+            const session = await triangle();
+            await session.config.set({ pinnedStyle: LOOK });
+            await deleteNamed(session, name);
+            assert.strictEqual(session.styles.rowsToRestore(), 1);
+            const added = await session.styles.restoreStartingRows();
+            assert.strictEqual(added.length, 1);
+            assert.strictEqual(session.styles.rowsToRestore(), 0);
+            session.dispose();
+        });
+    }
+});

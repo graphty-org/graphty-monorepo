@@ -442,6 +442,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "pinRow",
                 "lockRow",
                 "restoreStartingRows",
+                "rowsToRestore",
                 "layersUnder",
                 "layerGroups",
                 "highlightStyle",

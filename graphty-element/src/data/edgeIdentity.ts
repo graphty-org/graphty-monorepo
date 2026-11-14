@@ -15,6 +15,7 @@ import { type DuplicatePolicy, type GraphSnapshot, INVALID_INDEX } from "@grapht
 import { compareIds } from "../catalog/sets/canonical";
 import { hashEdgeEnds, hashEdgeMember, hashNodeId, type LanePair } from "../catalog/sets/hash";
 import type { EdgeId, EdgeMember, NodeId } from "../catalog/types";
+import { RowMap } from "./RowMap";
 
 /**
  * The id of the edge carrying one counter value.
@@ -45,6 +46,85 @@ export function edgeCounterOf(id: EdgeId): number {
 
     const counter = Number(id);
     return Number.isSafeInteger(counter) ? counter : INVALID_INDEX;
+}
+
+/**
+ * A map from edge id to a number (a row), held by the id's counter in an array: no Map entry and no
+ * id string per edge (about 35 bytes an edge at a million edges). An id this element never assigned
+ * is never held. Its ids walk in counter order.
+ * ponytail: one slot per counter ever held, so a graph cleared and loaded again leaves the old
+ * counters as holes; key by row instead if reloads ever make that matter.
+ */
+export class EdgeIdRows {
+    private readonly rows = new RowMap<number>();
+
+    /**
+     * How many ids it holds.
+     * @returns The count.
+     */
+    get size(): number {
+        return this.rows.size;
+    }
+
+    /**
+     * Whether it holds an id.
+     * @param id - The edge id.
+     * @returns True when it does.
+     */
+    has(id: EdgeId): boolean {
+        return this.get(id) !== undefined;
+    }
+
+    /**
+     * The number held for an id.
+     * @param id - The edge id.
+     * @returns The number, or undefined.
+     */
+    get(id: EdgeId): number | undefined {
+        const counter = edgeCounterOf(id);
+        return counter === INVALID_INDEX ? undefined : this.rows.get(counter);
+    }
+
+    /**
+     * Hold a number for the edge of a counter.
+     * @param counter - The edge's counter, as {@link edgeIdOf} prints it.
+     * @param row - The number.
+     */
+    set(counter: number, row: number): void {
+        this.rows.set(counter, row);
+    }
+
+    /**
+     * Forget the edge of a counter.
+     * @param counter - The edge's counter.
+     */
+    delete(counter: number): void {
+        this.rows.delete(counter);
+    }
+
+    /**
+     * The number held for the edge of a counter.
+     * @param counter - The edge's counter.
+     * @returns The number, or undefined.
+     */
+    at(counter: number): number | undefined {
+        return this.rows.get(counter);
+    }
+
+    /** Forget every id. */
+    clear(): void {
+        this.rows.clear();
+    }
+
+    /**
+     * The ids it holds.
+     * @yields Each id, in counter order.
+     */
+    *keys(): Generator<EdgeId> {
+        for (const counter of this.rows.keys()) {
+            yield edgeIdOf(counter);
+        }
+    }
 }
 
 /**

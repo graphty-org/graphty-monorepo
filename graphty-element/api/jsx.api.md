@@ -89,6 +89,7 @@ import { z } from 'zod';
 // @public
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
+    "accessible-node-list"?: boolean;
     // (undocumented)
     "aria-label"?: string;
     "attribution-offset"?: string;
@@ -206,6 +207,10 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
     // (undocumented)
+    "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    // (undocumented)
+    "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
+    // (undocumented)
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     // (undocumented)
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
@@ -258,12 +263,16 @@ export interface GraphtyElementJSXProps {
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
     // (undocumented)
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
+    "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
+    "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
     // (undocumented)
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     // (undocumented)
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     // (undocumented)
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
+    // (undocumented)
+    "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
     // (undocumented)
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
@@ -283,6 +292,9 @@ export interface GraphtyElementJSXProps {
     "zoom-to-pointer"?: boolean;
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    accessibleAnnouncement?: Graphty["accessibleAnnouncement"];
+    accessibleDescription?: Graphty["accessibleDescription"];
+    accessibleNodeList?: Graphty["accessibleNodeList"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     antialias?: Graphty["antialias"];
     attributionOffset?: Graphty["attributionOffset"];

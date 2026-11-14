@@ -1402,15 +1402,19 @@ export type GraphtyErrorCode =
 | "E_LOCKED"
 /**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
-* unreadable file. `details` carry the url and the status where there was one, and `cause`
+* unreadable file. `details` carry the url (or the file's name), the status where there was
+* one and `timeoutMs` when the last request ran out of time, and `cause`
 * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
 * than 408 and 429), which fails after one request with `recoverable: false`.
 */
 | "E_FETCH_FAILED"
 /**
 * A source was fetched but could not be parsed as the format it claimed to be. `details`
-* carry the format, the line and, where the parser reported one, the column. The caller
-* corrects the file, or re-imports naming the true format.
+* carry the format, the line and, where the parser reported one, the column; when graph-io
+* read it, `details.issue` is graph-io's code for what stopped it (`"E_XML_SYNTAX"`,
+* `"E_CSV_UNCLOSED_QUOTE"`...) and `details.element` where. A reader that threw without a
+* code of its own is reported as this too, with its error as `cause`. The caller corrects
+* the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
 /**
@@ -1613,6 +1617,13 @@ export type GraphtyErrorCode =
 * the CPU in silence.
 */
 | "E_DEVICE_LOST"
+/**
+* The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+* device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+* The session and its data are untouched; the element asks for the device back, and
+* `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+*/
+| "E_RENDER_LOST"
 /**
 * No WebGL context could be created, so nothing can be rendered. `details` carry what the
 * canvas reported. The session's data and results still work; only the view is unavailable.
@@ -1854,9 +1865,13 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_DIGEST_MISMATCH"
 /**
-* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed". Also a skybox background image that could not be loaded, as the detail of the element's `graphty-skybox-failed` event, `params.url` its first 256 characters.
 */
 | "E_IMAGE_LOAD"
+/**
+* A picture the browser cannot decode, so it cannot be drawn (`prepareBackgroundImage`): HEIC in a browser without HEIC support, a damaged file, or a file that is not a picture. `params.format` (its media type, or "" when unknown), `params.fileName` when it is a file.
+*/
+| "E_IMAGE_DECODE"
 /**
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
@@ -1881,9 +1896,20 @@ export interface GraphtyErrorDetailsMap {
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
+    E_FETCH_FAILED: {
+        readonly url?: string;
+        readonly file?: string;
+        readonly status?: number;
+        readonly attempts?: number;
+        readonly timeoutMs?: number;
+    };
     E_PARSE_FAILED: {
         readonly format?: string;
         readonly line?: number;
+        readonly rowErrors?: number;
+        readonly limit?: number;
+        readonly issue?: string;
+        readonly element?: string;
     };
     E_TOO_LARGE: {
         readonly limit?: number;

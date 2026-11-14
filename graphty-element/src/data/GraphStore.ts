@@ -17,6 +17,7 @@ import type { DirectionProvenance } from "../session/types";
 import {
     completeLoad,
     createEdgeCounter,
+    DEFERRED_HASH_COLUMN,
     EDGE_ID_COLUMN,
     type EdgeCounter,
     IDENTITY_COLUMNS,
@@ -167,10 +168,14 @@ function identityIn(snapshot: GraphSnapshot, edgeId: number): EdgeIdentityCells 
         ? undefined
         : identityOf(
               new Map(
-                  [IDENTITY_COLUMNS.edgeHash, IDENTITY_COLUMNS.edgeOrdinal, IDENTITY_COLUMNS.edgeAmong].map((name) => [
-                      name,
-                      snapshot.edges.value(name, row),
-                  ]),
+                  [
+                      IDENTITY_COLUMNS.edgeHash,
+                      IDENTITY_COLUMNS.edgeOrdinal,
+                      IDENTITY_COLUMNS.edgeAmong,
+                      DEFERRED_HASH_COLUMN,
+                  ]
+                      .filter((name) => snapshot.edges.has(name))
+                      .map((name) => [name, snapshot.edges.value(name, row)]),
               ),
           );
 }
@@ -181,10 +186,11 @@ function identityIn(snapshot: GraphSnapshot, edgeId: number): EdgeIdentityCells 
  * @returns The cells, or undefined when it has no hash yet.
  */
 function identityOf(values: RowValues): EdgeIdentityCells | undefined {
-    // Unset reads undefined from a row's values and null from a snapshot cell: a session edge left
-    // uncompleted under renderPath "batched" is completed again, from its counter, like a new one.
-    const hash = values.get(IDENTITY_COLUMNS.edgeHash) as readonly number[] | null | undefined;
-    if (hash === undefined || hash === null) {
+    // A session edge whose hash was deferred (renderPath "batched") is completed again, from its
+    // counter, like a new one. Unset reads undefined from a row's values and null from a snapshot.
+    const deferred = values.get(DEFERRED_HASH_COLUMN);
+    const hash = values.get(IDENTITY_COLUMNS.edgeHash) as readonly number[] | undefined;
+    if (hash === undefined || (deferred !== undefined && deferred !== null)) {
         return undefined;
     }
 
@@ -949,14 +955,16 @@ export class GraphStore {
      * @param counter - the counter stamped into its `graphty.edgeId` cell
      * @param fileId - the file id read at the configured `edgeIdPath`, if any
      * @param deferMinted - true (renderPath "batched") to leave a session edge with no file id
-     *   uncompleted: its ordinal and among already read -1, and its hash cell stays unset until
-     *   `identityColumnsOf` computes it from the counter on first read, so a freeze hashes no
-     *   minted id
+     *   uncompleted: its ordinal and among already read -1, and it is marked in
+     *   `DEFERRED_HASH_COLUMN` so `identityColumnsOf` computes its hash from the counter on first
+     *   read, and a freeze hashes no minted id
      */
     recordIngestedEdge(row: number, counter: number, fileId?: string | number, deferMinted = false): void {
         if (this.loadDepth === 0) {
             if (deferMinted && fileId === undefined) {
                 this.mintedDeferred = true;
+                const builder = this.current;
+                builder.setEdgeValue(builder.declareEdgeColumn({ name: DEFERRED_HASH_COLUMN, dtype: "u8" }), row, 1);
             } else {
                 this.sessionEdges.push({ row, counter, fileId });
             }

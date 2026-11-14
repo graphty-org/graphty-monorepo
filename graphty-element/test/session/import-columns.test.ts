@@ -248,6 +248,29 @@ describe("session.data.importColumns", () => {
         assert.deepStrictEqual(identities[1], identities[0]);
     });
 
+    it("gives an edge added after a file import the objects path's identity on the batched path", async () => {
+        const data = JSON.stringify({
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+            edges: [
+                { source: "a", target: "b" },
+                { source: "b", target: "c" },
+            ],
+        });
+        const results = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            await session.data.import({ type: "json", config: { data } });
+            await session.data.addEdges([
+                { source: "c", target: "a" },
+                { source: "a", target: "c" },
+            ]);
+            results.push({ hash: [...identityColumnsOf(session.data.snapshot()).edgeHash], digest: digest(session) });
+        }
+
+        assert.notDeepEqual(results[1].hash.slice(4), [0, 0, 0, 0]);
+        assert.deepStrictEqual(results[1], results[0]);
+    });
+
     it("retains history in proportion to the edges it loads", async () => {
         await assertScalesLinearly(
             async (size) => {

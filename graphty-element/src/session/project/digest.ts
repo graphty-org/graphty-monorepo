@@ -17,7 +17,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import { EDGE_ID_COLUMN, IDENTITY_COLUMNS, identityColumnsOf } from "../../data/edgeIdentity";
+import { DEFERRED_HASH_COLUMN, EDGE_ID_COLUMN, IDENTITY_COLUMNS, identityColumnsOf } from "../../data/edgeIdentity";
 import { stableDigest } from "../runs/runId";
 import { ownRows } from "../styles/tree";
 import type { ProjectState } from "./state";
@@ -30,14 +30,17 @@ interface DigestOptions {
     readonly snapshot?: GraphSnapshot;
 }
 
-/** The columns the positions lane lends every snapshot: coordinates, not rows. */
-const LANE_COLUMNS: ReadonlySet<string> = new Set(["position", "graphty.pinned"]);
+/**
+ * The columns the positions lane lends every snapshot (coordinates, not rows), and the marker a
+ * "batched" freeze writes on a deferred edge hash (bookkeeping, so both render paths digest alike).
+ */
+const LANE_COLUMNS: ReadonlySet<string> = new Set(["position", "graphty.pinned", DEFERRED_HASH_COLUMN]);
 
 /** What a data digest leaves out besides the lane: the edge ids the element assigns per load. */
 const NOT_DATA: ReadonlySet<string> = new Set([...LANE_COLUMNS, EDGE_ID_COLUMN]);
 
-/** Nothing left out. */
-const NO_COLUMNS: ReadonlySet<string> = new Set();
+/** Nothing left out but the deferred-hash marker. */
+const NO_COLUMNS: ReadonlySet<string> = new Set([DEFERRED_HASH_COLUMN]);
 
 /**
  * The canonical text of a value.
@@ -199,7 +202,7 @@ export function dataDigest(graph: ProjectState["graph"], readSnapshot: () => Gra
 }
 
 /**
- * Read the hash of every session edge whose cell a "batched" freeze left unset as the hash it is
+ * Read the hash of every session edge a "batched" freeze marked deferred as the hash it is
  * computed to on first read, so the digest is the one the "objects" path, which hashes at the
  * freeze, gives for the same graph.
  * @param snapshot - The snapshot.
@@ -207,14 +210,14 @@ export function dataDigest(graph: ProjectState["graph"], readSnapshot: () => Gra
  */
 function mintedHashesInto(snapshot: GraphSnapshot, values: unknown[]): void {
     const counter = snapshot.edges.typed(EDGE_ID_COLUMN, "u32");
-    const column = snapshot.edges.typed(IDENTITY_COLUMNS.edgeHash, "u32");
-    if (column === null || column.nullCount === 0 || counter === null) {
+    const deferred = snapshot.edges.get(DEFERRED_HASH_COLUMN) ?? null;
+    if (deferred === null || counter === null) {
         return;
     }
 
     const { edgeHash } = identityColumnsOf(snapshot);
     for (let row = 0; row < values.length; row++) {
-        if (!column.isSet(row) && counter.isSet(row)) {
+        if (deferred.isSet(row) && counter.isSet(row)) {
             values[row] = edgeHash.subarray(2 * row, 2 * row + 2);
         }
     }

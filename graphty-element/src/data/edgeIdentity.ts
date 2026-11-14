@@ -182,6 +182,15 @@ export const IDENTITY_COLUMNS = {
 } as const;
 
 /**
+ * Edge, u8: set (1) on a session edge whose hash a freeze left to be computed on first read
+ * (renderPath "batched", row-renderer.md 4.6). Declared only when the first such edge is recorded,
+ * so a store on renderPath "objects" never carries it. The marker, not an unset hash cell, is what
+ * says a hash is deferred: a hash column written whole has no unset cells, and a snapshot frozen
+ * while a load is open has unset cells that are not deferred.
+ */
+export const DEFERRED_HASH_COLUMN = "graphty.edgeHashDeferred";
+
+/**
  * The graph attribute recording whether edge pairs are ordered (1) or unordered (0). Latched once
  * per store, when the first edge is completed: a pair is ordered only when the graph was declared
  * directed by then, and a direction settled later changes nothing already written.
@@ -499,13 +508,8 @@ export function identityColumnsOf(snapshot: GraphSnapshot): IdentityColumns {
     const edgeHash = snapshot.edges.typed(IDENTITY_COLUMNS.edgeHash, "u32");
     const edgeOrdinal = snapshot.edges.typed(IDENTITY_COLUMNS.edgeOrdinal, "i32");
     const edgeAmong = snapshot.edges.typed(IDENTITY_COLUMNS.edgeAmong, "i32");
-    if (
-        nodeHash !== null &&
-        edgeHash !== null &&
-        edgeOrdinal !== null &&
-        edgeAmong !== null &&
-        edgeHash.nullCount === 0
-    ) {
+    const deferred = snapshot.edges.get(DEFERRED_HASH_COLUMN) ?? null;
+    if (nodeHash !== null && edgeHash !== null && edgeOrdinal !== null && edgeAmong !== null && deferred === null) {
         return {
             nodeHash: nodeHash.data,
             edgeHash: edgeHash.data,
@@ -517,10 +521,10 @@ export function identityColumnsOf(snapshot: GraphSnapshot): IdentityColumns {
     let computed = lazyIdentity.get(snapshot);
     if (computed === undefined) {
         computed =
-            nodeHash !== null && edgeHash !== null && edgeOrdinal !== null && edgeAmong !== null
+            nodeHash !== null && edgeHash !== null && edgeOrdinal !== null && edgeAmong !== null && deferred !== null
                 ? {
                       nodeHash: nodeHash.data,
-                      edgeHash: withMintedHashes(snapshot, edgeHash, nodeHash),
+                      edgeHash: withMintedHashes(snapshot, edgeHash.data, nodeHash, deferred),
                       edgeOrdinal: edgeOrdinal.data,
                       edgeAmong: edgeAmong.data,
                   }
@@ -532,17 +536,23 @@ export function identityColumnsOf(snapshot: GraphSnapshot): IdentityColumns {
 }
 
 /**
- * The edge hash column with every unset cell of a session edge filled from the id minted from its
- * counter: under renderPath "batched" a freeze leaves those cells unset rather than hashing every
- * minted id (row-renderer.md 4.6), and they are computed here, on the first read of a snapshot.
- * A row with no counter (an edge a test fixture added to the builder directly) keeps its zeros.
+ * The edge hash column with the hash of every session edge marked deferred filled from the id
+ * minted from its counter: under renderPath "batched" a freeze marks those rows rather than
+ * hashing every minted id (row-renderer.md 4.6), and they are computed here, on the first read of
+ * a snapshot.
  * @param snapshot - the snapshot
- * @param column - its edge hash column
+ * @param hashes - its edge hash lanes
  * @param nodeHash - its node hash column, read rather than hashing each end again when it is whole
+ * @param deferred - its {@link DEFERRED_HASH_COLUMN}
  * @returns the lanes, a filled copy
  */
-function withMintedHashes(snapshot: GraphSnapshot, column: HashColumn, nodeHash: HashColumn): Uint32Array {
-    const lanes = column.data.slice();
+function withMintedHashes(
+    snapshot: GraphSnapshot,
+    hashes: Uint32Array,
+    nodeHash: HashColumn,
+    deferred: Pick<HashColumn, "isSet">,
+): Uint32Array {
+    const lanes = hashes.slice();
     const counter = snapshot.edges.typed(EDGE_ID_COLUMN, "u32");
     const ends = nodeHash.data;
     const graph: IdentityGraph =
@@ -551,7 +561,7 @@ function withMintedHashes(snapshot: GraphSnapshot, column: HashColumn, nodeHash:
             : withNodeHashes(snapshotGraph(snapshot), snapshot.nodeCount);
     const ordered = pairsOrdered(snapshot);
     for (let e = 0; e < snapshot.edgeCount; e++) {
-        if (!column.isSet(e) && counter?.isSet(e) === true) {
+        if (deferred.isSet(e) && counter?.isSet(e) === true) {
             const { a, b } = sessionEdgeHash(graph, e, counter.data[e], undefined, ordered);
             lanes[2 * e] = a;
             lanes[2 * e + 1] = b;

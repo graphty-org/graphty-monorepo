@@ -341,13 +341,13 @@ describe("Workspace autosave with the real graphty-element", () => {
             const first = mountWorkspace();
             await openBy(first.store, () => pickSample(MARVEL.name));
             const { element, session } = openedElement();
-            // The reader times the films by release, which brings the Ghost row: a time field read
-            // back on reopening once brought every starting row back beside the saved ones (issue
-            // #7843).
+            // The timeline gives the project its Timeline Hidden row, and the reader times the films
+            // by release: a time field read back on reopening once brought every starting row back
+            // beside the saved ones (issue #7843).
             await session.time.setField({ edges: { start: "released" } });
             assert.include(
                 session.styles.tree().map((row) => row.name),
-                "Ghost",
+                "Timeline Hidden",
             );
             const rows = session.styles.tree().map((row) => row.name);
             const layers = JSON.stringify(session.styles.list());

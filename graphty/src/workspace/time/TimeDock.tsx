@@ -638,7 +638,9 @@ export function TimeDock(): React.JSX.Element | null {
             : time.bins({ ...view, maxCount, of: { nodes, edges, incident: true } });
     const step = window?.step;
     const readout = readoutWords(drag, window, extent, unit, zone);
+    // What the window holds (the window narrows only the drawing); with no window, what the filters keep.
     const { visibleEdges, visibleNodes } = session.visibility.summary;
+    const inside = time.inside ?? { nodes: visibleNodes, edges: visibleEdges };
     const valueText = (value: number, thumb: 0 | 1): string =>
         thumb === 0 ? instantWords(value, unit, step, zone) : rangeWords(value - 1, value, unit, step, zone);
     const binAt = (value: number): TimeBin | undefined => all.find((bin) => value >= bin.start && value < bin.end);
@@ -655,7 +657,7 @@ export function TimeDock(): React.JSX.Element | null {
     const speedButton = <SpeedButton session={session} store={store} speed={speed} />;
     const counts = (
         <Text size="xs" c="dimmed" className="tl-counts">
-            {`${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}`}
+            {`${countWords(inside.nodes, "node")}, ${countWords(inside.edges, "edge")}`}
         </Text>
     );
     const viewButtons = <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />;

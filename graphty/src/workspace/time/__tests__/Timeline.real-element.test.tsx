@@ -536,7 +536,7 @@ describe("the timeline on the real element", () => {
 });
 
 describe("the Overview and the import of time", () => {
-    it("offers the column that reads as time as a door to Fields, and reads the visible graph while a window is on", async () => {
+    it("offers the column that reads as time as a door to Fields, and reads the whole graph while a window is on", async () => {
         const { session } = await open(OFFICE_EMAIL, "graph");
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
         await userEvent.click(await inspector.findByRole("button", { name: "Set in Data" }));
@@ -552,8 +552,10 @@ describe("the Overview and the import of time", () => {
             await session.time.setSettings({ step: "week" });
             await session.time.stepBy(1);
         });
-        const edges = await inspector.findByRole("group", { name: "Edges showing" });
-        assert.include(edges.textContent, `${session.visibility.summary.visibleEdges.toLocaleString()} of 2,102`);
+        // The window narrows only the drawing: the Overview counts no "showing" subset.
+        assert.isNotNull(session.time.current);
+        await inspector.findByRole("group", { name: "Edges" });
+        assert.isNull(inspector.queryByRole("group", { name: "Edges showing" }));
     });
 
     it("reads a year column as years, steps a year at a time, and reads it as numbers on request", async () => {
@@ -685,7 +687,7 @@ describe("the Overview and the import of time", () => {
         await waitFor(() => {
             assert.include(
                 session.styles.list().map((layer) => layer.name),
-                "Ghost",
+                "Timeline Hidden",
             );
         });
         await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
@@ -694,11 +696,15 @@ describe("the Overview and the import of time", () => {
         });
         const outside = await (await timeCard()).findByRole("radiogroup", { name: "Outside" });
         const graph = session.data.snapshot();
-        const ghostLayer = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
+        const ghostLayer = session.styles
+            .list()
+            .find((layer) => layer.name === "Timeline Hidden" && layer.target === "node");
         assert.isDefined(ghostLayer);
-        // What the Ghost layer paints among what the drawing shows.
+        // What the Timeline Hidden layer paints among what the drawing shows.
         const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").visible?.matched ?? -1;
-        // Hidden by default: the drawing shows none of them, so the Ghost layer paints none.
+        // What lies outside the window: the window narrows only the drawing, never the visible count.
+        const outsideCount = (): number => graph.nodeCount - (session.time.inside?.nodes ?? graph.nodeCount);
+        // Hidden by default: the drawing shows none of them, so the layer paints none.
         assert.equal(session.time.settings.outside, "hide");
         assert.equal(ghosts(), 0, "hidden, not ghosted, by default");
 
@@ -706,18 +712,17 @@ describe("the Overview and the import of time", () => {
         await waitFor(() => {
             assert.equal(session.time.settings.outside, "ghost");
             assert.isAbove(ghosts(), 0);
-            assert.equal(ghosts(), graph.nodeCount - session.visibility.summary.visibleNodes);
+            assert.equal(ghosts(), outsideCount());
         });
-        // Ghosts are drawn but not visible: the counts are the window's.
-        const visibleBefore = [...session.visibility.nodes].sort();
+        // The window narrows nothing visible: every node stays in the visible count.
+        assert.equal(session.visibility.summary.visibleNodes, graph.nodeCount);
 
         // Scrub: step forward, and the ghosts follow the window.
         const first = Number(session.time.current?.from);
         await userEvent.keyboard(".");
         await waitFor(() => {
             assert.isAbove(Number(session.time.current?.from), first);
-            assert.notDeepEqual([...session.visibility.nodes].sort(), visibleBefore);
-            assert.equal(ghosts(), graph.nodeCount - session.visibility.summary.visibleNodes);
+            assert.equal(ghosts(), outsideCount());
         });
 
         await userEvent.click(within(outside).getByText("Hide"));
@@ -759,12 +764,14 @@ describe("the Overview and the import of time", () => {
             await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
         }
         await element?.waitForSettled();
-        assert.isBelow(session.visibility.summary.visibleNodes, session.data.statistics().nodeCount);
+        assert.isBelow(session.time.inside?.nodes ?? Infinity, session.data.statistics().nodeCount);
         assert.equal(positions(session), before, "no node moved");
         assert.equal(JSON.stringify(element?.getCameraState()), camera, "the camera stayed");
 
-        // Outside: Ghost draws what lies outside through the Ghost layer, which counts it.
-        const ghostLayer = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
+        // Outside: Ghost draws what lies outside through the Timeline Hidden layer, which counts it.
+        const ghostLayer = session.styles
+            .list()
+            .find((layer) => layer.name === "Timeline Hidden" && layer.target === "node");
         const outside = await (await timeCard()).findByRole("radiogroup", { name: "Outside" });
         await userEvent.click(within(outside).getByText("Ghost"));
         await waitFor(() => {
@@ -792,10 +799,10 @@ describe("the Overview and the import of time", () => {
         await pickField("sent");
         const untimed = await (await timeCard()).findByRole("radiogroup", { name: "Untimed" });
         await userEvent.click((await openDock()).querySelector("[aria-label='Step forward']") as Element);
-        const shown = live.visibility.summary.visibleEdges;
+        const shown = live.time.inside?.edges ?? 0;
         await userEvent.click(within(untimed).getByText("Hide"));
         await waitFor(() => {
-            assert.equal(live.visibility.summary.visibleEdges, shown - 1);
+            assert.equal(live.time.inside?.edges, shown - 1);
         });
     });
 
@@ -812,7 +819,7 @@ describe("the Overview and the import of time", () => {
         await waitFor(() => {
             assert.isNotNull(session.visibility.window, "the window is on");
         });
-        assert.isBelow(session.visibility.summary.visibleEdges, 2102);
+        assert.isBelow(session.time.inside?.edges ?? Infinity, 2102);
         assert.isNull(screen.queryByRole("region", { name: "Timeline" }), "adding the card leaves the dock shut");
         // The Filters list holds it as a card, and its settings open in the inspector, by one name.
         const card = within(await dataPlace().findByRole("group", { name: /^Time window/ }));

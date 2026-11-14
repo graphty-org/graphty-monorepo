@@ -117,11 +117,12 @@ export function announceWindow(session: GraphSession, store: WorkspaceStore, mov
     if (window === null) {
         return;
     }
-    const { visibleNodes, visibleEdges } = session.visibility.summary;
+    // What the window holds, never the visibility summary: the window narrows only the drawing.
+    const inside = session.time.inside ?? { nodes: 0, edges: 0 };
     const counts =
         moved === undefined ? "" : `, ${formatCount(moved.entered)} entered, ${formatCount(moved.left)} left`;
     store.set({
-        announcement: `${windowWords(window, unitOf(session), session.time.timeZone)}: ${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}${counts}`,
+        announcement: `${windowWords(window, unitOf(session), session.time.timeZone)}: ${countWords(inside.nodes, "node")}, ${countWords(inside.edges, "edge")}${counts}`,
     });
 }
 

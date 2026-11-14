@@ -28,7 +28,7 @@ const DATED_EDGES = "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,202
 const FIRST_TWO_DAYS = { from: Date.UTC(2026, 0, 1), to: Date.UTC(2026, 0, 3) };
 
 /**
- * A project saved with the timeline on: a date column as its time field, its Ghost row, playback, a
+ * A project saved with the timeline on: a date column as its time field, its Timeline Hidden row, playback, a
  * zone that puts the first day on Dec 31, and a window.
  * @returns the file's text.
  */
@@ -347,7 +347,6 @@ describe("the timeline's switch in the app", () => {
             assert.strictEqual(session.visibility.summary.visibleEdges, 2);
         });
 
-        assert.notInclude((await styleRows()).join(), "Ghost");
         assert.isNull(screen.queryByRole("region", { name: "Timeline" }), "no dock");
         assert.isNull(screen.queryByRole("button", { name: "Timeline" }), "no toolbar button");
         assert.isNull(screen.queryByRole("button", { name: /^Time: / }), "no header chip");
@@ -377,12 +376,12 @@ describe("the timeline's switch in the app", () => {
         await screen.findByRole("radiogroup", { name: "Zone" });
     });
 
-    it("shows the same project's Ghost row with the experiment on", async () => {
+    it("shows the same project's Timeline Hidden row with the experiment on", async () => {
         await siteFeatures(["timeline"]);
         const session = await mount("graph");
         await session.project.open(await timedProject(), { discard: true });
         await waitFor(async () => {
-            assert.include((await styleRows()).join(), "Ghost");
+            assert.include((await styleRows()).join(), "Timeline Hidden");
         });
         await screen.findByRole("button", { name: "Timeline" });
     });

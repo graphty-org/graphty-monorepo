@@ -59,6 +59,42 @@ const transparent = await graph.captureScreenshot({
 });
 ```
 
+### A legend in the image
+
+`legend` draws a key into the image, at the capture's resolution, so a colour-encoded picture
+still says what its colours mean once it leaves the page. It is drawn from the element's legend
+model (`session.styles.legend()`), not copied from the page.
+
+```typescript
+// The element's own legend, in the bottom-right corner
+await graph.captureScreenshot({ legend: true });
+
+// Only when a layer binds a value (a colour by degree, a size by betweenness)
+await graph.captureScreenshot({ legend: "auto" });
+
+// Another corner, and a heading in your own words
+await graph.captureScreenshot({ legend: { position: "top-left", title: "Degree" } });
+```
+
+| `legend` value          | What the image gets                                                  |
+| ----------------------- | -------------------------------------------------------------------- |
+| absent or `false`       | No key (the default)                                                 |
+| `true`                  | The element's legend, bottom right                                   |
+| `"auto"`                | The same, only when a layer binds a value                            |
+| `{ position?, title? }` | The same in `top-left`, `top-right`, `bottom-left` or `bottom-right` |
+| an array of sections    | Exactly the sections you pass, top left, every word yours            |
+
+The element's legend writes no words of its own: each section is headed by the field's name, and
+lists the data's values (or the names readers gave them) beside their colours, or a ramp between
+the lowest and highest value. To word the key yourself, build the sections from
+`session.styles.legend()` and pass the array:
+
+```typescript
+await graph.captureScreenshot({
+    legend: [{ title: "Community", rows: [{ label: "Group 1", color: "#4e79a7", value: "17" }] }],
+});
+```
+
 ## Checking Capabilities
 
 Before capturing, verify support:

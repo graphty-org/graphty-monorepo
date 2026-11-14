@@ -2,6 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import type { Channel, LayerId, LayerSpec, Path } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
+import { asColorValue } from "../../../src/session/styles/channels";
 import { prepareBinding, type PreparedBinding } from "../../../src/session/styles/encoding";
 import {
     type ChannelExplanation,
@@ -331,6 +332,24 @@ describe("the departures are what stop a legend implying something the picture d
         );
 
         assert.deepEqual(blocks[0].departures, ["not measured (1)"]);
+    });
+});
+
+describe("a column with no spread", () => {
+    const flat: readonly Row[] = [1, 2, 3].map(() => ({ "results.betweenness.value": 3 }));
+    const spread: readonly Row[] = [{ "results.betweenness.value": 0 }, { "results.betweenness.value": 6 }];
+
+    it("paints the middle of the palette, and the legend shows that same colour and says there is no spread", () => {
+        const fixture = harness([betweennessColor()], flat);
+        const [block] = buildLegend(fixture.legend);
+        const painted = fixture.legend.encoding(block.layerId)[0].paint(3);
+        const middle = harness([betweennessColor()], spread).legend.encoding("l0")[0].paint(3);
+
+        assert.deepEqual(painted, middle);
+        assert.strictEqual(block.swatches.length, 1);
+        assert.strictEqual(block.swatches[0].color, asColorValue(painted)?.hex);
+        assert.deepInclude(block.facts, { code: "legend.no-spread", params: { value: 3 } });
+        assert.include(block.departures, "no spread");
     });
 });
 

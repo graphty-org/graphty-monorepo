@@ -439,6 +439,45 @@ describe("the Style tab's sections", () => {
         });
     });
 
+    it("sets an outline's width per layer from the Outline row, leaving another layer's outline as it was", async () => {
+        const { session } = await openScene();
+        const idOf = (name: string): string => String(session.data.nodes().find((n) => n.name === name)?.id);
+        const people = session.styles.list().find((layer) => layer.name === "Key people");
+        if (people === undefined) {
+            throw new Error("no Key people layer");
+        }
+        await session.styles.update(people.id, { set: { ...people.set, "node.outline": "#FF0000" } });
+        await session.styles.add({
+            name: "Bishop",
+            target: "node",
+            selector: { match: "ids", nodes: [idOf("Myriel")] },
+            set: { "node.outline": "#0000FF" },
+        });
+        await session.styles.settled();
+        await openStyle("Key people");
+        const shape = (): HTMLElement => section("node", "shape");
+        // The width is the outline's only setting: the Outline row's "+" adds it at once.
+        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node outline" }));
+        const width = await waitFor(() => {
+            const row = shape().querySelector<HTMLElement>('.ws-row[data-line="node.outlineWidth"]');
+            assert.equal(row?.querySelector(".ws-field-name")?.textContent, "Width");
+            const box = row?.querySelector<HTMLInputElement>("input");
+            assert.isDefined(box ?? undefined);
+            return box as HTMLInputElement;
+        });
+        await userEvent.clear(width);
+        await userEvent.type(width, "3{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(written(session, "Key people", "node.outlineWidth"), 3);
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.explain({ node: idOf("Valjean") }).merged["node.outlineWidth"], 3);
+        assert.isUndefined(
+            session.styles.explain({ node: idOf("Myriel") }).merged["node.outlineWidth"],
+            "the other layer's outline keeps the graph's width",
+        );
+    });
+
     it("an end label on an undirected graph's edges says why it is not drawn", async () => {
         const { session } = await openScene();
         await openStyle("Everything");

@@ -117,15 +117,15 @@ function basemapIs(element: Graphty, state: string, source?: string, credit?: st
 }
 
 /**
- * The link the map's credits give, as drawn over the canvas now.
+ * The map's credits as drawn over the canvas now.
  * @param element - The element.
- * @returns The first credit's link, or null when none is drawn.
+ * @returns The credit strip's text, or "" when it is hidden or absent.
  */
-function creditLink(element: Graphty): string | null {
+function creditText(element: Graphty): string {
     const strip =
-        element.querySelector("[data-graphty-attribution]") ??
-        element.shadowRoot?.querySelector("[data-graphty-attribution]");
-    return strip?.querySelector("a")?.getAttribute("href") ?? null;
+        element.querySelector<HTMLElement>("[data-graphty-attribution]") ??
+        element.shadowRoot?.querySelector<HTMLElement>("[data-graphty-attribution]");
+    return strip === null || strip === undefined || strip.style.display === "none" ? "" : (strip.textContent ?? "");
 }
 
 /**
@@ -1090,10 +1090,13 @@ describe("the location map's history and map", () => {
         // is still on its way.
         await commands.holdRequests("natural-earth.jpg");
         await commands.holdRequests("127.0.0.1:9");
-        // The credits drawn when each state is told: the failed service's credit must never show.
-        const states: { state: string; error?: { code: string }; credit: string | null }[] = [];
+        // What is on screen when each state is told: a fallback is told only once the world it falls
+        // back to is drawn, so never while that picture is still held back, and the failed service's
+        // credit never shows.
+        let worldServed = false;
+        const states: { state: string; error?: { code: string }; worldServed: boolean; credits: string }[] = [];
         element.addEventListener("basemap-status", (event) => {
-            states.push({ ...event.detail, credit: creditLink(element) });
+            states.push({ ...event.detail, worldServed, credits: creditText(element) });
         });
         await element.session.layout.set("location-map", {
             options: { map: { tiles: "http://127.0.0.1:9/{z}/{x}/{y}.png", attribution: "Bad Tiles Co" } },
@@ -1104,14 +1107,16 @@ describe("the location map's history and map", () => {
         // world it waits for is the one this test holds back.
         await element.waitForSettled();
         await drawnFrames(element.graph.getScene(), 2);
+        worldServed = true;
         await commands.releaseRequests("natural-earth.jpg", false);
         await basemapIs(element, "fallback");
         assert.strictEqual(element.basemapStatus.state, "fallback");
         const fallback = states.find((s) => s.state === "fallback");
         assert.deepInclude(fallback?.error, { code: "E_BASEMAP_UNREACHABLE" });
-        assert.strictEqual(fallback?.credit, null, "the public-domain world has no credit, and the failed tiles none");
+        assert.isTrue(fallback?.worldServed, "the fallback is told only after the world under it arrived");
+        assert.notInclude(fallback?.credits, "Bad Tiles Co", "the failed service is not credited");
         assert.notInclude(element.basemapStatus.attribution, "Bad Tiles Co");
         await applied(element);
-        assert.strictEqual(creditLink(element), null, "nothing is credited");
+        assert.notInclude(creditText(element), "Bad Tiles Co", "the failed service is not credited");
     });
 });

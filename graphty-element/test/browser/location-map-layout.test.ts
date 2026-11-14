@@ -164,6 +164,24 @@ describe("the location map layout", () => {
         assert.notInclude(strip?.textContent, "Natural Earth");
         assert.equal(strip?.style.display, "none");
 
+        // A tile service's required credit is shown, as a link to its terms.
+        await graph.setLayout("location-map", {
+            latitude: "latitude",
+            longitude: "longitude",
+            map: { source: "openstreetmap" },
+        });
+        await settled();
+        // a hang guard for the tiles loading, not a pass/fail timing
+        await vi.waitFor(() => {
+            assert.equal(graph.basemapStatus.source, "openstreetmap");
+            assert.equal(graph.basemapStatus.state, "ready");
+        });
+        assert.include(graph.basemapStatus.attribution, "(c) OpenStreetMap contributors");
+        // the credit, after the "(c)" button it folds into when it does not fit
+        assert.include(strip?.textContent, "OpenStreetMap contributors");
+        assert.notEqual(strip?.style.display, "none");
+        assert.equal(strip?.querySelector("a")?.getAttribute("href"), "https://www.openstreetmap.org/copyright");
+
         await graph.setLayout("circular");
         await settled();
         await drawnFrames(graph.getScene(), 1);

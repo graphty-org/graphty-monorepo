@@ -4732,6 +4732,12 @@ export interface RecordSort {
 export { registerSource }
 
 // @public
+export interface RemapOptions {
+    readonly mapping: LoadMapping;
+    readonly source?: SourceKey;
+}
+
+// @public
 export function removeAutosave(key: string, id: string, options?: AutosaveLookupOptions): Promise<void>;
 
 // @public
@@ -6034,6 +6040,7 @@ export interface SessionDataApi {
     readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
+    remap(options: RemapOptions): Promise<ReplaceReport>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;

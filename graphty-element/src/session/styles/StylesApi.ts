@@ -2674,14 +2674,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const editableBase = (): boolean => dispatcher.state.config.get("editableBase") === true;
     /**
-     * Whether a stack entry is one of the element's own base layers. A layer a file's styles or a
-     * reader made may also be of kind `base` (a file's defaults): it is an ordinary layer, so
-     * `editableBase` never turns it off.
+     * Whether a stack entry is one of the element's own base layers (kind `base` and
+     * {@link Layer.locked}, which is exactly an element source). A layer a file's styles or a reader
+     * made may also be of kind `base` (a file's defaults): it is an ordinary layer, so `editableBase`
+     * never turns it off.
      * @param entry - The entry.
      * @returns True for a base layer.
      */
-    const isBaseEntry = (entry: CompiledLayer): boolean =>
-        entry.layer.kind === "base" && entry.layer.source.by === "element";
+    const isBaseEntry = (entry: CompiledLayer): boolean => entry.layer.kind === "base" && entry.layer.locked;
 
     /**
      * Everything a reading of the whole stack (`agreement`) depends on besides its own

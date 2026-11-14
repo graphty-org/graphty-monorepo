@@ -322,6 +322,147 @@ describe("reopening committed joins as steps (prepareJoins({ edit }))", () => {
         assert.strictEqual(session.data.joins().length, 0);
     });
 
+    it("commits a key matched onto an earlier step's nodes as matched onto that step's join", async () => {
+        const session = await loaded();
+        const people = keyOf(session, "people.csv");
+        const recipe = session.data.prepareJoins();
+        const rooms = recipe.hold({ name: "rooms.csv", rows: [{ room: "r1" }, { room: "r2" }] });
+        const made = recipe.add({
+            from: rooms,
+            choices: {
+                shape: "row-nodes",
+                rowNode: { id: "room", kind: "room" },
+                keys: [{ file: "room", graph: "id", unknown: "add", kind: "room-name" }],
+            },
+        });
+        const stays = recipe.hold({ name: "stays.csv", rows: [{ who: "P3", room: "r1" }] });
+        recipe.add({
+            from: stays,
+            choices: {
+                shape: "edges",
+                keys: [
+                    { file: "who", graph: "id", onto: people },
+                    { file: "room", graph: "id", onto: made },
+                ],
+            },
+        });
+        await recipe.commit();
+
+        const [roomsJoin, staysJoin] = session.data.joins();
+        assert.strictEqual(staysJoin.choices.keys[1].onto, roomsJoin.source);
+        assert.isTrue(session.data.edges().some((edge) => edge.source === "P3" && edge.target === "r1"));
+        // Reopened, the stored key still matches onto the rooms join's nodes.
+        const again = session.data.prepareJoins({ edit: [roomsJoin.source, staysJoin.source] });
+        assert.strictEqual(again.outcome(again.steps[1].id).report?.newEdges, 1);
+        again.discard();
+    });
+
+    it("refuses to commit while a step cannot run, and keeps every committed join", async () => {
+        const { session, key } = await joined();
+        const recipe = session.data.prepareJoins({ edit: [key] });
+        const [step] = recipe.steps;
+        const [who, where] = step.choices.keys;
+        recipe.change(step.id, {
+            from: step.from,
+            choices: { ...step.choices, keys: [who, { ...where, onto: "nowhere" }] },
+        });
+        let code: unknown;
+        try {
+            await recipe.commit();
+        } catch (error) {
+            ({ code } = error as { code?: unknown });
+        }
+
+        assert.strictEqual(code, "E_BAD_COMMAND");
+        assert.deepEqual(
+            session.data.joins().map((each) => each.source),
+            [key],
+        );
+        assert.strictEqual(session.data.edges().length, 2);
+        recipe.discard();
+    });
+
+    it("leaves a reopened join the recipe did not change as it is", async () => {
+        const session = await loaded();
+        const first = session.data.prepareJoins();
+        first.add({ from: first.hold({ name: "visits.csv", rows: VISITS }), choices: VISIT_EDGES });
+        const notes = first.hold({ name: "notes.csv", rows: [{ badge: "B-1", note: "early" }] });
+        first.add({ from: notes, choices: { shape: "node-values", keys: [{ file: "badge", graph: "badge_id" }] } });
+        await first.commit();
+        const [visits, noted] = session.data.joins();
+        const edges = session.data.edges().map((edge) => edge.id);
+        // A reader's own edit on an edge the visits join made.
+        await session.data.updateEdges([{ id: edges[0], values: { checked: true } }]);
+
+        const recipe = session.data.prepareJoins({ edit: [visits.source, noted.source] });
+        const step = recipe.steps[1];
+        recipe.change(step.id, { from: step.from, choices: { ...step.choices, flag: "noted" } });
+        recipe.add({
+            from: recipe.hold({ name: "tags.csv", rows: [{ id: "P2", tag: "x" }] }),
+            choices: { shape: "node-values", keys: [{ file: "id", graph: "id" }] },
+        });
+        await recipe.commit();
+
+        const now = session.data.joins();
+        assert.strictEqual(now.length, 3);
+        assert.strictEqual(now[0].source, visits.source);
+        assert.deepEqual(
+            session.data.edges().map((edge) => edge.id),
+            edges,
+        );
+        assert.strictEqual(session.data.edges()[0].checked, true);
+        assert.strictEqual(session.data.node("P1")?.noted, true);
+        await session.undo();
+        assert.isUndefined(session.data.node("P1")?.noted);
+        assert.strictEqual(session.data.node("P1")?.note, "early");
+    });
+
+    it("joins again a reopened join after a changed one when its input changed", async () => {
+        const session = await loaded();
+        const first = session.data.prepareJoins();
+        const zones = first.hold({
+            name: "zones.csv",
+            rows: [
+                { id: "P1", zone: "z1" },
+                { id: "p2", zone: "z2" },
+            ],
+        });
+        first.add({ from: zones, choices: { shape: "node-values", keys: [{ file: "id", graph: "id" }] } });
+        const floors = first.hold({
+            name: "floors.csv",
+            rows: [
+                { zone: "z1", floor: 1 },
+                { zone: "z2", floor: 2 },
+            ],
+        });
+        first.add({ from: floors, choices: { shape: "node-values", keys: [{ file: "zone", graph: "zone" }] } });
+        await first.commit();
+        const sources = session.data.joins().map((each) => each.source);
+        assert.isUndefined(session.data.node("P2")?.floor);
+
+        const recipe = session.data.prepareJoins({ edit: sources });
+        const step = recipe.steps[0];
+        recipe.change(step.id, { from: step.from, choices: { ...step.choices, ignoreCase: true } });
+        await recipe.commit();
+
+        assert.strictEqual(session.data.joins().length, 2);
+        assert.strictEqual(session.data.node("P2")?.floor, 2);
+    });
+
+    it("holds one table for reopened joins that read the same table", async () => {
+        const session = await loaded();
+        const first = session.data.prepareJoins();
+        const table = first.hold({ name: "visits.csv", rows: VISITS });
+        first.add({ from: table, choices: VISIT_EDGES });
+        first.add({ from: table, choices: { shape: "node-values", keys: [{ file: "who", graph: "id" }] } });
+        await first.commit();
+
+        const recipe = session.data.prepareJoins({ edit: session.data.joins().map((each) => each.source) });
+        assert.strictEqual(recipe.inputs.filter((each) => each.held).length, 1);
+        assert.strictEqual(recipe.steps[0].from, recipe.steps[1].from);
+        recipe.discard();
+    });
+
     it("refuses a key that is no join", async () => {
         const session = await loaded();
         assert.throws(() => session.data.prepareJoins({ edit: ["nope"] }), /nope/);

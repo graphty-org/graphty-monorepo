@@ -2203,7 +2203,7 @@ const MEMBERSHIP = "membership";
 
 /**
  * Every region a compare join writes, the graph's own first.
- * @since 3.39.0
+ * @since 3.40.0
  */
 export const JOIN_REGIONS: readonly JoinRegion[] = Object.freeze(["only-onto", "both", "only-from"]);
 
@@ -2219,7 +2219,7 @@ export const JOIN_REGIONS: readonly JoinRegion[] = Object.freeze(["only-onto", "
  * @param choices - The join.
  * @param keep - The regions to keep.
  * @returns The rule, or null when the join is no compare or every region is kept.
- * @since 3.39.0
+ * @since 3.40.0
  */
 export function joinRegionRule(choices: JoinChoices, keep: readonly JoinRegion[]): RuleTree | null {
     if (choices.compare !== true || JOIN_REGIONS.every((region) => keep.includes(region))) {

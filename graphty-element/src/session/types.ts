@@ -1894,9 +1894,9 @@ export interface SessionDataApi {
      * recipe.preview().nodes; // the graph as the recipe leaves it, each element's fate
      * await recipe.commit(); // one undo step
      * ```
-     * @param options - Committed joins to reopen as its first steps. @since 3.39.0
+     * @param options - Committed joins to reopen as its first steps. @since 3.40.0
      * @returns The draft.
-     * @since 3.37.0
+     * @since 3.40.0
      * @beta
      */
     prepareJoins(options?: JoinsDraftOptions): JoinsDraft;
@@ -2547,7 +2547,7 @@ export interface LoadedSource extends DataSourceDescriptor {
  * - `"row-nodes"`: each row becomes a node of its own (`JoinChoices.rowNode`), with an edge to
  *   the node each key names (a door entry linked to its person and its building); the nodes it
  *   names are left as they are. Never suggested as the shape; ask for it with
- *   `JoinsDraft.suggest(from, before, { shape: "row-nodes" })`. @since 3.39.0
+ *   `JoinsDraft.suggest(from, before, { shape: "row-nodes" })`. @since 3.40.0
  *
  * OPEN UNION: shapes may be added in a minor release.
  * @since 3.30.0
@@ -2556,7 +2556,7 @@ export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "repl
 
 /**
  * The node each row becomes in a join of `shape: "row-nodes"` ({@link JoinChoices.rowNode}).
- * @since 3.39.0
+ * @since 3.40.0
  */
 export interface JoinRowNode {
     /**
@@ -2656,20 +2656,20 @@ export interface JoinKey {
      * For `"row-nodes"`: a value naming no node either `"add"`s a node for it (id the value, `kind`
      * this key's `kind`, by default its column) or is `"leave-out"`, drawing no edge for this key
      * (the default).
-     * @since 3.39.0
+     * @since 3.40.0
      */
     readonly unknown?: "add" | "leave-out";
     /**
      * For `"row-nodes"`: match only nodes of this `kind`, and give the nodes `unknown: "add"` makes
      * this kind. A made node whose id a node of another kind holds becomes `<kind>:<value>`.
-     * @since 3.39.0
+     * @since 3.40.0
      */
     readonly kind?: string;
     /**
      * Match only the elements one load supplied (a key of `data.sources()`), or, in a join recipe,
      * the nodes one step added (its id): two loads sharing an id are then told apart. A key no
      * load or step has refuses with `E_SOURCE_UNKNOWN`. Every element when absent.
-     * @since 3.39.0
+     * @since 3.40.0
      */
     readonly onto?: string;
 }
@@ -2698,13 +2698,13 @@ export interface JoinSuggestion {
      * each is its own event. Absent otherwise. @since 3.38.0
      */
     readonly repeated?: "both";
-    /** For `"row-nodes"`: the column unique to each row that names its node. @since 3.39.0 */
+    /** For `"row-nodes"`: the column unique to each row that names its node. @since 3.40.0 */
     readonly rowNode?: JoinRowNode;
 }
 
 /**
  * What {@link JoinsDraft.suggest} is asked for.
- * @since 3.39.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinSuggestOptions {
@@ -2723,7 +2723,7 @@ export interface JoinSuggestOptions {
      * person, building and door), and `"link"` for a table of the graph's own nodes that would
      * bring them no new value but whose rows share values (accounts sharing a phone). Default:
      * the shapes suggested without it.
-     * @since 3.39.0
+     * @since 3.40.0
      */
     readonly among?: readonly JoinShape[];
 }
@@ -2845,21 +2845,21 @@ export interface JoinChoices {
      * the incoming one with a reduction, written under the column's own name: `"mean"`, `"sum"`,
      * `"min"`, `"max"`, `"list"` (both values, the graph's first), `"first"` (the graph's),
      * `"last"` (the incoming one), `"count"`. Takes the place of `clash` for the columns it names.
-     * @since 3.37.0
+     * @since 3.40.0
      */
     readonly fuse?: Readonly<Record<string, JoinReduce>>;
     /**
      * For values: a column written `true` on every element a row matches, so a reference list (a
      * watchlist) marks what it names. Brought columns are written as well; pass `columns: []` to
      * write only the flag.
-     * @since 3.37.0
+     * @since 3.40.0
      */
     readonly flag?: string;
     /**
      * Columns of the table holding several values in one cell, split at the separator given:
      * `{ tags: ";" }`. An `"edges"` join reads each part as a row of its own (one edge per part);
      * any other join writes the parts as a list.
-     * @since 3.37.0
+     * @since 3.40.0
      */
     readonly split?: Readonly<Record<string, string>>;
     /**
@@ -2872,14 +2872,14 @@ export interface JoinChoices {
     /**
      * For `"row-nodes"`: the node each row becomes. Default: an id of `<table name>:<row number>`
      * and the table's name as its `kind`.
-     * @since 3.39.0
+     * @since 3.40.0
      */
     readonly rowNode?: JoinRowNode;
     /**
      * For `"edges"`: a row whose two ends already have an edge (either way round in an undirected
      * graph) either `"add"`s another edge (the default) or `"merge"`s its values into that edge,
      * with `clash` and `repeated` (or `aggregate`) deciding as for values. Taken back with the join.
-     * @since 3.39.0
+     * @since 3.40.0
      */
     readonly existingEdges?: "add" | "merge";
 }
@@ -2994,19 +2994,19 @@ export interface JoinReport {
     /**
      * For `"edges"` with `existingEdges: "merge"`: the edges the graph already held that rows
      * write values onto. 0 otherwise.
-     * @since 3.39.0
+     * @since 3.40.0
      */
     readonly edgesMerged?: number;
     /**
      * For `"row-nodes"`: one count per key, in the order of `JoinChoices.keys`. Absent otherwise.
-     * @since 3.39.0
+     * @since 3.40.0
      */
     readonly byKey?: readonly JoinKeyCount[];
 }
 
 /**
  * What one key of a join found ({@link JoinReport.byKey}).
- * @since 3.39.0
+ * @since 3.40.0
  */
 export interface JoinKeyCount {
     /** The rows whose value in the key's column names a node. */
@@ -3038,7 +3038,7 @@ export interface JoinRecord {
      * {@link JoinRowFate} is not `"left-out"` or `"over-cap"` (for a `split` of an edges join, a
      * row any of whose parts was read). Unlike {@link JoinRecord.matched}, an edges join's row
      * whose end the join makes counts. Absent on a join saved before 3.37.0.
-     * @since 3.37.0
+     * @since 3.40.0
      */
     readonly joinedRows?: number;
     /** The names the join wrote its values under, after any `"both"` clash rename. */
@@ -3062,7 +3062,7 @@ export interface JoinRecord {
  * What a recipe step did to one node or edge ({@link JoinsDraft.preview}): `"matched"` a row
  * names it, `"updated"` a value of it changed, `"added"` the step made it, `"merged"` rows were
  * merged into it. OPEN UNION: fates may be added in a minor release.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export type JoinElementFate = "matched" | "updated" | "added" | "merged";
@@ -3070,7 +3070,7 @@ export type JoinElementFate = "matched" | "updated" | "added" | "merged";
 /**
  * One input a join recipe reads ({@link JoinsDraft.inputs}): a loaded source, read as its
  * records, or a table the draft holds.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinInput {
@@ -3088,7 +3088,7 @@ export interface JoinInput {
 
 /**
  * One step of a join recipe: the input whose rows it reads, and the join.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinStep {
@@ -3108,7 +3108,7 @@ export interface JoinStep {
 
 /**
  * A step of a join recipe as the draft holds it.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinStepEntry extends JoinStep {
@@ -3116,14 +3116,14 @@ export interface JoinStepEntry extends JoinStep {
     readonly id: string;
     /**
      * For a step reopened from a committed join (`prepareJoins({ edit })`): that join's load.
-     * @since 3.39.0
+     * @since 3.40.0
      */
     readonly joined?: SourceKey;
 }
 
 /**
  * How {@link SessionDataApi.prepareJoins} opens a recipe.
- * @since 3.39.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinsDraftOptions {
@@ -3131,8 +3131,11 @@ export interface JoinsDraftOptions {
      * Committed joins to edit, keys of `data.joins()`: the draft starts from the graph with them
      * taken back, and each is its first steps (in `data.joins()` order), its table held, its
      * choices and name kept and `joined` its key. A join resting on one of them (keyed on a
-     * column it wrote, or joined onto it) comes back with it. `commit()` takes them back and
-     * joins every step, as one undoable step; a recipe left as it opened commits nothing.
+     * column it wrote, or joined onto it) comes back with it. `commit()` takes back only the
+     * reopened joins whose steps were changed or removed, and those after them that the change
+     * reaches, and joins those steps and the new ones, as one undoable step; a join left as it
+     * opened stays in the graph untouched, its key, its edits and its pins kept. A recipe left as
+     * it opened commits nothing.
      * A key that is no join refuses with `E_SOURCE_UNKNOWN`.
      */
     readonly edit?: readonly SourceKey[];
@@ -3141,7 +3144,7 @@ export interface JoinsDraftOptions {
 /**
  * What one step of a join recipe does, counted against the graph the steps before it leave: its
  * report, or why it cannot run (it then changes nothing and `commit` leaves it out).
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinStepOutcome {
@@ -3155,7 +3158,7 @@ export interface JoinStepOutcome {
 
 /**
  * A node of a join recipe's preview.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinPreviewNode {
@@ -3168,7 +3171,7 @@ export interface JoinPreviewNode {
 /**
  * An edge of a join recipe's preview. An edge a step adds has an id the draft makes; the commit
  * gives it the graph's own.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinPreviewEdge {
@@ -3182,7 +3185,7 @@ export interface JoinPreviewEdge {
 
 /**
  * The graph as a join recipe leaves it, or as it stands before one of its steps.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinPreview {
@@ -3192,7 +3195,7 @@ export interface JoinPreview {
 
 /**
  * One row a recipe step reads, with what the step does with it.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinPreviewRow {
@@ -3209,7 +3212,7 @@ export interface JoinPreviewRow {
 /**
  * One clash a recipe step meets: an element's own value of a column and the different value a
  * row brings.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinClash {
@@ -3222,7 +3225,7 @@ export interface JoinClash {
 
 /**
  * A page of a list a join recipe reads out.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinPage<T> {
@@ -3235,7 +3238,7 @@ export interface JoinPage<T> {
 
 /**
  * Which part of a list {@link JoinsDraft.rows} and {@link JoinsDraft.clashes} read.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinPageOptions {
@@ -3248,7 +3251,7 @@ export interface JoinPageOptions {
 /**
  * How one column of an input meets one graph value ({@link JoinsDraft.keyMatches}), for picking a
  * key by hand.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinKeyMatch {
@@ -3264,7 +3267,7 @@ export interface JoinKeyMatch {
 
 /**
  * Which graph {@link JoinsDraft.keyMatches} compares a column with, and how.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinKeyMatchOptions {
@@ -3279,7 +3282,7 @@ export interface JoinKeyMatchOptions {
     /**
      * Compare only with the elements one load supplied, or one step added, as `JoinKey.onto`.
      * Every element when absent.
-     * @since 3.39.0
+     * @since 3.40.0
      */
     readonly onto?: string;
 }
@@ -3289,7 +3292,7 @@ export interface JoinKeyMatchOptions {
  * of the graph, each matching the graph the steps before it leave, so nothing changes until
  * `commit()`. The draft keeps its own history: `undo()` and `redo()` step through its edits.
  * Every call after `commit()` or `discard()` throws `E_DISPOSED`.
- * @since 3.37.0
+ * @since 3.40.0
  * @beta
  */
 export interface JoinsDraft {
@@ -3343,7 +3346,7 @@ export interface JoinsDraft {
      * reader chose instead (`{ shape: "edges" }` the two columns naming each end).
      * @param from - The input's key.
      * @param before - A step: suggest against the graph before it.
-     * @param options - The shape chosen. @since 3.39.0
+     * @param options - The shape chosen. @since 3.40.0
      * @returns The suggestion.
      */
     suggest(from: string, before?: string, options?: JoinSuggestOptions): JoinSuggestion;
@@ -3352,7 +3355,7 @@ export interface JoinsDraft {
      * @param from - The input's key.
      * @param column - The column.
      * @returns Up to three distinct values, in table order.
-     * @since 3.37.0
+     * @since 3.40.0
      */
     samples(from: string, column: string): readonly unknown[];
     /**
@@ -3362,7 +3365,7 @@ export interface JoinsDraft {
      * @param column - The column.
      * @param options - Which graph, and how to compare.
      * @returns One entry per graph value, the id first.
-     * @since 3.37.0
+     * @since 3.40.0
      */
     keyMatches(from: string, column: string, options?: JoinKeyMatchOptions): readonly JoinKeyMatch[];
     /**
@@ -3396,10 +3399,12 @@ export interface JoinsDraft {
      */
     preview(options?: { readonly step?: string; readonly before?: boolean }): JoinPreview;
     /**
-     * Join every step that can run, in order, as one undoable step. Each becomes a join
-     * `data.joins()` lists and the project saves; a step that changes nothing (its key matches no
-     * row) is left out, so it adds no source.
-     * @returns Settles once the step is recorded.
+     * Join every step, in order, as one undoable step. Each becomes a join `data.joins()` lists
+     * and the project saves; a step that changes nothing (its key matches no row) is left out, so
+     * it adds no source. A key whose `onto` names a step is saved as matched onto that step's join.
+     * @returns Settles once the step is recorded; rejects with `E_BAD_COMMAND` (reason
+     * `"step-errors"`, `details.steps` the step ids) while any step cannot run, leaving the graph
+     * and the draft as they are.
      */
     commit(): Promise<void>;
     /** Let the draft go, changing nothing. */

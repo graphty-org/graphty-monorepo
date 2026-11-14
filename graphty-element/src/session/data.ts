@@ -114,7 +114,7 @@ import {
     NO_ISSUE_STATE,
 } from "./issues";
 import { frozen, type JoinGraph, type JoinPlan, joinReport, type JoinTable, planJoin } from "./join";
-import { createJoinsDraft } from "./joinsDraft";
+import { createJoinsDraft, type JoinCommitStep } from "./joinsDraft";
 import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
 import type { SessionCommand } from "./planning";
@@ -1870,7 +1870,9 @@ export class SessionData implements SessionDataApi {
                           joinGraph: () => this.joinGraph(),
                           joiner: () => {
                               const send = this.sender("join a table");
-                              return (table, choices, shape) => this.applyJoin(send, table, choices, shape);
+                              return async (table, choices, shape) => {
+                                  await this.applyJoin(send, table, choices, shape);
+                              };
                           },
                       }
                     : {}),
@@ -3741,13 +3743,9 @@ export class SessionData implements SessionDataApi {
                         asEdges: each.tableRows?.includes("edges") === true && !each.tableRows.includes("nodes"),
                     })),
             joinedTable: (key) => this.storedSources().find((each) => each.key === key)?.join?.table,
-            commit: (steps) =>
+            commit: (steps, retake) =>
                 this.afterLoads(
-                    () =>
-                        this.commitJoins(
-                            steps,
-                            reopened.map((each) => each.key),
-                        ),
+                    () => this.commitJoins(steps, retake),
                     () => undefined,
                 ),
         });
@@ -3775,14 +3773,12 @@ export class SessionData implements SessionDataApi {
 
     /**
      * A join recipe's steps joined in order, as one undoable step.
-     * @param steps - each step's table, choices and name
-     * @param reopened - the committed joins the recipe reopened, taken back first
+     * @param steps - each step's id, table, choices, name and the join it was reopened from
+     * @param reopened - the committed joins to take back first, with the joins resting on them;
+     * a step reopened from any other join stays in the graph as it is
      * @returns settles once the step is recorded
      */
-    private async commitJoins(
-        steps: readonly { readonly table: JoinTable; readonly choices: JoinChoices; readonly name?: string }[],
-        reopened: readonly SourceKey[] = [],
-    ): Promise<void> {
+    private async commitJoins(steps: readonly JoinCommitStep[], reopened: readonly SourceKey[] = []): Promise<void> {
         this.requireLive("commit");
         const transaction = this.writes.transaction?.bind(this.writes);
         if (transaction === undefined) {
@@ -3796,6 +3792,7 @@ export class SessionData implements SessionDataApi {
         await transaction(`Joined ${String(steps.length)} tables`, async (send) => {
             // The reopened joins are taken back first: the steps join again in their place.
             const going = this.reopenedJoins(reopened);
+            const retaken = new Set(going.map((each) => each.key));
             if (going.length > 0) {
                 await send({
                     op: "batch",
@@ -3805,17 +3802,35 @@ export class SessionData implements SessionDataApi {
                 });
             }
 
+            // A key matched onto a step's nodes matches onto the join that step leaves.
+            const joinOf = new Map<string, SourceKey>();
             for (const step of steps) {
+                if (step.joined !== undefined && !retaken.has(step.joined)) {
+                    joinOf.set(step.id, step.joined);
+                    continue;
+                }
+
+                const choices: JoinChoices = {
+                    ...step.choices,
+                    keys: step.choices.keys.map((key) => {
+                        const onto = key.onto === undefined ? undefined : joinOf.get(key.onto);
+                        return onto === undefined ? key : { ...key, onto };
+                    }),
+                };
                 // A held table is loaded from its rows; `config` says the load reads a table.
-                const source = { type: "csv", name: step.name ?? step.table.name, config: {} };
-                await this.applyJoin(
+                const source = { type: "csv", name: step.name, config: {} };
+                const key = await this.applyJoin(
                     send,
                     { ...step.table, source },
-                    step.choices,
-                    step.choices.shape ?? "node-values",
+                    choices,
+                    choices.shape ?? "node-values",
                     undefined,
                     true,
                 );
+                joinOf.set(step.id, key);
+                if (step.joined !== undefined) {
+                    joinOf.set(step.joined, key);
+                }
             }
         });
     }
@@ -4100,7 +4115,7 @@ export class SessionData implements SessionDataApi {
      * @param shape - the shape when the choices give none
      * @param previous - the joined table's load, when the join is being edited
      * @param again - a recipe's step: a table already joined may be joined again
-     * @returns settles once the step is recorded
+     * @returns the joined table's load key, once the step is recorded
      */
     private async applyJoin(
         send: (command: SessionCommand) => Promise<unknown>,
@@ -4109,7 +4124,7 @@ export class SessionData implements SessionDataApi {
         shape: JoinShape,
         previous?: LoadedSource,
         again = false,
-    ): Promise<void> {
+    ): Promise<SourceKey> {
         const undo = previous === undefined ? undefined : this.unjoin(previous);
         const graph = this.joinGraph(undo?.restored, undo?.gone);
         const planned = planJoin(table, graph, choices, shape);
@@ -4168,6 +4183,7 @@ export class SessionData implements SessionDataApi {
             },
             steps,
         });
+        return key;
     }
 
     /**
@@ -5906,7 +5922,8 @@ function withJoinsResting(sources: readonly LoadedSource[], key: SourceKey): Loa
     const columns = new Set<string>();
     for (const { join, key: each } of sources) {
         const keyed = join?.choices.keys.some(({ graph }) => columns.has(graph.replace(/^data\./, ""))) === true;
-        if (each === key || going.has(join?.onto ?? "") || going.has(join?.choices.via ?? "") || keyed) {
+        const onto = join?.choices.keys.some((each) => going.has(each.onto ?? "")) === true;
+        if (each === key || going.has(join?.onto ?? "") || going.has(join?.choices.via ?? "") || keyed || onto) {
             going.add(each);
             join?.columns.forEach((column) => columns.add(column));
         }

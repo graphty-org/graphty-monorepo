@@ -11,6 +11,7 @@ import type { Graphty } from "../../index.js";
 import type { TimeStepEvent } from "../../session.js";
 import { setDefaultFeatures } from "../../src/features/resolve";
 import type { ElementSession } from "../../src/session/types";
+import { windowNodeIds } from "../helpers/time-window";
 
 // The timeline is an experiment: this file's sessions switch it on.
 beforeAll(() => {
@@ -222,18 +223,19 @@ describe("session.time playback on the element", () => {
         await time.ready;
         assert.deepStrictEqual(time.field, { edges: { start: "sent" } });
         assert.strictEqual(time.extent()?.from, T0 + 9 * 3_600_000);
+        await time.setSettings({ outside: "hide" });
 
         await time.window({ from: T0, to: T0 + DAY, step: "day" });
         await element.waitForSettled();
         await element.waitForStableFrame();
-        assert.deepStrictEqual([...element.session.visibility.nodes].map(String).sort(), ["a", "b"]);
+        assert.deepStrictEqual(windowNodeIds(element.session).sort(), ["a", "b"]);
         assertDrawnAsVisible(element, "the first day");
 
         const steps: TimeStepEvent[] = [];
         const drawnAfterStep: string[][] = [];
         element.session.on("time:step", (step) => {
             steps.push(step);
-            drawnAfterStep.push([...element.session.visibility.nodes].map(String).sort());
+            drawnAfterStep.push(windowNodeIds(element.session).sort());
         });
         await new Promise<void>((resolve) => {
             const off = element.session.on("time:end", () => {

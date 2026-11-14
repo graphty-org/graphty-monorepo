@@ -489,7 +489,7 @@ function HeroGraphBody({
         let live = true;
         void (async () => {
             definePalette(GROUP_PALETTE);
-            next.styles.setDefaultPalettes({ categorical: GROUP_PALETTE.id });
+            await next.styles.setDefaultPalettes({ categorical: GROUP_PALETTE.id });
             const ids: string[] = [];
             // The scheme in force now; a later change is applied by the effect below.
             for (const layer of lookLayers(schemeRef.current)) {

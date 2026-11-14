@@ -1,6 +1,5 @@
 import { Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import type { Node as GraphNode } from "../../src/Node";

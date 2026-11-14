@@ -10,7 +10,7 @@ import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { focusLineNext } from "../style/useFocusLine";
 import type { Resolved } from "./inspected";
-import { hexOf, hidden } from "./reads";
+import { hidden, paintedHex } from "./reads";
 import { channelTokens } from "./words";
 
 /** One line: a row that wins at least one property on the element. */
@@ -171,7 +171,7 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
         .filter((contribution) => won.has(contribution.layerId))
         .map((contribution) => {
             const channels = won.get(contribution.layerId) ?? [];
-            const color = hexOf(contribution.values["node.color"] ?? contribution.values["edge.color"]);
+            const color = paintedHex(contribution.values["node.color"] ?? contribution.values["edge.color"]);
             return {
                 layerId: contribution.layerId,
                 ...rowOf(session, contribution.layerId, contribution.name),

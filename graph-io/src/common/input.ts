@@ -1528,7 +1528,7 @@ class StreamText {
  * @param input - a non-string, non-Uint8Array input
  * @returns true for a ReadableStream
  */
-function isReadableStream(
+export function isReadableStream(
     input: ReadableStream<Uint8Array> | AsyncIterable<string | Uint8Array>,
 ): input is ReadableStream<Uint8Array> {
     return typeof (input as { getReader?: unknown }).getReader === "function";
@@ -1542,7 +1542,7 @@ function isReadableStream(
  * @yields the stream's chunks
  * @returns nothing
  */
-async function* streamChunks(
+export async function* streamChunks(
     stream: ReadableStream<Uint8Array>,
     signal: AbortSignal | null,
 ): AsyncGenerator<Uint8Array, void, undefined> {

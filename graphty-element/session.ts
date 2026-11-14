@@ -773,6 +773,8 @@ export type {
     StyleCounts,
     StyleExplanation,
     StyleFileDocument,
+    StyleRepaintCause,
+    StyleRepaintFailure,
     StyleRow,
     StyleRowId,
     StyleRowPin,

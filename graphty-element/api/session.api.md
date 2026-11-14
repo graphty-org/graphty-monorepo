@@ -6071,6 +6071,7 @@ export interface SessionEventMap {
     "style:changed": StyleChange;
     "style:problem": StyleProblem;
     "style:refused": StyleRefusal;
+    "style:repaint-failed": StyleRepaintFailure;
     // @beta
     "time:end": {
         readonly window: TimeWindow | null;
@@ -6967,6 +6968,15 @@ export interface StyleProblem {
 }
 
 // @public
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "layer";
+
+// @public
+export interface StyleRepaintFailure {
+    readonly cause: StyleRepaintCause;
+    readonly error: GraphtyError;
+}
+
+// @public
 export interface StyleRow {
     readonly children: readonly StyleRow[];
     readonly hidden: boolean;
@@ -7041,7 +7051,7 @@ export interface StylesApi {
     }): StyleSequence;
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
-    }): void;
+    }): Promise<void>;
     setFoldBelow(id: LayerId, by: Path, below: number | undefined, options?: RunOptions): Run<Layer>;
     setHighlightColor(color: string | undefined): void;
     settled(): Promise<void>;

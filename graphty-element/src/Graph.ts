@@ -8568,23 +8568,42 @@ export class Graph implements GraphContext {
     }
 
     private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {
-        // The whole graph is framed by what is drawn, so no node at the rim is cut off; a subset by
-        // its centres unless the caller asks otherwise.
-        const extent = extentOption ?? (nodeIds === undefined ? "drawn" : "centers");
-        const nodes =
-            nodeIds === undefined
+        // The whole graph is framed as the project's framing says, by what is drawn when it says
+        // nothing, so no node at the rim is cut off; a subset by its centres unless the caller asks otherwise.
+        const whole = nodeIds === undefined;
+        const extent = extentOption ?? (whole ? (this.session.config.framing?.extent ?? "drawn") : "centers");
+        // Only what the reader can see: a hidden node keeps its position but must not stretch the box.
+        const nodes = (
+            whole
                 ? this.getNodes()
-                : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined);
+                : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined)
+        ).filter((node) => node.getRenderState() === "visible");
 
         const points = nodes.map((node) => node.getPosition());
+        // "drawn" takes each node out to its drawn box, so a big node at the edge is not cut off.
+        const boxes: { min: GraphBounds["min"]; max: GraphBounds["max"] }[] =
+            extent === "drawn" ? nodes.map((node) => node.framingBounds()) : [];
+
+        // The whole graph also holds the visible rows drawn with no `Node` (renderPath "batched"),
+        // each a spot as wide as its widest half, as zoom-to-fit frames them.
+        const columns = whole ? this.updateManager.columnFraming() : undefined;
+        for (const { pos, half } of columns ? (nodeFramingBox([], extent, columns)?.spots ?? []) : []) {
+            points.push(pos);
+            if (extent === "drawn") {
+                boxes.push({
+                    min: { x: pos.x - half, y: pos.y - half, z: pos.z - half },
+                    max: { x: pos.x + half, y: pos.y + half, z: pos.z + half },
+                });
+            }
+        }
+
         // The whole graph on a map is the map too: its edges, or the globe.
-        const frame = nodeIds === undefined ? this.#geoFrame() : null;
+        const frame = whole ? this.#geoFrame() : null;
         if (frame !== null && points.length > 0) {
             points.push(...mapCorners(frame));
         }
 
-        // "drawn" takes each node out to its drawn box, so a big node at the edge is not cut off.
-        return measureBounds(points, extent === "drawn" ? nodes.map((node) => node.framingBounds()) : []);
+        return measureBounds(points, boxes);
     }
 
     /**
@@ -9584,6 +9603,8 @@ export class Graph implements GraphContext {
 
     // Voice input adapter instance (lazy-initialized)
     private voiceAdapter: VoiceInputAdapter | null = null;
+    // Removes the running session's `onTranscript`, so it never hears a later session.
+    private voiceTranscriptOff: (() => void) | null = null;
 
     /**
      * Get the voice input adapter.
@@ -9607,6 +9628,8 @@ export class Graph implements GraphContext {
                 if (active) {
                     this.eventManager.emit("ai-voice-start", {});
                 } else {
+                    this.voiceTranscriptOff?.();
+                    this.voiceTranscriptOff = null;
                     this.eventManager.emit("ai-voice-end", { reason });
                 }
             });
@@ -9625,8 +9648,10 @@ export class Graph implements GraphContext {
      * @param options - Voice input options
      * @param options.continuous - Whether to continuously listen for input
      * @param options.interimResults - Whether to return interim transcription results
-     * @param options.language - BCP 47 language tag (e.g., "en-US", "fr-FR")
-     * @param options.onTranscript - Callback for transcription events
+     * @param options.language - BCP 47 language tag (e.g., "en-US", "fr-FR"); without one the
+     *   browser recognizes the page's language (`<html lang>`)
+     * @param options.onTranscript - Callback for this session's transcription events; it is not
+     *   called again once the session ends or another starts
      * @param options.onStart - Callback when voice input starts
      * @returns True if voice input started successfully
      * @example
@@ -9657,11 +9682,6 @@ export class Graph implements GraphContext {
             return false;
         }
 
-        // Register transcript callback if provided
-        if (options?.onTranscript) {
-            adapter.onInput(options.onTranscript);
-        }
-
         // Register start callback if provided
         if (options?.onStart) {
             adapter.onStart(options.onStart);
@@ -9671,8 +9691,13 @@ export class Graph implements GraphContext {
         adapter.start({
             continuous: options?.continuous ?? false,
             interimResults: options?.interimResults ?? true,
-            language: options?.language ?? "en-US",
+            language: options?.language,
         });
+
+        // Registered after `start`, which ends the previous session (and removes its callback) first.
+        // This session's callback is removed when it ends.
+        this.voiceTranscriptOff?.();
+        this.voiceTranscriptOff = options?.onTranscript ? adapter.onInput(options.onTranscript) : null;
 
         // Return true because permission is being requested
         // Actual start/failure will be notified via onStart callback

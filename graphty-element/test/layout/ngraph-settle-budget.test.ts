@@ -126,12 +126,19 @@ describe("the ngraph layout's steps to settle", () => {
  * graph is so stiff that the configured time step overshoots. A simulation that stalls swinging in
  * place now shortens its time step; one still coming to rest never does, so the other samples
  * settle at the very step they did before the fix (measured 2026-11-14, seed 1).
+ *
+ * Issue #7919: political-blogs in 3D also ran to the cap, though its stall was not read as one. Its
+ * largest component kept its shape from about step 400 while the whole of it slid on, so its nodes
+ * looked as if they were travelling. A stall now leaves out what every node moved together.
  */
 describe("the ngraph layout on graph-samples datasets", () => {
     const cases: { name: string; dim: 2 | 3; steps: number; exact: boolean }[] = [
         // Before the fix both hit the 1,000-step cap; 313 and 202 with it, given 10% here.
         { name: "knuth-miles", dim: 3, steps: 313, exact: false },
         { name: "knuth-miles", dim: 2, steps: 202, exact: false },
+        // Before #7919's fix it hit the 1,000-step cap; 612 with it, given 10% here.
+        { name: "political-blogs", dim: 3, steps: 612, exact: false },
+        { name: "political-blogs", dim: 2, steps: 701, exact: true },
         { name: "football", dim: 3, steps: 146, exact: true },
         { name: "football", dim: 2, steps: 168, exact: true },
         { name: "political-books", dim: 2, steps: 202, exact: true },

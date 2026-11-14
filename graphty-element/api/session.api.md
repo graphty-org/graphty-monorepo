@@ -7549,6 +7549,7 @@ export type UndrawnCode = "caption.noArrow" | "shader.unknown" | "shader.target-
 
 // @beta
 export interface UnionBranch {
+    readonly autoName?: boolean;
     readonly color?: string;
     readonly id?: string;
     readonly name?: string;

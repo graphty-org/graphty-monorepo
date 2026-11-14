@@ -2403,6 +2403,11 @@ export interface UnionBranch {
     readonly id?: string;
     /** Its name, the consumer's. */
     readonly name?: string;
+    /**
+     * Whether `name` was given automatically by the consumer (a letter, say) rather than typed by a
+     * reader, so the consumer may clear or replace it. The element only stores it. Default false.
+     */
+    readonly autoName?: boolean;
     /** Its color, filled from the branch palette on write (`session.scope.options.branchPalette`). */
     readonly color?: string;
     /** Whether it counts. Default true. */

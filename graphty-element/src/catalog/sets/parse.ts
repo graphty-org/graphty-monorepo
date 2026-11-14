@@ -640,7 +640,7 @@ function checkMeasure(value: Loose, walker: Walker): void {
 }
 
 /** The fields a union branch and a union step define. */
-const BRANCH_FIELDS = ["id", "name", "color", "on", "start", "steps"];
+const BRANCH_FIELDS = ["id", "name", "autoName", "color", "on", "start", "steps"];
 const STEP_FIELDS = ["id", "op", "on", "rule", "computedOn", "links", "ends", "frozenFrom", "mode"];
 
 /** The leaf kinds that speak only nodes, or hold a selection: a step's `links` refuses them. */
@@ -738,6 +738,9 @@ function checkUnion(value: Loose, walker: Walker): void {
         walker.fields(branch, "unionBranch", BRANCH_FIELDS);
         unique(branch.id, "branch");
         checkFlagAndText(branch, ["name", "color"]);
+        if (branch.autoName !== undefined && typeof branch.autoName !== "boolean") {
+            throw bad("A union branch's autoName is true or false.", { autoName: branch.autoName });
+        }
 
         if (branch.start !== "all" && branch.start !== "none") {
             throw bad('A union branch\'s start is "all" or "none".', { start: branch.start });
@@ -748,24 +751,34 @@ function checkUnion(value: Loose, walker: Walker): void {
         }
 
         for (const step of branch.steps as readonly unknown[]) {
-            if (!isObject(step)) {
-                throw bad("A union step is an object with an op and a rule.", { step });
-            }
-
-            walker.fields(step, "unionStep", STEP_FIELDS);
-            unique(step.id, "step");
-            checkFlagAndText(step, ["mode"]);
-            checkStepEnums(step);
-            walker.inStep++;
-            try {
-                checkTree(step.rule, walker);
-                if (step.links !== undefined) {
-                    checkLinks(step.links, walker);
-                }
-            } finally {
-                walker.inStep--;
-            }
+            checkStep(step, walker, unique);
         }
+    }
+}
+
+/**
+ * Check one step of a union branch: its fields, its id, its enums, its rule and its links.
+ * @param step - The step.
+ * @param walker - The pass.
+ * @param unique - Marks an id used in the leaf, refusing a repeat.
+ */
+function checkStep(step: unknown, walker: Walker, unique: (id: unknown, what: string) => void): void {
+    if (!isObject(step)) {
+        throw bad("A union step is an object with an op and a rule.", { step });
+    }
+
+    walker.fields(step, "unionStep", STEP_FIELDS);
+    unique(step.id, "step");
+    checkFlagAndText(step, ["mode"]);
+    checkStepEnums(step);
+    walker.inStep++;
+    try {
+        checkTree(step.rule, walker);
+        if (step.links !== undefined) {
+            checkLinks(step.links, walker);
+        }
+    } finally {
+        walker.inStep--;
     }
 }
 

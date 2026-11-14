@@ -5,7 +5,14 @@ import { defineOptions, type OptionsSchema } from "../config";
 import { Basemap } from "../config/Basemap";
 import { GraphtyError } from "../errors";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
-import { cachedGazetteer, type Gazetteer, GAZETTEER_URL, hasLayers, loadGazetteer } from "./locationMap/gazetteer";
+import {
+    cachedGazetteer,
+    type Gazetteer,
+    type GazetteerSource,
+    hasLayers,
+    isGazetteerSource,
+    loadGazetteer,
+} from "./locationMap/gazetteer";
 import type { LocationMapFrame, Placement, PlaceOptions } from "./locationMap/place";
 import {
     chosenLocation,
@@ -58,6 +65,11 @@ const FORMATS = [
     "mgrs",
     "utm",
 ] as const;
+
+/** The `gazetteer` option: `false`, or where place names are looked up (`true`, the package, by default). */
+const GazetteerOption = z
+    .union([z.literal(false), z.custom<GazetteerSource>(isGazetteerSource, "a gazetteer source")])
+    .default(true);
 
 const locationMapOptionsSchema = defineOptions({
     location: {
@@ -158,12 +170,13 @@ const locationMapOptionsSchema = defineOptions({
         },
     },
     gazetteer: {
-        schema: z.union([z.string().min(1), z.literal(false)]).default(GAZETTEER_URL),
+        schema: GazetteerOption,
         meta: {
             label: "Gazetteer",
             description:
-                "Where place names (countries, regions, cities) are looked up: the address of the gazetteer " +
-                "files, fetched on first use; false to read no place names",
+                "Where place names (countries, regions, cities) are looked up: true for the optional package " +
+                "@graphty/gazetteer, loaded on first use; a function returning a layer file for a role, or the " +
+                "layer files by role, to use your own; false to read no place names",
             advanced: true,
         },
     },
@@ -205,7 +218,7 @@ const LocationMapLayoutConfig = z.strictObject({
     nodeScale: z.enum(["scene", "screen"]).default("scene"),
     flatNodeScale: z.number().positive().default(1),
     map: Basemap.nullable().default(null),
-    gazetteer: z.union([z.string().min(1), z.literal(false)]).default(GAZETTEER_URL),
+    gazetteer: GazetteerOption,
     dim: z.number().default(3),
     /** The view's dimension, set by the element alone; a 3D view may lay the map out with `dim` 2. */
     view: z.union([z.literal(2), z.literal(3)]).optional(),
@@ -220,7 +233,8 @@ type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
  * `data.knownFields` (`nodeLocationPath`, or `nodeLatitudePath` and `nodeLongitudePath`), and with
  * none designated it finds them by name or by their values (`session.layout.locationColumns()`).
  * A column of place names (countries, regions or cities, `nodeLocationRole`) is looked up in the
- * gazetteer the `gazetteer` option names, fetched on first use; a city is narrowed by a country
+ * gazetteer the `gazetteer` option names (the optional package `@graphty/gazetteer` by default),
+ * loaded on first use; a city is narrowed by a country
  * or region column (`nodeLocationWithinPath`, else one found by name).
  *
  * Nodes with no usable location go to a tray below the map (or stay where they were) and are
@@ -300,8 +314,9 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      * Start the layout: refuse a graph with no location the layout can find, before it becomes the
      * active layout, so the previous one stays drawn.
      * @throws A `GraphtyError` with code `E_UNKNOWN_ATTRIBUTE` whose `details.refusal` is the
-     *     `layout.needs-location` fact, or with code `E_FETCH_FAILED` when the placement code could not
-     *     be loaded.
+     *     `layout.needs-location` fact, with code `E_MISSING_PACKAGE` when a column of place names needs
+     *     `@graphty/gazetteer` and it is not installed, or with code `E_FETCH_FAILED` when the placement
+     *     code or a gazetteer layer could not be loaded.
      */
     override async init(): Promise<void> {
         await super.init();
@@ -313,10 +328,10 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
         const columns = this.#dataColumns(n);
         const read = (name: string): readonly unknown[] | null => named(columns, name);
         let answer = resolveLocation(this.#choice(), columns, read, this.#places());
-        const url = this.config.gazetteer;
-        if (isLocationRefusal(answer) && url !== false && !hasLayers(cachedGazetteer(url), "auto")) {
+        const places = this.config.gazetteer;
+        if (isLocationRefusal(answer) && places !== false && !hasLayers(cachedGazetteer(places), "auto")) {
             // A column of place names is found by its values only with the gazetteer here.
-            const loaded = await loadGazetteer(url, "auto").catch(() => null);
+            const loaded = await loadGazetteer(places, "auto").catch(() => null);
             if (loaded !== null) {
                 answer = resolveLocation(this.#choice(), columns, read, this.#places());
             }
@@ -326,8 +341,8 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
             throw refusalError(answer);
         }
 
-        if (answer.source.kind === "place" && url !== false) {
-            await loadGazetteer(url, answer.source.role);
+        if (answer.source.kind === "place" && places !== false) {
+            await loadGazetteer(places, answer.source.role);
         }
 
         // Loaded here, before the layout becomes the active one: a load that fails in the run
@@ -360,9 +375,9 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
             throw refusalError(answer);
         }
 
-        const url = this.config.gazetteer;
-        if (answer.source.kind === "place" && url !== false) {
-            await loadGazetteer(url, answer.source.role);
+        const places = this.config.gazetteer;
+        if (answer.source.kind === "place" && places !== false) {
+            await loadGazetteer(places, answer.source.role);
         }
 
         const placement = this.#place(placeOnMap, answer, {
@@ -460,8 +475,8 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      * @returns The layers.
      */
     #places(): Gazetteer | false {
-        const url = this.config.gazetteer;
-        return url === false ? false : cachedGazetteer(url);
+        const places = this.config.gazetteer;
+        return places === false ? false : cachedGazetteer(places);
     }
 
     /**

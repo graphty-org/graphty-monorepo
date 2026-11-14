@@ -1,0 +1,25 @@
+@graphty/gazetteer
+Copyright (c) 2026 Adam Powers. The code is MIT licensed (LICENSE). The data under data/ and in
+the built modules keeps the terms of its sources:
+
+countries (data/countries.json, @graphty/gazetteer/countries)
+Source:   https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_10m_admin_0_countries.geojson
+Also:     https://www.naturalearthdata.com/
+License:  Public domain (Natural Earth, https://www.naturalearthdata.com/about/terms-of-use/). Trimmed to
+          names, ISO codes, label points and population estimates.
+
+regions (data/regions.json, @graphty/gazetteer/regions)
+Source:   https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_10m_admin_1_states_provinces.geojson
+Also:     https://www.naturalearthdata.com/
+License:  Public domain (Natural Earth, https://www.naturalearthdata.com/about/terms-of-use/). Trimmed to
+          names, codes and label points.
+
+cities (data/cities.json, @graphty/gazetteer/cities)
+Source:   https://download.geonames.org/export/dump/cities15000.zip and
+          https://download.geonames.org/export/dump/admin1CodesASCII.txt
+Also:     https://www.geonames.org/
+License:  CC BY 4.0 (GeoNames, https://creativecommons.org/licenses/by/4.0/). Changed: trimmed to each
+          city's name, Latin-script other names, country, first-level region, point and population,
+          with the names of those regions. Credit "GeoNames" wherever city places are shown.
+
+scripts/build-gazetteer.mjs builds the data from these sources.

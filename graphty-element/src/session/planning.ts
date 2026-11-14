@@ -33,7 +33,7 @@ import type {
 } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import { GraphtyError } from "../errors/GraphtyError";
-import { bestRole, cachedGazetteer, type Gazetteer, GAZETTEER_URL } from "../layout/locationMap/gazetteer";
+import { bestRole, cachedGazetteer, type Gazetteer, isGazetteerSource } from "../layout/locationMap/gazetteer";
 import {
     chosenLocation,
     type ColumnValues,
@@ -1004,7 +1004,6 @@ function locationRefusal(
     const read = (path: string): readonly unknown[] | null => context.nodeValues?.(path) ?? null;
     const option = (name: string): string | null =>
         typeof options[name] === "string" && options[name] !== "" ? options[name] : null;
-    const gazetteerUrl = typeof options.gazetteer === "string" ? options.gazetteer : GAZETTEER_URL;
     const answer = resolveLocation(
         chosenLocation(
             { location: option("location"), latitude: option("latitude"), longitude: option("longitude") },
@@ -1012,7 +1011,9 @@ function locationRefusal(
         ),
         nodeColumns(context),
         read,
-        options.gazetteer === false ? false : cachedGazetteer(gazetteerUrl),
+        options.gazetteer === false
+            ? false
+            : cachedGazetteer(isGazetteerSource(options.gazetteer) ? options.gazetteer : true),
     );
     return isLocationRefusal(answer)
         ? refused(`the layout "${id}" found no location to read`, "layout.needs-location", {

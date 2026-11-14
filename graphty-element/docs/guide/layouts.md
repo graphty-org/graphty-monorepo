@@ -354,12 +354,16 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
   with a `country` column (or `iso2`, `iso3`, `state`, `province`, `region`) beside it is found and
   placed with no settings; a column of names under any other heading is found by its values. The
   names are looked up in a gazetteer (Natural Earth countries and regions, GeoNames cities of 15,000
-  people or more) fetched from graphty.app on first use, with accents and case ignored; when several
+  people or more) from the optional package `@graphty/gazetteer`, loaded on first use and read
+  offline (`npm install @graphty/gazetteer`; without it, a map by place names rejects with
+  `E_MISSING_PACKAGE`, `details.package` `"@graphty/gazetteer"`), with accents and case ignored; when several
   places share a name, the narrowing column decides, then the most populous wins. "Lyon, FR" in one
   column is split at its last comma. `nodeLocationRole` (`auto`, `coords`, `country`, `region`,
   `city`, `none`) says how the designated column is read, `nodeLocationWithinPath` names the narrowing
   column and `nodeLocationWithin` a fixed country code; `none` turns the search off. The layout's
-  `gazetteer` option is the address the files are fetched from, or `false` to read no place names.
+  `gazetteer` option is `true` (the package, the default), `false` to read no place names, or your
+  own places: the layer files by role (`{ country, region, city }`) or a function that returns one
+  for a role, each in the package's format (see its README).
   Names nothing matches are listed by `session.data.issues()` as `location-unmatched`, and names
   several places match as `location-ambiguous`. The map credits GeoNames while city names are placed.
 

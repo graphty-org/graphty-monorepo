@@ -1,0 +1,14 @@
+{
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "composite": true,
+        "noEmit": true,
+        "noImplicitOverride": true,
+        // The layers are megabytes of JSON: typed by src/json.d.ts, never inferred from the files.
+        "resolveJsonModule": false,
+        "lib": ["ES2020"],
+        "types": ["node", "vitest/globals"]
+    },
+    "include": ["src/**/*.ts", "test/**/*.ts"],
+    "exclude": ["node_modules", "dist", "coverage", "tmp"]
+}

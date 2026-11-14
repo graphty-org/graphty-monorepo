@@ -99,6 +99,7 @@
                         "@graphty/remote-logger",
                         "algorithms",
                         "babylonjs-map",
+                        "gazetteer",
                         "graph-format",
                         "graph-io",
                         "graph-samples",

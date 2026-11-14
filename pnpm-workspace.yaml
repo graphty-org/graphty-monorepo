@@ -3,6 +3,7 @@ packages:
     - "graph-io"
     - "webgpu-graph-algorithms"
     - "graph-samples"
+    - "gazetteer"
     - "babylonjs-map"
     - "algorithms"
     - "layout"

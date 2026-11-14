@@ -302,6 +302,13 @@ export interface ImporterSourceOptions<Opts> {
 export const TIMELINE_READERS = new WeakSet();
 
 /**
+ * The cancel signal of the load a reader is read for, set by the session before it reads: reading
+ * a file or fetching a URL stops on it, and rejects with its reason. Kept beside the reader, not
+ * in its config, which is the load's recorded options.
+ */
+export const READER_SIGNALS = new WeakMap<object, AbortSignal>();
+
+/**
  * The reader {@link DataSource.fromSource} returns: constructed with the source's params and the
  * load options (`endpoint`, `credential`, `limits`, `retry`, `cursor`, `fetch`, `idPrefix`)
  * side by side in one config. Experimental.
@@ -554,26 +561,34 @@ export abstract class DataSource {
         // carry it: a consumer that wants to tell "not found" from "forbidden" reads details.status
         // rather than parsing the message.
         const last: { status?: number; timeoutMs?: number } = {};
+        const cancel = READER_SIGNALS.get(this);
 
         for (let attempt = 0; attempt < retries; attempt++) {
+            cancel?.throwIfAborted();
             try {
-                // Create AbortController for timeout
+                // Create AbortController for timeout, which the load's own cancel also fires
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
                     controller.abort();
                 }, timeout);
+                const abort = (): void => {
+                    controller.abort();
+                };
+                cancel?.addEventListener("abort", abort, { once: true });
 
                 try {
                     const response = await fetch(url, { signal: controller.signal });
-                    clearTimeout(timeoutId);
                     checkResponse(response, url, attempt, last);
                     return response;
                 } catch (error) {
-                    clearTimeout(timeoutId);
+                    cancel?.throwIfAborted();
                     throw attemptError(error, timeout, last);
+                } finally {
+                    clearTimeout(timeoutId);
+                    cancel?.removeEventListener("abort", abort);
                 }
             } catch (error) {
-                if (error instanceof GraphtyError) {
+                if (error instanceof GraphtyError || cancel?.aborted === true) {
                     throw error;
                 }
 
@@ -669,14 +684,20 @@ export abstract class DataSource {
             return toSourceInput(config.data);
         }
 
+        const cancel = READER_SIGNALS.get(this);
+        cancel?.throwIfAborted();
         if (config.file) {
             const { file } = config;
-            return new Uint8Array(await readOrRefuse(file.arrayBuffer(), { file: file.name }));
+            const bytes = await readOrRefuse(file.arrayBuffer(), { file: file.name });
+            cancel?.throwIfAborted();
+            return new Uint8Array(bytes);
         }
 
         if (config.url) {
             const response = await this.fetchWithRetry(config.url);
-            return new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url: config.url }));
+            const bytes = await readOrRefuse(response.arrayBuffer(), { url: config.url });
+            cancel?.throwIfAborted();
+            return new Uint8Array(bytes);
         }
 
         throw new GraphtyError({

@@ -258,7 +258,7 @@ interface DataWrites {
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
      */
-    importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+    importer(signal?: AbortSignal): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** The ceilings in force, which a read-first load is refused above. */
     readonly ceilings?: RenderLimits;
     /** The `graph` slice now. */
@@ -1122,8 +1122,12 @@ export class SessionData implements SessionDataApi {
             throw featureOff("file-styles", "styles");
         }
 
-        // A network source's read honours the signal, so its wait for its turn does too.
-        const turn = this.loadLine.join(source.source === undefined ? undefined : options.signal);
+        // An abort stops the load wherever it is -- waiting for its turn, reading the file or the
+        // URL, or between two chunks -- and the import rejects with the caller's own reason; the
+        // dispatcher reverts what it wrote, so the graph and the history are as they were.
+        const { signal } = options;
+        signal?.throwIfAborted();
+        const turn = this.loadLine.join(signal);
         try {
             if (source.source !== undefined) {
                 await (
@@ -1134,7 +1138,10 @@ export class SessionData implements SessionDataApi {
 
             // Taken before the first await: a transaction routes only what a verb dispatches
             // synchronously, and detecting the format may have to read the file or fetch the URL.
-            await this.importVia(this.keeping(this.writes.importer(), source), source, options, turn);
+            await this.importVia(this.keeping(this.writes.importer(signal), source), source, options, turn);
+        } catch (error) {
+            // The dispatcher rejects a withdrawn command with its own AbortError.
+            throw signal?.aborted === true ? signal.reason : error;
         } finally {
             turn.leave();
         }
@@ -1321,7 +1328,7 @@ export class SessionData implements SessionDataApi {
     private async importVia(
         dispatch: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         source: DataSourceInput,
-        options: LoadChoices & Pick<SourceLoadOptions, "existing">,
+        options: LoadChoices & Pick<SourceLoadOptions, "existing" | "signal">,
         turn: LoadTurn,
         sample?: SampleLoad & { readonly facts: LoadFacts["sample"] },
     ): Promise<void> {
@@ -1343,7 +1350,7 @@ export class SessionData implements SessionDataApi {
         }
         this.draft?.dispose();
         if (readsThroughDraft(options)) {
-            const draft = await this.prepare(source);
+            const draft = await this.prepare(source, options.signal === undefined ? {} : { signal: options.signal });
             try {
                 await turn.wait();
                 await draft.loadVia((command) => turn.issue(() => send(command)), options);
@@ -1356,7 +1363,7 @@ export class SessionData implements SessionDataApi {
 
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
-        const resolving = resolveImportSource(source);
+        const resolving = resolveImportSource(source, options.signal);
         const resolved = resolving instanceof Promise ? await resolving : resolving;
         resolvedConfig = resolved.config ?? source.config;
         // Waited for only when a load asked for earlier is still reading, so one with nothing
@@ -6546,11 +6553,12 @@ function pairName(config: Readonly<Record<string, unknown>>): string | undefined
  * size the graph keeps beside it. A URL whose name says nothing is fetched once here and its text
  * handed on, so the data source does not fetch it again.
  * @param source - The source as the caller named it.
+ * @param signal - Cancels reading the file's head or fetching the URL.
  * @returns The source the `data.import` command carries.
  * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT` when nothing recognises the data, and
  *     `E_FETCH_FAILED` when the URL cannot be read.
  */
-function resolveImportSource(source: DataSourceInput): ImportSource | Promise<ImportSource> {
+function resolveImportSource(source: DataSourceInput, signal?: AbortSignal): ImportSource | Promise<ImportSource> {
     const { config } = source;
     const file = fileOf(config.file);
     const url = typeof config.url === "string" ? config.url : undefined;
@@ -6593,13 +6601,16 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
         return file
             .slice(0, DETECTION_SAMPLE * 2)
             .arrayBuffer()
-            .then((bytes) => detect(sampleOf(new Uint8Array(bytes))));
+            .then((bytes) => {
+                signal?.throwIfAborted();
+                return detect(sampleOf(new Uint8Array(bytes)));
+            });
     }
 
     if (url !== undefined) {
         // Read once, as bytes, and handed on: the reader does not fetch it again, and the importer
         // decodes it.
-        return fetchBytes(url).then((bytes) => detect(sampleOf(bytes), bytes));
+        return fetchBytes(url, signal).then((bytes) => detect(sampleOf(bytes), bytes));
     }
 
     return detect(undefined);

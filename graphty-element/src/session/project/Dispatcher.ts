@@ -1066,11 +1066,14 @@ export class Dispatcher {
      * A dispatch that goes where one made now would -- to the transaction or running command a
      * routed verb is inside, or to this dispatcher -- for a verb that dispatches after an await,
      * when the routing, which lasts for the synchronous part of the call only, has ended.
+     * @param options - How each dispatch it makes is made: its signal, for one.
      * @returns The dispatch.
      */
-    capturedDispatch(): <C extends CommandLike>(command: Dispatchable<C>) => Promise<unknown> {
+    capturedDispatch(
+        options: DispatchOptions = {},
+    ): <C extends CommandLike>(command: Dispatchable<C>) => Promise<unknown> {
         const via = this.route;
-        return via === null ? (command) => this.dispatch(command) : (command) => via(command, {});
+        return via === null ? (command) => this.dispatch(command, options) : (command) => via(command, options);
     }
 
     /**

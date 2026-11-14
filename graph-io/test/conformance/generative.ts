@@ -801,23 +801,7 @@ interface KnownFailure {
 }
 
 /** The open bugs; each has its minimal case in fixtures/generative/cases.json. */
-export const KNOWN_FAILURES: readonly KnownFailure[] = [
-    {
-        target: "gml",
-        cause: 'a text cell equal to NetworkX\'s list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing (#7649)',
-        matches: (g) => allTexts(g).some((t) => t === "[]" || t === "()" || t === "_networkx_list_start"),
-    },
-];
-
-/**
- * Every text of a generated graph: string ids and string cells.
- * @param g - the graph
- * @returns the texts
- */
-function allTexts(g: GenGraph): string[] {
-    const cells = [...g.nodeValues, ...g.edges.map((e) => e.values)].flat();
-    return [...g.ids, ...cells].filter((v): v is string => typeof v === "string");
-}
+export const KNOWN_FAILURES: readonly KnownFailure[] = [];
 
 /**
  * The known failure a generated graph hits on a target, if any.

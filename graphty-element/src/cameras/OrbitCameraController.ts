@@ -1,7 +1,17 @@
 // Babylon installs scene.createPickingRay only when this loads.
 import "@babylonjs/core/Culling/ray.js";
 
-import { Camera, Color4, Matrix, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
+import {
+    Camera,
+    Color4,
+    Matrix,
+    Quaternion,
+    Scalar,
+    Scene,
+    type TransformNode,
+    UniversalCamera,
+    Vector3,
+} from "@babylonjs/core";
 import { raySphere } from "babylonjs-map/projection";
 
 import { type FreeArea, freeArea, fullInsets, paddedArea } from "../camera/insets";
@@ -180,10 +190,13 @@ export class OrbitCameraController {
      * @param dy - Vertical rotation delta in pixels
      */
     public rotate(dx: number, dy: number): void {
-        // Delegate to PivotController
         // Match XR rotation convention: drag right = rotate right (positive yaw)
         // Pitch follows "drag up = graph moves up" convention (not inverted)
-        this.pivotController.rotate(dx * this.config.trackballRotationSpeed, dy * this.config.trackballRotationSpeed);
+        const yaw = dx * this.config.trackballRotationSpeed;
+        const pitch = dy * this.config.trackballRotationSpeed;
+        if (!this.#turnGlobe(yaw, pitch)) {
+            this.pivotController.rotate(yaw, pitch);
+        }
         this.updateCameraPosition();
         this.onReaderMove?.();
     }
@@ -338,18 +351,62 @@ export class OrbitCameraController {
             return false;
         }
 
-        const angle = Math.acos(Scalar.Clamp(Vector3.Dot(a, b), -1, 1));
-        if (angle > 1e-6) {
+        // atan2, not acos of the dot: a move of a few pixels near the surface turns the globe by
+        // less than a millionth of a radian, which acos loses.
+        const axis = Vector3.Cross(a, b);
+        const angle = Math.atan2(axis.length(), Vector3.Dot(a, b));
+        if (angle > 0) {
             // The camera turns the other way about the globe's center, so the globe seems to turn a to b.
-            // About the center, not the pivot: a camera framed on data looks at a point near the surface.
-            const { center } = this.pivotController;
-            this.pivotController.center = Vector3.Zero();
-            this.pivotController.rotateAroundAxis(Vector3.Cross(a, b), -angle);
-            this.pivotController.center = center;
+            this.#turnAboutOrigin(axis, -angle);
             this.updateCameraPosition();
         }
 
         this.onReaderMove?.();
+        return true;
+    }
+
+    /**
+     * Turn the camera, the pivot with it, about the world's origin: the center of a globe. About the
+     * center, not the pivot: a camera framed on data looks at a point near the surface. Every angle
+     * counts, however small: close to the surface a drag or a key turns the globe by millionths of a
+     * radian, below the dead zone `PivotController` keeps for hand jitter.
+     * @param axis - The axis, in world space; need not be normalized.
+     * @param angle - The angle, in radians.
+     */
+    #turnAboutOrigin(axis: Vector3, angle: number): void {
+        if (angle === 0 || axis.lengthSquared() === 0) {
+            return;
+        }
+
+        const turn = Quaternion.RotationAxis(axis.normalizeToNew(), angle);
+        this.pivot.rotationQuaternion = turn.multiply(this.pivot.rotationQuaternion ?? Quaternion.Identity());
+        this.pivot.position.applyRotationQuaternionInPlace(turn);
+        this.pivot.computeWorldMatrix(true);
+    }
+
+    /**
+     * Over a {@link grabSphere}, turn the globe for a key or a drag that missed it: about its center,
+     * by the angle scaled by the camera's height as a share of its distance from the center. Far out
+     * that is almost the whole angle; near the surface the ground moves by about the same share of
+     * the view at any height, and the camera keeps its height, never sinking into the globe. Turning
+     * about the pivot, a key swept the camera over hundreds of kilometres a frame at street level.
+     * @param yaw - The turn about the view's vertical axis, in radians.
+     * @param pitch - The turn about the view's horizontal axis, in radians.
+     * @returns False with no globe, so the caller turns about the pivot as usual.
+     */
+    #turnGlobe(yaw: number, pitch: number): boolean {
+        const sphere = this.grabSphere;
+        if (sphere === null) {
+            return false;
+        }
+
+        const world = this.pivot.computeWorldMatrix(true);
+        const eye = Vector3.TransformCoordinates(this.camera.position, world).length();
+        const share = eye === 0 ? 1 : Math.max(0, eye - sphere.radius) / eye;
+        const up = Vector3.TransformNormal(Vector3.Up(), world);
+        const right = Vector3.TransformNormal(Vector3.Right(), world);
+        this.#turnAboutOrigin(up, yaw * share);
+        this.#turnAboutOrigin(right, pitch * share);
         return true;
     }
 
@@ -513,6 +570,28 @@ export class OrbitCameraController {
         this.pivot.position.copyFrom(this.#onPlane(this.pivot.position));
         this.pivot.computeWorldMatrix(true);
         this.cameraDistance = this.clampDistance(this.cameraDistance + along);
+    }
+
+    /**
+     * Slide the pivot along the line from the camera through it to where it passes nearest a point,
+     * the camera staying where it is, so the view does not move. Framed on a globe's data, the pivot
+     * sat among the arcs above the surface and the camera stopped short of the surface, at
+     * `minZoomDistance` from the pivot; slid to near the globe's center, the camera comes down to
+     * the surface floor along its line of sight, as it does from a whole-sphere framing.
+     * @param point - The point, in world space.
+     */
+    public slidePivotNear(point: Vector3): void {
+        // The camera stands at pivot - shifted * distance, where shifted carries the lens shift, so
+        // moving the pivot by shifted * a and the distance by a leaves the camera where it is.
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
+        const world = this.pivot.computeWorldMatrix(true);
+        const shifted = Vector3.TransformNormal(new Vector3(free.x * tanX, free.y * tanY, 1), world);
+        const a = Vector3.Dot(point.subtract(this.pivot.position), shifted) / shifted.lengthSquared();
+        this.pivot.position.addInPlace(shifted.scale(a));
+        this.pivot.computeWorldMatrix(true);
+        this.cameraDistance = this.clampDistance(this.cameraDistance + a);
+        this.updateCameraPosition();
     }
 
     /**

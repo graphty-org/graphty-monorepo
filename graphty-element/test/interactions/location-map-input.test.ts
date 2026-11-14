@@ -19,7 +19,7 @@ import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
 import { drawnFrames } from "../helpers/drawn-frames";
-import { click, drag, nextFrame, type Point, wheel } from "../helpers/real-input";
+import { click, drag, nextFrame, type Point, touchDrag, wheel } from "../helpers/real-input";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -403,6 +403,117 @@ describe("the camera on a location map", () => {
             await wheel(element, CENTER, -200);
             await applied(element);
             assert.closeTo(size() / first, 1, 0.1, `step ${String(step)}`);
+        }
+    });
+});
+
+/** Stops spread over a city, 15 km across: data far smaller than the earth. */
+const CITY = Array.from({ length: 16 }, (_, k) => ({
+    id: `stop-${String(k)}`,
+    latitude: 45.38 + Math.floor(k / 4) * 0.04,
+    longitude: 12.24 + (k % 4) * 0.05,
+}));
+
+/**
+ * The camera's distance from the globe's center.
+ * @param element - The element.
+ * @returns The distance.
+ */
+function eyeRadius(element: Graphty): number {
+    const camera = element.graph.getScene().activeCamera;
+    assert.isNotNull(camera);
+    camera.computeWorldMatrix();
+    return camera.globalPosition.length();
+}
+
+/**
+ * Wheel a globe's camera down to the closest it comes.
+ * @param element - The element.
+ */
+async function wheelToFloor(element: Graphty): Promise<void> {
+    for (let notch = 0; notch < 160; notch++) {
+        await wheel(element, CENTER, -400);
+        await drawnFrames(element.graph.getScene(), 1);
+    }
+    await applied(element);
+}
+
+describe("a city on the globe", () => {
+    it("opens framed on the city, not as a speck on the whole earth", async () => {
+        const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" }, CITY);
+        const xs = CITY.map(({ id }) => at(element, id).x);
+        const ys = CITY.map(({ id }) => at(element, id).y);
+        const across = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+        assert.isAbove(across, HEIGHT * 0.5, "the city fills much of the view");
+        for (const { id } of CITY) {
+            const { x, y } = at(element, id);
+            assert.isTrue(x >= 0 && x <= WIDTH && y >= 0 && y <= HEIGHT, `${id} is in view`);
+        }
+        const frame = element.mapFrame;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+        await wheelToFloor(element);
+        assert.isBelow(eyeRadius(element), radius * 1.001, "the camera still comes down to street level");
+    });
+
+    // At the closest zoom (1.0001 radii) a finger's move turns the globe by millionths of a radian,
+    // and the pivot's dead zone of 1e-4 radians (the floor's own height) dropped every one of them.
+    it("turns under a finger at the closest zoom, the place grabbed staying under it", async () => {
+        const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" }, CITY);
+        const frame = element.mapFrame;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+        await wheelToFloor(element);
+        const height = eyeRadius(element) - radius;
+        assert.isBelow(height, radius * 0.001, "at street level");
+        const from = { x: WIDTH - 40, y: 40 };
+        const to = { x: WIDTH - 160, y: 100 };
+        const grabbed = onSphere(element, from, radius);
+        assert.isNotNull(grabbed);
+        await touchDrag(element, from, to, 12);
+        await applied(element);
+        const under = onSphere(element, to, radius);
+        assert.isNotNull(under);
+        if (grabbed !== null && under !== null) {
+            const apart = Math.hypot(grabbed.x - under.x, grabbed.y - under.y, grabbed.z - under.z);
+            const moved = onSphere(element, from, radius);
+            assert.isNotNull(moved);
+            const turned =
+                moved === null ? 0 : Math.hypot(grabbed.x - moved.x, grabbed.y - moved.y, grabbed.z - moved.z);
+            assert.isAbove(turned, height * 0.2, "the globe turned");
+            assert.isBelow(apart, turned * 0.2, "the grabbed place is under the finger");
+        }
+        assert.closeTo(eyeRadius(element) - radius, height, height * 0.01, "at the same height");
+    });
+
+    // An arrow turned the camera about the globe's center by a fixed angle: at street level that
+    // swept it hundreds of kilometres a frame and down inside the globe.
+    it("turns by a step the view can follow with the arrow keys at the closest zoom, never inside", async () => {
+        const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" }, CITY);
+        const frame = element.mapFrame;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+        await wheelToFloor(element);
+        const height = eyeRadius(element) - radius;
+        await click(element, { x: 6, y: 6 });
+        await applied(element);
+        for (const key of ["{ArrowLeft}", "{ArrowUp}"]) {
+            const before = onSphere(element, CENTER, radius);
+            await userEvent.keyboard(key);
+            await applied(element);
+            for (;;) {
+                const last = element.graph.getScene().activeCamera?.globalPosition.clone();
+                await drawnFrames(element.graph.getScene(), 1);
+                if (last?.equals(element.graph.getScene().activeCamera?.globalPosition ?? Vector3.Zero())) {
+                    break;
+                }
+            }
+            const after = onSphere(element, CENTER, radius);
+            assert.isNotNull(before);
+            assert.isNotNull(after);
+            if (before !== null && after !== null) {
+                const moved = Math.hypot(before.x - after.x, before.y - after.y, before.z - after.z);
+                assert.isAbove(moved, 0, `${key} turned the view`);
+                assert.isBelow(moved, height * 2, `${key} moved the ground by less than the view is wide`);
+            }
+            assert.isAtLeast(eyeRadius(element), radius, `${key} kept the camera outside the globe`);
         }
     });
 });

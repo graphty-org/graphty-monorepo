@@ -261,6 +261,7 @@ export const ALGORITHMS = {
     },
 
     // Shortest paths
+    // Weights must be finite and non-negative (E_BAD_WEIGHT otherwise); bellmanFord takes negative ones.
     dijkstra: {
         name: "dijkstra",
         fn: dijkstra,

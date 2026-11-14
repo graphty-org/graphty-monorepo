@@ -139,7 +139,7 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
     const dataManager = {
         nodes: new Map(nodes.map((node) => [graph.ids.idOf(node.index), node])),
         // Every node is built here, as under renderPath "objects"; the mask walk reads the built ones.
-        nodeMap: { built: () => nodes.values() },
+        nodeMap: { built: () => nodes.values(), builtView: () => new Map(nodes.map((node) => [node.index, node])) },
         lateNodeVersions: 0,
         edges: new Map(edges.map((edge) => [edge.index, edge])),
         // Every edge is built too; the mask walk reads the built ones.

@@ -215,6 +215,34 @@ export class EdgeRowLines {
     }
 
     /**
+     * {@link EdgeRowLines.setHidden} for many rows at once, as a visibility mask says: a row the mask holds is shown,
+     * any other drawn row is hidden. A time window's jump changes tens of thousands of rows, so this reads the
+     * columns straight and asks for one frame, not one a row (#6025).
+     * @param rows - The edge rows; rows not drawn here are skipped.
+     * @param visible - The visible edges, or null when nothing hides.
+     */
+    setHiddenRows(rows: ArrayLike<number>, visible: { has(row: number): boolean } | null): void {
+        const { batchOf, hidden, piece } = this.lines;
+        let changed = false;
+        for (let at = 0; at < rows.length; at++) {
+            const row = rows[at];
+            const batch = batchOf[row] ?? NO_LINE;
+            const flag = visible === null || visible.has(row) ? 0 : 1;
+            if (batch === NO_LINE || hidden[row] === flag) {
+                continue;
+            }
+
+            hidden[row] = flag;
+            this.batches[batch].setHidden(piece[row], flag === 1);
+            changed = true;
+        }
+
+        if (changed) {
+            this.host.requestFrame();
+        }
+    }
+
+    /**
      * Whether a paint is one a row line draws: a shown, plain solid straight line with no cap, words or band,
      * while lines do not fade by age. A hidden paint is refused: an `Edge` hides its line.
      * @param style - The resolved style.

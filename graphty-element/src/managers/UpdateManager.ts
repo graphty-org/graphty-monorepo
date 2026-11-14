@@ -1148,17 +1148,31 @@ export class UpdateManager implements Manager {
      * @param showContext - Whether hidden nodes are drawn faintly.
      */
     private applyNodeRows(rows: Rows, nodeVisibility: ElementMask<NodeId> | null, showContext: boolean): void {
-        const { nodesByIndex } = this.dataManager;
         const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+        const apply = (node: Node | undefined): void => {
+            if (node === undefined || node.index === INVALID_INDEX) {
+                return;
+            }
 
-        for (const row of rows) {
-            const node = nodesByIndex[row];
             // Showing or hiding a node drawn by its own mesh enables or disables that mesh, which the
             // frozen list must see; a batched row only writes its hidden flag. Asked before and
             // after, since the change can take an overlay away or bring one back.
-            const ownMeshes = node?.togglesOwnMeshes() === true;
-            if (node?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState) === true) {
+            const ownMeshes = node.togglesOwnMeshes();
+            if (node.setRenderState(nodeVisibility?.has(node.index) === true ? "visible" : hiddenState)) {
                 this.sceneChanged ||= ownMeshes || node.togglesOwnMeshes();
+            }
+        };
+
+        // Fewer `Node`s than rows, as on a graph loaded on `"batched"` where most rows have none: visit the `Node`s,
+        // since a state already right is left alone, and leave the rows to the columns (#6025).
+        if (dataManagerInternals.nodesLive(this.dataManager) < rows.length) {
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+                apply(node);
+            }
+        } else {
+            const { nodesByIndex } = this.dataManager;
+            for (const row of rows) {
+                apply(nodesByIndex[row]);
             }
         }
 
@@ -1173,25 +1187,52 @@ export class UpdateManager implements Manager {
      * @param edgeVisibility - The visible edges.
      */
     private applyEdgeRows(rows: Rows, edgeVisibility: ElementMask<EdgeId> | null): void {
-        const { edgesByIndex } = this.dataManager;
-        this.buildMaskedRowLines(rows);
+        // With nothing selected no row line needs an `Edge`, so its line is only hidden or shown, in one pass over
+        // the line columns (#6025).
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        if ((this.edgeSelectionMask?.size ?? 0) === 0) {
+            lines?.setHiddenRows(rows, edgeVisibility);
+        } else {
+            this.buildMaskedRowLines(rows);
+        }
 
-        for (const row of rows) {
-            const edge = edgesByIndex[row];
-            const visible = edgeVisibility?.has(row) === true;
+        // Fewer `Edge`s than rows, as on a graph loaded on `"batched"` where most rows are row lines: visit the
+        // `Edge`s, since a state already right is left alone.
+        const built = dataManagerInternals.builtEdges(this.dataManager);
+        if (built.size < rows.length) {
+            for (const edge of built.values()) {
+                this.applyEdgeRow(edge, edgeVisibility);
+            }
+        } else {
+            const { edgesByIndex } = this.dataManager;
+            for (const row of rows) {
+                this.applyEdgeRow(edgesByIndex[row], edgeVisibility);
+            }
+        }
+    }
 
-            if (edge?.setRenderVisible(visible) === true) {
-                if (edge.togglesOwnMeshes()) {
-                    this.sceneChanged = true;
-                }
+    /**
+     * Show or hide one edge as the edge visibility mask says, and place it when revealed.
+     * @param edge - The edge, or undefined for a row with none.
+     * @param edgeVisibility - The visible edges.
+     */
+    private applyEdgeRow(edge: Edge | undefined, edgeVisibility: ElementMask<EdgeId> | null): void {
+        if (edge === undefined || edge.index === INVALID_INDEX) {
+            return;
+        }
 
-                if (visible) {
-                    this.edgesToPlace.push(edge);
-                }
+        const visible = edgeVisibility?.has(edge.index) === true;
+        if (edge.setRenderVisible(visible)) {
+            if (edge.togglesOwnMeshes()) {
+                this.sceneChanged = true;
+            }
 
-                if (this.hasSupportPoint(edge)) {
-                    this.forceEdgeWalk();
-                }
+            if (visible) {
+                this.edgesToPlace.push(edge);
+            }
+
+            if (this.hasSupportPoint(edge)) {
+                this.forceEdgeWalk();
             }
         }
     }
@@ -3291,9 +3332,10 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        const drawn = new Set(batches.columnRowIndices());
-        for (const row of rows ?? drawn) {
-            if (drawn.has(row)) {
+        // A slide's rows are looked up one by one: a set of every drawn row cost about 6 ms a jump at
+        // 100,000 nodes (#6025).
+        for (const row of rows ?? batches.columnRowIndices()) {
+            if (rows === null || batches.columnRowOf(row) !== undefined) {
                 table.hide(row, nodeVisibility !== null && !nodeVisibility.has(row));
             }
         }

@@ -30,6 +30,7 @@ tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs
 tools/chromium-env.test.mjs
 tools/ci-budgets.test.mjs
+tools/ci-groups-snapshot.test.mjs
 tools/ci-run-cap.test.mjs
 tools/ci-workflows.test.mjs
 tools/claude-area-rules.test.mjs

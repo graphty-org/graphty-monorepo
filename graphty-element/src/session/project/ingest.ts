@@ -429,6 +429,8 @@ export function unreadableSource(format: string, errors: readonly DataLoadingErr
             format,
             rowErrors: errors.length,
             ...(unreadable.line === undefined ? {} : { line: unreadable.line }),
+            ...(typeof unreadable.params?.issue === "string" ? { issue: unreadable.params.issue } : {}),
+            ...(typeof unreadable.params?.element === "string" ? { element: unreadable.params.element } : {}),
         },
     });
 }
@@ -2081,9 +2083,14 @@ export class Ingest<K extends KnownEdge> {
             throw error;
         }
 
-        throw new Error(
-            `Failed to load data from source '${type}' after ${progress.chunks} chunks: ${failure.message}`,
-        );
+        // A reader that threw without a code could not read its source: the failure is still
+        // coded, so a caller never has only an English message to go on.
+        throw GraphtyError.wrap(error, {
+            code: "E_PARSE_FAILED",
+            source: "data",
+            message: `Failed to load data from source '${type}' after ${progress.chunks} chunks: ${failure.message}`,
+            details: { format: type, chunks: progress.chunks },
+        });
     }
 
     /**
@@ -2398,7 +2405,7 @@ const EMPTY = { nodes: new Set<NodeIdType>(), edges: 0 } as const;
 
 /**
  * What a load that failed before or around its read throws: a coded or cancelled failure
- * unchanged, a read failure already worded, anything else wrapped.
+ * unchanged, anything else wrapped in a coded one.
  * @param error - what was thrown
  * @param type - the source type
  * @param signal - fires when the load is cancelled
@@ -2410,15 +2417,13 @@ function initFailure(error: unknown, type: string, signal: AbortSignal | undefin
         return error;
     }
 
-    // Re-throw if already a processed error
-    if (error instanceof Error && error.message.includes("Failed to load data")) {
-        return error;
-    }
-
-    // Otherwise wrap and throw
-    return new Error(
-        `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
-    );
+    // A reader that could not even be constructed: coded, keeping a sibling package's own code.
+    return GraphtyError.wrap(error, {
+        code: "E_INTERNAL",
+        source: "data",
+        message: `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
+        details: { format: type },
+    });
 }
 
 /**
@@ -2488,7 +2493,7 @@ function refuseEmptyOrPartial(
             message:
                 `The ${type} source stopped after ${rowErrors} rejected rows, its error limit, ` +
                 "so only part of it was read and the current graph was kept.",
-            details: { format: type, rowErrors },
+            details: { format: type, rowErrors, limit: errors.getErrorLimit() },
         });
     }
 }

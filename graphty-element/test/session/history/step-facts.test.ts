@@ -133,6 +133,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "positions.set": ["positions.set"],
     "positions.pin": ["positions.pin", "positions.release"],
     "layout.set": ["layout.set"],
+    "layout.rerun": ["layout.rerun"],
     "layout.scope": ["layout.scope", "layout.whole-graph"],
     "view.dimension": ["view.dimension"],
 };
@@ -241,6 +242,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "positions.release": ["count"],
     "node.drag": ["node"],
     "layout.set": ["layout"],
+    "layout.rerun": ["layout"],
     "layout.behavior": ["layout"],
     "layout.scope": [],
     "layout.whole-graph": [],

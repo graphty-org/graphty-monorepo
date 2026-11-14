@@ -192,6 +192,14 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        methods: ["SessionLayout.rerun"],
+        growth: "linear",
+        prepare: (element) => andSettle(element, () => element.graph.getSession().layout.rerun()),
+        check: (element) => {
+            assert.strictEqual(element.graph.getSession().history.steps.at(-1)?.fact.code, "layout.rerun");
+        },
+    },
+    {
         methods: ["SessionLayout.setDimension"],
         growth: "linear",
         prepare: (element) => andSettle(element, () => element.graph.getSession().layout.setDimension("2d")),

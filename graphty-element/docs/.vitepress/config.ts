@@ -94,6 +94,7 @@ export default defineConfig({
                         { text: "Neighborhoods in Time and Selection Totals", link: "/guide/selection-statistics" },
                         { text: "What Is Under a Point", link: "/guide/element-at" },
                         { text: "Labels", link: "/guide/labels" },
+                        { text: "Screen Readers", link: "/guide/screen-readers" },
                         { text: "Drawing Nodes as Models", link: "/guide/node-models" },
                         { text: "Label Size & Number Format", link: "/guide/label-size-and-numbers" },
                         { text: "Data Sources", link: "/guide/data-sources" },

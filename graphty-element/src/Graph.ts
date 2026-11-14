@@ -2277,9 +2277,12 @@ export class Graph implements GraphContext {
         // a consumer that parked the scene's animations before WebGPU opened keeps them parked
         const animates = this.scene.animationsEnabled;
         const previous = this.renderManager;
-        const label = this.canvas.getAttribute("aria-label");
-        if (label !== null) {
-            canvas.setAttribute("aria-label", label);
+        // The name, role and description a screen reader reads follow the drawing to its new canvas.
+        for (const name of ["aria-label", "role", "aria-describedby"]) {
+            const value = this.canvas.getAttribute(name);
+            if (value !== null) {
+                canvas.setAttribute(name, value);
+            }
         }
 
         this.canvas.replaceWith(canvas);

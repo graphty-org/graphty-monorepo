@@ -777,6 +777,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     {
+        // The page's own words for a screen reader, given as functions, and a list for its readers.
+        root: "Graphty",
+        members: ["accessibleDescription", "accessibleAnnouncement", "accessibleNodeList"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
+    {
         root: "Graphty",
         members: ["setDefaultPalettes"],
         reason: "app-default",

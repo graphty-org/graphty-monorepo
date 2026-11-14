@@ -1326,10 +1326,14 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   and uploading the first complete frame: 1M pulled lines) and 75-78 ms under `finish` for still frames drawn after
   the load returned, inside the profile window.
 - **The first freeze and layout start (stage 121).** Under `"batched"` an edge added in the session with no file id
-  is no longer completed at the freeze: its ordinal and among already read -1 by default, and its `graphty.edgeHash`
-  cell stays unset (`GraphStore.recordIngestedEdge`, `deferMinted`). `identityColumnsOf` fills unset cells from the
-  `graphty.edgeId` counter the first time a snapshot's identity is read (a saved set binding, a membership digest),
-  and the data digest reads them the same way, so both paths give the same hashes and digests
+  is no longer completed at the freeze: its ordinal and among already read -1 by default, and its row is marked in an
+  internal u8 edge column, `graphty.edgeHashDeferred` (`GraphStore.recordIngestedEdge`, `deferMinted`), declared only
+  when the first such edge is recorded, so an objects-path store never carries it. `identityColumnsOf` fills the hash
+  of every marked row from the `graphty.edgeId` counter the first time a snapshot's identity is read (a saved set
+  binding, a membership digest), undo completes a marked edge again as a new one, and the data digest reads the
+  filled hashes and leaves the marker out, so both paths give the same hashes and digests. The marker, not an unset
+  hash cell, says a hash is deferred: a hash column written whole (a file import) has no unset cells, and a snapshot
+  frozen while a load is open has unset cells that are not deferred
   (`test/session/import-columns.test.ts`, minted ids hashed while a batched load freezes: 0). The objects path
   hashes at the freeze as before. Profiled, 100k + 1M, interleaved, load average 17-22: `getSnapshot` 946 to 247 ms
   (identity completion 782 to 11 ms); what is left is graph-format's own freeze (143-222 ms). Correction to the stage

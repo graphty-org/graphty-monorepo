@@ -306,8 +306,8 @@ function madeUpNames(count: number): string[] {
 /**
  * A category's name as JFreeChart fits it on its one line (`TextUtilities.createTextBlock` with
  * `CategoryAxis.maximumCategoryLabelLines` 1): whole when it fits; else the words that fit (or, when the first word
- * alone is too wide, as much of it as fits, at least one character), their last 3 characters replaced by "...", or
- * "..." alone for 3 characters or fewer.
+ * alone is too wide, as much of it as fits, at least one character), and when any of the name is left over, their
+ * last 3 characters replaced by "...", or "..." alone for 3 characters or fewer.
  * @param text - the name
  * @param room - the line's width
  * @param width - a text's width
@@ -332,6 +332,10 @@ function fitName(text: string, room: number, width: (text: string) => number): s
             end++;
         }
         end = Math.max(end, 1);
+    }
+    // nothing left over: no "..." (a one-character name is drawn whole however narrow its category)
+    if (end >= text.length) {
+        return text;
     }
     const line = text.slice(0, end);
     return line.length > 3 ? `${line.slice(0, -3)}...` : "...";

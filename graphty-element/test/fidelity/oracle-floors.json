@@ -1620,7 +1620,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0.968,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -1661,7 +1661,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0.968,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -5008,7 +5008,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0.968,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -5049,7 +5049,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0.968,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -9085,7 +9085,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0.968,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -9126,7 +9126,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0.968,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -36786,7 +36786,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0.968,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -36827,7 +36827,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0.968,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -56163,6 +56163,34 @@
                 "date": "2026-11-01"
             }
         },
+        "cx-specimen-images-charts-p7": {
+            "label.text": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            }
+        },
+        "cx-specimen-images-charts-p7@matched": {
+            "label.text": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            }
+        },
         "cx-syn-mappings": {
             "label.alongLine": {
                 "floor": 1,
@@ -56203,6 +56231,34 @@
                 "date": "2026-11-01"
             }
         },
+        "cx2-specimen-images-charts-p7": {
+            "label.text": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            }
+        },
+        "cx2-specimen-images-charts-p7@matched": {
+            "label.text": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            }
+        },
         "cx2-syn-mappings": {
             "label.alongLine": {
                 "floor": 1,
@@ -56229,6 +56285,34 @@
                 "to": 0.992,
                 "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
+            }
+        },
+        "cys-specimen-images-charts-p7": {
+            "label.text": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            }
+        },
+        "cys-specimen-images-charts-p7@matched": {
+            "label.text": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
             }
         },
         "cys-syn-mappings": {
@@ -56553,6 +56637,34 @@
                 "to": 0.985,
                 "reason": "On these 33 px lines the comparator reads Pajek's part-way head, its middle on the source half, as an inverted head at the source, while graphty's head, its tip now where Pajek's is, is read at the target; graphty also draws that head about 2.6 times Pajek's length beside the line (#4514)",
                 "date": "2026-11-01"
+            }
+        },
+        "xgmml-specimen-images-charts-p7": {
+            "label.text": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            }
+        },
+        "xgmml-specimen-images-charts-p7@matched": {
+            "label.text": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.909,
+                "reason": "Cytoscape line chart's two '...' category names read as one word by graphty and two by the oracle's face (#7850)",
+                "date": "2026-11-14"
             }
         },
         "xgmml-syn-mappings": {

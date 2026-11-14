@@ -296,6 +296,10 @@ describe("Cytoscape charts", () => {
             expect(named(["ab", "abcd efghijklmnop"], 2)).toEqual(["ab", "ab...", "#3", "#4", "#5"]);
             // a first word too wide for the line is cut inside the word
             expect(named(["abcdefghijklmnopqrstuvwxyz"], 2)[0]).toMatch(/^abcdef[a-z]*\.\.\.$/);
+            // one character wider than its category is drawn whole: nothing is left over to cut (images-charts-p7
+            // bar-axis-label-font-size-20 draws a, b and c at size 20)
+            const big = texts(axes(',"cy_showDomainAxis":true,"cy_axisLabelFontSize":20'));
+            expect(big.map(([, , w]) => w)).toEqual(["a", "b", "c"]);
         });
 
         it("takes a heat map's domain label, its columns' names turned down, off the top of its plot", () => {

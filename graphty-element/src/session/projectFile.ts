@@ -71,7 +71,6 @@ import {
     type FileStyleLoadValues,
     fileStyleValuesOf,
 } from "./styles/fileStyles/store";
-import { GHOST_ROW_ID } from "./styles/rows";
 import type {
     DataSourceInput,
     GraphSession,
@@ -1443,14 +1442,6 @@ async function clearStyleRows(tx: TransactionScope): Promise<void> {
     for (const row of tx.styles.tree()) {
         await tx.styles.deleteRow(row.id);
     }
-
-    // With the timeline off a Ghost row is in no tree, and it must not outlive its project either.
-    const ghosts = tx.styles
-        .list()
-        .filter(({ source }) => source.by === "template" && source.templateId === GHOST_ROW_ID);
-    for (const row of new Set(ghosts.map((layer) => layer.row ?? layer.id))) {
-        await tx.styles.deleteRow(row);
-    }
 }
 
 /**
@@ -1873,8 +1864,8 @@ async function readSettings(opening: Opening, doc: ReadDocument, config: unknown
     await attempt(opening, "config", () =>
         tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(config)), name }),
     );
-    // The settings just read add starting rows by themselves when they change what is in effect (a
-    // time field adds Ghost, the pinned look adds Pinned, `startingRows` the rest). A file that
+    // The settings just read add starting rows by themselves when they change what is in effect (the
+    // pinned look adds Pinned, `startingRows` the rest, Timeline Hidden among them). A file that
     // holds a style tree comes back with exactly that tree, so those rows go again: otherwise the
     // tree's own copies land beside them and every starting row is there twice (issue #7843).
     if (doc.members.has("graphty-style")) {
@@ -2132,8 +2123,8 @@ function outsideSelector(selector: Selector): Selector {
 /**
  * Bring a timed project saved before what lies outside the time window had a state of its own up
  * to date. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant what
- * lay outside the window, so they read `"outsideWindow"` now, and a saved `outside: "ghost"` is
- * written to the style layers the way `time.setSettings` writes it. A project brought up to date
+ * lay outside the window, so they read `"outsideWindow"` now, and the saved `outside` (hidden
+ * unless it says `"ghost"`) is written to the style layers the way `time.setSettings` writes it. A project brought up to date
  * reads no `"ghosted"`, so this finds nothing the second time.
  * @param tx - The transaction.
  * @param playback - The saved timeline settings.
@@ -2144,9 +2135,11 @@ async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Pro
         return;
     }
 
+    let older = false;
     for (const layer of tx.styles.list()) {
         const selector = layer.source.by === "element" ? layer.selector : outsideSelector(layer.selector);
         if (selector !== layer.selector) {
+            older = true;
             await tx.styles.update(layer.id, { selector });
         }
     }
@@ -2161,9 +2154,12 @@ async function outsideWindowLayers(tx: TransactionScope, playback: unknown): Pro
         }
     }
 
-    // Saved before the drawing lived in the layers: with no layer drawing it, one is added.
-    if (typeof playback === "object" && playback !== null && "outside" in playback && playback.outside === "ghost") {
-        await tx.time.setSettings({ outside: "ghost" });
+    // Saved before the drawing lived in the layers, when what lay outside was hidden unless the
+    // playback said "ghost": the layers selecting it are written to draw it that way.
+    const saved =
+        typeof playback === "object" && playback !== null && "outside" in playback ? playback.outside : undefined;
+    if (older || saved !== undefined) {
+        await tx.time.setSettings({ outside: saved === "ghost" ? "ghost" : "hide" });
     }
 }
 

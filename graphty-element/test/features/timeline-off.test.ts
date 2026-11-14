@@ -18,7 +18,7 @@ import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { slideCounters } from "../../src/session/visibility/slide";
 import { FakeClock, FakeLocks } from "../autosave/fakes";
 
-const GHOST = "graphty:timeline-ghost";
+const TIMELINE_HIDDEN = "graphty:timeline-hidden";
 const OFF = { features: [] };
 const ON = { features: ["timeline"] };
 const CSV = "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,2026-01-03\nD,A,2026-01-04\n";
@@ -354,7 +354,7 @@ describe("autosave with the timeline off", () => {
 });
 
 describe("a project saved with the timeline on, opened with it off", () => {
-    it("leaves no Ghost row behind when the next project opens", async () => {
+    it("leaves no Timeline Hidden row behind when the next project opens", async () => {
         const saved = createGraphSession(ON);
         await saved.data.import({ type: "csv", config: { data: "source,target,sent\nA,B,2026-01-01\n" } });
         await saved.config.set({ startingRows: true });
@@ -363,7 +363,8 @@ describe("a project saved with the timeline on, opened with it off", () => {
         const plain = createGraphSession(OFF);
         const { text: untimed } = await plain.project.save();
         const ghostLayers = (each: GraphSession): number =>
-            each.styles.list().filter(({ source }) => source.by === "template" && source.templateId === GHOST).length;
+            each.styles.list().filter(({ source }) => source.by === "template" && source.templateId === TIMELINE_HIDDEN)
+                .length;
         const once = ghostLayers(saved);
         assert.isAbove(once, 0);
 
@@ -436,7 +437,7 @@ describe("a project saved with the timeline on, opened with it off", () => {
         assert.strictEqual(session.visibility.summary.visibleNodes, 2);
     });
 
-    it("keeps its time field, its settings and its Ghost row, and draws no ghosts", async () => {
+    it("keeps its time field, its settings and its Timeline Hidden row, which matches nothing", async () => {
         const saved = await loaded(ON);
         await saved.config.set({ startingRows: true });
         await saved.time.setField({ edges: { start: "sent", unit: "ms" } });
@@ -461,13 +462,16 @@ describe("a project saved with the timeline on, opened with it off", () => {
         assert.strictEqual(session.visibility.summary.visibleEdges, 2);
         assert.strictEqual(session.visibility.summary.visibleNodes, 4);
         const ghostRows = (each: GraphSession): number =>
-            each.styles.list().filter((layer) => layer.source.by === "template" && layer.source.templateId === GHOST)
+            each.styles
+                .list()
+                .filter((layer) => layer.source.by === "template" && layer.source.templateId === TIMELINE_HIDDEN)
                 .length;
         assert.strictEqual(ghostRows(session), ghostRows(saved));
         assert.isAbove(ghostRows(saved), 0);
         const rowNames = (each: GraphSession): string[] => each.styles.tree().map((row) => row.name);
-        assert.include(rowNames(saved), "Ghost");
-        assert.notInclude(rowNames(session), "Ghost");
+        // An ordinary row, in the tree whatever the timeline says; with it off it matches nothing.
+        assert.include(rowNames(saved), "Timeline Hidden");
+        assert.include(rowNames(session), "Timeline Hidden");
         assert.isFalse(dispatcherOf(session).state.visibility.playback === null);
         const visibility = (doc: string): Record<string, unknown> => {
             const { members } = JSON.parse(doc) as { members: { kind?: string; visibility?: object }[] };
@@ -479,7 +483,7 @@ describe("a project saved with the timeline on, opened with it off", () => {
         await reopened.project.open((await session.project.save()).text);
         assert.strictEqual(reopened.time.settings.outside, "ghost");
         assert.strictEqual(reopened.time.field?.edges?.start, "sent");
-        assert.include(rowNames(reopened), "Ghost");
+        assert.include(rowNames(reopened), "Timeline Hidden");
     });
 
     it.each([

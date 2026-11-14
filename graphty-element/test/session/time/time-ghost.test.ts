@@ -1,13 +1,15 @@
 /**
- * What lies outside the time window: it stays drawn and in the state "outsideWindow", the
- * element's own layers hide it by style, and the timeline's `outside: "ghost"` sets `visible: true`
- * on the layers selecting that state (the Ghost row, pinned directly below Selected), which count
- * it. It never counts as visible, and a held filter condition's ghosts are another state.
+ * What lies outside the time window: it stays visible and drawn, in the state "outsideWindow", and
+ * only style layers selecting that state change how it looks. The window never narrows a count, the
+ * selection, an export or the layout. With the timeline on and the starting rows drawn, one
+ * ordinary row, Timeline Hidden, selects the state, hidden or ghosted as the project setting
+ * `timelineHiddenLook` says. A held filter condition's ghosts are another state.
  */
 
 import { assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession, isGraphtyError } from "../../../session";
+import { exportSession } from "../../../src/data/export";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { ElementSession } from "../../../src/session/types";
 
@@ -19,13 +21,14 @@ beforeAll(() => {
 /**
  * A process trace: ten steps, node i at step i, and edge i -> i + 1 at step i + 1.
  * @param startingRows - Whether the project draws the starting rows.
+ * @param look - The Timeline Hidden row's look, when set.
  * @returns The session, as the renderer reads it (the drawn masks and the ghosts), with `step`
  *   designated on nodes and edges.
  */
-async function trace(startingRows = true): Promise<ElementSession> {
+async function trace(startingRows = true, look?: "hidden" | "ghost"): Promise<ElementSession> {
     const session = createGraphSession() as ElementSession;
     if (startingRows) {
-        await session.config.set({ startingRows: true });
+        await session.config.set({ startingRows: true, ...(look === undefined ? {} : { timelineHiddenLook: look }) });
     }
 
     const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `s${String(i)}`, step: i }));
@@ -41,24 +44,27 @@ async function trace(startingRows = true): Promise<ElementSession> {
 }
 
 /**
- * The stack's layers by name, bottom first.
+ * The layers of the row a name names, the test's way of finding it (code never does).
  * @param session - The session.
- * @returns The names.
+ * @param name - The row's name.
+ * @returns The layer ids.
  */
-function names(session: GraphSession): string[] {
-    return session.styles.list().map((layer) => layer.name);
+function rowLayers(session: GraphSession, name = "Timeline Hidden"): string[] {
+    return session.styles
+        .list()
+        .filter((layer) => layer.name === name)
+        .map((layer) => layer.id);
 }
 
 /**
- * The Ghost row's layer ids.
+ * The CSV rows an export writes, header left out.
  * @param session - The session.
- * @returns The ids.
+ * @param table - Which table.
+ * @returns The rows.
  */
-function ghostLayers(session: GraphSession): string[] {
-    return session.styles
-        .list()
-        .filter((layer) => layer.source.by === "template" && layer.source.templateId === "graphty:timeline-ghost")
-        .map((layer) => layer.id);
+async function shownRows(session: GraphSession, table: "nodes" | "edges"): Promise<string[]> {
+    const text = await exportSession(session, "csv", { table, scope: "shown" }).text();
+    return text.trim().split("\n").slice(1);
 }
 
 /**
@@ -96,46 +102,85 @@ function firstEdge(session: GraphSession): string {
     return String(edge?.id);
 }
 
+/**
+ * Add a reader's layer hiding the edges outside the window.
+ * @param session - The session.
+ */
+async function hideOutsideEdges(session: GraphSession): Promise<void> {
+    await session.styles.add({
+        name: "Outside edges",
+        target: "edge",
+        selector: { match: "state", state: "outsideWindow" },
+        set: { "edge.visible": false },
+    });
+}
+
 describe("timeline ghosts", () => {
-    it("keeps what lies outside the window drawn, hidden by style, and ghosts it when asked", async () => {
-        const session = await trace();
-        assert.strictEqual(session.time.settings.outside, "hide");
+    it("narrows no count, selection, export or layout input: only the drawing changes", async () => {
+        const session = await trace(false);
+        await session.selection.apply({ nodes: ["s0", "s5"] });
+        const { visibility } = session;
+        const { summary } = visibility;
+        const nodeMask = [...visibility.nodeMask()];
+        const edgeMask = [...visibility.edgeMask()];
+        const kept = visibility.keptIds();
+        const nodes = await shownRows(session, "nodes");
+        const edges = await shownRows(session, "edges");
+
         await session.time.window({ from: 3, to: 6 });
-        // Drawn: everything the filter keeps. Visible: the window.
-        assert.isTrue(session.visibility.ghosting);
-        assert.strictEqual(session.visibility.drawnMasks.nodes().size, 10);
-        assert.strictEqual(session.visibility.drawnMasks.edges().size, 9);
-        assert.strictEqual(session.visibility.summary.visibleNodes, 3);
-        assert.deepStrictEqual([...session.visibility.nodes].sort(), ["s3", "s4", "s5"]);
-        assert.deepStrictEqual(nodeIds(session, session.visibility.outsideWindowBytes()?.node), [
+        await session.time.stepBy(1);
+
+        assert.deepStrictEqual(visibility.summary, summary, "the counts");
+        assert.strictEqual(visibility.summary.visibleNodes, 10);
+        assert.deepStrictEqual([...visibility.nodeMask()], nodeMask);
+        assert.deepStrictEqual([...visibility.edgeMask()], edgeMask);
+        assert.lengthOf([...visibility.nodes], 10);
+        assert.strictEqual(visibility.keptIds(), kept, "the layout's input never moved");
+        assert.sameMembers([...session.selection.nodes], ["s0", "s5"]);
+        assert.deepStrictEqual(await shownRows(session, "nodes"), nodes);
+        assert.deepStrictEqual(await shownRows(session, "edges"), edges);
+        assert.lengthOf(nodes, 10);
+
+        // What lies outside is in its state, and with no layer selecting it nothing hides it.
+        assert.isFalse(visibility.ghosting);
+        assert.deepStrictEqual(nodeIds(session, visibility.outsideWindowBytes()?.node), [
             "s0",
             "s1",
             "s2",
-            "s6",
+            "s3",
             "s7",
             "s8",
             "s9",
         ]);
-        // No condition is held, so nothing is a held ghost.
-        assert.isNull(session.visibility.ghosts());
+        assert.isTrue(drawn(session, { node: "s0" }));
+        assert.isTrue(drawn(session, { edge: firstEdge(session) }));
+        assert.strictEqual(session.visibility.drawnMasks.nodes().size, 10);
 
-        // The Ghost row selects what lies outside and counts it, hidden or drawn.
-        const parts = ghostLayers(session);
+        // A slide, the frames of a play, moves nothing visible either.
+        await session.time.seek(5.5, { commit: false });
+        assert.deepStrictEqual(visibility.summary, summary);
+        assert.deepStrictEqual([...visibility.nodeMask()], nodeMask);
+        session.dispose();
+    });
+
+    it("hides what lies outside through the Timeline Hidden row, which selects the state and counts it", async () => {
+        const session = await trace();
+        await session.time.window({ from: 3, to: 6 });
+        assert.strictEqual(session.visibility.summary.visibleNodes, 10, "hidden by style, still visible");
+        assert.isFalse(drawn(session, { node: "s0" }));
+        assert.isFalse(drawn(session, { edge: firstEdge(session) }));
+        assert.isTrue(drawn(session, { node: "s4" }));
+        assert.strictEqual(session.time.settings.outside, "hide");
+
+        const parts = rowLayers(session);
         const nodePart =
             parts.find((id) => session.styles.list().find((layer) => layer.id === id)?.target === "node") ?? "";
-        const edgePart = parts.find((id) => id !== nodePart) ?? "";
-        const outsideEdges = 9 - session.visibility.summary.visibleEdges;
         assert.strictEqual(session.styles.counts(nodePart).matched, 7);
-        assert.strictEqual(session.styles.counts(edgePart).matched, outsideEdges);
-        const ghost = (): unknown =>
-            session.styles.list().find((layer) => layer.id === nodePart)?.set?.["node.visible"];
-        assert.isUndefined(ghost(), "the element's own layers hide what lies outside");
 
         await session.time.setSettings({ outside: "ghost" });
         assert.strictEqual(session.time.settings.outside, "ghost");
-        assert.isTrue(ghost(), "the Ghost row draws it");
-        assert.strictEqual(session.styles.counts(nodePart).matched, 7);
-        assert.strictEqual(session.visibility.summary.visibleNodes, 3, "ghosts are never visible");
+        assert.isTrue(drawn(session, { node: "s0" }));
+        assert.strictEqual(session.visibility.summary.visibleNodes, 10);
 
         // A step moves what lies outside.
         const graph = session.data.snapshot();
@@ -144,9 +189,11 @@ describe("timeline ghosts", () => {
         assert.isTrue(session.visibility.outsideWindow("node", graph.ids.requireIndex("s3")));
         assert.strictEqual(session.styles.counts(nodePart).matched, 7);
 
+        // Deleted, nothing hides what lies outside any more: the row is just a layer.
         await session.time.setSettings({ outside: "hide" });
-        assert.strictEqual(session.time.settings.outside, "hide");
-        assert.isFalse(ghost());
+        const row = session.styles.list().find((layer) => layer.id === nodePart);
+        await session.styles.deleteRow(row?.row ?? nodePart);
+        assert.isTrue(drawn(session, { node: "s0" }));
         session.dispose();
     });
 
@@ -165,21 +212,19 @@ describe("timeline ghosts", () => {
         session.dispose();
     });
 
-    it("adds a layer that draws what lies outside when no layer selects it", async () => {
+    it("adds a layer that hides what lies outside when no layer selects it", async () => {
         const session = await trace(false);
         await session.time.window({ from: 3, to: 6 });
         const selecting = (): Record<string, unknown>[] =>
             session.styles
                 .list()
-                .filter((layer) => layer.source.by !== "element")
                 .filter((layer) => layer.selector.match === "state" && layer.selector.state === "outsideWindow")
                 .map((layer) => ({ ...layer.set }));
         assert.deepStrictEqual(selecting(), []);
-        assert.strictEqual(session.time.settings.outside, "hide");
+        assert.strictEqual(session.time.settings.outside, "ghost", "nothing hides it");
 
         await session.time.setSettings({ outside: "ghost" });
-        assert.deepStrictEqual(selecting(), [{ "node.visible": true }, { "edge.visible": true }]);
-        assert.strictEqual(session.time.settings.outside, "ghost");
+        assert.deepStrictEqual(selecting(), [], "already drawn");
 
         await session.time.setSettings({ outside: "hide" });
         assert.deepStrictEqual(selecting(), [{ "node.visible": false }, { "edge.visible": false }]);
@@ -194,16 +239,15 @@ describe("timeline ghosts", () => {
         const assertOutside = (when: string): void => {
             const outside = visibility.outsideWindowBytes();
             const kept = visibility.passingBytes();
-            const shownNodes = visibility.masks.nodes();
-            const shownEdges = visibility.masks.edges();
+            const inside = visibility.windowMasks();
             const graph = session.data.snapshot();
             for (let row = 0; row < graph.nodeCount; row++) {
-                const out = (kept.nodes === null || kept.nodes[row] === 1) && !shownNodes.has(row);
+                const out = (kept.nodes === null || kept.nodes[row] === 1) && inside.nodes[row] !== 1;
                 assert.strictEqual(outside?.node[row] === 1, out, `${when}: node ${String(row)}`);
             }
 
             for (let row = 0; row < graph.edgeCount; row++) {
-                const out = (kept.edges === null || kept.edges[row] === 1) && !shownEdges.has(row);
+                const out = (kept.edges === null || kept.edges[row] === 1) && inside.edges[row] !== 1;
                 assert.strictEqual(outside?.edge[row] === 1, out, `${when}: edge ${String(row)}`);
             }
         };
@@ -249,7 +293,7 @@ describe("timeline ghosts", () => {
     });
 
     it("brings a project saved with the window's ghosts in the ghosted state up to date on load", async () => {
-        const session = await trace();
+        const session = await trace(true, "ghost");
         await session.time.window({ from: 3, to: 6 });
         await session.time.setSettings({ outside: "ghost", missing: "outside" });
         const { text } = await session.project.save();
@@ -267,7 +311,7 @@ describe("timeline ghosts", () => {
         for (const outside of ["hide", "ghost"] as const) {
             const opened = createGraphSession() as ElementSession;
             await opened.project.open(before(outside));
-            const ghost = opened.styles.list().filter((layer) => layer.name === "Ghost");
+            const ghost = opened.styles.list().filter((layer) => layer.name === "Timeline Hidden");
             assert.lengthOf(ghost, 2);
             for (const layer of ghost) {
                 assert.deepEqual(layer.selector, { match: "state", state: "outsideWindow" });
@@ -285,14 +329,17 @@ describe("timeline ghosts", () => {
         }
     });
 
-    it("reads Outside from the rows that paint, so hiding the Ghost row reads Hide and Ghost draws again", async () => {
+    it("reads Outside from the rows that paint, so hiding the Timeline Hidden row draws what it hid", async () => {
         const session = await trace();
         await session.time.window({ from: 3, to: 6 });
-        await session.time.setSettings({ outside: "ghost" });
+        assert.isFalse(drawn(session, { node: "s0" }));
+
+        const row = session.styles.list().find((layer) => layer.name === "Timeline Hidden");
+        await session.styles.hideRow(row?.row ?? row?.id ?? "", true);
+        assert.strictEqual(session.time.settings.outside, "ghost", "nothing hides it");
         assert.isTrue(drawn(session, { node: "s0" }));
 
-        const row = session.styles.list().find((layer) => layer.name === "Ghost");
-        await session.styles.hideRow(row?.row ?? row?.id ?? "", true);
+        await session.time.setSettings({ outside: "hide" });
         assert.strictEqual(session.time.settings.outside, "hide");
         assert.isFalse(drawn(session, { node: "s0" }));
 
@@ -306,6 +353,7 @@ describe("timeline ghosts", () => {
     it("draws nodes and edges alike when a reader's own layer selects only nodes", async () => {
         const session = await trace(false);
         await session.time.window({ from: 3, to: 6 });
+        await hideOutsideEdges(session);
         await session.styles.add({
             name: "Outside the window",
             target: "node",
@@ -324,6 +372,7 @@ describe("timeline ghosts", () => {
     it("hides again what a reader's node-only layer draws when Hide is asked, though Outside already read Hide", async () => {
         const session = await trace(false);
         await session.time.window({ from: 3, to: 6 });
+        await hideOutsideEdges(session);
         const added = await session.styles.add({
             name: "Outside the window",
             target: "node",
@@ -417,27 +466,6 @@ describe("timeline ghosts", () => {
             where: { kind: "all", of: [{ kind: "state", state: "outsideWindow" }] },
         });
         opened.dispose();
-    });
-
-    it("adds the Ghost row directly below Selected with the field, and takes it away with it", async () => {
-        const session = await trace();
-        const order = names(session);
-        assert.strictEqual(order.lastIndexOf("Ghost"), order.indexOf("Selected") - 1, order.join(", "));
-        const ghost = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
-        assert.deepInclude(ghost?.set ?? {}, { "node.color": "#9E9E9E", "node.opacity": 0.2 });
-        assert.strictEqual(ghostLayers(session).length, 2);
-
-        await session.time.setField(null);
-        assert.deepStrictEqual(ghostLayers(session), []);
-        await session.undo();
-        assert.strictEqual(ghostLayers(session).length, 2);
-        session.dispose();
-    });
-
-    it("adds no Ghost row to a project that does not draw the starting rows", async () => {
-        const session = await trace(false);
-        assert.deepStrictEqual(ghostLayers(session), []);
-        session.dispose();
     });
 
     it("refuses an outside setting it does not know", async () => {

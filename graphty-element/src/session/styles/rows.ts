@@ -316,12 +316,18 @@ export function startingRows(look: {
     ];
 }
 
-/** The template id the timeline's Ghost row carries. */
-export const GHOST_ROW_ID = "graphty:timeline-ghost";
+/** The template id the timeline's starting row, Timeline Hidden, carries. */
+export const TIMELINE_HIDDEN_ROW_ID = "graphty:timeline-hidden";
 
 /**
- * The look a ghost starts with: grey at low opacity, so the elements outside the time window stay
- * on screen as context without reading as part of it.
+ * The template id the same row carried while it was called Ghost. A project saved then still
+ * names it; nothing reads it differently from any other layer's source.
+ */
+export const LEGACY_GHOST_ROW_ID = "graphty:timeline-ghost";
+
+/**
+ * The ghost look: grey at low opacity, so the elements outside the time window stay on screen as
+ * context without reading as part of it.
  */
 export const STARTING_GHOST_LOOK = {
     "node.color": "#9E9E9E",
@@ -330,23 +336,31 @@ export const STARTING_GHOST_LOOK = {
     "edge.opacity": 0.15,
 } as const;
 
+/** How the Timeline Hidden row starts: not drawn at all, or drawn faint. */
+export type TimelineHiddenLook = "hidden" | "ghost";
+
 /**
- * The Ghost row: nodes and edges in the state `"outsideWindow"` (outside the time window), grey
- * and faint, pinned to the top directly below Selected. It sets no `visible`, so the element's own
- * layers keep what lies outside hidden until `session.time.setSettings({ outside: "ghost" })`
- * sets `visible: true` on it. A starting row that exists while a time field is designated.
+ * The Timeline Hidden row: nodes and edges in the state `"outsideWindow"` (outside the time
+ * window), pinned to the top directly below Selected. An ordinary row: it hides or ghosts what lies
+ * outside the window only because it selects that state, and deleting it draws those elements as
+ * any other.
+ * @param look - `"hidden"` sets `visible: false`; `"ghost"` draws them grey and faint.
  * @returns The row.
  */
-export function ghostRow(): { readonly templateId: typeof GHOST_ROW_ID; readonly pin: "top"; readonly spec: RowSpec } {
+export function timelineHiddenRow(look: TimelineHiddenLook): {
+    readonly templateId: typeof TIMELINE_HIDDEN_ROW_ID;
+    readonly pin: "top";
+    readonly spec: RowSpec;
+} {
     return {
-        templateId: GHOST_ROW_ID,
+        templateId: TIMELINE_HIDDEN_ROW_ID,
         pin: "top",
         spec: {
-            name: "Ghost",
+            name: "Timeline Hidden",
             target: "both",
             selector: { match: "state", state: "outsideWindow" },
-            set: { ...STARTING_GHOST_LOOK },
-            source: { by: "template", templateId: GHOST_ROW_ID },
+            set: look === "ghost" ? { ...STARTING_GHOST_LOOK } : { "node.visible": false, "edge.visible": false },
+            source: { by: "template", templateId: TIMELINE_HIDDEN_ROW_ID },
         },
     };
 }
@@ -377,16 +391,6 @@ export function pinnedRow(look: { readonly color: string; readonly scale: number
             source: { by: "template", templateId: PINNED_ROW_ID },
         },
     };
-}
-
-/**
- * Whether a layer is a part of the Ghost row.
- * @param entry - A layer in the stack.
- * @returns True for one.
- */
-export function isGhostRow(entry: CompiledLayer): boolean {
-    const { source } = entry.layer;
-    return source.by === "template" && source.templateId === GHOST_ROW_ID;
 }
 
 /**

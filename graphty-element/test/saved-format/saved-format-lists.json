@@ -76,7 +76,7 @@
             "paths": [],
             "catalogs": ["rowTemplates"],
             "issue": 6510,
-            "finding": "The Starting, Ghost and Pinned rows carry template ids that code branches on."
+            "finding": "The Starting, Timeline Hidden (saved earlier as Ghost) and Pinned rows carry template ids."
         },
         {
             "kind": "algorithm",

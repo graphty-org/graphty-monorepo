@@ -25,6 +25,7 @@ import { CONFIG_KEYS } from "../configKeys";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
+import type { TimelineHiddenLook } from "../styles/rows";
 import type { GraphFraming, ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
 import { dropUnusedShaderCopies, namedShaders, settleShaderCopies, shaderIdsIn } from "./shaderCopies";
 
@@ -193,7 +194,7 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
                 ctx.draft.config.set(path, value);
             }
 
-            restore ||= restoresStartingRows(path, value, same, ctx.services.timeline?.() !== false);
+            restore ||= restoresStartingRows(path, value, same);
         }
 
         dropUnusedShaderCopies(named, ctx.state, ctx.draft, ctx.services);
@@ -211,20 +212,17 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
  * @param path - The key.
  * @param value - The value written (undefined to clear it).
  * @param same - Whether the write leaves the value the key already reads as.
- * @param timeline - Whether the timeline experiment is on: off, a time field brings no Ghost row.
  * @returns True when the starting rows are to be restored.
  */
-function restoresStartingRows(path: string, value: unknown, same: boolean, timeline: boolean): boolean {
+function restoresStartingRows(path: string, value: unknown, same: boolean): boolean {
     if ((path === "startingRows" || path === "editableBase") && value === true) {
         return true;
     }
 
-    // Designating or clearing a time field adds or takes away the Ghost row, and setting or
-    // clearing the pinned look the Pinned row. Only a change does: writing the value already
-    // in effect (a project opened over the same settings) adds nothing, so a project read
-    // into a cleared tree gets exactly the rows it saved.
-    const timeField = path === "data.knownFields.nodeTimePath" || path === "data.knownFields.edgeTimePath";
-    return !same && ((timeField && timeline) || path === "pinnedStyle");
+    // Setting or clearing the pinned look adds or takes away the Pinned row. Only a change does:
+    // writing the value already in effect (a project opened over the same settings) adds nothing,
+    // so a project read into a cleared tree gets exactly the rows it saved.
+    return !same && path === "pinnedStyle";
 }
 
 /**
@@ -264,6 +262,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
         ...(pinned === undefined ? {} : { pinnedStyle: pinned }),
         startingRows: read("startingRows") as boolean,
         editableBase: read("editableBase") as boolean,
+        timelineHiddenLook: read("timelineHiddenLook") as TimelineHiddenLook,
         runPlacement: read("runPlacement") as RunPlacement,
         layoutBehavior: Object.freeze({
             preSteps: read("layoutBehavior.preSteps") as number,

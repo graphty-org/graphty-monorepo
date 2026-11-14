@@ -3403,9 +3403,11 @@ export interface ProjectConfig {
      * (pinned to the top, writing nothing). False by default.
      * Turned on, the rows are added in the same step, and the selection settings
      * ({@link ProjectConfig.selectionStyle}) draw nothing themselves; `styles.restoreStartingRows()`
-     * brings back any a reader deleted. While a time field is designated, a fourth row, Ghost, sits
-     * directly below Selected: it paints the elements outside the time window grey at low opacity
-     * when the timeline draws them (`session.time.setSettings({ outside: "ghost" })`).
+     * brings back any a reader deleted. With the `timeline` experiment enabled, a fourth row,
+     * Timeline Hidden, sits directly below Selected: it selects the elements outside the time
+     * window (the state `"outsideWindow"`) and hides or ghosts them, as
+     * {@link ProjectConfig.timelineHiddenLook} says. It is added only when no layer selects that
+     * state, so it never comes twice, and a reader may edit or delete it like any row.
      * @since 3.26.0
      */
     readonly startingRows: boolean;
@@ -3420,6 +3422,19 @@ export interface ProjectConfig {
      * @since 3.26.0
      */
     readonly editableBase: boolean;
+    /**
+     * How the Timeline Hidden starting row starts: `"hidden"` (the default) sets `visible: false`,
+     * so what lies outside the time window is not drawn at all; `"ghost"` draws it grey at low
+     * opacity. Read only when the row is added, which is while {@link ProjectConfig.startingRows}
+     * is on and the `timeline` experiment is enabled, when no layer selects the state
+     * `"outsideWindow"`; changing it never rewrites a row already there.
+     *
+     * ```ts
+     * await session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
+     * ```
+     * @since 3.40.0
+     */
+    readonly timelineHiddenLook: "hidden" | "ghost";
     /**
      * Where the layer a finished run paints lands: `"beneath"` (the default), under the lowest
      * layer somebody wrote that drives the same property, and not at all when such a layer covers
@@ -3513,6 +3528,8 @@ export interface ProjectConfigPatch {
     readonly startingRows?: boolean;
     /** See {@link ProjectConfig.editableBase}. */
     readonly editableBase?: boolean;
+    /** See {@link ProjectConfig.timelineHiddenLook}. */
+    readonly timelineHiddenLook?: "hidden" | "ghost";
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;

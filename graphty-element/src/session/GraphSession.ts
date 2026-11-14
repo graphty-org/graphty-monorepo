@@ -1763,6 +1763,9 @@ function configOf(
         get editableBase() {
             return read().editableBase;
         },
+        get timelineHiddenLook() {
+            return read().timelineHiddenLook;
+        },
         get runPlacement() {
             return read().runPlacement;
         },
@@ -2234,25 +2237,6 @@ function elementBaseLayers(): readonly ElementLayerSpec[] {
             target: "edge",
             selector: { match: "everything" },
             set: baseStyleOf(defaultEdgeStyle, "edge"),
-        },
-        // What lies outside the time window is hidden by style, never taken out of the graph: a
-        // layer above that selects the same state and sets `visible: true` draws it (Outside:
-        // Ghost). With no window in force the state holds nothing.
-        {
-            name: "Nodes outside the time window",
-            kind: "base",
-            source: { by: "element", reason: "time" },
-            target: "node",
-            selector: { match: "state", state: "outsideWindow" },
-            set: { "node.visible": false },
-        },
-        {
-            name: "Edges outside the time window",
-            kind: "base",
-            source: { by: "element", reason: "time" },
-            target: "edge",
-            selector: { match: "state", state: "outsideWindow" },
-            set: { "edge.visible": false },
         },
     ];
 }

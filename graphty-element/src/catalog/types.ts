@@ -1339,8 +1339,8 @@ export type Selector =
     /**
      * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
      * edges), under the pointer (`"hovered"`, one node at most), drawn while a held filter
-     * condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`: the
-     * element's own layers hide it, and a layer setting `visible: true` draws it), or pinned in place
+     * condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`:
+     * a layer selecting it decides how it looks: hidden, faint, or as any other), or pinned in place
      * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
      * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
      * `selectorRule` reads this selector as with its `states` option.
@@ -1372,7 +1372,7 @@ export type Selector =
  * locked layers that hide what lies outside a time window.
  */
 export type LayerSource =
-    | { by: "element"; reason: "default" | "selection" | "hover" | "notes" | "time" }
+    | { by: "element"; reason: "default" | "selection" | "hover" | "notes" }
     | { by: "run"; runId: RunId; algorithm: AlgorithmKey; params: Record<string, unknown> }
     | { by: "user" }
     | { by: "template"; templateId: string }

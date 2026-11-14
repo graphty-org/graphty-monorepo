@@ -230,8 +230,6 @@ import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate
 import { stackChange } from "./repaint";
 import {
     assertRouted,
-    ghostRow,
-    isGhostRow,
     partPatch,
     PINNED_ROW_ID,
     pinnedRow,
@@ -245,6 +243,7 @@ import {
     type StartingRow,
     startingRowOf,
     startingRows,
+    timelineHiddenRow,
 } from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
 import { selectorStates } from "./selector";
@@ -532,10 +531,6 @@ export interface StylesApi {
      *
      * The index a layer happens to sit at is NOT its identity. Read {@link Layer.id} for that,
      * and pass the id to every other verb.
-     *
-     * With the timeline experiment on, the list holds two more of the element's own layers,
-     * `source: { by: "element", reason: "time" }`, which hide what lies outside a time window; with
-     * it off they are left out.
      * @returns The layers, bottom first.
      */
     list(): readonly Layer[];
@@ -1337,12 +1332,12 @@ export interface StylesApi {
      * pinned to the bottom, writing nothing), Selected (nodes and edges, pinned to the top,
      * drawing a node halo and an edge band in the selection settings' colors) and Hovered (nodes, pinned to
      * the top, writing nothing). One undo step; nothing when all three are there. Setting the
-     * project setting `startingRows` to true adds them the same way. While a time field is
-     * designated (`session.time.setField`), the Ghost row comes too: nodes and edges in the state
-     * `"outsideWindow"`, grey at low opacity, pinned to the top directly below Selected; with
-     * `startingRows` on, designating a field adds it and clearing the field takes it away. While
+     * project setting `startingRows` to true adds them the same way. With the `timeline`
+     * experiment enabled, the Timeline Hidden row comes too, when no layer selects the state
+     * `"outsideWindow"`: nodes and edges outside the time window, hidden or ghosted as the project
+     * setting `timelineHiddenLook` says, pinned to the top directly below Selected. While
      * the project setting `pinnedStyle` is set, the Pinned row comes too: nodes in the state
-     * `"pinned"`, drawing that halo, pinned to the top directly below Selected (above Ghost); with
+     * `"pinned"`, drawing that halo, pinned to the top directly below Selected (above Timeline Hidden); with
      * `startingRows` on, setting `pinnedStyle` adds it and clearing it takes it away.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the rows added, bottom first.
@@ -1872,18 +1867,6 @@ const FOLDER = "folder:";
 
 /** The tree a consumer reads, per stack, so the same array comes back until the stack changes. */
 const treeCache = new WeakMap<readonly CompiledLayer[], readonly StyleRow[]>();
-
-/** The same with the timeline off, which leaves the Ghost row out. */
-const treeWithoutGhostCache = new WeakMap<readonly CompiledLayer[], readonly StyleRow[]>();
-
-/**
- * The row a layer of the stack is a part of.
- * @param entry - The layer.
- * @returns The row's id.
- */
-function rowIdOf(entry: CompiledLayer): StyleRowId {
-    return entry.layer.row ?? entry.layer.id;
-}
 
 /** One layer of a style document, in both the form it was written in and the form it compiled to. */
 interface ImportedLayer {
@@ -3044,32 +3027,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
     const listLayers = (): readonly Layer[] => listed().layers;
 
-    /** The list with the timeline off, by the list it was read from: see {@link StylesApi.list}. */
-    let untimedList: { readonly of: readonly Layer[]; readonly layers: readonly Layer[] } | null = null;
-    /**
-     * The list a consumer reads: with the timeline off, the element's own layers hiding what lies
-     * outside a time window stay in the stack, matching nothing, and are left out, as the tree
-     * leaves out a saved Ghost row.
-     * @returns The layers, bottom first.
-     */
-    const publicList = (): readonly Layer[] => {
-        const layers = listLayers();
-        if (dispatcher.services.timeline?.() !== false) {
-            return layers;
-        }
-
-        if (untimedList?.of !== layers) {
-            untimedList = {
-                of: layers,
-                layers: Object.freeze(
-                    layers.filter(({ source }) => !(source.by === "element" && source.reason === "time")),
-                ),
-            };
-        }
-
-        return untimedList.layers;
-    };
-
     /**
      * The first version of each edited layer, by every later version of it. An edit compiles a new
      * layer object under the same id, and so does a removal followed by an add of the same name,
@@ -3706,12 +3663,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (at === "aboveBase") {
-            // Directly above the last of the element's own base layers (its look, and what hides
-            // what lies outside a time window), wherever it sits.
+            // Directly above the last of the element's own base layers, wherever it sits.
             let index = 0;
             stack.forEach((entry, position) => {
                 const { source } = entry.layer;
-                if (source.by === "element" && (source.reason === "default" || source.reason === "time")) {
+                if (source.by === "element" && source.reason === "default") {
                     index = position + 1;
                 }
             });
@@ -4469,29 +4425,29 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
-     * The Ghost row exists while a time field is designated: added directly below Selected (and
-     * below Pinned), and taken away when the field is cleared.
+     * With the timeline on, the Timeline Hidden row is added when no layer of the stack selects
+     * what lies outside the time window, directly below Selected (and below Pinned), in the look
+     * the project setting `timelineHiddenLook` names. Never taken away: it is the reader's row.
      * @param work - The plan being built.
      */
-    const syncGhostRow = (work: StartingRowsWork): void => {
-        // With the timeline off a saved Ghost row stays as saved, and a time field brings none.
-        if (dispatcher.services.timeline?.() === false) {
+    const syncTimelineHiddenRow = (work: StartingRowsWork): void => {
+        if (dispatcher.services.timeline?.() !== true) {
             return;
         }
 
-        const known = dispatcher.services.config?.().data.knownFields;
-        const timed = (known?.nodeTimePath ?? null) !== null || (known?.edgeTimePath ?? null) !== null;
-        const ghosts = work.stack.filter(isGhostRow);
-        if (timed && ghosts.length === 0) {
-            const pinned = work.stack.findIndex(isPinnedRow);
-            const selected = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
-            const hovered = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-            const below = [pinned, selected, hovered].find((index) => index !== -1) ?? -1;
-            const ghost = ghostRow();
-            addStartingRow(work, ghost.spec, ghost.pin, below === -1 ? work.stack.length : below);
-        } else if (!timed && ghosts.length > 0) {
-            dropStartingRow(work, isGhostRow, ghosts);
+        const outside = work.stack.some(
+            ({ layer }) => layer.selector.match === "state" && layer.selector.state === "outsideWindow",
+        );
+        if (outside) {
+            return;
         }
+
+        const pinned = work.stack.findIndex(isPinnedRow);
+        const selected = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
+        const hovered = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
+        const below = [pinned, selected, hovered].find((index) => index !== -1) ?? -1;
+        const row = timelineHiddenRow(dispatcher.services.config?.().timelineHiddenLook ?? "hidden");
+        addStartingRow(work, row.spec, row.pin, below === -1 ? work.stack.length : below);
     };
 
     /**
@@ -4511,7 +4467,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         syncPinnedRow(work);
-        syncGhostRow(work);
+        syncTimelineHiddenRow(work);
 
         let { rows } = work;
         const { added, layers, pins } = work;
@@ -5230,7 +5186,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     const api: SessionStylesApi = {
         list(): readonly Layer[] {
-            return publicList();
+            return listLayers();
         },
 
         showBranches(view: BranchesView): { end(): void } {
@@ -5281,17 +5237,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         tree(): readonly StyleRow[] {
             const stack = current();
-            // With the timeline off a saved Ghost row stays in the stack, so it saves, and is no row.
-            const timelineOff = dispatcher.services.timeline?.() === false;
-            const cache = timelineOff ? treeWithoutGhostCache : treeCache;
-            let rows = cache.get(stack);
+            let rows = treeCache.get(stack);
             if (rows === undefined) {
-                const ghosts = new Set(timelineOff ? stack.filter(isGhostRow).map(rowIdOf) : []);
-                rows = publicRows(
-                    rowsOf(stack).filter((row) => !ghosts.has(row.id)),
-                    namesIn(stack),
-                );
-                cache.set(stack, rows);
+                rows = publicRows(rowsOf(stack), namesIn(stack));
+                treeCache.set(stack, rows);
             }
 
             return rows;

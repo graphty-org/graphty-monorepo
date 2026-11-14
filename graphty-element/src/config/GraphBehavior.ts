@@ -107,7 +107,9 @@ const CameraBehaviorOpts = z
          * pivot: the 3D camera glides to look at it and orbits, spins and zooms about it, the 2D view
          * glides to center it, and in VR or AR the reader's turns and scaling happen about it without
          * moving the reader. The pivot follows the selected nodes while they move, and stays where it
-         * is when the selection is cleared.
+         * is when the selection is cleared. A selection made by a right-click or a touch-and-hold
+         * (a request for a context menu, including one the page's own `contextmenu` handler makes)
+         * leaves the camera where it is, so a menu opened at the pointer stays beside its node.
          */
         pivotOnSelection: z.boolean().default(false),
         /*

@@ -1618,9 +1618,29 @@ export class Graph implements GraphContext {
         // What was selected is worked out from the change only when a change holds the camera: a
         // walk of the selection on every change is quadratic in a removal of many selected nodes.
         let pivoted = false;
+        // A right-click or a touch-and-hold asks for a menu about what is under the pointer: a
+        // selection it makes (the element's own, or the menu's opener selecting the node from its
+        // `contextmenu` handler) keeps the camera still, or the node would glide out from under a
+        // menu opened at the pointer (issue #7452). Held for the press's own events and the
+        // handlers they run, until the next task.
+        let menuPress = false;
+        let menuPressEnd: ReturnType<typeof setTimeout> | undefined;
+        const pressMenu = (event: Event): void => {
+            if (event.type !== "contextmenu" && (event as PointerEvent).button !== 2) {
+                return;
+            }
+            menuPress = true;
+            clearTimeout(menuPressEnd);
+            menuPressEnd = setTimeout(() => {
+                menuPress = false;
+            });
+        };
+        for (const type of ["pointerdown", "pointerup", "contextmenu"]) {
+            this.element.addEventListener(type, pressMenu, { capture: true, signal: this.#teardown.signal });
+        }
         this.session.on("selection:changed", ({ cause, added, removed }) => {
             const causes = this.styles.config.behavior.camera.pivotOnSelectionCauses;
-            if (causes === undefined || causes.includes(cause)) {
+            if (!menuPress && (causes === undefined || causes.includes(cause))) {
                 pivoted = true;
                 return;
             }

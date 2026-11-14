@@ -79,6 +79,21 @@ const OFFLINE_XR_OPTIONS = {
 } satisfies Partial<WebXRDefaultExperienceOptions>;
 
 /**
+ * Loads Babylon.js WebXR on first use. The motion controller index registers the device
+ * controller classes (oculus-touch, htc-vive, windows-mixed-reality, the hand controllers). The
+ * online repository is off, so these are the only profiles an input can match; the
+ * `@babylonjs/core` barrel loaded them before XR became a lazy import.
+ * @returns The WebXRDefaultExperience class.
+ */
+export async function loadWebXRDefaultExperience(): Promise<typeof WebXRDefaultExperience> {
+    const [mod] = await Promise.all([
+        import("@babylonjs/core/XR/webXRDefaultExperience.js"),
+        import("@babylonjs/core/XR/motionController/index.js"),
+    ]);
+    return mod.WebXRDefaultExperience;
+}
+
+/**
  * Manages WebXR session lifecycle for VR and AR modes.
  * Handles session initialization, camera management, and cleanup.
  */
@@ -221,7 +236,7 @@ export class XRSessionManager {
         let helper: WebXRDefaultExperience | null = null;
         try {
             logger.debug("Creating XR experience", { mode });
-            const { WebXRDefaultExperience } = await import("@babylonjs/core/XR/webXRDefaultExperience.js");
+            const WebXRDefaultExperience = await loadWebXRDefaultExperience();
             helper = await WebXRDefaultExperience.CreateAsync(this.scene, {
                 ...OFFLINE_XR_OPTIONS,
                 floorMeshes: [],

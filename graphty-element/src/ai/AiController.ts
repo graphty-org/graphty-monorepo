@@ -658,6 +658,8 @@ export interface AiControllerOptions {
      * approval. Absent, only URLs in the reader's own message are imported.
      */
     allowImportUrl?: (url: URL) => boolean;
+    /** Where `load_dataset` downloads datasets from; absent, it fails with `E_OPTION_RANGE`. */
+    datasetBaseUrl?: string;
     /**
      * Whether the assistant keeps one conversation across messages: `"none"` (the default: every
      * message starts afresh), `"memory"`, `"browser"`, or the options.
@@ -760,6 +762,7 @@ export class AiController {
     private readonly instructions: string;
     private readonly gate: Readonly<AssistantGateLimits> | false;
     private readonly allowImportUrl: ((url: URL) => boolean) | undefined;
+    private readonly datasetBaseUrl: string | undefined;
     /** Runs the assistant started, which it may cancel without asking. */
     private readonly assistantRuns = new Set<string>();
     /**
@@ -839,6 +842,7 @@ export class AiController {
         this.gate =
             !generated || options.gate === false ? false : { ...DEFAULT_ASSISTANT_GATE_LIMITS, ...options.gate };
         this.allowImportUrl = options.allowImportUrl;
+        this.datasetBaseUrl = options.datasetBaseUrl;
         this.policy = generated ? policyOf(options.approvals) : undefined;
         this.asks = options.questions === true;
         this.model = options.model ?? defaultModelOf(options.provider.name);
@@ -1406,6 +1410,7 @@ export class AiController {
                 emit,
                 readerText: input,
                 ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
+                ...(this.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: this.datasetBaseUrl }),
             },
             hold: (held, messageId, helper) =>
                 this.hold({

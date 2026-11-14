@@ -2088,14 +2088,22 @@ export interface SessionDataApi {
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     /**
      * Download one of `catalog.datasets()` by name and load it, as one undoable step.
+     *
+     * The element names no download host of its own: `baseUrl` says where graph-samples' dataset
+     * files are published. graph-samples exports the address of its own copy:
+     *
+     * ```ts
+     * import { DEFAULT_DATASET_BASE_URL } from "@graphty/graph-samples";
+     * await session.data.loadDataset("karate", { baseUrl: DEFAULT_DATASET_BASE_URL });
+     * ```
      * @param name - The dataset's name, e.g. `"karate"`.
-     * @param options - Whether to replace the graph (the default) or add to it, where to download
-     *     from (`baseUrl`: a mirror of the published files; graphty.app by default) and a signal
-     *     that abandons the download. Loads land in the order they were asked for, so a load
-     *     asked for after this one waits until this download finishes or fails; aborting the
-     *     signal, even once the download has finished, stops it and lets the next load through.
-     * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_DATASET` for a name the
-     *     catalogue does not list (unless `baseUrl` is given) or a name that is not one,
+     * @param options - Where to download from (`baseUrl`, required), whether to replace the graph
+     *     (the default) or add to it, and a signal that abandons the download. Loads land in the
+     *     order they were asked for, so a load asked for after this one waits until this download
+     *     finishes or fails; aborting the signal, even once the download has finished, stops it and
+     *     lets the next load through.
+     * @returns Settles once the graph is loaded. Rejects with `E_OPTION_RANGE` (`details.option`
+     *     `"baseUrl"`) when no `baseUrl` is given, `E_UNKNOWN_DATASET` for a name that is not one,
      *     `E_FETCH_FAILED` when the download fails (`recoverable: false` for a client error other
      *     than 408 and 429, `details.status` when the server answered), `E_PARSE_FAILED` when the
      *     file came back but could not be read, and with the signal's own reason when it is
@@ -2106,7 +2114,10 @@ export interface SessionDataApi {
 
 /** What `data.loadDataset` takes besides the name. */
 export interface DatasetLoadOptions extends ImportOptions {
-    /** Where the dataset files are published; graphty.app's copy when absent. */
+    /**
+     * Where the dataset files are published, ending in `/`. Required: without it the load rejects
+     * with `E_OPTION_RANGE`. graph-samples' own copy is its `DEFAULT_DATASET_BASE_URL`.
+     */
     readonly baseUrl?: string;
     /** Abandons the download. */
     readonly signal?: AbortSignal;

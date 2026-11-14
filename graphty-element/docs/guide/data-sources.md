@@ -192,13 +192,14 @@ A load waits for the loads ahead of it to finish reading. A download that never 
 back every load asked for after it. Pass a `signal` and abort it to let the next load through:
 
 ```typescript
+const baseUrl = DEFAULT_DATASET_BASE_URL; // from @graphty/graph-samples, or your own copy
 let download = new AbortController();
-void session.data.loadDataset("karate", { signal: download.signal });
+void session.data.loadDataset("karate", { baseUrl, signal: download.signal });
 
 // The reader picked another graph: stop the old download so the new one is not held behind it.
 download.abort();
 download = new AbortController();
-await session.data.loadDataset("dolphins", { signal: download.signal });
+await session.data.loadDataset("dolphins", { baseUrl, signal: download.signal });
 ```
 
 A load aborted before its turn comes rejects and changes nothing, even when its download had

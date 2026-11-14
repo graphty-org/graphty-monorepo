@@ -96,6 +96,21 @@ describe("data:changed", () => {
         session.dispose();
     });
 
+    it("tells a replacing import the nodes an edge list brought in, and its undo puts them back", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "source,target\nx,y\n" } });
+        const events = heard(session);
+
+        await session.data.import({ type: "csv", config: { data: "source,target\np,q\n" } });
+        assert.sameMembers([...(events.at(-1)?.removed.nodes ?? [])], ["x", "y"]);
+        assert.sameMembers([...(events.at(-1)?.added.nodes ?? [])], ["p", "q"]);
+
+        await session.undo();
+        assert.sameMembers([...(events.at(-1)?.added.nodes ?? [])], ["x", "y"]);
+        assert.sameMembers([...(events.at(-1)?.removed.nodes ?? [])], ["p", "q"]);
+        session.dispose();
+    });
+
     it("publishes nothing for a change that touched no node or edge", async () => {
         const session = createGraphSession();
         await session.data.addNodes([{ id: "a" }]);

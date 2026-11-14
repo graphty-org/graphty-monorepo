@@ -1011,6 +1011,11 @@ function diffOp(op: GraphOp, mark: Mark, fields: Record<RecordTarget, Set<string
             });
             break;
         case "replace":
+            // The kept graph's rows: a node an edge brought in has a row and no record.
+            for (let row = 0; row < op.kept.snapshot.nodeCount; row++) {
+                mark("node", op.kept.snapshot.ids.idOf(row), true, false);
+            }
+
             op.prior.nodes.forEach((_, id) => {
                 mark("node", id, true, false);
             });

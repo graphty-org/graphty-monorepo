@@ -186,12 +186,47 @@ export class OrbitCameraController {
      * @param dy - Vertical rotation delta in pixels
      */
     public rotate(dx: number, dy: number): void {
-        // Delegate to PivotController
         // Match XR rotation convention: drag right = rotate right (positive yaw)
         // Pitch follows "drag up = graph moves up" convention (not inverted)
-        this.pivotController.rotate(dx * this.config.trackballRotationSpeed, dy * this.config.trackballRotationSpeed);
+        const speed = this.config.trackballRotationSpeed;
+        const sphere = this.grabSphere ?? this.surfaceFloor;
+        if (sphere === null) {
+            this.pivotController.rotate(dx * speed, dy * speed);
+        } else {
+            // Over a globe the turn is about its center, so the camera keeps its height and never
+            // enters it, and slows with the height: a full-speed turn swept the camera a fixed
+            // angle of the whole globe, thousands of kilometres a frame at street level.
+            const scale = Math.min(1, this.#heightAbove(sphere.radius) / sphere.radius);
+            this.#aboutGlobeCenter(() => {
+                this.pivotController.rotate(dx * speed * scale, dy * speed * scale);
+            });
+        }
+
         this.updateCameraPosition();
         this.onReaderMove?.();
+    }
+
+    /**
+     * Run a turn of the pivot about the globe's center (the origin) rather than the pivot's own
+     * center: a camera framed on data looks at a point near the surface.
+     * @param turn - The turn.
+     */
+    #aboutGlobeCenter(turn: () => void): void {
+        const { center } = this.pivotController;
+        this.pivotController.center = Vector3.Zero();
+        turn();
+        this.pivotController.center = center;
+    }
+
+    /**
+     * The camera's height above a sphere at the origin.
+     * @param radius - The sphere's radius.
+     * @returns The height; negative inside it.
+     */
+    #heightAbove(radius: number): number {
+        return (
+            Vector3.TransformCoordinates(this.camera.position, this.pivot.computeWorldMatrix(true)).length() - radius
+        );
     }
 
     /**
@@ -366,14 +401,15 @@ export class OrbitCameraController {
             return false;
         }
 
-        const angle = Math.acos(Scalar.Clamp(Vector3.Dot(a, b), -1, 1));
-        if (angle > 1e-6) {
-            // The camera turns the other way about the globe's center, so the globe seems to turn a to b.
-            // About the center, not the pivot: a camera framed on data looks at a point near the surface.
-            const { center } = this.pivotController;
-            this.pivotController.center = Vector3.Zero();
-            this.pivotController.rotateAroundAxis(Vector3.Cross(a, b), -angle);
-            this.pivotController.center = center;
+        // atan2, not acos of the dot product: near the surface the angle is millionths of a radian,
+        // which acos rounds away. The camera turns the other way about the globe's center, so the
+        // globe seems to turn a to b.
+        const axis = Vector3.Cross(a, b);
+        const angle = Math.atan2(axis.length(), Vector3.Dot(a, b));
+        if (angle > 0) {
+            this.#aboutGlobeCenter(() => {
+                this.pivotController.rotateAroundAxis(axis, -angle);
+            });
             this.updateCameraPosition();
         }
 
@@ -481,8 +517,7 @@ export class OrbitCameraController {
                 : Scalar.Clamp(this.cameraDistance / 4, MIN_NEAR_PLANE, DEFAULT_NEAR_PLANE);
         }
 
-        const eye = Vector3.TransformCoordinates(this.camera.position, this.pivot.computeWorldMatrix(true));
-        const height = eye.length() - sphere.radius;
+        const height = this.#heightAbove(sphere.radius);
         return Math.max(Scalar.Clamp(height / 4, MIN_NEAR_PLANE, DEFAULT_NEAR_PLANE), height / 16);
     }
 

@@ -62,7 +62,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
 
-        // T1: the card is at the foot of the start screen until it is answered.
+        // T1: the question is pinned over the start screen until it is answered.
         assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
         assert.isNotNull(

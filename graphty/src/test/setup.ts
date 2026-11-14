@@ -3,9 +3,10 @@ import "@testing-library/jest-dom";
 import "@mantine/core/styles.css";
 
 import { cleanup, configure } from "@testing-library/react";
-import { afterEach, beforeAll } from "vitest";
+import { afterEach, beforeAll, beforeEach } from "vitest";
 
 import { WAIT_GUARD_MS } from "../../../tools/test-wait-guard.mjs";
+import { assumeUsageDeclinedForTests } from "../workspace/privacy/usageData";
 
 // Every waitFor and findBy* waits until the monorepo's one hang guard, not Testing Library's 1000 ms:
 // a deadline on a wait fails a test whenever the machine is busy (tools/test-wait-guard.mjs).
@@ -32,6 +33,12 @@ configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 // which sets the flag, so this runs second.
 beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
+});
+
+// The usage data question is pinned over every page of a first visit; a test about it forgets this
+// answer in its own beforeEach, which runs after this one.
+beforeEach(() => {
+    assumeUsageDeclinedForTests();
 });
 
 // Cleanup after each test case

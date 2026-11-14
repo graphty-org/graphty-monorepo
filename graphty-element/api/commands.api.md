@@ -157,6 +157,9 @@ export const COMMANDS: Readonly<{
     readonly "layout.set": {
         readonly undo: "undoable";
     };
+    readonly "layout.rerun": {
+        readonly undo: "undoable";
+    };
     readonly "layout.scope": {
         readonly undo: "undoable";
     };

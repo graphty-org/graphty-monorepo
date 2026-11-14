@@ -199,7 +199,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ]),
     {
         root: "ElementSession",
-        members: ["publishModelChange", "emptyClick", "elementClick", "groupOutlineClick"],
+        members: ["publishModelChange", "emptyClick", "elementClick", "groupOutlineClick", "layoutMotion"],
         reason: "lifecycle",
         kind: BY_DESIGN,
     },
@@ -312,7 +312,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "SessionLayout",
-        members: ["arrangedDimension", "optionInEffect", "locationColumns"],
+        members: ["arrangedDimension", "optionInEffect", "locationColumns", "motion"],
         reason: "panel-state",
         kind: BY_DESIGN,
     },

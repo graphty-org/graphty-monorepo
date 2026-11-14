@@ -1375,6 +1375,9 @@ export class Graph implements GraphContext {
         this.layoutManager.onRest = () => {
             dispatcherOf(this.session).arrangement.rest();
         };
+        this.layoutManager.onMotion = (motion) => {
+            this.session.layoutMotion(motion);
+        };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
         // Not the write being derived: a replacing import runs until its own placement pass, and
@@ -2704,6 +2707,8 @@ export class Graph implements GraphContext {
 
                     this.reportSettlementChange();
                 }
+
+                this.layoutManager.checkMotion();
             });
         });
 

@@ -4,6 +4,8 @@
  *
  * - `layout.set`: choose the layout (a catalogue id, the engine that draws it, its options, and
  *   optionally what it runs over). One undoable step.
+ * - `layout.rerun`: run the current layout again from the start, as choosing it again would, with
+ *   its own step (`layout.rerun`), so undo names a re-run rather than a change of layout.
  * - `layout.scope`: change what layouts run over, keeping the layout. One undoable step, written
  *   at once so a layout still waiting for its turn carries it; the `layout` hook restarts the
  *   running layout over it. Never refused for a scope that resolves to nothing.
@@ -48,6 +50,11 @@ export interface LayoutSetCommand {
     readonly setup?: boolean;
 }
 
+/** `layout.rerun`: run the current layout again from the start, keeping its engine, options and scope. */
+interface LayoutRerunCommand {
+    readonly op: "layout.rerun";
+}
+
 /** `layout.scope`: change what layouts run over; `"graph"` for the whole graph. */
 interface LayoutScopeCommand {
     readonly op: "layout.scope";
@@ -77,7 +84,12 @@ interface ViewImmersiveCommand {
 
 /** Every layout op. */
 export type LayoutCommand =
-    LayoutSetCommand | LayoutScopeCommand | ViewDimensionCommand | LayoutTransportCommand | ViewImmersiveCommand;
+    | LayoutSetCommand
+    | LayoutRerunCommand
+    | LayoutScopeCommand
+    | ViewDimensionCommand
+    | LayoutTransportCommand
+    | ViewImmersiveCommand;
 
 /** The renderer's layout, as the layout ops reach it. A session that draws nothing has none. */
 export interface LayoutService {
@@ -208,6 +220,32 @@ const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     },
 };
 
+const layoutRerun: UndoableDefinition<LayoutRerunCommand> = {
+    op: "layout.rerun",
+    moves: true,
+    draws: true,
+    // With nothing drawn no node would move: the step would record nothing.
+    renderer: true,
+    keys: () => ["layout"],
+    // `layout-update`, not `layout-set`: a re-run must not cancel a layout chosen before it and
+    // still waiting, and a layout chosen after it cancels it.
+    lane: { kind: "queued", category: "layout-update" },
+    undo: {
+        kind: "undoable",
+        label: (_command, state) => `Re-ran the ${(state.layout ?? DEFAULT_LAYOUT).id} layout`,
+        fact: (_command, state) => ({ code: "layout.rerun", params: { layout: (state.layout ?? DEFAULT_LAYOUT).id } }),
+    },
+    execute: async (_command, ctx) => {
+        const service = serviceOf(ctx.services.layout, "run again");
+        // A new value of the same choice: the engine is rebuilt for a new value, compared by
+        // identity (`LayoutManager.isCurrent`), so the layout starts over.
+        const current = ctx.state.layout ?? DEFAULT_LAYOUT;
+        const choice = withScope({ ...current, options: Object.freeze({ ...current.options }) }, current.scope);
+        ctx.draft.layout = choice;
+        await service.apply(choice, ctx.signal, false);
+    },
+};
+
 const layoutScope: UndoableDefinition<LayoutScopeCommand> = {
     op: "layout.scope",
     // The layout it restarts moves the nodes in scope; where they come to rest is this step's.
@@ -299,4 +337,11 @@ const viewImmersive: ExemptDefinition<ViewImmersiveCommand> = {
 };
 
 /** The layout ops' definitions. */
-export const LAYOUT_DEFINITIONS = [layoutSet, layoutScope, viewDimension, layoutTransport, viewImmersive] as const;
+export const LAYOUT_DEFINITIONS = [
+    layoutSet,
+    layoutRerun,
+    layoutScope,
+    viewDimension,
+    layoutTransport,
+    viewImmersive,
+] as const;

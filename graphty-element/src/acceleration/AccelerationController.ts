@@ -192,6 +192,8 @@ interface Attachment {
      */
     readonly software: boolean;
     released: boolean;
+    /** Whether the element has started measuring this accelerator's device, so it does so once. */
+    calibrating?: boolean;
 }
 
 const logger = GraphtyLogger.getLogger(["graphty", "acceleration"]);
@@ -249,6 +251,8 @@ function sameStatus(a: AccelerationStatus, b: AccelerationStatus): boolean {
         a.vendor === b.vendor &&
         a.architecture === b.architecture &&
         a.device === b.device &&
+        a.exactMaxNodes === b.exactMaxNodes &&
+        a.exactMaxNodesBasis === b.exactMaxNodesBasis &&
         a.reason === b.reason &&
         a.code === b.code
     );
@@ -1154,7 +1158,59 @@ export class AccelerationController {
         this.#busy = Math.max(0, this.#busy - 1);
         if (this.#busy === 0 && this.#attachment !== null && this.#state === "active") {
             this.#transition("idle", undefined, undefined);
+            this.#calibrateOnce(this.#attachment);
         }
+    }
+
+    /**
+     * Measures the attached accelerator's device once, after its first accelerated work has
+     * finished, and republishes the status with what was measured.
+     *
+     * Waiting for that work is what keeps the measurement off the critical path: the first frame
+     * and the first layout have already run on the shipped default. An accelerator whose ceiling
+     * was configured, or already measured on this device, is left alone, and so is one handed over
+     * through `setAccelerator`, whose owner tunes it. So is a software adapter, which
+     * only `"required"` attaches: its probes take tens of seconds of processor time, and its speed
+     * says nothing a layout could use. The measurement does
+     * not count as work, so the published state stays `"idle"` while it runs.
+     *
+     * A failed measurement is logged and changes nothing: the accelerator keeps its default, and
+     * a lost device is reported through `lost` as always. Nothing falls back to the CPU here,
+     * because no work depended on it.
+     * ponytail: work started while the measurement runs queues behind its probes on the device;
+     * pause it between probes if that ever shows in a trace.
+     * @param attachment - The attachment that just went idle.
+     */
+    #calibrateOnce(attachment: Attachment): void {
+        const { accelerator } = attachment;
+        if (
+            !attachment.owned ||
+            attachment.software ||
+            attachment.calibrating === true ||
+            accelerator.exactMaxNodes?.basis !== "default"
+        ) {
+            return;
+        }
+
+        const calibrate = accelerator.calibrate?.bind(accelerator);
+        if (calibrate === undefined) {
+            return;
+        }
+
+        attachment.calibrating = true;
+        calibrate().then(
+            () => {
+                if (!this.#disposed && !attachment.released && this.#attachment === attachment) {
+                    this.#transition(this.#state, this.#reason, this.#code);
+                }
+            },
+            (error: unknown) => {
+                logger.warn("Measuring the accelerator's device failed; it keeps its shipped tuning", {
+                    accelerator: accelerator.name,
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            },
+        );
     }
 
     /**
@@ -1345,6 +1401,12 @@ export class AccelerationController {
             if (this.#device.description !== "") {
                 status.device = this.#device.description;
             }
+        }
+
+        const exactMaxNodes = this.#attachment?.accelerator.exactMaxNodes;
+        if (exactMaxNodes !== undefined) {
+            status.exactMaxNodes = exactMaxNodes.value;
+            status.exactMaxNodesBasis = exactMaxNodes.basis;
         }
 
         if (this.#reason !== undefined) {

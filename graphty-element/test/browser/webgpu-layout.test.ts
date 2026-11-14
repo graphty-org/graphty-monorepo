@@ -35,10 +35,16 @@ import "../../src/graphty-element";
 import "../../webgpu";
 
 import { Vector3 } from "@babylonjs/core";
+import { fromEdgeArrays } from "@graphty/graph-format";
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import type { AccelerationCapabilities, AccelerationStatus } from "../../src/acceleration";
+import {
+    type AccelerationCapabilities,
+    type AccelerationStatus,
+    acceleratorRegistry,
+    type GraphAccelerator,
+} from "../../src/acceleration";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import type { RunResult } from "../../src/session/results/types";
 import { storyGraph } from "../helpers/story-graph";
@@ -667,3 +673,67 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the po
         },
     );
 });
+
+/** The members of the peer's ForceAtlas2 simulation the measuring case drives. */
+interface TierProbe {
+    load(snapshot: unknown, positions: Float32Array): void;
+    step(iterations: number): Promise<unknown>;
+    readonly stats: { readonly repulsionTier: "exact" | "grid" };
+    dispose(): void;
+}
+
+/**
+ * The repulsion tier one ForceAtlas2 step on `accelerator` uses for a ring of `n` nodes.
+ * @param accelerator - The accelerator the factory built.
+ * @param n - The node count.
+ * @returns The tier the simulation reported.
+ */
+async function tierAt(accelerator: GraphAccelerator, n: number): Promise<"exact" | "grid"> {
+    const src = new Uint32Array(n);
+    const dst = new Uint32Array(n);
+    for (let i = 0; i < n; i++) {
+        src[i] = i;
+        dst[i] = (i + 1) % n;
+    }
+    const snapshot = fromEdgeArrays({ directed: false, nodeCount: n, src, dst });
+    const sim = (accelerator.forceAtlas2 as () => TierProbe)();
+    try {
+        sim.load(snapshot, new Float32Array(3 * n).fill(Number.NaN));
+        await sim.step(1);
+        return sim.stats.repulsionTier;
+    } finally {
+        sim.dispose();
+        (accelerator.release as (snapshot: unknown) => void)(snapshot);
+    }
+}
+
+// SwiftShader is left out: the element never measures a software adapter (its probes would take
+// tens of seconds of processor time), so there is nothing to see there.
+describe.skipIf(!GPU_LANE || ADAPTER.startsWith("swiftshader"))(
+    "graphty-element on a real WebGPU device: the measured exact-tier ceiling",
+    () => {
+        it("measures the device after its first layout, and builds the next accelerator with the measurement", async () => {
+            await until(() => status(gpu).exactMaxNodesBasis === "measured", "the device to be measured");
+            const measured = status(gpu).exactMaxNodes ?? 0;
+            console.log(`[webgpu-layout] adapter=${ADAPTER} measured exactMaxNodes=${String(measured)}`);
+            assert.isAbove(measured, 0);
+            assert.isAtMost(measured, 32_768);
+
+            const entry = acceleratorRegistry.list().find((candidate) => candidate.name === "webgpu-graph-algorithms");
+            const accelerator = await entry?.factory({});
+            assert.isDefined(accelerator ?? undefined, "the factory built an accelerator");
+            if (accelerator === null || accelerator === undefined) {
+                return;
+            }
+
+            try {
+                assert.deepEqual(accelerator.exactMaxNodes, { value: measured, basis: "measured" });
+                // What reached createAccelerator as layout.exactMaxNodes decides the tier.
+                assert.equal(await tierAt(accelerator, measured), "exact");
+                assert.equal(await tierAt(accelerator, measured + 1), "grid");
+            } finally {
+                accelerator.dispose?.();
+            }
+        });
+    },
+);

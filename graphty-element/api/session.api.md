@@ -111,6 +111,8 @@ export interface AccelerationStatus {
     readonly backend?: "webgpu" | (string & {});
     readonly code?: AccelerationErrorCode;
     readonly device?: string;
+    readonly exactMaxNodes?: number;
+    readonly exactMaxNodesBasis?: ExactMaxNodesBasis;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
     readonly state: AccelerationState;
@@ -122,6 +124,12 @@ export interface AcceleratorDeviceInfo {
     readonly architecture: string;
     readonly description: string;
     readonly vendor: string;
+}
+
+// @public
+export interface AcceleratorExactMaxNodes {
+    readonly basis: ExactMaxNodesBasis;
+    readonly value: number;
 }
 
 // @public
@@ -1153,6 +1161,9 @@ export interface EngineVersions {
 export type EstimateRefusalCode = "algorithm.unknown" | "algorithm.needs-directed" | "algorithm.needs-undirected" | "algorithm.needs-weighted" | "algorithm.needs-connected" | "algorithm.needs-accelerator" | "estimate.not-costed" | "estimate.scope-unresolved" | "layout.unknown" | "layout.needs-accelerator" | "layout.not-planar" | "layout.needs-node" | "layout.node-missing" | "layout.needs-grouping" | "layout.grouping-absent" | "layout.needs-two-groups" | "layout.needs-location";
 
 // @public
+export type ExactMaxNodesBasis = "measured" | "default" | "configured";
+
+// @public
 export interface ExpandBehavior {
     readonly depth?: number;
     readonly direction?: "out" | "in" | "both";
@@ -1632,8 +1643,10 @@ export interface FixResult {
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
+    calibrate?(): Promise<void>;
     readonly device?: AcceleratorDeviceInfo;
     dispose?(): void;
+    readonly exactMaxNodes?: AcceleratorExactMaxNodes;
     readonly lost?: Promise<{
         reason: string;
     }>;

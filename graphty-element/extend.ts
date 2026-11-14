@@ -516,9 +516,11 @@ export * from "./src/session/sources/public";
 export type {
     AccelerationPrecision,
     AcceleratorDeviceInfo,
+    AcceleratorExactMaxNodes,
     AcceleratorFactory,
     AcceleratorFactoryOptions,
     AcceleratorRegistration,
+    ExactMaxNodesBasis,
     GraphAccelerator,
     RegisterAcceleratorOptions,
 } from "./src/acceleration";

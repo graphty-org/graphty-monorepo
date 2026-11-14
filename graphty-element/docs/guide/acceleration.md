@@ -108,6 +108,24 @@ The state is one of these words:
 `idle` is the resting state of working hardware, not a degraded one. A graph below the threshold
 below, or a page where nothing has run yet, sits there.
 
+### How large a layout is computed exactly
+
+A GPU layout computes the push between every pair of nodes up to a ceiling, and approximates above
+it, where the approximation is faster. Where that crossover lies depends on the card, so the
+element measures it: once the first accelerated work on a device has finished, it times both
+methods on that device and builds the layouts that follow with the measured ceiling. The first
+frame and the first layout never wait for it, the published state stays `idle` while it runs, and
+the answer is kept for every element on the page that uses the same device. A software adapter is
+not measured.
+
+```javascript
+const { exactMaxNodes, exactMaxNodesBasis } = element.session.capabilities.acceleration;
+// exactMaxNodesBasis: "default" until the device is measured, then "measured"
+```
+
+`graphty-capabilities-change` fires when the measurement lands. Both fields are absent when no
+accelerator is attached, or when the attached one has no such ceiling.
+
 ## What the numbers are computed in
 
 A GPU computes in single precision and the CPU path computes in double, so two runs of one

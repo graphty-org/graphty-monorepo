@@ -87,6 +87,7 @@ import {
     importCommand,
     importFact,
     type ImportSource,
+    mergeNodesCommand,
     NO_COLUMN_SETTINGS,
     SOURCE_VALUE,
     SOURCES_VALUE,
@@ -116,6 +117,7 @@ import {
 import { frozen, type JoinGraph, type JoinPlan, joinReport, type JoinTable, planJoin } from "./join";
 import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
+import { overRepresentedValues } from "./overRepresented";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -200,11 +202,13 @@ import type {
     LoadedSourceKind,
     LoadedWeight,
     LoadMapping,
+    MergeNodesOptions,
     Neighbor,
     NeighborOptions,
     NeighborPage,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedValues,
     PageColumn,
     RecordPage,
     RecordPageOptions,
@@ -974,6 +978,83 @@ export class SessionData implements SessionDataApi {
     async removeEdges(ids: readonly EdgeId[]): Promise<void> {
         this.requireLive("removeEdges");
         await this.edit({ kind: "remove-edges", ids });
+    }
+
+    /**
+     * Merge nodes into one, as one undoable step: every edge of a merged node moves to the kept
+     * node, the kept node takes `options.values`, and the other nodes are removed.
+     * @param ids - the nodes to merge; an integer id may be written either way
+     * @param options - which node is kept, and the values it takes
+     * @returns settles once the merge is drawn
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when an id is not a node the graph holds.
+     */
+    async mergeNodes(ids: readonly NodeId[], options: MergeNodesOptions = {}): Promise<void> {
+        this.requireLive("mergeNodes");
+        if (!Array.isArray(ids)) {
+            throw mergeRefusal("ids is not an array");
+        }
+
+        const send = this.writes.importer();
+        await this.loadLine.edit(() => {
+            const command = this.mergeCommand(ids, options);
+            return command === null ? Promise.resolve() : send(command);
+        }, undefined);
+    }
+
+    /**
+     * The step `mergeNodes` dispatches, read from the graph as it is when its turn comes.
+     * @param ids - the nodes to merge
+     * @param options - which node is kept, and the values it takes
+     * @returns the command, or null when fewer than two nodes are named
+     */
+    private mergeCommand(ids: readonly NodeId[], options: MergeNodesOptions): BatchCommand | null {
+        const snapshot = this.current();
+        const rowOf = (id: NodeId): number => {
+            const row = rowOfEitherSpelling(snapshot.ids, id);
+            if (row === INVALID_INDEX) {
+                throw mergeRefusal(`${JSON.stringify(id)} is not a node the graph holds`);
+            }
+
+            return row;
+        };
+        const rows = new Set(ids.map(rowOf));
+        const keptRow = rowOf(options.into ?? ids[0]);
+        rows.delete(keptRow);
+        if (rows.size === 0) {
+            return null;
+        }
+
+        const kept = snapshot.ids.idOf(keptRow);
+        const endOf = (row: number): NodeId => (rows.has(row) ? kept : snapshot.ids.idOf(row));
+        const touching: { attributes: Readonly<Record<string, unknown>>; source: NodeId; target: NodeId }[] = [];
+        for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+            const from = snapshot.edgeSource(edge);
+            const to = snapshot.edgeTarget(edge);
+            if (rows.has(from) || rows.has(to)) {
+                touching.push({
+                    attributes: this.records?.edgeAttributes(edge) ?? {},
+                    source: endOf(from),
+                    target: endOf(to),
+                });
+            }
+        }
+
+        // A record is read without the keys naming its ends, so the moved one is written back with
+        // them under the keys the last load read ends from: that load's report keeps reading every
+        // other edge's record the same way. Ends read through a nested path are written as
+        // `source` and `target`.
+        const spelling = this.lastImport()?.endpoints ?? { source: "source", target: "target" };
+        const endpoints = {
+            source: BARE_KEY.test(spelling.source) ? spelling.source : "source",
+            target: BARE_KEY.test(spelling.target) ? spelling.target : "target",
+        };
+        const moved = touching.map((each) => ({
+            ...each.attributes,
+            [endpoints.source]: each.source,
+            [endpoints.target]: each.target,
+        }));
+        const merged = [...rows].map((row) => snapshot.ids.idOf(row));
+        return mergeNodesCommand(kept, options.values, merged, moved, endpoints);
     }
 
     /**
@@ -5049,6 +5130,35 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Per group, the node values that occur in the group more often than chance.
+     * @param groupBy - the path holding each node's group
+     * @param options - which columns to test
+     * @param options.columns - the node column paths; by default every categorical one
+     * @returns every group, largest first, with its over-represented values
+     */
+    overRepresented(groupBy: Path, options: { readonly columns?: readonly Path[] } = {}): OverRepresentedValues {
+        const snapshot = this.current();
+        const paths =
+            options.columns ??
+            this.attributes()
+                .filter(
+                    (each) =>
+                        each.kind === "node" &&
+                        each.path !== groupBy &&
+                        each.holdsNodeIds !== true &&
+                        (each.measurement === "categorical" || each.measurement === "ordinal"),
+                )
+                .map((each) => each.path);
+        // ponytail: walked on every call; cache by data revision when a profile is read per frame.
+        return overRepresentedValues(
+            groupBy,
+            (index) => this.pages.valueAt("node", index, groupBy),
+            snapshot.nodeCount,
+            paths.map((path) => ({ path, valueAt: (index: number) => this.pages.valueAt("node", index, path) })),
+        );
+    }
+
+    /**
      * The graph's shape.
      * @param options - What to measure.
      * @param options.scope - `"visible"` for only what is showing; default the whole graph.
@@ -6467,5 +6577,22 @@ function datasetError(
         recoverable: !clientError,
         details: { name, ...mirror, ...(status === undefined ? {} : { status }) },
         cause: error,
+    });
+}
+
+/** An endpoint expression that is one top-level key, which a moved edge's record is rewritten under. */
+const BARE_KEY = /^[A-Za-z_]\w*$/;
+
+/**
+ * The refusal of a malformed `mergeNodes` call.
+ * @param field - What is wrong.
+ * @returns An `E_BAD_COMMAND` error.
+ */
+function mergeRefusal(field: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        source: "data",
+        message: `The mergeNodes argument is malformed: ${field}.`,
+        details: { door: "mergeNodes", field },
     });
 }

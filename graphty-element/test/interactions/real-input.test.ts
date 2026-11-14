@@ -292,6 +292,68 @@ describe("the mouse", () => {
         });
     }
 
+    for (const viewMode of ["2d", "3d"] as const) {
+        // A trackpad sends many small deltas where a mouse sends one notch of 100 (issue #7447).
+        it(`in ${viewMode}, twenty trackpad deltas of 5 zoom as far as one wheel notch`, async () => {
+            const element = await mounted(viewMode);
+            const zoom = (): number =>
+                viewMode === "3d" ? 1 / (element.getCameraState().cameraDistance ?? Number.NaN) : spread(element);
+            const middle = { x: WIDTH / 2, y: HEIGHT / 2 };
+
+            const start = zoom();
+            await wheel(element, middle, -100);
+            await applied(element);
+            const notch = zoom() / start;
+            for (let event = 0; event < 20; event++) {
+                await wheel(element, middle, -5);
+            }
+            await applied(element);
+            const trackpad = zoom() / start / notch;
+
+            assert.isAbove(notch, 1.05, "one notch zoomed in");
+            assert.closeTo(trackpad, notch, 0.01, "the trackpad's twenty small deltas zoomed as far as the notch");
+        });
+
+        // A browser reports a trackpad pinch as wheel events with Ctrl and deltaY = -100 ln(spread).
+        it(`in ${viewMode}, a trackpad pinch that doubles the finger gap zooms in twofold`, async () => {
+            const element = await mounted(viewMode);
+            const zoom = (): number =>
+                viewMode === "3d" ? 1 / (element.getCameraState().cameraDistance ?? Number.NaN) : spread(element);
+
+            const start = zoom();
+            for (let event = 0; event < 10; event++) {
+                await wheel(element, { x: WIDTH / 2, y: HEIGHT / 2 }, (-100 * Math.LN2) / 10, 0, { ctrl: true });
+            }
+            await applied(element);
+
+            assert.closeTo(zoom() / start, 2, 0.02, "the view followed the fingers");
+        });
+    }
+
+    for (const button of ["middle", "right"] as const) {
+        it(`a ${button}-button drag pans the 3D view without turning it (issue #290)`, async () => {
+            const element = await mounted("3d");
+            // Drawn or not: node b may slide off the canvas.
+            const drawn = (id: string): Point => {
+                const position = element.nodeScreenPosition(id);
+                assert.isDefined(position, `node ${id} is drawn`);
+                return { x: position.x, y: position.y };
+            };
+            const startA = drawn("a");
+            const startB = drawn("b");
+
+            await drag(element, EMPTY, { x: EMPTY.x + 60, y: EMPTY.y - 30 }, 8, undefined, undefined, button);
+            await applied(element);
+
+            const endA = drawn("a");
+            const endB = drawn("b");
+            assert.isAbove(endA.x - startA.x, 30, "node a moved right with the pointer");
+            assert.isBelow(endA.y - startA.y, -15, "node a moved up with the pointer");
+            assert.closeTo(endB.x - endA.x, startB.x - startA.x, 1, "the view did not turn or zoom");
+            assert.closeTo(endB.y - endA.y, startB.y - startA.y, 1, "the view did not turn or zoom");
+        });
+    }
+
     describe.each(["2d", "3d"] as const)("in %s", (viewMode) => {
         it("a click on a node selects it and does not pin it", async () => {
             const element = await mounted(viewMode);

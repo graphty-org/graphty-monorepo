@@ -11,8 +11,16 @@ import { z } from "zod";
 import type { FixCode, IssueId } from "../../../session/issues";
 import type { ColumnRef } from "../../../session/shared";
 import type { ColumnRole, TransactionScope, ValueType } from "../../../session/types";
-import { MAX_ITEMS, MAX_STRING, resolveNode, text } from "../fields";
-import { type ActionResult, type ActionSpec, gated, GateHold, type MessageState, type ToolDefinition } from "../types";
+import { MAX_ITEMS, MAX_STRING, recordField, resolveNode, text } from "../fields";
+import {
+    type ActionResult,
+    type ActionSpec,
+    gated,
+    GateHold,
+    type MessageState,
+    type ToolDefinition,
+    ToolRefusal,
+} from "../types";
 import { coded, list, ok } from "./common";
 
 const column = z.string().max(200).describe("The column's name.");
@@ -78,6 +86,22 @@ export const columnsTool: ToolDefinition = {
                 const path = pathOf(args);
                 const counts = tx.data.valueCounts(path, { kind: columnOf(args).kind });
                 return Promise.resolve(ok({ counts, labels: Object.fromEntries(tx.data.valueLabels(path)) }));
+            },
+        },
+        {
+            name: "over_represented",
+            summary: "per group of the column, the node values more frequent than chance",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+            },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.overRepresented" }],
+            run: ({ tx }, args) => {
+                const group = text(args.column);
+                return Promise.resolve(ok(tx.data.overRepresented(group.includes(".") ? group : `data.${group}`)));
             },
         },
         {
@@ -363,6 +387,37 @@ export const issuesTool: ToolDefinition = {
                 const ids = args.ids as IssueId[];
                 await coded(() => tx.data.ignoreIssues(ids, args.ignored !== false));
                 return ok(undefined, { issues: ids.length });
+            },
+        },
+        {
+            name: "merge_nodes",
+            summary: "duplicates into one: the first id, or into, kept",
+            fields: {
+                ids: z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe("The nodes to merge."),
+                into: z.string().max(MAX_STRING).optional().describe("The node kept; the first id when absent."),
+                values: recordField.optional().describe("Values set on the kept node."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.mergeNodes" }],
+            run: async ({ tx }, args) => {
+                const ids = ((args.ids as string[] | undefined) ?? []).map((id) => resolveNode(tx, id));
+                if (ids.length < 2) {
+                    throw new ToolRefusal("AI_ARG_INVALID", { path: "ids", expected: "two or more nodes" });
+                }
+
+                const into = typeof args.into === "string" ? resolveNode(tx, args.into) : undefined;
+                const nodesBefore = tx.status.counts.nodes;
+                await coded(() =>
+                    tx.data.mergeNodes(ids, {
+                        ...(into === undefined ? {} : { into }),
+                        ...(args.values === undefined ? {} : { values: args.values as Record<string, unknown> }),
+                    }),
+                );
+                const merged = nodesBefore - tx.status.counts.nodes;
+                return {
+                    ...ok(undefined, { merged }),
+                    affectedNodes: [into ?? ids[0]],
+                };
             },
         },
     ] satisfies ActionSpec[],

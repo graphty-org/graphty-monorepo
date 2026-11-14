@@ -34,7 +34,7 @@ column reads it: a number as it is (so `{ from: 1999, to: 2001 }` keeps the year
 of a numeric `year` column), a `Date` as its time, and text as an ISO 8601 date-time, in UTC when
 it names no zone. An edge with no time, or with text that is not a date, is outside every window.
 
-The window goes with every other neighborhood option: `depth` walks up to three steps, each one
+The window goes with every other neighborhood option: `depth` walks that many steps, each one
 along an edge inside the window, and `direction` picks which way an edge is followed. With no
 `neighborsOf`, the walk grows the current selection. A bound that is not a number or a date-time
 is refused with `E_OPTION_RANGE`.

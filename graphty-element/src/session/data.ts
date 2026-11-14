@@ -1125,7 +1125,7 @@ export class SessionData implements SessionDataApi {
             mutation.kind === "add-edges"
                 ? {
                       repeated: mutation.repeated ?? knownFields.repeatedEdges,
-                      weight: mutation.weight === undefined ? knownFields.edgeWeightPath : mutation.weight,
+                      weight: mutation.weight ?? knownFields.edgeWeightPath,
                   }
                 : undefined;
         const path = columnsEligible({ batched: true, records: mutation.records, edges });

@@ -131,6 +131,10 @@ export interface GraphtyErrorDetailsMap {
         readonly format?: string;
         /** The 1-based line the reader stopped at, when it knows one. */
         readonly line?: number;
+        /** The rows the reader rejected, when it stopped at its error limit. */
+        readonly rowErrors?: number;
+        /** The source's error limit, when the reader stopped at it. */
+        readonly limit?: number;
     };
     /** An id that is already taken. */
     E_DUPLICATE_ID: {

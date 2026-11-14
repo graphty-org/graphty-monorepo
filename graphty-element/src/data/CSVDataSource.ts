@@ -15,6 +15,7 @@ import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import type { DataLoadingError } from "./ErrorAggregator.js";
 import {
+    addErrorOrStop,
     aggregateErrors,
     type ImportedEdge,
     type ImportedNode,
@@ -430,7 +431,7 @@ export class CSVDataSource extends DataSource {
             imported = guessed;
         }
 
-        aggregateErrors(imported.report, this.errorAggregator, true);
+        aggregateErrors(imported.report, this.errorAggregator, CSVDataSource.type);
         return imported;
     }
 
@@ -533,7 +534,7 @@ export class CSVDataSource extends DataSource {
                 ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
             }),
         );
-        aggregateErrors(rows.report, this.errorAggregator, true);
+        aggregateErrors(rows.report, this.errorAggregator, CSVDataSource.type);
         yield* this.chunkData([], rows.nodes.map(({ data }) => data) as AdHocData[]);
     }
 
@@ -558,7 +559,7 @@ export class CSVDataSource extends DataSource {
             errorLimit: this.config.errorLimit,
             ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
         });
-        aggregateErrors(imported.report, this.errorAggregator, true);
+        aggregateErrors(imported.report, this.errorAggregator, CSVDataSource.type);
 
         const nodes = imported.nodes.map(({ id, data: { labels, ...data } }) => ({
             id,
@@ -653,7 +654,7 @@ export class CSVDataSource extends DataSource {
                 },
             ),
         );
-        aggregateErrors(read.report, this.errorAggregator, true);
+        aggregateErrors(read.report, this.errorAggregator, CSVDataSource.type);
         const { header, lines, delimiter } = csvRecordLines(content, given);
         return {
             columns: header,
@@ -736,7 +737,7 @@ export class CSVDataSource extends DataSource {
             throw noEndpointColumns(csvRecordLines(edgeContent, this.config.delimiter).header);
         }
 
-        aggregateErrors(imported.report, this.errorAggregator, true);
+        aggregateErrors(imported.report, this.errorAggregator, CSVDataSource.type);
         yield* this.emit(imported.nodes, imported.edges);
     }
 
@@ -771,8 +772,6 @@ export class CSVDataSource extends DataSource {
      * @param error - the error
      */
     private addError(error: DataLoadingError): void {
-        if (!this.errorAggregator.addError(error)) {
-            throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-        }
+        addErrorOrStop(this.errorAggregator, error, CSVDataSource.type);
     }
 }

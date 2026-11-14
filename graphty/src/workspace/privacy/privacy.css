@@ -5,3 +5,17 @@
     font-size: 12px;
     color: var(--cm-text-brand, var(--cm-text));
 }
+
+/* The usage data question, pinned to the window's foot on every page until it is answered: above
+   the start screen and the frame, clear of the notice slot centered above the canvas toolbar, and
+   under dialogs and their overlays (Mantine's 200) so a dialog opened first is never covered. */
+.ws-usage-notice {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 100;
+    max-width: min(420px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+    box-shadow: var(--mantine-shadow-md);
+}

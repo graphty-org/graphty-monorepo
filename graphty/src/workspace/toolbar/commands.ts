@@ -23,7 +23,7 @@ function noNodeSelected(session: GraphSession | null): string | null {
  * @param center - the node at the center.
  * @returns the hop count.
  */
-function filteredReach(session: GraphSession, center: NodeId): 1 | 2 | 3 {
+function filteredReach(session: GraphSession, center: NodeId): number {
     const step = session.visibility.conditions.find(
         (s) =>
             s.on &&
@@ -33,7 +33,8 @@ function filteredReach(session: GraphSession, center: NodeId): 1 | 2 | 3 {
             s.rule.seeds[0] === center,
     );
     const depth = step?.rule.kind === "neighborhood" ? step.rule.depth : 1;
-    return depth === 2 || depth === 3 ? depth : 1;
+    // A card at depth 0 keeps the center alone; the list still reaches one hop.
+    return Math.max(depth, 1);
 }
 
 /**

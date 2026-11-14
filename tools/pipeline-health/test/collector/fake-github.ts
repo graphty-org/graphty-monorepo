@@ -81,8 +81,8 @@ export function fakeGitHub(opts: { coveralls?: string } = {}): Fake {
                     data: { nodes: (body.variables.ids ?? []).map((id) => nodes.find((n) => n.id === id) ?? null) },
                 });
             }
-            if (body.query.includes("pullRequests")) {
-                return json(fixture("gql-pr.json"));
+            if (body.query.includes("pullRequests") || body.query.includes("on PullRequest")) {
+                return json(prAnswer(body.query, body.variables.ids));
             }
             if (body.query.includes("issues(")) {
                 return json(fixture("gql-issue.json"));
@@ -175,4 +175,33 @@ export function fakeGitHub(opts: { coveralls?: string } = {}): Fake {
         return json({ message: "Not Found" }, 404);
     };
     return fake;
+}
+
+type PrNode = { id?: string; number: number; commits?: unknown; stackCommits?: unknown; [k: string]: unknown };
+
+/**
+ * The recorded pull request answer, its open pull requests given node ids (`PR_<number>`); for the checks query
+ * (nodes by id), those open pull requests' checks.
+ * @param query - the query text
+ * @param ids - the node ids the checks query asks for
+ * @returns the answer's JSON
+ */
+export function prAnswer(query: string, ids: string[] = []): unknown {
+    const gql = fixture("gql-pr.json") as { data: { repository: { open: { nodes: PrNode[] } } } };
+    const { open } = gql.data.repository;
+    const withIds = open.nodes.map((p) => ({ ...p, id: `PR_${p.number}` }));
+    if (!query.includes("on PullRequest")) {
+        // The open list carries no checks: the checks query adds them.
+        open.nodes = withIds.map(({ commits: _c, stackCommits: _s, ...p }) => p);
+        return gql;
+    }
+    const byId = new Map(withIds.map((p) => [p.id, p]));
+    return {
+        data: {
+            nodes: ids.map((id) => {
+                const p = byId.get(id);
+                return p ? { id, commits: p.commits, stackCommits: p.stackCommits } : null;
+            }),
+        },
+    };
 }

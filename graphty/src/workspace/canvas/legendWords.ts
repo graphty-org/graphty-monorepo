@@ -381,6 +381,7 @@ const FACT_SENTENCES: Readonly<Record<LegendFactCode, (param: (name: string) => 
     "legend.lumped": (param) => `${param("count")} lumped into Other`,
     "legend.not-measured": (param) => `not measured (${param("count")})`,
     "legend.painted-over": (param) => `painted over by "${param("name")}"`,
+    "legend.no-spread": () => "no spread",
 };
 
 /**

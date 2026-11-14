@@ -6,11 +6,12 @@
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
 import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { after, describe, it, mock } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
@@ -36,12 +37,13 @@ import { benchmarkRows } from "./post-benchmarks.mjs";
 import { unstableStories } from "./post-unstable-stories.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
-import { durationsOf, planRead, readersOf, variantsOf } from "./plan-read.mjs";
+import { durationsOf, planRead, readersOf, refreshSnapshot, variantsOf } from "./plan-read.mjs";
 import {
     baseId,
     fileIssues,
     groupKeys,
     groupFamily,
+    groupShape,
     junitOf,
     newFlakyJudge,
     postRecords,
@@ -581,6 +583,13 @@ describe("runGroup", () => {
         assert.deepEqual(keys({ "test-command": "c" }), { variant: "f|flags=off|whole", inputs: key("off") });
         assert.equal(keys({ "test-command": "c" }, { ...e, GRAPHTY_FLAGS: "on" }).inputs, key("on"));
         assert.notEqual(key("on"), key("off"));
+        // a pull request's On bin past the shard count has no SHARDS entry: its command says it is On (#7847)
+        const bin = (command) => groupShape({ shardName: "g-features-on-37", shard: undefined, command, env: e });
+        assert.equal(
+            bin("cd g && GRAPHTY_FEATURES_ON=1 pnpm exec vitest run 'a.test.ts'").variant,
+            "g-features-on|flags=on|selected",
+        );
+        assert.equal(bin("cd g && pnpm exec vitest run 'a.test.ts'").flags, "off");
     });
 });
 
@@ -778,13 +787,18 @@ describe("planRead", () => {
             "graphty-element-browser|flags=off|selected",
         ]);
     });
-    it("never asks about a full-run-only family, such as the On shards", () => {
-        const on = {
-            shard: "graphty-element-browser-features-on-1",
-            package: "graphty-element",
-            "full-run-only": true,
-        };
-        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    it("never asks about a full-run-only family, such as lifecycle", () => {
+        const life = { shard: "graphty-element-lifecycle", package: "graphty-element", "full-run-only": true };
+        assert.deepEqual(variantsOf([...shards, life], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    });
+    it("asks about an On family under flags=on: its selected files run on a pull request (#7847)", () => {
+        const on = { shard: "graphty-element-browser-features-on-1", package: "graphty-element", flags: "on" };
+        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), [
+            "graphty-element-browser|flags=off|whole",
+            "graphty-element-browser|flags=off|selected",
+            "graphty-element-browser-features-on|flags=on|whole",
+            "graphty-element-browser-features-on|flags=on|selected",
+        ]);
     });
     it("also asks for a story shard's screenshot family, whatever the family is called", () => {
         const stories = [
@@ -856,6 +870,93 @@ describe("planRead", () => {
             unavailable: "results store not configured",
         });
         assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {});
+    });
+    it("packs by the durations snapshot when the store gives no plan, only the families it asked about (#7851)", async () => {
+        const out = join(TMP, "plan-snapshot");
+        const snapshot = join(TMP, "plan-snapshot.json");
+        const at = Date.parse("2026-11-14T10:00:00Z");
+        writeFileSync(
+            snapshot,
+            JSON.stringify({
+                at,
+                durations: { layout: { "layout/a.test.ts": 4000 }, "remote-logger": { "r.test.ts": 1 } },
+            }),
+        );
+        mock.method(globalThis, "fetch", () =>
+            Promise.resolve(new Response('{"error":"internal error"}', { status: 500 })),
+        );
+        const { r, lines } = await logged({
+            out,
+            snapshot,
+            env: { RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        assert.equal(r.plan, null);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {
+            layout: { "layout/a.test.ts": 4000 },
+        });
+        assert.match(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")).unavailable, /HTTP 500/);
+        assert.deepEqual(lines, [
+            '::warning::results store: no plan (HTTP 500: {"error":"internal error"}); test bins are packed by the durations snapshot of 2026-11-14T10:00:00.000Z',
+        ]);
+        // a missing or empty snapshot packs without history, as before
+        const none = await logged({ out, snapshot: join(TMP, "no-such.json"), env: {} });
+        assert.match(none.lines[0], /packed without history/);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {});
+    });
+    it("refreshes the snapshot one family at a time, keeping a family whose read failed, once an hour (#7851)", async () => {
+        const root = join(TMP, "snapshot-root");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout" }, { shard: "graphty-1", package: "graphty" },
+                { shard: "graphty-2", package: "graphty" }];\nexport const STORY_SHARDS = ["layout"];\n`,
+        );
+        const { url, seen } = await serve((req) => {
+            const variants = new URL(req.url, "http://x").searchParams.get("variants").split(",");
+            if (variants[0].startsWith("graphty|")) return {}; // an answer with no durations keeps the previous ones
+            return {
+                variants: Object.fromEntries(variants.map((v) => [v, { fileMs: { [`${v.split("|")[0]}.ts`]: 7 } }])),
+            };
+        });
+        const file = join(root, "snap", "durations.json");
+        const old = { at: 0, durations: { graphty: { "old.ts": 3 }, layout: { "gone.ts": 9 } } };
+        mkdirSync(join(root, "snap"));
+        writeFileSync(file, JSON.stringify(old));
+        const env = { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" };
+        const now = Date.parse("2026-11-14T10:00:00Z");
+        const r = await refreshSnapshot({ root, file, env, now });
+        assert.equal(r.refreshed, true);
+        assert.deepEqual(r.answered, ["layout"]);
+        assert.match(r.failed[0], /^graphty /);
+        // one read per family, its `-shots` family with it
+        assert.deepEqual(
+            seen.map((s) => new URL(s.url, url).searchParams.get("variants")),
+            [
+                "graphty|flags=off|whole,graphty|flags=off|selected",
+                "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots",
+            ],
+        );
+        assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), {
+            at: now,
+            durations: {
+                graphty: { "old.ts": 3 },
+                layout: { "layout.ts": 7 },
+                "layout-shots": { "layout-shots.ts": 7 },
+            },
+        });
+        const again = await refreshSnapshot({ root, file, env, now: now + 60e3 });
+        assert.equal(again.refreshed, false);
+        assert.equal(seen.length, 2, "under an hour old: no read");
+    });
+    it("loads the real test matrix from only the files the Durations snapshot job checks out (#7851)", async () => {
+        // cone mode: the listed directories plus the root files
+        const job = readFileSync(".github/workflows/ci.yml", "utf8").split("\n    durations-snapshot:\n")[1];
+        const paths = /sparse-checkout: \|\n((?:\s+\S+\n)+)/.exec(job)[1].trim().split(/\s+/);
+        const root = join(TMP, "durations-job-checkout");
+        for (const p of paths) cpSync(p, join(root, p), { recursive: true });
+        for (const f of readdirSync(".", { withFileTypes: true })) if (f.isFile()) cpSync(f.name, join(root, f.name));
+        const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
+        assert.ok(SHARDS.length > 0);
     });
     it("reads the plan once and writes its durations", async () => {
         const { url, seen } = await serve();
@@ -1169,6 +1270,17 @@ describe("the pull request rules", () => {
         assert.equal(q.get("variants"), `${FAMILY}|flags=off|whole,${FAMILY}|flags=off|selected`);
         const down = config({ RESULTS_URL: "http://127.0.0.1:9", GRAPHTY_RESULTS_TOKEN: "t" });
         assert.equal(await refreshPlan(plan, { cfg: down, sha: "h1", family: FAMILY, variant: o.variant }), plan);
+    });
+
+    it("asks an On twin's re-run for master's flags=on evidence, not flags=off (#7847)", async () => {
+        const plan = { base: "b1", affected: [], quarantine: [], failingOnBase: [] };
+        const s = await serve(() => ({ quarantine: [], failingOnBase: [{ name: "k" }] }));
+        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const on = "graphty-features-on";
+        const fresh = await refreshPlan(plan, { cfg, sha: "h1", family: on, variant: `${on}|flags=on|selected` });
+        assert.equal(fresh.failingOnBase[0].name, "k");
+        const q = new URL(s.seen.find((r) => r.url.startsWith("/v1/plan")).url, s.url).searchParams;
+        assert.equal(q.get("variants"), `${on}|flags=on|whole,${on}|flags=on|selected`);
     });
 
     it("leaves a run that did not end in test failures alone", () => {

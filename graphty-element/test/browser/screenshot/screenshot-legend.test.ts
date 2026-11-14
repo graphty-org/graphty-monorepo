@@ -122,3 +122,82 @@ test("a framed capture keeps every node out from under the key it draws, not the
     assert.isAbove(leftmost, right, "no node center lies under the key");
     assert.deepEqual(graph.getViewInsets(), { top: 0, right: 30, bottom: 0, left: 0 });
 });
+
+/**
+ * How many pixels of one corner of an image are not white.
+ * @param blob - The image.
+ * @param corner - Which corner, as the legend option spells it.
+ * @returns The count, over a quarter-width, quarter-height box in that corner.
+ */
+async function inkIn(blob: Blob, corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"): Promise<number> {
+    const image = await createImageBitmap(blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext("2d");
+    assert.ok(ctx);
+    ctx.drawImage(image, 0, 0);
+    const w = Math.floor(image.width / 4);
+    const h = Math.floor(image.height / 4);
+    const x = corner.endsWith("left") ? 0 : image.width - w;
+    const y = corner.startsWith("top") ? 0 : image.height - h;
+    const { data } = ctx.getImageData(x, y, w, h);
+    let ink = 0;
+    for (let at = 0; at < data.length; at += 4) {
+        if (data[at] < 200 || data[at + 1] < 200 || data[at + 2] < 200) {
+            ink++;
+        }
+    }
+    return ink;
+}
+
+/**
+ * Colours the test graph's nodes by their degree, so the element's legend has a block to draw.
+ * @param target - The graph.
+ */
+async function colorByDegree(target: Graph): Promise<void> {
+    const session = target.getSession();
+    await session.styles.add({
+        name: "By degree",
+        selector: { match: "everything" },
+        encode: { "node.color": { by: "graphty.degree", scale: "linear", palette: "viridis" } },
+    });
+    await session.styles.settled();
+}
+
+test("legend: true draws the element's own legend in the bottom right, and nothing without it", async () => {
+    graph = await createTestGraphWithData();
+    await colorByDegree(graph);
+
+    const plain = await graph.captureScreenshot();
+    const keyed = await graph.captureScreenshot({ legend: true });
+
+    assert.strictEqual(await inkIn(plain.blob, "bottom-right"), 0);
+    assert.isAbove(await inkIn(keyed.blob, "bottom-right"), 0, "the key is drawn in its default corner");
+    assert.strictEqual(await inkIn(keyed.blob, "top-left"), 0, "and nowhere else");
+});
+
+test("legend takes a corner and a heading in the caller's words", async () => {
+    graph = await createTestGraphWithData();
+    await colorByDegree(graph);
+
+    const keyed = await graph.captureScreenshot({ legend: { position: "top-left", title: "Degree" } });
+
+    assert.isAbove(await inkIn(keyed.blob, "top-left"), 0);
+    assert.strictEqual(await inkIn(keyed.blob, "bottom-right"), 0);
+});
+
+test('legend: "auto" draws nothing while no layer binds a value', async () => {
+    graph = await createTestGraphWithData();
+
+    const auto = await graph.captureScreenshot({ legend: "auto" });
+
+    for (const corner of ["top-left", "top-right", "bottom-left", "bottom-right"] as const) {
+        assert.strictEqual(await inkIn(auto.blob, corner), 0, corner);
+    }
+
+    await colorByDegree(graph);
+    const bound = await graph.captureScreenshot({ legend: "auto" });
+
+    assert.isAbove(await inkIn(bound.blob, "bottom-right"), 0);
+});

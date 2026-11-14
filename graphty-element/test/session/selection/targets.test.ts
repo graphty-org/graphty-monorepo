@@ -476,15 +476,31 @@ describe("a neighbourhood", () => {
         harness.session.dispose();
     });
 
-    it("refuses a depth outside the one it declares", () => {
+    it("walks past three hops when asked", () => {
+        const ids = ["a", "b", "c", "d", "e", "f"];
+        const harness = harnessOf(
+            ids.map((id) => ({ id })),
+            ids.slice(1).map((dst, index) => ({ src: ids[index], dst })),
+            true,
+        );
+        const selection = selectionOf(harness);
+
+        selection.applyNow({ neighborsOf: ["a"], depth: 4, direction: "out" });
+
+        assert.deepStrictEqual([...selection.nodes], ["a", "b", "c", "d", "e"]);
+        harness.session.dispose();
+    });
+
+    it("refuses a depth that is not a whole number from 1", () => {
         const harness = line(true);
         const selection = selectionOf(harness);
-        const tooFar = { neighborsOf: ["a"], depth: 4 } as unknown as SelectionTarget;
 
-        assert.strictEqual(
-            codeOf(() => selection.applyNow(tooFar)),
-            "E_OPTION_RANGE",
-        );
+        for (const depth of [0, -1, 1.5]) {
+            assert.strictEqual(
+                codeOf(() => selection.applyNow({ neighborsOf: ["a"], depth })),
+                "E_OPTION_RANGE",
+            );
+        }
         harness.session.dispose();
     });
 });

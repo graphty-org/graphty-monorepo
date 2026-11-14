@@ -4,7 +4,7 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { nodeModelsOn, selectionWorkspaceOn } from "../features";
+import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
@@ -110,27 +110,6 @@ function notAvailable(ctx: RowContext, spec: SectionSpec): string | null {
 }
 
 /**
- * A section's one help line, or null: on edges, Arrowheads says they are not available on an
- * undirected graph; on nodes, Shape with an outline says where its width is set.
- * @param ctx - the row and kind.
- * @param spec - the section.
- * @param set - the properties the row sets in it.
- * @returns the words, or null.
- */
-function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDescriptor[]): string | null {
-    const blocked = notAvailable(ctx, spec);
-    if (blocked !== null) {
-        return blocked;
-    }
-    if (ctx.side === "node" && spec.id === "shape" && set.some((d) => d.channel === "node.outline")) {
-        return selectionWorkspaceOn(ctx.session)
-            ? "Width: Graph settings"
-            : "Every outline is drawn at one width, set in Graph settings. For a ring this layer sizes, use Halo.";
-    }
-    return null;
-}
-
-/**
  * One section of the Style tab (the owner's design, 2026-10-13, after Figma's sections): its title
  * and a "+" at the header's right end. A section the layer does not write is only its dimmed title
  * and "+". One it writes lists only the properties the layer sets, each with its value and a
@@ -169,7 +148,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     });
     const set = descriptors.filter((d) => isSet(ctx, d));
     const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
-    const note = sectionNote(ctx, spec, set);
+    const note = notAvailable(ctx, spec);
     // Opacity is set in the color's own box, so "+" never offers it, and a color line set to a
     // value carries it; a row that sets opacity alone, or varies it by data, keeps its own line.
     const folded = new Set(

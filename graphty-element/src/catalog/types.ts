@@ -727,6 +727,7 @@ export type Channel =
     | "node.tooltipStyle"
     | "node.opacity"
     | "node.outline"
+    | "node.outlineWidth"
     | "node.glow"
     | "node.glowStrength"
     | "node.halo"

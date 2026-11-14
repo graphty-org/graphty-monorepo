@@ -337,6 +337,8 @@ export interface LegendBlock {
  * - `legend.not-measured` -- elements in scope the run measured nothing for: `{ count }`.
  * - `legend.painted-over` -- a layer above paints the same channel over every element this one
  *   reaches, so none of this block is visible: `{ layerId, name }`, that layer's id and name.
+ * - `legend.no-spread` -- every value in the column is the same, so the scale has no spread and
+ *   paints the middle of its range: `{ value }`, that one value. (Since 3.40.0.)
  * @since 3.16.0
  */
 export type LegendFactCode =
@@ -348,7 +350,8 @@ export type LegendFactCode =
     | "legend.unreadable"
     | "legend.lumped"
     | "legend.not-measured"
-    | "legend.painted-over";
+    | "legend.painted-over"
+    | "legend.no-spread";
 
 /**
  * One departure of a legend block, as a code and the values it is about.
@@ -557,7 +560,7 @@ const NO_BLOCKS: readonly LegendBlock[] = Object.freeze([]);
  * @param value - The number.
  * @returns The number in the words a reader sees.
  */
-function formatNumber(value: number): string {
+export function formatNumber(value: number): string {
     if (!Number.isFinite(value)) {
         return String(value);
     }
@@ -1000,6 +1003,7 @@ const SENTENCES: Readonly<Record<LegendFactCode, (text: (name: string) => string
     "legend.lumped": (text) => `${text("count")} lumped into "other"`,
     "legend.not-measured": (text) => `not measured (${text("count")})`,
     "legend.painted-over": (text) => `painted over by "${text("name")}"`,
+    "legend.no-spread": () => "no spread",
 };
 
 /**

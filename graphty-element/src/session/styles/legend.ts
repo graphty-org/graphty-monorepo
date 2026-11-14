@@ -769,7 +769,7 @@ function categorySwatches(
     // A value the binding paints nothing for -- one a map leaves out, read as it is and no colour
     // -- gets no row: the layer does not draw it, so a row would claim a paint the canvas never shows.
     const swatches: LegendSwatch[] = categories
-        .map(row)
+        .map((category, index) => row(category, index))
         .filter((swatch) => swatch.color !== undefined || swatch.size !== undefined || swatch.paints !== undefined);
     const folded = prepared.lumped.length > 0 ? prepared.paintIgnoringHidden(prepared.lumped[0]) : undefined;
 

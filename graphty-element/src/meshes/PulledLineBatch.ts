@@ -92,6 +92,9 @@ interface WidthGroup {
     readonly free: number[];
 }
 
+/** Hidden flags in one line of the hidden table: a byte a piece, four to a texel. */
+const HIDDEN_PER_LINE = TABLE_WIDTH * 4;
+
 /** A row number no row has: the piece draws nothing. */
 export const NO_ROW = -1;
 
@@ -107,6 +110,19 @@ export class PulledLineBatch {
     private rows: Float32Array<ArrayBuffer>;
 
     private table: RawTexture;
+
+    /**
+     * Each piece's hidden flag, 255 for hidden (`edgeHidden`). A time window hides and shows pieces scattered
+     * over the whole table: a byte each costs a twentieth of what writing their rows sent, which went up in
+     * thousands of joined runs (#6025).
+     */
+    private hidden: Uint8Array<ArrayBuffer>;
+
+    private hiddenTable: RawTexture;
+
+    /** The first and last hidden table line written since the last upload, or -1. */
+    private hiddenFirst = -1;
+    private hiddenLast = -1;
 
     /** Pieces handed out so far; the draw covers these. */
     private highWater = 0;
@@ -188,6 +204,8 @@ export class PulledLineBatch {
         mesh.alwaysSelectAsActiveMesh = true;
         this.rows = this.emptyTable(this.piecesPerLine);
         this.table = this.build();
+        this.hidden = new Uint8Array(HIDDEN_PER_LINE);
+        this.hiddenTable = this.buildHidden();
         this.index();
         if (curve) {
             this.routes = new Float32Array(TABLE_WIDTH * TEXEL_FLOATS);
@@ -250,6 +268,7 @@ export class PulledLineBatch {
      */
     release(piece: number): void {
         this.setRows(piece, NO_ROW, NO_ROW);
+        this.setHidden(piece, false);
         this.free.push(piece);
         const key = this.keys[piece] ?? 0;
         this.ranked[Math.floor(key / SLOTS_PER_RANK)]?.free.push(key % SLOTS_PER_RANK);
@@ -266,6 +285,23 @@ export class PulledLineBatch {
         this.rows[piece * this.pieceFloats] = source;
         this.rows[piece * this.pieceFloats + 1] = target;
         this.touch(piece);
+    }
+
+    /**
+     * Hide or show a piece, keeping its rows and look: only its flag is written and sent.
+     * @param piece - The piece.
+     * @param hidden - Whether it draws nothing.
+     */
+    setHidden(piece: number, hidden: boolean): void {
+        const flag = hidden ? 255 : 0;
+        if (this.hidden[piece] === flag) {
+            return;
+        }
+
+        this.hidden[piece] = flag;
+        const line = Math.floor(piece / HIDDEN_PER_LINE);
+        this.hiddenFirst = this.hiddenFirst < 0 ? line : Math.min(this.hiddenFirst, line);
+        this.hiddenLast = Math.max(this.hiddenLast, line);
     }
 
     /**
@@ -426,6 +462,7 @@ export class PulledLineBatch {
         const material = this.mesh.material as ShaderMaterial | null;
         material?.setTexture("rowPosition", this.rowPositions());
         this.flushRoutes();
+        this.flushHidden();
         if (this.reorder) {
             this.index();
         }
@@ -482,11 +519,28 @@ export class PulledLineBatch {
         this.routesLast = -1;
     }
 
+    /** Send the hidden table lines written since the last frame: one call, the lines between the first and last. */
+    private flushHidden(): void {
+        const internal = this.hiddenTable.getInternalTexture();
+        if (this.hiddenFirst < 0 || !internal) {
+            return;
+        }
+
+        const lines = this.hiddenLast - this.hiddenFirst + 1;
+        const bytes = new Uint8Array(this.hidden.buffer, this.hiddenFirst * HIDDEN_PER_LINE, lines * HIDDEN_PER_LINE);
+        const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
+        engine.updateTextureData(internal, bytes, 0, this.hiddenFirst, TABLE_WIDTH, lines);
+        this.uploadedBytes += bytes.byteLength;
+        this.hiddenFirst = -1;
+        this.hiddenLast = -1;
+    }
+
     /** Stop following the frames and free the mesh and the table. */
     dispose(): void {
         this.stopFlush();
         this.stopRestore();
         this.table.dispose();
+        this.hiddenTable.dispose();
         this.routeTable?.dispose();
         // Not its textures: `rowPosition` is the row table's, which outlives this batch.
         this.mesh.material?.dispose(true, false);
@@ -506,6 +560,26 @@ export class PulledLineBatch {
         );
         (this.mesh.material as ShaderMaterial | null)?.setTexture("edgeRows", texture);
         this.uploadedBytes += this.rows.byteLength;
+        return texture;
+    }
+
+    /**
+     * Send the hidden table to the card whole and bind it.
+     * @returns The texture.
+     */
+    private buildHidden(): RawTexture {
+        const texture = RawTexture.CreateRGBATexture(
+            this.hidden,
+            TABLE_WIDTH,
+            this.hidden.length / HIDDEN_PER_LINE,
+            this.scene,
+            false,
+            false,
+            Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+            Constants.TEXTURETYPE_UNSIGNED_BYTE,
+        );
+        (this.mesh.material as ShaderMaterial | null)?.setTexture("edgeHidden", texture);
+        this.uploadedBytes += this.hidden.byteLength;
         return texture;
     }
 
@@ -539,6 +613,16 @@ export class PulledLineBatch {
         this.table = this.build();
         // the new table went up whole
         this.dirty.take(false);
+        if (pieces > this.hidden.length) {
+            const hidden = new Uint8Array(Math.ceil(pieces / HIDDEN_PER_LINE) * HIDDEN_PER_LINE);
+            hidden.set(this.hidden);
+            this.hidden = hidden;
+            this.hiddenTable.dispose();
+            this.hiddenTable = this.buildHidden();
+            this.hiddenFirst = -1;
+            this.hiddenLast = -1;
+        }
+
         this.index();
     }
 

@@ -1,6 +1,8 @@
 // node --test design/ui/studio/tool/measure.test.mjs
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import { axeViolations, layerMembers, LAUNCH, openWork, styleTree, workUnread } from "./measure.mjs";
@@ -70,4 +72,19 @@ test("an element that throws where its API says it cannot is reported, never rea
     // axe-core resolves where it is declared, and a failed load is not swallowed
     const page = { addScriptTag: async () => boom(), evaluate: async () => assert.fail("axe ran without loading") };
     await assert.rejects(axeViolations(page), /element defect/);
+});
+
+test("real.mjs refuses a malformed REAL_VIEWPORT or REAL_IDLE_SECONDS with a clear message", () => {
+    const real = fileURLToPath(new URL("real.mjs", import.meta.url));
+    const run = (env) => spawnSync(process.execPath, [real], { encoding: "utf8", env: { ...process.env, ...env } });
+    for (const v of ["1440X900", "1440x", "0x900", "wide"]) {
+        const r = run({ REAL_VIEWPORT: v, REAL_IDLE_SECONDS: "" });
+        assert.equal(r.status, 2, v);
+        assert.match(r.stderr, /REAL_VIEWPORT must be <width>x<height>/);
+    }
+    for (const v of ["0", "-5", "abc", "86400", "1e9"]) {
+        const r = run({ REAL_VIEWPORT: "", REAL_IDLE_SECONDS: v });
+        assert.equal(r.status, 2, v);
+        assert.match(r.stderr, /REAL_IDLE_SECONDS must be a number of seconds/);
+    }
 });

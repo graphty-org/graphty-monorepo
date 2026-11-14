@@ -180,6 +180,16 @@ const CAPABILITIES: ExportCapabilities = capabilities({
 
 const DEFAULT_INDENT = "    ";
 const CLUSTER_PREFIX = "cluster";
+/**
+ * One step of the node section: a node statement, a subgraph block opened (`first` for the
+ * container's own opening, which writes its attributes and references its members written
+ * before it) or closed.
+ */
+type NodeStep =
+    | { readonly kind: "node"; readonly i: number }
+    | { readonly kind: "open"; readonly c: number; readonly first: boolean; readonly refs: readonly number[] }
+    | { readonly kind: "close"; readonly c: number; readonly first: boolean };
+
 const COMPASS_POINTS: ReadonlySet<string> = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw", "c", "_"]);
 
 /** Roles never written as attributes, per domain. */
@@ -330,7 +340,9 @@ function endsWithBackslash(text: string): boolean {
 }
 
 /**
- * Write a text as a DOT ID: an HTML string bare, everything else through quoteDotId.
+ * Write an attribute value as a DOT ID: an HTML string bare, everything else through quoteDotId.
+ * A node id is always quoted (quoteDotId): the importer names a node written as an HTML string
+ * by the text inside its angle brackets, so no node id is HTML.
  * @param text - the text
  * @returns the DOT ID
  */
@@ -528,6 +540,8 @@ class ExportPlan {
 
     private readonly children: ChildrenCsr;
 
+    private readonly nodeSteps: readonly NodeStep[];
+
     private readonly extraNotes: LossNote[] = [];
 
     /**
@@ -576,6 +590,7 @@ class ExportPlan {
         this.children = childrenCsr(snapshot, {
             column: this.parent !== null && this.parent.dtype === "u32" ? this.parent : null,
         });
+        this.nodeSteps = this.layoutNodes();
         // in the order a reader first meets them, which is the order it gives the columns: the file read and written
         // again is the same, whichever node or edge first held a column
         this.nodeColumns = firstSeenOrder(this.nodeColumns, this.nodeTextOrder());
@@ -589,37 +604,82 @@ class ExportPlan {
     }
 
     /**
-     * The nodes in the order a reader of the document takes their attributes: a node's statement before the members
-     * of its cluster, and a cluster's own `graph [...]` attributes when its subgraph closes, after its members.
+     * Whether a node is a cluster's container node (the `graphty.cluster` column).
+     * @param i - the node index
+     * @returns true for a container
+     */
+    private isMarked(i: number): boolean {
+        return this.cluster !== null && this.cluster.isSet(i) && this.cluster.value(i) === true;
+    }
+
+    /**
+     * Lay out the node section so a reader meets the nodes in index order, and so creates them in
+     * the same order: each node in turn, inside its parent's subgraph when the parent came first
+     * (the subgraph reopened by name, as DOT allows), else at the top level with a reference to it
+     * in the parent's subgraph when that opens.
+     * @returns the steps
+     */
+    private layoutNodes(): NodeStep[] {
+        const n = this.snapshot.nodeCount;
+        const parent = new Int32Array(n).fill(-1);
+        for (let u = 0; u < n; u++) {
+            for (const k of this.children.childrenOf(u)) {
+                parent[k] = u;
+            }
+        }
+        const emitted = new Uint8Array(n);
+        const paths = new Map<number, number[]>();
+        const open: { c: number; first: boolean }[] = [];
+        const steps: NodeStep[] = [];
+        const moveTo = (target: readonly number[]): void => {
+            let k = 0;
+            while (k < open.length && k < target.length && open[k].c === target[k]) {
+                k++;
+            }
+            while (open.length > k) {
+                const top = open.pop() as { c: number; first: boolean };
+                steps.push({ kind: "close", c: top.c, first: top.first });
+            }
+            for (; k < target.length; k++) {
+                open.push({ c: target[k], first: false });
+                steps.push({ kind: "open", c: target[k], first: false, refs: [] });
+            }
+        };
+        for (let i = 0; i < n; i++) {
+            const p = parent[i];
+            const target = p >= 0 && emitted[p] === 1 ? [...(paths.get(p) ?? []), p] : [];
+            moveTo(target);
+            emitted[i] = 1;
+            const marked = this.isMarked(i);
+            if (!marked) {
+                steps.push({ kind: "node", i });
+            }
+            const kids = this.children.childrenOf(i);
+            if (kids.length > 0 || marked) {
+                paths.set(i, target);
+                const refs = Array.from(kids).filter((k) => emitted[k] === 1);
+                if (marked || refs.length > 0) {
+                    open.push({ c: i, first: true });
+                    steps.push({ kind: "open", c: i, first: true, refs });
+                }
+            }
+        }
+        moveTo([]);
+        return steps;
+    }
+
+    /**
+     * The nodes in the order a reader of the document takes their attributes: a node at its
+     * statement, and a cluster's own `graph [...]` attributes when its first subgraph block closes.
      * @returns the node indices
      */
     private nodeTextOrder(): number[] {
         const order: number[] = [];
-        const seen = new Uint8Array(this.snapshot.nodeCount);
-        // a negative entry -(i + 1) is cluster i's own attributes, taken once its members are
-        const stack: number[] = [];
-        for (let root = this.snapshot.nodeCount - 1; root >= 0; root--) {
-            stack.push(root);
-        }
-        while (stack.length > 0) {
-            const i = stack.pop() as number;
-            if (i < 0) {
-                order.push(-i - 1);
-                continue;
-            }
-            if (seen[i] === 1) {
-                continue;
-            }
-            seen[i] = 1;
-            const marked = this.cluster !== null && this.cluster.isSet(i) && this.cluster.value(i) === true;
-            if (marked) {
-                stack.push(-i - 1);
-            } else {
-                order.push(i);
-            }
-            const kids = this.children.childrenOf(i);
-            for (let k = kids.length - 1; k >= 0; k--) {
-                stack.push(kids[k]);
+        for (const step of this.nodeSteps) {
+            if (step.kind === "node") {
+                order.push(step.i);
+            } else if (step.kind === "close" && step.first && this.isMarked(step.c)) {
+                order.push(step.c);
             }
         }
         return order;
@@ -874,7 +934,7 @@ class ExportPlan {
      * @returns nothing
      */
     *write(): Generator<string> {
-        const { snapshot, indent } = this;
+        const { indent } = this;
         const keyword = this.directed ? "digraph" : "graph";
         const name = this.name === null ? "" : ` ${quoteDotId(this.name)}`;
         yield `${this.strict ? "strict " : ""}${keyword}${name} {\n`;
@@ -882,10 +942,7 @@ class ExportPlan {
         if (graphAttributes.length > 0) {
             yield `${indent}graph [${graphAttributes.join(", ")}];\n`;
         }
-        const emitted = new Uint8Array(snapshot.nodeCount);
-        for (let i = 0; i < snapshot.nodeCount; i++) {
-            yield* this.writeNode(i, 1, emitted);
-        }
+        yield* this.writeNodes();
         yield* this.writeRanks();
         yield* this.writeEdges();
         yield "}\n";
@@ -909,7 +966,7 @@ class ExportPlan {
             if (rank.isSet(i) && set.isSet(i)) {
                 const key = String(set.value(i));
                 const entry = sets.get(key) ?? { rank: String(rank.value(i)), members: [] };
-                entry.members.push(writeId(this.idText(i)));
+                entry.members.push(quoteDotId(this.idText(i)));
                 sets.set(key, entry);
             }
         }
@@ -922,49 +979,50 @@ class ExportPlan {
     }
 
     /**
-     * Write one node (and, for a container, its cluster block with the members nested).
-     * @param i - the node index
-     * @param depth - the nesting depth
-     * @param emitted - which nodes were written already
+     * Write the node section: the node statements and cluster blocks of layoutNodes().
      * @yields the statements
      * @returns nothing
      */
-    private *writeNode(i: number, depth: number, emitted: Uint8Array): Generator<string> {
-        if (emitted[i] === 1) {
-            return;
+    private *writeNodes(): Generator<string> {
+        let depth = 1;
+        for (const step of this.nodeSteps) {
+            const pad = this.indent.repeat(depth);
+            if (step.kind === "node") {
+                yield `${pad}${this.nodeStatement(step.i, this.idText(step.i))};\n`;
+            } else if (step.kind === "close") {
+                depth--;
+                yield `${this.indent.repeat(depth)}}\n`;
+            } else {
+                yield* this.openBlock(step, pad);
+                depth++;
+            }
         }
-        emitted[i] = 1;
-        const pad = this.indent.repeat(depth);
-        const idText = this.idText(i);
-        const kids = this.children.childrenOf(i);
-        const marked = this.cluster !== null && this.cluster.isSet(i) && this.cluster.value(i) === true;
-        if (kids.length === 0 && !marked) {
-            yield `${pad}${this.nodeStatement(i, idText)};\n`;
-            return;
-        }
-        if (!marked) {
-            // a real node that is also a parent: its cells are node attributes, the cluster only groups
-            yield `${pad}${this.nodeStatement(i, idText)};\n`;
-        }
+    }
+
+    /**
+     * Open a subgraph block: its header, `cluster=true` for a name without the `cluster` prefix,
+     * and on its first opening the container's attributes and references to members written before.
+     * @param step - the open step
+     * @param pad - the indentation of the header
+     * @yields the statements
+     * @returns nothing
+     */
+    private *openBlock(step: Extract<NodeStep, { kind: "open" }>, pad: string): Generator<string> {
+        const idText = this.idText(step.c);
         const inner = `${pad}${this.indent}`;
-        yield `${pad}subgraph ${writeId(idText)} {\n`;
+        yield `${pad}subgraph ${quoteDotId(idText)} {\n`;
         if (!idText.startsWith(CLUSTER_PREFIX)) {
             yield `${inner}cluster=true;\n`;
         }
-        if (marked) {
-            const attributes = this.nodeAttributes(i);
+        if (step.first && this.isMarked(step.c)) {
+            const attributes = this.nodeAttributes(step.c);
             if (attributes.length > 0) {
                 yield `${inner}graph [${attributes.join(", ")}];\n`;
             }
         }
-        for (const child of kids) {
-            if (emitted[child] === 1) {
-                yield `${inner}${writeId(this.idText(child))};\n`;
-            } else {
-                yield* this.writeNode(child, depth + 1, emitted);
-            }
+        for (const ref of step.refs) {
+            yield `${inner}${quoteDotId(this.idText(ref))};\n`;
         }
-        yield `${pad}}\n`;
     }
 
     /**
@@ -975,7 +1033,7 @@ class ExportPlan {
      */
     private nodeStatement(i: number, idText: string): string {
         const attributes = this.nodeAttributes(i);
-        return attributes.length === 0 ? writeId(idText) : `${writeId(idText)} [${attributes.join(", ")}]`;
+        return attributes.length === 0 ? quoteDotId(idText) : `${quoteDotId(idText)} [${attributes.join(", ")}]`;
     }
 
     /**
@@ -1074,8 +1132,8 @@ class ExportPlan {
             if (key !== null) {
                 attributes.unshift(`${KEY_ATTRIBUTE}=${writeId(key)}`);
             }
-            const source = `${writeId(this.idText(list.src[e]))}${this.portText(this.sourcePort, e)}`;
-            const target = `${writeId(this.idText(list.dst[e]))}${this.portText(this.targetPort, e)}`;
+            const source = `${quoteDotId(this.idText(list.src[e]))}${this.portText(this.sourcePort, e)}`;
+            const target = `${quoteDotId(this.idText(list.dst[e]))}${this.portText(this.targetPort, e)}`;
             const tail = attributes.length === 0 ? "" : ` [${attributes.join(", ")}]`;
             yield `${indent}${source} ${op} ${target}${tail};\n`;
         }

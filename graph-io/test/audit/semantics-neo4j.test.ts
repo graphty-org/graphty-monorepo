@@ -475,14 +475,14 @@ describe("Neo4j quirks from the CSVDataSource neo4j branch and research note 07"
         expect(idType.report.issues.map((i) => i.code)).toContain("W_NEO4J_HEADER_OPTION_IGNORED");
     });
 
-    it("reads booleans as true / false / 1 / 0 (case-insensitive) and reports other texts", async () => {
+    it("reads booleans as true / false / 1 / 0 (case-insensitive) and reports other texts, leaving them unset", async () => {
         const { snapshot, report } = await parse("id:ID,b:boolean\n1,true\n2,TRUE\n3,1\n4,false\n5,x\n");
-        expect(column(snapshot, "nodes", "b")).toEqual([true, true, true, false]);
-        expect(snapshot.nodeCount).toBe(4);
+        expect(column(snapshot, "nodes", "b")).toEqual([true, true, true, false, "<unset>"]);
+        expect(snapshot.nodeCount).toBe(5);
         expect(report.issues.filter((i) => i.code === "E_COLUMN_TYPE")).toHaveLength(1);
     });
 
-    it("reports malformed rows explicitly: wrong cell count, blank :ID, blank endpoint, duplicate id, two :ID columns, unnamed property", async () => {
+    it("reports malformed rows explicitly: wrong cell count, blank :ID, blank endpoint, duplicate id, :ID columns in two id spaces, unnamed property", async () => {
         const counts = await parse("id:ID,name,age:int\n1,a\n2,b,3,extra\n3,c,4\n");
         expect(counts.snapshot.ids.toArray()).toEqual([3]);
         expect(counts.report.issues.filter((i) => i.code === "E_NEO4J_COLUMN_COUNT")).toHaveLength(2);
@@ -492,8 +492,9 @@ describe("Neo4j quirks from the CSVDataSource neo4j branch and research note 07"
         expect(blankEnd.report.issues.map((i) => i.code)).toContain("E_MISSING_ENDPOINT");
         const dup = await parse("id:ID,name\n1,a\n1,b\n");
         expect(dup.report.issues.map((i) => i.code)).toContain("W_DUPLICATE_NODE");
-        expect(dup.snapshot.nodes.value("name", 0)).toBe("b");
-        await expect(parse("id:ID,other:ID\n1,2\n")).rejects.toMatchObject({
+        // neo4j-admin keeps the first row of a repeated id
+        expect(dup.snapshot.nodes.value("name", 0)).toBe("a");
+        await expect(parse("id:ID(A),other:ID(B)\n1,2\n")).rejects.toMatchObject({
             report: { issues: [{ code: "E_NEO4J_HEADER" }] },
         });
         await expect(parse("id:ID,:string\n1,x\n")).rejects.toMatchObject({
@@ -535,6 +536,7 @@ describe("Neo4j quirks from the CSVDataSource neo4j branch and research note 07"
     it("reports a date in a non-ISO form and a point in an unknown syntax instead of guessing", async () => {
         const { snapshot, report } = await parse("id:ID,d:date,p:point\n1,20240229,\n2,,POINT(1 2)\n3,2024-02-29,\n");
         expect(report.issues.filter((i) => i.code === "E_COLUMN_TYPE")).toHaveLength(2);
-        expect(snapshot.ids.toArray()).toEqual([3]);
+        // the nodes are kept without the unreadable values
+        expect(snapshot.ids.toArray()).toEqual([1, 2, 3]);
     });
 });

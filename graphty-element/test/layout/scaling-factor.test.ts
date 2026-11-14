@@ -23,7 +23,7 @@ const engines: [string, object][] = [
     ["multipartite", { subsetKey: { first: ["a", "c"], second: ["b", "d"] } }],
     ["planar", {}],
     ["radial", {}],
-    ["random", {}],
+    ["random", { seed: 42 }], // unseeded by default, so each run would scatter differently
     ["shell", {}],
     ["spectral", {}],
     ["spiral", {}],

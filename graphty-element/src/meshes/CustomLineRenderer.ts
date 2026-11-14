@@ -228,7 +228,8 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
         return [];
     }
 
-    return options.pulledCurve === true ? ["rowPosition", "edgeRows", "edgeRoutes"] : ["rowPosition", "edgeRows"];
+    const tables = ["rowPosition", "edgeRows", "edgeHidden"];
+    return options.pulledCurve === true ? [...tables, "edgeRoutes"] : tables;
 }
 
 interface LineGeometry {

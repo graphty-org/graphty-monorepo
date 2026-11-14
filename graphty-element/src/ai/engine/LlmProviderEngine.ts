@@ -172,7 +172,13 @@ export class LlmProviderEngine implements AiEngine {
         }
 
         for (const call of response.toolCalls) {
-            yield { type: "tool-call", id: call.id, name: call.name, arguments: call.arguments };
+            yield {
+                type: "tool-call",
+                id: call.id,
+                name: call.name,
+                arguments: call.arguments,
+                ...(call.invalidArguments && { invalidArguments: true }),
+            };
         }
 
         if (response.usage) {

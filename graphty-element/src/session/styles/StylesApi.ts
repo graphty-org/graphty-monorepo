@@ -5099,7 +5099,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         const matched = { nodes: within("node", nodes), edges: within("edge", edges) };
         if (matched.nodes.length + matched.edges.length > 0) {
-            return { ...styleAgreement(matched, read, channel), readOver: "row" };
+            const own = new Set(parts.map(({ layer }) => layer.id));
+            return { ...styleAgreement(matched, read, channel, own), readOver: "row" };
         }
 
         // It matches nothing: read the row's kinds through the layers that match every element.

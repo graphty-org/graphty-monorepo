@@ -178,7 +178,9 @@ console.log(Array.from(result.scores, (x) => x.toFixed(3))); // ["0.000", "1.000
 ```
 
 If the power iteration has not met the tolerance after `maxIterations` passes, `eigenvectorCentrality` throws a
-`ConvergenceError` rather than returning unconverged scores, as networkx raises `PowerIterationFailedConvergence`. The
+`ConvergenceError` rather than returning unconverged scores, as networkx raises `PowerIterationFailedConvergence`.
+`tolerance` is relative: the run stops once the summed change of a pass is below `tolerance` times the summed size of
+the scores, whatever the number of nodes. The
 error carries `algorithm`, `iterations` and `tolerance`. Long paths and large grids converge slowly; raise
 `maxIterations` (or `tolerance`) and call again:
 

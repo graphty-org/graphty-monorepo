@@ -8,7 +8,7 @@
  */
 import "../../../src/graphty-element";
 
-import type { Vector3 } from "@babylonjs/core";
+import { Ray, Vector3 } from "@babylonjs/core";
 import { pinchHandPose } from "iwer/lib/device/configs/hand/pinch.js";
 import { relaxedHandPose } from "iwer/lib/device/configs/hand/relaxed.js";
 import { XRHandJoint } from "iwer/lib/input/XRHand.js";
@@ -20,6 +20,7 @@ import type { XRInputHandler } from "../../../src/cameras/XRInputHandler";
 import type { XRPivotCameraController } from "../../../src/cameras/XRPivotCameraController";
 import type { XRInputConfig } from "../../../src/config/XRConfig";
 import { type Graph, operationQueueOf } from "../../../src/Graph";
+import type { Node } from "../../../src/Node";
 import { installIWER, type IWERHandle } from "./iwer-setup";
 
 type Handedness = "left" | "right";
@@ -48,6 +49,15 @@ export interface XRInputDriver {
      * @param pinchDistance - thumb tip to index tip, in metres
      */
     setHand: (handedness: Handedness, at: Vector3, pinchDistance: number) => void;
+    /**
+     * Add a node where a hand's pointer ray points, `distance` along it, with the fixed layout, so a
+     * pinch of that hand takes it.
+     * @param handedness - whose ray
+     * @param id - the node's id
+     * @param distance - how far along the ray
+     * @returns the node, as the element draws it
+     */
+    putNodeOnRay: (handedness: Handedness, id: string, distance: number) => Promise<Node>;
     /** Let the session render frames, so Babylon delivers the inputs set and the handler reads them. */
     frame: () => Promise<void>;
     /** Leave VR, remove the element and put the browser's WebXR back. */
@@ -149,6 +159,23 @@ export async function createXRInputDriver(
             hand.position.set(at.x, at.y, -at.z);
             // Immediately, so the pinch lands in the same frame as the move (a pending value lags it).
             hand.setPinchValueImmediate(pinchValueFor(pinchDistance));
+        },
+        putNodeOnRay: async (handedness, id, distance) => {
+            const source = element
+                .getXRSessionManager()
+                ?.getXRHelper()
+                ?.input.controllers.find((controller) => controller.inputSource.handedness === handedness);
+            assert.exists(source, `the ${handedness} input is not tracked`);
+            const ray = new Ray(Vector3.Zero(), Vector3.Forward());
+            source.getWorldPointerRayToRef(ray);
+            const on = ray.origin.add(ray.direction.scale(distance));
+            await element.session.data.addNodes([{ id, position: { x: on.x, y: on.y, z: on.z } }]);
+            await graph.setLayout("fixed", { dim: 3 });
+            await operationQueueOf(graph).waitForCompletion();
+            await frames(2);
+            const node = graph.getDataManager().getNode(id);
+            assert.isDefined(node, `node ${id} was not added`);
+            return node;
         },
         // One frame applies the inputs set (IWER takes pending values at a frame's start); the
         // second is one the handler has read them in.

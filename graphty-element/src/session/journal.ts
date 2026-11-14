@@ -16,6 +16,7 @@ import type { RunId } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { SessionCommand } from "./planning";
 import type { ExecutedCommand } from "./project/Dispatcher";
+import { reportCaught } from "./project/strict";
 import type { EngineVersions } from "./runs/types";
 
 /** The identity of a journal entry. Opaque; unique within its session. */
@@ -228,8 +229,13 @@ export function createJournal(options: {
             for (const fn of subscribers) {
                 try {
                     fn(entry);
-                } catch {
-                    // A subscriber's failure is the subscriber's. The journal carries on.
+                } catch (error) {
+                    // A subscriber's failure is the subscriber's: the journal carries on, and the
+                    // error is reported and rethrown unhandled, as an EventTarget listener's is.
+                    reportCaught(error);
+                    queueMicrotask(() => {
+                        throw error;
+                    });
                 }
             }
 

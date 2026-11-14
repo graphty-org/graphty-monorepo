@@ -38,8 +38,8 @@ import {
     takenIn,
     uniqueColumnName,
 } from "../../common/attributes.js";
-import { type DeclaredTypeSpec, overflowsToInfinity } from "../../common/declared-types.js";
-import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
+import { type DeclaredTypeSpec, overflowsToInfinity, parseBooleanText } from "../../common/declared-types.js";
+import { DirectionResolver, type EdgeKind, type EdgeLocation } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
 import { type ListSyntax } from "../../common/lists.js";
@@ -451,7 +451,7 @@ class GraphmlReader implements XmlHandler {
     private readonly declared = new IndexFlags();
 
     private readonly edgeIds = new Set<string>();
-    /** The keys `<data>` referenced before any `<key>` declared them (E_GRAPHML_UNKNOWN_KEY). */
+    /** The keys `<data>` referenced before any `<key>` declared them, declared as untyped (W_GRAPHML_UNKNOWN_KEY). */
     private readonly unknownKeyIds = new Set<string>();
     /** The ids of the edges waiting in {@link deferred}. */
     private readonly deferredEdgeIds = new Set<string>();
@@ -900,6 +900,16 @@ class GraphmlReader implements XmlHandler {
                     );
                     this.ctx.push(Ctx.Skip);
                 }
+                return;
+            case "key":
+                // Gephi and others write keys inside <graph>; the schema puts them in <graphml>, but a key id is global
+                this.report.warnOnce(
+                    "validation-error",
+                    GRAPHML_ISSUE.KEY_IN_GRAPH,
+                    "<key> declared inside <graph>; read as if it were declared in <graphml>",
+                    { line, element: attrs.get("id") },
+                );
+                this.beginKey(attrs, line);
                 return;
             case "node":
                 this.beginNode(attrs, line);
@@ -1468,13 +1478,16 @@ class GraphmlReader implements XmlHandler {
         // attr.list (a list extension of some writers) and yEd's yfiles.foldertype are reported here
         this.reportUnreadAttributes("key", attrs, KEY_ATTRIBUTES, line);
         const id = attrs.get("id") ?? null;
-        if (id !== null && this.unknownKeyIds.delete(id)) {
+        if (id !== null && this.unknownKeyIds.has(id)) {
             this.report.warning(
-                "missing-value",
+                "validation-error",
                 GRAPHML_ISSUE.KEY_DECLARED_LATE,
-                `key "${id}" is declared after data that uses it; those values were dropped (declare <key> before <graph>)`,
+                `key "${id}" is declared after data that uses it; that data was already read as text and this declaration is ignored (declare <key> before <graph>)`,
                 { line, element: id },
             );
+            this.pendingKey = null;
+            this.ctx.push(Ctx.Key);
+            return;
         }
         const forText = attrs.get("for") ?? "all";
         // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
@@ -1539,9 +1552,16 @@ class GraphmlReader implements XmlHandler {
     private finishKey(): void {
         const key = this.pendingKey;
         this.pendingKey = null;
-        if (key === null) {
-            return;
+        if (key !== null) {
+            this.registerKey(key);
         }
+    }
+
+    /**
+     * Declare the columns of a key and record it by id.
+     * @param key - the key
+     */
+    private registerKey(key: PendingKey): void {
         const where = { line: key.line, element: key.id };
         if (key.id === null || key.id.length === 0) {
             this.report.error("validation-error", GRAPHML_ISSUE.KEY_MISSING_ID, "<key> without an id", where);
@@ -1789,15 +1809,13 @@ class GraphmlReader implements XmlHandler {
             });
         } else {
             const entries = this.keys.get(keyId);
-            const key = entries?.find((entry) => entry.domains.includes(domain)) ?? entries?.[0];
+            const key =
+                entries?.find((entry) => entry.domains.includes(domain)) ??
+                (entries === undefined || this.unknownKeyIds.has(keyId)
+                    ? this.declareUndeclaredKey(keyId, domain, line)
+                    : entries[0]);
             if (key === undefined) {
-                this.unknownKeyIds.add(keyId);
-                this.report.error(
-                    "validation-error",
-                    GRAPHML_ISSUE.UNKNOWN_KEY,
-                    `<data> references undeclared key "${keyId}"`,
-                    { line, element: keyId },
-                );
+                // the key id is empty, already reported by registerKey
             } else if (!key.skipped && !key.domains.includes(domain)) {
                 this.report.warnOnce(
                     "validation-error",
@@ -1810,6 +1828,37 @@ class GraphmlReader implements XmlHandler {
             }
         }
         this.ctx.push(Ctx.Data);
+    }
+
+    /**
+     * Declare an untyped key for a `<data>` whose key was never declared, so its values are kept as text
+     * (APOC and graphology write such files).
+     * @param id - the key id
+     * @param domain - the domain of the element holding the data
+     * @param line - the line
+     * @returns the key, or undefined when it could not be declared
+     */
+    private declareUndeclaredKey(id: string, domain: Domain, line: number): KeyEntry | undefined {
+        this.unknownKeyIds.add(id);
+        this.report.warning(
+            "validation-error",
+            GRAPHML_ISSUE.UNKNOWN_KEY,
+            `<data> references undeclared key "${id}"; its ${domain} values are read as text`,
+            { line, element: id },
+        );
+        this.registerKey({
+            id,
+            attrName: null,
+            attrType: null,
+            yfilesType: null,
+            domains: [domain],
+            port: false,
+            line,
+            desc: "",
+            defaultText: null,
+            defaultTree: undefined,
+        });
+        return this.keys.get(id)?.find((entry) => entry.domains.includes(domain));
     }
 
     /**
@@ -2367,25 +2416,42 @@ class GraphmlReader implements XmlHandler {
                 this.report.recordError(err, where);
             }
         }
-        const directedText = attrs.get("directed");
-        if (directedText !== undefined) {
-            // the schema types directed as xs:boolean: true, false, 1 or 0
-            if (directedText === "true" || directedText === "1") {
-                edge.kind = "directed";
-            } else if (directedText === "false" || directedText === "0") {
-                edge.kind = "undirected";
-            } else {
-                this.skipEdge(edge);
-                this.report.error(
-                    "validation-error",
-                    GRAPHML_ISSUE.INVALID_DIRECTED,
-                    `directed="${directedText}" is neither true nor false (nor 1 or 0)`,
-                    where,
-                );
-            }
-        }
+        edge.kind = this.edgeKind(attrs.get("directed"), edge.kind, where);
         this.edge = edge;
         this.ctx.push(Ctx.Edge);
+    }
+
+    /**
+     * The direction of an edge from its `directed` attribute.
+     * @param directedText - the attribute, or undefined
+     * @param kind - the graph's direction, kept when the attribute is missing or not a boolean
+     * @param where - the edge's location
+     * @returns the edge's direction
+     */
+    private edgeKind(directedText: string | undefined, kind: EdgeKind, where: EdgeLocation): EdgeKind {
+        if (directedText === undefined) {
+            return kind;
+        }
+        // the schema types directed as xs:boolean: true, false, 1 or 0; networkx also reads True / FALSE
+        const directed = parseBooleanText(directedText);
+        if (directed === null) {
+            this.report.error(
+                "validation-error",
+                GRAPHML_ISSUE.INVALID_DIRECTED,
+                `directed="${directedText}" is neither true nor false (nor 1 or 0); the edge takes its graph's direction`,
+                where,
+            );
+            return kind;
+        }
+        if (!/^(true|false|1|0)$/.test(directedText)) {
+            this.report.warnOnce(
+                "validation-error",
+                GRAPHML_ISSUE.DIRECTED_SPELLING,
+                `directed="${directedText}" is not an xs:boolean spelling; read as ${String(directed)}`,
+                where,
+            );
+        }
+        return directed ? "directed" : "undirected";
     }
 
     /**
@@ -2988,7 +3054,7 @@ const GRAPHML_ELEMENTS = new Set([
  */
 function unknownElementMessage(name: string): string {
     if (name === "key") {
-        return "element <key> is only allowed as a child of <graphml>, before the first <graph>; it was skipped";
+        return "element <key> is only allowed as a child of <graphml> or <graph>; it was skipped";
     }
     return GRAPHML_ELEMENTS.has(name)
         ? `element <${name}> is not allowed at this place in a GraphML file and was skipped`

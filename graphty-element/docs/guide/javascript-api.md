@@ -46,6 +46,16 @@ const graph: Graph | undefined = element?.graph;
 The Web Component handles initialization. Access `.graph` after the element is connected to the DOM, or use the `graph-ready` event.
 :::
 
+### Removing the element and putting it back
+
+Moving the element within one task (a portal, a layout change) keeps everything: the graph, its
+undo history and the camera. An element that stays out of the page past the current task frees
+its engine and GPU resources. Insert it again later and it starts a new graph from what you
+declared on it -- its attributes and the properties you set, such as `nodeData`, `edgeData`,
+`dataSource` and `layout` -- and draws and answers events again. Changes made through `session`
+after that (added layers, edits, undo history) start over unless `autosave` is on, and
+`element.graph` and `element.session` are new objects, so read them again after inserting it.
+
 ## Core Methods
 
 ### Data Management

@@ -35,13 +35,13 @@ const FIXTURE_FILES: Record<PlaceRole, string> = {
     city: "cities.json.gz",
 };
 
-/**
- * The fixture gazetteer, as a consumer's loader: a few places of each real layer.
- * @param role - The layer.
- * @returns The layer's file.
- */
-const FIXTURE: GazetteerSource = (role: PlaceRole): unknown =>
-    JSON.parse(gunzipSync(readFileSync(join(FIXTURES, FIXTURE_FILES[role]))).toString("utf8"));
+/** The fixture gazetteer, as a consumer's own layer files: a few places of each real layer. */
+const FIXTURE: GazetteerSource = Object.fromEntries(
+    Object.entries(FIXTURE_FILES).map(([role, file]) => [
+        role,
+        JSON.parse(gunzipSync(readFileSync(join(FIXTURES, file))).toString("utf8")) as unknown,
+    ]),
+);
 
 let fetched: string[] = [];
 const sessions: GraphSession[] = [];
@@ -304,6 +304,15 @@ describe("the gazetteer", () => {
         assert.deepEqual(byRegion.ambiguous, []);
         assert.closeTo(byRegion.lat[0] ?? 0, 33.66, 0.01);
         assert.closeTo(byRegion.lat[1] ?? 0, 32.78, 0.01);
+    });
+});
+
+describe("a consumer's own gazetteer through the session", () => {
+    it("takes the layer files in layout.set, copied like any option, and keeps them", async () => {
+        const session = await loaded("id,city,country\np1,Paris,France\n");
+        await session.layout.set("location-map", { options: { gazetteer: FIXTURE } });
+        assert.deepEqual(session.layout.options.gazetteer, FIXTURE);
+        assert.deepEqual(fetched, []);
     });
 });
 

@@ -319,8 +319,8 @@ not depend on graphty.app, and the gazetteer is a library, never a hosted file).
 loads it with a dynamic `import()` on first use as an optional peer dependency, the way it loads
 `@graphty/webgpu-graph-algorithms`; without it a map by place names rejects with
 `E_MISSING_PACKAGE` (`details.package: "@graphty/gazetteer"`). The layout's `gazetteer` option is
-`true` (the package, the default), `false`, or the consumer's own layers: the layer files by role,
-or a function that returns one for a role. The package's `scripts/build-gazetteer.mjs` builds the
+`true` (the package, the default), `false`, or the consumer's own layer files by role (plain data,
+since layout options are saved with the project; no loader function). The package's `scripts/build-gazetteer.mjs` builds the
 data, which is committed in the package so every build is the same and the package works offline.
 
 ## 5. Projections and the view matrix

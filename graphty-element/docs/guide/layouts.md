@@ -362,8 +362,8 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
   `city`, `none`) says how the designated column is read, `nodeLocationWithinPath` names the narrowing
   column and `nodeLocationWithin` a fixed country code; `none` turns the search off. The layout's
   `gazetteer` option is `true` (the package, the default), `false` to read no place names, or your
-  own places: the layer files by role (`{ country, region, city }`) or a function that returns one
-  for a role, each in the package's format (see its README).
+  own places as layer files by role (`{ country, region, city }`, each in the package's format, see
+  its README). The option is saved with the project, so it takes data, not a function.
   Names nothing matches are listed by `session.data.issues()` as `location-unmatched`, and names
   several places match as `location-ambiguous`. The map credits GeoNames while city names are placed.
 

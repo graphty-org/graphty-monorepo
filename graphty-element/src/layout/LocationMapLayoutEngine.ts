@@ -175,8 +175,8 @@ const locationMapOptionsSchema = defineOptions({
             label: "Gazetteer",
             description:
                 "Where place names (countries, regions, cities) are looked up: true for the optional package " +
-                "@graphty/gazetteer, loaded on first use; a function returning a layer file for a role, or the " +
-                "layer files by role, to use your own; false to read no place names",
+                "@graphty/gazetteer, loaded on first use; your own layer files by role ({ country, region, city }); " +
+                "false to read no place names",
             advanced: true,
         },
     },

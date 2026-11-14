@@ -144,22 +144,22 @@ function layerFromFile(file: unknown): GazetteerLayer {
 
 /**
  * Where the gazetteer's layers come from (the location map layout's `gazetteer` option): `true` for
- * the optional package `@graphty/gazetteer`, loaded on first use; a function that returns a layer
- * file (or a promise of one) for a role; or the layer files themselves, by role. A layer file is what
- * `@graphty/gazetteer` holds: `{ format: "graphty-gazetteer", version: 1, layer, attribution, places }`.
+ * the optional package `@graphty/gazetteer`, loaded on first use; or the consumer's own layer files,
+ * by role. A layer file is what `@graphty/gazetteer` holds: `{ format: "graphty-gazetteer",
+ * version: 1, layer, attribution, places }`. Plain data only, never a function: layout options are
+ * command arguments and project state, copied with `structuredClone` and saved as JSON.
  */
-export type GazetteerSource = true | ((role: PlaceRole) => unknown) | Readonly<Partial<Record<PlaceRole, unknown>>>;
+export type GazetteerSource = true | Readonly<Partial<Record<PlaceRole, unknown>>>;
 
 /**
- * Whether a value is a gazetteer source: `true`, a function, or an object of layer files.
+ * Whether a value is a gazetteer source: `true`, or a plain object of layer files.
  * @param value - The value.
  * @returns True for a source.
  */
 export function isGazetteerSource(value: unknown): value is GazetteerSource {
     return (
         value === true ||
-        typeof value === "function" ||
-        (typeof value === "object" && value !== null && !Array.isArray(value))
+        (typeof value === "object" && value !== null && Object.getPrototypeOf(value) === Object.prototype)
     );
 }
 
@@ -235,7 +235,7 @@ async function layerFileOf(source: GazetteerSource, role: PlaceRole): Promise<un
         return packageLayer(role);
     }
 
-    return typeof source === "function" ? source(role) : source[role];
+    return source[role];
 }
 
 /**

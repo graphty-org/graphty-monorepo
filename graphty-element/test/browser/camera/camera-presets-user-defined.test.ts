@@ -1,5 +1,4 @@
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors/index.js";
 import { Graph } from "../../../src/Graph.js";

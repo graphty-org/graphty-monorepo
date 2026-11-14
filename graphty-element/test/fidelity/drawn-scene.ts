@@ -18,6 +18,7 @@ import {
     InstancedMesh,
     type Material,
     Mesh,
+    MultiMaterial,
     type Scene,
     ShaderMaterial,
     StandardMaterial,
@@ -456,6 +457,18 @@ function materialColor(material: Material | null): { rgb: Color3; alpha: number;
         return v ? { rgb: new Color3(v.x, v.y, v.z), alpha: material.alpha * opacity, texture: false } : null;
     }
     return null;
+}
+
+/**
+ * The color a filled open cap's inside is drawn in: its flat material's, or its billboard material's `fillColor`.
+ * @param material - the inside's material
+ * @returns the color, or null where none is read
+ */
+function insideColor(material: Material | null): Color3 | null {
+    if (material instanceof ShaderMaterial) {
+        return (material as unknown as { _colors3?: Record<string, Color3> })._colors3?.fillColor ?? null;
+    }
+    return materialColor(material)?.rgb ?? null;
 }
 
 /**
@@ -1579,6 +1592,8 @@ export interface DrawnEdge {
         outline: [number, number][] | null;
         /** Its drawn color (its billboard slot's, or its batch's material), or null where none is read. */
         color: string | null;
+        /** The color an open cap's inside is filled with (`ArrowStyle.fillColor`), absent for an empty inside. */
+        fill?: string;
         /** The opacity it is drawn at: 0 is a cap that draws nothing. */
         opacity: number;
         /** How far off its node an end cap stands, in its own lengths (`ArrowStyle.gap`), the line stopping at it. */
@@ -1884,7 +1899,11 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         const at = cap?.position ?? Vector3.Zero();
         // a billboard's color is its slot's; a flat cap's, its batch's material
         const look = cap?.drawnAppearance?.colour ?? null;
-        const material = look === null ? materialColor(cap?.batchMesh?.material ?? null) : null;
+        // a filled open cap's batch draws with two materials, its inside's first, then its outline's
+        const batchMaterial = cap?.batchMesh?.material ?? null;
+        const parts = batchMaterial instanceof MultiMaterial ? batchMaterial.subMaterials : null;
+        const material = look === null ? materialColor(parts?.[1] ?? batchMaterial) : null;
+        const inside = parts === null ? null : insideColor(parts[0] ?? null);
         const rgb = look ?? material?.rgb ?? null;
         // an end cap drawn past the middle of its line (`ArrowStyle.position` above 0.5) sits at the other end, and is
         // read there, as a reader of the drawing finds it (Pajek's `ap 1`: the head drawn at the source end)
@@ -1898,6 +1917,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
             sizePx: c.span * p.pxPerWorld(at),
             outline: capOutline(cap, p),
             color: rgb === null ? null : hex(rgb),
+            ...(inside === null ? {} : { fill: hex(inside) }),
             opacity: c.visibility * (material?.alpha ?? 1),
             gap:
                 (c.end === "arrowHead" ? internal.drawnStyle?.arrowHead?.gap : undefined) ??

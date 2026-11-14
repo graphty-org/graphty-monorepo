@@ -132,7 +132,7 @@
             "paths": [],
             "catalogs": [],
             "issue": 6518,
-            "finding": "Place names are looked up at a graphty.app URL when the layout reruns, so the file depends on that service."
+            "finding": "Place names are looked up again in the optional package @graphty/gazetteer when the layout reruns, so the file depends on that package (or the reader's own gazetteer) being there."
         },
         {
             "kind": "data-fingerprint",

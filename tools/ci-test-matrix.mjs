@@ -201,6 +201,13 @@ const OFF_SHARDS = [
         "test-command": "pnpm exec nx run graph-samples:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
+    // gazetteer - single shard (Node.js, no browser)
+    {
+        shard: "gazetteer",
+        package: "gazetteer",
+        "test-command": "pnpm exec nx run gazetteer:coverage --exclude-task-dependencies",
+        "needs-browser": false,
+    },
     // babylonjs-map - single shard (Node.js, no browser)
     {
         shard: "babylonjs-map",
@@ -569,6 +576,7 @@ export const GROUPS = {
     "small-node": [
         "graph-format",
         "graph-samples",
+        "gazetteer",
         "babylonjs-map",
         "cytoscape-extensions",
         "cytoscape-extensions-cytoscape-versions",

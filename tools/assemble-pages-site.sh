@@ -21,8 +21,6 @@
 #   algorithms/gh-pages                 -> /algorithms/          landing page
 #   layout/gh-pages                     -> /layout/              examples
 #   graph-samples/public-data/v1        -> /data/graph-samples/v1/  (only if built)
-#   graph-samples/public-data/gazetteer/v1 -> /data/gazetteer/v1/   (only if built; the location map's place
-#                                       names, written by graphty-element/scripts/build-gazetteer.mjs)
 #
 # GRAPHTY_BUILD (optional), e.g. "commit=<sha> release=graphty@0.8.35", is written into the app's
 # index.html as <meta name="graphty-build" content="...">, replacing any stamp the build left there.
@@ -30,8 +28,9 @@
 # also reads it back to skip publishing a commit that is already live.
 #
 # A missing input is reported and skipped, as the deploy always did; the link check then fails on
-# every link into it.
-set -u
+# every link into it. Any other failure (a copy, the stamp, a page written here) stops the script with
+# a non-zero exit, so the deploy never publishes a partial site.
+set -eu
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${1:?usage: tools/assemble-pages-site.sh <out-dir>}"
@@ -42,8 +41,10 @@ cd "$ROOT_DIR"
 copy() {
     local src="$1" dest="$OUT/$2"
     if [ -d "$src" ]; then
-        mkdir -p "$dest"
-        cp -r "$src"/. "$dest"/
+        mkdir -p "$dest" && cp -r "$src"/. "$dest"/ || {
+            echo "ERROR: copying $src -> /$2 failed" >&2
+            exit 1
+        }
         echo "Copied $src -> /$2"
     else
         echo "WARNING: $src not found, /$2 will be missing"
@@ -53,6 +54,11 @@ copy() {
 copy graphty/dist ""
 if [ -n "${GRAPHTY_BUILD:-}" ] && [ -f "$OUT/index.html" ]; then
     STAMP="$GRAPHTY_BUILD" perl -0pi -e 's/\s*<meta name="graphty-build"[^>]*>//g; s|</head>|    <meta name="graphty-build" content="$ENV{STAMP}" />\n    </head>|' "$OUT/index.html"
+    # the deploy reads this tag back to skip a commit that is already live, so a page without </head> fails here
+    grep -q '<meta name="graphty-build"' "$OUT/index.html" || {
+        echo "ERROR: stamping /index.html failed (no </head>?)" >&2
+        exit 1
+    }
     echo "Stamped /index.html: $GRAPHTY_BUILD"
 fi
 copy docs/.vitepress/dist docs
@@ -67,9 +73,6 @@ copy algorithms/gh-pages algorithms
 copy layout/gh-pages layout
 if [ -d graph-samples/public-data/v1 ]; then
     copy graph-samples/public-data/v1 data/graph-samples/v1
-fi
-if [ -d graph-samples/public-data/gazetteer/v1 ]; then
-    copy graph-samples/public-data/gazetteer/v1 data/gazetteer/v1
 fi
 
 # graphty-element's Storybook was published at /storybook/element/ before /storybook/graphty-element/

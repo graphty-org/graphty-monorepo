@@ -2129,6 +2129,7 @@ export class Edge {
                 opacity: arrow?.opacity,
                 image: arrow?.image,
                 outline: arrow?.outlineWidth,
+                fill: arrow?.fillColor,
             },
             this.context.getScene(),
             reuse,
@@ -5058,6 +5059,7 @@ export class Edge {
                     opacity: arrow?.opacity,
                     image: arrow?.image,
                     outline: arrow?.outlineWidth,
+                    fill: arrow?.fillColor,
                 },
                 this.context.getScene(),
             );

@@ -485,11 +485,12 @@ export class Graphty extends LitElement {
      *
      * Forwarded from `session.styles.setDefaultPalettes`. A default is resolved when a style
      * layer is written, so a saved document always names a concrete palette: call it before
-     * loading data or adding layers. A later call warns and names the layers that keep the
-     * previous default, or with `reapply: true` repaints them with the new one.
+     * loading data or adding layers. A later call logs the layers that keep the previous
+     * default, or with `reapply: true` repaints them with the new one.
      * @param palettes - A palette id per kind: `categorical`, `sequential` and `diverging`.
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @returns Settles once the re-resolved layers are repainted; rejects when one could not be.
      * @since 2.7.0
      * @example
      * ```ts
@@ -499,8 +500,8 @@ export class Graphty extends LitElement {
      * element.setDefaultPalettes({ categorical: "acme-brand" });
      * ```
      */
-    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void {
-        this.session.styles.setDefaultPalettes(palettes, options);
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): Promise<void> {
+        return this.session.styles.setDefaultPalettes(palettes, options);
     }
 
     /**
@@ -6334,8 +6335,10 @@ export class Graphty extends LitElement {
      * @param options - Voice input options
      * @param options.continuous - Whether to continue listening after results
      * @param options.interimResults - Whether to report interim (non-final) results
-     * @param options.language - Language code (e.g., "en-US")
-     * @param options.onTranscript - Callback for transcript results
+     * @param options.language - BCP 47 language tag (e.g., "en-US"); without one the browser
+     *   recognizes the page's language (`<html lang>`)
+     * @param options.onTranscript - Callback for this session's transcript results; it is not
+     *   called again once the session ends or another starts
      * @param options.onStart - Callback when voice input starts
      * @returns True if voice input started successfully
      * @since 1.5.0

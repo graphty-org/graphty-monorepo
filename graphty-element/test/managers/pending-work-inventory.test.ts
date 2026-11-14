@@ -58,11 +58,11 @@ const INVENTORY: Record<string, Covered> = {
         reason: "the element's first render waits two animation frames; it waits, it draws nothing itself",
     },
     "src/session/data.ts": {
-        count: 13,
+        count: 14,
         kind: "load",
         reason:
             "a load's module import and read hold a place in the load line until its step dispatches, " +
-            "a network replace's read included; " +
+            "a network replace's read and a sample dataset's download included; " +
             "test, list, preview, read and check read a source and draw nothing",
     },
     "src/data/DataSource.ts": { count: 2, kind: "load", reason: "a data source's download, inside a load" },

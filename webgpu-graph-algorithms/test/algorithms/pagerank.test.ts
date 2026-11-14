@@ -5,6 +5,7 @@
  * sizes, bitwise repeatability, the run options and G7's leak clause (ONE mapAsync per batch of 8).
  */
 
+import { pageRank as cpuPageRank } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
@@ -47,6 +48,15 @@ function topK(scores: ArrayLike<number>, k: number): number[] {
     const order = Array.from({ length: scores.length }, (_, i) => i);
     order.sort((a, b) => scores[b] - scores[a] || a - b);
     return order.slice(0, k);
+}
+
+/** The summed (L1) difference of two score vectors. */
+function summedError(a: ArrayLike<number>, b: ArrayLike<number>): number {
+    let sum = 0;
+    for (let v = 0; v < a.length; v++) {
+        sum += Math.abs(a[v] - b[v]);
+    }
+    return sum;
 }
 
 /** Awaits a rejection and asserts its code; returns the error for detail assertions. */
@@ -137,7 +147,17 @@ describe("pageRank / personalizedPageRank (GPU, spec 8.2 / 9.7)", () => {
             const result = await pageRank(ctx, snapshot);
             const expected = pageRankOracle(snapshot, OPTS);
             expect(result.converged, `${name}: converged`).toBe(expected.converged);
-            expect(Math.abs(result.iterations - expected.iterations), `${name}: iterations`).toBeLessThanOrEqual(1);
+            if (name === "star200") {
+                // the hub's last changes are a few f32 ulps of its score, where f32 rounding damps the star's
+                // oscillation sooner than f64 does: the run settles a few passes early, and is held instead to
+                // leave no more error than the f64 run leaves at its own stop
+                const converged = pageRankOracleTo(snapshot, OPTS, 1000);
+                expect(summedError(result.scores, converged), name).toBeLessThanOrEqual(
+                    summedError(expected.scores, converged),
+                );
+            } else {
+                expect(Math.abs(result.iterations - expected.iterations), `${name}: iterations`).toBeLessThanOrEqual(1);
+            }
             ctx.release(snapshot);
         }
     });
@@ -272,6 +292,35 @@ describe("pageRank / personalizedPageRank (GPU, spec 8.2 / 9.7)", () => {
         const p5 = await personalizedPageRank(ctx, lonely, Float32Array.of(2, 0, 0, 0, 2));
         expect(Array.from(p5.scores)).toEqual([0.5, 0, 0, 0, 0.5]);
         ctx.release(lonely);
+    });
+
+    it("a 100k-node random graph at the default tolerance lands within 1e-4 summed error of a converged run (issue #1182)", async (t) => {
+        const ctx = await context(t);
+        const n = 100_000;
+        const snapshot = snapshotOf(randomEdges(n, 5 * n, 1182), { directed: true, label: "random100k" });
+        const result = await pageRank(ctx, snapshot);
+        // a threshold scaled by the node count stopped this run after 2 passes with a summed error near 0.3
+        expect(result.converged).toBe(true);
+        expect(summedError(result.scores, pageRankOracleTo(snapshot, OPTS, 200))).toBeLessThan(1e-4);
+        ctx.release(snapshot);
+    });
+
+    it("stops at the same pass as @graphty/algorithms' pageRank (issue #1182)", async (t) => {
+        const ctx = await context(t);
+        const n = 100_000;
+        const cases: [string, GraphSnapshot][] = [
+            ["karate", snapshotOf(KARATE_EDGES, { label: "karate" })],
+            ["random100k", snapshotOf(randomEdges(n, 5 * n, 1182), { directed: true, label: "random100k" })],
+        ];
+        for (const [name, snapshot] of cases) {
+            const gpu = await pageRank(ctx, snapshot, { weighted: false });
+            const cpu = cpuPageRank(snapshot, { weighted: false });
+            expect({ iterations: gpu.iterations, converged: gpu.converged }, name).toEqual({
+                iterations: cpu.iterations,
+                converged: cpu.converged,
+            });
+            ctx.release(snapshot);
+        }
     });
 
     it("two runs are bitwise identical", async (t) => {

@@ -519,31 +519,6 @@ export abstract class DataSource {
     protected abstract getConfig(): BaseDataSourceConfig;
 
     /**
-     * Standardized error message templates
-     * @returns Object containing error message template functions
-     */
-    protected get errorMessages(): {
-        missingInput: () => string;
-        fetchFailed: (url: string, attempts: number, error: string) => string;
-        parseFailed: (error: string) => string;
-        invalidFormat: (reason: string) => string;
-        extractionFailed: (path: string, error: string) => string;
-    } {
-        return {
-            missingInput: () => `${this.type}DataSource requires data, file, or url`,
-
-            fetchFailed: (url: string, attempts: number, error: string) =>
-                `Failed to fetch ${this.type} from ${url} after ${attempts} attempts: ${error}`,
-
-            parseFailed: (error: string) => `Failed to parse ${this.type}: ${error}`,
-
-            invalidFormat: (reason: string) => `Invalid ${this.type} format: ${reason}`,
-
-            extractionFailed: (path: string, error: string) => `Failed to extract data using path '${path}': ${error}`,
-        };
-    }
-
-    /**
      * Fetch with retry logic and timeout
      * Protected method for use by all DataSources
      * @param url - URL to fetch from
@@ -685,7 +660,12 @@ export abstract class DataSource {
             return new Uint8Array(await response.arrayBuffer());
         }
 
-        throw new Error(this.errorMessages.missingInput());
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            source: "data",
+            message: `${this.type}DataSource requires data, file, or url`,
+            details: { option: "data|file|url", format: this.type },
+        });
     }
 
     /**

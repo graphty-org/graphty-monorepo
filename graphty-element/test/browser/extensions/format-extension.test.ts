@@ -940,7 +940,9 @@ describe("a third party's file format", () => {
 
         assert.strictEqual(event.format, ROSTER_FORMAT);
         assert.strictEqual(event.totalErrors, 1, "the host is told how many records were dropped");
-        assert.isNotEmpty(event.message, "in a sentence the host can show a user");
+        assert.strictEqual(event.code, "load-errors");
+        assert.strictEqual(event.params.totalErrors, 1);
+        assert.lengthOf(event.errors, 1, "each dropped record as a code the host can word");
     });
 
     it("stops the load when the host's error limit is reached", async () => {

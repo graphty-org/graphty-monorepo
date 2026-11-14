@@ -2,6 +2,7 @@ import { assert, describe, it, vi } from "vitest";
 
 import { BetweennessCentralityAlgorithm } from "../../../src/algorithms/BetweennessCentralityAlgorithm";
 import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
+import { EigenvectorCentralityAlgorithm } from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
 import { detachedRunContext, METRIC_CHUNK_SIZE, walkInChunks } from "../../../src/algorithms/metrics/context";
 import type { MetricRunContext } from "../../../src/algorithms/metrics/types";
 import { YIELD_BUDGET_MS } from "../../../src/algorithms/results/types";
@@ -182,6 +183,21 @@ describe("a metric run through a run context", () => {
         const phases = recording.reports.map((report) => report.phase);
         assert.include(phases, "tracing-shortest-paths");
         assert.include(phases, "reading-scores");
+    });
+
+    it("reports eigenvector progress as codes with figures, never a sentence", async () => {
+        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const recording = recordingContext();
+
+        await new EigenvectorCentralityAlgorithm(graph, { maxIterations: 500 }).measureRun(recording.context);
+
+        const iterating = recording.reports.find((report) => report.phase === "iterating");
+        assert.deepEqual(iterating?.params, { maxIterations: 500 });
+        assert.include(
+            recording.reports.map((report) => report.phase),
+            "reading-scores",
+        );
+        assert.isTrue(recording.reports.every((report) => report.message === undefined));
     });
 
     it("refuses to start once the run has been cancelled", async () => {

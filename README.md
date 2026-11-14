@@ -101,6 +101,12 @@ Cytoscape sessions). [View package](./graph-io)
 Seeded random-graph generators that give the same graph on every platform, and classic sample datasets (karate club,
 Les Miserables, college football and more) with their ground truth. [View package](./graph-samples)
 
+#### @graphty/gazetteer
+
+Place names with coordinates for offline lookup: countries and first-level regions from Natural Earth and cities of
+15,000 people or more from GeoNames, one module per layer. graphty-element's location map reads it to place nodes by
+country, region or city name. [View package](./gazetteer)
+
 ### User interface
 
 #### @graphty/compact-mantine

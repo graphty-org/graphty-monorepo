@@ -790,20 +790,19 @@ export interface DataLoadingErrorEvent {
     type: "data-loading-error";
 }
 
-// @public (undocumented)
+// @public
 export interface DataLoadingErrorSummaryEvent {
-    // (undocumented)
-    detailedReport: string;
+    code: "load-errors";
+    errors: readonly LoadError[];
     // (undocumented)
     format: string;
     loadId?: number;
-    // (undocumented)
-    message: string;
-    // (undocumented)
+    params: {
+        totalErrors: number;
+        byCategory: Readonly<Record<string, number>>;
+        fields: readonly string[];
+    };
     primaryCategory?: string;
-    // (undocumented)
-    suggestion?: string;
-    // (undocumented)
     totalErrors: number;
     // (undocumented)
     type: "data-loading-error-summary";
@@ -956,13 +955,6 @@ export abstract class DataSource {
     edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
-    protected get errorMessages(): {
-        missingInput: () => string;
-        fetchFailed: (url: string, attempts: number, error: string) => string;
-        parseFailed: (error: string) => string;
-        invalidFormat: (reason: string) => string;
-        extractionFailed: (path: string, error: string) => string;
-    };
     protected fetchWithRetry(url: string, retries?: number, timeout?: number): Promise<Response>;
     // @internal
     fileStyles(options?: {
@@ -1291,6 +1283,7 @@ export const EdgeStyle: z.ZodObject<{
         gap: z.ZodOptional<z.ZodNumber>;
         stack: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         image: z.ZodOptional<z.ZodString>;
         text: z.ZodOptional<z.ZodObject<{
@@ -1568,6 +1561,7 @@ export const EdgeStyle: z.ZodObject<{
         gap: z.ZodOptional<z.ZodNumber>;
         stack: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         image: z.ZodOptional<z.ZodString>;
         text: z.ZodOptional<z.ZodObject<{
@@ -1845,6 +1839,7 @@ export const EdgeStyle: z.ZodObject<{
             right: "right";
         }>>;
         outlineWidth: z.ZodOptional<z.ZodNumber>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     }, z.core.$strict>>;
     arrowMiddleTail: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
@@ -1895,6 +1890,7 @@ export const EdgeStyle: z.ZodObject<{
             right: "right";
         }>>;
         outlineWidth: z.ZodOptional<z.ZodNumber>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     }, z.core.$strict>>;
     line: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{
@@ -2485,21 +2481,19 @@ export class ErrorAggregator {
     constructor(maxErrors?: number);
     addError(error: DataLoadingError): boolean;
     clear(): void;
-    getDetailedReport(): string;
     getErrorCount(): number;
     getErrorLimit(): number;
     getErrors(): DataLoadingError[];
     getSummary(): ErrorSummary;
-    getUserFriendlyMessage(): string;
     hasReachedLimit(): boolean;
 }
 
 // @public
 export interface ErrorSummary {
+    byCategory: Record<string, number>;
     categories: Map<string, DataLoadingError[]>;
-    message: string;
+    fields: string[];
     primaryCategory?: string;
-    suggestion?: string;
     totalErrors: number;
 }
 
@@ -2521,7 +2515,7 @@ export class EventManager implements Manager {
         canContinue: boolean;
         loadId?: number;
     }): void;
-    emitDataLoadingErrorSummary(format: string, totalErrors: number, message: string, detailedReport: string, primaryCategory?: string, suggestion?: string, loadId?: number): void;
+    emitDataLoadingErrorSummary(format: string, errors: ErrorAggregator, loadId?: number): void;
     emitDataLoadingProgress(format: string, bytesProcessed: number, totalBytes: number | undefined, nodeRecordsLoaded: number, edgeRecordsLoaded: number, chunksProcessed: number, loadId?: number): void;
     emitEdgeEvent(type: EdgeEvent["type"], eventData: object): void;
     emitElementsRemoved(nodes: NodeId[], edges: EdgeId[], cause?: HistoryCause): void;
@@ -3620,7 +3614,7 @@ export class Graphty extends LitElement {
     }): void;
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
-    }): void;
+    }): Promise<void>;
     setInputEnabled(enabled: boolean): void;
     setLayout(type: string, opts?: object, options?: SetLayoutOptions): Promise<void>;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;

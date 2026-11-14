@@ -47,6 +47,7 @@
         "@codemirror/state": "6.7.6",
         "@codemirror/view": "6.43.15",
         "@graphty/compact-mantine": "workspace:*",
+        "@graphty/gazetteer": "workspace:*",
         "@graphty/graph-format": "workspace:*",
         "@graphty/graph-io": "workspace:*",
         "@graphty/graph-samples": "workspace:*",

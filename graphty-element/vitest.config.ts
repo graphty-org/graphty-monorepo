@@ -138,7 +138,8 @@ const LODASH_FUNCTIONS = [
  * these packages' megabytes of built code through its transform pipeline on first import; they
  * are loaded as plain Node modules instead, like any other dependency.
  */
-const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout|webgpu-graph-algorithms)\/dist\//;
+const WORKSPACE_DIST =
+    /\/(graph-format|graph-io|graph-samples|gazetteer|algorithms|layout|webgpu-graph-algorithms)\/dist\//;
 
 /**
  * The AI adapter's frameworks, which the element loads with `import()` on an assistant's first

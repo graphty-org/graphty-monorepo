@@ -1,28 +1,47 @@
 /**
  * @file Place names as locations: a city column narrowed by a country column, found unasked and
  * placed through the gazetteer; a fixed "within" country; names nothing matches or several places
- * match, reported as data issues; and `nodeLocationRole: "none"`, which stops the search. The
- * gazetteer is a few places of the real files (fixtures/), served by a stubbed fetch: no test here
- * reaches the network.
+ * match, reported as data issues; and `nodeLocationRole: "none"`, which stops the search. Most tests
+ * read a gazetteer of a few places of the real layers (fixtures/), handed to the layout as the
+ * consumer's own source; the last ones read the installed package @graphty/gazetteer, and its
+ * refusal when the package is missing. No test here reaches the network: fetch is stubbed to fail.
  */
 
 import { readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import type { Edge } from "../../../src/Edge";
 import { layoutEngineInternals } from "../../../src/layout/LayoutEngine";
-import { loadGazetteer, normalizePlace, readPlaces } from "../../../src/layout/locationMap/gazetteer";
+import {
+    type GazetteerSource,
+    loadGazetteer,
+    normalizePlace,
+    type PlaceRole,
+    readPlaces,
+} from "../../../src/layout/locationMap/gazetteer";
 import type { LocationMapFrame } from "../../../src/layout/locationMap/place";
 import { detectSource } from "../../../src/layout/locationMap/source";
 import { LocationMapLayout } from "../../../src/layout/LocationMapLayoutEngine";
 import type { Node } from "../../../src/Node";
 
-/** The address the stubbed fetch answers; anything else is refused. */
-const BASE = "https://gazetteer.test/v1/";
 const FIXTURES = join(import.meta.dirname, "fixtures");
+const FIXTURE_FILES: Record<PlaceRole, string> = {
+    country: "countries.json.gz",
+    region: "regions.json.gz",
+    city: "cities.json.gz",
+};
+
+/** The fixture gazetteer, as a consumer's own layer files: a few places of each real layer. */
+const FIXTURE: GazetteerSource = Object.fromEntries(
+    Object.entries(FIXTURE_FILES).map(([role, file]) => [
+        role,
+        JSON.parse(gunzipSync(readFileSync(join(FIXTURES, file))).toString("utf8")) as unknown,
+    ]),
+);
 
 let fetched: string[] = [];
 const sessions: GraphSession[] = [];
@@ -30,18 +49,14 @@ const sessions: GraphSession[] = [];
 beforeEach(() => {
     fetched = [];
     vi.stubGlobal("fetch", (input: string | URL) => {
-        const url = String(input);
-        fetched.push(url);
-        if (!url.startsWith(BASE)) {
-            return Promise.reject(new Error(`no network in tests: ${url}`));
-        }
-
-        return Promise.resolve(new Response(readFileSync(join(FIXTURES, basename(url)))));
+        fetched.push(String(input));
+        return Promise.reject(new Error(`no network in tests: ${String(input)}`));
     });
 });
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    vi.doUnmock("@graphty/gazetteer");
     for (const session of sessions.splice(0)) {
         session.dispose();
     }
@@ -77,7 +92,7 @@ async function place(
     const nodes = session.data
         .nodes()
         .map((record) => ({ id: record.id, index: -1, data: record, parentGraph }) as unknown as Node);
-    const layout = new LocationMapLayout({ gazetteer: BASE, dim: 2, ...options });
+    const layout = new LocationMapLayout({ gazetteer: FIXTURE, dim: 2, ...options });
     layoutEngineInternals.addNodes(layout, nodes);
     layoutEngineInternals.addEdges(layout, [] as Edge[]);
     await layout.init();
@@ -141,7 +156,7 @@ describe("place names as locations", () => {
         assert.closeTo(at("p1").y, france.y, 1e-3);
         assert.closeTo(at("p2").x, texas.x, 1e-3);
         assert.closeTo(at("p2").y, texas.y, 1e-3);
-        assert.isTrue(fetched.every((url) => url.startsWith(BASE)));
+        assert.deepEqual(fetched, []);
     });
 
     it("narrows every name by a fixed country code (nodeLocationWithin)", async () => {
@@ -261,7 +276,7 @@ describe("one role per kind of location (data.setRole)", () => {
 
 describe("the gazetteer", () => {
     it("matches names whatever their case and accents, and a country by name or code", async () => {
-        const g = await loadGazetteer(BASE, "auto");
+        const g = await loadGazetteer(FIXTURE, "auto");
         assert.strictEqual(normalizePlace("  Sao-Paulo "), normalizePlace("SAO PAULO"));
         const countries = readPlaces(["France", "FRA", "fr", "United Kingdom", "UK", "Narnia"], "auto", null, g);
         assert.strictEqual(countries.role, "country");
@@ -272,13 +287,13 @@ describe("the gazetteer", () => {
     });
 
     it("never reads a column of one-letter labels as places by a region's one-letter postal code", async () => {
-        const g = await loadGazetteer(BASE, "auto");
+        const g = await loadGazetteer(FIXTURE, "auto");
         assert.isNull(detectSource([{ name: "label", values: ["A", "B"] }], g));
         assert.deepInclude(readPlaces(["Baa", "Baa Atoll"], "region", null, g), { unmatched: [] });
     });
 
     it('splits "City, CC" at its last comma under auto, and narrows a city by a region name', async () => {
-        const g = await loadGazetteer(BASE, "auto");
+        const g = await loadGazetteer(FIXTURE, "auto");
         const split = readPlaces(["Lyon, FR", "London, Canada"], "auto", null, g);
         assert.strictEqual(split.role, "city");
         assert.deepEqual(split.unmatched, []);
@@ -289,5 +304,45 @@ describe("the gazetteer", () => {
         assert.deepEqual(byRegion.ambiguous, []);
         assert.closeTo(byRegion.lat[0] ?? 0, 33.66, 0.01);
         assert.closeTo(byRegion.lat[1] ?? 0, 32.78, 0.01);
+    });
+});
+
+describe("a consumer's own gazetteer through the session", () => {
+    it("takes the layer files in layout.set, copied like any option, and keeps them", async () => {
+        const session = await loaded("id,city,country\np1,Paris,France\n");
+        await session.layout.set("location-map", { options: { gazetteer: FIXTURE } });
+        assert.deepEqual(session.layout.options.gazetteer, FIXTURE);
+        assert.deepEqual(fetched, []);
+    });
+});
+
+describe("the @graphty/gazetteer package", () => {
+    it("places a city,country CSV from the installed package by default, offline", async () => {
+        const session = await loaded("id,city,country\np1,Paris,France\nlyon,Lyon,FR\n");
+        const { at, frame } = await place(session, { gazetteer: true });
+        assert.deepInclude(frame?.location, {
+            kind: "place",
+            role: "city",
+            attribution: [{ text: "GeoNames", url: "https://www.geonames.org/" }],
+        });
+        const paris = sceneOf(frame, 48.8534, 2.3488);
+        assert.closeTo(at("p1").x, paris.x, 1e-3);
+        assert.closeTo(at("p1").y, paris.y, 1e-3);
+        assert.deepEqual(fetched, []);
+    });
+
+    it("refuses with E_MISSING_PACKAGE naming the package when it is not installed", async () => {
+        vi.resetModules();
+        vi.doMock("@graphty/gazetteer", () => {
+            throw new Error("Cannot find package '@graphty/gazetteer'");
+        });
+        // A fresh copy of the module, so no layer the tests above loaded is kept.
+        const fresh = await import("../../../src/layout/locationMap/gazetteer");
+        const error = await fresh.loadGazetteer(true, "city").catch((e: unknown) => e);
+        assert.deepInclude(error, { name: "GraphtyError", code: "E_MISSING_PACKAGE" });
+        assert.deepInclude((error as { details: unknown }).details, {
+            package: "@graphty/gazetteer",
+            feature: "location-map-place-names",
+        });
     });
 });

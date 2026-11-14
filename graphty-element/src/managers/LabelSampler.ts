@@ -1,4 +1,6 @@
-import { type Camera, Matrix, type Scene, Vector3 } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { writableLane } from "../data/lane";
 import type { Node } from "../Node";

@@ -1,4 +1,5 @@
-import { Mesh, WebGPUEngine } from "@babylonjs/core";
+import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 /**
  * A WebGPU engine that comes back from a lost device.

@@ -1,4 +1,7 @@
-import { Color3, Mesh, Scene, StandardMaterial } from "@babylonjs/core";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { type FilledArrowOptions, FilledArrowRenderer } from "./FilledArrowRenderer";
 import { setUpQuietly } from "./LabelBatch";

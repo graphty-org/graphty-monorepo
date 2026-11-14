@@ -1,18 +1,16 @@
-import {
-    AbstractMesh,
-    type Camera,
-    Color3,
-    CreatePlaneVertexData,
-    DynamicTexture,
-    InstancedMesh,
-    Mesh,
-    MeshBuilder,
-    Scene,
-    StandardMaterial,
-    Texture,
-    TransformNode,
-    Vector3,
-} from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { CreatePlaneVertexData } from "@babylonjs/core/Meshes/Builders/planeBuilder.js";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";

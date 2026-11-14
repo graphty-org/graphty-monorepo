@@ -1,4 +1,5 @@
-import { Camera, Vector3 } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
 const inView = new Vector3();
 

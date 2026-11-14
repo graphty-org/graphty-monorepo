@@ -1,24 +1,18 @@
 // Installs Mesh.prototype.createInstance, which createModelInstance calls.
 import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import {
-    AbstractMesh,
-    type BaseTexture,
-    Color3,
-    Color4,
-    DynamicTexture,
-    type ICanvasGradient,
-    type ICanvasRenderingContext,
-    type InstancedMesh,
-    Material,
-    Matrix,
-    Mesh,
-    MeshBuilder,
-    Scene,
-    StandardMaterial,
-    TransformNode,
-    VertexBuffer,
-} from "@babylonjs/core";
+import type { BaseTexture, ICanvasGradient, ICanvasRenderingContext, InstancedMesh } from "@babylonjs/core";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Material } from "@babylonjs/core/Materials/material.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Matrix } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";

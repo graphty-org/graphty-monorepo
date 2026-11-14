@@ -86,7 +86,7 @@ function softwareOnlyFactory(
 const LAYOUT: AcceleratedWork = { capability: "forceAtlas2", nodeCount: 10_000 };
 
 describe("AccelerationController: sharing the renderer's device", () => {
-    it("takes a registration that throws as a no, and still asks the next one", () => {
+    it("takes a registration that throws as a no, and still asks the next one", async () => {
         const registry = new AcceleratorRegistry();
         const factory = (): Promise<null> => Promise.resolve(null);
         registry.register({
@@ -98,10 +98,10 @@ describe("AccelerationController: sharing the renderer's device", () => {
         });
         const controller = new AccelerationController({ registry });
 
-        assert.isFalse(controller.sharesDevice({}));
+        assert.isFalse(await controller.sharesDevice({}));
 
         registry.register({ name: "willing", factory, sharesDevice: () => true });
-        assert.isTrue(controller.sharesDevice({}));
+        assert.isTrue(await controller.sharesDevice({}));
     });
 });
 

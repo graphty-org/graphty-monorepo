@@ -1,4 +1,5 @@
-import type { Observable, Scene } from "@babylonjs/core";
+import type { Observable } from "@babylonjs/core/Misc/observable.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";

@@ -1,16 +1,14 @@
-import {
-    type AbstractEngine,
-    type AbstractMesh,
-    type InstancedMesh,
-    MaterialPluginBase,
-    type Mesh,
-    type Scene,
-    ShaderLanguage,
-    type StandardMaterial,
-    type SubMesh,
-    type UniformBuffer,
-    Vector4,
-} from "@babylonjs/core";
+import type { AbstractEngine } from "@babylonjs/core";
+import { MaterialPluginBase } from "@babylonjs/core/Materials/materialPluginBase.js";
+import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage.js";
+import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import type { UniformBuffer } from "@babylonjs/core/Materials/uniformBuffer.js";
+import { Vector4 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { HostShader } from "../session/shaders";
 import { MESH_ATTRIBUTES, meshInjection } from "../shaders/runtime/nodePrograms";

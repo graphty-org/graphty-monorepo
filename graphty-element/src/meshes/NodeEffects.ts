@@ -1,17 +1,15 @@
-import {
-    AbstractMesh,
-    Camera,
-    Color3,
-    type EffectLayer,
-    HighlightLayer,
-    InstancedMesh,
-    Mesh,
-    Scene,
-    StandardMaterial,
-    TransformNode,
-    Vector3,
-    VertexData,
-} from "@babylonjs/core";
+import type { EffectLayer } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { HighlightLayer } from "@babylonjs/core/Layers/highlightLayer.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import type { NodeStyleConfig } from "../config";
 import { GraphtyLogger, type Logger } from "../logging";

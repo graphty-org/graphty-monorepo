@@ -1,4 +1,5 @@
-import { Color3, type Scene } from "@babylonjs/core";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeStyleConfig } from "../config";

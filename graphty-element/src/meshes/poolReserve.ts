@@ -11,7 +11,7 @@
  * so that batch can hold up to the run's edge count unused, no more than doubling may; per-batch
  * counts if that shows up.
  */
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 type Pool = "lines" | "caps";
 

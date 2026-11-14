@@ -90,6 +90,9 @@ const REGISTRATION_MODULES = [
     "./src/layout/index.ts",
     // Registers encrypt-storage for the ./ai and ./credentials entry points (src/ai/keys/encryptStorage.ts).
     "./src/ai/keys/withEncryptStorage.ts",
+    // The Babylon.js engine extensions the element relies on (#6389). It exports nothing, so
+    // without this the library build drops it and Engine.captureGPUFrameTime goes missing.
+    "./src/managers/babylonEngineExtensions.ts",
 ];
 
 /**

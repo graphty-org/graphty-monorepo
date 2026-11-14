@@ -1,4 +1,8 @@
-import { type AbstractMesh, Camera, type Scene, TransformNode, Vector3 } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { FrameRoster } from "./FrameRoster";
 

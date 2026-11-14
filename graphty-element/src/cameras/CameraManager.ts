@@ -1,5 +1,7 @@
 // CameraManager.ts
-import { Camera, Scene, Vector3 } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import type { ViewInsets } from "../camera/types";
 import type { FitBounds, FitInsets } from "../config/GraphBehavior";

@@ -1,4 +1,7 @@
-import { type Camera, Frustum, Matrix, type Plane } from "@babylonjs/core";
+import type { Plane } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Frustum } from "@babylonjs/core/Maths/math.frustum.js";
+import { Matrix } from "@babylonjs/core/Maths/math.vector.js";
 
 /**
  * The camera's frustum planes for a batch's per-frame on-screen test, kept in one array and

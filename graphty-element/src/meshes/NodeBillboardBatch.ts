@@ -1,18 +1,14 @@
 // Installs Mesh.prototype.thinInstanceSetBuffer and its siblings. See EdgeLineBatch.
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import {
-    Buffer,
-    type Camera,
-    Constants,
-    type Matrix,
-    Mesh,
-    type Scene,
-    ShaderMaterial,
-    Vector2,
-    Vector3,
-    VertexData,
-} from "@babylonjs/core";
+import { Buffer } from "@babylonjs/core/Buffers/buffer.js";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { type Matrix, Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { motionOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";

@@ -6,7 +6,7 @@
  * @module ai/voice/xr
  */
 
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { XRInputHandler } from "../../cameras/XRInputHandler";
 import type { NodeId } from "../../catalog/types";

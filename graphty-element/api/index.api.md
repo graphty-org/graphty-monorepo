@@ -4,16 +4,17 @@
 
 ```ts
 
-import { AbstractEngine } from '@babylonjs/core';
-import { AbstractMesh } from '@babylonjs/core';
+import type { AbstractEngine } from '@babylonjs/core';
+import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh.js';
+import { AbstractMesh as AbstractMesh_2 } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
-import { ActionManager } from '@babylonjs/core';
+import type { ActionManager } from '@babylonjs/core/Actions/actionManager.js';
 import { AwsCredentials } from '@graphty/graph-io';
-import { BaseTexture } from '@babylonjs/core';
-import { BoundingBox } from '@babylonjs/core';
-import { BoundingInfo } from '@babylonjs/core';
-import { Camera } from '@babylonjs/core';
-import { Color3 } from '@babylonjs/core';
+import type { BaseTexture } from '@babylonjs/core';
+import type { BoundingBox } from '@babylonjs/core/Culling/boundingBox.js';
+import { BoundingInfo } from '@babylonjs/core/Culling/boundingInfo.js';
+import { Camera } from '@babylonjs/core/Cameras/camera.js';
+import { Color3 } from '@babylonjs/core/Maths/math.color.js';
 import { Column } from '@graphty/graph-format';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
@@ -33,9 +34,9 @@ import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { EdgeMask } from '@graphty/graph-format';
-import { Effect } from '@babylonjs/core';
-import { Engine } from '@babylonjs/core';
-import { EngineInstrumentation } from '@babylonjs/core';
+import type { Effect } from '@babylonjs/core/Materials/effect.js';
+import { Engine } from '@babylonjs/core/Engines/engine.js';
+import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineInstrumentation.js';
 import { ExpandRequest } from '@graphty/graph-io';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
@@ -45,7 +46,7 @@ import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
-import { GlowLayer } from '@babylonjs/core';
+import { GlowLayer } from '@babylonjs/core/Layers/glowLayer.js';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
@@ -57,7 +58,7 @@ import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
 import { GraphSource } from '@graphty/graph-io';
 import { ImportReport as ImportReport_2 } from '@graphty/graph-io';
-import { InstancedMesh } from '@babylonjs/core';
+import type { InstancedMesh } from '@babylonjs/core';
 import { JSON_LOSS } from '@graphty/graph-io';
 import { LayoutResult } from '@graphty/layout';
 import { LazySource } from '@graphty/graph-io';
@@ -68,24 +69,23 @@ import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import type { MapSourceId } from 'babylonjs-map';
-import { Matrix } from '@babylonjs/core';
-import { Mesh } from '@babylonjs/core';
+import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
+import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
-import { Observable } from '@babylonjs/core';
-import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
+import { Observable } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
-import { PerfCounter } from '@babylonjs/core';
-import { PhotoDome } from '@babylonjs/core';
-import { Plane } from '@babylonjs/core';
-import { PointerInfoPre } from '@babylonjs/core';
+import { PerfCounter } from '@babylonjs/core/Misc/perfCounter.js';
+import { PhotoDome } from '@babylonjs/core/Helpers/photoDome.js';
+import type { Plane } from '@babylonjs/core';
+import type { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { PropertyValues } from 'lit';
-import { Quaternion } from '@babylonjs/core';
+import { Quaternion } from '@babylonjs/core/Maths/math.vector.js';
 import { QueryLanguage } from '@graphty/graph-io';
-import { RawTexture } from '@babylonjs/core';
-import { Ray } from '@babylonjs/core';
+import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture.js';
+import { Ray } from '@babylonjs/core/Culling/ray.js';
 import { RecordBatch } from '@graphty/graph-io';
 import { Recording } from '@graphty/graph-io';
 import { recordingFrom } from '@graphty/graph-io';
@@ -94,8 +94,9 @@ import { ReplayFetch } from '@graphty/graph-io';
 import { replayFetch } from '@graphty/graph-io';
 import { ReplayOptions } from '@graphty/graph-io';
 import { RetryOptions } from '@graphty/graph-io';
-import { Scene } from '@babylonjs/core';
-import { SceneInstrumentation } from '@babylonjs/core';
+import { Scene } from '@babylonjs/core/scene.js';
+import { Scene as Scene_2 } from '@babylonjs/core';
+import { SceneInstrumentation } from '@babylonjs/core/Instrumentation/sceneInstrumentation.js';
 import { SOURCE_ISSUE } from '@graphty/graph-io';
 import { SourceContext } from '@graphty/graph-io';
 import { SourceCredentialSlot } from '@graphty/graph-io';
@@ -130,14 +131,14 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
-import { TransformNode } from '@babylonjs/core';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
-import { UniformBuffer } from '@babylonjs/core';
+import { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer.js';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
-import { Vector3 } from '@babylonjs/core';
-import { WebGPUEngine } from '@babylonjs/core';
-import { WebXRDefaultExperience } from '@babylonjs/core';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
+import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine.js';
+import type { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience.js';
 import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
@@ -3413,11 +3414,11 @@ export class Graphty extends LitElement {
     getMeshCache(): MeshCache;
     getNode(nodeId: string | number): Node_2 | undefined;
     getNodeCount(): number;
-    getNodeMesh(nodeId: string): AbstractMesh | null;
+    getNodeMesh(nodeId: string): AbstractMesh_2 | null;
     getNodes(): Node_2[];
     getPendingAiApprovals(): readonly AiApprovalRequest[];
     getPendingAiQuestions(): readonly AiQuestionRequest[];
-    getScene(): Scene;
+    getScene(): Scene_2;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;
     getStatsManager(): StatsManager;
@@ -4862,23 +4863,23 @@ export class InputManager implements Manager {
     init(): Promise<void>;
     isPointerDown(button?: MouseButton): boolean;
     // (undocumented)
-    readonly onKeyDown: Observable_2<KeyboardInfo>;
+    readonly onKeyDown: Observable<KeyboardInfo>;
     // (undocumented)
-    readonly onKeyUp: Observable_2<KeyboardInfo>;
+    readonly onKeyUp: Observable<KeyboardInfo>;
     // (undocumented)
-    readonly onPointerDown: Observable_2<PointerInfo>;
+    readonly onPointerDown: Observable<PointerInfo>;
     // (undocumented)
-    readonly onPointerMove: Observable_2<PointerInfo>;
+    readonly onPointerMove: Observable<PointerInfo>;
     // (undocumented)
-    readonly onPointerUp: Observable_2<PointerInfo>;
+    readonly onPointerUp: Observable<PointerInfo>;
     // (undocumented)
-    readonly onTouchEnd: Observable_2<number[]>;
+    readonly onTouchEnd: Observable<number[]>;
     // (undocumented)
-    readonly onTouchMove: Observable_2<TouchPoint[]>;
+    readonly onTouchMove: Observable<TouchPoint[]>;
     // (undocumented)
-    readonly onTouchStart: Observable_2<TouchPoint[]>;
+    readonly onTouchStart: Observable<TouchPoint[]>;
     // (undocumented)
-    readonly onWheel: Observable_2<WheelInfo>;
+    readonly onWheel: Observable<WheelInfo>;
     // @internal
     rebind(context: ManagerContext): void;
     requestPointerLock(): Promise<void>;

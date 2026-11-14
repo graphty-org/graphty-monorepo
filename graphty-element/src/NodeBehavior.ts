@@ -1,20 +1,14 @@
 // Installs scene.createPickingRay; see test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Culling/ray.js";
 
-import {
-    type ActionEvent,
-    ActionManager,
-    ExecuteCodeAction,
-    Matrix,
-    PointerEventTypes,
-    type PointerInfo,
-    type PointerInfoPre,
-    Quaternion,
-    Ray,
-    Scene,
-    TransformNode,
-    Vector3,
-} from "@babylonjs/core";
+import type { ActionEvent, PointerInfoPre } from "@babylonjs/core";
+import { ActionManager } from "@babylonjs/core/Actions/actionManager.js";
+import { ExecuteCodeAction } from "@babylonjs/core/Actions/directActions.js";
+import { Ray } from "@babylonjs/core/Culling/ray.core.js";
+import { PointerEventTypes, type PointerInfo } from "@babylonjs/core/Events/pointerEvents.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";

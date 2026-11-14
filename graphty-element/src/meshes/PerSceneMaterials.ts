@@ -1,4 +1,5 @@
-import type { Scene, ShaderMaterial } from "@babylonjs/core";
+import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /**
  * Called once per frame for one scene, with the shader materials that scene draws.

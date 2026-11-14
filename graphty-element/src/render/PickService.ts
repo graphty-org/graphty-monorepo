@@ -13,15 +13,12 @@
 // test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Culling/ray.js";
 
-import {
-    type AbstractMesh,
-    Matrix,
-    type PickingInfo,
-    Ray,
-    type Scene,
-    type TransformNode,
-    Vector3,
-} from "@babylonjs/core";
+import type { PickingInfo } from "@babylonjs/core";
+import { Ray } from "@babylonjs/core/Culling/ray.core.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { EdgeId } from "../catalog/types";
 import type { Edge } from "../Edge";

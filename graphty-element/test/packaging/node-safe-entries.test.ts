@@ -210,7 +210,7 @@ describe("the Node-safe entry points", () => {
         // Without this, a walker that silently resolved nothing would pass every case above.
         const reached = graphOf("index.ts").map((found) => found.specifier);
 
-        assert.include(reached, "@babylonjs/core");
+        assert.isTrue(reached.some((specifier) => specifier.startsWith("@babylonjs/core/")));
         assert.include(reached, "lit");
     });
 

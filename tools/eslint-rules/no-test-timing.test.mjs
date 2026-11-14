@@ -64,6 +64,11 @@ tester.run("no-test-timing", rule, {
         // Options that are no deadline, and timeouts of things that are not waits.
         "await screen.findByRole('button', { name: 'Go' });",
         "await locator.click({ force: true });",
+        // Playwright's default wait set to no deadline, or to the guard.
+        "page.setDefaultTimeout(0);",
+        "page.setDefaultTimeout(WAIT_GUARD_MS);",
+        "context.setDefaultNavigationTimeout(WAIT_GUARD_MS);",
+        "await page.locator('body').ariaSnapshot();",
         "configure({ asyncUtilTimeout: WAIT_GUARD_MS });",
         // A timeout option of the code under test is what the test checks.
         "const { notifier } = make({ timeoutMs: 300 });",
@@ -163,6 +168,14 @@ tester.run("no-test-timing", rule, {
         { code: "vi.setConfig({ testTimeout: 60000 });", errors: [timeout] },
         { code: "function f() { this.timeout(5000); }", errors: [timeout] },
         { code: "test.setTimeout(120000);", errors: [timeout] },
+        // A page-wide wait deadline, and a budget on an aria snapshot (#7622).
+        { code: "page.setDefaultTimeout(20_000);", errors: [deadline] },
+        { code: "context.setDefaultNavigationTimeout(30000);", errors: [deadline] },
+        {
+            code: "await page.locator('body').ariaSnapshot({ timeout: 5000 });",
+            output: "await page.locator('body').ariaSnapshot();",
+            errors: [waitBudget],
+        },
         // 4. Waits counted in animation frames (#2398, #2446, #2466).
         { code: "for (let i = 0; i < 3; i++) { await nextFrame(); }", errors: [frames] },
         // A frame count that bounds a condition wait is a deadline (#7241).

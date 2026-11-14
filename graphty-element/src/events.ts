@@ -94,6 +94,8 @@ export type GraphEvent =
     | LayoutWarningEvent
     | LimitsWarningEvent
     | BasemapStatusEvent
+    | RenderLostEvent
+    | RenderRestoredEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
@@ -509,6 +511,37 @@ export interface LimitsWarningEvent {
     code: GraphtyWarningCode;
     /** The code's parameters, as the code's documentation lists them. */
     params: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL
+ * context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser
+ * reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false
+ * meanwhile. The data, the session, the styles, the camera and the undo history are untouched.
+ *
+ * The element asks for the device back by itself, and `render-restored` follows when it is
+ * drawing again. Should the browser not give it back, `restartRenderer()` asks again.
+ * A code and facts, never a sentence.
+ * @since 3.53.0
+ */
+export interface RenderLostEvent {
+    type: "render-lost";
+    /** What happened: `E_RENDER_LOST`. */
+    code: "E_RENDER_LOST";
+    /** `renderer`: the renderer whose device was lost, `"webgl"` or `"webgpu"`. */
+    params: { readonly renderer: "webgl" | "webgpu" };
+}
+
+/**
+ * Emitted when the graph is drawn again after `render-lost`: the device came back, by itself or
+ * through `restartRenderer()`, and every buffer, texture and shader was rebuilt from the graph
+ * held in memory. `rendererStatus.drawing` is true again.
+ * @since 3.53.0
+ */
+export interface RenderRestoredEvent {
+    type: "render-restored";
+    /** The renderer drawing again, `"webgl"` or `"webgpu"`. */
+    renderer: "webgl" | "webgpu";
 }
 
 /**

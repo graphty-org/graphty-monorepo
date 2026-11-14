@@ -1157,6 +1157,15 @@ box framed while landings are owed, and the pinned node's per-frame read writes 
 from 169 ms to 86 ms at 1M + 1M and from 114 ms to 73 ms at 100k + 1M. Both are now GPU-bound, on the line draw plus
 the layout's own passes on the shared device.
 
+As built (cosmos-gap stage 119, correction): `RowTable`'s copied-landing flag stayed true across frames once a
+publish was owed, since an owed landing writes no lane row and so no repack cleared it. A lane write then settles
+first, the settle copies the owed landing again, and the write that asked for it moves the lane; the next repack
+copied the new rows into the CPU copy and sent none, so a layout switched to mid-run (ForceAtlas2 to circular) was
+never drawn and the texture rested on the old landing. The table now remembers the lane's `changes` at the copy
+(`copiedAt`) instead of a flag: a repack of exactly that lane sends nothing, a lane written since sends every row.
+Counted in `shared-device-drawn.test.ts` ("draws a layout switched to while a landing is owed on the card": the
+texture equals the CPU copy after the switch; worst difference 57.8 before the fix).
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,

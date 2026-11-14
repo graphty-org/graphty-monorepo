@@ -251,8 +251,12 @@ export class RowTable {
     private hiddenCount = 0;
     /** The widest half extent {@link RowTable.measure} has written since the last clear. */
     private widest = 0;
-    /** A landing was copied to the card since the last repack, which then sends no row of it. */
-    private copied = false;
+    /**
+     * The lane's `changes` when a landing was last copied to the card, or -1: a repack of exactly
+     * that lane sends no row, and a lane written since (a settle copies the owed landing again just
+     * before the write that asked for it) sends every row.
+     */
+    private copiedAt = -1;
     private twoD = false;
     private readonly laneRow = { x: 0, y: 0, z: 0 };
     private readonly stopFlush: () => void;
@@ -404,7 +408,7 @@ export class RowTable {
 
         device.queue.submit([encoder.finish()]);
         this.positions.clean();
-        this.copied = true;
+        this.copiedAt = this.lane().changes;
         // The rows are drawn somewhere new, whether or not the lane follows them this frame.
         this.moves++;
         this.copies++;
@@ -429,7 +433,7 @@ export class RowTable {
      * on the copied landing while the CPU copy held the settled rows.
      */
     dropCopy(): void {
-        this.copied = false;
+        this.copiedAt = -1;
     }
 
     /**
@@ -680,8 +684,8 @@ export class RowTable {
             this.twoD = twoD;
             this.laneChanges = lane.changes;
             this.moves++;
-            this.repack(lane.view(Math.min(this.rows, lane.count)), !this.copied);
-            this.copied = false;
+            this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes);
+            this.copiedAt = -1;
         }
 
         // Babylon gives a texture back as it was made after a lost context, so every row goes

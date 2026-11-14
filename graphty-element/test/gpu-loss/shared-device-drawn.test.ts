@@ -98,6 +98,22 @@ describe("the layout filling the row table on a shared device", () => {
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
     });
 
+    it("draws a layout switched to while a landing is owed on the card", async () => {
+        const graph = await running("batched");
+        await copied(graph);
+        await landed(graph);
+        const lane = graph.getDataManager()[WRITABLE_LANE];
+        const written = lane.changes;
+        await landed(graph);
+        await landed(graph);
+        assert.strictEqual(lane.changes - written, 0);
+
+        // the switch writes the owed publish (which copies that landing again), then its own rows
+        await graph.setLayout("circular");
+        await nextFrame();
+        assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+    });
+
     it("keeps a pinned node in the box it frames while a landing is owed on the card", async () => {
         const graph = await running("batched");
         await copied(graph);

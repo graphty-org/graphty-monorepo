@@ -14,9 +14,12 @@ import {
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
+import { GraphtyLogger, type Logger } from "../logging";
 import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR } from "../session/styles/channels";
 import type { MeshCache } from "./MeshCache";
 import { readColor } from "./readColor";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "effects"]);
 
 /** How far a glow reaches at strength 1: the blur width of the glow layer, in glow-map texels. */
 const GLOW_SPREAD = 2;
@@ -505,8 +508,13 @@ export class NodeEffects {
             try {
                 glowLayer.addMesh(renderedMesh, color);
                 this.writeStencilOnlyFor(renderedMesh);
-            } catch {
-                // Silently fail -- a node that does not glow is better than a broken repaint.
+            } catch (error) {
+                // A node that does not glow is better than a broken repaint, but the failure is
+                // reported and its strength is not left behind for a mesh the layer never took.
+                this.glowStrengths(scene).delete(renderedMesh);
+                logger.error("Glow not applied", error instanceof Error ? error : new Error(String(error)), {
+                    mesh: renderedMesh.name,
+                });
             }
         } else {
             // NO LAYER IS CREATED HERE. Asking a node not to glow must not cost a full-screen

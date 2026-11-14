@@ -356,7 +356,7 @@ const kamadaKawai: LayoutImplementationSpec = {
         "Choose it for a small graph whose drawn distances should match its graph distances. It " +
         "solves over every pair of nodes, so it is slow well before the other force engines are.",
     code: "implementation.distance-faithful",
-    options: engineOptions(KamadaKawaiLayout.zodOptionsSchema),
+    options: engineOptions(KamadaKawaiLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: KamadaKawaiLayout.honoursWeights,
     scoped: KamadaKawaiLayout.scoped,
 };

@@ -1,6 +1,5 @@
 import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { TwoDCameraController, type TwoDCameraControlsConfigType } from "../../src/cameras/TwoDCameraController";
 
@@ -112,6 +111,29 @@ describe("TwoDCameraController", () => {
                 controller.camera.minZ,
                 "the text is past the near plane",
             );
+        });
+    });
+
+    // The damping arithmetic only; real keys and the render loop are in test/browser/2d-camera-controls.test.ts
+    describe("applyInertia", () => {
+        test("moves by the velocity, then damps the pan velocity by panDamping", () => {
+            const { x } = controller.camera.position;
+            controller.velocity.x = 1;
+
+            controller.applyInertia();
+
+            assert.notStrictEqual(controller.camera.position.x, x, "the camera moved");
+            assert.closeTo(controller.velocity.x, 0.85, 1e-9, "one frame of panDamping");
+        });
+
+        test("damps the turn velocity by rotateDamping each frame", () => {
+            controller.velocity.rotate = 0.1;
+
+            for (let frame = 0; frame < 5; frame++) {
+                controller.applyInertia();
+            }
+
+            assert.closeTo(controller.velocity.rotate, 0.1 * 0.85 ** 5, 1e-9, "five frames of rotateDamping");
         });
     });
 });

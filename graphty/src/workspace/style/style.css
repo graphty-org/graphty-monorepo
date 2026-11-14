@@ -158,12 +158,11 @@
     line-height: 16px;
 }
 
-/* The Node and Edge tabs, the other kind's line and the kind's switch, on the tab's gutter. */
+/* The Node and Edge tabs and the kind's switch, on the tab's gutter. */
 .ws-style-tabs > [role="tablist"] {
     padding: 8px 8px 4px var(--ws-gutter);
 }
 
-.ws-other-line,
 .ws-kind-switch {
     padding: 2px 8px 2px var(--ws-gutter);
 }

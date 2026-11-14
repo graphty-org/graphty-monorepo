@@ -92,10 +92,12 @@ import { appendFile, cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/
 import { createServer } from "node:http";
 import { connect, createServer as netServer } from "node:net";
 import { homedir } from "node:os";
-import { basename, dirname, extname, join, normalize, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { PNG } from "pngjs";
+
+import { profileOf, sweepProfiles } from "./profiles.mjs";
 
 import {
     activeInView,
@@ -142,6 +144,7 @@ import {
 } from "./tier6.mjs";
 import { checkSession } from "./endstate.mjs";
 import { find, refusalFacts, refusedName, resolvedLine, ROLES, TIP } from "./match.mjs";
+import { serveDist } from "./serve-dist.mjs";
 import { CORE_BY_TIER, pathSteps } from "./steps.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -155,14 +158,25 @@ const gate = join(here, "with-browser.sh");
 // The tier 1 workspace is reached with ?next until the Switch-over makes it the default (graphty/src/App.tsx)
 const TIER1 = "/?next";
 // REAL_VIEWPORT=<w>x<h> sets the window for a screenshot audit at other sizes; studies keep 1440 x 900
-const [vw, vh] = (process.env.REAL_VIEWPORT || "1440x900").split("x").map(Number);
+const askedViewport = process.env.REAL_VIEWPORT || "1440x900";
+if (!/^[1-9]\d*x[1-9]\d*$/.test(askedViewport)) {
+    console.error(`REAL_VIEWPORT must be <width>x<height> in pixels, like 1440x900, not "${askedViewport}"`);
+    process.exit(2);
+}
+const [vw, vh] = askedViewport.split("x").map(Number);
 const VIEWPORT = { width: vw, height: vh };
 // A session nobody steps for this long is closed, so one whose agent was stopped before --end frees
 // its browser slot soon (two stopped agents held slots for 45 minutes in round 1, 2026-10-06).
-// REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds).
+// REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds): more than 0 and under 24 hours,
+// since a setTimeout past 2^31 ms fires at once.
 const MAX_IDLE_MS = 24 * 60 * 60 * 1000;
-const askedIdleMs = Number(process.env.REAL_IDLE_SECONDS) * 1000;
-const IDLE_MS = askedIdleMs > 0 && askedIdleMs < MAX_IDLE_MS ? askedIdleMs : 15 * 60 * 1000;
+const askedIdle = process.env.REAL_IDLE_SECONDS;
+const askedIdleMs = askedIdle ? Number(askedIdle) * 1000 : null;
+if (askedIdleMs !== null && !(Number.isFinite(askedIdleMs) && askedIdleMs > 0 && askedIdleMs < MAX_IDLE_MS)) {
+    console.error(`REAL_IDLE_SECONDS must be a number of seconds above 0 and under 86400, not "${askedIdle}"`);
+    process.exit(2);
+}
+const IDLE_MS = askedIdleMs ?? 15 * 60 * 1000;
 
 // GPU rendering. Headless Chromium draws WebGL with SwiftShader, a software rasterizer: each idle
 // graphty page burned 550-690% CPU, so four study browsers loaded the machine past 47 and every step
@@ -250,6 +264,8 @@ const briefed = (dir) => {
 // git ignores; only a walk's report.md belongs in the studio's files. On 2026-10-21 golden held
 // 83,000 walk screenshots (9.9 GB in Git LFS) because walks wrote them beside their reports.
 const WALKS = join(MAIN, "tmp/design-studio");
+// the browser profiles of sessions and warm browsers, under the repo tmp/ like every temporary file
+const PROFILES = join(WALKS, "profiles");
 // a studio folder under rounds/ as its place under WALKS (tier 1's rounds/ has no tier folder), or null
 const walksOf = (dir) => {
     const m = under(dir, STUDIO) && dir.slice(STUDIO.length + 1).match(/^(?:(tier\d+)\/)?rounds\/(.+)$/);
@@ -1289,22 +1305,6 @@ async function socketGone(dir) {
 }
 
 // ---------- the session process: one browser, one page, a socket ----------
-const TYPES = {
-    ".html": "text/html",
-    ".js": "text/javascript",
-    ".mjs": "text/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".svg": "image/svg+xml",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".wasm": "application/wasm",
-    ".woff": "font/woff",
-    ".woff2": "font/woff2",
-    ".map": "application/json",
-    ".gml": "text/plain",
-    ".txt": "text/plain",
-};
 async function serve(dir, sr) {
     const { chromium } = await import(join(repo, "node_modules/playwright/index.mjs"));
     if (!existsSync(join(dist, "index.html")))
@@ -1316,33 +1316,7 @@ async function serve(dir, sr) {
         if (!key) throw new Error(`a tier 6 session needs GOOGLE_API_KEY in ${ENV_FILE}`);
         delete process.env.GOOGLE_API_KEY; // the browser inherits this process's environment
     }
-    // the app at / (so /samples/*.gml resolve); any path that is not a file is the app's page
-    const http = createServer(async (req, res) => {
-        const site = siteFile(tier, new URL(req.url, "http://x").pathname);
-        if (site) return res.writeHead(200, { "content-type": "application/json" }).end(site);
-        const f = join(
-            dist,
-            normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^[/\\]+/, ""),
-        );
-        let body,
-            type = TYPES[extname(f)] ?? "application/octet-stream";
-        if (!f.startsWith(dist)) return res.writeHead(403).end();
-        try {
-            body = await readFile(f);
-        } catch {
-            // the deploy writes site.json beside the app (graphty/sites/<channel>.json); a local
-            // build has none, and the app's 404 for it ended every setup with SETUP FAILED (tier 4)
-            if (f === join(dist, "site.json"))
-                body = await readFile(join(repo, "graphty/sites/production.json")).catch(() => null);
-            if (body) return res.writeHead(200, { "content-type": "application/json" }).end(body);
-            if (extname(f)) return res.writeHead(404).end();
-            // a rebuild in progress removes the page for a moment; that must not kill the session
-            body = await readFile(join(dist, "index.html")).catch(() => null);
-            if (!body) return res.writeHead(503).end();
-            type = "text/html";
-        }
-        res.writeHead(200, { "content-type": type }).end(body);
-    });
+    const http = createServer(serveDist(dist, { repo, site: (pathname) => siteFile(tier, pathname) }));
     await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
     const origin = `http://127.0.0.1:${http.address().port}`;
     // A browser profile on disk, as a person's browser has, made empty for each session. A new
@@ -1350,12 +1324,10 @@ async function serve(dir, sr) {
     // memory, which the app reads as a private window, so every session showed a false "This looks
     // like a private window" notice (round 1's tool dry run 2). Outside the session folder, so the
     // profile is never copied to the round's folder.
-    // a warm browser (dir null) has no session folder yet: its profile is named by its process
-    const profile = join(
-        homedir(),
-        ".cache/graphty-real-profiles",
-        dir ? basename(sockOf(dir), ".sock") : `warm-${process.pid}`,
-    );
+    // a warm browser (dir null) has no session folder yet. Every profile ends in its owner's pid, so
+    // one left by a killed or crashed browser (no close ran) is removed by the next one to start.
+    sweepProfiles(PROFILES);
+    const profile = profileOf(PROFILES, dir ? basename(sockOf(dir), ".sock") : "warm");
     await rm(profile, { recursive: true, force: true });
     const context = await chromium.launchPersistentContext(profile, {
         ...LAUNCH,
@@ -1443,7 +1415,7 @@ async function serve(dir, sr) {
     };
     const touch = () => {
         clearTimeout(idle);
-        // a setTimeout past 2^31 ms fires at once, so an out-of-range REAL_IDLE_SECONDS is ignored
+        // a claimer that set no REAL_IDLE_SECONDS sends 0 (its own value was checked when it started)
         const ms = s.idleMs > 0 && s.idleMs < MAX_IDLE_MS ? s.idleMs : IDLE_MS;
         idle = setTimeout(() => {
             console.log(`no step for ${ms / 1000} seconds; closing the session`);
@@ -1581,7 +1553,7 @@ async function claimWarm(dir, sr, keys) {
             sr: !!sr,
             keys: !!keys,
             missFails: process.env.REAL_MISS_FAILS,
-            idleMs: (Number(process.env.REAL_IDLE_SECONDS) || 0) * 1000,
+            idleMs: askedIdleMs ?? 0,
         }).catch(() => null);
         if (r?.ok) return true;
     }
@@ -2718,12 +2690,14 @@ function divergence(rec, now) {
 // look like, so the time to the first styled graph is read from the screenshots' own clocks
 // (score.mjs). Never shown to the participant.
 async function recordStyles(s, file) {
-    const tree = await s.page.evaluate(styleTree, false).catch(() => null);
-    const content = styleContent(tree);
+    // a throw from the page is recorded as an error, never as "no graph open" (null from styleTree)
+    const tree = await s.page.evaluate(styleTree, false).catch((e) => ({ error: e.message.split("\n")[0] }));
+    const content = tree?.error ? null : styleContent(tree);
     const line = {
         shot: basename(file),
         at: new Date().toISOString(),
         graph: content !== null,
+        ...(tree?.error && { error: tree.error }),
         look: content && createHash("sha1").update(content).digest("hex").slice(0, 12),
         colors: await s.page.evaluate(nodeColors).catch(() => null),
     };

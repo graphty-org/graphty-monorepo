@@ -83,7 +83,7 @@ describe("AlignmentMatrix", () => {
 
         expect(onChange).toHaveBeenCalledTimes(1);
         expect(onChange.mock.calls[0][0]).toBe("bottom-center");
-        expect(onChange.mock.calls[0][1]).toBeDefined();
+        expect(onChange.mock.calls[0][1].type).toBe("change");
         expect(checkedValue()).toBe("bottom-center");
     });
 

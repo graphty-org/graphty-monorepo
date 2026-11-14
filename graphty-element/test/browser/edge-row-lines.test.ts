@@ -197,6 +197,23 @@ describe("an edge row with no Edge", () => {
         assert.deepEqual(lines.rows(), []);
     });
 
+    it("keeps no object per row line, through a repaint and a freeze", async () => {
+        const element = await loaded("batched", []);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        const paint = { meshKey: "plain", style: { line: { color: "#ff0000" } } };
+        const [a, b, c] = [rowOf(element, 0), rowOf(element, 1), rowOf(element, 2)];
+        assert.isTrue(lines.paintRow(0, a, b, paint));
+        assert.isTrue(lines.paintRow(7, b, c, paint));
+        assert.isTrue(lines.paintRow(7, a, b, paint), "a repaint replaces the row's line");
+        assert.equal(lines.count, 2);
+        // A row line is kept in columns by row, not as an object each (43 B an edge at 1M).
+        assert.equal(lines.rowObjects, 0);
+        lines.rowsMoved(null, Object.assign(new Array<number>(8).fill(INVALID_INDEX), { 7: 1 }));
+        assert.deepEqual(lines.rows(), [1]);
+        assert.equal(lines.rowObjects, 0);
+    });
+
     it("has no row lines on the objects path", async () => {
         const element = await loaded("objects", [{ src: 0, dst: 1 }]);
         assert.isNull(element.graph.getEdgeRowLines());
@@ -346,8 +363,9 @@ async function settled(element: Graphty): Promise<void> {
     await element.waitForStableFrame();
 }
 
-// A row line has no mask of its own: a row the filter hides or the selection holds is drawn by its `Edge`, built for
-// it, and so is every row once lines fade by age.
+// A row the filter hides keeps its row line, hidden (`EdgeRowLines.setHidden`), with no `Edge` built: a time window
+// that hides and shows rows touches no object (#6025, #6040). A row the selection holds is drawn by its `Edge`, built
+// for it, and so is every row once lines fade by age.
 describe("a masked edge stored with no Edge", () => {
     const TWO = [
         { src: 0, dst: 1 },
@@ -359,28 +377,46 @@ describe("a masked edge stored with no Edge", () => {
         await settled(element);
     };
 
-    it("builds the Edge of a row the filter hides, drawn hidden", async () => {
+    it("hides the row line of a row the filter hides, building no Edge, and shows it again", async () => {
         const element = await lazyLoaded(TWO);
         const lines = element.graph.getEdgeRowLines();
         assert.isNotNull(lines);
         assert.equal(lines.count, 2);
+        const shown = await readCanvas(element.graph);
         await hideAll(element);
         assert.isFalse(element.graph.getSession().visibility.isVisible("0"), "the filter hides the edge");
-        assert.equal(lines.count, 0, "no row line draws a hidden row");
-        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
-        const edge = edgeBetween(element.graph, 0, 1);
-        assert.isDefined(edge);
-        assert.isFalse(edge.isRenderVisible(), "its Edge is hidden");
+        assert.equal(lines.count, 2, "each row keeps its line");
+        assert.isTrue(lines.isHidden(0) && lines.isHidden(1), "each line is hidden");
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0, "no Edge is built");
+        await element.graph.getSession().visibility.set(null);
+        await settled(element);
+        assert.isFalse(lines.isHidden(0) || lines.isHidden(1), "each line is shown again");
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0, "still no Edge");
+        assert.equal(overBar(shown, await readCanvas(element.graph)), 0, "the same picture as before the filter");
     });
 
-    it("builds the Edge of a row stored while the filter hides it, drawn hidden", async () => {
+    it("hides the row line of a row stored while the filter hides it, building no Edge", async () => {
         const element = await lazyLoaded(TWO, true, { before: hideAll });
         const lines = element.graph.getEdgeRowLines();
         assert.isNotNull(lines);
-        assert.equal(lines.count, 0, "no row line draws a hidden row");
-        const edge = edgeBetween(element.graph, 1, 2);
-        assert.isDefined(edge);
-        assert.isFalse(edge.isRenderVisible(), "its Edge is hidden");
+        assert.equal(lines.count, 2, "each row has its line");
+        assert.isTrue(lines.isHidden(0) && lines.isHidden(1), "each line is hidden");
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0, "no Edge is built");
+    });
+
+    it("draws nothing for a hidden row line", async () => {
+        const bare = await lazyLoaded([]);
+        const empty = await readCanvas(bare.graph);
+        document.body.replaceChildren();
+
+        const element = await lazyLoaded(TWO);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.isAbove(overBar(empty, await readCanvas(element.graph)), 0, "the lines show against no line");
+        lines.setHidden(0, true);
+        lines.setHidden(1, true);
+        await element.waitForStableFrame();
+        assert.equal(overBar(empty, await readCanvas(element.graph)), 0, "the picture of no line");
     });
 
     it("builds the Edge of a selected row, drawn selected", async () => {

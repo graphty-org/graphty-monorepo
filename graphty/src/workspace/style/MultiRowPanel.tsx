@@ -5,7 +5,8 @@ import { Stack } from "@mantine/core";
 import React, { useState } from "react";
 
 import { fileStylesOn } from "../features";
-import { count, findTreeRow, type FoundRow } from "../graph-place/rows";
+import { findTreeRow, type FoundRow } from "../graph-place/rows";
+import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { LayerSequence, LayerValues } from "./BulkBinding";
 import { writeKind } from "./cards";

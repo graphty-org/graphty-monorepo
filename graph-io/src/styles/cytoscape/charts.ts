@@ -13,6 +13,7 @@
 
 import { itemAt } from "../../common/text.js";
 import { DIALOG_LINE_HEIGHT, dialogWidth } from "../../formats/gexf/dialog-metrics.js";
+import { hexChannels } from "../canon/color.js";
 import { num6 } from "../canon/number.js";
 import type { StyleColumn, StyleValue } from "../types.js";
 import { colorSchemeColors } from "./color-schemes.js";
@@ -510,8 +511,7 @@ const RANGE_HEADROOM = 0.1;
  * @returns the color
  */
 function mix(a: string, b: string, t: number): string {
-    const rgb = (c: string): number[] => [1, 3, 5].map((k) => Number.parseInt(c.slice(k, k + 2), 16));
-    const [x, y] = [rgb(a), rgb(b)];
+    const [x, y] = [hexChannels(a), hexChannels(b)];
     if ([...x, ...y].some((v) => !Number.isFinite(v))) {
         return a;
     }
@@ -581,6 +581,13 @@ function plotSize(
     const inset = CHART_INSET + (kind === "HeatMapChart" ? HEAT_MAP_INSET : PLOT_INSET);
     return { chartSize: num6(Math.max(0, box.disc - inset) / box.side) };
 }
+
+/**
+ * The plot background Cytoscape fills under a heat map's cells when it draws an axis (`cy_showRangeAxis` or
+ * `cy_showDomainAxis`; without one the plot is unfilled): #e8eae8 at 128/255 (measured from Cytoscape 3.10.5's SVG
+ * export of images-charts-p5 and -p7, `fill-opacity="0.501960813999176"`).
+ */
+const HEAT_MAP_BACKGROUND = { chartBackgroundColor: "#e8eae8", chartBackgroundOpacity: num6(128 / 255) };
 
 /**
  * The outline Cytoscape draws round each bar and box.
@@ -722,7 +729,9 @@ function plotChart(
         case "HeatMapChart": {
             // one cell per value, top to bottom; laid left to right, the last value first
             const cells = horizontal ? [...finite].reverse() : finite;
-            Object.assign(out, {
+            // the plot is filled only when an axis is drawn round it
+            const axes = options.cy_showRangeAxis === true || options.cy_showDomainAxis === true;
+            Object.assign(out, axes ? HEAT_MAP_BACKGROUND : {}, {
                 chartKind: "cells",
                 chartValues: cells.join(" "),
                 chartColors: cells.map((v) => scaleColor(colors, v, range)).join(" "),

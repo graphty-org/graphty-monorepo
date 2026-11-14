@@ -1,5 +1,9 @@
 # How Changesets Generates CHANGELOG.md
 
+> **Superseded.** This is research from before the release tool was chosen. Releases use Nx Release (`nx release`,
+> configured in `nx.json`); neither Changesets nor semantic-release is used. How releases work today:
+> `.github/workflows/README.md`.
+
 ## Overview
 
 Changesets automatically generates and maintains CHANGELOG.md files for each package when you run `npx changeset version`. It aggregates all changeset files and formats them into a proper changelog.

@@ -76,7 +76,7 @@ describe("the Style panel", () => {
     it("edits Everything's selection like any layer's", async () => {
         await openScene();
         await clickRow("Everything");
-        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
         const done = await screen.findByRole("button", { name: "Done" });
         assert.isNotNull(done.closest(".sel-ws"), "it opens in the selection editor");
         assert.isNotNull(screen.queryByRole("button", { name: "Value" }), "a step can be added");
@@ -109,9 +109,8 @@ describe("the Style panel", () => {
         });
         await session.styles.settled();
         await clickRow("Plain");
-        const row = await screen.findByRole("treeitem", { name: "Which nodes" });
-        // At rest the layer's row and the canvas key say its count; the outline does not say it again.
-        assert.strictEqual(row.getAttribute("aria-label"), "Which nodes");
+        // At rest the layer's row and the canvas key say its count; the Style Nodes... line does not.
+        const row = await screen.findByRole("button", { name: "Style Nodes..." });
         assert.isNull(row.querySelector(".sel-count"), "no count at rest");
         assert.notInclude(row.textContent ?? "", "add a condition");
         assert.isNull(document.querySelector("[data-warn]"), "no warning outline");

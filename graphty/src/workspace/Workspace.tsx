@@ -145,7 +145,13 @@ export function Workspace({
                       pinnedStyle: PINNED_LOOK,
                   });
         if (opening === null) {
-            void defaults.catch(() => undefined);
+            // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
+            void defaults.catch((error: unknown) => {
+                logger.error(
+                    "the app's starting project settings were refused",
+                    error instanceof Error ? error : undefined,
+                );
+            });
             return;
         }
         store.set({ opening: null });

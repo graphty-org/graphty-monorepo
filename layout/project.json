@@ -8,6 +8,12 @@
         "build": {
             "executor": "nx:run-commands",
             "outputs": ["{projectRoot}/dist"],
+            "inputs": [
+                "buildSources",
+                "^buildSources",
+                { "runtime": "node --version" },
+                "{workspaceRoot}/tools/build-bundle.mjs"
+            ],
             "options": {
                 "command": "npm run build:all",
                 "cwd": "layout"
@@ -56,14 +62,6 @@
                 "cwd": "layout"
             },
             "dependsOn": ["build"]
-        },
-        "semantic-release": {
-            "executor": "nx:run-commands",
-            "dependsOn": ["build"],
-            "options": {
-                "command": "semantic-release",
-                "cwd": "layout"
-            }
         },
         "build:gh-pages": {
             "executor": "nx:run-commands",

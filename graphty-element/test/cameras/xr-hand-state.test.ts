@@ -7,8 +7,7 @@
  * source each hand came from and when the gesture state was reset.
  */
 import { NullEngine, Scene, TransformNode, Vector3, type WebXRDefaultExperience } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { PivotController } from "../../src/cameras/PivotController";
 import { twoHandGestureDelta } from "../../src/cameras/twoHandGesture";
@@ -104,8 +103,8 @@ describe("XRInputHandler hand state", () => {
             },
             input: {
                 controllers: sources,
-                onControllerAddedObservable: { add: () => undefined },
-                onControllerRemovedObservable: { add: () => undefined },
+                onControllerAddedObservable: { add: () => undefined, remove: () => undefined },
+                onControllerRemovedObservable: { add: () => undefined, remove: () => undefined },
             },
         } as unknown as WebXRDefaultExperience;
         handler = new XRInputHandler(pivot, xr);

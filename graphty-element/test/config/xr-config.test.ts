@@ -1,7 +1,7 @@
-import { assert } from "chai";
-import { describe, test } from "vitest";
+import { assert, describe, test } from "vitest";
 
 import { xrConfigSchema } from "../../src/config/xr-config-schema";
+import { defaultXRConfig } from "../../src/config/XRConfig";
 
 describe("XR Configuration Schema", () => {
     describe("Valid configurations", () => {
@@ -59,6 +59,9 @@ describe("XR Configuration Schema", () => {
             assert.equal(parsed.ui.position, "bottom-right");
             assert.equal(parsed.ui.unavailableMessageDuration, 5000);
             assert.equal(parsed.ui.showAvailabilityWarning, false);
+            assert.equal(parsed.ui.vrLabel, "VR");
+            assert.equal(parsed.ui.arLabel, "AR");
+            assert.equal(parsed.ui.unavailableLabel, "VR / AR NOT AVAILABLE");
             assert.equal(parsed.vr.enabled, true);
             assert.equal(parsed.vr.referenceSpaceType, "local-floor");
             assert.equal(parsed.ar.enabled, true);
@@ -158,6 +161,13 @@ describe("XR Configuration Schema", () => {
                 const result = xrConfigSchema.safeParse(config);
                 assert.isTrue(result.success, `Type ${type} should be valid`);
             });
+        });
+    });
+
+    describe("Defaults", () => {
+        test("are the ones the element uses: XR off, and the schema and defaultXRConfig agree", () => {
+            assert.deepEqual(xrConfigSchema.parse({}), defaultXRConfig);
+            assert.isFalse(defaultXRConfig.enabled);
         });
     });
 

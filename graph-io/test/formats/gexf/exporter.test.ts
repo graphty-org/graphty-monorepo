@@ -483,6 +483,14 @@ describe("gexfExporter: check() loss notes (design 8.5)", () => {
         expect(result.snapshot.nodes.typed("spells", "list")?.sliceOf(0)).toHaveLength(2);
     });
 
+    it("checks 1.2 list separators in record items without throwing (a record read from JSON has no prototype)", () => {
+        const builder = build();
+        const records = builder.declareNodeColumn({ name: "records", dtype: "list", itemDtype: "json" });
+        builder.setNodeValue(records, 0, [Object.assign(Object.create(null) as object, { b: "x|y" })]);
+        const notes = gexfExporter.check(builder.freeze(), { version: "1.2" });
+        expect(notes.find((n) => n.code === GEXF_LOSS.LIST_SEPARATOR)).toMatchObject({ column: "records", count: 1 });
+    });
+
     it("reports a 1.2 export of date and dateTime columns and writes them as doubles", async () => {
         const builder = build();
         const when = builder.declareNodeColumn({

@@ -173,7 +173,7 @@ function parseHex(text: string): Rgba | null {
  * @returns The colour, or null when the value is not one.
  */
 export function asColorValue(value: unknown): ColorValue | null {
-    if (typeof value !== "object" || value === null || !("hex" in value)) {
+    if (typeof value !== "object" || value === null || !("hex" in value) || typeof value.hex !== "string") {
         return null;
     }
 
@@ -210,15 +210,9 @@ export function toColorValue(value: string | Rgba | null | undefined): ColorValu
         return fromComponents(direct);
     }
 
-    try {
-        const normalised = colorToHex(value);
+    const normalised = colorToHex(value);
 
-        return normalised === undefined ? null : toColorValue(normalised);
-    } catch {
-        // colorjs.io throws on a string it cannot parse. A colour nobody can read is a value
-        // this function answers for, not a frame it takes down.
-        return null;
-    }
+    return normalised === undefined ? null : toColorValue(normalised);
 }
 
 /**
@@ -535,6 +529,8 @@ export interface ChannelValues {
     "node.chartLineWidth": number;
     "node.chartBorderColor": ColorValue;
     "node.chartBorderWidth": number;
+    "node.chartBackgroundColor": ColorValue;
+    "node.chartBackgroundOpacity": number;
     "node.model": string;
     "node.modelSourceUp": NodeModelUpValue;
     "node.modelTurn": number;
@@ -609,6 +605,7 @@ export interface ChannelValues {
     "edge.arrowHeadGap": number;
     "edge.arrowHeadStack": string;
     "edge.arrowHeadColor": ColorValue;
+    "edge.arrowHeadFillColor": ColorValue;
     "edge.arrowHeadOpacity": number;
     "edge.arrowHeadImage": string;
     "edge.arrowHeadText": string;
@@ -632,6 +629,7 @@ export interface ChannelValues {
     "edge.arrowTailGap": number;
     "edge.arrowTailStack": string;
     "edge.arrowTailColor": ColorValue;
+    "edge.arrowTailFillColor": ColorValue;
     "edge.arrowTailOpacity": number;
     "edge.arrowTailImage": string;
     "edge.arrowTailText": string;
@@ -653,6 +651,7 @@ export interface ChannelValues {
     "edge.arrowMiddleHeadOutlineWidth": number;
     "edge.arrowMiddleHeadPosition": number;
     "edge.arrowMiddleHeadColor": ColorValue;
+    "edge.arrowMiddleHeadFillColor": ColorValue;
     "edge.arrowMiddleHeadOpacity": number;
     "edge.arrowMiddleHeadImage": string;
     "edge.arrowMiddleTail": ArrowValue;
@@ -662,6 +661,7 @@ export interface ChannelValues {
     "edge.arrowMiddleTailOutlineWidth": number;
     "edge.arrowMiddleTailPosition": number;
     "edge.arrowMiddleTailColor": ColorValue;
+    "edge.arrowMiddleTailFillColor": ColorValue;
     "edge.arrowMiddleTailOpacity": number;
     "edge.arrowMiddleTailImage": string;
     "edge.animationSpeed": number;
@@ -753,6 +753,7 @@ export type ColorChannel =
     | "node.overlayColor"
     | "node.glyphColor"
     | "node.chartBorderColor"
+    | "node.chartBackgroundColor"
     | "node.shapeLineHaloColor"
     | "node.labelOutline"
     | "node.labelBorder"
@@ -768,6 +769,10 @@ export type ColorChannel =
     | "edge.arrowTailTextBackground"
     | "edge.arrowMiddleHeadColor"
     | "edge.arrowMiddleTailColor"
+    | "edge.arrowHeadFillColor"
+    | "edge.arrowTailFillColor"
+    | "edge.arrowMiddleHeadFillColor"
+    | "edge.arrowMiddleTailFillColor"
     | "edge.outlineColor"
     | "edge.underlayColor"
     | "edge.overlayColor"
@@ -1150,7 +1155,8 @@ const NODE_CHART_CAVEAT =
     "centered on the node or moved by `node.chartOffsetX` / `-Y` (in the units of `node.size`, y down); the values run from `node.chartMin` to `node.chartMax` bottom to top (left to right with " +
     "`node.chartHorizontal`), the categories along the other side after `node.chartMargin` at each end and " +
     "`node.chartGap` between them, both shares of that side. `node.chartLineWidth` is a line's and a " +
-    "whisker's width, `node.chartBorderWidth` and `node.chartBorderColor` a bar's and a box's outline.";
+    "whisker's width, `node.chartBorderWidth` and `node.chartBorderColor` a bar's and a box's outline, and " +
+    "`node.chartBackgroundColor` at `node.chartBackgroundOpacity` fills the plot box under the chart (unset, none).";
 
 const NODE_PIE_CAVEAT =
     "A pie chart over the node's face: `node.pieColors` are CSS colors separated by spaces, one slice " +
@@ -1221,7 +1227,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Gap" | "Stack" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Gap" | "Stack" | "Color" | "FillColor" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -1350,6 +1356,18 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             follows: "edge.color",
             stylePath: `arrow${end}.color`,
             renderable: true,
+        },
+        {
+            ...id("FillColor"),
+            plainName: `Arrow ${end} Fill Color`,
+            shortName: `${end} fill color`,
+            group: "arrows",
+            accepts: "color",
+            stylePath: `arrow${end}.fillColor`,
+            renderable: true,
+            caveat:
+                "The color an open cap's inside is filled with, inside its outline, which keeps the cap's color. " +
+                "Unset, the inside is empty. Only open caps draw it.",
         },
         {
             ...id("Opacity"),
@@ -1509,7 +1527,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The six channels of a cap drawn part-way along the line: `edge.arrowMiddleHead`, `edge.arrowMiddleHeadSize` and so on. */
 type ArrowMidChannel<End extends "MiddleHead" | "MiddleTail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Color" | "Opacity" | "Image"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Color" | "FillColor" | "Opacity" | "Image"}`;
 
 /**
  * The channels of a cap drawn part-way along the line, pointing toward the target (`MiddleHead`) or the source
@@ -3596,6 +3614,31 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "number",
         min: 0,
         stylePath: "chart.borderWidth",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartBackgroundColor": {
+        channel: "node.chartBackgroundColor",
+        target: "node",
+        plainName: "Node Chart Background Color",
+        shortName: "Chart background color",
+        group: "shape",
+        accepts: "color",
+        stylePath: "chart.backgroundColor",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartBackgroundOpacity": {
+        channel: "node.chartBackgroundOpacity",
+        target: "node",
+        plainName: "Node Chart Background Opacity",
+        shortName: "Chart background opacity",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "chart.backgroundOpacity",
         renderable: true,
         caveat: NODE_CHART_CAVEAT,
     },

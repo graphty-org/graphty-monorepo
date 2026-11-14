@@ -402,6 +402,7 @@ The codes this format's import report can hold. They are also exported as `CSV_I
 - `W_CSV_COMMENT_LIKE_RECORD` (warning): A leading # / % line skipped as a comment has the fields of a record.
 - `W_CSV_TRAILING_DELIMITER` (warning): Every data row ends in one extra delimiter; the empty last cell is dropped. Reported once per import.
 - `W_CSV_WEIGHT_AS_ATTRIBUTE` (warning): In a file without a header, the third column holds text, so it is read as an attribute, not as the edge weight. Reported once per import.
+- `W_CSV_POSSIBLE_HEADER` (warning): The first row was read as data, but every cell is a word of three or more characters that no other row repeats, so it may be a header of names graph-io does not know. Pass `header: true` if it is one.
 
 Like every format, it can also record the codes for unreadable input and for elements the graph refuses: [`E_TOO_LARGE`](../codes.md#E_TOO_LARGE), [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED), [`E_INVALID_ID`](../codes.md#E_INVALID_ID), [`E_UNKNOWN_NODE`](../codes.md#E_UNKNOWN_NODE), [`E_INVALID_WEIGHT`](../codes.md#E_INVALID_WEIGHT), [`E_DUPLICATE_EDGE`](../codes.md#E_DUPLICATE_EDGE), [`E_SELF_LOOP`](../codes.md#E_SELF_LOOP).
 

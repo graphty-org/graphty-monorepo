@@ -255,6 +255,7 @@ export function stubResult(runId: RunId): RunResult {
         graph: {},
         node: () => undefined,
         edge: () => undefined,
+        ids: () => [],
         column: () => ({
             length: 0,
             get: () => Number.NaN,

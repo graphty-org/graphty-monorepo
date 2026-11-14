@@ -22,10 +22,11 @@ const xrControllerButton = z.enum(["a", "b", "x", "y"]);
 export const xrConfigSchema = z
     .object({
         /**
-         * Enable/disable XR functionality globally
-         * @default true
+         * Enable/disable XR functionality globally. Off by default: asking a headless browser
+         * which XR modes it supports can hang.
+         * @default false
          */
-        enabled: z.boolean().default(true),
+        enabled: z.boolean().default(false),
 
         /**
          * XR UI button configuration
@@ -51,11 +52,30 @@ export const xrConfigSchema = z
                 unavailableMessageDuration: z.number().positive().default(5000),
 
                 /**
-                 * Show "VR / AR NOT AVAILABLE" warning when XR is not available
+                 * Show the `unavailableLabel` message when XR is not available
                  * When false, no message is displayed if AR/VR aren't available
                  * @default false
                  */
                 showAvailabilityWarning: z.boolean().default(false),
+
+                /**
+                 * Text of the button that enters VR
+                 * @default "VR"
+                 */
+                vrLabel: z.string().default("VR"),
+
+                /**
+                 * Text of the button that enters AR
+                 * @default "AR"
+                 */
+                arLabel: z.string().default("AR"),
+
+                /**
+                 * Text of the message shown when `showAvailabilityWarning` is on and neither VR
+                 * nor AR is available
+                 * @default "VR / AR NOT AVAILABLE"
+                 */
+                unavailableLabel: z.string().default("VR / AR NOT AVAILABLE"),
             })
             .prefault({}),
 

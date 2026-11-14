@@ -162,8 +162,14 @@ export type AlgorithmResultKind =
     | "boolean"
     | "number";
 
-/** The algorithm methods of `AlgorithmAccelerator` (an accelerator implements any subset of them). */
-export type AcceleratorMethod = Exclude<keyof AlgorithmAccelerator, "kind" | "release" | "dispose">;
+/**
+ * The algorithm methods of `AlgorithmAccelerator` (an accelerator implements any subset of them). `harmonicCloseness`
+ * is a capability flag, not a method, so it is not one.
+ */
+export type AcceleratorMethod = Exclude<
+    keyof AlgorithmAccelerator,
+    "kind" | "release" | "dispose" | "harmonicCloseness"
+>;
 
 /** The methods of the `accelerated(acc)` dispatcher. */
 export type DispatcherMethod = Exclude<keyof AcceleratedAlgorithms, "accelerator">;
@@ -255,6 +261,7 @@ export const ALGORITHMS = {
     },
 
     // Shortest paths
+    // Weights must be finite and non-negative (E_BAD_WEIGHT otherwise); bellmanFord takes negative ones.
     dijkstra: {
         name: "dijkstra",
         fn: dijkstra,

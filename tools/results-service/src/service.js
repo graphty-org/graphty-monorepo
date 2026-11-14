@@ -65,6 +65,11 @@ const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
 const ISSUE_KINDS = new Set(["flaky", "failing-on-master"]);
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const MAX_PARAMS = 100; // D1 binds at most 100 parameters per statement
+// What one write may hold, checked where every batch write binds (inserts()), so a malformed or oversized body is a
+// 400 before D1 sees it, never a bind error answered 500. ponytail: one cap per insert, not per request; a record's
+// files and failures at the cap stay under D1's 1,000 statements a Worker invocation.
+export const ROWS_MAX = 5000;
+const VALUE_MAX = 2000; // characters one stored string holds: a failure message's cut
 
 class Refused extends Error {
     constructor(status, message) {
@@ -89,18 +94,42 @@ const list = (value) =>
         .map((s) => s.trim())
         .filter(Boolean);
 
-// GitHub's OIDC signing keys by kid, for the isolate's life; an unknown kid refetches the set once.
-const signingKeys = new Map();
-async function signingKey(kid, doFetch) {
-    if (!signingKeys.has(kid)) {
-        const res = await doFetch(`${ISSUER}/.well-known/jwks`);
-        if (!res.ok) refuse(503, `GitHub's OIDC key set answered HTTP ${res.status}`);
-        for (const jwk of (await res.json()).keys) {
-            const algorithm = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" };
-            signingKeys.set(jwk.kid, await crypto.subtle.importKey("jwk", jwk, algorithm, false, ["verify"]));
-        }
+// GitHub's OIDC signing keys by kid. A token reaches the key lookup before its signature is checked, so a bogus kid
+// must not buy a fetch: the set is fetched at most once a minute, and in between an unknown kid is refused with 401
+// (or the last fetch's 503, so a real token's job spools its record and re-posts it). Keys are trusted for an hour
+// after the fetch that read them, so a key GitHub rotated out stops verifying.
+const KEYS_TTL_MS = 60 * 60 * 1000;
+const REFETCH_MS = 60 * 1000;
+/**
+ * An empty signing key cache: the isolate has one, and a test makes its own.
+ * @returns the cache
+ */
+export const keyCache = () => ({ load: null, triedAt: -Infinity });
+const isolateKeys = keyCache();
+async function fetchKeys(doFetch, nowMs) {
+    const res = await doFetch(`${ISSUER}/.well-known/jwks`);
+    if (!res.ok) refuse(503, `GitHub's OIDC key set answered HTTP ${res.status}`);
+    const keys = new Map();
+    for (const jwk of (await res.json()).keys) {
+        const algorithm = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" };
+        keys.set(jwk.kid, await crypto.subtle.importKey("jwk", jwk, algorithm, false, ["verify"]));
     }
-    return signingKeys.get(kid) ?? refuse(401, `unknown OIDC signing key ${kid}`);
+    return { keys, at: nowMs };
+}
+async function signingKey(kid, doFetch, nowMs, cache) {
+    const settled = async () => cache.load?.catch((e) => e);
+    const usable = (set) => set?.keys?.has(kid) && nowMs - set.at < KEYS_TTL_MS;
+    let set = await settled();
+    if (!usable(set)) {
+        // a request that finds a fetch under way (or one in the last minute) waits for that one instead
+        if (nowMs - cache.triedAt >= REFETCH_MS) {
+            cache.triedAt = nowMs;
+            cache.load = fetchKeys(doFetch, nowMs);
+        }
+        set = await settled();
+    }
+    if (set instanceof Error) throw set;
+    return usable(set) ? set.keys.get(kid) : refuse(401, `unknown OIDC signing key ${kid}`);
 }
 
 // A JWT's parts, or a 401 (not a 500) when they are not base64url JSON objects.
@@ -121,12 +150,13 @@ function decodeJwt(token) {
  * @param token the JWT
  * @param doFetch the fetch that reads GitHub's key set
  * @param nowMs the current time in milliseconds
+ * @param cache the signing keys, from keyCache()
  * @returns its claims
  */
-async function verifyOidc(token, doFetch, nowMs) {
+async function verifyOidc(token, doFetch, nowMs, cache) {
     const { alg, kid, claims, signature, signed } = decodeJwt(token);
     if (alg !== "RS256") refuse(401, `OIDC token signed with ${alg}, not RS256`);
-    const key = await signingKey(kid, doFetch);
+    const key = await signingKey(kid, doFetch, nowMs, cache);
     if (!(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, new TextEncoder().encode(signed)))) {
         refuse(401, "OIDC token signature does not verify");
     }
@@ -164,14 +194,14 @@ function kindOf(claims, env) {
     );
 }
 
-async function authenticate(request, env, doFetch, nowMs) {
+async function authenticate(request, env, doFetch, nowMs, cache) {
     const token =
         /^Bearer (\S+)$/.exec(request.headers.get("Authorization") ?? "")?.[1] ?? refuse(401, "no credential");
     if (token.split(".").length !== 3) {
         if (!list(env.LOCAL_TOKEN_HASHES).includes(await sha256(token))) refuse(401, "unknown local token");
         return { kind: "local" };
     }
-    const claims = await verifyOidc(token, doFetch, nowMs);
+    const claims = await verifyOidc(token, doFetch, nowMs, cache);
     return { kind: kindOf(claims, env), claims };
 }
 
@@ -187,8 +217,21 @@ function need(body, fields) {
     }
 }
 
+// Fields that may be left out, or null, but are of their type when given.
+function mayHave(body, fields) {
+    for (const [name, type] of Object.entries(fields)) {
+        if (body?.[name] != null && typeof body[name] !== type) refuse(400, `${name} must be a ${type} when given`);
+    }
+}
+
+const bindable = (v) =>
+    v == null || (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && v.length <= VALUE_MAX);
+
 // INSERT OR IGNORE of many rows, as few statements as D1's parameter limit allows.
 function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
+    if (rows.length > ROWS_MAX) refuse(400, `a write holds at most ${ROWS_MAX} ${table} rows`);
+    if (!rows.every((r) => r.every(bindable)))
+        refuse(400, `${table} values must be numbers, or strings of at most ${VALUE_MAX} characters`);
     const per = Math.floor(MAX_PARAMS / columns.length);
     const one = `(${columns.map(() => "?").join(",")})`;
     const out = [];
@@ -201,12 +244,15 @@ function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
 }
 
 function failureRows(invocation, failures, root, nowMs) {
-    if (!Array.isArray(failures)) refuse(400, "failures must be a list");
+    if (!Array.isArray(failures) || failures.length > ROWS_MAX)
+        refuse(400, `failures must be a list of at most ${ROWS_MAX}`);
     if (root !== undefined && typeof root !== "string") refuse(400, "root must be a string");
     return failures.map((f) => {
         need(f, { file: "string", name: "string", message: "string" });
-        const { line, key, signature, status } = failureHashes(f.message, f.file, root);
-        return [invocation, f.file, f.name, status, signature, key, line, f.message.slice(0, 2000), nowMs];
+        // cut before hashing, as the clients cut what they send, so a longer message costs no CPU and signs the same
+        const message = f.message.slice(0, VALUE_MAX);
+        const { line, key, signature, status } = failureHashes(message, f.file, root);
+        return [invocation, f.file, f.name, status, signature, key, line, message, nowMs];
     });
 }
 const FAILURE_COLUMNS = [
@@ -226,11 +272,16 @@ async function postInvocation(body, who, db, nowMs) {
     ownId(body?.id, who);
     need(body, { sha: "string", tree: "string", variant: "string", inputs: "string", env: "string" });
     need(body, { try: "number", startedAt: "number", secs: "number" });
+    mayHave(body, { baseSha: "string", pr: "number", reusedFrom: "string", note: "string", runUrl: "string" });
     if (!OUTCOMES.has(body.outcome)) refuse(400, `outcome must be one of ${[...OUTCOMES].join(", ")}`);
     if (who.kind === "pr" && body.sha !== who.claims.sha)
         refuse(403, "a pull request writes only its own merge commit");
     const files = body.files ?? [];
-    if (!Array.isArray(files) || !files.every((f) => Array.isArray(f) && f.length === 5)) {
+    const counts = (f) => f.slice(1).every((n) => n == null || typeof n === "number");
+    if (
+        !Array.isArray(files) ||
+        !files.every((f) => Array.isArray(f) && f.length === 5 && typeof f[0] === "string" && counts(f))
+    ) {
         refuse(400, "files must be [file, passed, failed, skipped, ms] rows");
     }
     const [first] = await db.batch([
@@ -303,8 +354,12 @@ async function postInvocation(body, who, db, nowMs) {
     const judged = MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
     if (!judged) return { stored, kind: who.kind, flaky: [] };
     const flaky = await concludeFlakySafely(db, body.id, nowMs);
-    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch(() => []);
-    return { stored, kind: who.kind, flaky, tracked };
+    // a failed lookup leaves `tracked` out, so the client reads "unknown", not "none"; the next judged run retries it
+    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch((e) => {
+        console.log(`trackedIssues ${body.id}: ${e.message}`);
+        return undefined;
+    });
+    return { stored, kind: who.kind, flaky, ...(tracked && { tracked }) };
 }
 
 // The record is stored by now: a verdict that cannot be computed costs the verdict, never the answer (a 5xx would
@@ -323,8 +378,10 @@ async function concludeFlakySafely(db, id, nowMs) {
 // kind's marker). ponytail: one row per signature, key tracked_issue on (signature, kind) if both must be read.
 async function postIssue(body, who, db, nowMs) {
     if (!MASTER_EVIDENCE.has(who.kind)) refuse(403, "only master's full, bisect and base runs file issues");
-    if (body.state === "closed") return closeIssue(body, db, nowMs);
-    need(body, { signature: "string", number: "number" });
+    if (body?.state === "closed") return closeIssue(body, db, nowMs);
+    need(body, { signature: "string" });
+    if (!Number.isInteger(body.number)) refuse(400, "number must be an issue number");
+    mayHave(body, { family: "string", file: "string", name: "string" });
     if (!ISSUE_KINDS.has(body.kind)) refuse(400, `kind must be one of ${[...ISSUE_KINDS].join(", ")}`);
     await db.batch([
         db
@@ -347,7 +404,7 @@ async function postIssue(body, who, db, nowMs) {
 // test enters it again and files or reopens an issue. ponytail: a proof stored in the same record as the close is
 // not re-judged; the next flip is. Re-run concludeFlaky over the entry's last proof if that gap matters.
 async function closeIssue(body, db, nowMs) {
-    need(body, { number: "number" });
+    if (!Number.isInteger(body.number)) refuse(400, "number must be an issue number");
     await db.batch([
         db
             .prepare("UPDATE tracked_issue SET state = 'closed', last_seen = ? WHERE number = ?")
@@ -375,6 +432,7 @@ async function postDurations(body, who, db, nowMs) {
     if (!Array.isArray(rows)) refuse(400, "rows must be a list");
     for (const r of rows) {
         need(r, { workflow: "string", job: "string", ms: "number" });
+        mayHave(r, { step: "string", task: "string", sha: "string", startedAt: "number", conclusion: "string" });
         if (String(r.runId) !== who.claims.run_id || String(r.attempt) !== who.claims.run_attempt) {
             refuse(403, "a run writes only its own durations");
         }
@@ -860,9 +918,10 @@ function routeOf(method, pathname) {
  * @param [deps] what tests inject
  * @param [deps.fetch] the fetch that reads GitHub's OIDC key set
  * @param [deps.now] the current time in milliseconds
+ * @param [deps.keys] the OIDC signing key cache (keyCache()); the isolate's own by default
  * @returns the response
  */
-export async function handle(request, env, { fetch: doFetch = fetch, now = Date.now() } = {}) {
+export async function handle(request, env, { fetch: doFetch = fetch, now = Date.now(), keys = isolateKeys } = {}) {
     const { pathname, searchParams } = new URL(request.url);
     try {
         if (request.method === "GET" && pathname === "/v1/health") {
@@ -871,7 +930,7 @@ export async function handle(request, env, { fetch: doFetch = fetch, now = Date.
         }
         const [key, name] = routeOf(request.method, pathname);
         const route = ROUTES[key] ?? refuse(404, `no ${request.method} ${pathname}`);
-        const who = await authenticate(request, env, doFetch, now);
+        const who = await authenticate(request, env, doFetch, now, keys);
         const body =
             request.method === "GET"
                 ? searchParams

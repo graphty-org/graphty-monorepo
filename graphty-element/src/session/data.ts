@@ -1145,17 +1145,17 @@ export class SessionData implements SessionDataApi {
         const turn = this.loadLine.join(signal);
         try {
             let snapshot: GraphSnapshot;
+            // The status of the answer, kept here so a failure can say whether a retry could help.
+            let status: number | undefined;
+            const watched: typeof fetch = async (input, init) => {
+                const response = await fetch(input, init);
+                ({ status } = response);
+                return response;
+            };
             try {
-                snapshot = await fetchDataset(name, { baseUrl, signal });
+                snapshot = await fetchDataset(name, { baseUrl, signal, fetch: watched });
             } catch (error) {
-                throw new GraphtyError({
-                    code: "E_FETCH_FAILED",
-                    message: `The dataset "${name}" could not be downloaded.`,
-                    source: "data",
-                    recoverable: true,
-                    details: { name, ...(baseUrl === undefined ? {} : { baseUrl }) },
-                    cause: error,
-                });
+                throw datasetError(name, baseUrl, signal, status, error);
             }
             const sample = this.sampleLoad(snapshot, name, load);
             await this.importVia(send, sample.source, load, turn, {
@@ -3050,8 +3050,8 @@ export class SessionData implements SessionDataApi {
         const space = edgeSpaceOf(snapshot);
         const going = withJoinsResting(sources, key);
         const left = sources.filter((each) => !going.includes(each));
-        const staying = broughtBy(left, provenance);
-        const brought = broughtBy(going, provenance);
+        const staying = broughtBy(left, provenance, false);
+        const brought = broughtBy(going, provenance, true);
         const nodes = [...brought.nodes].filter((id) => snapshot.ids.has(id));
         const edges = [...brought.edges].filter((id) => space.indexOf(id) !== INVALID_INDEX);
         const goingNodes = nodes.filter((id) => !staying.nodes.has(id));
@@ -3181,6 +3181,8 @@ export class SessionData implements SessionDataApi {
         const index = provenanceIndex(provenance);
         const supplied = provenance?.[key] ?? { nodes: [], edges: [] };
         const others = (keys: readonly SourceKey[] | undefined): boolean => keys?.some((k) => k !== key) === true;
+        // A join's ends the graph held before it stay, as removing the join keeps them.
+        const added = new Set(nodesJoinAdded(entry, provenance).map(String));
         const nodes = supplied.nodes
             .filter((id) => snapshot.ids.has(id))
             .map((id) => ({ id, data: this.records?.nodeAttributes(snapshot.ids.indexOf(id), id) ?? {} }));
@@ -3196,7 +3198,11 @@ export class SessionData implements SessionDataApi {
             nodes,
             edges,
             shared: {
-                nodes: new Set(nodes.filter((each) => others(index.nodes.get(each.id))).map((each) => each.id)),
+                nodes: new Set(
+                    nodes
+                        .filter((each) => others(index.nodes.get(each.id)) || !added.has(String(each.id)))
+                        .map((each) => each.id),
+                ),
                 edges: new Set(edges.filter((each) => others(index.edges.get(each.id))).map((each) => each.id)),
             },
             graphPairs: new Set(this.edges().map((each) => pairKey(each.source, each.target, snapshot.directed))),
@@ -3861,9 +3867,9 @@ export class SessionData implements SessionDataApi {
         const only = (keys: readonly SourceKey[] | undefined): boolean =>
             keys?.every((each) => each === previous.key) !== false;
         if (addsElements(previous.join)) {
-            // What only this join added: its edges and the nodes no other load supplied.
+            // What only this join added: its edges and the nodes it made that no other load supplied.
             const edges = (provenance?.[previous.key]?.edges ?? []).filter((id) => only(index.edges.get(id)));
-            const nodes = (provenance?.[previous.key]?.nodes ?? []).filter((id) => only(index.nodes.get(id)));
+            const nodes = nodesJoinAdded(previous, provenance).filter((id) => only(index.nodes.get(id)));
             edges.forEach((id) => gone.add(`edge:${id}`));
             nodes.forEach((id) => gone.add(`node:${String(id)}`));
             return {
@@ -3988,6 +3994,7 @@ export class SessionData implements SessionDataApi {
                 ...(table.unreadRows ? { unreadRows: table.unreadRows } : {}),
             },
             ...(plan.kind === "values" || Object.keys(plan.before).length > 0 ? { before: plan.before } : {}),
+            ...(plan.kind === "edges" ? { made: nodesEdgesMake(plan, graph) } : {}),
         });
         const left = stored.filter((each) => each.key !== key);
         const leftProvenance = withoutSource(provenance, key);
@@ -5759,22 +5766,59 @@ function nodesJoinMade(load: LoadedSource, provenance: Provenance | undefined): 
 }
 
 /**
+ * The nodes a load added: for a join that adds elements, the nodes it made (its record's
+ * `made`); for any other load, and a join recorded before `made`, every node it supplied.
+ * @param load - the load
+ * @param provenance - what each load supplied
+ * @returns the node ids, as provenance holds them
+ */
+function nodesJoinAdded(load: LoadedSource, provenance: Provenance | undefined): readonly NodeId[] {
+    const supplied = provenance?.[load.key]?.nodes ?? [];
+    const made = load.join?.made;
+    if (made === undefined) {
+        return supplied;
+    }
+
+    const ids = new Set(made.map(String));
+    return supplied.filter((id) => ids.has(String(id)));
+}
+
+/**
+ * The nodes a join of edges makes: the ends and node records it names that the graph does not hold.
+ * @param plan - the join's plan
+ * @param graph - the graph it was planned against
+ * @returns the node ids
+ */
+function nodesEdgesMake(plan: Extract<JoinPlan, { kind: "edges" }>, graph: JoinGraph): NodeId[] {
+    const held = new Set(graph.nodes.map((node) => String(node.id)));
+    const named = [
+        ...plan.nodes.map((node) => node.id),
+        ...plan.edges.flatMap((edge) => [edge[plan.source], edge[plan.target]]),
+    ];
+    return [...new Set(named.map(String))].filter((id) => !held.has(id));
+}
+
+/**
  * What some loads brought into the graph. A values join only wrote onto what it matched, so of
  * that it brought just the nodes it made.
  * @param loads - the loads
  * @param provenance - what each load supplied
+ * @param leaving - true for loads being taken out, which take of a join's ends only the ones it
+ *     made; false for loads that stay, which hold every end they name
  * @returns the node ids and the edge ids
  */
 function broughtBy(
     loads: readonly LoadedSource[],
     provenance: Provenance | undefined,
+    leaving: boolean,
 ): { readonly nodes: Set<NodeId>; readonly edges: Set<EdgeId> } {
     const nodes = new Set<NodeId>();
     const edges = new Set<EdgeId>();
     for (const load of loads) {
         const supplied = provenance?.[load.key];
         const values = load.join !== undefined && !addsElements(load.join);
-        (values ? nodesJoinMade(load, provenance) : (supplied?.nodes ?? [])).forEach((id) => nodes.add(id));
+        const named = leaving ? nodesJoinAdded(load, provenance) : (supplied?.nodes ?? []);
+        (values ? nodesJoinMade(load, provenance) : named).forEach((id) => nodes.add(id));
         if (!values) {
             supplied?.edges.forEach((id) => edges.add(id));
         }
@@ -6371,4 +6415,57 @@ function loadFacts(
         ...(record.total === undefined ? {} : { total: record.total }),
         ...(record.totalEdges === undefined ? {} : { totalEdges: record.totalEdges }),
     };
+}
+
+/**
+ * What a failed dataset download rejects with: an abort as it was thrown, a bad name as
+ * `E_UNKNOWN_DATASET`, a file that came back but would not decode as `E_PARSE_FAILED`, and an
+ * answer that never came or was not ok as `E_FETCH_FAILED`, which is not recoverable for a client
+ * error other than 408 and 429.
+ * @param name - The dataset's name.
+ * @param baseUrl - The mirror, when one was given.
+ * @param signal - The load's signal.
+ * @param status - The status of the answer, or undefined when none came.
+ * @param error - What the download threw.
+ * @returns The error to throw.
+ */
+function datasetError(
+    name: string,
+    baseUrl: string | undefined,
+    signal: AbortSignal | undefined,
+    status: number | undefined,
+    error: unknown,
+): unknown {
+    if (signal?.aborted === true) {
+        return error;
+    }
+    const mirror = baseUrl === undefined ? {} : { baseUrl };
+    if (status === undefined && error instanceof RangeError) {
+        return new GraphtyError({
+            code: "E_UNKNOWN_DATASET",
+            message: `"${name}" is not a dataset name.`,
+            source: "data",
+            details: { name, available: DATASET_NAMES },
+            cause: error,
+        });
+    }
+    if (status !== undefined && status >= 200 && status < 300) {
+        return new GraphtyError({
+            code: "E_PARSE_FAILED",
+            message: `The dataset "${name}" was downloaded but could not be read.`,
+            source: "data",
+            recoverable: false,
+            details: { name, format: "graph-format", ...mirror },
+            cause: error,
+        });
+    }
+    const clientError = status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429;
+    return new GraphtyError({
+        code: "E_FETCH_FAILED",
+        message: `The dataset "${name}" could not be downloaded.`,
+        source: "data",
+        recoverable: !clientError,
+        details: { name, ...mirror, ...(status === undefined ? {} : { status }) },
+        cause: error,
+    });
 }

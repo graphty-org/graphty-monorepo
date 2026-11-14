@@ -1,7 +1,9 @@
 tools/acceptance.test.mjs
+tools/assemble-pages-site.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
+tools/build-bundle.test.mjs
 tools/cache-hygiene.test.mjs
 tools/channel/approval-update.test.mjs
 tools/channel/baselines-tree.test.mjs

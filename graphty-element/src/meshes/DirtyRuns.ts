@@ -16,6 +16,11 @@ import type { Mesh } from "@babylonjs/core";
  * whole flag array), 256, 1,024 and 4,096 rendered within 3 ms of each other at 10,000 and 100,000
  * nodes (24.7 / 25.4 / 24.0 / 27.2 and 60.1 / 58.4 / 56.4 / 57.5 ms), inside the run-to-run spread,
  * and the whole array sent three times the bytes on a smooth step (issue #6025).
+ *
+ * The pulled-line edge table (`PulledLineBatch`, a texture) keeps it too. Hiding 84,000 scattered
+ * pieces on a jump at 100,000 nodes, caps of 64, 256, 1,024 and 4,096 all took 43 to 45 ms a frame:
+ * the bytes the joined runs carry (23 to 33 MB) cost what the calls saved, and no cap (90,000
+ * calls) took 248 ms. A window now hides a piece by a one-byte flag in a table of its own instead.
  */
 export const MAX_RUNS = 4_096;
 

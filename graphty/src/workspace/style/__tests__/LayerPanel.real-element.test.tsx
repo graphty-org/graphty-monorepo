@@ -262,7 +262,7 @@ describe("the layer panel", () => {
         assert.strictEqual(card.querySelector<HTMLInputElement>("input:not([type=hidden])")?.value, "Has a value");
     });
 
-    it("opens a new layer on its Node tab, and a Node tab starts with node lines", async () => {
+    it("opens a new layer on its Node tab, and its tab has no line for the other kind", async () => {
         await openScene();
         await clickRow("Everything");
         await userEvent.click(await screen.findByRole("tab", { name: /^Edge/ }));
@@ -277,16 +277,9 @@ describe("the layer panel", () => {
         await clickRow("Everything");
         await userEvent.click(await screen.findByRole("tab", { name: /^Node/ }));
         const panel = await within(screen.getByTestId("style-tab")).findByRole("tabpanel");
-        const other = panel.querySelector(".ws-other-line");
-        const sections = panel.querySelector(".ws-style-group");
-        assert.isNotNull(other);
-        assert.isNotNull(sections);
-        if (other === null || sections === null) {
-            return;
-        }
-        assert.isTrue(
-            (sections.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-            "the Edges line comes after the node lines",
-        );
+        // The other kind is reached by its own tab: no "Edges: ..." line, no Edit edges (issue #6811).
+        assert.isNotNull(panel.querySelector(".ws-style-group"));
+        assert.notMatch(panel.textContent ?? "", /Edges: |Edit edges/);
+        assert.isNull(within(panel).queryByRole("button", { name: "Edit edges" }));
     });
 });

@@ -198,7 +198,9 @@ export const MUTATING: readonly string[] = [
     "RunsApi.batch",
     "RunsApi.move",
     "RunsApi.remove",
+    "RunsApi.rename",
     "RunsApi.start",
+    "RunsApi.sweep",
     "ScopeApi.allowRun",
     "ScopeApi.cancelRun",
     "ScopeApi.remove",
@@ -343,6 +345,8 @@ export const MUTATING: readonly string[] = [
 ];
 
 export const READ_ONLY: readonly string[] = [
+    // whether a patterned line was disposed, as a mesh answers it
+    "PatternedLineMesh.isDisposed",
     "EnabledFeatures.has",
     // The model file library: it changes no node, edge, style or saved state, and its cost grows
     // with the files added, not with the graph. Reclassify add and remove when layers draw assets.
@@ -590,12 +594,10 @@ export const READ_ONLY: readonly string[] = [
     "EdgeView.weight",
     "ErrorAggregator.addError",
     "ErrorAggregator.clear",
-    "ErrorAggregator.getDetailedReport",
     "ErrorAggregator.getErrorCount",
     "ErrorAggregator.getErrorLimit",
     "ErrorAggregator.getErrors",
     "ErrorAggregator.getSummary",
-    "ErrorAggregator.getUserFriendlyMessage",
     "ErrorAggregator.hasReachedLimit",
     "EventManager.addListener",
     "EventManager.dispose",
@@ -1068,6 +1070,7 @@ export const READ_ONLY: readonly string[] = [
     "RunResult.groupRanks",
     "RunResult.groupSizes",
     "RunResult.histogram",
+    "RunResult.ids",
     "RunResult.node",
     "RunResult.ranking",
     "RunResult.reading",

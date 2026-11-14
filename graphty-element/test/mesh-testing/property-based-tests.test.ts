@@ -234,9 +234,15 @@ describe("Property-Based Tests", () => {
                             { styleId: nextStyleId(), width: 20, color: "#FFFFFF" },
                             { line: { type, patternCount } },
                             ctx.scene,
-                        ) as PatternedLineMesh;
+                        );
 
-                        assert.equal(edge.elements.length, patternCount);
+                        // a joined line's shader draws a dot, star, box, dash or diamond line's elements (issue #7404)
+                        if (edge instanceof PatternedLineMesh) {
+                            assert.equal(edge.elements.length, patternCount);
+                        } else {
+                            const meta = edge.metadata as { pattern?: { count?: number } } | null;
+                            assert.equal(meta?.pattern?.count, patternCount);
+                        }
                     },
                 ),
                 { numRuns: 30 },

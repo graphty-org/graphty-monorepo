@@ -104,8 +104,11 @@ describe("FR force-sum invariant: one iteration, |sum F| <= tol x sum |F| (spec 
         });
     }
 
-    it("prints the worst ratio of the fixture set", () => {
-        const worst = mergeReports(reports);
-        console.warn(`[fr-force-sum] worst ${worst.worst.toExponential(3)} at ${worst.worstLabel}`);
+    // a summary, not a test: every case above asserts its own ratio, and nothing is printed when none ran
+    afterAll(() => {
+        if (reports.length > 0) {
+            const worst = mergeReports(reports);
+            console.warn(`[fr-force-sum] worst ${worst.worst.toExponential(3)} at ${worst.worstLabel}`);
+        }
     });
 });

@@ -1,7 +1,7 @@
 # githerd
 
-> githerd is no longer developed or run by its authors (since 2026-10-18). It is published as it
-> was last used, with no support.
+> githerd is no longer developed or run by its authors (since 2026-10-18). It was never published
+> to npm; its code stays in this repository as it was last used, with no support.
 
 githerd keeps a GitHub repository's pipeline moving when most of the work is done by Claude Code
 sessions and GitHub Actions. One daemon per repository watches the default branch, the open pull
@@ -21,11 +21,11 @@ branch.
 
 githerd runs the copy of this package that the repository's default branch holds (see "Adopting
 githerd in another repository" below), so it is installed by putting the package into the
-repository at `githerd/` and installing its dependencies there:
+repository at `githerd/` and installing its dependencies there. It is not on npm, so copy the
+`githerd/` directory from the graphty-monorepo repository:
 
 ```bash
-npm pack @graphty/githerd
-mkdir githerd && tar -xzf graphty-githerd-*.tgz -C githerd --strip-components=1
+cp -r <graphty-monorepo checkout>/githerd githerd
 (cd githerd && npm install --omit=dev)
 ```
 

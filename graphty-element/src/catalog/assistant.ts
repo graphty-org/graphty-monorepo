@@ -194,7 +194,7 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "Project",
         core: false,
         profiles: STANDARD,
-        actions: ["settings", "rename", "declare", "status"],
+        actions: ["settings", "rename", "rename_run", "declare", "status"],
     },
     {
         name: "capture",

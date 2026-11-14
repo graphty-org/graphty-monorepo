@@ -9,6 +9,7 @@ import {
     type ThinEngine,
 } from "@babylonjs/core";
 
+import { DirtyRuns } from "./DirtyRuns";
 import {
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_VERTICES,
@@ -78,8 +79,24 @@ export const LEAN_TEMPLATE = { indices: LEAN_TEMPLATE_INDICES, vertices: LEAN_TE
 /** Floats in one texel. */
 const TEXEL_FLOATS = 4;
 
+/** Slots a piece's draw key orders under one group's rank: a table holds far fewer pieces. */
+const SLOTS_PER_RANK = 2 ** 32;
+
+/**
+ * The pieces of one width, numbered as the object path's batch of that width numbers its slots:
+ * the next new slot and the freed ones, taken last first.
+ */
+interface WidthGroup {
+    readonly rank: number;
+    highWater: number;
+    readonly free: number[];
+}
+
+/** Hidden flags in one line of the hidden table: a byte a piece, four to a texel. */
+const HIDDEN_PER_LINE = TABLE_WIDTH * 4;
+
 /** A row number no row has: the piece draws nothing. */
-const NO_ROW = -1;
+export const NO_ROW = -1;
 
 /** Straight edges between row centres, drawn in one non-instanced draw; see the file comment. */
 export class PulledLineBatch {
@@ -94,14 +111,43 @@ export class PulledLineBatch {
 
     private table: RawTexture;
 
+    /**
+     * Each piece's hidden flag, 255 for hidden (`edgeHidden`). A time window hides and shows pieces scattered
+     * over the whole table: a byte each costs a twentieth of what writing their rows sent, which went up in
+     * thousands of joined runs (#6025).
+     */
+    private hidden: Uint8Array<ArrayBuffer>;
+
+    private hiddenTable: RawTexture;
+
+    /** The first and last hidden table line written since the last upload, or -1. */
+    private hiddenFirst = -1;
+    private hiddenLast = -1;
+
     /** Pieces handed out so far; the draw covers these. */
     private highWater = 0;
 
     private readonly free: number[] = [];
 
-    /** The first and last table line written since the last upload, or -1. */
-    private dirtyFirst = -1;
-    private dirtyLast = -1;
+    /**
+     * Each piece's draw key: its width group's rank, then the slot the object path's batch of that width gives it.
+     * The object path draws a batch per width, one after another in the order they were made, and draw order
+     * decides how lines that cross blend; the index list draws pieces in this order (#6392).
+     */
+    private keys = new Float64Array(0);
+
+    /** The width groups, by width, and by rank: the order this batch met them. */
+    private readonly groups = new Map<number, WidthGroup>();
+    private readonly ranked: WidthGroup[] = [];
+
+    /** Whether a piece took a key out of draw order since the index list was last built. */
+    private reorder = false;
+
+    /**
+     * The pieces written since the last upload. A time window hides and shows pieces scattered over the whole table,
+     * so one first-to-last range would send all of it (#6025).
+     */
+    private readonly dirty = new DirtyRuns();
 
     private readonly stopFlush: () => void;
     private readonly stopRestore: () => void;
@@ -158,6 +204,8 @@ export class PulledLineBatch {
         mesh.alwaysSelectAsActiveMesh = true;
         this.rows = this.emptyTable(this.piecesPerLine);
         this.table = this.build();
+        this.hidden = new Uint8Array(HIDDEN_PER_LINE);
+        this.hiddenTable = this.buildHidden();
         this.index();
         if (curve) {
             this.routes = new Float32Array(TABLE_WIDTH * TEXEL_FLOATS);
@@ -185,20 +233,32 @@ export class PulledLineBatch {
 
     /**
      * Hand out a piece, drawing nothing until {@link PulledLineBatch.setRows}.
+     * @param width - The width {@link PulledLineBatch.setLook} will give it, which places it in draw order as the
+     *     object path's batch of that width would draw it.
      * @returns The piece.
      */
-    acquire(): number {
-        const reused = this.free.pop();
-        if (reused !== undefined) {
-            return reused;
+    acquire(width = 0): number {
+        let piece = this.free.pop();
+        if (piece === undefined) {
+            if (this.highWater === this.rows.length / this.pieceFloats) {
+                this.grow();
+            }
+
+            piece = this.highWater++;
+            this.setCount();
         }
 
-        if (this.highWater === this.rows.length / this.pieceFloats) {
-            this.grow();
+        let group = this.groups.get(width);
+        if (group === undefined) {
+            group = { rank: this.ranked.length, highWater: 0, free: [] };
+            this.groups.set(width, group);
+            this.ranked.push(group);
         }
 
-        const piece = this.highWater++;
-        this.setCount();
+        const key = group.rank * SLOTS_PER_RANK + (group.free.pop() ?? group.highWater++);
+        // With one width a piece's key is its own number, as the free pieces are taken in the same order.
+        this.reorder ||= this.keys[piece] !== key;
+        this.keys[piece] = key;
         return piece;
     }
 
@@ -208,7 +268,10 @@ export class PulledLineBatch {
      */
     release(piece: number): void {
         this.setRows(piece, NO_ROW, NO_ROW);
+        this.setHidden(piece, false);
         this.free.push(piece);
+        const key = this.keys[piece] ?? 0;
+        this.ranked[Math.floor(key / SLOTS_PER_RANK)]?.free.push(key % SLOTS_PER_RANK);
     }
 
     /**
@@ -222,6 +285,23 @@ export class PulledLineBatch {
         this.rows[piece * this.pieceFloats] = source;
         this.rows[piece * this.pieceFloats + 1] = target;
         this.touch(piece);
+    }
+
+    /**
+     * Hide or show a piece, keeping its rows and look: only its flag is written and sent.
+     * @param piece - The piece.
+     * @param hidden - Whether it draws nothing.
+     */
+    setHidden(piece: number, hidden: boolean): void {
+        const flag = hidden ? 255 : 0;
+        if (this.hidden[piece] === flag) {
+            return;
+        }
+
+        this.hidden[piece] = flag;
+        const line = Math.floor(piece / HIDDEN_PER_LINE);
+        this.hiddenFirst = this.hiddenFirst < 0 ? line : Math.min(this.hiddenFirst, line);
+        this.hiddenLast = Math.max(this.hiddenLast, line);
     }
 
     /**
@@ -370,13 +450,11 @@ export class PulledLineBatch {
     }
 
     /**
-     * Mark a piece's table line to be sent with the next frame.
+     * Mark a piece to be sent with the next frame.
      * @param piece - The piece.
      */
     private touch(piece: number): void {
-        const line = Math.floor(piece / this.piecesPerLine);
-        this.dirtyFirst = this.dirtyFirst < 0 ? line : Math.min(this.dirtyFirst, line);
-        this.dirtyLast = Math.max(this.dirtyLast, line);
+        this.dirty.mark(piece, true, this.rows.length / this.pieceFloats);
     }
 
     /** Send the table lines written since the last frame, and bind this frame's row table. */
@@ -384,23 +462,44 @@ export class PulledLineBatch {
         const material = this.mesh.material as ShaderMaterial | null;
         material?.setTexture("rowPosition", this.rowPositions());
         this.flushRoutes();
-        if (this.dirtyFirst < 0) {
+        this.flushHidden();
+        if (this.reorder) {
+            this.index();
+        }
+
+        if (!this.dirty.dirty) {
             return;
         }
 
-        const first = this.dirtyFirst;
-        const lines = this.dirtyLast - first + 1;
-        const floats = TABLE_WIDTH * TEXEL_FLOATS;
-        const bytes = new Float32Array(this.rows.buffer, first * floats * 4, lines * floats);
+        const runs = this.dirty.take(true) ?? [0, this.highWater];
+        const texels = this.pieceFloats / TEXEL_FLOATS;
+        for (let i = 0; i < runs.length; i += 2) {
+            this.sendTexels(runs[i] * texels, runs[i + 1] * texels);
+        }
+    }
+
+    /**
+     * Send a span of the edge table: its whole lines in one call, a part line on either side in one each.
+     * @param first - Its first texel.
+     * @param end - The texel after its last.
+     */
+    private sendTexels(first: number, end: number): void {
         const internal = this.table.getInternalTexture();
-        if (internal) {
-            const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
-            engine.updateTextureData(internal, bytes, 0, first, TABLE_WIDTH, lines);
-            this.uploadedBytes += bytes.byteLength;
+        if (!internal) {
+            return;
         }
 
-        this.dirtyFirst = -1;
-        this.dirtyLast = -1;
+        const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
+        for (let at = first; at < end;) {
+            const x = at % TABLE_WIDTH;
+            const lines = x === 0 ? Math.floor((end - at) / TABLE_WIDTH) : 0;
+            const width = lines > 0 ? TABLE_WIDTH : Math.min(TABLE_WIDTH - x, end - at);
+            const height = Math.max(lines, 1);
+            const bytes = new Float32Array(this.rows.buffer, at * TEXEL_FLOATS * 4, width * height * TEXEL_FLOATS);
+            engine.updateTextureData(internal, bytes, x, Math.floor(at / TABLE_WIDTH), width, height);
+            this.uploadedBytes += bytes.byteLength;
+            at += width * height;
+        }
     }
 
     /** Send the route table lines written since the last frame. */
@@ -420,11 +519,28 @@ export class PulledLineBatch {
         this.routesLast = -1;
     }
 
+    /** Send the hidden table lines written since the last frame: one call, the lines between the first and last. */
+    private flushHidden(): void {
+        const internal = this.hiddenTable.getInternalTexture();
+        if (this.hiddenFirst < 0 || !internal) {
+            return;
+        }
+
+        const lines = this.hiddenLast - this.hiddenFirst + 1;
+        const bytes = new Uint8Array(this.hidden.buffer, this.hiddenFirst * HIDDEN_PER_LINE, lines * HIDDEN_PER_LINE);
+        const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
+        engine.updateTextureData(internal, bytes, 0, this.hiddenFirst, TABLE_WIDTH, lines);
+        this.uploadedBytes += bytes.byteLength;
+        this.hiddenFirst = -1;
+        this.hiddenLast = -1;
+    }
+
     /** Stop following the frames and free the mesh and the table. */
     dispose(): void {
         this.stopFlush();
         this.stopRestore();
         this.table.dispose();
+        this.hiddenTable.dispose();
         this.routeTable?.dispose();
         // Not its textures: `rowPosition` is the row table's, which outlives this batch.
         this.mesh.material?.dispose(true, false);
@@ -444,6 +560,26 @@ export class PulledLineBatch {
         );
         (this.mesh.material as ShaderMaterial | null)?.setTexture("edgeRows", texture);
         this.uploadedBytes += this.rows.byteLength;
+        return texture;
+    }
+
+    /**
+     * Send the hidden table to the card whole and bind it.
+     * @returns The texture.
+     */
+    private buildHidden(): RawTexture {
+        const texture = RawTexture.CreateRGBATexture(
+            this.hidden,
+            TABLE_WIDTH,
+            this.hidden.length / HIDDEN_PER_LINE,
+            this.scene,
+            false,
+            false,
+            Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+            Constants.TEXTURETYPE_UNSIGNED_BYTE,
+        );
+        (this.mesh.material as ShaderMaterial | null)?.setTexture("edgeHidden", texture);
+        this.uploadedBytes += this.hidden.byteLength;
         return texture;
     }
 
@@ -475,21 +611,53 @@ export class PulledLineBatch {
         this.rows = grown;
         this.table.dispose();
         this.table = this.build();
-        this.dirtyFirst = -1;
-        this.dirtyLast = -1;
+        // the new table went up whole
+        this.dirty.take(false);
+        if (pieces > this.hidden.length) {
+            const hidden = new Uint8Array(Math.ceil(pieces / HIDDEN_PER_LINE) * HIDDEN_PER_LINE);
+            hidden.set(this.hidden);
+            this.hidden = hidden;
+            this.hiddenTable.dispose();
+            this.hiddenTable = this.buildHidden();
+            this.hiddenFirst = -1;
+            this.hiddenLast = -1;
+        }
+
         this.index();
     }
 
-    /** The template once per piece the table has room for, numbered so `gl_VertexID / vertices` is the piece. */
+    /**
+     * The template once per piece the table has room for, numbered so `gl_VertexID / vertices` is the piece, the
+     * pieces handed out first and in draw order ({@link PulledLineBatch.keys}).
+     */
     private index(): void {
         const capacity = this.rows.length / this.pieceFloats;
         const { indices: template, vertices } = this.template;
+        if (this.keys.length !== capacity) {
+            // a piece not yet handed out keys as its own number, which is the key one width gives it
+            const keys = Float64Array.from({ length: capacity }, (_, piece) => piece);
+            keys.set(this.keys);
+            this.keys = keys;
+        }
+
+        const { keys, highWater } = this;
+        // ponytail: sorts every handed-out piece, at most once a frame and only while widths interleave; give each
+        // group its own index range if a large mixed-width load shows it
+        const drawn =
+            this.ranked.length > 1
+                ? Uint32Array.from({ length: highWater }, (_, piece) => piece).sort(
+                      (a, b) => (keys[a] ?? 0) - (keys[b] ?? 0) || a - b,
+                  )
+                : null;
         const indices = new Uint32Array(capacity * template.length);
-        for (let piece = 0; piece < capacity; piece++) {
+        for (let at = 0; at < capacity; at++) {
+            const piece = at < highWater ? (drawn?.[at] ?? at) : at;
             for (let i = 0; i < template.length; i++) {
-                indices[piece * template.length + i] = template[i] + piece * vertices;
+                indices[at * template.length + i] = template[i] + piece * vertices;
             }
         }
+
+        this.reorder = false;
 
         this.mesh.setIndices(indices, capacity * vertices);
         // Keep the list on the GPU only: Babylon's CPU copy is 4 bytes an index (120 B an edge) that nothing reads.

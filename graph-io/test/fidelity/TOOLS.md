@@ -108,8 +108,8 @@ After a run, in graphty-element, and in the same commit as the change that moved
 
 ```bash
 npm run fidelity:ratchet                                    # take off what passes, raise the recorded rates
-npm run fidelity:ratchet -- --add "<why these fail now>"     # also list every unlisted failing element
-npm run fidelity:ratchet -- --add "<why>" --keys <sample>,<sample>@matched --suite oracle
+npm run fidelity:ratchet -- --add "<why these fail now> (#N)" # also list every unlisted failing element
+npm run fidelity:ratchet -- --add "<why> (#N)" --keys <sample>,<sample>@matched --suite oracle
 ```
 
 The ratchet (`graphty-element/scripts/fidelity-ratchet.ts`) takes off the known failures every element that passes

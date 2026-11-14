@@ -173,7 +173,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
            pre-order walk and a post-order one reaches everything it can. A recursive walk records
            the target and goes no further from it, but goes on elsewhere: the same walk over a view
            in which the target has no arcs of its own. */
-        context.report({ phase: "Walking deep", total: null });
+        context.report({ phase: "walking-deep", total: null });
         const { value, precision } = await run((dispatch, s) => {
             const view = recursive && targetIndex !== undefined ? withoutArcsOf(s, targetIndex) : s;
             return dispatch.depthFirstSearch(view, sourceIndex, {
@@ -187,7 +187,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
         value.order.subarray(0, value.visitedCount).forEach((index, position) => positionOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Recording the order", nodeIds, (nodeId) => {
+        await forEachChunked(context, "recording-the-order", nodeIds, (nodeId) => {
             const index = snapshot.ids.indexOf(nodeId);
             const reached = index !== INVALID_INDEX && value.depth[index] !== INVALID_INDEX;
 

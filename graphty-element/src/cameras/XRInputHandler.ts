@@ -137,6 +137,10 @@ export class XRInputHandler {
     private lastControllerRemovedTime = 0;
     private readonly INPUT_SWITCH_DELAY_MS = 100;
 
+    // What enable() attached (observers, timers): disable() runs and empties it, so nothing
+    // set up while enabled outlives it (#7239).
+    private teardown: (() => void)[] = [];
+
     // Node drag state - for XR node interaction
     private isDraggingNode = false;
     private draggedNodeHandler: NodeDragHandler | null = null;
@@ -196,7 +200,8 @@ export class XRInputHandler {
         this.enableHandTracking();
 
         // Subscribe to controller events
-        this.xr.input.onControllerAddedObservable.add((controller) => {
+        const { onControllerAddedObservable, onControllerRemovedObservable } = this.xr.input;
+        const added = onControllerAddedObservable.add((controller) => {
             const now = performance.now();
             const timeSinceRemoval = now - this.lastControllerRemovedTime;
 
@@ -204,19 +209,26 @@ export class XRInputHandler {
                 // Delay setup to prevent race conditions during controller switching
                 const remainingDelay = this.INPUT_SWITCH_DELAY_MS - timeSinceRemoval;
 
-                setTimeout(() => {
+                const timer = setTimeout(() => {
                     this.setupController(controller);
                     this.addGestureController(controller);
                 }, remainingDelay);
+                this.teardown.push(() => {
+                    clearTimeout(timer);
+                });
             } else {
                 this.setupController(controller);
                 this.addGestureController(controller);
             }
         });
 
-        this.xr.input.onControllerRemovedObservable.add((controller) => {
+        const removed = onControllerRemovedObservable.add((controller) => {
             this.cleanupController(controller);
             this.removeGestureController(controller);
+        });
+        this.teardown.push(() => {
+            onControllerAddedObservable.remove(added);
+            onControllerRemovedObservable.remove(removed);
         });
 
         // Process existing controllers
@@ -277,6 +289,12 @@ export class XRInputHandler {
 
         this.enabled = false;
 
+        for (const undo of this.teardown) {
+            undo();
+        }
+
+        this.teardown = [];
+
         // Cleanup all controllers
         this.setupControllers.forEach((_value, uniqueId) => {
             const cleanup = this.controllerCleanup.get(uniqueId);
@@ -333,7 +351,7 @@ export class XRInputHandler {
         }
 
         const setupThumbstick = (motionController: unknown): void => {
-            if (this.setupControllers.has(uniqueId)) {
+            if (!this.enabled || this.setupControllers.has(uniqueId)) {
                 return;
             }
 
@@ -448,13 +466,16 @@ export class XRInputHandler {
 
         const mc = controller as unknown as {
             motionController?: unknown;
-            onMotionControllerInitObservable: { add: (callback: (mc: unknown) => void) => void };
+            onMotionControllerInitObservable: {
+                add: (callback: (mc: unknown) => void) => unknown;
+                remove: (observer: unknown) => void;
+            };
         };
 
         if (mc.motionController) {
             setupThumbstick(mc.motionController);
         } else {
-            mc.onMotionControllerInitObservable.add((motionController) => {
+            const initObserver = mc.onMotionControllerInitObservable.add((motionController) => {
                 setupThumbstick(motionController);
             });
 
@@ -472,6 +493,10 @@ export class XRInputHandler {
                     clearInterval(poll);
                 }
             }, 100);
+            this.teardown.push(() => {
+                mc.onMotionControllerInitObservable.remove(initObserver);
+                clearInterval(poll);
+            });
         }
     }
 
@@ -592,7 +617,7 @@ export class XRInputHandler {
         const pressed = new Set<XRControllerButton>();
         for (const controller of this.xr.input.controllers) {
             const { gamepad, handedness, hand } = controller.inputSource;
-            if (gamepad === undefined || hand !== undefined) {
+            if (gamepad === undefined || hand) {
                 continue;
             }
 
@@ -758,14 +783,16 @@ export class XRInputHandler {
     }
 
     /**
-     * The hand's state from its controller's trigger, when the trigger pinches.
+     * The hand's state from its controller's trigger, when the trigger pinches. A tracked hand is
+     * an input source too, whose "trigger" is the runtime's pinch button; it is read from its
+     * joints instead, with the pinch distances' hysteresis (#6949).
      * @param handedness - Which hand
      * @returns The state while the trigger is held, or null to fall through to hand tracking
      */
     private controllerHandState(handedness: "left" | "right"): HandState | null {
         let controllerEntry: ControllerEntry | null = null;
         for (const entry of this.gestureControllers.values()) {
-            if (entry.handedness === handedness) {
+            if (entry.handedness === handedness && !entry.controller.inputSource.hand) {
                 controllerEntry = entry;
                 break;
             }

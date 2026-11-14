@@ -1,4 +1,6 @@
 import assert from "node:assert";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import {
@@ -187,6 +189,30 @@ describe("multipartite", () => {
     });
 });
 
+/** NetworkX bipartite_layout positions on 7 nodes: test/fixtures/networkx/generate-bipartite.py. */
+const networkxBipartite = (
+    JSON.parse(readFileSync(resolve("test/fixtures/networkx/bipartite.json"), "utf8")) as {
+        cases: {
+            name: string;
+            top: number[];
+            align: "vertical" | "horizontal";
+            aspectRatio: number;
+            scale: number;
+            center: number[];
+            positions: number[][];
+        }[];
+    }
+).cases;
+
+/**
+ * NetworkX rows rescaled to this package's `scale`: networkx divides by the largest coordinate, layout by the
+ * distance of the farthest node, so the shapes agree and only the factor differs.
+ */
+const atLayoutScale = (rows: number[][], scale: number, center: number[]): number[][] => {
+    const far = Math.max(...rows.map((p) => Math.hypot(p[0] - center[0], p[1] - center[1])));
+    return rows.map((p) => p.map((v, k) => ((v - center[k]) * scale) / far + center[k]));
+};
+
 describe("bipartite", () => {
     const s = fromEdgeArrays({
         directed: false,
@@ -199,13 +225,17 @@ describe("bipartite", () => {
         },
     });
 
-    it("matches the legacy layout for a mask, vertical and horizontal", () => {
-        const mask = Uint32Array.of(0b0101001);
-        matchesGolden(layout.bipartite(s, { top: mask, scale: 2, center: [3, 4] }), golden("bipartite vertical"));
-        matchesGolden(
-            layout.bipartite(s, { top: mask, align: "horizontal", aspectRatio: 2, center: [3, 4] }),
-            golden("bipartite horizontal"),
-        );
+    it("matches NetworkX's bipartite_layout for a mask, vertical and horizontal, and a lone top node", () => {
+        for (const c of networkxBipartite) {
+            const r = layout.bipartite(s, {
+                top: Uint32Array.of(c.top.reduce((m, i) => m | (1 << i), 0)),
+                align: c.align,
+                aspectRatio: c.aspectRatio,
+                scale: c.scale,
+                center: c.center,
+            });
+            matchesGolden(r, atLayoutScale(c.positions, c.scale, c.center));
+        }
     });
 
     it("a bool column gives the same layout as the mask of its true rows", () => {
@@ -215,8 +245,10 @@ describe("bipartite", () => {
         );
     });
 
-    it("defaults to the even node indices, as the legacy layout does", () => {
-        matchesGolden(layout.bipartite(s), golden("bipartite default"));
+    it("defaults to the even node indices, as NetworkX's bipartite_layout given them", () => {
+        const c = networkxBipartite.find((k) => k.name === "default");
+        assert.ok(c !== undefined);
+        matchesGolden(layout.bipartite(s), atLayoutScale(c.positions, 1, [0, 0]));
     });
 
     it("rejects a column that is not bool and a mask too short for the graph", () => {

@@ -6,6 +6,7 @@ import { asStrength } from "../algorithms/input/weight";
 import { defineOptions, type OptionsSchema } from "../config";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { seedSchema } from "./seedOption";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput, startFrom } from "./SnapshotLayoutEngine";
 
 const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
@@ -136,6 +137,14 @@ const kamadaKawaiLayoutOptionsSchema = defineOptions({
             description: "Place strongly connected nodes closer together",
         },
     },
+    seed: {
+        schema: seedSchema,
+        meta: {
+            label: "Random Seed",
+            description: "Seed of the random 3D start, for a reproducible layout",
+            advanced: true,
+        },
+    },
 });
 
 const KamadaKawaiLayoutConfig = z.strictObject({
@@ -147,6 +156,7 @@ const KamadaKawaiLayoutConfig = z.strictObject({
     scale: z.number().positive().default(1),
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(3),
+    seed: seedSchema,
 });
 type KamadaKawaiLayoutConfigType = z.infer<typeof KamadaKawaiLayoutConfig>;
 type KamadaKawaiLayoutOpts = Partial<KamadaKawaiLayoutConfigType>;
@@ -216,6 +226,7 @@ export class KamadaKawaiLayout extends SnapshotLayoutEngine {
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
                 dim,
+                seed: this.config.seed,
             }),
             this.config.scalingFactor,
         );

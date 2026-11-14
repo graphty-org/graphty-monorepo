@@ -6673,10 +6673,12 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Whether the graph's readers read only what is shown: the part of the graph the visibility
-     * filter and the time window leave visible.
+     * Whether the graph's readers read only what is shown: the part of the graph the filters leave
+     * visible. The time window is not part of it: a window step hides elements by drawing and never
+     * moves the layout.
      * @remarks
-     * On by default: a reader that names no scope reads the working graph. Off, every reader reads
+     * On by default, since a filter means the subset you work with: a reader that names no scope
+     * reads the working graph. Off, every reader reads
      * the whole graph, as before this option existed. The graph itself is not copied or
      * changed -- edits, undo and the project file act on all of it, hidden nodes keep their
      * positions, styles and results, and a reader that names the whole graph still reads all of it.

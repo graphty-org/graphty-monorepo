@@ -264,10 +264,15 @@ describe("session.data.importColumns", () => {
                 { source: "c", target: "a" },
                 { source: "a", target: "c" },
             ]);
+            // A removal undone rebuilds the store; an edge deferred after it is marked in the rebuilt one.
+            await session.data.removeEdges([session.data.edges()[3].id]);
+            await session.undo();
+            await session.data.addEdges([{ source: "b", target: "a" }]);
             results.push({ hash: [...identityColumnsOf(session.data.snapshot()).edgeHash], digest: digest(session) });
         }
 
-        assert.notDeepEqual(results[1].hash.slice(4), [0, 0, 0, 0]);
+        assert.notDeepEqual(results[1].hash.slice(4, 8), [0, 0, 0, 0]);
+        assert.notDeepEqual(results[1].hash.slice(8), [0, 0]);
         assert.deepStrictEqual(results[1], results[0]);
     });
 

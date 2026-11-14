@@ -559,6 +559,8 @@ export class GraphStore {
      * would had it hashed the edge.
      */
     private mintedDeferred = false;
+    /** The {@link DEFERRED_HASH_COLUMN} handle and the builder it belongs to, declared on first use. */
+    private deferredHash: { builder: GraphBuilder; handle: ColumnHandle } | null = null;
     /** Rows of the open load, in ingest order, remapped by every compacting freeze. */
     private loadRows = new Uint32Array(64);
     private loadLength = 0;
@@ -963,8 +965,7 @@ export class GraphStore {
         if (this.loadDepth === 0) {
             if (deferMinted && fileId === undefined) {
                 this.mintedDeferred = true;
-                const builder = this.current;
-                builder.setEdgeValue(builder.declareEdgeColumn({ name: DEFERRED_HASH_COLUMN, dtype: "u8" }), row, 1);
+                this.current.setEdgeValue(this.deferredHashHandle(), row, 1);
             } else {
                 this.sessionEdges.push({ row, counter, fileId });
             }
@@ -2287,6 +2288,25 @@ export class GraphStore {
         builder.setEdgeColumn(IDENTITY_COLUMNS.edgeOrdinal, minusOnes, { dtype: "i32", default: -1 });
         builder.setEdgeColumn(IDENTITY_COLUMNS.edgeAmong, minusOnes.slice(), { dtype: "i32", default: -1 });
         return true;
+    }
+
+    /**
+     * The current builder's {@link DEFERRED_HASH_COLUMN}, declared the first time it is needed.
+     * @returns the handle
+     */
+    private deferredHashHandle(): ColumnHandle {
+        const builder = this.current;
+        if (this.deferredHash?.builder !== builder) {
+            // A rebuild copies the column by name, which declares it inferred: reuse it as it is.
+            const known = builder.edgeColumn(DEFERRED_HASH_COLUMN);
+            const handle =
+                known === INVALID_INDEX
+                    ? builder.declareEdgeColumn({ name: DEFERRED_HASH_COLUMN, dtype: "u8" })
+                    : known;
+            this.deferredHash = { builder, handle };
+        }
+
+        return this.deferredHash.handle;
     }
 
     /**

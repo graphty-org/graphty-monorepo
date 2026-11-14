@@ -1226,8 +1226,7 @@
             "target": 1
           }
         ]
-      },
-      "knownFailure": "undeclared attvalue dropped instead of kept with a warning (sources.md 1.4 Attributes) (#7641)"
+      }
     },
     {
       "file": "graphology/v1_3.gexf",
@@ -1311,8 +1310,7 @@
             "target": "Suzy"
           }
         ]
-      },
-      "knownFailure": "1.3 list with an escaped quote misparsed (sources.md 1.4 Attributes) (#7642)"
+      }
     },
     {
       "file": "graphology/v1_3_writer.gexf",
@@ -1628,8 +1626,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "roundTripFailure": "dynamic attribute values shift by one element on GEXF re-export (#7644)"
+      }
     },
     {
       "file": "gephi-datasets/ht2009_15min-subsample.gexf",
@@ -2374,8 +2371,7 @@
         "forbidCodes": [
           "W_UNKNOWN_ELEMENT"
         ]
-      },
-      "knownFailure": "1.1 <slices> skipped instead of read as spells (sources.md 1.4 Graph element) (#7643)"
+      }
     },
     {
       "file": "authored/unknown-pid.gexf",

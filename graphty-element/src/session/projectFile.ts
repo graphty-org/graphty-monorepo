@@ -1429,16 +1429,10 @@ async function restoreAssetsOf(session: GraphSession, doc: ReadDocument, problem
 const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} } };
 
 /**
- * Empty the session, through the transaction.
+ * Delete every row of the style tree, folders with their layers; the element's own layers stay.
  * @param tx - The transaction.
- * @param playback - The timeline settings the session held, which go too.
  */
-async function clearInto(tx: TransactionScope, playback: unknown): Promise<void> {
-    for (const note of tx.notes.list()) {
-        tx.notes.remove(note.id);
-    }
-
-    // Every row of the style tree, folders with their layers; the element's own layers stay.
+async function clearStyleRows(tx: TransactionScope): Promise<void> {
     for (const row of tx.styles.tree()) {
         await tx.styles.deleteRow(row.id);
     }
@@ -1450,6 +1444,19 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
     for (const row of new Set(ghosts.map((layer) => layer.row ?? layer.id))) {
         await tx.styles.deleteRow(row);
     }
+}
+
+/**
+ * Empty the session, through the transaction.
+ * @param tx - The transaction.
+ * @param playback - The timeline settings the session held, which go too.
+ */
+async function clearInto(tx: TransactionScope, playback: unknown): Promise<void> {
+    for (const note of tx.notes.list()) {
+        tx.notes.remove(note.id);
+    }
+
+    await clearStyleRows(tx);
 
     for (const set of tx.sets.list()) {
         tx.sets.remove(set.id);
@@ -1848,6 +1855,13 @@ async function readProject(
     await attempt(opening, "config", () =>
         tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(state.config)), name }),
     );
+    // The settings just read add starting rows by themselves when they change what is in effect (a
+    // time field adds Ghost, the pinned look adds Pinned, `startingRows` the rest). A file that
+    // holds a style tree comes back with exactly that tree, so those rows go again: otherwise the
+    // tree's own copies land beside them and every starting row is there twice (issue #7843).
+    if (doc.members.has("graphty-style")) {
+        await clearStyleRows(tx);
+    }
     const records =
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
     const edgeIds = await importInto(tx, records, source, sources, provenance);

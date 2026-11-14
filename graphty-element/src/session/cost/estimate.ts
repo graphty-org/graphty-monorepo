@@ -463,10 +463,22 @@ function memoryStretch(nodes: number, edges: number, calibration: MachineCalibra
         return 1;
     }
 
+    return 1 + cacheMissShare(nodes, edges) * (LOADED_MEMORY_SPEED / speed - 1);
+}
+
+/**
+ * The share of a walk over this graph that misses a core's own cache: 0 for a working set (one
+ * 8-byte value per node and per edge) at {@link CACHE_RESIDENT_BYTES}, 1 at
+ * {@link CACHE_MISSING_BYTES}, by the logarithm of the size between them.
+ * @param nodes - Nodes in scope.
+ * @param edges - Edges in scope.
+ * @returns The share, from 0 to 1.
+ */
+function cacheMissShare(nodes: number, edges: number): number {
     const bytes = BYTES_PER_VALUE * (nodes + edges);
     const missing = Math.log2(bytes / CACHE_RESIDENT_BYTES) / Math.log2(CACHE_MISSING_BYTES / CACHE_RESIDENT_BYTES);
 
-    return 1 + Math.min(1, Math.max(0, missing)) * (LOADED_MEMORY_SPEED / speed - 1);
+    return Math.min(1, Math.max(0, missing));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -865,12 +877,22 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
        0.55 to 2.3 ns per element per unit of log2(n + m) (48 ns on the object graph before), and a
        pass 1.7 to 7.1 ns per element, the most on sparse random graphs, whose passes miss the
        cache most. Pinned at 3.3 ns per unit of log2(n + m) (1 / (100 * the iterative rate)) and
-       7.4 ns per pass (1 / (45 * the iterative rate)): 1.7x to 2.7x over graphs that run the whole
-       bound. The class model charged each pass at the iterative rate, 333 ns per element. */
+       7.4 ns per pass (1 / (45 * the iterative rate)) while the graph stays in a core's cache.
+       A pass that misses the cache costs more beside the calibration probe, which never does: on
+       2026-11-14 (issue #7920) a pass over random m = 1.2n at 100,000 nodes (about 1.8 MB) took
+       6.7 ns per element on the reference machine against 3.3 on a 10,000-node grid, and on CI's
+       runners, whose per-core cache is a quarter the size, it read 0.92 to 0.94 of the 7.4 ns
+       charge. That row converged in 263 to 415 passes until the relative stop of 2026-11-13, so
+       the thin margin never showed; it now runs all 1,000. So a pass is charged up to 1.5x more
+       as the working set misses the cache (`cacheMissShare`): 1.35x on that row, nothing on the
+       grid. The class model charged each pass at the iterative rate, 333 ns per element. */
     eigenvector: {
-        term: (iterations) => `(n + m) log2(n + m) + k(n + m) with k=${group(iterations)}`,
+        term: (iterations) =>
+            `(n + m) log2(n + m) + k(n + m)(1 + s / 2) with k=${group(iterations)}, s the share missing the cache`,
         seconds: (nodes, edges, rates, iterations) =>
-            ((nodes + edges) * (Math.log2(Math.max(2, nodes + edges)) / 100 + iterations / 45)) /
+            ((nodes + edges) *
+                (Math.log2(Math.max(2, nodes + edges)) / 100 +
+                    (iterations / 45) * (1 + cacheMissShare(nodes, edges) / 2))) /
             rates.iterativeElementsPerSecond,
     },
 };

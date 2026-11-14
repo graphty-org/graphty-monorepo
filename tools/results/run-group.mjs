@@ -236,7 +236,9 @@ function readPlanFile(file) {
  */
 export async function refreshPlan(plan, { cfg, sha, family, variant }) {
     if (!cfg || !plan?.base) return plan;
-    const variants = [...new Set([`${family}|flags=off|whole`, `${family}|flags=off|selected`, variant])];
+    // an On twin's master evidence is recorded under flags=on (#7847), so ask under the job's own flags
+    const flags = variant.split("|")[1] ?? "flags=off";
+    const variants = [...new Set([`${family}|${flags}|whole`, `${family}|${flags}|selected`, variant])];
     try {
         const r = await fetchPlan(cfg, { sha, base: plan.base, variants, inputs: variants.map(() => "-") });
         if (!r.ok || !r.data) {

@@ -1184,6 +1184,17 @@ describe("the pull request rules", () => {
         assert.equal(await refreshPlan(plan, { cfg: down, sha: "h1", family: FAMILY, variant: o.variant }), plan);
     });
 
+    it("asks an On twin's re-run for master's flags=on evidence, not flags=off (#7847)", async () => {
+        const plan = { base: "b1", affected: [], quarantine: [], failingOnBase: [] };
+        const s = await serve(() => ({ quarantine: [], failingOnBase: [{ name: "k" }] }));
+        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const on = "graphty-features-on";
+        const fresh = await refreshPlan(plan, { cfg, sha: "h1", family: on, variant: `${on}|flags=on|selected` });
+        assert.equal(fresh.failingOnBase[0].name, "k");
+        const q = new URL(s.seen.find((r) => r.url.startsWith("/v1/plan")).url, s.url).searchParams;
+        assert.equal(q.get("variants"), `${on}|flags=on|whole,${on}|flags=on|selected`);
+    });
+
     it("leaves a run that did not end in test failures alone", () => {
         const d = { pass: false, flaky: [], excused: [], failing: [fail("x")] };
         assert.equal(prJudge(null, o)(d, { firstOutcome: "error" }), d);

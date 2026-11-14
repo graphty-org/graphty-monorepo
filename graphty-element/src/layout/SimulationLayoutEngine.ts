@@ -2095,18 +2095,50 @@ export class SimulationLayoutEngine extends LayoutEngine {
      *
      * A group following its members is drawn round them, not laid out with them: inert in the
      * simulation, it neither repels them nor pulls on them, so they settle exactly where they
-     * would without it (issue #3075; the ngraph engine gives it no mass for the same reason).
+     * would without it (issue #3075; the ngraph engine gives it no mass for the same reason). A
+     * node the filter hides under `layout.visibleOnly` is inert the same way.
+     *
+     * `setInert` is optional on `LayoutSimulation`, so a third-party accelerator may lack it. Such
+     * a simulation would lay out the whole graph, hidden nodes pushing and pulling the shown ones,
+     * so the bridge stops it and refuses with `E_UNSUPPORTED` rather than run it (issue #7964).
      * @param simulation - The running simulation.
      * @param nodeCount - The loaded snapshot's node count.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` when a row must be inert and the simulation cannot make it so.
      */
     #applyInert(simulation: LayoutSimulation, nodeCount: number): void {
         const inert = makeMask(nodeCount);
+        let any = false;
         for (let i = 0; i < nodeCount && this.holdsAny; i += 1) {
             if (this.isFollower(i)) {
                 maskSet(inert, i, true);
+                any = true;
             }
         }
-        simulation.setInert?.(inert);
+
+        if (simulation.setInert === undefined) {
+            if (!any) {
+                return;
+            }
+
+            this.#failed = true;
+            this.#syncWork();
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message:
+                    `the layout "${this.type}" cannot leave hidden or group-following nodes out: its ` +
+                    `"${this.simulationType}" simulation has no setInert. ` +
+                    `Set the acceleration attribute to "off", or attach an accelerator whose simulations implement setInert.`,
+                source: "layout",
+                details: {
+                    layout: this.type,
+                    simulation: this.simulationType,
+                    accelerated: this.#accelerated,
+                    reason: "simulation-cannot-leave-nodes-out",
+                },
+            });
+        }
+
+        simulation.setInert(inert);
     }
 
     /**

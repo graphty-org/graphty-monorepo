@@ -13,7 +13,7 @@ import {
     LIGHTING_VALUES,
 } from "@graphty/graphty-element/schema";
 import type { GraphSession, GraphSettingKey, TransactionScope } from "@graphty/graphty-element/session";
-import { ActionIcon, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Box, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { useSizeBound } from "../frame/useSizeBound";
@@ -131,7 +131,7 @@ export function GraphSettings(): React.JSX.Element | null {
             <BackgroundSection session={session} />
             {/* One container for both sections' rows, so focus on a row hidden in this view moves
                 on to the next row shown, in Labels when Canvas has none left (2D). */}
-            <div ref={ref} onFocus={onFocus} style={{ display: "contents" }}>
+            <Box ref={ref} onFocus={onFocus} display="contents">
                 {(shows("lighting") || shows("node.depthIndependentSize")) && (
                     <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
                         <Stack gap={6}>
@@ -198,7 +198,7 @@ export function GraphSettings(): React.JSX.Element | null {
                         </div>
                     </Stack>
                 </ControlSection>
-            </div>
+            </Box>
             <ShaderSection />
         </>
     );

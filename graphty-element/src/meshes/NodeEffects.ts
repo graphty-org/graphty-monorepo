@@ -281,7 +281,8 @@ export class NodeEffects {
         // ONE SOURCE PER COLOR AND WIDTH. A ring with no width of its own is named by its color
         // alone and drawn at the scene's width, which setOutlineWidth rewrites in place.
         const own = outline.width;
-        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}${own === undefined ? "" : `${OUTLINE_WIDTH_MARK}${String(own)}`}`;
+        const widthPart = own === undefined ? "" : OUTLINE_WIDTH_MARK + String(own);
+        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}${widthPart}`;
         const scene = mesh.getScene();
         const ring =
             existing?.name === name && !existing.isDisposed()

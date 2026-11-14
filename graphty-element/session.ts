@@ -322,6 +322,7 @@ export {
     FILE_STYLE_SHAPES,
     FILE_STYLE_TRANSLATION_ISSUE,
     fileStyleOf,
+    fileStyleWords,
 } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -740,6 +741,7 @@ export type {
     ChannelShare,
     ColorWrite,
     ColumnEncodingSpec,
+    DrawnValue,
     ElementLayerSpec,
     EncodingOptions,
     EncodingProposal,

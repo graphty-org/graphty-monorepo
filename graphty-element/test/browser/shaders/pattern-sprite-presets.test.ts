@@ -24,6 +24,7 @@ import type { LayerSpec } from "../../../src/catalog/types";
 import { operationQueueOf } from "../../../src/Graph";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { PATTERN_SPRITE_PRESETS, patternPresetId } from "../../../stories/shaders/patternSpritePresets";
+import { pixelAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import type { Point } from "../../helpers/real-input";
 
@@ -100,22 +101,6 @@ async function until(element: Graphty, what: string, holds: () => boolean | Prom
 function batchHolds(element: Graphty, count: number): boolean {
     const drawing = NodeShaderDrawing.peek(element.graph.getScene());
     return drawing !== undefined && [...drawing.stats().slots.values()].includes(count);
-}
-
-/**
- * Read one pixel of the canvas at a point in CSS pixels, after the next frame.
- * @param element - The element.
- * @param point - The point.
- * @returns r, g, b, a.
- */
-async function pixelAt(element: Graphty, point: Point): Promise<[number, number, number, number]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 1);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const x = Math.round(point.x * scale);
-    const y = Math.round(engine.getRenderHeight() - point.y * scale);
-    const read = (await engine.readPixels(x, y, 1, 1)) as unknown as Uint8Array;
-    return [read[0], read[1], read[2], read[3]];
 }
 
 /**

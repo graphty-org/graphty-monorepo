@@ -6,8 +6,7 @@
  */
 
 import { Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
 import { nextFrame, press, release } from "../../helpers/real-input";
@@ -79,10 +78,7 @@ describe("Node Drag and Drop", () => {
 
         test("camera state is accessible during node operations", () => {
             const cameraController = graph.camera.getActiveController();
-            assert.isDefined(cameraController, "Camera controller should be defined");
-            if (!cameraController) {
-                return;
-            }
+            assert.exists(cameraController, "Camera controller should be defined");
 
             // Verify camera is accessible and has valid position
             assert.isDefined(cameraController.camera, "Camera should be accessible");
@@ -144,10 +140,7 @@ describe("Node Drag and Drop", () => {
 
         test("2D mode has orthographic camera", () => {
             const cameraController = graph.camera.getActiveController();
-            assert.isDefined(cameraController, "Camera controller should be defined");
-            if (!cameraController) {
-                return;
-            }
+            assert.exists(cameraController, "Camera controller should be defined");
 
             // 2D mode uses orthographic camera
             assert.isDefined(cameraController.camera.orthoTop, "2D mode should have orthographic camera");

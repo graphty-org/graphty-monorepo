@@ -8,7 +8,7 @@
  * method nobody classified, and on a mutating method with neither a registered counted-work test
  * nor a place on the shrinking not-yet-covered list.
  */
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { assert, describe, it } from "vitest";
@@ -103,7 +103,7 @@ describe("cost coverage", () => {
         );
     });
 
-    it("registers only mutating methods, in gating test files that exist", () => {
+    it("registers only mutating methods, in gating test files that exist and call them", () => {
         for (const [module, registration] of Object.entries(REGISTRATIONS)) {
             assert.isString(registration.file, `${module} names its test file`);
             assert.isNotEmpty(registration.methods, `${module} names the methods it covers`);
@@ -116,6 +116,13 @@ describe("cost coverage", () => {
                 assert.isTrue(existsSync(path.join(PACKAGE_DIR, file)), `${method}: ${file} exists`);
                 assert.match(file, /^test\/.*\.test\.ts$/, `${method}: ${file} is a test file`);
                 assert.notMatch(file, /\.bench\./, `${method}: ${file} gates a push (a bench file does not)`);
+                // A file that never names the method cannot count its work (issue #7005).
+                const member = method.slice(method.indexOf(".") + 1);
+                assert.match(
+                    readFileSync(path.join(PACKAGE_DIR, file), "utf8"),
+                    new RegExp(`\\b${member}\\b`),
+                    `${method}: ${file} calls ${member}`,
+                );
             }
         }
     });

@@ -199,12 +199,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ]),
     {
         root: "ElementSession",
-        members: ["publishModelChange", "emptyClick", "elementClick", "groupOutlineClick"],
+        members: ["publishModelChange", "emptyClick", "elementClick", "groupOutlineClick", "layoutMotion"],
         reason: "lifecycle",
         kind: BY_DESIGN,
     },
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
         { root, members: ["nodeThumbnail", "modelThumbnail"], reason: "raw-data", kind: BY_DESIGN },
+        { root, members: ["cancelCameraAnimation"], reason: "in-flight", kind: BY_DESIGN },
     ]),
     {
         root: "Graph",
@@ -273,7 +274,15 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionDataApi", members: ["ignoreIssue"], reason: "covered-by", by: "issues.ignore", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
-        members: ["editJoin", "editJoinReport", "matchesSource", "replaceSource", "reloadSource", "sourceSettings"],
+        members: [
+            "editJoin",
+            "editJoinReport",
+            "matchesSource",
+            "replaceSource",
+            "reloadSource",
+            "sourceSettings",
+            "sourceInput",
+        ],
         reason: "needs-host",
         kind: BY_DESIGN,
     },
@@ -303,7 +312,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "SessionLayout",
-        members: ["arrangedDimension", "optionInEffect", "locationColumns"],
+        members: ["arrangedDimension", "optionInEffect", "locationColumns", "motion"],
         reason: "panel-state",
         kind: BY_DESIGN,
     },
@@ -526,7 +535,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
-    { root: "RunsApi", members: ["batch"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
+    { root: "RunsApi", members: ["batch", "sweep"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
     { root: "RunsApi", members: ["bindings", "painting"], reason: "covered-by", by: "style.list", kind: BY_DESIGN },
     { root: "ScopeApi", members: ["resolve"], reason: "covered-by", by: "query.count", kind: BY_DESIGN },
     { root: "ScopeApi", members: ["remove"], reason: "covered-by", by: "sets.remove", kind: BY_DESIGN },
@@ -553,13 +562,21 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionConfig", members: ["acceleration"], reason: "machine-preference", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
-        members: ["store", "snapshot", "undirected", "fingerprint"],
+        members: ["store", "snapshot", "undirected", "fingerprint", "importColumns"],
         reason: "raw-data",
         kind: BY_DESIGN,
     },
     { root: "SessionDataApi", members: ["nodes"], reason: "covered-by", by: "query.nodes", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["edges"], reason: "covered-by", by: "query.edges", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["count"], reason: "covered-by", by: "query.statistics", kind: BY_DESIGN },
+    // A node's name, and an edge's as its two ends' names: `query.node` returns each node's name.
+    {
+        root: "SessionDataApi",
+        members: ["nodeName", "edgeName"],
+        reason: "covered-by",
+        by: "query.node",
+        kind: BY_DESIGN,
+    },
     { root: "SessionDataApi", members: ["prepare"], reason: "needs-host", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
@@ -704,7 +721,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         }),
         ...coveredBy(root, { "immersive.exit": ["exitXR"], "immersive.enter": ["setXRConfig"] }),
         { root, members: [...ASSISTANT_VERBS], reason: "assistant-config", kind: BY_DESIGN },
-        { root, members: ["on", "addListener", "shutdown", "render"], reason: "lifecycle", kind: BY_DESIGN },
+        {
+            root,
+            members: ["on", "addListener", "shutdown", "render", "restartRenderer"],
+            reason: "lifecycle",
+            kind: BY_DESIGN,
+        },
         {
             root,
             members: ["setRunning", "setRenderSettings", "setInputEnabled", "enableDetailedProfiling"],
@@ -972,7 +994,19 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "ElementPositions",
-        members: ["view", "grow", "remap", "setPinned", "pinnedView", "moved", "write", "fillUnplaced"],
+        members: [
+            "view",
+            "grow",
+            "remap",
+            "setPinned",
+            "pinnedView",
+            "moved",
+            "write",
+            "fillUnplaced",
+            "owe",
+            "forgive",
+            "settle",
+        ],
         reason: "internal-handle",
         kind: BY_DESIGN,
     },

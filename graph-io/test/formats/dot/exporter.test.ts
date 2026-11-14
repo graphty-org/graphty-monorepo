@@ -309,6 +309,15 @@ describe("dot exporter: clusters", () => {
         expectSameSnapshot(snapshot, (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot);
     });
 
+    it("keeps the node order when a cluster's members come after other nodes (#7640)", async () => {
+        const snapshot = await imported(
+            "digraph { subgraph cluster_0 { subgraph cluster_1 { } a -> c } subgraph cluster_1 { y -> z } y -> b }",
+        );
+        const back = (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot;
+        expect(back.ids.toArray()).toEqual(snapshot.ids.toArray());
+        expectSameSnapshot(snapshot, back);
+    });
+
     it("writes cluster=true for a container whose id does not start with cluster", async () => {
         const snapshot = await imported("digraph { subgraph grp { cluster=true; a; b } }");
         expect(snapshot.ids.toArray()).toEqual(["grp", "a", "b"]);

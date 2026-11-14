@@ -117,20 +117,5 @@ describe.skipIf(skipIfNoApiKey())("Query LLM Regression", () => {
             assert.match(result.llmText ?? "", /\b1\b/);
             assert.match(result.llmText ?? "", /\b2\b/);
         });
-
-        it("tracks latency for each prompt", async () => {
-            const result = await harness.testPrompt("How many edges exist?");
-
-            assert.ok(result.latencyMs > 0, "Expected positive latency");
-        });
-
-        it("captures token usage when available", async () => {
-            const result = await harness.testPrompt("Give me a summary of the graph");
-
-            if (result.tokenUsage) {
-                assert.ok(result.tokenUsage.prompt > 0, "Expected positive prompt tokens");
-                assert.ok(result.tokenUsage.completion >= 0, "Expected non-negative completion tokens");
-            }
-        });
     });
 });

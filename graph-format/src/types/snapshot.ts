@@ -426,8 +426,9 @@ export interface ByteLengthOptions {
  * edges / graph and the CONTENTS of columns declared mutable are mutable side tables (design section
  * 5.8). Every view is a pure function of the core, memoised once and SHARED: writing into a view is
  * a contract violation; call .slice() for scratch. Index-taking queries are total for in-range
- * arguments and unchecked otherwise (design section 11.1); every core accessor throws E_DETACHED
- * after a consuming transfer.
+ * arguments and unchecked otherwise (design section 11.1): an out-of-range index never throws, and
+ * the result is unspecified unless the method says otherwise (findArc / hasArc still report a miss);
+ * every core accessor throws E_DETACHED after a consuming transfer.
  *
  * Instance contract of the GraphSnapshot class in src/snapshot/graph-snapshot.ts, which implements
  * it; the public barrel exports the class and every public type names the class. isGraphSnapshot()

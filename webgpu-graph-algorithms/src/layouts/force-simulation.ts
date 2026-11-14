@@ -1365,9 +1365,7 @@ export class ForceSimulation<
         const { resources } = this;
         if (this.clusterStage === null && resources !== null) {
             const generation = this.generationValue;
-            const promise = this.ready.catch(() => undefined).then(() => this.bindClusters(resources, generation));
-            void promise.catch(() => undefined);
-            this.ready = promise;
+            this.chainStageBind(() => this.bindClusters(resources, generation));
         }
     }
 
@@ -1406,9 +1404,7 @@ export class ForceSimulation<
         const { resources } = this;
         if (this.collisionStage === null && resources !== null) {
             const generation = this.generationValue;
-            const promise = this.ready.catch(() => undefined).then(() => this.bindCollision(resources, generation));
-            void promise.catch(() => undefined);
-            this.ready = promise;
+            this.chainStageBind(() => this.bindCollision(resources, generation));
         }
     }
 
@@ -1578,9 +1574,7 @@ export class ForceSimulation<
         const { resources } = this;
         if (resources !== null) {
             const generation = this.generationValue;
-            const promise = this.ready.catch(() => undefined).then(() => this.bindDrawn(resources, generation));
-            void promise.catch(() => undefined);
-            this.ready = promise;
+            this.chainStageBind(() => this.bindDrawn(resources, generation));
         }
     }
 
@@ -2426,6 +2420,19 @@ export class ForceSimulation<
         const generation = this.generationValue;
         const run = (): Promise<void> => this.compileAndBind(resources, overrides, generation);
         const promise = this.ready.catch(() => undefined).then(run);
+        void promise.catch(() => undefined);
+        this.ready = promise;
+    }
+
+    /**
+     * Chains a stage's bind (setClusters, setCollision, setDrawn) on `ready` WITHOUT swallowing its rejection: the
+     * setters chain only while `resources` is set, so `ready` is this generation's own load bind, and a failure there
+     * (E_DEVICE_INCORRECT, E_SHADER_COMPILE, E_OUT_OF_MEMORY) must still reach the next step() (issue #7203). A
+     * superseded generation's rejection is dropped by submitBatch's stale check.
+     * @param run - the stage bind
+     */
+    private chainStageBind(run: () => Promise<void>): void {
+        const promise = this.ready.then(run);
         void promise.catch(() => undefined);
         this.ready = promise;
     }

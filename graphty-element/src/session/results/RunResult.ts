@@ -1058,6 +1058,16 @@ class Result implements RunResult {
     }
 
     /**
+     * The element at each position of {@link Result.column}'s view of one field.
+     * @param field - The field name.
+     * @returns The ids, in column order.
+     * @throws A GraphtyError coded E_UNKNOWN_ATTRIBUTE when the run published no such field.
+     */
+    ids(field: string): readonly NodeId[] {
+        return this.elementIds(this.#descriptorFor(field).kind === "edge" ? "edge" : "node");
+    }
+
+    /**
      * The highest-ranked elements on one field.
      *
      * Elements with equal values share a rank and come back in printed-id order, so the top of a

@@ -6,6 +6,7 @@ import { LOSS } from "../../../src/common/export.js";
 import { keysInTextOrder } from "../../../src/common/json-elements.js";
 import { ImportReportBuilder } from "../../../src/common/report.js";
 import {
+    dialectCapabilities,
     JSON_DIALECTS,
     JSON_LOSS,
     type JsonDialect,
@@ -15,6 +16,7 @@ import {
     type JsonImportOptions,
     jsonShapeOf,
 } from "../../../src/formats/json/index.js";
+import { extractPositions } from "../../../src/positions/extract.js";
 import { importGraph } from "../../../src/registry.js";
 import { type CommonExportOptions, type CommonImportOptions } from "../../../src/types.js";
 import { corpusFiles, readCorpusText } from "../../helpers/corpus.js";
@@ -119,11 +121,19 @@ describe("corpus round trips (design 16.5)", () => {
                 const label = `${entry.path} via ${dialect}`;
                 expect(rt.report.errorCount, label).toBe(0);
                 const diffs = compareSnapshots(s, rt.snapshot, {
-                    // the edge id column changes role or name across dialects; the values are compared by name
+                    // the edge id column changes role or name across dialects; the values are compared by name.
+                    // Positions are compared where they are drawn, below: vis stores its y down, the others up, and a
+                    // dialect with no position slot writes them as an array attribute (W_POSITIONS_DROPPED)
                     roles: false,
-                    ignoreColumns: ["id", "key"],
+                    ignoreColumns: ["id", "key", "position"],
                 });
                 expect(diffs, label).toEqual([]);
+                if (dialectCapabilities(dialect).positions && s.nodes.byRole("position") !== null) {
+                    const drawn = (g: GraphSnapshot): number[] => [
+                        ...(extractPositions(jsonImporter, g, rt.report)?.coords ?? []),
+                    ];
+                    expect(drawn(rt.snapshot), label).toEqual(drawn(s));
+                }
             }
         }
     });

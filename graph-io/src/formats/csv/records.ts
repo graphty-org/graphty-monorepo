@@ -103,6 +103,12 @@ export interface RecordSyntax {
      * Only called when the delimiter is sniffed.
      */
     readonly inspect?: ((preview: string, line: number) => void) | undefined;
+    /**
+     * A format's own delimiter sniff over the same preview, used instead of the field-count sniff
+     * (a format whose header row names the delimiter, where data rows must not decide). Only called
+     * when the delimiter is sniffed.
+     */
+    readonly sniff?: ((preview: string) => string) | undefined;
 }
 
 /**
@@ -633,6 +639,10 @@ export class RecordReader implements AsyncIterable<number> {
             this.sepDirective = true;
             return;
         }
+        if (this.syntax.sniff !== undefined) {
+            this.delimiterText = this.syntax.sniff(body);
+            return;
+        }
         const candidates = this.syntax.candidates ?? DELIMITER_CANDIDATES;
         this.delimiterText =
             sniffDelimiter(
@@ -1086,6 +1096,12 @@ export interface CsvReaderOptions extends ReadOptions {
     readonly skipQuoteErrors?: boolean | undefined;
     /** RecordSyntax.inspect; none by default. */
     readonly inspect?: ((preview: string, line: number) => void) | undefined;
+    /**
+     * A format's own delimiter sniff over the same preview, used instead of the field-count sniff
+     * (a format whose header row names the delimiter, where data rows must not decide). Only called
+     * when the delimiter is sniffed.
+     */
+    readonly sniff?: ((preview: string) => string) | undefined;
 }
 
 /**

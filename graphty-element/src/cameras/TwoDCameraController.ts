@@ -1,4 +1,9 @@
-import { Camera, Engine, FreeCamera, Scene, Vector3, WebGPUEngine } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera.js";
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { freeArea, paddedArea } from "../camera/insets";
 import type { ViewInsets } from "../camera/types";

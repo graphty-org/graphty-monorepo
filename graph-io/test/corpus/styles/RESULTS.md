@@ -28,9 +28,9 @@ Tool values are elements drawn with the writing program's default.
 | cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx | ok | 75 | 108 | 6 | 4 | 102 | 8% | 8% | 0 | 1098 | 0 | W_STYLE_NOT_CARRIED |
 | cx/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx.gz | ok | 2207 | 2282 | 1 | 2 | 0 | - | - | 0 | 91749 | 0 |  |
 | cx/ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx.gz | ok | 599 | 739 | 5 | 2 | 580 | 83% | 83% | 0 | 8028 | 0 | W_STYLE_NOT_CARRIED |
-| cx2/fidelity/imatinib-smpdb.cx2 | ok | 75 | 159 | 8 | 6 | 403 | 2% | 2% | 0 | 1404 | 0 |  |
-| cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 4 | 5 | 32 | 0% | 0% | 0 | 427 | 0 |  |
-| cx2/fidelity/signor-aml.cx2 | ok | 147 | 306 | 5 | 8 | 762 | 14% | 13% | 0 | 2718 | 0 |  |
+| cx2/fidelity/imatinib-smpdb.cx2 | ok | 75 | 159 | 8 | 6 | 404 | 2% | 2% | 0 | 1402 | 0 |  |
+| cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 4 | 6 | 35 | 9% | 0% | 0 | 424 | 0 |  |
+| cx2/fidelity/signor-aml.cx2 | ok | 147 | 306 | 5 | 9 | 775 | 16% | 13% | 0 | 2699 | 0 |  |
 | cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 7 | 5 | 257 | 98% | 89% | 0 | 924 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/syn-mappings.cx2 | ok | 96 | 140 | 14 | 12 | 1717 | 25% | 25% | 0 | 1416 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/synthetic-lethal.cx2 | ok | 69 | 152 | 9 | 4 | 365 | 0% | 0% | 13 | 1326 | 0 | W_STYLE_RAMP_ROUNDED |
@@ -102,13 +102,13 @@ Tool values are elements drawn with the writing program's default.
 | cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 364 | 4% | 4% | 0 | 2511 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 7 | 5 | 23 | 43% | 43% | 0 | 3623 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
 | cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 14 | 6 | 96 | 10% | 10% | 0 | 3391 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| cys/BasicDataVizDemo.cys | ok | 249 | 299 | 3 | 4 | 1 | 100% | 100% | 0 | 2989 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/STELZL.cys | ok | 1603 | 3308 | 3 | 5 | 249 | 100% | 93% | 0 | 26158 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/cytoscape-tutorials-AnnotationExample.cys | ok | 330 | 359 | 6 | 4 | 728 | 0% | 0% | 0 | 3775 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/cytoscape-tutorials-layout-v1.cys | ok | 331 | 362 | 3 | 6 | 112 | 1% | 1% | 0 | 3796 | 0 | W_STYLE_OTHER_STYLES |
+| cys/BasicDataVizDemo.cys | ok | 249 | 299 | 3 | 4 | 1 | 100% | 100% | 0 | 2988 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/STELZL.cys | ok | 1603 | 3308 | 3 | 4 | 434 | 100% | 53% | 0 | 25973 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/cytoscape-tutorials-AnnotationExample.cys | ok | 330 | 359 | 6 | 4 | 728 | 0% | 0% | 0 | 3774 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/cytoscape-tutorials-layout-v1.cys | ok | 331 | 362 | 3 | 6 | 112 | 1% | 1% | 0 | 3795 | 0 | W_STYLE_OTHER_STYLES |
 | cys/fidelity/affinity-purification.cys | ok | 471 | 917 | 6 | 3 | 134 | 28% | 28% | 0 | 7411 | 0 | W_STYLE_OTHER_STYLES |
-| cys/fidelity/galfiltered.cys | ok | 330 | 359 | 6 | 5 | 728 | 0% | 0% | 0 | 3775 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/fidelity/import-and-save.cys | ok | 30 | 137 | 4 | 10 | 365 | 5% | 0% | 0 | 865 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/fidelity/galfiltered.cys | ok | 330 | 359 | 6 | 5 | 728 | 0% | 0% | 0 | 3774 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/fidelity/import-and-save.cys | ok | 30 | 137 | 4 | 6 | 396 | 19% | 0% | 0 | 806 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/luad-vest-v2.cys | ok | 26 | 25 | 6 | 5 | 13 | 0% | 0% | 0 | 281 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_OTHER_STYLES |
 | cys/fidelity/syn-bypass.cys | ok | 63 | 86 | 7 | 5 | 232 | 99% | 92% | 0 | 808 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/syn-mappings.cys | ok | 96 | 140 | 13 | 12 | 1645 | 26% | 26% | 0 | 1276 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |

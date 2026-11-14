@@ -318,6 +318,11 @@ export interface OracleReport {
      * to compare it with) is not measurable there, which is never a failure.
      */
     judged: Partial<Record<OracleProperty, string[]>>;
+    /**
+     * The elements judged as the drawing as a whole (the frame, the background, the share of lines drawn bent): a
+     * property judging only these judges no element of the drawing one by one.
+     */
+    wholeDrawing: string[];
     association: unknown;
     transform: {
         scale: number;
@@ -1463,6 +1468,8 @@ export type OracleJudges = (property: OracleProperty, id: string, subject?: stri
 class Judge {
     readonly results = new Map<OracleProperty, OracleJudged[]>();
     readonly failed = new Map<string, Set<OracleProperty>>();
+    /** The ids judged as the drawing as a whole (kind "graph"). */
+    readonly wholeDrawing = new Set<string>();
 
     constructor(private readonly judges: OracleJudges = () => true) {}
 
@@ -1477,6 +1484,9 @@ class Judge {
     ): void {
         if (!this.judges(p, id, subject)) {
             return;
+        }
+        if (kind === "graph") {
+            this.wholeDrawing.add(id);
         }
         const pass = miss <= 0;
         const list = this.results.get(p) ?? [];
@@ -1670,15 +1680,17 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
             }
         }
         // a line that is a caption's words on its own may also be the first line of a longer caption wrapped under it
-        // ("font.strokeWidth=3" over "strokeColor")
+        // ("font.strokeWidth=3" over "strokeColor"); the longest such run is the caption, as its first lines may be
+        // another caption's whole words ("shape=" over "PARALLELOGRAM" over "60x30", cx-specimen-node-shapes)
         const run = [t];
+        let caption = 0;
         for (let next = below(t); next !== undefined && run.length < 4; next = below(next)) {
             run.push(next);
             if (words.has(squash(run.map((x) => x.content).join("")))) {
-                run.forEach((x) => dropped.add(x));
-                break;
+                caption = run.length;
             }
         }
+        run.slice(0, caption).forEach((x) => dropped.add(x));
     }
     // a caption's own body: a shape drawn tight around its words (a program that ignores the file's "no fill" on
     // a caption node still draws the box), part of the caption and left out with it
@@ -2140,8 +2152,9 @@ export function compareOracle(
         if (o.shape !== null) {
             j.add("node.shape", "node", id, o.shape === g.shape ? 0 : 1, o.shape, g.shape);
         }
-        const oFill = shownFill(o);
-        // graphty's fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across
+        // each fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across, on
+        // either side (yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size: graphml-stm32-func)
+        const oFill = Math.min(o.w, o.h) < 0.5 ? null : shownFill(o);
         const gFill = Math.min(g.w, g.h) * lengthScale < 0.5 ? null : g.fill;
         const gGradAngle = gFill?.gradient?.angle ?? null;
         const runAngles = {
@@ -3313,6 +3326,7 @@ export function compareOracle(
         verdict: { pass: elements.length === 0, failing: elements.length },
         failures,
         judged,
+        wholeDrawing: [...j.wholeDrawing].sort(cmp),
         association,
         transform,
         counts: {

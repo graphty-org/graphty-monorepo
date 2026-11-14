@@ -5,7 +5,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession, type RuleTree } from "../../../session";
+import { createGraphSession, type GraphSession, isGraphtyError, type RuleTree } from "../../../session";
 
 const GAUGES = [
     { id: "g1", installed: "1998-05-12" },
@@ -89,13 +89,13 @@ describe('a range leaf read "as" time', () => {
     it("refuses an as it does not know", async () => {
         const session = await gauges();
         const bad = { ...BEFORE_2005, as: "date" } as unknown as RuleTree;
-        let refused = false;
+        let refused: unknown = null;
         try {
             await session.visibility.setConditions([{ effect: "keep", rule: bad }]);
-        } catch {
-            refused = true;
+        } catch (error) {
+            refused = error;
         }
-        assert.isTrue(refused);
+        assert.strictEqual(isGraphtyError(refused) ? refused.code : refused, "E_BAD_COMMAND");
         session.dispose();
     });
 });

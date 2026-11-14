@@ -1,13 +1,19 @@
 import { afterEach, assert, expect, test, vi } from "vitest";
 
 import type { Graph } from "../../../src/Graph";
-import { ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError.js";
+import { GraphtyLogger } from "../../../src/logging/GraphtyLogger.js";
+import { resetLoggingConfig } from "../../../src/logging/LoggerConfig.js";
+import { LogLevel, type LogRecord } from "../../../src/logging/types.js";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
+const SINK = "screenshot-resolution-test";
+
 afterEach(() => {
     cleanupTestGraphWithData(graph);
+    GraphtyLogger.removeSink(SINK);
+    resetLoggingConfig();
     vi.restoreAllMocks();
 });
 
@@ -65,8 +71,8 @@ test("strictAspectRatio throws when aspect mismatch", async () => {
             strictAspectRatio: true,
         }),
     ).rejects.toMatchObject({
-        name: "ScreenshotError",
-        code: ScreenshotErrorCode.ASPECT_RATIO_MISMATCH,
+        name: "GraphtyError",
+        code: "E_OPTION_RANGE",
     });
 });
 
@@ -79,8 +85,8 @@ test("dimensions exceeding browser limit throw error", async () => {
             height: 20000,
         }),
     ).rejects.toMatchObject({
-        name: "ScreenshotError",
-        code: ScreenshotErrorCode.DIMENSION_TOO_LARGE,
+        name: "GraphtyError",
+        code: "E_TOO_LARGE",
     });
 });
 
@@ -93,25 +99,25 @@ test("total pixels exceeding limit throw error", async () => {
             height: 10000,
         }),
     ).rejects.toMatchObject({
-        name: "ScreenshotError",
-        code: ScreenshotErrorCode.RESOLUTION_TOO_HIGH,
+        name: "GraphtyError",
+        code: "E_TOO_LARGE",
     });
 });
 
-test("large dimensions produce console warning", async () => {
+test("large dimensions log a warning with their size", async () => {
     graph = await createTestGraphWithData();
-
-    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
-        // Intentionally empty - we just want to suppress the warning
-    });
+    await GraphtyLogger.configure({ enabled: true, level: LogLevel.WARN });
+    const records: LogRecord[] = [];
+    GraphtyLogger.addSink({ name: SINK, write: (record) => records.push(record) });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     await graph.captureScreenshot({
         width: 3841, // Slightly larger than 4K to exceed WARN_PIXELS
         height: 2160,
     });
 
-    expect(consoleWarnSpy).toHaveBeenCalled();
-    expect(consoleWarnSpy.mock.calls[0][0]).toMatch(/Large screenshot/);
-
-    consoleWarnSpy.mockRestore();
+    const warning = records.find((r) => r.level === LogLevel.WARN && r.category.includes("screenshot"));
+    assert.isDefined(warning);
+    assert.match(warning.message, /Large screenshot/);
+    assert.deepInclude(warning.data, { width: 3841, height: 2160, totalPixels: 3841 * 2160 });
 });

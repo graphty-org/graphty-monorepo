@@ -259,8 +259,15 @@ describe("ViewMode API", () => {
     describe("XR mode fallback", () => {
         // Note: XR modes will fall back to 3D when WebXR is not available
         it("should fall back to 3d when VR is not available", async () => {
-            // Try to switch to VR (should fail gracefully)
-            await graph.setViewMode("vr");
+            // Try to switch to VR: it fails, coded
+            const refused: unknown = await graph.setViewMode("vr").then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+            assert.isTrue(
+                isGraphtyError(refused) && refused.code === "E_UNSUPPORTED",
+                "the entry did not reject, coded",
+            );
             await operationQueueOf(graph).waitForCompletion();
 
             // Should fall back to 3D since XR is not available in test environment
@@ -268,8 +275,15 @@ describe("ViewMode API", () => {
         });
 
         it("should fall back to 3d when AR is not available", async () => {
-            // Try to switch to AR (should fail gracefully)
-            await graph.setViewMode("ar");
+            // Try to switch to AR: it fails, coded
+            const refused: unknown = await graph.setViewMode("ar").then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+            assert.isTrue(
+                isGraphtyError(refused) && refused.code === "E_UNSUPPORTED",
+                "the entry did not reject, coded",
+            );
             await operationQueueOf(graph).waitForCompletion();
 
             // Should fall back to 3D since XR is not available in test environment

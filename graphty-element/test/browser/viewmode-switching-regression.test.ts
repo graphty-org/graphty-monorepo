@@ -14,6 +14,7 @@ import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
+import { isGraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { DataManager } from "../../src/managers/DataManager";
 import { nextFrame } from "../helpers/real-input";
@@ -303,77 +304,26 @@ describe("ViewMode Switching Regression Tests", () => {
     });
 
     describe("Regression: AR/VR gracefully handles missing WebXR APIs", () => {
-        it("should fall back to 3D when VR is not supported", async () => {
-            // Setup
-            await graph.addNodes(TEST_NODES);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // Check VR support first
-            const vrSupported = await graph.isVRSupported();
-
-            // Try to switch to VR
-            await graph.setViewMode("vr");
-            await operationQueueOf(graph).waitForCompletion();
-
-            if (!vrSupported) {
-                // Should fall back to 3D
-                assert.strictEqual(graph.getViewMode(), "3d", "Should fall back to 3D when VR is not supported");
-            }
-            // If VR is supported (unlikely in test environment), just verify it doesn't crash
-        });
-
-        it("should fall back to 3D when AR is not supported", async () => {
-            // Setup
-            await graph.addNodes(TEST_NODES);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // Check AR support first
-            const arSupported = await graph.isARSupported();
-
-            // Try to switch to AR
-            await graph.setViewMode("ar");
-            await operationQueueOf(graph).waitForCompletion();
-
-            if (!arSupported) {
-                // Should fall back to 3D
-                assert.strictEqual(graph.getViewMode(), "3d", "Should fall back to 3D when AR is not supported");
-            }
-            // If AR is supported (unlikely in test environment), just verify it doesn't crash
-        });
-
-        it("should not throw when switching to VR without WebXR", async () => {
-            // Setup
-            await graph.addNodes(TEST_NODES);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // This should not throw
-            let errorThrown = false;
-            try {
-                await graph.setViewMode("vr");
+        it.each(["vr", "ar"] as const)(
+            "a refused %s entry rejects, coded, and leaves the graph in 3D",
+            async (mode) => {
+                await graph.addNodes(TEST_NODES);
                 await operationQueueOf(graph).waitForCompletion();
-            } catch {
-                errorThrown = true;
-            }
 
-            assert.isFalse(errorThrown, "Setting viewMode to 'vr' should not throw");
-        });
-
-        it("should not throw when switching to AR without WebXR", async () => {
-            // Setup
-            await graph.addNodes(TEST_NODES);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // This should not throw
-            let errorThrown = false;
-            try {
-                await graph.setViewMode("ar");
+                // XR is off here, so the entry is refused.
+                const refused: unknown = await graph.setViewMode(mode).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
                 await operationQueueOf(graph).waitForCompletion();
-            } catch {
-                errorThrown = true;
-            }
 
-            assert.isFalse(errorThrown, "Setting viewMode to 'ar' should not throw");
-        });
+                assert.isTrue(
+                    isGraphtyError(refused) && refused.code === "E_UNSUPPORTED",
+                    "the entry did not reject, coded",
+                );
+                assert.strictEqual(graph.getViewMode(), "3d");
+            },
+        );
 
         it("should report VR support status correctly", async () => {
             const vrSupported = await graph.isVRSupported();

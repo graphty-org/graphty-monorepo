@@ -34,12 +34,8 @@ const NodeBehaviorOpts = z
         depthIndependentSize: z.boolean().optional(),
 
         /*
-         * How wide every node outline is drawn, as a multiple of the renderer's own stroke (about
-         * four device pixels at 1).
-         *
-         * ONE WIDTH FOR EVERY OUTLINE, which is why it is a graph setting and not a style channel:
-         * the renderer draws all outlines in one full-screen pass, and the stroke's width belongs
-         * to that pass (see the `node.outline` channel's caveat). Unset, the renderer's own width.
+         * How wide a node outline is drawn when its style sets no width (the `node.outlineWidth`
+         * channel), as a multiple of the ring's own band. Unset, the ring's own width (1).
          */
         outlineWidth: z.number().positive().max(10).optional(),
     })
@@ -107,7 +103,9 @@ const CameraBehaviorOpts = z
          * pivot: the 3D camera glides to look at it and orbits, spins and zooms about it, the 2D view
          * glides to center it, and in VR or AR the reader's turns and scaling happen about it without
          * moving the reader. The pivot follows the selected nodes while they move, and stays where it
-         * is when the selection is cleared.
+         * is when the selection is cleared. A selection made by a right-click or a touch-and-hold
+         * (a request for a context menu, including one the page's own `contextmenu` handler makes)
+         * leaves the camera where it is, so a menu opened at the pointer stays beside its node.
          */
         pivotOnSelection: z.boolean().default(false),
         /*
@@ -282,6 +280,17 @@ const GraphLayoutOpts = z.strictObject({
      * included.
      */
     visibleOnly: z.boolean().optional(),
+
+    /*
+     * What `visibleOnly` does while time plays, when the moving time window changes what the
+     * filter shows every frame.
+     *
+     * "follow": it runs again at every change, as it does when time is still -- a full layout per
+     * frame, thrown away by the next one. "hold": the layout keeps the nodes where they are while
+     * time plays and runs again once, over what is shown, when the play pauses or ends. Unset means
+     * "follow". A layout over the whole graph ignores it.
+     */
+    visibleOnlyWhilePlaying: z.enum(["hold", "follow"]).optional(),
 });
 
 /** How the element drives a layout, as the behaviour configuration resolves it. */

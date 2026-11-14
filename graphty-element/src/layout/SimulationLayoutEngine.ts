@@ -64,7 +64,7 @@ import { narrowLayout } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION, type GraphAccelerator } from "../acceleration/types";
 import { asStrength } from "../algorithms/input/weight";
 import { WRITABLE_LANE } from "../data/lane";
-import type { ElementPositions } from "../data/positions";
+import { type ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
@@ -512,6 +512,10 @@ interface DrawnRun {
      * some 2,000 times the size of the next (#6584). Such a landing goes up by upload.
      */
     readonly unstepped: DrawnTransform[];
+    /** The table's `ownRowWrites` at the last skip walk with nothing held, or -1. */
+    skipSeen: number;
+    /** The snapshot of that walk. */
+    skipSnapshot: GraphSnapshot | null;
 }
 
 /**
@@ -674,6 +678,21 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /** Frame batches that have landed, and how many of them the last publish included. */
     #landed = 0;
+
+    /** The publish a landing copied on the card owes the lane (see `#publish`). */
+    readonly #owedPublish = (): void => {
+        this.#publish(false);
+    };
+
+    /** The box {@link SimulationLayoutEngine.publishedBounds} answers while a publish is owed. */
+    #owedBox: Float64Array | null = null;
+
+    /**
+     * Rows walked on the CPU by a publish: the rows it writes and the walk for the rows the card's
+     * ring leaves alone. A landing copied on the card walks none.
+     * @internal
+     */
+    rowsWalked = 0;
     #landedPublished = 0;
 
     /** Set by `LayoutManager` while it is not stepping this layout. See {@link paused}. */
@@ -858,6 +877,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * attached, or whatever `createSimulation` throws.
      */
     load(snapshot: GraphSnapshot, positions: F32): void {
+        // A publish owed over the snapshot being replaced is written while its rows still mean it.
+        this.#dataManager[WRITABLE_LANE].settle();
         this.#detachDrawn();
         this.#simulation?.dispose();
         this.#simulation = null;
@@ -1352,13 +1373,33 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * free row left keeps the last map rather than falling back to the identity.
      */
     override publishPositions(): void {
+        this.#publish(true);
+    }
+
+    /**
+     * {@link SimulationLayoutEngine.publishPositions}, which a landing copied on the card may owe.
+     *
+     * OWED ON THE CARD. When the landing goes up by copy (renderPath "batched" on a shared device),
+     * the card already draws it, so no row is written, repacked or walked on the CPU for it: the
+     * lane is owed the publish (`ElementPositions.owe`), and the first read or write of a row --
+     * a pick, a node's position, a drag, a freeze -- writes it, from the latest landing with the
+     * transform that landing drew with. The store's snapshot lends the lane without an accessor,
+     * so its readers that hand coordinates on (the consumer snapshot, an export, an algorithm's
+     * input) write it themselves. At 1M rows the per-row publish was 49 ms of an
+     * 82 ms layout frame (issue #6389). Only the envelope is still measured per landing, since it
+     * is the transform the next batches draw with.
+     * @param mayOwe - False to write the rows now: the lane's owed publish itself.
+     */
+    #publish(mayOwe: boolean): void {
+        const store = this.#dataManager[WRITABLE_LANE];
+        store.forgive(this.#owedPublish);
+        this.#owedBox = null;
         const snapshot = this.#snapshot;
         const simPositions = this.#simPositions;
         if (snapshot === null || simPositions === null) {
             return;
         }
 
-        const store = this.#dataManager[WRITABLE_LANE];
         this.#landedPublished = this.#landed;
         // ON THE CARD, A LANDING IS PUBLISHED WITH THE TRANSFORM ITS BATCH DREW WITH, so the lane and the
         // texture the ring is copied into hold the same rows; the envelope measured now is the next batches'.
@@ -1366,7 +1407,34 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const landed = drawn?.simulation.landedDrawn ?? null;
         const viaCard = drawn === null || landed === null ? null : this.#cardTransform(drawn);
         this.#fitEnvelope(snapshot, simPositions);
+        if (mayOwe && drawn !== null && viaCard !== null) {
+            drawn.stepped = true;
+            if (!this.#publishDrawn(drawn, landed)) {
+                // Not copied after all (the texture is not on the card yet, or the ring failed): written now.
+                this.#publish(false);
+                return;
+            }
 
+            this.#owedBox = this.holdsAny ? null : this.#keepFixedIn(this.#envelopeBox(viaCard.target));
+            store.owe(this.#owedPublish);
+            return;
+        }
+
+        this.#writeRows(snapshot, simPositions, viaCard);
+        if (drawn !== null) {
+            drawn.stepped ||= landed !== null;
+            this.#publishDrawn(drawn, viaCard === null ? null : landed);
+        }
+    }
+
+    /**
+     * Write the rows of the latest landing into the lane: the CPU half of a publish.
+     * @param snapshot - The snapshot being laid out.
+     * @param simPositions - The simulation's coordinates, three per row.
+     * @param viaCard - The transform the landed batch drew with, or null for the envelope's.
+     */
+    #writeRows(snapshot: GraphSnapshot, simPositions: F32, viaCard: DrawnTransform | null): void {
+        const store = this.#dataManager[WRITABLE_LANE];
         const scale = viaCard?.scale ?? this.#envelopeScale;
         const centre = viaCard?.center ?? this.#simCentre;
         const target = viaCard?.target ?? this.#targetCentre;
@@ -1389,6 +1457,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             // with no Node included; a removed node's row, live until the next freeze, is one the
             // batches draw nothing for.
             first = store;
+            this.rowsWalked += snapshot.nodeCount;
             for (let row = 0; row < snapshot.nodeCount; row++) {
                 put(row);
             }
@@ -1411,10 +1480,6 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.publishColumn(first, rows, coords, count, true);
         // A pinned or dragged row was left out of the publish above; it is still drawn, where it is kept.
         this.keepInPublishedBox(first, this.#fixedRows);
-        if (drawn !== null) {
-            drawn.stepped ||= landed !== null;
-            this.#publishDrawn(drawn, viaCard === null ? null : landed);
-        }
     }
 
     /**
@@ -1439,7 +1504,49 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @internal
      */
     override publishedBounds(): Readonly<Float64Array> | null {
-        return this.lastPublishedBox();
+        return this.#owedBox ?? this.lastPublishedBox();
+    }
+
+    /**
+     * Grow an owed landing's box by the pinned and dragged rows, which the publish leaves where they
+     * are kept, as `keepInPublishedBox` does for a written one. Reads them without writing the owed rows.
+     * @param box - Min x, y, z then max x, y, z; grown in place.
+     * @returns The box.
+     */
+    #keepFixedIn(box: Float64Array): Float64Array {
+        const store = this.#dataManager[WRITABLE_LANE];
+        const array = store.unsettledView();
+        const live = store.count;
+        for (const row of this.#fixedRows) {
+            const base = POSITION_COMPONENTS * row;
+            if (row < live && isStorableCoordinate(array[base])) {
+                for (let axis = 0; axis < 3; axis++) {
+                    box[axis] = Math.min(box[axis], array[base + axis]);
+                    box[axis + 3] = Math.max(box[axis + 3], array[base + axis]);
+                }
+            }
+        }
+
+        return box;
+    }
+
+    /**
+     * The box a landing owed on the card is drawn inside, with no row walked: the envelope fits every
+     * published row within its radius of the target centre.
+     * @param target - The scene-unit centre the landing drew about.
+     * @returns Min x, y, z then max x, y, z.
+     */
+    #envelopeBox(target: readonly [number, number, number]): Float64Array {
+        // ponytail: the envelope's sphere, not the rows' own box; framing while it runs is a little looser.
+        const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
+        return Float64Array.of(
+            target[0] - radius,
+            target[1] - radius,
+            target[2] - radius,
+            target[0] + radius,
+            target[1] + radius,
+            target[2] + radius,
+        );
     }
 
     /**
@@ -1472,6 +1579,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             told: new Map(),
             stepped: false,
             unstepped: [],
+            skipSeen: -1,
+            skipSnapshot: null,
             mirror: (row, x, y, z, w): void => {
                 if (this.#drawn === run && row < nodeCount) {
                     drawn.writeDrawn(row, x, y, z, w);
@@ -1533,15 +1642,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * the landed slot, and the transform the next batches draw with.
      * @param run - The run.
      * @param landed - The landed slot to copy, or null when this publish goes up by upload.
+     * @returns True when the landed slot was copied.
      */
-    #publishDrawn(run: DrawnRun, landed: GPUBuffer | null): void {
+    #publishDrawn(run: DrawnRun, landed: GPUBuffer | null): boolean {
         const simulation = this.#simulation;
+        let copied = false;
         try {
             this.#sendDrawnSkip(run);
             if (landed === null) {
                 run.target.table.dropCopy();
             } else {
-                run.target.table.copyLanded(run.target.device, landed, run.n);
+                copied = run.target.table.copyLanded(run.target.device, landed, run.n);
                 this.#resendTold(run);
             }
 
@@ -1550,7 +1661,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
             if (simulation !== null) {
                 this.#onError(error, simulation);
             }
+
+            return false;
         }
+
+        return copied;
     }
 
     /**
@@ -1595,6 +1710,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // ponytail: one pass over the rows per publish; a dirty set when held rows churn at a million rows.
         const store = this.#dataManager[WRITABLE_LANE];
         const { table } = run.target;
+        // Nothing held, followed or kept by the table since the last walk leaves the rows as they were.
+        const plain = this.#fixedRows.size === 0 && !this.holdsAny;
+        const seen = plain ? table.ownRowWrites : -1;
+        if (plain && run.skipSeen === seen && run.skipSnapshot === this.#snapshot) {
+            return;
+        }
+
+        run.skipSeen = seen;
+        run.skipSnapshot = this.#snapshot;
+        this.rowsWalked += run.n;
         const next = new Uint32Array(run.skip.length);
         let changed = false;
         for (let row = 0; row < run.n; row++) {
@@ -1788,6 +1913,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * freeze and at shutdown.
      */
     override dispose(): void {
+        this.#dataManager[WRITABLE_LANE].forgive(this.#owedPublish);
         this.#detachDrawn();
         this.#simulation?.dispose();
         this.#simulation = null;

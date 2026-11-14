@@ -213,7 +213,11 @@ graphs named:
   distance is NaN and no path is returned; a negative undirected edge is a negative cycle; a NaN or infinite weight
   throws. `allPairsShortestPath` refuses more than 5,792 nodes unless `maxNodes` is raised.
 - **Link prediction.** Adamic-Adar scores agree with 2.x within 1e-9, but tied pairs rank in another order, so a `topK`
-  cut can keep other pairs and the evaluation metrics can differ where a held-out edge ties a non-edge.
+  cut can keep other pairs. The evaluation metrics (`evaluateCommonNeighbors`, `evaluateAdamicAdar`,
+  `compareAdamicAdarWithCommonNeighbors`) treat ties as ties: a held-out edge tied with a non-edge counts half in the
+  `auc`, where 2.x and 3.x before the fix for issue #6882 counted it as a win, and the best-F1 threshold never splits
+  pairs with equal scores. So `auc`, `precision`, `recall` and `f1Score` are lower wherever a held-out edge ties a
+  non-edge, and a predictor that gives every pair the same score reports an `auc` of 0.5 rather than 1.
   With `directed: true`, `commonNeighborsPrediction` and `adamicAdarPrediction` score every ordered pair (u, v), where
   2.x scored only the pairs whose u was added before v, so they list the pairs 2.x missed too.
 - **Clustering.** `modularity` is Newman's modularity over weighted degrees, where `calculateMCLModularity` ignored

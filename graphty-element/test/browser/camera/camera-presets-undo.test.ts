@@ -4,8 +4,7 @@
  * position -- is view state that leaves project state and the history alone.
  */
 
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph.js";
 import { dispatcherOf } from "../../../src/session/GraphSession.js";

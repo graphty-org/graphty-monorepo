@@ -347,8 +347,6 @@ const config: KnipConfig = {
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",
-                // Testing utilities
-                "chai", // Provided by vitest
                 // Build tools
                 "vite-plugin-eslint",
                 // Type definitions

@@ -1,6 +1,5 @@
 import { NullEngine, Scene, TransformNode, Vector3, WebXRState } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { XRPivotCameraController } from "../../src/cameras/XRPivotCameraController";
 

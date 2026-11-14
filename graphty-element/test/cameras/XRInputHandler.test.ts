@@ -1,6 +1,5 @@
 import { NullEngine, Scene } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, type Mock, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, type Mock, test, vi } from "vitest";
 
 import { PivotController } from "../../src/cameras/PivotController";
 import { applyDeadzone, XRInputHandler } from "../../src/cameras/XRInputHandler";

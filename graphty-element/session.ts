@@ -74,6 +74,8 @@ export type {
     CreateGraphSessionOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    DerivedColumn,
+    DeriveOptions,
     DraftColumn,
     DraftRow,
     DraftRowFilter,

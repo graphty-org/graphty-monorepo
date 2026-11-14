@@ -736,10 +736,17 @@ export function dataMember(
         const { "_source.loads": _held, ...rest } = record;
         return (loads === undefined ? rest : { ...rest, "_source.loads": loads }) as unknown as T;
     };
-    const nodes = session.data.nodes().map((node) => withLoads(node, session.data.sourcesOf(node.id)));
-    const edges = session.data
-        .edges()
-        .map((edge) => withLoads(edge, session.data.sourcesOf(edge.id, { kind: "edge" })));
+    // A computed column's values are left out: the session member saves its expression, and an
+    // open works them out again.
+    const derived = session.data.derivedColumns();
+    const computed = (kind: "node" | "edge"): ReadonlySet<string> =>
+        new Set(derived.filter((column) => column.kind === kind).map((column) => column.name));
+    const nodes = withoutKeys(session.data.nodes(), computed("node")).map((node) =>
+        withLoads(node, session.data.sourcesOf(node.id)),
+    );
+    const edges = withoutKeys(session.data.edges(), computed("edge")).map((edge) =>
+        withLoads(edge, session.data.sourcesOf(edge.id, { kind: "edge" })),
+    );
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
     const source = session.data.source();
     const sources = session.data.sources();
@@ -776,6 +783,23 @@ export function dataMember(
         ...(sources.length === 0 ? {} : { sources: sources.map(withoutSecrets) }),
         ...(Object.keys(provenance).length === 0 ? {} : { provenance }),
     };
+}
+
+/**
+ * Records without some keys.
+ * @param records - The records.
+ * @param keys - The keys to leave out.
+ * @returns The records, each without those keys.
+ */
+function withoutKeys<T extends Readonly<Record<string, unknown>>>(
+    records: readonly T[],
+    keys: ReadonlySet<string>,
+): T[] {
+    if (keys.size === 0) {
+        return [...records];
+    }
+
+    return records.map((record) => Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key))) as T);
 }
 
 /**
@@ -865,6 +889,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
               }),
         // The data issues: what the loads saw, the ignored issues and the kept repeats, when any.
         ...(issueState === undefined ? {} : { issues: { version: ISSUES_VERSION, ...issueState } }),
+        // The computed columns, by their expressions: their values are worked out again on open.
+        ...(session.data.derivedColumns().length === 0
+            ? {}
+            : { derived: { version: DERIVED_VERSION, columns: session.data.derivedColumns() } }),
     };
 }
 
@@ -1974,6 +2002,9 @@ async function readProject(
         );
     }
 
+    // After the runs, whose results a computed column may read; before what may read it.
+    await readDerived(opening, state.derived);
+
     for (const set of waiting) {
         await attempt(
             opening,
@@ -2058,6 +2089,40 @@ async function readFilterConditions(
         await (tx.visibility as SessionVisibilityApi).restoreConditions(read.conditions);
     } else if (steps.length > 0) {
         await tx.visibility.setSteps(steps);
+    }
+}
+
+/** The version of the session member's `derived` field. */
+const DERIVED_VERSION = 1;
+
+/**
+ * Add back the computed columns the session member saved, working their values out from what the
+ * project holds now. A newer version of the field is reported and skipped; a column that can no
+ * longer be worked out (its run did not come back) is reported and skipped.
+ * @param opening - The open.
+ * @param derived - The session member's `derived` field.
+ */
+async function readDerived(opening: Opening, derived: unknown): Promise<void> {
+    if (!isObject(derived)) {
+        return;
+    }
+
+    if (derived.version !== DERIVED_VERSION) {
+        opening.problems.push({
+            code: "E_UNSUPPORTED_VERSION",
+            params: { slice: "graph", found: derived.version as number },
+        });
+        return;
+    }
+
+    for (const column of Array.isArray(derived.columns) ? (derived.columns as unknown[]) : []) {
+        const { kind, name, expression } = isObject(column) ? column : {};
+        await attempt(
+            opening,
+            "graph",
+            () => opening.tx.data.derive(name as string, expression as string, { kind: kind as "node" | "edge" }),
+            `${String(kind)}:${String(name)}`,
+        );
     }
 }
 

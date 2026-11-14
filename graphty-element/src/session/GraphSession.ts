@@ -2883,6 +2883,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 new Set<NodeId | EdgeId>(
                     target === "node" ? requireQuery(query).nodes(where) : requireQuery(query).edges(where),
                 ),
+            valuesWhere: (where, target, overlay) => requireQuery(query).values(where, target, overlay),
+            unresolvedWhere: (where) => requireQuery(query).unresolvedPathsOf(where),
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),
@@ -2905,6 +2907,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     if (store.store instanceof GraphStore) {
         dispatcher.services.data = headlessDataService(store.store, dispatcher, readData, ceilings);
     }
+    // The computed columns, brought up to date by what moves their inputs (`commands/derive.ts`).
+    dispatcher.services.derive = () => data.derivedRefresh();
 
     const components = componentLabelsOf(data);
     // Kept sets, published as `session.sets`.

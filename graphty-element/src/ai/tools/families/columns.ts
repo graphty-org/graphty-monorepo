@@ -65,6 +65,7 @@ export const columnsTool: ToolDefinition = {
                 { door: "SessionDataApi.structureValues" },
                 { door: "SessionDataApi.hiddenColumns" },
                 { door: "SessionDataApi.loadedWeight" },
+                { door: "SessionDataApi.derivedColumns" },
             ],
             run: ({ tx }) =>
                 Promise.resolve(
@@ -73,6 +74,7 @@ export const columnsTool: ToolDefinition = {
                         structure: list(tx.data.structureValues()),
                         hidden: list(tx.data.hiddenColumns()),
                         weight: tx.data.loadedWeight(),
+                        computed: list(tx.data.derivedColumns()),
                     }),
                 ),
         },
@@ -176,6 +178,25 @@ export const columnsTool: ToolDefinition = {
             run: async ({ tx }, args) => {
                 await coded(() => tx.data.setRole(columnOf(args), (args.role ?? null) as ColumnRole | null));
                 return ok(undefined, { role: (args.role ?? null) as string | null });
+            },
+        },
+        {
+            name: "compute",
+            summary: "a column whose values an expression reads from other columns and results",
+            fields: {
+                column,
+                on,
+                expression: z
+                    .string()
+                    .max(MAX_STRING)
+                    .describe("A selector expression, such as data.nickname || data.name."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.derive" }, { op: "data.derive" }],
+            run: async ({ tx }, args) => {
+                const { kind, name } = columnOf(args);
+                await coded(() => tx.data.derive(name, text(args.expression), { kind }));
+                return ok(undefined, { column: name });
             },
         },
         {

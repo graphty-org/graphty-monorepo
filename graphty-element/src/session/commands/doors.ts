@@ -2621,6 +2621,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen.
             node: READ,
             name: READ,
+            // Fresh objects built from the label column on each call.
+            nodeName: READ,
+            edgeName: READ,
             edge: READ,
             nodes: READ,
             edges: READ,
@@ -2954,6 +2957,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             structureValue: READ,
             histogram: READ,
             valueCounts: READ,
+            overRepresented: READ,
             // The column commands, each one batch.
             setRole: {
                 kind: "dispatches",

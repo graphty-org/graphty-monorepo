@@ -43,7 +43,7 @@ export const BATCH_ATTRIBUTES = [
     // billboard: halo (rgb packed, scale, opacity); square: entered and exited stamps; w: the
     // use's minimum size in CSS pixels (0: none)
     "graphtyDeco0",
-    // billboard: ring (rgb packed, on), glow (rgb packed, strength)
+    // billboard: ring (rgb packed, width: a multiple of its band, 0 for none), glow (rgb packed, strength)
     "graphtyDeco1",
 ] as const;
 
@@ -65,9 +65,17 @@ const BATCH_UNIFORMS = [
 /** The mesh path's two instanced attributes: the varying parameters, then the meta of the batch. */
 export const MESH_ATTRIBUTES = ["graphtyShaderA", "graphtyShaderB"] as const;
 
-/** The radii the outline ring is drawn between, as multiples of the node's (NodeEffects). */
+/** The radii the outline ring is drawn between at width 1, as multiples of the node's (NodeEffects). */
 const RING_INNER = 1;
 const RING_OUTER = 1.35;
+
+/**
+ * The ring's outer radius in GLSL, its band widened by the slot's width.
+ * @param width - The GLSL expression holding the width (`graphtyDeco1.y`, `vDeco1.y`).
+ * @returns The GLSL expression.
+ */
+const ringOuter = (width: string): string =>
+    `(${RING_INNER.toFixed(2)} + ${(RING_OUTER - RING_INNER).toFixed(2)} * ${width})`;
 
 /** How far a glow reaches, as a multiple of the radius. */
 const GLOW_REACH = 1.8;
@@ -181,7 +189,7 @@ function batchVertex(role: BatchRole): string {
     // The billboard's square holds its halo, ring and glow; the square in place of the node also
     // its reach.
     const decorated = (least: string): string =>
-        `max(max(${least}, graphtyDeco0.y), max(graphtyDeco1.y > 0.5 ? ${RING_OUTER.toFixed(2)} : 1.0, graphtyDeco1.w > 0.0 ? ${GLOW_REACH.toFixed(2)} : 1.0))`;
+        `max(max(${least}, graphtyDeco0.y), max(graphtyDeco1.y > 0.0 ? ${ringOuter("graphtyDeco1.y")} : 1.0, graphtyDeco1.w > 0.0 ? ${GLOW_REACH.toFixed(2)} : 1.0))`;
     let extent = "graphty_reach";
     if (role === "impostor") {
         extent = decorated("1.0");
@@ -275,7 +283,7 @@ vec4 graphty_decoration(float d) {
     if (vDeco0.y > 1.0 && d > 1.0 && d < vDeco0.y) {
         deco = vec4(graphty_unpackRgb(vDeco0.x), vDeco0.z);
     }
-    if (vDeco1.y > 0.5 && d > ${RING_INNER.toFixed(2)} && d < ${RING_OUTER.toFixed(2)}) {
+    if (vDeco1.y > 0.0 && d > ${RING_INNER.toFixed(2)} && d < ${ringOuter("vDeco1.y")}) {
         deco = vec4(graphty_unpackRgb(vDeco1.x), 1.0);
     }
     return deco;

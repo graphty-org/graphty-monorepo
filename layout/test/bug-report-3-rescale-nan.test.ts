@@ -115,10 +115,9 @@ describe("Bug Report #3: rescaleLayout returns all zeros when encountering NaN v
 
     it("verifies the specific case with null values mentioned in bug report", () => {
         // The bug report mentions null, but let's test both null and NaN
-        const positionsWithNull = {
-            node1: [0.5, 0.3, null as any],
-            node2: [-0.2, 0.7, null as any],
-        };
+        // A null where the type wants a number: the bad input the bug report describes, as parsed
+        // data delivers it.
+        const positionsWithNull = JSON.parse('{"node1": [0.5, 0.3, null], "node2": [-0.2, 0.7, null]}') as PositionMap;
 
         // Note: null gets converted to 0 in calculations, not NaN
         const result = rescaleLayout(positionsWithNull, 1, [0, 0, 0]);

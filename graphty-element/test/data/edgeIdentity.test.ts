@@ -358,6 +358,28 @@ describe("the identity columns", () => {
         assert.deepEqual([...four.edgeHash], [...one.edgeHash]);
     });
 
+    it("reads a snapshot frozen while a load is open as its columns say, filling nothing in", () => {
+        // The first chunk of a load into an empty store: its edges carry a counter and no hash yet.
+        const store = newStore("auto");
+        store.openLoad();
+        ingestEdge(store, "a", "b", 1);
+        ingestEdge(store, "b", "c", 1);
+        const snapshot = store.getSnapshot();
+        assert.deepEqual([...identityColumnsOf(snapshot).edgeHash], [0, 0, 0, 0]);
+        store.closeLoad();
+    });
+
+    it("hashes a deferred session edge added after the hash column was written whole", () => {
+        const store = newStore("auto");
+        load(store, [{ s: "x", t: "y" }]);
+        const row = store.builder.addEdge("y", "x", 1);
+        const counter = store.nextEdgeId();
+        store.stampEdgeId(row, counter);
+        store.recordIngestedEdge(row, counter, undefined, true);
+        const lanes = identityColumnsOf(store.getSnapshot()).edgeHash;
+        assert.notDeepEqual([lanes[2], lanes[3]], [0, 0]);
+    });
+
     it("follows a load's rows through a compacting freeze in the middle of it", () => {
         const store = newStore("auto");
         load(store, [{ s: "x", t: "y" }]);

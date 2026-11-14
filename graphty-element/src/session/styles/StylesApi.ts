@@ -1330,7 +1330,7 @@ export interface StylesApi {
     /**
      * Add back whichever of the three starting rows the tree lacks: Everything (nodes and edges,
      * pinned to the bottom, writing nothing), Selected (nodes and edges, pinned to the top,
-     * drawing a near-black node halo with a white glow and a near-black edge band) and Hovered (nodes, pinned to
+     * drawing a node halo and an edge band in the selection settings' colors) and Hovered (nodes, pinned to
      * the top, writing nothing). One undo step; nothing when all three are there. Setting the
      * project setting `startingRows` to true adds them the same way. While a time field is
      * designated (`session.time.setField`), the Ghost row comes too: nodes and edges in the state

@@ -11,7 +11,8 @@ your own. graphty-element loads from any of them by name. You install nothing el
 client.
 
 graph-samples' datasets are not a network source: load one with
-`session.data.loadDataset("karate")`.
+`session.data.loadDataset("karate", { baseUrl })`, where `baseUrl` is where the dataset files are
+published (graph-samples exports its own copy's address as `DEFAULT_DATASET_BASE_URL`).
 
 ## Load from a built-in source
 

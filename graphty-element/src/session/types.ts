@@ -161,6 +161,31 @@ export interface NodeRecord {
     readonly [attribute: string]: unknown;
 }
 
+/**
+ * What a node is called, as facts the reader's wording is built from: `session.data.nodeName`.
+ * An app chooses the words, such as "Ohio" or "Ohio (71)".
+ */
+export interface NodeName {
+    /** The node's id, as the graph holds it (as passed, for a node the graph does not hold). */
+    readonly id: NodeId;
+    /**
+     * Its label column's value (`data.knownFields.nodeLabelPath`) as text, else its id as text:
+     * never empty; the text {@link SessionDataApi.name} gives. Untrusted text from the data: render
+     * it as text, never as markup.
+     */
+    readonly name: string;
+    /** Whether `name` came from the label column and differs from the id's text. */
+    readonly labeled: boolean;
+}
+
+/** What an edge is called: its two ends' names, `session.data.edgeName`. */
+export interface EdgeName {
+    /** The end the edge leaves. */
+    readonly source: NodeName;
+    /** The end the edge enters. */
+    readonly target: NodeName;
+}
+
 /** An edge as a consumer reads it: its endpoints, and whatever attributes its record carried. */
 export interface EdgeRecord {
     /** The element-assigned edge id. */
@@ -860,6 +885,56 @@ export interface ValueCounts {
 }
 
 /**
+ * One value that occurs in a group more often than chance: one row of a group's
+ * {@link OverRepresentedGroup.values}.
+ */
+export interface OverRepresentedValue {
+    /** The column tested, such as `data.team`. */
+    readonly path: Path;
+    /** The value; each item of a list value is tested as a value of its own. */
+    readonly value: string | number | boolean;
+    /** How many of the group's members carry the value. */
+    readonly count: number;
+    /** How many would carry it by chance: the group's carriers of the column times the value's share of all carriers. */
+    readonly expected: number;
+    /** The hypergeometric chance of `count` or more by chance alone, uncorrected. */
+    readonly p: number;
+    /** `p` corrected for every test performed, by the method {@link OverRepresentedValues.correction} names. */
+    readonly adjustedP: number;
+}
+
+/** One group's over-represented values. */
+export interface OverRepresentedGroup {
+    /** The group's value at the path the test grouped by. */
+    readonly group: string | number | boolean;
+    /** How many nodes the group holds. */
+    readonly size: number;
+    /** The values more frequent in the group than expected, lowest adjusted p first. */
+    readonly values: readonly OverRepresentedValue[];
+}
+
+/** The multiple-testing correction applied to an {@link OverRepresentedValues} table. */
+export type MultipleTestingCorrection = "benjamini-hochberg";
+
+/**
+ * What `session.data.overRepresented(groupBy)` returns: per group, the values of the node's
+ * categorical and list columns that occur in the group more often than chance.
+ */
+export interface OverRepresentedValues {
+    /** The path the nodes were grouped by. */
+    readonly groupBy: Path;
+    /** How every `adjustedP` was corrected. */
+    readonly correction: MultipleTestingCorrection;
+    /**
+     * How many tests the correction covered: one per group and value a member carries, including
+     * the values that came out under-represented and are not listed.
+     */
+    readonly testCount: number;
+    /** Every group, largest first. */
+    readonly groups: readonly OverRepresentedGroup[];
+}
+
+/**
  * What a column's values are read as: what `session.data.setType(column, type)` converts them to.
  *
  * - `"text"`: strings, free text.
@@ -1067,12 +1142,39 @@ export interface SessionDataApi {
      * data: render it as text, never as markup.
      *
      * ```ts
-     * const title = session.data.name(nodeId) ?? String(nodeId); // "Javert"
+     * const title = session.data.name(nodeId) ?? String(nodeId); // "Javert"; nodeName never needs the ??
      * ```
      * @param id - the node id; an integer id may be written either way, as {@link node} takes it
      * @returns the name, or undefined when the graph has no such node
      */
     name(id: NodeId): string | undefined;
+    /**
+     * What a node is called, never undefined: its label (the value {@link name} gives), else its
+     * id, with the id beside it so a caller can show both.
+     *
+     * ```ts
+     * const { name, id, labeled } = session.data.nodeName(71); // "Ohio", 71, true
+     * const words = labeled ? `${name} (${String(id)})` : name; // "Ohio (71)"
+     * ```
+     * @param id - the node id; an integer id may be written either way, as {@link node} takes it
+     * @returns the name; for a node the graph does not hold, its id as the name
+     */
+    nodeName(id: NodeId): NodeName;
+    /**
+     * What an edge is called: its two ends' {@link nodeName}s. The caller joins them with its own
+     * words, as `FindOptions.edgeNameJoiner` does for Find ("Ava -> Kofi").
+     * @param edge - the two ends' node ids, such as an `EdgeRecord`
+     * @param edge.source - the end the edge leaves
+     * @param edge.target - the end the edge enters
+     * @returns the two names
+     */
+    edgeName(edge: { readonly source: NodeId; readonly target: NodeId }): EdgeName;
+    /**
+     * What an edge is called, by its element-assigned id: its two ends' {@link nodeName}s.
+     * @param edge - the edge id; the number it spells finds it too, as {@link edge} takes it
+     * @returns the two names, or undefined when the graph has no such edge
+     */
+    edgeName(edge: EdgeId): EdgeName | undefined;
     /**
      * One edge, by the element-assigned edge id.
      * @param id - the edge id; the number it spells finds it too, `17` for `"17"`
@@ -1630,6 +1732,24 @@ export interface SessionDataApi {
      */
     valueCounts(path: Path, options?: { readonly kind?: "node" | "edge" }): ValueCounts;
     /**
+     * Per group, the values of the nodes' categorical and list columns that occur in the group
+     * more often than chance: count in the group against the expected count, with the
+     * hypergeometric p and that p corrected (Benjamini-Hochberg) over every group, column and
+     * value tested. Group by a community run's `group` field or any node path. Walks the nodes on
+     * every call.
+     *
+     * ```ts
+     * const profile = session.data.overRepresented(session.results.path("louvain", "group"));
+     * const strong = profile.groups[0].values.filter((row) => row.adjustedP < 0.05);
+     * ```
+     * @param groupBy - The path holding each node's group; a node with no value there is left out.
+     * @param options - What to test.
+     * @param options.columns - The node columns to test, by path; by default every categorical
+     *     node column except `groupBy` and a column that holds the node ids.
+     * @returns Every group, largest first, with its over-represented values.
+     */
+    overRepresented(groupBy: Path, options?: { readonly columns?: readonly Path[] }): OverRepresentedValues;
+    /**
      * The graph's shape. Walked once per snapshot and cached.
      * @param options - What to measure.
      * @param options.scope - `"visible"` measures only what the filters and the time window leave
@@ -1968,14 +2088,22 @@ export interface SessionDataApi {
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     /**
      * Download one of `catalog.datasets()` by name and load it, as one undoable step.
+     *
+     * The element names no download host of its own: `baseUrl` says where graph-samples' dataset
+     * files are published. graph-samples exports the address of its own copy:
+     *
+     * ```ts
+     * import { DEFAULT_DATASET_BASE_URL } from "@graphty/graph-samples";
+     * await session.data.loadDataset("karate", { baseUrl: DEFAULT_DATASET_BASE_URL });
+     * ```
      * @param name - The dataset's name, e.g. `"karate"`.
-     * @param options - Whether to replace the graph (the default) or add to it, where to download
-     *     from (`baseUrl`: a mirror of the published files; graphty.app by default) and a signal
-     *     that abandons the download. Loads land in the order they were asked for, so a load
-     *     asked for after this one waits until this download finishes or fails; aborting the
-     *     signal, even once the download has finished, stops it and lets the next load through.
-     * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_DATASET` for a name the
-     *     catalogue does not list (unless `baseUrl` is given) or a name that is not one,
+     * @param options - Where to download from (`baseUrl`, required), whether to replace the graph
+     *     (the default) or add to it, and a signal that abandons the download. Loads land in the
+     *     order they were asked for, so a load asked for after this one waits until this download
+     *     finishes or fails; aborting the signal, even once the download has finished, stops it and
+     *     lets the next load through.
+     * @returns Settles once the graph is loaded. Rejects with `E_OPTION_RANGE` (`details.option`
+     *     `"baseUrl"`) when no `baseUrl` is given, `E_UNKNOWN_DATASET` for a name that is not one,
      *     `E_FETCH_FAILED` when the download fails (`recoverable: false` for a client error other
      *     than 408 and 429, `details.status` when the server answered), `E_PARSE_FAILED` when the
      *     file came back but could not be read, and with the signal's own reason when it is
@@ -1986,7 +2114,10 @@ export interface SessionDataApi {
 
 /** What `data.loadDataset` takes besides the name. */
 export interface DatasetLoadOptions extends ImportOptions {
-    /** Where the dataset files are published; graphty.app's copy when absent. */
+    /**
+     * Where the dataset files are published, ending in `/`. Required: without it the load rejects
+     * with `E_OPTION_RANGE`. graph-samples' own copy is its `DEFAULT_DATASET_BASE_URL`.
+     */
     readonly baseUrl?: string;
     /** Abandons the download. */
     readonly signal?: AbortSignal;
@@ -3145,9 +3276,9 @@ export interface ProjectConfig {
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     /**
      * Whether the style tree starts with its three starting rows: Everything (pinned to the
-     * bottom, writing nothing), Selected (pinned to the top, drawing a solid near-black node halo
-     * with a white glow and a near-black edge band, at the selection settings' sizes, which
-     * reads on the default background and every default palette color) and Hovered (pinned to the top, writing nothing). False by default.
+     * bottom, writing nothing), Selected (pinned to the top, drawing a solid node halo and edge band
+     * in the selection settings' colors and sizes, a gold ring and a blue band by default) and Hovered
+     * (pinned to the top, writing nothing). False by default.
      * Turned on, the rows are added in the same step, and the selection settings
      * ({@link ProjectConfig.selectionStyle}) draw nothing themselves; `styles.restoreStartingRows()`
      * brings back any a reader deleted. While a time field is designated, a fourth row, Ghost, sits

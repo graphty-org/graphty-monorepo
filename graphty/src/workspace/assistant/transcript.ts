@@ -7,6 +7,7 @@ import type { AiApprovalRequest, AiConversationSnapshot, AiQuestionRequest } fro
 import type { AiEffect, AiTarget } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
+import { edgeName } from "../inspector/words";
 import {
     approvalWords,
     askedRows,
@@ -20,17 +21,17 @@ import {
     stepLine,
 } from "./words";
 
-/** How many ids a copied result lists before "and N more". */
-const IDS_MAX = 20;
+/** How many names a copied result lists before "and N more". */
+const NAMES_MAX = 20;
 
 /**
- * Ids as a list, cut short past a few.
- * @param ids - the ids.
- * @returns such as "1, 2, 3 and 4 more".
+ * Names as a list, cut short past a few.
+ * @param ids - the names.
+ * @returns such as "Ohio, Iowa, Utah and 4 more".
  */
-function idList(ids: readonly (string | number)[]): string {
-    const shown = ids.slice(0, IDS_MAX).map(String).join(", ");
-    return ids.length > IDS_MAX ? `${shown} and ${ids.length - IDS_MAX} more` : shown;
+function nameList(ids: readonly string[]): string {
+    const shown = ids.slice(0, NAMES_MAX).map(String).join(", ");
+    return ids.length > NAMES_MAX ? `${shown} and ${ids.length - NAMES_MAX} more` : shown;
 }
 
 /** What a copied chat says above its turns. */
@@ -57,7 +58,8 @@ function stamp(at: Date): string {
 }
 
 /**
- * The ids a result names, read from the element as the result's chips read them.
+ * The nodes and edges a result names, by their names (`data.nodeName`, `data.edgeName`), read from
+ * the element as the result's chips read them.
  * @param session - the session.
  * @param target - what it names.
  * @returns the words, or null when it names none that can be read.
@@ -68,9 +70,15 @@ async function namedIds(session: GraphSession | null, target: AiTarget | undefin
     }
     try {
         const { nodes, edges } = await session.selection.members(target);
+        const nodeNames = nodes.map((id) => session.data.nodeName(id).name);
+        const edgeNames = edges.map((id) => {
+            const edge = session.data.edge(id);
+            // An edge the data no longer holds has no ends to name; its id is the element's counter.
+            return edge === undefined ? "edge" : edgeName(session, edge);
+        });
         const parts = [
-            nodes.length > 0 ? `nodes ${idList(nodes)}` : "",
-            edges.length > 0 ? `edges ${idList(edges)}` : "",
+            nodes.length > 0 ? `nodes ${nameList(nodeNames)}` : "",
+            edges.length > 0 ? `edges ${nameList(edgeNames)}` : "",
         ];
         const named = parts.filter((part) => part !== "").join("; ");
         return named === "" ? null : named;

@@ -1,4 +1,4 @@
-import { Observable } from "@babylonjs/core";
+import { Observable } from "@babylonjs/core/Misc/observable.js";
 import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../catalog/types";

@@ -1,7 +1,13 @@
 // Babylon installs scene.createPickingRay only when this loads.
 import "@babylonjs/core/Culling/ray.js";
 
-import { Camera, Color4, Matrix, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Scalar } from "@babylonjs/core/Maths/math.scalar.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Scene } from "@babylonjs/core/scene.js";
 import { raySphere } from "babylonjs-map/projection";
 
 import { type FreeArea, freeArea, fullInsets, paddedArea } from "../camera/insets";
@@ -244,6 +250,28 @@ export class OrbitCameraController {
         this.pivot.position.addInPlace(Vector3.TransformNormal(slide, this.pivot.computeWorldMatrix(true)));
         this.pivot.computeWorldMatrix(true);
         this.updateCameraPosition();
+    }
+
+    /**
+     * Slide the view across the screen by a drag of some CSS pixels: the pivot moves in the plane
+     * through it that faces the camera, so a point on that plane stays under the pointer. Any
+     * point the view turns about moves with it.
+     * @param dx - Pixels the pointer moved right.
+     * @param dy - Pixels the pointer moved down.
+     */
+    public pan(dx: number, dy: number): void {
+        const { tanY } = this.#halfFovTangents();
+        const perPixel = (2 * tanY * this.cameraDistance) / Math.max(1, this.#canvas.clientHeight);
+        const slide = new Vector3(-dx * perPixel, dy * perPixel, 0);
+        const world = Vector3.TransformNormal(slide, this.pivot.computeWorldMatrix(true));
+        this.pivot.position.addInPlace(world);
+        const { center } = this.pivotController;
+        if (center !== null) {
+            this.pivotController.center = center.add(world);
+        }
+        this.pivot.computeWorldMatrix(true);
+        this.updateCameraPosition();
+        this.onReaderMove?.();
     }
 
     /**

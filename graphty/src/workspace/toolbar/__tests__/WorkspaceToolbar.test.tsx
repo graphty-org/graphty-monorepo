@@ -48,8 +48,10 @@ describe("the canvas toolbar", () => {
         assert.equal(icon("Layout"), "lucide-chart-network");
         assert.equal(icon("Quick actions"), "lucide-search");
         assert.equal(icon("Camera"), "lucide-camera");
-        // The Mode tool's face is the mode's own icon: a cube for 3D.
-        assert.equal(icon("Mode, 3D"), "lucide-box");
+        // The Mode tool's face in 3D is the words "3D", not an icon.
+        const mode = screen.getByRole("button", { name: "Mode, 3D" });
+        assert.isNull(mode.querySelector("svg"));
+        assert.equal(mode.querySelector("[data-mode]")?.textContent, "3D");
     });
 
     it("draws the clock only while timeline.toggle is registered and shown, and runs it on a click", async () => {

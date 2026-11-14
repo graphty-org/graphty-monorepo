@@ -117,6 +117,7 @@ import {
 import { frozen, type JoinGraph, type JoinPlan, joinReport, type JoinTable, planJoin } from "./join";
 import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
+import { overRepresentedValues } from "./overRepresented";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -183,6 +184,7 @@ import type {
     DatasetLoadOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    EdgeName,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
@@ -205,8 +207,10 @@ import type {
     Neighbor,
     NeighborOptions,
     NeighborPage,
+    NodeName,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedValues,
     PageColumn,
     RecordPage,
     RecordPageOptions,
@@ -1210,13 +1214,18 @@ export class SessionData implements SessionDataApi {
         this.requireLive("loadDataset");
         const send = this.writes.importer();
         const { baseUrl, signal, ...load } = options;
-        // A mirror may serve any name; only graphty.app's own list is checked.
-        if (baseUrl === undefined && !DATASET_NAMES.includes(name)) {
+        // The element names no host of its own: the caller says where the files are published
+        // (graph-samples exports its own default as `DEFAULT_DATASET_BASE_URL`).
+        if (baseUrl === undefined || baseUrl === "") {
             throw new GraphtyError({
-                code: "E_UNKNOWN_DATASET",
-                message: `There is no dataset named "${name}".`,
+                code: "E_OPTION_RANGE",
+                message: "loadDataset needs a baseUrl.",
                 source: "data",
-                details: { name, available: DATASET_NAMES },
+                details: {
+                    option: "baseUrl",
+                    name,
+                    suggestion: { package: "@graphty/graph-samples", export: "DEFAULT_DATASET_BASE_URL" },
+                },
             });
         }
         // Its place in line is taken now, so a load asked for later waits for this download; an
@@ -1239,7 +1248,7 @@ export class SessionData implements SessionDataApi {
             const sample = this.sampleLoad(snapshot, name, load);
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
-                facts: { dataset: name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+                facts: { dataset: name, baseUrl },
             });
         } finally {
             turn.leave();
@@ -2013,6 +2022,50 @@ export class SessionData implements SessionDataApi {
         const { ids } = this.current();
         const index = rowOfEitherSpelling(ids, id);
         return index === INVALID_INDEX ? undefined : this.nameOf(index, ids.idOf(index));
+    }
+
+    /**
+     * What a node is called, never undefined: `SessionDataApi.nodeName`, which documents it.
+     * @param id - the node id; an integer id may be written either way, `34` or `"34"`
+     * @returns the name and the id; for a node the graph does not hold, the id as the name
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    nodeName(id: NodeId): NodeName {
+        const { ids } = this.current();
+        const index = rowOfEitherSpelling(ids, id);
+        if (index === INVALID_INDEX) {
+            return { id, name: String(id), labeled: false };
+        }
+        const held = ids.idOf(index);
+        const name = this.nameOf(index, held);
+        return { id: held, name, labeled: name !== String(held) };
+    }
+
+    /**
+     * What an edge is called, by its two ends.
+     * @param edge - the two ends' node ids
+     * @param edge.source - the end the edge leaves
+     * @param edge.target - the end the edge enters
+     * @returns the two ends' names
+     */
+    edgeName(edge: { readonly source: NodeId; readonly target: NodeId }): EdgeName;
+    /**
+     * What an edge is called, by its id.
+     * @param edge - the edge id
+     * @returns the two ends' names, or undefined when the graph has no such edge
+     */
+    edgeName(edge: EdgeId): EdgeName | undefined;
+    /**
+     * What an edge is called: `SessionDataApi.edgeName`, which documents it.
+     * @param edge - the edge id, or the two ends' node ids
+     * @returns the two ends' names, or undefined for an edge id the graph has no edge for
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    edgeName(edge: EdgeId | { readonly source: NodeId; readonly target: NodeId }): EdgeName | undefined {
+        const ends = typeof edge === "string" ? this.edge(edge) : edge;
+        return ends === undefined
+            ? undefined
+            : { source: this.nodeName(ends.source), target: this.nodeName(ends.target) };
     }
 
     /**
@@ -5125,6 +5178,35 @@ export class SessionData implements SessionDataApi {
 
         const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
         return Object.freeze({ values: Object.freeze(values), missing, total });
+    }
+
+    /**
+     * Per group, the node values that occur in the group more often than chance.
+     * @param groupBy - the path holding each node's group
+     * @param options - which columns to test
+     * @param options.columns - the node column paths; by default every categorical one
+     * @returns every group, largest first, with its over-represented values
+     */
+    overRepresented(groupBy: Path, options: { readonly columns?: readonly Path[] } = {}): OverRepresentedValues {
+        const snapshot = this.current();
+        const paths =
+            options.columns ??
+            this.attributes()
+                .filter(
+                    (each) =>
+                        each.kind === "node" &&
+                        each.path !== groupBy &&
+                        each.holdsNodeIds !== true &&
+                        (each.measurement === "categorical" || each.measurement === "ordinal"),
+                )
+                .map((each) => each.path);
+        // ponytail: walked on every call; cache by data revision when a profile is read per frame.
+        return overRepresentedValues(
+            groupBy,
+            (index) => this.pages.valueAt("node", index, groupBy),
+            snapshot.nodeCount,
+            paths.map((path) => ({ path, valueAt: (index: number) => this.pages.valueAt("node", index, path) })),
+        );
     }
 
     /**

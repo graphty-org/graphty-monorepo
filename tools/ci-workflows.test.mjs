@@ -34,6 +34,7 @@ import {
     fitsCheckout,
     groupEntry,
     GRAPHTY_PARTS,
+    GROUP_MEMBER_SECONDS,
     GROUPS,
     MATRIX_CAP,
     matrixLine,
@@ -127,6 +128,21 @@ describe("the test matrix", () => {
     it("stops a hung run inside the test job's limit", () => {
         const minutes = Number(/timeout-minutes: (\d+)/u.exec(job(workflow("ci.yml"), "test"))[1]);
         assert.ok(TEST_STEP_LIMIT_MS + 100_000 + 120_000 <= minutes * 60_000);
+    });
+
+    // #7848: a full run runs every member of a group one after another; a member added unmeasured
+    // (graphty-element-webgpu) took small-browser to 24 min 58 s of its 26 minute deadline
+    it("fits every group's slowest measured members, with a quarter to spare, inside its test step's deadline", () => {
+        const gapSeconds = 10; // between members: the results wrapper and nx starting the next one
+        for (const [group, members] of Object.entries(GROUPS)) {
+            for (const m of members) assert.ok(GROUP_MEMBER_SECONDS[m] > 0, `${group}: ${m} has no measured time`);
+            const worst = members.reduce((t, m) => t + GROUP_MEMBER_SECONDS[m] + gapSeconds, 0);
+            assert.ok(
+                worst * 1.25 * 1000 <= TEST_STEP_LIMIT_MS,
+                `${group}: ${worst} s measured, x1.25 is over the deadline`,
+            );
+        }
+        assert.deepEqual(Object.keys(GROUP_MEMBER_SECONDS).sort(), Object.values(GROUPS).flat().sort());
     });
 
     it("runs every shard exactly once on a full run, in one job per shard or group", () => {

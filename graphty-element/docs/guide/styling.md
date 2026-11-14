@@ -291,6 +291,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                                                            |
 | `node.opacity`                | 0 to 1                                                                                                                                           |
 | `node.outline`                | a colour                                                                                                                                         |
+| `node.outlineWidth`           | 0 to 10: the outline's width, a multiple of its own (1); unset, `layoutBehavior.node.outlineWidth`; alone it draws none                          |
 | `node.glow`                   | a colour                                                                                                                                         |
 | `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
 | `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
@@ -491,7 +492,7 @@ await element.session.styles.add({
 });
 ```
 
-A border is not `node.outline`: an outline is a screen-space glow of one fixed width, drawn for
+A border is not `node.outline`: an outline is a ring around the node, drawn for
 emphasis, while a border is part of the node's shape. Each distinct border is one more mesh,
 shared by every node drawn with it.
 
@@ -707,6 +708,12 @@ A binding takes `by` (the path), `scale` (`linear`, `log`, `sqrt`, `bins`, `quan
 no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"shape"`,
 `"pattern"` or `"extend"`) says what a categorical colour does with more groups than its palette has colours;
 `encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
+
+When every value in the column is the same (a regular graph where every node has degree 3), a
+numeric scale has no spread to place anything in, so it paints the **middle** of its range or
+palette rather than either end, and the binding's legend block carries the fact
+`{ code: "legend.no-spread", params: { value } }` so a legend can say there is no spread. The
+legend's swatch shows the same middle colour the canvas paints.
 
 ### A table of values, and what it leaves alone
 

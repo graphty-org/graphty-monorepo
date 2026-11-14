@@ -10,9 +10,6 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { CameraWaypoint } from "./VideoCapture.js";
 
-/** A waypoint given as a position and a target: the only kind this animator flies. */
-export type PositionedWaypoint = CameraWaypoint & Required<Pick<CameraWaypoint, "position" | "target">>;
-
 type EasingType = "linear" | "easeInOut" | "easeIn" | "easeOut";
 
 export interface CameraPathAnimatorOptions {
@@ -54,7 +51,7 @@ export class CameraPathAnimator {
      * @param waypoints - Array of camera waypoints defining the animation path
      * @returns Array of Babylon.js Animation objects
      */
-    createCameraAnimations(waypoints: PositionedWaypoint[]): Animation[] {
+    createCameraAnimations(waypoints: CameraWaypoint[]): Animation[] {
         if (waypoints.length < 2) {
             throw new Error("At least 2 waypoints are required for camera path animation");
         }
@@ -88,7 +85,7 @@ export class CameraPathAnimator {
      * @param waypoints - Array of camera waypoints
      * @returns Babylon.js Animation for the Vector3 property
      */
-    private createVector3Animation(property: string, waypoints: PositionedWaypoint[]): Animation {
+    private createVector3Animation(property: string, waypoints: CameraWaypoint[]): Animation {
         const animation = new Animation(
             `camera_${property}`,
             property,
@@ -113,7 +110,7 @@ export class CameraPathAnimator {
      * @param waypoints - Array of camera waypoints
      * @returns Babylon.js Animation for the camera target
      */
-    private createTargetAnimation(waypoints: PositionedWaypoint[]): Animation {
+    private createTargetAnimation(waypoints: CameraWaypoint[]): Animation {
         const animation = new Animation(
             "camera_target",
             "target",
@@ -140,7 +137,7 @@ export class CameraPathAnimator {
      * @param waypoints - Array of camera waypoints
      * @returns Array of animations for orthographic camera bounds
      */
-    private createOrthoZoomAnimations(waypoints: PositionedWaypoint[]): Animation[] {
+    private createOrthoZoomAnimations(waypoints: CameraWaypoint[]): Animation[] {
         // Get the camera's current aspect ratio to maintain proportions
         const currentLeft = (this.camera as { orthoLeft?: number | null }).orthoLeft ?? -10;
         const currentRight = (this.camera as { orthoRight?: number | null }).orthoRight ?? 10;
@@ -156,7 +153,7 @@ export class CameraPathAnimator {
         // Higher z = more zoomed out, lower z = more zoomed in
         // The z value represents the "ortho size" - half the height of the view
         const calculateOrthoKeys = (
-            waypoints: PositionedWaypoint[],
+            waypoints: CameraWaypoint[],
             property: "left" | "right" | "top" | "bottom",
         ): { frame: number; value: number }[] => {
             return waypoints.map((wp) => {
@@ -219,7 +216,7 @@ export class CameraPathAnimator {
      * @param waypoints - Array of camera waypoints
      * @returns Babylon.js Animation for horizontal panning
      */
-    private createPanXAnimation(waypoints: PositionedWaypoint[]): Animation {
+    private createPanXAnimation(waypoints: CameraWaypoint[]): Animation {
         const animation = new Animation(
             "camera_pan_x",
             "position.x",
@@ -244,7 +241,7 @@ export class CameraPathAnimator {
      * @param waypoints - Array of camera waypoints
      * @returns Babylon.js Animation for vertical panning
      */
-    private createPanYAnimation(waypoints: PositionedWaypoint[]): Animation {
+    private createPanYAnimation(waypoints: CameraWaypoint[]): Animation {
         const animation = new Animation(
             "camera_pan_y",
             "position.y",
@@ -272,11 +269,7 @@ export class CameraPathAnimator {
      * @param currentWaypoint - The waypoint to calculate frame for
      * @returns Frame number for the waypoint
      */
-    private timestampToFrame(
-        _timestamp: number,
-        waypoints: PositionedWaypoint[],
-        currentWaypoint: PositionedWaypoint,
-    ): number {
+    private timestampToFrame(_timestamp: number, waypoints: CameraWaypoint[], currentWaypoint: CameraWaypoint): number {
         let cumulativeTime = 0;
 
         for (const wp of waypoints) {

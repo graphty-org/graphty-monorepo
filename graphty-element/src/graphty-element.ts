@@ -4189,7 +4189,9 @@ export class Graphty extends LitElement {
      * ```
      */
     async playTour(
-        path: readonly import("./video/VideoCapture.js").CameraWaypoint[],
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
         options?: { easing?: "linear" | "easeIn" | "easeOut" | "easeInOut" },
     ): Promise<void> {
         return this.#graph.playTour(path, options);

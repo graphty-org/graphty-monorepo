@@ -7,7 +7,7 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { CameraState } from "../../../src/camera/types.js";
 import type { Graph } from "../../../src/Graph.js";
-import type { CameraWaypoint } from "../../../src/video/VideoCapture.js";
+import type { ViewWaypoint } from "../../../src/video/VideoCapture.js";
 import { cleanupTestGraph, configureGraph, createTestGraph } from "../../helpers/testSetup.js";
 import { restoreMockMediaRecorder, setupMockMediaRecorder } from "./mock-media-recorder.js";
 
@@ -82,7 +82,7 @@ async function codeOf(work: Promise<unknown>): Promise<unknown> {
 
 for (const mode of ["3d", "2d"] as const) {
     const [viewA, viewB] = mode === "3d" ? [VIEW_A_3D, VIEW_B_3D] : [VIEW_A_2D, VIEW_B_2D];
-    const tour: CameraWaypoint[] = [
+    const tour: ViewWaypoint[] = [
         { view: "tour-a", hold: HOLD },
         { view: "tour-b", duration: 200, hold: HOLD },
     ];
@@ -155,6 +155,22 @@ for (const mode of ["3d", "2d"] as const) {
         test("a stop the drawing mode cannot use is refused with E_UNSUPPORTED", async () => {
             const other = mode === "3d" ? VIEW_A_2D : VIEW_A_3D;
             assert.equal(await codeOf(graph.playTour([{ view: other, hold: 10 }])), "E_UNSUPPORTED");
+        });
+
+        test("a tour of plain names keeps the animator path", async () => {
+            const recording = graph.captureAnimation({
+                duration: 300,
+                fps: 30,
+                cameraMode: "animated",
+                tour: ["tour-a", "tour-b"],
+            });
+            // The animator flies only views with a position and target: 2D views stay refused
+            // until issue #7936 moves plain tours onto the flight playTour uses.
+            if (mode === "2d") {
+                assert.equal(await codeOf(recording), "E_UNSUPPORTED");
+            } else {
+                assert.ok((await recording).blob instanceof Blob);
+            }
         });
 
         test("cancelCameraAnimation ends a tour during a hold", async () => {

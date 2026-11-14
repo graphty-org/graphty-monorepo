@@ -7291,11 +7291,14 @@ export class Graph implements GraphContext {
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
         const { CameraPathAnimator } = await import("./video/CameraPathAnimator.js");
 
-        const tour = options.tour ? tourStops(options.tour, options.duration) : options.cameraPath;
-        if (tour?.some((stop) => stop.view !== undefined || stop.hold !== undefined)) {
-            return this.captureTourVideo(options, tour, capture, onProgress);
+        // A path with a view or a hold is a tour, flown with the element's own camera moves; any
+        // other path, and a `tour` of names, keeps the animator (issue #7936 records its defects).
+        if (!options.tour && options.cameraPath?.some((stop) => "view" in stop || stop.hold !== undefined)) {
+            return this.captureTourVideo(options, options.cameraPath, capture, onProgress);
         }
-        const cameraPath = tour as import("./video/CameraPathAnimator.js").PositionedWaypoint[] | undefined;
+        const cameraPath = options.tour
+            ? this.tourPath(options.tour, options.duration)
+            : (options.cameraPath as import("./video/VideoCapture.js").CameraWaypoint[] | undefined);
         // Validate cameraPath is provided
         if (!cameraPath || cameraPath.length < 2) {
             throw new Error("Animated camera mode requires at least 2 waypoints in cameraPath");
@@ -7336,6 +7339,30 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The waypoints of a tour: each named view resolved as `resolveCameraPreset` does, the
+     * duration split evenly between the legs.
+     * @param names - Camera view ids or saved view names, in order.
+     * @param duration - The whole tour, in milliseconds.
+     * @returns The waypoints.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` when a view has no position and target.
+     */
+    private tourPath(names: readonly string[], duration: number): import("./video/VideoCapture.js").CameraWaypoint[] {
+        const leg = names.length > 1 ? duration / (names.length - 1) : duration;
+        return names.map((name, index) => {
+            const { position, target } = orbitAnglesToPosition(this.resolveCameraPreset(name));
+            if (!position || !target) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: `the view "${name}" has no camera position and target to fly to`,
+                    source: "view",
+                    details: { view: name },
+                });
+            }
+            return { position, target, ...(index === 0 ? {} : { duration: leg }) };
+        });
+    }
+
+    /**
      * Record a tour: the stops flown with the element's own camera moves while the recording runs,
      * and the tour stopped when the recording ends.
      * @param options - Animation configuration options
@@ -7346,7 +7373,9 @@ export class Graph implements GraphContext {
      */
     private async captureTourVideo(
         options: import("./video/VideoCapture.js").AnimationOptions,
-        path: readonly import("./video/VideoCapture.js").CameraWaypoint[],
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
         capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
         onProgress: (progress: number) => void,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
@@ -7370,15 +7399,17 @@ export class Graph implements GraphContext {
      * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
      */
     private resolveTour(
-        path: readonly import("./video/VideoCapture.js").CameraWaypoint[],
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
     ): { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[] {
         const flat = this.getViewMode() === "2d";
         return path.map((stop, index) => {
-            const { view } = stop;
+            const view = "view" in stop ? stop.view : undefined;
             const state = orbitAnglesToPosition(
                 typeof view === "string"
                     ? this.resolveCameraPreset(view)
-                    : (view ?? { position: stop.position, target: stop.target }),
+                    : (view ?? ("position" in stop ? { position: stop.position, target: stop.target } : {})),
             );
             if (flat ? state.zoom === undefined && !state.pan : !state.position || !state.target) {
                 throw new GraphtyError({
@@ -7472,7 +7503,9 @@ export class Graph implements GraphContext {
      * ```
      */
     async playTour(
-        path: readonly import("./video/VideoCapture.js").CameraWaypoint[],
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
         options?: { easing?: import("./screenshot/types.js").CameraAnimationOptions["easing"] },
     ): Promise<void> {
         const stops = this.resolveTour(path);
@@ -10211,15 +10244,4 @@ export class Graph implements GraphContext {
 /** A playing tour, ended by setting `ended`: it stops at its next step or frame. */
 interface TourHandle {
     ended: boolean;
-}
-
-/**
- * A tour given as view names, as the stops it means: the duration split evenly between the legs.
- * @param names - Camera view ids or saved view names, in order.
- * @param duration - The whole tour, in milliseconds.
- * @returns The stops.
- */
-function tourStops(names: readonly string[], duration: number): import("./video/VideoCapture.js").CameraWaypoint[] {
-    const leg = names.length > 1 ? duration / (names.length - 1) : duration;
-    return names.map((view, index) => ({ view, ...(index === 0 ? {} : { duration: leg }) }));
 }

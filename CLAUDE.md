@@ -288,8 +288,8 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
   SPECIAL LAYER."). Everything, Hovered, Selected and Pinned are ordinary layers: each is
   a style on a calculated value (hovered, selected, pinned). No layer gets its own behavior, controls, wording or protection, and
   code never branches on a layer's name, template or kind. A node left out of every shown layer is hidden.
-  Default layers are data written once when a project is created. Issue #5905 tracks removing the existing
-  exceptions.
+  Default layers are data written once when a project is created. The exceptions left are listed in
+  `graphty/special-layers-baseline.json`.
 - UI: use the default components and never write a bespoke control to work around one; a wrong shared component
   is fixed in the shared component (graphty/CLAUDE.md, "UI Components").
 

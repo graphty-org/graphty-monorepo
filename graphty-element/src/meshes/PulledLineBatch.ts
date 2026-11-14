@@ -66,7 +66,7 @@ const TABLE_WIDTH = 1024;
 const TEXELS_PER_PIECE = 2;
 const TEXELS_PER_CURVE_PIECE = 4;
 
-/** The join template, drawn once per piece: its index list and its vertices. */
+/** The join template, drawn once per piece: its corners (which the shader turns into vertices) and its vertices. */
 const JOIN_TEMPLATE = { indices: JOIN_TEMPLATE_INDICES, vertices: JOIN_TEMPLATE_VERTICES };
 
 /** The lean program's rectangle, drawn once per piece of a mesh made with `pulledLean: true`. */
@@ -87,6 +87,9 @@ interface WidthGroup {
     highWater: number;
     readonly free: number[];
 }
+
+/** Draw slots in one line of the draw order table: a float a slot, four to a texel. */
+const ORDER_PER_LINE = TABLE_WIDTH * 4;
 
 /** Hidden flags in one line of the hidden table: a byte a piece, four to a texel. */
 const HIDDEN_PER_LINE = TABLE_WIDTH * 4;
@@ -128,7 +131,7 @@ export class PulledLineBatch {
     /**
      * Each piece's draw key: its width group's rank, then the slot the object path's batch of that width gives it.
      * The object path draws a batch per width, one after another in the order they were made, and draw order
-     * decides how lines that cross blend; the index list draws pieces in this order (#6392).
+     * decides how lines that cross blend; the draw order table draws pieces in this order (#6392).
      */
     private keys = new Float64Array(0);
 
@@ -136,8 +139,19 @@ export class PulledLineBatch {
     private readonly groups = new Map<number, WidthGroup>();
     private readonly ranked: WidthGroup[] = [];
 
-    /** Whether a piece took a key out of draw order since the index list was last built. */
+    /** Whether a piece took a key out of draw order since the draw order was last built. */
     private reorder = false;
+
+    /**
+     * The piece each draw slot draws, a float a slot, while pieces of two widths interleave; null while every slot
+     * draws the piece of its own number. The draw is unindexed: `gl_VertexID` names the slot and the corner, and the
+     * shader reads the slot's piece here (`pulledPiece`). An index list did this at 4 bytes an index, 120 bytes an
+     * edge, built and sent whole at every growth (#6389).
+     */
+    private order: Float32Array<ArrayBuffer> | null = null;
+
+    /** The draw order table, or one empty line while {@link PulledLineBatch.order} is null. */
+    private orderTable: RawTexture;
 
     /**
      * The pieces written since the last upload. A time window hides and shows pieces scattered over the whole table,
@@ -177,10 +191,10 @@ export class PulledLineBatch {
      *     when it grows.
      * @param curve - Whether its pieces are curves' (a mesh made with `pulledCurve: true`).
      * @param template - What a piece draws: the join template, the lean program's rectangle
-     *     (`LEAN_TEMPLATE`, for a mesh made with `pulledLean: true`: 4 vertices and 6 indices, not
-     *     the join template's 14 and 30), or another mesh's own (`pulledAnimatedLine.ts`), its
-     *     vertices numbered from 0 a piece.
-     * @param template.indices - Its index list.
+     *     (`LEAN_TEMPLATE`, for a mesh made with `pulledLean: true`: 6 corners, not the join
+     *     template's 30), or another mesh's own (`pulledAnimatedLine.ts`). Its shader names a
+     *     corner's vertex itself: the batch draws `indices.length` vertices a piece, unindexed.
+     * @param template.indices - Its corners: the vertex each draws, which its shader holds too.
      * @param template.vertices - Its vertices.
      */
     constructor(
@@ -198,11 +212,13 @@ export class PulledLineBatch {
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;
+        mesh.isUnIndexed = true;
         this.rows = this.emptyTable(this.piecesPerLine);
         this.table = this.build();
         this.hidden = new Uint8Array(HIDDEN_PER_LINE);
         this.hiddenTable = this.buildHidden();
-        this.index();
+        this.orderTable = this.buildOrder(new Float32Array(ORDER_PER_LINE));
+        this.sort();
         if (curve) {
             this.routes = new Float32Array(TABLE_WIDTH * TEXEL_FLOATS);
             this.routeTable = this.buildRoutes(this.routes);
@@ -212,11 +228,19 @@ export class PulledLineBatch {
         });
         const engine = scene.getEngine();
         const restored = engine.onContextRestoredObservable.add(() => {
-            this.index();
+            this.sort();
         });
         this.stopRestore = () => {
             engine.onContextRestoredObservable.remove(restored);
         };
+    }
+
+    /**
+     * The piece each draw slot draws, or null while each draws the piece of its own number.
+     * @returns The draw order table's CPU copy.
+     */
+    get drawOrder(): Readonly<Float32Array> | null {
+        return this.order;
     }
 
     /**
@@ -460,7 +484,7 @@ export class PulledLineBatch {
         this.flushRoutes();
         this.flushHidden();
         if (this.reorder) {
-            this.index();
+            this.sort();
         }
 
         if (!this.dirty.dirty) {
@@ -537,6 +561,7 @@ export class PulledLineBatch {
         this.stopRestore();
         this.table.dispose();
         this.hiddenTable.dispose();
+        this.orderTable.dispose();
         this.routeTable?.dispose();
         // Not its textures: `rowPosition` is the row table's, which outlives this batch.
         this.mesh.material?.dispose(true, false);
@@ -580,6 +605,27 @@ export class PulledLineBatch {
     }
 
     /**
+     * Send a draw order table to the card whole and bind it.
+     * @param order - Its CPU copy, a float a slot.
+     * @returns The texture.
+     */
+    private buildOrder(order: Float32Array<ArrayBuffer>): RawTexture {
+        const texture = RawTexture.CreateRGBATexture(
+            order,
+            TABLE_WIDTH,
+            order.length / ORDER_PER_LINE,
+            this.scene,
+            false,
+            false,
+            Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+            Constants.TEXTURETYPE_FLOAT,
+        );
+        (this.mesh.material as ShaderMaterial | null)?.setTexture("edgeOrder", texture);
+        this.uploadedBytes += order.byteLength;
+        return texture;
+    }
+
+    /**
      * A table of pieces that draw nothing.
      * @param pieces - Pieces it holds.
      * @returns The table.
@@ -619,16 +665,15 @@ export class PulledLineBatch {
             this.hiddenLast = -1;
         }
 
-        this.index();
+        this.sort();
     }
 
     /**
-     * The template once per piece the table has room for, numbered so `gl_VertexID / vertices` is the piece, the
-     * pieces handed out first and in draw order ({@link PulledLineBatch.keys}).
+     * Put the pieces handed out in draw order ({@link PulledLineBatch.keys}): in the draw order table while two widths
+     * interleave, else in plain piece order with no table read.
      */
-    private index(): void {
+    private sort(): void {
         const capacity = this.rows.length / this.pieceFloats;
-        const { indices: template, vertices } = this.template;
         if (this.keys.length !== capacity) {
             // a piece not yet handed out keys as its own number, which is the key one width gives it
             const keys = Float64Array.from({ length: capacity }, (_, piece) => piece);
@@ -637,41 +682,41 @@ export class PulledLineBatch {
         }
 
         const { keys, highWater } = this;
-        // ponytail: sorts every handed-out piece, at most once a frame and only while widths interleave; give each
-        // group its own index range if a large mixed-width load shows it
-        const drawn =
-            this.ranked.length > 1
-                ? Uint32Array.from({ length: highWater }, (_, piece) => piece).sort(
-                      (a, b) => (keys[a] ?? 0) - (keys[b] ?? 0) || a - b,
-                  )
-                : null;
-        const indices = new Uint32Array(capacity * template.length);
-        for (let at = 0; at < capacity; at++) {
-            const piece = at < highWater ? (drawn?.[at] ?? at) : at;
-            for (let i = 0; i < template.length; i++) {
-                indices[at * template.length + i] = template[i] + piece * vertices;
+        const ordered = this.ranked.length > 1;
+        if (ordered) {
+            // ponytail: sorts every handed-out piece, at most once a frame and only while widths interleave; give
+            // each group its own slot range if a large mixed-width load shows it
+            const drawn = Uint32Array.from({ length: highWater }, (_, piece) => piece).sort(
+                (a, b) => (keys[a] ?? 0) - (keys[b] ?? 0) || a - b,
+            );
+            const size = Math.ceil(capacity / ORDER_PER_LINE) * ORDER_PER_LINE;
+            const order = this.order?.length === size ? this.order : new Float32Array(size);
+            order.set(drawn);
+            // a piece handed out later whose key is its own number asks for no sort, so its slot must already name it
+            for (let slot = highWater; slot < size; slot++) {
+                order[slot] = slot;
+            }
+
+            if (order === this.order) {
+                this.orderTable.update(order);
+                this.uploadedBytes += order.byteLength;
+            } else {
+                this.order = order;
+                this.orderTable.dispose();
+                this.orderTable = this.buildOrder(order);
             }
         }
 
+        (this.mesh.material as ShaderMaterial | null)?.setFloat("edgeOrdered", ordered ? 1 : 0);
         this.reorder = false;
-
-        this.mesh.setIndices(indices, capacity * vertices);
-        // Keep the list on the GPU only: Babylon's CPU copy is 4 bytes an index (120 B an edge) that nothing reads.
-        // A lost context is rebuilt from that copy, so a restored one indexes again (`restoreIndices`).
-        const { geometry } = this.mesh;
-        const buffer = geometry?.getIndexBuffer();
-        if (geometry && buffer) {
-            geometry.setIndexBuffer(buffer, capacity * vertices, indices.length, true);
-        }
-
         this.setCount();
     }
 
-    /** Draw only the pieces handed out. */
+    /** Draw only the pieces handed out, a vertex a corner. */
     private setCount(): void {
         const [subMesh] = this.mesh.subMeshes;
-        subMesh.indexCount = this.highWater * this.template.indices.length;
-        subMesh.verticesCount = this.highWater * this.template.vertices;
+        subMesh.verticesStart = 0;
+        subMesh.verticesCount = this.highWater * this.template.indices.length;
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
 }

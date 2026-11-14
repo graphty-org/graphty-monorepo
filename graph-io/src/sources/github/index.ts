@@ -66,8 +66,15 @@ function checkedRepository(value: unknown, ctx: SourceContext): string {
  * @returns the trimmed value and its encoded form
  */
 function checkedSegments(value: unknown, name: string, ctx: SourceContext): { plain: string; encoded: string } {
-    const plain = (typeof value === "string" ? value : "").replace(/^\/+|\/+$/g, "");
-    const parts = plain.split("/");
+    const parts = (typeof value === "string" ? value : "").split("/");
+    // a leading or trailing slash is dropped
+    while (parts[0] === "" && parts.length > 1) {
+        parts.shift();
+    }
+    while (parts.at(-1) === "" && parts.length > 1) {
+        parts.pop();
+    }
+    const plain = parts.join("/");
     if (plain === "" || parts.some((part) => part === "" || part === "." || part === "..")) {
         failOn(ctx.report, "E_SOURCE_PARAM", `the ${name} is not a repository path`, { name, reason: "format" });
     }

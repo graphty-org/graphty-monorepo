@@ -78,7 +78,7 @@ describe("optionsFromZod", () => {
                 type: "integer",
                 min: 0,
                 max: 2147483647,
-                default: 42,
+                default: null,
             });
             assert.deepInclude(byName(options, "maxIterations"), { type: "integer", min: 1, max: 500, default: 100 });
             assert.strictEqual(byName(options, "threshold").type, "number");
@@ -422,7 +422,7 @@ describe("optionsFromZod", () => {
                 overrides: { randomSeed: { type: "seed" } },
             });
 
-            assert.deepInclude(byName(options, "randomSeed"), { type: "seed", min: 0, default: 42 });
+            assert.deepInclude(byName(options, "randomSeed"), { type: "seed", min: 0, default: null });
         });
     });
 });

@@ -29,7 +29,13 @@ export const GirvanNewman: Story = createAlgorithmStory("graphty:girvan-newman",
  * The same answer from two methods that optimise the same quantity is correct, as Kruskal and Prim
  * drawing one tree is; the picture each draws is still held to its own baseline.
  */
-export const Leiden: Story = createAlgorithmStory("graphty:leiden", { varies: "hex", atLeast: 2, distinct: false });
+export const Leiden: Story = createAlgorithmStory("graphty:leiden", {
+    varies: "hex",
+    atLeast: 2,
+    distinct: false,
+    // Leiden is randomised and unseeded by default; the story's picture is the one seed 42 draws.
+    params: { randomSeed: 42 },
+});
 
 /**
  * Label Propagation - fast community detection via label spreading

@@ -1,3 +1,12 @@
+design/ui/studio/tool/dry-run-pass.test.mjs
+design/ui/studio/tool/dry-run-review.test.mjs
+design/ui/studio/tool/measure.test.mjs
+design/ui/studio/tool/profiles.test.mjs
+design/ui/studio/tool/serve-dist.test.mjs
+design/ui/studio/tool/tier4.test.mjs
+design/ui/studio/tool/tier5.test.mjs
+design/ui/studio/tool/tier6.test.mjs
+design/ui/studio/tool/with-browser.test.mjs
 tools/acceptance.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs

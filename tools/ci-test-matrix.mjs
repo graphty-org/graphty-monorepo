@@ -330,13 +330,6 @@ const OFF_SHARDS = [
         "test-command": "pnpm exec nx run visual-review:coverage --exclude-task-dependencies",
         "needs-browser": true,
     },
-    // githerd - single shard (Node.js, no browser; coverage counts lib/)
-    {
-        shard: "githerd",
-        package: "githerd",
-        "test-command": "pnpm exec nx run githerd:coverage --exclude-task-dependencies",
-        "needs-browser": false,
-    },
     // compact-mantine - single shard (uses Playwright for browser-based vitest)
     {
         shard: "compact-mantine",
@@ -557,8 +550,8 @@ export const STORY_RUNS = {
  * 39883665524, 39887583054, 39896390282 of 2026-10-23; vitest's own Duration line, plus about 1.5
  * minutes of checkout, install and browser setup per job):
  *   small-node     graph-format 0.8, graph-samples 0.4, cytoscape-extensions 0.5,
- *                  cytoscape-extensions-cytoscape-versions 0.8, layout 0.3, algorithms-default 0.4,
- *                  githerd 0.7                                       about 4 + setup = 6 minutes
+ *                  cytoscape-extensions-cytoscape-versions 0.8, layout 0.3, algorithms-default 0.4
+ *                                                                    about 3 + setup = 5 minutes
  *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
  *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
  *                  webgpu-graph-algorithms-browser 1.1, graphty-element-webgpu (new, not yet measured on CI),
@@ -581,7 +574,6 @@ export const GROUPS = {
         "cytoscape-extensions-cytoscape-versions",
         "layout",
         "algorithms-default",
-        "githerd",
     ],
     "small-browser": [
         "algorithms-browser",

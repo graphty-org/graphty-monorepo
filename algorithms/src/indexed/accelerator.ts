@@ -293,14 +293,15 @@ export interface ClosenessResultLike extends ScoresResultLike {
  *
  * `eigenvectorCentrality` goes to the accelerator only for the question its kernel answers the
  * same way: an undirected snapshot with no parallel edges and no bipartite component, unweighted,
- * from the uniform start. The kernel iterates on `A` where the port iterates on `A + I`, and walks
- * every parallel arc where the port counts a neighbour once; on a bipartite component the
- * iteration on `A` oscillates forever. A directed snapshot always runs the port, since a
- * periodic strongly connected component oscillates the same way and is not cheap to rule out.
+ * from the uniform start. Older webgpu-graph-algorithms releases iterate on `A`, which oscillates
+ * forever on a bipartite component; current ones iterate on the port's shifted `A + cI` and stop at
+ * the port's pass, but the dispatcher cannot tell the two apart, so a bipartite component still runs
+ * the port. The kernel walks every parallel arc where the port counts a neighbour once. A directed
+ * snapshot always runs the port, since a periodic strongly connected component oscillates on `A`.
  * The accelerator is called with `{ maxIterations, tolerance, weighted: false }` and its
  * unit-length vector is rescaled to [0, 1] exactly as the port rescales its own unless
  * `normalized: false`. A result with `converged: false` raises `ConvergenceError`, as the port
- * does. The iteration counts of the two paths differ.
+ * does.
  *
  * `allPairsShortestPath` is the reverse case: the accelerator member reads none of the port's
  * options and has no negative-cycle flag, so the dispatcher calls it, without options, only when it

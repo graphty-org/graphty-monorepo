@@ -807,11 +807,6 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
         cause: 'a text cell equal to NetworkX\'s list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing (#7649)',
         matches: (g) => allTexts(g).some((t) => t === "[]" || t === "()" || t === "_networkx_list_start"),
     },
-    {
-        target: "neo4j",
-        cause: "the importer sniffs the delimiter: a file whose first section has one column and whose quoted cells hold tabs is read tab-delimited, and the comma-delimited rows fail (text after a closing quote); neo4j-admin's delimiter is a comma unless told otherwise (#7654)",
-        matches: (g) => allTexts(g).some((t) => t.includes("\t")),
-    },
 ];
 
 /**

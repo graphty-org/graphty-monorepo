@@ -957,7 +957,7 @@ export interface ChannelDescriptor {
  * More codes may be added in a minor release.
  * @since 3.26.0
  */
-export type ChannelCaveatCode = never; // NOSONAR(typescript:S6564): published; kept so imports still compile
+export type ChannelCaveatCode = never; // NOSONAR(S6564): published; kept so imports still compile
 
 /**
  * The groups a style editor sorts channels into. A node's channels sit in shape, color, effects

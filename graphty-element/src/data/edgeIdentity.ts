@@ -214,8 +214,11 @@ export interface IdentityGraph {
 /** Receives one completed edge row. */
 type IdentityWriter = (row: number, ordinal: number, among: number, hash: LanePair) => void;
 
-/** What the tests read: the transient bytes of the last completed load, and how many edges it held. */
-export const identityCounters = { lastTransientBytes: 0, lastLoadEdges: 0 };
+/**
+ * What the tests read: the transient bytes of the last completed load, how many edges it held, and
+ * how many session edges had their hash computed (eagerly at a freeze, or on first read).
+ */
+export const identityCounters = { lastTransientBytes: 0, lastLoadEdges: 0, sessionEdgeHashes: 0 };
 
 /**
  * Complete one load: give each of its surviving edges its ordinal and among, counted per pair in
@@ -404,6 +407,7 @@ export function sessionEdgeHash(
     fileId: string | number | undefined,
     ordered: boolean,
 ): LanePair {
+    identityCounters.sessionEdgeHashes++;
     const [u, v] = graph.endpoints(row);
     const id = fileId ?? mintedEdgeId(counter);
     // Ends already hashed (a first freeze hashes every node) are read, not hashed again per edge:
@@ -476,6 +480,13 @@ function snapshotGraph(snapshot: GraphSnapshot): IdentityGraph {
 
 const lazyIdentity = new WeakMap<GraphSnapshot, IdentityColumns>();
 
+/** A two-lane hash column, as a snapshot reads it. */
+interface HashColumn {
+    readonly data: Uint32Array;
+    readonly nullCount: number;
+    isSet(row: number): boolean;
+}
+
 /**
  * A snapshot's identity columns: the store's, when it carries them, else computed from its ids on
  * first read and cached -- exactly what the completion pass would have written had the whole
@@ -488,7 +499,13 @@ export function identityColumnsOf(snapshot: GraphSnapshot): IdentityColumns {
     const edgeHash = snapshot.edges.typed(IDENTITY_COLUMNS.edgeHash, "u32");
     const edgeOrdinal = snapshot.edges.typed(IDENTITY_COLUMNS.edgeOrdinal, "i32");
     const edgeAmong = snapshot.edges.typed(IDENTITY_COLUMNS.edgeAmong, "i32");
-    if (nodeHash !== null && edgeHash !== null && edgeOrdinal !== null && edgeAmong !== null) {
+    if (
+        nodeHash !== null &&
+        edgeHash !== null &&
+        edgeOrdinal !== null &&
+        edgeAmong !== null &&
+        edgeHash.nullCount === 0
+    ) {
         return {
             nodeHash: nodeHash.data,
             edgeHash: edgeHash.data,
@@ -499,11 +516,49 @@ export function identityColumnsOf(snapshot: GraphSnapshot): IdentityColumns {
 
     let computed = lazyIdentity.get(snapshot);
     if (computed === undefined) {
-        computed = computeIdentity(snapshot);
+        computed =
+            nodeHash !== null && edgeHash !== null && edgeOrdinal !== null && edgeAmong !== null
+                ? {
+                      nodeHash: nodeHash.data,
+                      edgeHash: withMintedHashes(snapshot, edgeHash, nodeHash),
+                      edgeOrdinal: edgeOrdinal.data,
+                      edgeAmong: edgeAmong.data,
+                  }
+                : computeIdentity(snapshot);
         lazyIdentity.set(snapshot, computed);
     }
 
     return computed;
+}
+
+/**
+ * The edge hash column with every unset cell of a session edge filled from the id minted from its
+ * counter: under renderPath "batched" a freeze leaves those cells unset rather than hashing every
+ * minted id (row-renderer.md 4.6), and they are computed here, on the first read of a snapshot.
+ * A row with no counter (an edge a test fixture added to the builder directly) keeps its zeros.
+ * @param snapshot - the snapshot
+ * @param column - its edge hash column
+ * @param nodeHash - its node hash column, read rather than hashing each end again when it is whole
+ * @returns the lanes, a filled copy
+ */
+function withMintedHashes(snapshot: GraphSnapshot, column: HashColumn, nodeHash: HashColumn): Uint32Array {
+    const lanes = column.data.slice();
+    const counter = snapshot.edges.typed(EDGE_ID_COLUMN, "u32");
+    const ends = nodeHash.data;
+    const graph: IdentityGraph =
+        nodeHash.nullCount === 0
+            ? { ...snapshotGraph(snapshot), hashOf: (node) => ({ a: ends[2 * node], b: ends[2 * node + 1] }) }
+            : withNodeHashes(snapshotGraph(snapshot), snapshot.nodeCount);
+    const ordered = pairsOrdered(snapshot);
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (!column.isSet(e) && counter?.isSet(e) === true) {
+            const { a, b } = sessionEdgeHash(graph, e, counter.data[e], undefined, ordered);
+            lanes[2 * e] = a;
+            lanes[2 * e + 1] = b;
+        }
+    }
+
+    return lanes;
 }
 
 /**

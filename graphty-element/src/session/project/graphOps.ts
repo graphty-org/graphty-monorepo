@@ -1408,7 +1408,7 @@ class GraphEntry implements OpLogEntry {
         const row = store.builder.addEdge(op.source, op.target, op.weight);
         store.stampEdgeId(row, op.edgeId);
         if (identity === undefined) {
-            store.recordIngestedEdge(row, op.edgeId, op.fileId);
+            store.recordIngestedEdge(row, op.edgeId, op.fileId, this.graph.touchesRanges);
         } else {
             store.restoreEdgeIdentity(row, identity);
         }
@@ -1666,7 +1666,7 @@ class Writer implements GraphWriter {
         const index = builder.addEdge(source, target, weight);
         const edgeId = this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);
-        this.store.recordIngestedEdge(index, edgeId, fileId);
+        this.store.recordIngestedEdge(index, edgeId, fileId, this.graph.touchesRanges);
         this.store.recordsChanged();
         (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
         // A new row already reads the column default, 1: only another capacity costs a write.

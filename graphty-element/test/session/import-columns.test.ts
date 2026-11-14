@@ -8,6 +8,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { identityColumnsOf, identityCounters } from "../../src/data/edgeIdentity";
 import type { GraphStore } from "../../src/data/GraphStore";
 import type { GraphSession } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
@@ -220,6 +221,32 @@ describe("session.data.importColumns", () => {
             assert.strictEqual(digest(session), after);
         });
     }
+
+    it("hashes no minted edge id while a batched typed load freezes, and reads the objects path's identity", async () => {
+        const columns = { sources: SOURCES, targets: TARGETS, nodeCount: IDS.length, ids: IDS };
+        const identities = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            identityCounters.sessionEdgeHashes = 0;
+            await session.data.importColumns(columns);
+            const snapshot = session.data.snapshot();
+            assert.strictEqual(identityCounters.sessionEdgeHashes, batched ? 0 : SOURCES.length, String(batched));
+            // Read on demand: what a saved set or a digest needs, equal on both paths.
+            identities.push(identityColumnsOf(snapshot));
+            // Undo and redo complete the same edges again.
+            const loaded = digest(session);
+            await session.undo();
+            await session.redo();
+            assert.strictEqual(digest(session), loaded);
+            assert.deepStrictEqual(identityColumnsOf(session.data.snapshot()), identities.at(-1));
+            // An edge removed and put back by undo keeps its identity.
+            await session.data.removeEdges([session.data.edges()[2].id]);
+            await session.undo();
+            assert.strictEqual(digest(session), loaded);
+        }
+
+        assert.deepStrictEqual(identities[1], identities[0]);
+    });
 
     it("retains history in proportion to the edges it loads", async () => {
         await assertScalesLinearly(

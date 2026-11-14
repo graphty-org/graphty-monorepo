@@ -28,7 +28,6 @@ overrides:
   axios@<1.20.0: ^1.20.0
   lodash@<4.18.0: ^4.18.0
   minimatch@>=7.0.0 <11.0.1: ^11.0.1
-  typedoc>minimatch: ^10.2.6
   glob@>=9.0.0 <14.0.2: ^14.0.2
   ajv@>=7.0.0-alpha.0 <8.18.0: ^8.18.0
   ip-address@<10.7.4: ^10.7.4
@@ -81,6 +80,9 @@ patchedDependencies:
   nx@22.7.12:
     hash: baab19dc4a33e56c1994f3746699e464fdc509dada8070259b467bc4d2e0961f
     path: patches/nx@22.7.12.patch
+  typedoc@0.28.20:
+    hash: 723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e
+    path: patches/typedoc@0.28.20.patch
 
 importers:
 
@@ -205,13 +207,13 @@ importers:
         version: 4.23.15
       typedoc:
         specifier: ^0.28.15
-        version: 0.28.20(typescript@5.9.3)
+        version: 0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)
       typedoc-plugin-markdown:
         specifier: ^4.9.0
-        version: 4.13.1(typedoc@0.28.20(typescript@5.9.3))
+        version: 4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
       typedoc-vitepress-theme:
         specifier: ^1.1.2
-        version: 1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(typescript@5.9.3)))(typedoc@0.28.20(typescript@5.9.3))
+        version: 1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)))(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -296,13 +298,13 @@ importers:
         version: 4.23.15
       typedoc:
         specifier: ^0.28.15
-        version: 0.28.20(typescript@5.9.3)
+        version: 0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)
       typedoc-plugin-markdown:
         specifier: ^4.9.0
-        version: 4.13.1(typedoc@0.28.20(typescript@5.9.3))
+        version: 4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
       typedoc-vitepress-theme:
         specifier: ^1.1.2
-        version: 1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(typescript@5.9.3)))(typedoc@0.28.20(typescript@5.9.3))
+        version: 1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)))(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -509,13 +511,13 @@ importers:
         version: 4.23.15
       typedoc:
         specifier: ^0.28.15
-        version: 0.28.20(typescript@5.9.3)
+        version: 0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)
       typedoc-plugin-markdown:
         specifier: ^4.9.0
-        version: 4.13.1(typedoc@0.28.20(typescript@5.9.3))
+        version: 4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
       typedoc-vitepress-theme:
         specifier: ^1.1.2
-        version: 1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(typescript@5.9.3)))(typedoc@0.28.20(typescript@5.9.3))
+        version: 1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)))(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -655,7 +657,7 @@ importers:
         version: 4.23.15
       typedoc:
         specifier: ^0.28.15
-        version: 0.28.20(typescript@5.9.3)
+        version: 0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1014,13 +1016,13 @@ importers:
         version: 4.23.15
       typedoc:
         specifier: ^0.28.15
-        version: 0.28.20(typescript@5.9.3)
+        version: 0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)
       typedoc-plugin-markdown:
         specifier: ^4.9.0
-        version: 4.13.1(typedoc@0.28.20(typescript@5.9.3))
+        version: 4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
       typedoc-vitepress-theme:
         specifier: ^1.1.2
-        version: 1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(typescript@5.9.3)))(typedoc@0.28.20(typescript@5.9.3))
+        version: 1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)))(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1105,13 +1107,13 @@ importers:
         version: 0.182.0
       typedoc:
         specifier: ^0.28.15
-        version: 0.28.20(typescript@5.9.3)
+        version: 0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)
       typedoc-plugin-markdown:
         specifier: ^4.9.0
-        version: 4.13.1(typedoc@0.28.20(typescript@5.9.3))
+        version: 4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
       typedoc-vitepress-theme:
         specifier: ^1.1.2
-        version: 1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(typescript@5.9.3)))(typedoc@0.28.20(typescript@5.9.3))
+        version: 1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)))(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
@@ -7689,10 +7691,6 @@ packages:
 
   minimalistic-crypto-utils@1.0.1:
     resolution: {integrity: sha512-JIYlbt6g8i5jKfJ3xz7rF0LXmv2TkDxBLUkiBeZ7bAx4GnnNMr8xFpGnOxn6GhTEHx3SjRrZEoU+j04prX1ktg==}
-
-  minimatch@10.2.6:
-    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
-    engines: {node: 18 || 20 || >=22}
 
   minimatch@11.0.8:
     resolution: {integrity: sha512-nFQuYSTVrGvysVBps5Ih+0BdnYFN/Cj3C816r6+p7yK+FHrVLGE4O4N9AFwykrlNlvM2HYt+Rad1Uiro6h88Ig==}
@@ -17597,10 +17595,6 @@ snapshots:
 
   minimalistic-crypto-utils@1.0.1: {}
 
-  minimatch@10.2.6:
-    dependencies:
-      brace-expansion: 5.0.12
-
   minimatch@11.0.8:
     dependencies:
       '@isaacs/nonrecursive-glob-match': 1.1.0
@@ -19623,21 +19617,21 @@ snapshots:
       possible-typed-array-names: 1.1.0
       reflect.getprototypeof: 1.0.10
 
-  typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(typescript@5.9.3)):
+  typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)):
     dependencies:
-      typedoc: 0.28.20(typescript@5.9.3)
+      typedoc: 0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)
 
-  typedoc-vitepress-theme@1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(typescript@5.9.3)))(typedoc@0.28.20(typescript@5.9.3)):
+  typedoc-vitepress-theme@1.1.4(typedoc-plugin-markdown@4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)))(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)):
     dependencies:
-      typedoc: 0.28.20(typescript@5.9.3)
-      typedoc-plugin-markdown: 4.13.1(typedoc@0.28.20(typescript@5.9.3))
+      typedoc: 0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3)
+      typedoc-plugin-markdown: 4.13.1(typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3))
 
-  typedoc@0.28.20(typescript@5.9.3):
+  typedoc@0.28.20(patch_hash=723021e6bc849f44eb0c6da42ac6c88e120c54ba9bd594b2029832b68e14865e)(typescript@5.9.3):
     dependencies:
       '@gerrit0/mini-shiki': 3.23.0
       lunr: 2.3.9
       markdown-it: 14.3.3
-      minimatch: 10.2.6
+      minimatch: 11.0.8
       typescript: 5.9.3
       yaml: 2.9.1
 

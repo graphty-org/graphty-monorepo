@@ -79,6 +79,10 @@ patchedDependencies:
     # told the list is closed. The patch re-renders the combobox once when the id is set
     # (issue #1913).
     "@mantine/core@8.3.18": patches/@mantine__core@8.3.18.patch
+    # typedoc 0.28.20 (the newest) calls Minimatch#matchOne, which minimatch 11 removed, and the
+    # minimatch floor below moves it to 11 (GHSA-g3hv-75wg-m249). The patch asks the same question
+    # through the public match(path, partial) (issue #7704). Delete it once typedoc depends on minimatch 11.
+    "typedoc@0.28.20": patches/typedoc@0.28.20.patch
 
 # Security floors for transitive packages that a parent in pnpm-lock.yaml pins to a vulnerable
 # version. Each line names the parent that holds it back; delete an entry once that parent moves
@@ -102,10 +106,7 @@ overrides:
     # backport, so the floor moves those majors to 11 (same exports; drops Node 18). glob 10 cannot
     # run on minimatch 11 (it finds no files), and glob >=9.0.0 <=14.0.1 has GHSA-3g3m-2fjr-6pw4, so
     # glob moves to 14 too (the docgen plugin calls only globSync, unchanged in 14).
-    # typedoc 0.28.20 (the newest) calls Minimatch#matchOne, which minimatch 11 removed, so typedoc
-    # keeps minimatch 10 until it moves; it only matches this repository's own entry-point globs.
     "minimatch@>=7.0.0 <11.0.1": ^11.0.1
-    "typedoc>minimatch": ^10.2.6
     "glob@>=9.0.0 <14.0.2": ^14.0.2
     "ajv@>=7.0.0-alpha.0 <8.18.0": ^8.18.0
     # graphty-element's @jsonhero/schema-infer -> @jsonhero/json-infer-types pins ip-address 8 and

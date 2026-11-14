@@ -4844,6 +4844,7 @@ export interface GraphSession {
     /**
      * Collapsing a group of nodes (a community, a component, the nodes sharing a value) to one
      * node, and expanding it again: each call one undoable step, saved with the project. Experimental.
+     * @beta
      */
     readonly groups: GroupsApi;
     /**

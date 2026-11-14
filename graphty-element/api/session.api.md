@@ -580,7 +580,7 @@ export interface CodedFact<Code extends string = string> {
 // @public
 export type CodedFactParam = string | number | boolean | null | readonly (string | number | boolean | null)[];
 
-// @public
+// @beta
 export interface CollapsedGroup {
     readonly group: GroupValue;
     readonly groupBy: Path;
@@ -1699,6 +1699,7 @@ export interface GraphSession {
     readonly features: EnabledFeatures;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
+    // @beta
     readonly groups: GroupsApi;
     readonly hidden: SessionHidden;
     readonly history: SessionHistory;
@@ -2880,7 +2881,7 @@ export interface GroupOverlap {
     readonly count: number;
 }
 
-// @public
+// @beta
 export type GroupRef = {
     readonly run: RunRef;
     readonly group: GroupValue;
@@ -2889,7 +2890,7 @@ export type GroupRef = {
     readonly group: GroupValue;
 };
 
-// @public
+// @beta
 export interface GroupsApi {
     collapse(ref: GroupRef): Promise<NodeId>;
     expand(ref: GroupRef): Promise<void>;
@@ -2914,7 +2915,7 @@ export interface GroupTableOptions {
 // @public
 export type GroupTableRow = Readonly<Record<string, string | number | boolean | null>>;
 
-// @public
+// @beta
 export type GroupValue = string | number | boolean;
 
 // @public

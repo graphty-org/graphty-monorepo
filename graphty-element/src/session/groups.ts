@@ -19,18 +19,23 @@ import type { RunRef } from "./results/types";
 import type { CodedFact } from "./shared";
 import type { EdgeRecord, GraphSession, HistoryCode, NodeRecord, PositionEntry } from "./types";
 
-/** A group's value: what its members hold at the path they are grouped by. */
+/**
+ * A group's value: what its members hold at the path they are grouped by.
+ * @beta
+ */
 export type GroupValue = string | number | boolean;
 
 /**
  * One group: a run's group (its primary field, such as a community's `group`), or the nodes
  * holding one value at any node path (`data.team`, `results.<run>.<field>`).
+ * @beta
  */
 export type GroupRef =
     { readonly run: RunRef; readonly group: GroupValue } | { readonly groupBy: Path; readonly group: GroupValue };
 
 /**
  * A group that is collapsed now.
+ * @beta
  */
 export interface CollapsedGroup {
     /** The path its members were grouped by. */
@@ -57,6 +62,7 @@ export interface CollapsedGroup {
  * const node = await session.groups.collapse({ run, group: 0 });
  * await session.groups.expand({ run, group: 0 });
  * ```
+ * @beta
  */
 export interface GroupsApi {
     /**

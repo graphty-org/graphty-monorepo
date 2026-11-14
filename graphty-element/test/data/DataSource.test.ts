@@ -56,7 +56,7 @@ describe("DataSource base class", () => {
                 await source.testGetContent();
             } catch (error) {
                 errorThrown = true;
-                assert.match((error as Error).message, /DataSource requires data, file, or url/);
+                assert.propertyVal(error, "code", "E_OPTION_RANGE");
             }
             assert.strictEqual(errorThrown, true, "Expected error to be thrown");
         });

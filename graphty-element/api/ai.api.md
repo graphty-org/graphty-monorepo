@@ -1141,7 +1141,7 @@ export class VoiceInputAdapter implements InputAdapter {
     get isSupported(): boolean;
     onActiveChange(callback: VoiceActiveCallback): void;
     onError(callback: (error: string) => void): void;
-    onInput(callback: InputCallback): void;
+    onInput(callback: InputCallback): () => void;
     onSpeechEnd(callback: () => void): void;
     onStart(callback: VoiceStartCallback): void;
     start(options?: InputOptions): void;

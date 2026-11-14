@@ -1,17 +1,20 @@
-import { ConvergenceError } from "@graphty/algorithms";
 import { z } from "zod";
 
-import type { AccelerationPrecision } from "../acceleration/types";
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
-import { GraphtyError } from "../errors";
-import type { ResultElementValues } from "../session/results";
 import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
-import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
+import {
+    converged,
+    convergenceOptions,
+    convergenceZodOptions,
+    endpointsOption,
+    endpointsZodOption,
+    readScores,
+} from "./metrics/powerIteration";
 import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 import type { OptionsSchema } from "./types/OptionSchema";
 import { refuseEndpoints } from "./utils/graphUtils";
@@ -28,22 +31,7 @@ const eigenvectorCentralityOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    tolerance: {
-        schema: z.number().min(1e-10).max(0.01).default(1e-6),
-        meta: {
-            label: "Tolerance",
-            description: "Convergence threshold",
-            advanced: true,
-        },
-    },
-    normalized: {
-        schema: z.boolean().default(true),
-        meta: {
-            label: "Normalized",
-            description: "Whether to normalize the final scores",
-            advanced: true,
-        },
-    },
+    ...convergenceZodOptions,
     mode: {
         schema: z.enum(["in", "out", "total"]).default("total"),
         meta: {
@@ -53,15 +41,7 @@ const eigenvectorCentralityOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    endpoints: {
-        schema: z.boolean().default(false),
-        meta: {
-            label: "Include Endpoints",
-            description:
-                "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
-            advanced: true,
-        },
-    },
+    ...endpointsZodOption,
 });
 
 /**
@@ -109,22 +89,7 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
             max: 10000,
             advanced: true,
         },
-        tolerance: {
-            type: "number",
-            default: 1e-6,
-            label: "Tolerance",
-            description: "Convergence threshold",
-            min: 1e-10,
-            max: 0.01,
-            advanced: true,
-        },
-        normalized: {
-            type: "boolean",
-            default: true,
-            label: "Normalized",
-            description: "Whether to normalize the final scores",
-            advanced: true,
-        },
+        ...convergenceOptions,
         mode: {
             type: "select",
             default: "total",
@@ -138,14 +103,7 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
             ],
             advanced: true,
         },
-        endpoints: {
-            type: "boolean",
-            default: false,
-            label: "Include Endpoints",
-            description:
-                "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
-            advanced: true,
-        },
+        ...endpointsOption,
     };
 
     /**
@@ -173,52 +131,23 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
         const { snapshot, run } = this.accelerated("eigenvectorCentrality", directed ? "directed" : "undirected");
         const { ids } = snapshot;
 
-        context.report({
-            phase: "iterating",
-            completed: 0,
-            total: nodeIds.length,
-            message: `Power iteration, up to ${String(maxIterations)} passes.`,
-        });
-        let scores: ArrayLike<number>;
-        let precision: AccelerationPrecision;
-        try {
-            ({
-                value: { scores },
-                precision,
-            } = await run((dispatch, s) =>
-                dispatch.eigenvectorCentrality(s, {
-                    normalized,
-                    maxIterations,
-                    tolerance,
-                    mode,
-                }),
-            ));
-        } catch (error) {
-            // On the device path the controller reports the failure as its own, with the
-            // algorithm's error as the cause; either way an unconverged run is E_NOT_CONVERGED.
-            const convergence = error instanceof Error && !(error instanceof ConvergenceError) ? error.cause : error;
-            if (!(convergence instanceof ConvergenceError)) {
-                throw error;
-            }
-            const algorithm = `${EigenvectorCentralityAlgorithm.namespace}:${EigenvectorCentralityAlgorithm.type}`;
-            throw new GraphtyError({
-                code: "E_NOT_CONVERGED",
-                message:
-                    `Eigenvector centrality did not converge in ${String(maxIterations)} iterations (tolerance ${String(tolerance)}). ` +
-                    "Raise the maxIterations param (up to 10000), or loosen tolerance, and run it again.",
-                source: "run",
-                target: { kind: "run", id: context.runId },
-                details: { algorithm, maxIterations, tolerance },
-                cause: convergence,
-            });
-        }
+        context.report({ phase: "iterating", completed: 0, total: nodeIds.length, params: { maxIterations } });
+        const {
+            value: { scores },
+            precision,
+        } = await converged(
+            context,
+            {
+                algorithm: `${EigenvectorCentralityAlgorithm.namespace}:${EigenvectorCentralityAlgorithm.type}`,
+                name: "Eigenvector centrality",
+                advice: "Raise the maxIterations param (up to 10000), or loosen tolerance, and run it again.",
+                maxIterations,
+                tolerance,
+            },
+            run((dispatch, s) => dispatch.eigenvectorCentrality(s, { normalized, maxIterations, tolerance, mode })),
+        );
         context.signal.throwIfAborted();
-
-        const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
-            const score = scores[ids.indexOf(nodeId)];
-            nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
-        });
+        const nodes = await readScores(context, nodeIds, ids, scores);
 
         return {
             nodes,

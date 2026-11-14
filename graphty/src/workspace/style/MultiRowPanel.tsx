@@ -4,7 +4,8 @@ import type { GraphSession, HistoryStepId, Layer, LayerReach, StyleRow } from "@
 import { Stack } from "@mantine/core";
 import React, { useState } from "react";
 
-import { count, findTreeRow, type FoundRow } from "../graph-place/rows";
+import { findTreeRow, type FoundRow } from "../graph-place/rows";
+import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { LayerSequence, LayerValues } from "./BulkBinding";
 import { writeKind } from "./cards";

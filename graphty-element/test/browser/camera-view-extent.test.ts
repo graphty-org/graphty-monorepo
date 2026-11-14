@@ -159,6 +159,46 @@ describe("camera views take an extent", () => {
         assert.isTrue(wholeOnScreen(element, "a"), "drawn: the node is whole on screen");
     });
 
+    it("frames the whole graph as the project's framing.extent says when the call names no extent", async () => {
+        const element = await mounted();
+
+        seen.length = 0;
+        await element.applyCameraView("acme-look", { animate: false });
+        await element.session.config.set({ framing: { extent: "centers" } });
+        await element.applyCameraView("acme-look", { animate: false });
+
+        const [drawn, centers] = seen;
+        assert.isDefined(drawn);
+        assert.isDefined(centers);
+        assert.isAtLeast(drawn.bounds.size.x, 200 + NODE_SIZE * 0.9, "no setting: the drawn nodes");
+        assert.closeTo(centers.bounds.size.x, 200, 0.01, "framing.extent centers: centre to centre");
+    });
+
+    it("leaves a hidden node out of the box, for the whole graph and for a subset", async () => {
+        const element = await mounted();
+        await element.session.styles.add({
+            name: "no far",
+            target: "node",
+            selector: { match: "ids", nodes: ["far"] },
+            set: { "node.visible": false },
+        });
+        await element.waitForStableFrame();
+
+        seen.length = 0;
+        await element.applyCameraView("acme-look", { animate: false, extent: "centers" });
+        await element.applyCameraView("acme-look", {
+            scope: { nodes: ["a", "b", "far"] },
+            animate: false,
+        });
+
+        for (const input of seen) {
+            assert.closeTo(input.bounds.size.y, 0, 0.01, "the hidden node far above does not stretch the box");
+            assert.strictEqual(input.bounds.measured, 2);
+        }
+
+        assert.lengthOf(seen, 2);
+    });
+
     for (const mode of ["3d", "2d"] as const) {
         it(`fitToGraph over the whole graph keeps every drawn node inside the view in ${mode}`, async () => {
             const element = await mounted(mode);

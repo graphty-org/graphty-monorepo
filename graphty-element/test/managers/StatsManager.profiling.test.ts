@@ -1,6 +1,9 @@
 import type { EngineInstrumentation, SceneInstrumentation } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import { GraphtyLogger } from "../../src/logging/GraphtyLogger";
+import { resetLoggingConfig } from "../../src/logging/LoggerConfig";
+import { LogLevel } from "../../src/logging/types";
 import type { EventManager } from "../../src/managers/EventManager";
 import { StatsManager } from "../../src/managers/StatsManager";
 
@@ -215,17 +218,53 @@ describe("StatsManager - Profiling", () => {
             assert.equal(snapshot.cpu.length, 2);
         });
 
-        it("should warn on mismatched end", () => {
-            statsManager.enableProfiling();
-            const warnSpy = vi.spyOn(console, "warn");
+        it("should warn through the stats logger on an end with no matching start", async () => {
+            await GraphtyLogger.configure({ enabled: true, level: LogLevel.WARN, modules: ["stats"] });
+            const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+            try {
+                statsManager.enableProfiling();
 
-            statsManager.startMeasurement("test-a");
-            statsManager.endMeasurement("test-b"); // Wrong label
+                statsManager.startMeasurement("test-a");
+                statsManager.endMeasurement("test-b"); // Wrong label
 
-            assert.equal(warnSpy.mock.calls.length, 1);
-            const warning = warnSpy.mock.calls[0][0];
-            assert.include(warning, "Mismatched");
-            warnSpy.mockRestore();
+                assert.isTrue(warnSpy.mock.calls.some((call) => call.join(" ").includes("Mismatched")));
+                // The open measurement is still there, and its own end records it.
+                statsManager.endMeasurement("test-a");
+                assert.equal(statsManager.getSnapshot().cpu.find((m) => m.label === "test-a")?.count, 1);
+            } finally {
+                resetLoggingConfig();
+            }
+        });
+
+        it("should record the outer measurement when an inner one never ended (#7223)", async () => {
+            await GraphtyLogger.configure({ enabled: true, level: LogLevel.WARN, modules: ["stats"] });
+            const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+            try {
+                statsManager.enableProfiling();
+
+                // The inner measured code threw, so its end never ran.
+                statsManager.startMeasurement("outer");
+                spend(3);
+                statsManager.startMeasurement("inner");
+                spend(2);
+                statsManager.endMeasurement("outer");
+
+                const outer = statsManager.getSnapshot().cpu.find((m) => m.label === "outer");
+                assert.equal(outer?.count, 1);
+                assert.equal(outer?.total, 5);
+                assert.isUndefined(statsManager.getSnapshot().cpu.find((m) => m.label === "inner"));
+                assert.isTrue(warnSpy.mock.calls.some((call) => call.join(" ").includes("never ended")));
+
+                // Nothing was left behind: a later pair records normally and alone.
+                statsManager.startMeasurement("outer");
+                spend(4);
+                statsManager.endMeasurement("outer");
+                const again = statsManager.getSnapshot().cpu.find((m) => m.label === "outer");
+                assert.equal(again?.count, 2);
+                assert.equal(again?.total, 9);
+            } finally {
+                resetLoggingConfig();
+            }
         });
 
         it("should not measure when disabled", () => {

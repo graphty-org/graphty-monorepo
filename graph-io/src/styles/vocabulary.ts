@@ -216,6 +216,8 @@ export const STYLE_PROPERTIES: {
         ["color", "color"],
         ["sourceArrowColor", "color"],
         ["targetArrowColor", "color"],
+        ["sourceArrowFillColor", "color"],
+        ["targetArrowFillColor", "color"],
         ["labelColor", "color"],
         ["opacity", "opacity"],
         ["width", "number"],

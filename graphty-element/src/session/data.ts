@@ -1145,17 +1145,17 @@ export class SessionData implements SessionDataApi {
         const turn = this.loadLine.join(signal);
         try {
             let snapshot: GraphSnapshot;
+            // The status of the answer, kept here so a failure can say whether a retry could help.
+            let status: number | undefined;
+            const watched: typeof fetch = async (input, init) => {
+                const response = await fetch(input, init);
+                ({ status } = response);
+                return response;
+            };
             try {
-                snapshot = await fetchDataset(name, { baseUrl, signal });
+                snapshot = await fetchDataset(name, { baseUrl, signal, fetch: watched });
             } catch (error) {
-                throw new GraphtyError({
-                    code: "E_FETCH_FAILED",
-                    message: `The dataset "${name}" could not be downloaded.`,
-                    source: "data",
-                    recoverable: true,
-                    details: { name, ...(baseUrl === undefined ? {} : { baseUrl }) },
-                    cause: error,
-                });
+                throw datasetError(name, baseUrl, signal, status, error);
             }
             const sample = this.sampleLoad(snapshot, name, load);
             await this.importVia(send, sample.source, load, turn, {
@@ -6415,4 +6415,57 @@ function loadFacts(
         ...(record.total === undefined ? {} : { total: record.total }),
         ...(record.totalEdges === undefined ? {} : { totalEdges: record.totalEdges }),
     };
+}
+
+/**
+ * What a failed dataset download rejects with: an abort as it was thrown, a bad name as
+ * `E_UNKNOWN_DATASET`, a file that came back but would not decode as `E_PARSE_FAILED`, and an
+ * answer that never came or was not ok as `E_FETCH_FAILED`, which is not recoverable for a client
+ * error other than 408 and 429.
+ * @param name - The dataset's name.
+ * @param baseUrl - The mirror, when one was given.
+ * @param signal - The load's signal.
+ * @param status - The status of the answer, or undefined when none came.
+ * @param error - What the download threw.
+ * @returns The error to throw.
+ */
+function datasetError(
+    name: string,
+    baseUrl: string | undefined,
+    signal: AbortSignal | undefined,
+    status: number | undefined,
+    error: unknown,
+): unknown {
+    if (signal?.aborted === true) {
+        return error;
+    }
+    const mirror = baseUrl === undefined ? {} : { baseUrl };
+    if (status === undefined && error instanceof RangeError) {
+        return new GraphtyError({
+            code: "E_UNKNOWN_DATASET",
+            message: `"${name}" is not a dataset name.`,
+            source: "data",
+            details: { name, available: DATASET_NAMES },
+            cause: error,
+        });
+    }
+    if (status !== undefined && status >= 200 && status < 300) {
+        return new GraphtyError({
+            code: "E_PARSE_FAILED",
+            message: `The dataset "${name}" was downloaded but could not be read.`,
+            source: "data",
+            recoverable: false,
+            details: { name, format: "graph-format", ...mirror },
+            cause: error,
+        });
+    }
+    const clientError = status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429;
+    return new GraphtyError({
+        code: "E_FETCH_FAILED",
+        message: `The dataset "${name}" could not be downloaded.`,
+        source: "data",
+        recoverable: !clientError,
+        details: { name, ...mirror, ...(status === undefined ? {} : { status }) },
+        cause: error,
+    });
 }

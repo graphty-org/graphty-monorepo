@@ -460,15 +460,7 @@ export class NodeShaderDrawing {
                     }
                 }
 
-                const waiting = [...known.waiting];
-                const repaint = REPAINTS.get(this.scene);
-                if (repaint === undefined) {
-                    for (const node of waiting) {
-                        node.refreshShaderPaint();
-                    }
-                } else {
-                    repaint(waiting);
-                }
+                this.redrawNodes([...known.waiting]);
             }
         });
         scene.onDisposeObservable.addOnce(() => {
@@ -656,6 +648,38 @@ export class NodeShaderDrawing {
      */
     arrived(node: ShadedNode): void {
         this.arrivals.set(node, performance.now());
+    }
+
+    /**
+     * The graph's outline width (`layoutBehavior.node.outlineWidth`) changed: draw again every
+     * node whose ring the batch draws, since its look holds the width it was painted with.
+     */
+    outlineWidthChanged(): void {
+        const ringed: ShadedNode[] = [];
+        for (const entry of this.entries.values()) {
+            if (entry.look !== null && entry.look.ring !== null) {
+                ringed.push(entry.node);
+            }
+        }
+
+        if (ringed.length > 0) {
+            this.redrawNodes(ringed);
+        }
+    }
+
+    /**
+     * Draw nodes again from their paints: with the update manager's bulk repaint when it lent one.
+     * @param nodes - The nodes.
+     */
+    private redrawNodes(nodes: readonly ShadedNode[]): void {
+        const repaint = REPAINTS.get(this.scene);
+        if (repaint === undefined) {
+            for (const node of nodes) {
+                node.refreshShaderPaint();
+            }
+        } else {
+            repaint(nodes);
+        }
     }
 
     /**

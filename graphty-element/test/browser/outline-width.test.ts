@@ -7,10 +7,18 @@
 import "../../src/graphty-element";
 
 import { Mesh, VertexBuffer } from "@babylonjs/core";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { clearRegisteredShadersForTesting } from "../../src/catalog/shaderRegistry";
 import { operationQueueOf } from "../../src/Graph";
+import { NodeBillboardBatch } from "../../src/meshes/NodeBillboardBatch";
+import { defineShader } from "../../src/simple/defineShader";
+import { drawnFrames } from "../helpers/drawn-frames";
+
+afterAll(() => {
+    clearRegisteredShadersForTesting();
+});
 
 /**
  * A graph of one outlined node.
@@ -62,6 +70,47 @@ function ring(element: Graphty, color = "#ff0000"): [number, number] {
     return [Math.min(...radii), Math.max(...radii)];
 }
 
+/**
+ * The ring width the shader batch last wrote for a ringed slot: graphtyDeco1.y, a multiple of
+ * the ring's own band, or undefined before any. Watches every slot write while the test runs.
+ * @returns A reader of the width, and the watch's end.
+ */
+function watchBatchRing(): { width: () => number | undefined; stop: () => void } {
+    let width: number | undefined;
+    const { write } = NodeBillboardBatch.prototype;
+    const spy = vi.spyOn(NodeBillboardBatch.prototype, "write").mockImplementation(function (
+        this: NodeBillboardBatch,
+        index,
+        values,
+        speed,
+    ) {
+        if (values.deco1[0] !== 0) {
+            width = values.deco1[1];
+        }
+
+        write.call(this, index, values, speed);
+    });
+    return {
+        width: () => width,
+        stop: () => {
+            spy.mockRestore();
+        },
+    };
+}
+
+/**
+ * Wait until the shader batch has written this ring width, a drawn frame at a time.
+ * @param element - The element.
+ * @param width - Reads the width last written.
+ * @param want - The width.
+ */
+async function batchDraws(element: Graphty, width: () => number | undefined, want: number): Promise<void> {
+    const scene = element.graph.getScene();
+    while (width() !== want) {
+        await drawnFrames(scene, 1);
+    }
+}
+
 describe("the graph's outline width", () => {
     let element: Graphty | undefined;
 
@@ -98,6 +147,8 @@ describe("the graph's outline width", () => {
         await element.session.styles.settled();
         await operationQueueOf(element.graph).waitForCompletion();
 
+        // A style edit resolves once its pass has run; the meshes take its paint on the next update.
+        await element.waitForStableFrame();
         const [blueInner, blueOuter] = ring(element, "#0000ff");
         assert.closeTo(blueInner, inner, 1e-6, "the wide ring still starts at the node");
         assert.closeTo(blueOuter - blueInner, (outer - inner) * 3, 1e-6, "the layer's width: three times as wide");
@@ -109,5 +160,31 @@ describe("the graph's outline width", () => {
         assert.closeTo(redWide - inner, (outer - inner) * 2, 1e-6, "the graph's width reaches a ring with none");
         const [, blueStill] = ring(element, "#0000ff");
         assert.closeTo(blueStill, blueOuter, 1e-6, "and not one whose layer sets its own");
+    });
+
+    it("widens a ring the shader batch draws when it is set after the node was painted", async () => {
+        defineShader({ id: "outline-width/flat", glsl: "vec4 shade(NodeInput n) { return vec4(n.color.rgb, 1.0); }" });
+        const ring = watchBatchRing();
+        try {
+            element = await outlined();
+            await element.session.styles.add({
+                name: "Flat",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shaders": [{ shader: "outline-width/flat" }] },
+            });
+            await element.session.styles.settled();
+            await operationQueueOf(element.graph).waitForCompletion();
+            // The node's ring is drawn by the shader batch, at the renderer's own width.
+            await batchDraws(element, ring.width, 1);
+
+            element.layoutBehavior = { node: { outlineWidth: 3 } };
+            await batchDraws(element, ring.width, 3);
+
+            element.layoutBehavior = { node: { outlineWidth: undefined } };
+            await batchDraws(element, ring.width, 1);
+        } finally {
+            ring.stop();
+        }
     });
 });

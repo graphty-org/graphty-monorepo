@@ -1790,13 +1790,11 @@ function configOf(
         },
         set: async (values: ProjectConfigPatch) => {
             // A background naming a catalog shader copies its text in as it is set; the body
-            // loads first, since the write's executor cannot wait for it.
+            // loads first, since the write's executor cannot wait for it. Counted as owed while it
+            // loads, so a wait for the picture does not end on a canvas without it (issue #7970).
             const loading = loadNamedShaders(values);
-            if (loading !== undefined) {
-                await loading;
-            }
-
-            await dispatcher.dispatch({ op: "config.set", values });
+            const write = (): Promise<unknown> => dispatcher.dispatch({ op: "config.set", values });
+            await (loading === undefined ? write() : dispatcher.ahead(loading.then(write)));
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
             settingEffect(key, dispatcher.state.layout ?? DEFAULT_LAYOUT),

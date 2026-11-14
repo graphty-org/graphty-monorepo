@@ -246,7 +246,8 @@ graph-samples, babylonjs-map, algorithms and layout require 90% in all four. Eve
   above the slowest legitimate test. No test, story, helper, setup file or config sets a timeout,
   an interval or a deadline loop of its own, and no override of the guard exists. The
   `local/no-test-timing` lint rule enforces it. A measurement is not a test: it goes in a project
-  named `bench*` (started by hand, never by the gate), which runs with no time limit.
+  named `bench*` (started by hand, never by the gate), which carries the same guards: a hung
+  benchmark is ended and reported like any other run.
 - Those limits are timers in the test's own thread, so a blocked page never runs them and a file of
   slow tests never reaches them. `tools/vitest-file-guard.mjs`, in vitest's own process, ends the run
   when one test file passes `FILE_GUARD_MS`: it prints `[HANG] <file> ran past ... it had reached

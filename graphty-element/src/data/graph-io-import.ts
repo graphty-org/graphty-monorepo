@@ -649,6 +649,33 @@ export function readerImport(reader: object): Promise<ReaderImport> | null {
     return READER_IMPORTS.get(reader)?.() ?? null;
 }
 
+/** What the file each reader last read recorded under `meta.extra`, when it recorded anything. */
+const READER_META_EXTRA = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+/**
+ * Remember what an imported file recorded under `meta.extra` (DOT's `strict` and HTML labels,
+ * GEXF's header, ...), so the element keeps it with the graph and an export writes it again.
+ * @param reader - the data source
+ * @param snapshot - the imported graph
+ */
+export function rememberMetaExtra(reader: object, snapshot: GraphSnapshot): void {
+    const { extra } = snapshot.meta;
+    if (Object.keys(extra).length === 0) {
+        READER_META_EXTRA.delete(reader);
+    } else {
+        READER_META_EXTRA.set(reader, extra);
+    }
+}
+
+/**
+ * What the file a reader last read recorded under `meta.extra`.
+ * @param reader - the data source
+ * @returns the values by namespace, or null when it recorded none or the reader read no graph-io import
+ */
+export function readerMetaExtra(reader: object): Readonly<Record<string, unknown>> | null {
+    return READER_META_EXTRA.get(reader) ?? null;
+}
+
 /**
  * Pair an import with a mapping's column paths.
  * @param imported - the import
@@ -725,6 +752,10 @@ export function toRecords(
     reader?: object,
 ): { nodes: AdHocData[]; edges: AdHocData[] } {
     const { importer } = imported;
+    if (reader !== undefined) {
+        rememberMetaExtra(reader, imported.snapshot);
+    }
+
     if (reader !== undefined && importer !== undefined) {
         rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
     }

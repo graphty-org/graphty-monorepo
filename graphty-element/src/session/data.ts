@@ -5767,20 +5767,23 @@ function nodesJoinMade(load: LoadedSource, provenance: Provenance | undefined): 
 
 /**
  * The nodes a load added: for a join that adds elements, the nodes it made (its record's
- * `made`); for any other load, and a join recorded before `made`, every node it supplied.
+ * `made`); for any other load, every node it supplied but those the graph held before it that
+ * no load supplied (its provenance's `held`, issue #7708).
  * @param load - the load
  * @param provenance - what each load supplied
  * @returns the node ids, as provenance holds them
  */
 function nodesJoinAdded(load: LoadedSource, provenance: Provenance | undefined): readonly NodeId[] {
-    const supplied = provenance?.[load.key]?.nodes ?? [];
+    const entry = provenance?.[load.key];
+    const supplied = entry?.nodes ?? [];
     const made = load.join?.made;
-    if (made === undefined) {
-        return supplied;
+    if (made !== undefined) {
+        const ids = new Set(made.map(String));
+        return supplied.filter((id) => ids.has(String(id)));
     }
 
-    const ids = new Set(made.map(String));
-    return supplied.filter((id) => ids.has(String(id)));
+    const held = new Set((entry?.held ?? []).map(String));
+    return held.size === 0 ? supplied : supplied.filter((id) => !held.has(String(id)));
 }
 
 /**

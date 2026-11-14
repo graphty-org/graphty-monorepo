@@ -34,6 +34,7 @@ import {
     emptyLoad,
     importWhole,
     readerImport,
+    rememberMetaExtra,
     sourceGraph,
     toRecords,
     withoutStyleSlots,
@@ -1261,6 +1262,7 @@ export abstract class DataSource {
                 const { snapshot } = loaded;
                 // ponytail: the whole load is held, then chunked; hand each page to the ingest as it
                 // arrives once a paged source is big enough for that to matter
+                rememberMetaExtra(this, snapshot);
                 const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
                 yield* this.chunkData(nodes, edges);
             }

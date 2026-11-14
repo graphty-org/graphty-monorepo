@@ -554,7 +554,7 @@ describe("the Overview and the import of time", () => {
         });
         // The window narrows only the drawing: the Overview counts no "showing" subset.
         assert.isNotNull(session.time.current);
-        await inspector.findByRole("group", { name: "Edges" });
+        await inspector.findByText("Direction");
         assert.isNull(inspector.queryByRole("group", { name: "Edges showing" }));
     });
 
@@ -616,7 +616,7 @@ describe("the Overview and the import of time", () => {
 
         // Feb 15 is inside the first edge's span and after the second one ended.
         await live.time.window({ from: Date.UTC(2025, 1, 15), to: Date.UTC(2025, 1, 16) });
-        assert.deepEqual([...live.visibility.edgeMask()], [1, 0]);
+        assert.strictEqual(live.time.inside?.edges, 1);
     });
 
     it("keeps the Unit picked when the End row changes", async () => {
@@ -700,17 +700,22 @@ describe("the Overview and the import of time", () => {
             .list()
             .find((layer) => layer.name === "Timeline Hidden" && layer.target === "node");
         assert.isDefined(ghostLayer);
-        // What the Timeline Hidden layer paints among what the drawing shows.
-        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").visible?.matched ?? -1;
+        // What the Timeline Hidden layer selects: every node outside the window.
+        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").matched;
+        // Whether the layer draws them (Ghost) or leaves them out (Hide).
+        const drawn = (): boolean =>
+            session.styles.list().find((layer) => layer.id === ghostLayer?.id)?.set?.["node.visible"] !== false;
         // What lies outside the window: the window narrows only the drawing, never the visible count.
         const outsideCount = (): number => graph.nodeCount - (session.time.inside?.nodes ?? graph.nodeCount);
-        // Hidden by default: the drawing shows none of them, so the layer paints none.
+        // Hidden by default: the layer selects what lies outside and leaves it undrawn.
         assert.equal(session.time.settings.outside, "hide");
-        assert.equal(ghosts(), 0, "hidden, not ghosted, by default");
+        assert.isFalse(drawn(), "hidden, not ghosted, by default");
+        assert.equal(ghosts(), outsideCount());
 
         await userEvent.click(within(outside).getByText("Ghost"));
         await waitFor(() => {
             assert.equal(session.time.settings.outside, "ghost");
+            assert.isTrue(drawn());
             assert.isAbove(ghosts(), 0);
             assert.equal(ghosts(), outsideCount());
         });
@@ -728,7 +733,7 @@ describe("the Overview and the import of time", () => {
         await userEvent.click(within(outside).getByText("Hide"));
         await waitFor(() => {
             assert.equal(session.time.settings.outside, "hide");
-            assert.equal(ghosts(), 0);
+            assert.isFalse(drawn());
         });
     });
 

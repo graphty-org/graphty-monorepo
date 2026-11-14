@@ -9,8 +9,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, beforeEach, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
@@ -22,6 +22,8 @@ import { TIMELINE_STYLE } from "../preferences";
 
 const MARVEL = "Marvel films";
 const ROW = "Timeline Hidden";
+/** A sample with no time in it, for the experiment off. */
+const LES_MIS = "Les Miserables";
 
 /**
  * Shows the start screen.
@@ -53,6 +55,14 @@ async function chooseStyle(label: "Hidden" | "Ghost"): Promise<void> {
     await waitFor(() => {
         assert.isTrue(within(dialog).getByRole<HTMLInputElement>("radio", { name: label }).checked);
     });
+    await closeSettings(dialog);
+}
+
+/**
+ * Closes Settings with Done and waits until it is gone.
+ * @param dialog - the dialog.
+ */
+async function closeSettings(dialog: HTMLElement): Promise<void> {
     await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
     await waitFor(() => {
         assert.isNull(screen.queryByRole("dialog", { name: "Settings" }));
@@ -85,6 +95,11 @@ function nodeLayer(session: GraphSession): ReturnType<GraphSession["styles"]["li
 beforeEach(() => {
     localStorage.removeItem(TIMELINE_STYLE.key);
     sessionStorage.clear();
+});
+
+beforeAll(async () => {
+    // Wide enough that the side panels leave the canvas toolbar uncovered.
+    await page.viewport(1366, 768);
 });
 
 describe("Default timeline style with the timeline experiment on", () => {
@@ -136,10 +151,8 @@ describe("Default timeline style with the timeline experiment on", () => {
         const before = chip.getAttribute("aria-label") ?? chip.textContent;
         const summary = JSON.stringify(session.visibility.summary);
 
-        const toggle = await screen.findByRole("button", { name: "Timeline" });
-        if (toggle.getAttribute("aria-pressed") !== "true") {
-            await userEvent.click(toggle);
-        }
+        // The canvas toolbar's Timeline button opens the dock.
+        await userEvent.click(await screen.findByRole("button", { name: "Timeline" }));
         const dock = await screen.findByRole("region", { name: "Timeline" });
         await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
         await waitFor(() => {
@@ -169,8 +182,8 @@ describe("Default timeline style with the timeline experiment off", () => {
         const dialog = await openSettings();
         await within(dialog).findByText("Number format");
         assert.isNull(within(dialog).queryByText("Default timeline style"));
-        await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
-        const session = await openBy(store, () => pickSample(MARVEL));
+        await closeSettings(dialog);
+        const session = await openBy(store, () => pickSample(LES_MIS));
         const rows = await treeRows();
         assert.isFalse(
             rows.some((row) => row.startsWith(ROW)),

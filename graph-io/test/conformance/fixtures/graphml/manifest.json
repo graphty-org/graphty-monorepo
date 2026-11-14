@@ -291,12 +291,14 @@
         "nodes": 77,
         "edges": 254,
         "directed": false,
+        "warnings": [
+          "W_GRAPHML_UNKNOWN_KEY"
+        ],
         "nodeIds": [
           "0",
           "76"
         ]
-      },
-      "knownFailure": "<data> for an undeclared key is an error and its value is dropped (sources.md 2.4) (#7650)"
+      }
     },
     {
       "file": "graphology/missing_nodes.graphml",
@@ -1224,12 +1226,14 @@
         "nodes": 2,
         "edges": 1,
         "directed": true,
+        "warnings": [
+          "W_GRAPHML_KEY_IN_GRAPH"
+        ],
         "labels": [
           "foo",
           "bar"
         ]
-      },
-      "knownFailure": "<key> declared inside <graph> is skipped and its data rejected (sources.md 2.4) (#7650)"
+      }
     },
     {
       "file": "cytoscape/simple.graphml",
@@ -1940,9 +1944,11 @@
         "outcome": "pass",
         "nodes": 4,
         "edges": 4,
-        "directed": true
-      },
-      "knownFailure": "per-edge directed other than true/false skips the edge (sources.md 2.4) (#7650)"
+        "directed": true,
+        "warnings": [
+          "W_GRAPHML_DIRECTED_SPELLING"
+        ]
+      }
     },
     {
       "file": "authored/graph-in-edge.graphml",

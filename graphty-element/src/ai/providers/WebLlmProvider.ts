@@ -132,11 +132,28 @@ interface WebLlmToolCall {
 
 /**
  * Parse a tool call's arguments. WebLLM declares them JSON text; an object is taken as it is.
+ * Text that is not a JSON object (malformed, or a string, number, array or null) gives no
+ * arguments and the invalid flag, so the call is refused rather than run.
  * @param args - The arguments.
- * @returns The parsed arguments, or none.
+ * @returns The parsed arguments, or none and the invalid flag.
  */
-function parseArguments(args: string | Record<string, unknown> | undefined): Record<string, unknown> {
-    return typeof args === "string" ? (JSON.parse(args) as Record<string, unknown>) : (args ?? {});
+function parseArguments(
+    args: string | Record<string, unknown> | undefined,
+): Pick<ToolCall, "arguments" | "invalidArguments"> {
+    if (typeof args !== "string") {
+        return { arguments: args ?? {} };
+    }
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(args);
+    } catch {
+        return { arguments: {}, invalidArguments: true };
+    }
+
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        ? { arguments: parsed as Record<string, unknown> }
+        : { arguments: {}, invalidArguments: true };
 }
 
 /**
@@ -159,10 +176,12 @@ function emitToolCalls(
             const toolCall: ToolCall = {
                 id: tc.id ?? `call_${Date.now()}`,
                 name: tc.function.name,
-                arguments: parseArguments(tc.function.arguments),
+                ...parseArguments(tc.function.arguments),
             };
             toolCalls.push(toolCall);
-            callbacks.onToolCall(toolCall.name, toolCall.arguments);
+            if (!toolCall.invalidArguments) {
+                callbacks.onToolCall(toolCall.name, toolCall.arguments);
+            }
         }
     }
 }
@@ -216,7 +235,6 @@ export class WebLlmProvider implements LlmProvider {
     private readonly progressCallbacks = new Set<ProgressCallback>();
     private initialized = false;
     private ready = false;
-    private mockMode = false;
 
     // WebLLM engine instance (dynamically imported)
     private engine: MLCEngineInterface | null = null;
@@ -322,33 +340,6 @@ export class WebLlmProvider implements LlmProvider {
     }
 
     /**
-     * Check if mock mode is enabled.
-     * @returns True if in mock mode
-     */
-    get isMockMode(): boolean {
-        return this.mockMode;
-    }
-
-    /**
-     * Enable mock mode for testing without WebGPU.
-     */
-    enableMockMode(): void {
-        this.mockMode = true;
-        this.initialized = true;
-        this.ready = true;
-    }
-
-    /**
-     * Disable mock mode.
-     */
-    disableMockMode(): void {
-        this.mockMode = false;
-        this.initialized = false;
-        this.ready = false;
-        this.engine = null;
-    }
-
-    /**
      * Register a progress callback for initialization.
      * @param callback - Function to call with progress updates
      */
@@ -393,12 +384,6 @@ export class WebLlmProvider implements LlmProvider {
      *     `E_MISSING_PACKAGE` when `@mlc-ai/web-llm` is not installed.
      */
     async initialize(): Promise<void> {
-        if (this.mockMode) {
-            this.initialized = true;
-            this.ready = true;
-            return;
-        }
-
         // Check WebGPU availability
         const webGpuAvailable = await WebLlmProvider.isWebGPUAvailable();
         if (!webGpuAvailable) {
@@ -488,10 +473,6 @@ export class WebLlmProvider implements LlmProvider {
             throw ABORTED();
         }
 
-        if (this.mockMode) {
-            return this.generateMock(messages, tools);
-        }
-
         const engine = await this.ensureInitialized();
         const signal = options?.signal;
         const stopEngine = interruptOnAbort(engine, signal);
@@ -540,11 +521,6 @@ export class WebLlmProvider implements LlmProvider {
     ): Promise<void> {
         if (signal?.aborted) {
             throw ABORTED();
-        }
-
-        if (this.mockMode) {
-            await this.generateStreamMock(messages, tools, callbacks, signal);
-            return;
         }
 
         const engine = await this.ensureInitialized();
@@ -618,7 +594,6 @@ export class WebLlmProvider implements LlmProvider {
         this.engine = null;
         this.initialized = false;
         this.ready = false;
-        this.mockMode = false;
     }
 
     /**
@@ -729,7 +704,7 @@ export class WebLlmProvider implements LlmProvider {
             toolCalls.push({
                 id: tc.id,
                 name: tc.function.name,
-                arguments: parseArguments(tc.function.arguments),
+                ...parseArguments(tc.function.arguments),
             });
         }
 
@@ -747,65 +722,5 @@ export class WebLlmProvider implements LlmProvider {
                   }
                 : undefined,
         };
-    }
-
-    /**
-     * Generate a mock response for testing.
-     * @param messages - Conversation messages
-     * @param tools - Available tools
-     * @returns Mock LLM response
-     */
-    private generateMock(messages: Message[], tools: ToolDefinition[]): LlmResponse {
-        // Find the last user message
-        const reversedMessages = Array.from(messages).reverse();
-        const userMessage = reversedMessages.find((m) => m.role === "user");
-        const content = userMessage?.content ?? "";
-
-        // Generate a simple response
-        let text = `I understand you said: "${content.slice(0, 50)}${content.length > 50 ? "..." : ""}"`;
-        const toolCalls: ToolCall[] = [];
-
-        // If tools are available and input looks like a command, use a tool
-        if (tools.length > 0 && content.toLowerCase().includes("help")) {
-            text = "Here are the available commands:";
-            // Don't actually call tools in basic mock
-        }
-
-        return { text, toolCalls };
-    }
-
-    /**
-     * Generate a mock streaming response for testing.
-     * @param messages - Conversation messages
-     * @param tools - Available tools
-     * @param callbacks - Streaming callbacks for text and tool calls
-     * @param signal - Optional abort signal
-     */
-    private async generateStreamMock(
-        messages: Message[],
-        tools: ToolDefinition[],
-        callbacks: StreamCallbacks,
-        signal?: AbortSignal,
-    ): Promise<void> {
-        const response = this.generateMock(messages, tools);
-
-        // Stream character by character with small delays
-        for (const char of response.text) {
-            if (signal?.aborted) {
-                throw ABORTED();
-            }
-
-            callbacks.onChunk(char);
-
-            // Small delay to simulate streaming
-            await new Promise((resolve) => setTimeout(resolve, 5));
-        }
-
-        // Emit tool calls
-        for (const toolCall of response.toolCalls) {
-            callbacks.onToolCall(toolCall.name, toolCall.arguments);
-        }
-
-        callbacks.onComplete(response);
     }
 }

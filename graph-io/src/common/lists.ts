@@ -63,7 +63,7 @@ export function splitListText(text: string, syntax: ListSyntax): string[] {
 /**
  * Join item texts into a list value of one syntax, the inverse of splitListText() for the exporters.
  * Bracket syntaxes quote an item that contains a comma, a bracket or a quote (with double quotes,
- * a double quote inside doubled); separator syntaxes cannot escape and leave items as they are.
+ * a double quote inside doubled, a backslash doubled); separator syntaxes cannot escape and leave items as they are.
  * @param items - the item texts
  * @param syntax - the syntax; "gexf" writes the 1.3 bracket form
  * @returns the list text
@@ -126,7 +126,7 @@ function splitOn(text: string, separator: string): string[] {
 
 /**
  * Parse the inside of a bracketed list: comma-separated items, each optionally wrapped in single
- * or double quotes (a doubled quote inside a quoted item is one quote).
+ * or double quotes (a doubled or backslash-escaped quote inside a quoted item is one quote).
  * @param text - the bracketed text
  * @returns the items
  */
@@ -168,8 +168,9 @@ function splitBracketed(text: string): string[] {
 }
 
 /**
- * Read a quoted item of a bracketed list: a doubled quote inside it is one quote, and a missing
- * closing quote ends it at the end of the text.
+ * Read a quoted item of a bracketed list: a doubled quote inside it is one quote, a backslash
+ * before the quote or before another backslash escapes it (GEXF 1.3, as Gephi and graphology
+ * write it), and a missing closing quote ends it at the end of the text.
  * @param inner - the inside of the brackets
  * @param open - the index of the opening quote
  * @returns the unquoted text and the index just past the closing quote
@@ -180,7 +181,10 @@ function readQuoted(inner: string, open: number): { text: string; end: number } 
     let text = "";
     let i = open + 1;
     while (i < n) {
-        if (inner[i] !== quote) {
+        if (inner[i] === "\\" && (inner[i + 1] === quote || inner[i + 1] === "\\")) {
+            text += inner[i + 1];
+            i += 2;
+        } else if (inner[i] !== quote) {
             text += inner[i];
             i++;
         } else if (inner[i + 1] === quote) {
@@ -209,7 +213,7 @@ function isSpace(c: number): boolean {
  */
 function quoteBracketItem(item: string): string {
     if (item.length === 0 || /[,[\]"']/.test(item) || item !== item.trim()) {
-        return `"${item.replaceAll('"', '""')}"`;
+        return `"${item.replaceAll("\\", "\\\\").replaceAll('"', '""')}"`;
     }
     return item;
 }

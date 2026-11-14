@@ -40,6 +40,30 @@ function unversionedDepsNotImmutable(): Plugin {
 }
 
 /**
+ * Serves the https dev server over HTTP/1.1 instead of HTTP/2.
+ *
+ * Vite always serves https over HTTP/2. Its dev server sends the app as roughly 1,400 separate
+ * modules, and on that connection iPad Safari (27.2) fails a few module requests at random without
+ * telling the page: the server finishes every stream, the file re-fetches fine, yet the import fails
+ * ("Importing a module script failed.") and the app cannot start (#6223). Over HTTP/1.1 it loads.
+ * Offering only `http/1.1` in the TLS handshake keeps https and makes every browser use HTTP/1.1.
+ * @returns The dev-server plugin.
+ */
+function http1DevServer(): Plugin {
+    return {
+        name: "graphty:http1-dev-server",
+        apply: "serve",
+        configureServer(server) {
+            // The TLS server reads this wire-format ALPN list for each new connection.
+            const tlsServer = server.httpServer as { ALPNProtocols?: Buffer } | null;
+            if (server.config.server.https && tlsServer) {
+                tlsServer.ALPNProtocols = Buffer.from("\x08http/1.1", "latin1");
+            }
+        },
+    };
+}
+
+/**
  * Loads the remote logger's browser script ahead of everything else in the dev server's page.
  * @param server - the log server's address.
  * @returns the Vite plugin.
@@ -64,6 +88,7 @@ export default defineConfig(({ mode }) => {
         react(),
         ...elementSourcePlugins,
         unversionedDepsNotImmutable(),
+        http1DevServer(),
         // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
         buildStampPlugin(),
         // The files each loading step waits for, so the loading screen's log can measure them.

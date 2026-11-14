@@ -201,6 +201,13 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_ELEMENT"
     /**
+     * A graph was constructed with the id of a page element that the document does not hold, so
+     * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
+     * or passes the element itself.
+     * @since 3.40.0
+     */
+    | "E_HOST_NOT_FOUND"
+    /**
      * A saved document's content is malformed: not the kind it claims, a required member missing
      * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
      * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -1018,6 +1025,7 @@ const CODE_TABLE = {
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
     E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
     E_UNKNOWN_ELEMENT: "E_UNKNOWN_ELEMENT",
+    E_HOST_NOT_FOUND: "E_HOST_NOT_FOUND",
     E_BAD_DOCUMENT: "E_BAD_DOCUMENT",
     E_UNSUPPORTED_VERSION: "E_UNSUPPORTED_VERSION",
     E_UNSAVED_CHANGES: "E_UNSAVED_CHANGES",

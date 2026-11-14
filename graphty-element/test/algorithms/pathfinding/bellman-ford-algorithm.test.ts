@@ -2,27 +2,16 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
-import { createMockGraph, getEdgeResult, getNodeResult, type MockGraphOpts } from "../../helpers/mockGraph";
+import { createMockGraph, getEdgeResult, getNodeResult, type MockGraph } from "../../helpers/mockGraph";
 
-/**
- * The shared mock, kept behind the name and the loose return type this file already used.
- *
- * It carries a real graph store, which is where an algorithm now reads its input from; the node
- * and edge maps it also exposes are where the results land.
- * @param opts - which fixture to load
- * @returns the mock graph
- */
-
-async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    return createMockGraph(opts);
-}
+const mockGraph = createMockGraph;
 
 /**
  * A graph with a negative cycle: A --1--> B --2--> C ---(-4)--> A, total weight -1.
  * @returns the mock graph
  */
 
-async function mockGraphWithNegativeCycle(): Promise<any> {
+async function mockGraphWithNegativeCycle(): Promise<MockGraph> {
     return createMockGraph({
         nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
         edges: [

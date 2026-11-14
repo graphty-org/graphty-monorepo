@@ -170,6 +170,21 @@ describe("the edge tab by part of the drawing", () => {
         assert.deepEqual(words, ["Target", "Size", "Source", "Size"]);
     });
 
+    it("an arrowhead's picture sits inside its value button", async () => {
+        await openProject([every("Arrows", "edge", { "edge.arrowHead": "normal" })]);
+        const tab = await openStyle("Arrows", "edge");
+        const ends = await section(tab, "edge-ends");
+        const button = await waitFor(() => {
+            const found = ends.querySelector<HTMLElement>('button[data-value-listbox="edge.arrowHead"]');
+            assert.isNotNull(found?.querySelector(".ws-value-glyph svg"));
+            return found as HTMLElement;
+        });
+        const box = button.getBoundingClientRect();
+        const glyph = (button.querySelector(".ws-value-glyph svg") as Element).getBoundingClientRect();
+        assert.isAtLeast(glyph.left - box.left, 4, "the picture keeps clear of the left border");
+        assert.isAtMost(glyph.right, box.right);
+    });
+
     it("a file's bends and ports show in Route and the minus removes them", async () => {
         const session = await openProject([
             every("From the file", "edge", {
@@ -204,12 +219,14 @@ describe("each part's settings page", () => {
         assert.isNotNull(page.querySelector('[data-unset-line="node.outerBorderCount"]'));
     });
 
-    it("size mode is reachable from Find a setting and Shape's sliders page only", async () => {
+    it("size mode a layer sets is a row of Shape, its sliders page and Find a setting", async () => {
         await openProject([every("Key", "node", { "node.sizeMode": "diameter", "node.shape": "box" })]);
         const tab = await openStyle("Key");
         const shape = await section(tab, "node-shape");
         await within(shape).findByRole("button", { name: /^Node shape, Box/ });
-        assert.notInclude(lines(shape), "node.sizeMode", "never a row of its section");
+        await waitFor(() => {
+            assert.include(lines(shape), "node.sizeMode", "a set value is a row of its section");
+        });
         const page = await openPage(tab, "Node shape settings");
         assert.isNotNull(page.querySelector('.ws-row[data-line="node.sizeMode"]'));
         await userEvent.click(within(page).getByRole("button", { name: "Close Node shape" }));
@@ -268,6 +285,27 @@ describe("Find a setting", () => {
         assert.include(found(results), "node.borderColor");
         assert.isNull(tab.querySelector('[data-section="node-shape"]'), "the parts give way to the results");
         within(results).getByText("Border", { selector: "[data-find-group] > *" });
+    });
+
+    it("Find a setting's results keep the sections' left gutter", async () => {
+        await openProject([every("Key", "node", { "node.shape": "box" })]);
+        const tab = await openStyle("Key");
+        const shape = await section(tab, "node-shape");
+        const row = await waitFor(() => {
+            const name = shape.querySelector<HTMLElement>(".ws-row[data-line] .ws-field-name");
+            assert.isNotNull(name);
+            return name;
+        });
+        const gutter = row.getBoundingClientRect().left;
+        const results = await find(tab, "stroke");
+        const name = await waitFor(() => {
+            const found = results.querySelector<HTMLElement>("[data-result] .ws-field-name");
+            assert.isNotNull(found);
+            return found;
+        });
+        const heading = results.querySelector<HTMLElement>("[data-find-group] > *") as HTMLElement;
+        assert.closeTo(name.getBoundingClientRect().left, gutter, 0.5, "a result's name");
+        assert.closeTo(heading.getBoundingClientRect().left, gutter, 0.5, "a group's heading");
     });
 
     it("Find a setting lists the other layers that set the shadow and opens one", async () => {

@@ -191,8 +191,7 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
         const shown = held === undefined ? undefined : shownChannel(ctx.session, ctx.side, channel, isSet(ctx, held));
         return shown?.renderable === true ? [shown] : [];
     });
-    const quiet = new Set(spec.quiet ?? []);
-    const set = descriptors.filter((d) => !quiet.has(d.channel) && isSet(ctx, d));
+    const set = descriptors.filter((d) => isSet(ctx, d));
     // Properties drawn together (both arrow ends): once one is set, the rest wait for a value.
     const together = spec.together ?? [];
     const joined = together.some((channel) => set.some((d) => d.channel === channel));
@@ -211,7 +210,6 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
             !set.includes(d) &&
             !pending.includes(d) &&
             !boxed.has(d.channel) &&
-            !quiet.has(d.channel) &&
             (spec.offer === undefined || spec.offer.includes(d.channel)),
     );
     // A line "+" added keeps the place it was added at, below the lines set before it, once its

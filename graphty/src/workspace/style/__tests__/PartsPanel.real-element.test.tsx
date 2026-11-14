@@ -1,8 +1,8 @@
 /**
  * The Style tab by part of the drawing, on the REAL graphty-element with its `file-styles`
  * experiment on, driven by real clicks and keys: the node tab draws one section per part of a
- * node, a part the layer sets nothing in is a closed header and one it sets carries a dot, a quiet
- * setting (draw order) marks its part without a row, Fill and Effects list one heading line per
+ * node, a part the layer sets nothing in is a closed header and one it sets carries a dot and a
+ * row for every value it sets (draw order among them), Fill and Effects list one heading line per
  * paint or effect with a minus for all of it, and a folder's panel writes to every layer in it.
  */
 
@@ -102,6 +102,23 @@ function section(tab: HTMLElement, id: string): HTMLElement {
 }
 
 /**
+ * The gradient editor of Fill's gradient, opened from its row's button.
+ * @param tab - the Style tab.
+ * @returns the editor.
+ */
+async function gradientEditor(tab: HTMLElement): Promise<HTMLElement> {
+    const fill = section(tab, "fill");
+    const open = await waitFor(() => {
+        const found = within(fill).queryByRole("button", { name: "Edit node gradient colors" });
+        return found ?? within(fill).getByTestId("gradient-editor");
+    });
+    if (open.tagName === "BUTTON") {
+        await userEvent.click(open);
+    }
+    return screen.findByTestId("gradient-editor");
+}
+
+/**
  * Whether a section carries the dot that says the layer sets something in it.
  * @param tab - the Style tab.
  * @param id - the part's id.
@@ -156,13 +173,15 @@ describe("the node tab by part of the drawing", () => {
         within(section(tab, "effects")).getByRole("button", { name: "Add to node effects" });
     });
 
-    it("a layer that sets only draw order shows the dot on Order and groups and no row", async () => {
+    it("a layer that sets only draw order shows the dot on Order and groups and its row", async () => {
         await openProject([everyNode("Key", { "node.drawOrder": 3 })]);
         const tab = await openStyle("Key");
         await waitFor(() => {
             assert.isTrue(dotted(tab, "order"));
         });
-        assert.isNull(section(tab, "order").querySelector(".ws-row"));
+        await waitFor(() => {
+            assert.isNotNull(section(tab, "order").querySelector('.ws-row[data-line="node.drawOrder"]'));
+        });
     });
 
     it("typing a border color paints the node's border", async () => {
@@ -200,7 +219,7 @@ describe("the node tab by part of the drawing", () => {
                 ["solid", "gradient"],
             );
         });
-        const editor = within(fill).getByTestId("gradient-editor");
+        const editor = await gradientEditor(tab);
         const hexes = within(editor)
             .getAllByTestId("gradient-editor-stop-hex")
             .map((box) => (box as HTMLInputElement).value.toUpperCase());
@@ -337,6 +356,23 @@ describe("the node tab by part of the drawing", () => {
         });
     });
 
+    it("a folder whose layers set different shapes keeps each layer's shape, never one value", async () => {
+        const session = await openProject([
+            everyNode("One", { "node.shape": "box" }),
+            everyNode("Two", { "node.shape": "sphere" }),
+        ]);
+        const folder = await session.styles.addFolder("Both");
+        for (const layer of session.styles.list().filter((each) => ["One", "Two"].includes(each.name ?? ""))) {
+            await session.styles.moveRow(layer.row ?? layer.id, { parent: folder.id });
+        }
+        await session.styles.settled();
+        const tab = await openStyle("Both");
+        const shape = section(tab, "shape");
+        await within(shape).findByRole("button", { name: /^Node shape: from each layer, 2 layers, 2 values/ });
+        assert.isNull(shape.querySelector('button[data-value-listbox="node.shape"]'), "no field claims one shape");
+        within(shape).getByRole("button", { name: "Give all 2 layers one node shape" });
+    });
+
     it("Effects' + offers whole effects and adding the drop shadow draws its settings under its heading", async () => {
         await openProject([everyNode("Key", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
@@ -366,7 +402,7 @@ describe("the node tab by part of the drawing", () => {
             }),
         ]);
         const tab = await openStyle("Key");
-        const editor = await within(section(tab, "fill")).findByTestId("gradient-editor");
+        const editor = await gradientEditor(tab);
         const [first] = within(editor).getAllByTestId("gradient-editor-stop-hex");
         await userEvent.tripleClick(first);
         await userEvent.keyboard("00ff00{Enter}");
@@ -376,6 +412,27 @@ describe("the node tab by part of the drawing", () => {
             assert.strictEqual(typeof colors === "string" ? colors.toLowerCase() : colors, "#00ff0080 #0000ff");
             assert.strictEqual(set?.["node.gradientStops"], "0 1");
         });
+    });
+
+    it("the gradient's color picker fits the pop-out it opens in", async () => {
+        await openProject([
+            everyNode("Key", {
+                "node.gradientKind": "linear",
+                "node.gradientColors": "#ff0000 #0000ff",
+                "node.gradientStops": "0 1",
+            }),
+        ]);
+        const tab = await openStyle("Key");
+        const editor = await gradientEditor(tab);
+        const picker = await waitFor(() => {
+            const found = editor.querySelector<HTMLElement>(".cm-color-picker");
+            assert.isNotNull(found);
+            return found;
+        });
+        const frame = (editor.closest('[role="dialog"]') ?? section(tab, "fill")).getBoundingClientRect();
+        const box = picker.getBoundingClientRect();
+        assert.isAtLeast(box.left, frame.left - 0.5);
+        assert.isAtMost(box.right, frame.right + 0.5, "the picker's right side is not cut off");
     });
 
     it("the shape list marks the value the layer sets", async () => {

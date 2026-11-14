@@ -80,7 +80,7 @@ function AlsoSetBy({
         return null;
     }
     return (
-        <Text size="xs" c="dimmed" px={8} className="ws-also-set">
+        <Text size="xs" c="dimmed" className="ws-also-set">
             Also set by{" "}
             {others.map((reach) => {
                 const name = rowName(session, reach.row);
@@ -123,13 +123,13 @@ export function FindSettingResults({
     return (
         <div data-find-results="">
             {groups.length === 0 ? (
-                <Text size="xs" c="dimmed" px={8} py={4}>
+                <Text size="xs" c="dimmed" py={4}>
                     No setting matches
                 </Text>
             ) : null}
             {groups.map((group) => (
                 <div key={group.heading} data-find-group="">
-                    <Text size="xs" fw={600} px={8} pt={8}>
+                    <Text size="xs" fw={600} pt={8}>
                         {group.heading}
                     </Text>
                     {group.channels.map((channel) => (

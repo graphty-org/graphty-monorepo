@@ -3,12 +3,15 @@
  * gradient's stops drawn and edited in the shared gradient editor, read from and written to the
  * element's two list channels (`node.gradientColors`, `node.gradientStops`) through the catalog's
  * one reader and writer of their items, both in one step. The editor picks colors without
- * opacity, so a stop keeps the opacity its color was written with.
+ * opacity, so a stop keeps the opacity its color was written with. The row draws the gradient as a
+ * button; the editor opens from it in a pop-out as wide as the editor's color picker (240), which
+ * the panel's own column is too narrow to hold.
  */
 
-import { type ColorStop, GradientEditor } from "@graphty/compact-mantine";
+import { type ColorStop, GradientEditor, Popout } from "@graphty/compact-mantine";
 import { readChannelList, toColorValue, writeChannelList } from "@graphty/graphty-element/catalog";
-import React, { useRef } from "react";
+import { Button } from "@mantine/core";
+import React, { useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import type { RowContext } from "../PropertyRow";
@@ -59,6 +62,9 @@ function colorOf(stop: ColorStop, written: string | undefined): string {
     return was.slice(0, 7).toLowerCase() === stop.color.toLowerCase() ? written : `${stop.color}${was.slice(7)}`;
 }
 
+/** What the row and its pop-out are called. */
+const COLORS = "Gradient colors";
+
 /**
  * The gradient's stops row: see the file header. Drawn while the row sets the gradient's colors,
  * or waits for them.
@@ -69,6 +75,7 @@ function colorOf(stop: ColorStop, written: string | undefined): string {
 export function GradientRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
     const { store } = useWorkspace();
     const moving = useRef(false);
+    const [opened, setOpened] = useState(false);
     const { stops, written } = stopsOf(ctx);
     const write = (next: readonly ColorStop[]): void => {
         const sorted = [...next].sort((a, b) => a.offset - b.offset);
@@ -91,24 +98,46 @@ export function GradientRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.E
             <span className="ws-field-label">
                 <span className="ws-field-name">Colors</span>
             </span>
-            <GradientEditor
-                stops={stops}
-                showDirection={false}
-                maxStops={Number.POSITIVE_INFINITY}
-                onChange={(changed) => {
-                    // A drag reports every step; it is written once, when it settles.
-                    if (!moving.current) {
-                        write(changed);
-                    }
-                }}
-                onChangeStart={() => {
-                    moving.current = true;
-                }}
-                onChangeEnd={(changed) => {
-                    moving.current = false;
-                    write(changed);
-                }}
-            />
+            <Popout opened={opened} onOpenChange={setOpened}>
+                <Popout.Trigger>
+                    <Button
+                        variant="default"
+                        size="compact-xs"
+                        fullWidth
+                        aria-label={`Edit node ${COLORS.toLowerCase()}`}
+                        className="ws-gradient-button"
+                        style={{
+                            background: `linear-gradient(to right, ${stops.map((stop) => `${stop.color} ${String(stop.offset * 100)}%`).join(", ")})`,
+                        }}
+                    />
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={240}
+                    placement="left"
+                    alignment="start"
+                    header={{ variant: "title", title: COLORS }}
+                    closeLabel={`Close ${COLORS.toLowerCase()}`}
+                >
+                    <GradientEditor
+                        stops={stops}
+                        showDirection={false}
+                        maxStops={Number.POSITIVE_INFINITY}
+                        onChange={(changed) => {
+                            // A drag reports every step; it is written once, when it settles.
+                            if (!moving.current) {
+                                write(changed);
+                            }
+                        }}
+                        onChangeStart={() => {
+                            moving.current = true;
+                        }}
+                        onChangeEnd={(changed) => {
+                            moving.current = false;
+                            write(changed);
+                        }}
+                    />
+                </Popout.Panel>
+            </Popout>
         </div>
     );
 }

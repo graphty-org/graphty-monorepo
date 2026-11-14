@@ -63,8 +63,6 @@ export interface SectionSpec {
     readonly inner?: readonly Channel[];
     /** The properties its "+" offers; absent, every property it lists. */
     readonly offer?: readonly Channel[];
-    /** Properties never drawn as a line of the section, even when set (reached from elsewhere). */
-    readonly quiet?: readonly Channel[];
     /** Whether the row writes something in the section, drawn as a dot after its title. */
     readonly configured?: boolean;
     /** Row words that replace a property's own, by property. */

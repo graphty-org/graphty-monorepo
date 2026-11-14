@@ -707,9 +707,14 @@
     white-space: normal;
 }
 
-/* Find a setting's results line up with their group headings. */
-[data-find-results] .ws-row {
-    padding-inline-start: 8px;
+/* Find a setting's results keep the sections' gutter (compact-mantine's section content, 16 and 8). */
+[data-find-results] {
+    padding-inline: 16px 8px;
+}
+
+/* A value picker's button keeps its picture clear of its border, as a field keeps its text. */
+.ws-value-listbox {
+    padding-inline: 6px;
 }
 
 /* A value picker's picture, at the size of the field's text. */

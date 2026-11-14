@@ -12,12 +12,9 @@ function placesOf(channel: Channel): string[] {
         PARTS[side].flatMap((part) =>
             part.items
                 .filter((item) =>
-                    [
-                        ...(item.main ?? []),
-                        ...(item.tail ?? []),
-                        ...(item.quiet ?? []),
-                        ...Object.values(item.pages ?? {}).flat(),
-                    ].includes(channel),
+                    [...(item.main ?? []), ...(item.tail ?? []), ...Object.values(item.pages ?? {}).flat()].includes(
+                        channel,
+                    ),
                 )
                 .map((item) => `${side} ${part.id} ${item.id}`),
         ),
@@ -53,10 +50,10 @@ describe("the Style panel's parts of the drawing", () => {
         }
     });
 
-    it("size mode and draw order are quiet", () => {
+    it("size mode and draw order are rows once a layer sets them", () => {
         for (const channel of ["node.sizeMode", "node.drawOrder"] as const) {
             const home = homeOf(channel);
-            assert.isTrue(home !== undefined && "tier" in home && home.tier === "quiet", channel);
+            assert.isTrue(home !== undefined && "tier" in home && home.tier === "tail", channel);
         }
     });
 

@@ -7,15 +7,14 @@
  *
  * Tiers: a `main` channel is drawn in an open section and offered by its "+"; a `tail` channel is
  * drawn once a layer sets it, and otherwise reached from the section's settings page and Find a
- * setting; a `quiet` channel is never a row in the section, even when set (every file load writes
- * them), and is reached only from the settings page and Find a setting. A text item's field
- * channels sit on named pages of its settings page.
+ * setting. A text item's field channels sit on named pages of its settings page. Every channel a
+ * layer sets is a row of its section, so no value is hidden behind a header with a dot.
  */
 
 import type { Channel } from "@graphty/graphty-element/catalog";
 
 /** How a channel shows in its section. */
-export type Tier = "main" | "tail" | "quiet";
+export type Tier = "main" | "tail";
 
 /** One thing inside a part a reader names: a fill's gradient, a node's border rings. */
 export interface PartItem {
@@ -32,8 +31,6 @@ export interface PartItem {
     readonly main?: readonly Channel[];
     /** Its channels drawn once set. */
     readonly tail?: readonly Channel[];
-    /** Its channels never drawn as a row of the section. */
-    readonly quiet?: readonly Channel[];
     /** Its settings page's channels, by page name, for a text item. */
     readonly pages?: Readonly<Record<string, readonly Channel[]>>;
 }
@@ -77,8 +74,8 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         "node.meshDetail",
                         "node.unlit",
                         "node.flat",
+                        "node.sizeMode",
                     ],
-                    quiet: ["node.sizeMode"],
                 },
                 {
                     id: "model",
@@ -352,7 +349,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
             id: "order",
             title: "Order and groups",
             items: [
-                { id: "order", name: "Order", tail: ["node.zIndex"], quiet: ["node.drawOrder"] },
+                { id: "order", name: "Order", tail: ["node.zIndex", "node.drawOrder"] },
                 {
                     id: "group",
                     name: "Group",
@@ -659,7 +656,7 @@ export function partsFor(side: "node" | "edge", off: ReadonlySet<Channel>): read
     return PARTS[side].map((part) => ({
         ...part,
         items: part.items
-            .map((item) => ({ ...item, main: keep(item.main), tail: keep(item.tail), quiet: keep(item.quiet) }))
+            .map((item) => ({ ...item, main: keep(item.main), tail: keep(item.tail) }))
             .filter((item) => itemChannels(item).length > 0),
     }));
 }
@@ -702,7 +699,7 @@ const HOMES: ReadonlyMap<Channel, PartHome> = new Map(
     (["node", "edge"] as const).flatMap((side) =>
         PARTS[side].flatMap((part) =>
             part.items.flatMap((item) => [
-                ...(["main", "tail", "quiet"] as const).flatMap((tier) =>
+                ...(["main", "tail"] as const).flatMap((tier) =>
                     (item[tier] ?? []).map((channel): [Channel, PartHome] => [
                         channel,
                         { side, part: part.id, item: item.id, tier },
@@ -734,7 +731,7 @@ export function homeOf(channel: Channel): PartHome | { readonly notOffered: stri
 }
 
 /**
- * Every channel of one part, in the order its items list them (main, tail, quiet, then pages).
+ * Every channel of one part, in the order its items list them (main, tail, then pages).
  * @param part - the part.
  * @returns the channels.
  */
@@ -748,10 +745,5 @@ export function partChannels(part: PartSpec): readonly Channel[] {
  * @returns the channels.
  */
 export function itemChannels(item: PartItem): readonly Channel[] {
-    return [
-        ...(item.main ?? []),
-        ...(item.tail ?? []),
-        ...(item.quiet ?? []),
-        ...Object.values(item.pages ?? {}).flat(),
-    ];
+    return [...(item.main ?? []), ...(item.tail ?? []), ...Object.values(item.pages ?? {}).flat()];
 }

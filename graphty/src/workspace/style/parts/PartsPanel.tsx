@@ -48,7 +48,7 @@ function writesOf(session: GraphSession, ctx: RowContext): ReadonlySet<Channel> 
  * @returns the section.
  */
 function sectionOf(part: PartSpec, writes: (channel: Channel) => boolean): SectionSpec {
-    const channels = part.items.flatMap((item) => [...(item.main ?? []), ...(item.tail ?? []), ...(item.quiet ?? [])]);
+    const channels = part.items.flatMap((item) => [...(item.main ?? []), ...(item.tail ?? [])]);
     // A part with no common property (Order and groups) offers its others from "+", so its "+" is never dead.
     const main = part.items.flatMap((item) => item.main ?? []);
     return {
@@ -56,7 +56,6 @@ function sectionOf(part: PartSpec, writes: (channel: Channel) => boolean): Secti
         title: part.title,
         channels,
         offer: main.length > 0 ? main : part.items.flatMap((item) => item.tail ?? []),
-        quiet: part.items.flatMap((item) => item.quiet ?? []),
         configured: part.items.some((item) => itemChannels(item).some(writes)),
         // A list's lines sit under their item's heading, and drop the words it already says.
         words: Object.fromEntries(

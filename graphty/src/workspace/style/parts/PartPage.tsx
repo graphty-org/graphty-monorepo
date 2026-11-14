@@ -112,7 +112,7 @@ function ItemSettings({
 }: Readonly<{ ctx: RowContext; item: PartItem; named: boolean }>): React.JSX.Element {
     const pages = Object.keys(item.pages ?? {});
     const [page, setPage] = useState(pages[0] ?? "");
-    const own = [...(item.main ?? []), ...(item.tail ?? []), ...(item.quiet ?? [])];
+    const own = [...(item.main ?? []), ...(item.tail ?? [])];
     return (
         <div data-item-settings={item.id}>
             {named ? (

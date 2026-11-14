@@ -59,7 +59,6 @@ import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import { buildHistogram } from "../results/statistics";
-import type { ResolvedScope } from "../runs/types";
 import { sealedSet } from "../sealed";
 import { resolveSet, SetsCache } from "../sets/cache";
 import { type Capture, capturedHalves } from "../sets/captures";
@@ -620,6 +619,34 @@ interface ScopeBehind extends Membership {
      * @returns The resolution and its snapshot.
      */
     now(): Membership;
+}
+
+/**
+ * A scope specification resolved against the graph as it stands.
+ */
+export interface ResolvedScope {
+    /**
+     * The nodes in scope. Lazy: built on the first read, then the same set on every read. It yields
+     * each id as the graph holds it, but `has` takes an integer id written either way: with node
+     * `34` in scope, `nodes.has("34")` is true.
+     */
+    readonly nodes: ReadonlySet<NodeId>;
+    /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
+    readonly edges: ReadonlySet<EdgeId>;
+    /** How many nodes are in scope. */
+    readonly nodeCount: number;
+    /** How many edges are in scope. */
+    readonly edgeCount: number;
+    /**
+     * Equal digests mean equal scopes, which is how staleness is derived rather than tracked.
+     * Versioned: `d1:` and 16 hex digits, comparable only within one session and store. Computed
+     * on first read.
+     */
+    readonly digest: string;
+    /** What was asked for, before it was resolved. */
+    readonly spec: Scope;
+    /** When it was resolved, as an ISO 8601 timestamp. */
+    readonly resolvedAt: string;
 }
 
 /** The resolution behind each resolved scope a resolver dressed, for the internal readers of its bitmaps. */

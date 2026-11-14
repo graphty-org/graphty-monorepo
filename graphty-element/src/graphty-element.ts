@@ -70,6 +70,7 @@ import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
 import type { LimitsOption } from "./session/limits";
 import { loadLineOf } from "./session/loadLine";
 import type { NoteChange } from "./session/notes/types";
+import { cancelReasonOf } from "./session/project/Dispatcher";
 import type { GraphSlice } from "./session/project/state";
 import {
     PROJECT_FILE,
@@ -484,11 +485,12 @@ export class Graphty extends LitElement {
      *
      * Forwarded from `session.styles.setDefaultPalettes`. A default is resolved when a style
      * layer is written, so a saved document always names a concrete palette: call it before
-     * loading data or adding layers. A later call warns and names the layers that keep the
-     * previous default, or with `reapply: true` repaints them with the new one.
+     * loading data or adding layers. A later call logs the layers that keep the previous
+     * default, or with `reapply: true` repaints them with the new one.
      * @param palettes - A palette id per kind: `categorical`, `sequential` and `diverging`.
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @returns Settles once the re-resolved layers are repainted; rejects when one could not be.
      * @since 2.7.0
      * @example
      * ```ts
@@ -498,8 +500,8 @@ export class Graphty extends LitElement {
      * element.setDefaultPalettes({ categorical: "acme-brand" });
      * ```
      */
-    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void {
-        this.session.styles.setDefaultPalettes(palettes, options);
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): Promise<void> {
+        return this.session.styles.setDefaultPalettes(palettes, options);
     }
 
     /**
@@ -3303,13 +3305,31 @@ export class Graphty extends LitElement {
     }
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
-     * not a step, and from 2D it switches to 3D first in the same step.
+     * not a step, and from 2D it switches to 3D first in the same step. A switch that fails is
+     * reported as `graph-error`; `setViewMode` hands the caller the failure instead.
      */
     set viewMode(value: ViewMode | undefined) {
         const oldValue = this.viewMode;
 
         if (value !== undefined) {
-            void this.#graph.setViewMode(value).catch(() => undefined);
+            void this.#graph.setViewMode(value).catch((error: unknown) => {
+                // A refused VR or AR entry is reported by the entry itself (context "xr"), and a
+                // layout the switch could not build by the layout (context "layout").
+                const reported =
+                    value === "vr" || value === "ar" || (isGraphtyError(error) && error.source === "layout");
+                if (!reported && cancelReasonOf(error) === undefined) {
+                    this.#graph
+                        .getEventManager()
+                        .emitGraphError(
+                            this.#graph,
+                            error instanceof Error ? error : new Error(String(error)),
+                            "other",
+                            {
+                                viewMode: value,
+                            },
+                        );
+                }
+            });
         }
 
         this.requestUpdate("viewMode", oldValue);
@@ -4586,6 +4606,8 @@ export class Graphty extends LitElement {
      * @param options - How to load
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty source rejects and leaves the current graph untouched
+     * @param options.signal - Cancels the load: it rejects with the signal's reason (an
+     *     `AbortError` by default) and adds nothing, leaving the graph as it was
      * @returns Promise that resolves to `{ loadId }` when data is loaded
      * @since 1.5.0
      * @example
@@ -4593,7 +4615,11 @@ export class Graphty extends LitElement {
      * const { loadId } = await element.addDataFromSource('json', { url: 'https://example.com/data.json' });
      * ```
      */
-    async addDataFromSource(type: string, opts?: object, options?: { replace?: boolean }): Promise<{ loadId: number }> {
+    async addDataFromSource(
+        type: string,
+        opts?: object,
+        options?: { replace?: boolean; signal?: AbortSignal },
+    ): Promise<{ loadId: number }> {
         const held = this.#afterRestore();
         if (held !== undefined) {
             await held;
@@ -4613,6 +4639,8 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.signal - Cancels the load, its read included: it rejects with the signal's
+     *     reason (an `AbortError` by default) and adds nothing, leaving the graph as it was
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
@@ -4643,6 +4671,7 @@ export class Graphty extends LitElement {
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
+            signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
         const held = this.#afterRestore();
@@ -4664,6 +4693,8 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.signal - Cancels the load, its read included: it rejects with the signal's
+     *     reason (an `AbortError` by default) and adds nothing, leaving the graph as it was
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
@@ -4696,6 +4727,7 @@ export class Graphty extends LitElement {
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
+            signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
         const held = this.#afterRestore();
@@ -5351,8 +5383,9 @@ export class Graphty extends LitElement {
      * @param options - What to frame and how to configure the view.
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
-     * @param options.extent - What each node counts as in the box: `"centers"` (the default) its
-     *   centre, `"drawn"` the box it is drawn in.
+     * @param options.extent - What each node counts as in the box: `"centers"` its centre,
+     *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
+     *   `"centers"` when `nodes` names a subset.
      * @returns The resolved camera state.
      * @since 1.5.0
      * @example
@@ -5383,7 +5416,8 @@ export class Graphty extends LitElement {
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
-     *   (the default) its centre, `"drawn"` the box it is drawn in.
+     *   its centre, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
+     *   and `"centers"` when `scope` names a subset.
      * @returns A promise that resolves once the camera has arrived.
      * @since 1.5.0
      * @example

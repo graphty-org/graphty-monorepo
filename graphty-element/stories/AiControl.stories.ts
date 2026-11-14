@@ -465,7 +465,8 @@ async function setupShowcase(): Promise<void> {
                     }
 
                     let lastProgressText = "";
-                    webllmProvider.onProgress((progress, text) => {
+                    webllmProvider.onProgress((progress, stage, detail) => {
+                        const text = detail ?? stage;
                         lastProgressText = text;
                         if (ui.webllmProgressFill) {
                             ui.webllmProgressFill.style.width = `${progress * 100}%`;

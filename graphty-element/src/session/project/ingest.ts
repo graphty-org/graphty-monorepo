@@ -422,8 +422,13 @@ export function unreadableSource(format: string, errors: readonly DataLoadingErr
 interface LoadProgress {
     /** The data source being read. */
     readonly format: string;
-    /** The file size the caller passed, when it passed one. */
+    /**
+     * The file's size in bytes: the size the caller passed, else, once the source has read the
+     * file, the bytes it read (a source reads the whole file before its first chunk).
+     */
     readonly fileSize: number | undefined;
+    /** Bytes the source has read so far. */
+    readonly bytesRead: number;
     /** Node RECORDS the source has handed over so far. */
     readonly nodeRecords: number;
     /** Edge RECORDS the source has handed over so far. */
@@ -1981,8 +1986,11 @@ export class Ingest<K extends KnownEdge> {
             // the consumer who named the columns named them for the records that come out.
             this.addEdgeRows(chunk.edges, load.endpointOverrides, writer);
 
+            const bytesRead = reader.bytesRead ?? progress.bytesRead;
             progress = {
                 ...progress,
+                bytesRead,
+                fileSize: progress.fileSize ?? (reader.bytesRead === undefined ? undefined : bytesRead),
                 nodeRecords: progress.nodeRecords + chunk.nodes.length,
                 edgeRecords: progress.edgeRecords + chunk.edges.length,
                 chunks: progress.chunks + 1,
@@ -2060,6 +2068,7 @@ export class Ingest<K extends KnownEdge> {
         let progress: LoadProgress = {
             format: type,
             fileSize: (opts as { size?: number }).size,
+            bytesRead: 0,
             nodeRecords: 0,
             edgeRecords: 0,
             chunks: 0,
@@ -2417,8 +2426,8 @@ function refuseEmptyOrPartial(
             source: "data",
             message:
                 rowErrors > 0
-                    ? `Every row of the ${type} source was rejected (${rowErrors} errors: ` +
-                      `${errors.getSummary().message}), so there was nothing to load.`
+                    ? `Every row of the ${type} source was rejected (${rowErrors} errors by category: ` +
+                      `${JSON.stringify(errors.getSummary().byCategory)}), so there was nothing to load.`
                     : `The ${type} source held no nodes and no edges, so there was nothing to load. ` +
                       "Check the file, or the format it was read as.",
             details: { format: type, rowErrors },
@@ -2485,6 +2494,8 @@ function keepFileGraph(reader: ChunkReader, format: string, writer: GraphWriter)
 /** What a load reads its chunks from: a data source, or a draft's held rows. */
 interface ChunkReader {
     readonly declaredDirection: DeclaredDirection | null;
+    /** Bytes of the file the source has read so far; absent for held rows. */
+    readonly bytesRead?: number;
     /** The file's graph-level attributes, once its last chunk is read; absent for held rows. */
     readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
     /** The layout the file asks for, once its last chunk is read; absent for held rows. */

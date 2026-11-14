@@ -171,7 +171,8 @@ export type SourceRequestInit = RequestInit & {
 };
 
 /**
- * The caps of a load. Every default is "no limit". Experimental.
+ * The caps of a load. Every default is "no limit", except what a compressed file inflates to
+ * (`maxBytes`). Experimental.
  * @category Network sources
  */
 export interface SourceLimitOptions {
@@ -183,7 +184,11 @@ export interface SourceLimitOptions {
     readonly maxNodes?: number | undefined;
     /** Stop once this many edges were written. Checked after each page, as `maxNodes` is. */
     readonly maxEdges?: number | undefined;
-    /** Stop once this many decoded response bytes were read. */
+    /**
+     * Stop once this many decoded response bytes were read. A .gz or .zip file a file source
+     * returns is also held to this many bytes once inflated, or to 2 GiB when it is unset; past it
+     * the load fails with E_SOURCE_LIMIT.
+     */
     readonly maxBytes?: number | undefined;
     /** Stop before sending more requests than this. */
     readonly maxRequests?: number | undefined;

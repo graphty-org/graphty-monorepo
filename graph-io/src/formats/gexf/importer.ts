@@ -2147,27 +2147,7 @@ class GexfReader implements XmlHandler {
             return undefined;
         }
         // a blank weight="" is an absent weight (common/weights.ts), as a blank weight attvalue is
-        const weight = parseWeightText(text, this.report);
-        this.checkOverflow(text, where);
-        return weight;
-    }
-
-    /**
-     * Report (once) a weight text too large for a double, stored as Infinity; `INF` itself is a
-     * legal weight (design section 3.7) and is not reported.
-     * @param text - the weight text
-     * @param where - the location
-     */
-    private checkOverflow(text: string, where: IssueLocation): void {
-        if (overflowsToInfinity(text)) {
-            this.report.warnOnce(
-                "precision",
-                PRECISION_CODE,
-                `weight ${text.trim()} is beyond the double range and is stored as Infinity`,
-                where,
-                `${PRECISION_CODE}:weight`,
-            );
-        }
+        return parseWeightText(text, this.report);
     }
 
     /**
@@ -2374,7 +2354,6 @@ class GexfReader implements XmlHandler {
             // blank is absent (common/weights.ts), as a blank weight="" XML attribute is
             return;
         }
-        this.checkOverflow(text, where);
         if (edge.xmlWeight !== null) {
             this.report.warning(
                 "validation-error",

@@ -1,6 +1,6 @@
 /**
- * @file What a label draws on its own canvas: where padding puts the words (#3157), and the
- * panel's drop shadow.
+ * @file What a label draws on its own canvas: where padding puts the words (#3157), the panel's
+ * drop shadow, and its background gradients (#7121).
  *
  * Read from the label's texture canvas, in its own pixels, so nothing about the camera, the scene
  * or the GPU is in the measurement.
@@ -9,6 +9,8 @@
 import { Engine, Scene } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
+import type { RichTextStyleType } from "../../src/config";
+import { richTextLabelOptions } from "../../src/config/RichTextStyle";
 import { RichTextLabel, type RichTextLabelOptions } from "../../src/meshes/RichTextLabel";
 
 /** A label's canvas, and how many of its pixels make one unit of the label's own layout. */
@@ -233,5 +235,83 @@ describe("a label's glyphs (#3472)", () => {
         ).diffuseTexture.getContext();
 
         assert.strictEqual(ctx.textRendering, "geometricPrecision");
+    });
+});
+
+describe("a label's background gradient (#7121)", () => {
+    /**
+     * Build a label from a style block, as a node's or an edge's label is built, and read the color
+     * at fractions across and down its content area.
+     * @param block - The label's style block.
+     * @param at - Where to read, as fractions of the content area.
+     * @returns One `[r, g, b]` per point.
+     */
+    function colorsAt(block: Partial<RichTextStyleType>, at: [number, number][]): [number, number, number][] {
+        const options = richTextLabelOptions(block, {
+            text: "HELLO",
+            fontSize: 48,
+            // see-through words, so every pixel read is the panel
+            textColor: "#00000000",
+        });
+        const label = new RichTextLabel(scene, options);
+        labels.push(label);
+        const ctx = (
+            label.labelMesh?.material as unknown as { diffuseTexture: { getContext(): CanvasRenderingContext2D } }
+        ).diffuseTexture.getContext();
+        const { width, height } = ctx.canvas;
+        const inner = label as unknown as {
+            actualDimensions: { width: number; height: number };
+            contentArea: { x: number; y: number; width: number; height: number };
+        };
+        const sx = width / inner.actualDimensions.width;
+        const sy = height / inner.actualDimensions.height;
+        const area = inner.contentArea;
+
+        return at.map(([fx, fy]) => {
+            const x = Math.round((area.x + area.width * fx) * sx);
+            const y = Math.round((area.y + area.height * fy) * sy);
+            const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
+            return [r, g, b];
+        });
+    }
+
+    it("paints a one-color gradient in that color instead of throwing", () => {
+        const [middle] = colorsAt({ backgroundGradient: true, backgroundGradientColors: ["#ff0000"] }, [[0.5, 0.5]]);
+
+        assert.deepEqual(middle, [255, 0, 0]);
+    });
+
+    it("paints a radial gradient out from its middle", () => {
+        const [middle, side] = colorsAt(
+            { backgroundColor: { colorType: "radial-gradient", colors: ["#ff0000", "#0000ff"] } },
+            [
+                [0.5, 0.5],
+                [0.02, 0.5],
+            ],
+        );
+
+        assert.isAbove(middle[0], 240, "red at the middle");
+        assert.isAbove(side[2], 200, "blue toward the side");
+    });
+
+    it("places a gradient's colors at its stops", () => {
+        const [left, right] = colorsAt(
+            {
+                backgroundColor: {
+                    colorType: "gradient",
+                    direction: 0,
+                    colors: ["#ff0000", "#0000ff"],
+                    stops: [0.5, 0.5],
+                },
+            },
+            [
+                [0.25, 0.5],
+                [0.75, 0.5],
+            ],
+        );
+
+        // evenly spaced, a quarter across would be a quarter of the way to blue
+        assert.deepEqual(left, [255, 0, 0]);
+        assert.deepEqual(right, [0, 0, 255]);
     });
 });

@@ -285,8 +285,28 @@ describe("patterned lines drawn along their route (issue #3102)", () => {
         });
     }
 
-    // issue #3094: each of the six element patterns, not only the ones #3102 tested
-    for (const style of ["star", "box", "diamond", "dash-dot", "sinewave", "zigzag"]) {
+    // A star, box or diamond line is a joined line whose shader draws its elements (issue #7404): it runs through the
+    // route's corners as one run of pieces, with no element of its own.
+    for (const style of ["star", "box", "diamond"]) {
+        it(`draws a ${style} line through its bends as one joined line`, async () => {
+            const drawn = await elements(NODES, [{ src: "a", dst: "b" }], { "edge.style": style, "edge.bends": ROUTE });
+            assert.lengthOf(drawn, 0, "no pattern element of its own");
+            const [edge] = graph.getDataManager().edges.values();
+            const route = edge.drawnCurve ?? [];
+            for (const [x, y] of [
+                [0, -4],
+                [8, -4],
+            ]) {
+                assert.isTrue(
+                    route.some((p) => Math.hypot(p.x - x, p.y - y) < 1e-3),
+                    `the run turns the corner at ${String(x)},${String(y)}`,
+                );
+            }
+        });
+    }
+
+    // issue #3094: each of the element patterns, not only the ones #3102 tested
+    for (const style of ["dash-dot", "sinewave", "zigzag"]) {
         it(`places every ${style} element on the bent route, pointing along the leg it sits on`, async () => {
             await elements(NODES, [{ src: "a", dst: "b" }], { "edge.style": style, "edge.bends": ROUTE });
             const [edge] = graph.getDataManager().edges.values();

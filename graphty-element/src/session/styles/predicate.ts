@@ -643,9 +643,7 @@ function suggestBackticks(where: Query): { readonly suggestion?: string } {
     try {
         // The selector's own acceptance test: it parses and reads an attribute. A lone `10`
         // parses, but compileExpressionPredicate refuses it as reading no attribute.
-        const paths: Path[] = [];
-        collectPaths(parseExpression(suggestion), paths);
-        return paths.length > 0 ? { suggestion } : {};
+        return expressionPaths(suggestion).length > 0 ? { suggestion } : {};
     } catch {
         return {};
     }
@@ -1187,6 +1185,19 @@ function parseExpression(where: Query): ExpressionNode {
 
 /** What one element's value for a subexpression is. */
 type ValueReader = (index: number) => unknown;
+
+/**
+ * Every column path an expression reads, in the order it names them, without repeats. Parses
+ * only: nothing is compiled against any columns.
+ * @param where - The expression.
+ * @returns The paths.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the expression does not parse.
+ */
+export function expressionPaths(where: Query): Path[] {
+    const paths: Path[] = [];
+    collectPaths(parseExpression(where), paths);
+    return paths;
+}
 
 /**
  * Collect the column paths a tree reads, in the order it names them, without repeats.

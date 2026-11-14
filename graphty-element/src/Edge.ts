@@ -1,6 +1,5 @@
 import { AbstractMesh, Color3, Ray, Vector3 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
-import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 import omit from "lodash/omit.js";
@@ -13,7 +12,7 @@ import {
     type GraphSelectionStyleConfig,
     type RichTextStyleType,
 } from "./config";
-import { drawnText } from "./config/RichTextStyle";
+import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
@@ -25,10 +24,11 @@ import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
+import type { JoinedPatternKind } from "./meshes/CustomLineRenderer";
 import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch";
 import { gradientPieceColors } from "./meshes/edgeGradient";
 import { EDGE_STATE_BITS } from "./meshes/edgeJoinShader";
-import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
+import type { EdgeLineBatch, EdgeLineMeta } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
     arcThroughBend,
@@ -64,7 +64,7 @@ import { batchUploadFrames } from "./meshes/FrameRoster";
 import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
-import { curvePathPoint, type CurveSpan, curveSpan, loopShape, viaShare } from "./meshes/pulledCurve";
+import { curvePathPoint, type CurveSpan, curveSpan, loopShape, routed, viaShare } from "./meshes/pulledCurve";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -814,7 +814,7 @@ export class Edge {
      * or enabling it would reach every other edge in the batch. This edge's private `lineBatch` says
      * which of the two an edge is, and every write below is routed through it.
      */
-    mesh: AbstractMesh | PatternedLineMesh; // PHASE 5: Support both solid lines and patterned lines
+    mesh: AbstractMesh | PatternedLineMesh;
     /**
      * This edge's head cap, as a slot in the batch that draws every cap of its appearance, and
      * null when the style asks for none.
@@ -1157,11 +1157,19 @@ export class Edge {
      * finds one batch where it used to find one mesh per edge. The edge itself is where the
      * answer moved to: the batch's name carries the interned appearance, exactly as the instance
      * name did, the length is the drawn extent the bounding box used to carry, and the width is
-     * the line width the batch was built with.
-     * @returns The appearance, or null for a patterned line, whose elements are read through
+     * the line width the batch was built with, and the pattern the batch's shader draws along
+     * the line (a dash, dot, box, diamond or star line), or null for a solid one.
+     * @returns The appearance, or null for a line drawn as pattern elements, whose elements are read through
      *     {@link Edge.drawnPattern}.
      */
-    get drawnLine(): { name: string; length: number; width: number; visibility: number; centre: Vector3 } | null {
+    get drawnLine(): {
+        name: string;
+        length: number;
+        width: number;
+        visibility: number;
+        centre: Vector3;
+        pattern: JoinedPatternKind | null;
+    } | null {
         if (this.pulled) {
             const src = this.endPosition("source");
             const dst = this.endPosition("target");
@@ -1171,6 +1179,7 @@ export class Edge {
                 width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 visibility: this.pulled.visibility,
                 centre: Vector3.Center(src, dst),
+                pattern: null,
             };
         }
 
@@ -1192,6 +1201,8 @@ export class Edge {
             // A batch keyed by shape draws each slot at the opacity this edge wrote into it.
             visibility: ownColor ? this.lineOpacity : batch.mesh.visibility,
             centre: this.curveMiddle(batch),
+            // the line type whose elements the batch's shader draws along the line (issue #7404), or null for none
+            pattern: (batch.mesh.metadata as EdgeLineMeta | null)?.pattern?.kind ?? null,
         };
     }
 
@@ -1279,8 +1290,8 @@ export class Edge {
     /**
      * Where this edge's line is drawn, as the middle of the segment on screen.
      *
-     * ONE ANSWER FOR BOTH RENDERERS, which is the point of it. A patterned line carries the
-     * middle of its segment in its wrapper's position, and an edge drawn as slots in a batch
+     * ONE ANSWER FOR BOTH RENDERERS, which is the point of it. A patterned line answers the
+     * middle of its route, and an edge drawn as slots in a batch
      * carries it in the slots' matrices -- for a curve, the middle of the curve, not of its first
      * segment. Asking the edge rather than its mesh gets the right number either way, and is the
      * only way to get it for a batched edge, whose mesh sits at the origin and is shared with
@@ -1288,7 +1299,10 @@ export class Edge {
      * @returns The middle of the drawn line.
      */
     get drawnCentre(): Vector3 {
-        return this.drawnLine?.centre ?? this.mesh.position;
+        return (
+            this.drawnLine?.centre ??
+            (this.mesh instanceof PatternedLineMesh ? this.mesh.routeMiddle() : this.mesh.position)
+        );
     }
 
     /**
@@ -1989,10 +2003,10 @@ export class Edge {
     private paintFrom(meshKey: string, style: EdgeStyleConfig): void {
         // Only skip update if the source mesh is the same AND mesh is not disposed
         // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
-        // A patterned line says so with a flag rather than a method. It used to be read as always
+        // A patterned line answers as a mesh does (issue #7127). It used to be read as always
         // alive, so a view-mode switch -- which disposes it and repaints the edge with the same
         // style -- skipped the rebuild and left the line disposed.
-        const meshDisposed = this.mesh instanceof PatternedLineMesh ? this.mesh.isDisposed : this.mesh.isDisposed();
+        const meshDisposed = this.mesh.isDisposed();
 
         // WHAT THIS RETURN MAY AND MAY NOT SKIP. The mesh key is minted from the channels whose
         // role is `mesh`, with the colour and the opacity folded back into the string by
@@ -2011,14 +2025,13 @@ export class Edge {
         // deep-equal to the one the current mesh was built from means the same geometry, the same
         // colour and the same content by construction, so the key is adopted and nothing is
         // touched.
-        // The bends are a `content` channel and key no mesh, but a dashed or dotted line that gains
-        // or loses its bends moves between pattern elements and a joined line in a batch
-        // (`EdgeMesh.drawsAsPattern`), which is a different mesh.
+        // A line that moves between pattern elements and a joined line in a batch
+        // (`EdgeMesh.drawsAsPattern`) takes a different mesh.
         // A surface draws as a solid joined line whatever the pattern, once it can draw.
         const asSurface = surfaceOf(style) !== null && this.lineBuilt === flavorOf(style);
         const wantsPattern =
             (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
-            EdgeMesh.drawsAsPattern(style, this.isLoop) &&
+            EdgeMesh.drawsAsPattern(style) &&
             !asSurface;
         // A line moves between a pulled piece and a placed slot when the render path changes.
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
@@ -2116,6 +2129,7 @@ export class Edge {
                 opacity: arrow?.opacity,
                 image: arrow?.image,
                 outline: arrow?.outlineWidth,
+                fill: arrow?.fillColor,
             },
             this.context.getScene(),
             reuse,
@@ -2209,7 +2223,6 @@ export class Edge {
             style,
             this.context.getScene(),
             false,
-            this.isLoop,
             true,
         );
         if (next === null) {
@@ -2686,7 +2699,6 @@ export class Edge {
             drawnStyle,
             this.context.getScene(),
             false,
-            this.isLoop,
             true,
         );
 
@@ -2822,7 +2834,6 @@ export class Edge {
             () => rows.positionTexture,
             { loop: this.isLoop, route: this.routeOf(style), lean: this.context.leansLines?.() ?? false },
         );
-        const piece = batch.acquire();
         // As `createStaticLine` hands the plain line's material its look.
         const opacity = EdgeMesh.opacityOf(style);
         const animationSpeed = style.line?.animationSpeed ?? 0;
@@ -2833,6 +2844,7 @@ export class Edge {
         if (animationSpeed) {
             look = { color: movingTexel(color), opacity, width: options.width / 40 };
         }
+        const piece = batch.acquire(look.width);
         batch.setLook(piece, look.color, look.opacity, look.width);
         if (animationSpeed) {
             batch.setSpeed(piece, animationSpeed);
@@ -2956,18 +2968,17 @@ export class Edge {
 
         const { batch, look } = pulled;
         while (run.length + 1 < (span?.pieces ?? 0)) {
-            const piece = batch.acquire();
+            const piece = batch.acquire(look.width);
             batch.setLook(piece, look.color, look.opacity, look.width);
             batch.setRows(piece, pulled.source, pulled.target);
             run.push(piece);
         }
 
-        const bends = span?.bends ?? null;
         const kept = pulled.route ?? null;
-        // a line through bends' cut path itself, its ends and the bends between, placed in doubles as `placeBent`
-        // places them, so the card draws the very points the object path does
+        // a routed path's points themselves (a line through bends' ends and bends, a center arc's cut samples), placed in
+        // doubles as the object path places them, so the card draws the very points the object path does
         const points =
-            span === null || bends === null
+            span === null || !routed(span)
                 ? null
                 : Array.from({ length: span.pieces + 1 }, (_, j) => curvePathPoint(src, dst, span, j)).flatMap((p) => [
                       p.x,
@@ -3091,12 +3102,11 @@ export class Edge {
             }
         }
 
-        const loop = this.isLoop;
-        if (!widensLine(style) || EdgeMesh.drawsAsPattern(style, loop)) {
+        if (!widensLine(style) || EdgeMesh.drawsAsPattern(style)) {
             return null;
         }
 
-        return EdgeMesh.lineBatch(cache, options, style, scene, true, loop);
+        return EdgeMesh.lineBatch(cache, options, style, scene, true);
     }
 
     /**
@@ -4588,7 +4598,6 @@ export class Edge {
                 solid,
                 scene,
                 false,
-                this.isLoop,
             );
             if (batch === null) {
                 continue;
@@ -4664,7 +4673,6 @@ export class Edge {
             { ...style, line: { ...style.line, type: outline?.type ?? "solid", opacity, animationSpeed: 0 } },
             scene,
             false,
-            this.isLoop,
         );
         if (this.outlineBatch === null) {
             return;
@@ -4753,7 +4761,6 @@ export class Edge {
                 { ...style, line: { ...style.line, type: "solid", opacity, animationSpeed: 0 } },
                 this.context.getScene(),
                 false,
-                this.isLoop,
             );
             if (batch === null) {
                 continue;
@@ -5052,6 +5059,7 @@ export class Edge {
                     opacity: arrow?.opacity,
                     image: arrow?.image,
                     outline: arrow?.outlineWidth,
+                    fill: arrow?.fillColor,
                 },
                 this.context.getScene(),
             );
@@ -5322,13 +5330,12 @@ export class Edge {
             return null;
         }
 
-        const tip = new Vector3(1, 0, 0);
         const { src, dst, lineEnd } = trimEnds({
             src: table.centerOf(source.index),
             dst: table.centerOf(target.index),
             source: srcEnd,
             target: dstEnd,
-            capBack: 1 - this.lineEndBefore(Vector3.Zero(), tip).x,
+            ...(this.capBack() ?? { capGap: 0, capBack: 0 }),
         });
         const point = (at: Xyz | null): Vector3 | null => (at === null ? null : new Vector3(at.x, at.y, at.z));
         return { srcPoint: point(src), dstPoint: point(dst), newEndPoint: point(lineEnd) };
@@ -5401,14 +5408,12 @@ export class Edge {
                 group: node.isDrawnBehindEdges,
             };
         };
-        // a line a unit long loses what the arrow head takes from any line
-        const tip = new Vector3(1, 0, 0);
         return {
             src: this.srcNode.drawnPosition,
             dst: this.dstNode.drawnPosition,
             source: trimEnd(this.srcNode, this.gapAt("source"), this.dstNode),
             target: trimEnd(this.dstNode, this.gapAt("target"), this.srcNode),
-            capBack: 1 - this.lineEndBefore(Vector3.Zero(), tip).x,
+            ...(this.capBack() ?? { capGap: 0, capBack: 0 }),
         };
     }
 
@@ -5447,12 +5452,28 @@ export class Edge {
      * @returns The line's end.
      */
     private lineEndBefore(srcPoint: Vector3, dstPoint: Vector3): Vector3 {
+        const back = this.capBack();
+        if (back === null) {
+            return dstPoint;
+        }
+
+        // Direction points FROM source TO destination (forward direction)
+        const direction = dstPoint.subtract(srcPoint).normalize();
+        return dstPoint.subtract(direction.scale(back.capGap)).subtract(direction.scale(back.capBack));
+    }
+
+    /**
+     * How far short of the target's surface the line stops for its arrow head: the gap before the head, then
+     * the head itself, taken off one after the other as {@link Edge.lineEndBefore} does and as `trimEnds` must,
+     * so both give the same last bit.
+     * @returns The two distances, or null with no arrow head or one drawn part-way along, where the line goes all
+     *     the way to the node's surface.
+     */
+    private capBack(): { capGap: number; capBack: number } | null {
         const style = this.currentStyle;
         const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
-
-        // No arrow head, or one drawn part-way along: the line goes all the way to the node surface
         if (!hasArrowHead || (style.arrowHead?.position ?? 0) > 0) {
-            return dstPoint;
+            return null;
         }
 
         const arrowSize = style.arrowHead?.size ?? 1;
@@ -5465,11 +5486,7 @@ export class Edge {
             geometry.scaleFactor = 1;
         }
 
-        // Use common function to calculate line endpoint
-        // Direction points FROM source TO destination (forward direction)
-        const direction = dstPoint.subtract(srcPoint).normalize();
-        const capEnd = dstPoint.subtract(direction.scale(Edge.capGap(style.arrowHead)));
-        return EdgeMesh.calculateLineEndpoint(capEnd, direction, arrowLength, geometry);
+        return { capGap: Edge.capGap(style.arrowHead), capBack: EdgeMesh.lineStopOf(arrowLength, geometry) };
     }
 
     /**
@@ -5573,32 +5590,7 @@ export class Edge {
      * @returns the text, or "" for an edge nothing named
      */
     private extractLabelText(labelConfig?: Record<string, unknown>): string {
-        if (!labelConfig) {
-            return "";
-        }
-
-        // Check if text is directly provided
-        if (labelConfig.text !== undefined && labelConfig.text !== null) {
-            // Only convert to string if it's a primitive type
-            if (
-                typeof labelConfig.text === "string" ||
-                typeof labelConfig.text === "number" ||
-                typeof labelConfig.text === "boolean"
-            ) {
-                return String(labelConfig.text);
-            }
-        } else if (labelConfig.textPath && typeof labelConfig.textPath === "string") {
-            try {
-                const result = jmespath.search(this.data, labelConfig.textPath);
-                if (result !== null && result !== undefined) {
-                    return String(result);
-                }
-            } catch {
-                // Ignore jmespath errors
-            }
-        }
-
-        return "";
+        return labelTextOf(this.data, labelConfig) ?? "";
     }
 
     /**
@@ -5636,69 +5628,11 @@ export class Edge {
             };
         }
 
-        // Transform backgroundColor to string if it's an advanced color style
-        let backgroundColor: string | undefined = undefined;
-        if (block.backgroundColor) {
-            if (typeof block.backgroundColor === "string") {
-                ({ backgroundColor } = block);
-            } else if (block.backgroundColor.colorType === "solid") {
-                ({ value: backgroundColor } = block.backgroundColor);
-            } else if (block.backgroundColor.colorType === "gradient") {
-                // For gradients, use the first color as a fallback
-                [backgroundColor] = block.backgroundColor.colors;
-            }
-        }
-
-        // Filter out undefined values from backgroundGradientColors
-        let backgroundGradientColors: string[] | undefined = undefined;
-        if (block.backgroundGradientColors) {
-            backgroundGradientColors = block.backgroundGradientColors.filter(
-                (color): color is string => color !== undefined,
-            );
-            if (backgroundGradientColors.length === 0) {
-                backgroundGradientColors = undefined;
-            }
-        }
-
-        // Transform borders to ensure colors are strings
-        let borders: { width: number; color: string; spacing: number }[] | undefined = undefined;
-        if (block.borders && block.borders.length > 0) {
-            const validBorders = block.borders
-                .filter((border): border is typeof border & { color: string } => border.color !== undefined)
-                .map((border) => ({
-                    width: border.width,
-                    color: border.color,
-                    spacing: border.spacing,
-                }));
-            // Only set borders if we have valid borders, otherwise leave it undefined
-            // so the default empty array is used
-            if (validBorders.length > 0) {
-                borders = validBorders;
-            }
-        }
-
-        // Create label options by spreading the entire block
-        const labelOptions: RichTextLabelOptions = {
-            ...block,
-            // Override with computed values
+        return richTextLabelOptions(block, {
             text: labelText,
             attachPosition: placement.attachPosition,
             attachOffset: placement.attachOffset,
-            backgroundColor,
-            backgroundGradientColors,
-            ...(borders !== undefined && { borders }),
-        };
-
-        // Handle special case for transparent background
-        if (labelOptions.backgroundColor === "transparent") {
-            labelOptions.backgroundColor = undefined;
-        }
-
-        // Remove properties that shouldn't be passed to RichTextLabel
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions;
-
-        return finalLabelOptions;
+        });
     }
 
     /**

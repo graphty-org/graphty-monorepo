@@ -1,4 +1,4 @@
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, beforeAll, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
@@ -286,6 +286,35 @@ describe("session.time: the designated field", () => {
         session.dispose();
     });
 
+    it("with asDates, makes a text column of dates a date column in the same undoable step", async () => {
+        const harness = emails();
+        const { session } = harness;
+        const typeOf = (): string | undefined =>
+            session.data.attributes().find((each) => each.kind === "edge" && each.name === "sent")?.type;
+        assert.strictEqual(typeOf(), "string");
+        const steps = session.history.steps.length;
+
+        await session.time.setField({ edges: { start: "sent" } }, { asDates: true });
+
+        // A date column reads as type "time".
+        assert.strictEqual(typeOf(), "time");
+        assert.deepStrictEqual(session.time.field, { edges: { start: "sent" } });
+        assert.strictEqual(session.history.steps.length, steps + 1);
+        await session.undo();
+        assert.isNull(session.time.field);
+        assert.strictEqual(typeOf(), "string");
+        session.dispose();
+    });
+
+    it("without asDates, leaves a text column's type alone", async () => {
+        const harness = emails();
+        const { session } = harness;
+        await session.time.setField({ edges: { start: "sent" } });
+        const column = session.data.attributes().find((each) => each.kind === "edge" && each.name === "sent");
+        assert.strictEqual(column?.type, "string");
+        session.dispose();
+    });
+
     it("is one undoable step", async () => {
         const harness = emails();
         await harness.session.time.setField({ edges: { start: "sent" } });
@@ -565,6 +594,44 @@ describe("session.time: playback", () => {
             ],
         );
         session.dispose();
+    });
+
+    it("runs one loop when paused and played again while a step is still recording", async () => {
+        const harness = emails();
+        const { session } = harness;
+        await session.time.setField({ edges: { start: "sent" } });
+        await session.time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const after: number[] = [];
+        let restarted = false;
+        session.on("time:step", (step) => {
+            if (step.cause !== "play") {
+                return;
+            }
+
+            if (restarted) {
+                after.push(step.index);
+                return;
+            }
+
+            // The first step is published while its tick still awaits: pause and play again then.
+            restarted = true;
+            session.time.pause();
+            session.time.play({ interval: 1000, motion: "steps" });
+        });
+
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            session.time.play({ interval: 1000, motion: "steps" });
+            await vi.advanceTimersByTimeAsync(1000);
+            assert.isTrue(restarted);
+            // One interval of the new play is one step, not one per loop.
+            await vi.advanceTimersByTimeAsync(1000);
+            assert.deepStrictEqual(after, [2]);
+        } finally {
+            session.time.pause();
+            vi.useRealTimers();
+            session.dispose();
+        }
     });
 
     it("opens a window at the start of the data when there is none", async () => {

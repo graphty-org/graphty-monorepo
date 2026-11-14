@@ -18,8 +18,6 @@ import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { applyDeadzone } from "../../../src/cameras/InputUtils";
 import type { PivotController } from "../../../src/cameras/PivotController";
-import type { Graph } from "../../../src/Graph";
-import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 import { createXRInputDriver, type XRInputDriver } from "../helpers/xr-input-driver";
 
 /**
@@ -46,28 +44,21 @@ function getPivotPosition(pivot: PivotController): Vector3 {
 }
 
 describe("XR Input Direction Verification", () => {
-    let graph: Graph;
     let pivotController: PivotController;
     let driver: XRInputDriver;
 
     beforeEach(async () => {
-        // Create a test graph to get a valid scene
-        graph = await createTestGraph();
-
-        // Drive the real XRInputHandler
-
-        driver = createXRInputDriver(graph.scene);
+        driver = await createXRInputDriver("controller");
 
         pivotController = driver.pivot;
     });
 
-    afterEach(() => {
-        driver.dispose();
+    afterEach(async () => {
+        await driver.dispose();
         vi.restoreAllMocks();
-        cleanupTestGraph(graph);
     });
 
-    test("left stick X+ rotates scene RIGHT (CRITICAL)", () => {
+    test("left stick X+ rotates scene RIGHT (CRITICAL)", async () => {
         // Record initial rotation
         const initialEuler = getPivotEuler(pivotController);
 
@@ -76,7 +67,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames of input
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final rotation
@@ -88,7 +79,7 @@ describe("XR Input Direction Verification", () => {
         assert.isAbove(finalEuler.y, initialEuler.y, "Left stick X+ should rotate scene RIGHT (positive yaw)");
     });
 
-    test("left stick X- rotates scene LEFT", () => {
+    test("left stick X- rotates scene LEFT", async () => {
         // Record initial rotation
         const initialEuler = getPivotEuler(pivotController);
 
@@ -97,7 +88,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final rotation
@@ -107,7 +98,7 @@ describe("XR Input Direction Verification", () => {
         assert.isBelow(finalEuler.y, initialEuler.y, "Left stick X- should rotate scene LEFT (negative yaw)");
     });
 
-    test("left stick Y+ (forward) pitches scene UP", () => {
+    test("left stick Y+ (forward) pitches scene UP", async () => {
         // Record initial rotation
         const initialEuler = getPivotEuler(pivotController);
 
@@ -116,7 +107,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final rotation
@@ -126,7 +117,7 @@ describe("XR Input Direction Verification", () => {
         assert.isAbove(finalEuler.x, initialEuler.x, "Left stick Y+ (forward) should pitch scene UP (positive pitch)");
     });
 
-    test("left stick Y- (back) pitches scene DOWN", () => {
+    test("left stick Y- (back) pitches scene DOWN", async () => {
         // Record initial rotation
         const initialEuler = getPivotEuler(pivotController);
 
@@ -135,7 +126,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final rotation
@@ -145,7 +136,7 @@ describe("XR Input Direction Verification", () => {
         assert.isBelow(finalEuler.x, initialEuler.x, "Left stick Y- (back) should pitch scene DOWN (negative pitch)");
     });
 
-    test("right stick X+ pans scene RIGHT", () => {
+    test("right stick X+ pans scene RIGHT", async () => {
         // Record initial position
         const initialPos = getPivotPosition(pivotController);
 
@@ -154,7 +145,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final position
@@ -166,7 +157,7 @@ describe("XR Input Direction Verification", () => {
         assert.isAbove(finalPos.x, initialPos.x, "Right stick X+ should pan scene RIGHT (positive X)");
     });
 
-    test("right stick X- pans scene LEFT", () => {
+    test("right stick X- pans scene LEFT", async () => {
         // Record initial position
         const initialPos = getPivotPosition(pivotController);
 
@@ -175,7 +166,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final position
@@ -185,7 +176,7 @@ describe("XR Input Direction Verification", () => {
         assert.isBelow(finalPos.x, initialPos.x, "Right stick X- should pan scene LEFT (negative X)");
     });
 
-    test("right stick Y+ (forward) zooms IN", () => {
+    test("right stick Y+ (forward) zooms IN", async () => {
         // Record initial scale
         const initialScale = getPivotScale(pivotController);
 
@@ -194,7 +185,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final scale
@@ -205,7 +196,7 @@ describe("XR Input Direction Verification", () => {
         assert.isAbove(finalScale, initialScale, "Right stick Y+ (forward) should zoom IN (larger scale)");
     });
 
-    test("right stick Y- (back) zooms OUT", () => {
+    test("right stick Y- (back) zooms OUT", async () => {
         // Record initial scale
         const initialScale = getPivotScale(pivotController);
 
@@ -214,7 +205,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final scale
@@ -225,7 +216,7 @@ describe("XR Input Direction Verification", () => {
     });
 
     // Additional tests for deadzone behavior
-    test("deadzone filters inputs below threshold (0.15)", () => {
+    test("deadzone filters inputs below threshold (0.15)", async () => {
         // Record initial state
         const initialEuler = getPivotEuler(pivotController);
         const initialScale = getPivotScale(pivotController);
@@ -236,7 +227,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final state
@@ -253,7 +244,7 @@ describe("XR Input Direction Verification", () => {
         assert.closeTo(finalScale, initialScale, 0.0001, "Deadzone should filter inputs below 0.15 (scale unchanged)");
     });
 
-    test("deadzone passes inputs above threshold", () => {
+    test("deadzone passes inputs above threshold", async () => {
         // Record initial state
         const initialEuler = getPivotEuler(pivotController);
 
@@ -262,7 +253,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final state
@@ -274,7 +265,7 @@ describe("XR Input Direction Verification", () => {
     });
 
     // Test combined inputs
-    test("diagonal left stick input produces combined yaw and pitch", () => {
+    test("diagonal left stick input produces combined yaw and pitch", async () => {
         // Record initial state
         const initialEuler = getPivotEuler(pivotController);
 
@@ -283,7 +274,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final state
@@ -296,7 +287,7 @@ describe("XR Input Direction Verification", () => {
         assert.isAbove(pitchDiff, 0.0001, "Diagonal input should change pitch");
     });
 
-    test("both thumbsticks can be used simultaneously", () => {
+    test("both thumbsticks can be used simultaneously", async () => {
         // Record initial state
         const initialEuler = getPivotEuler(pivotController);
         const initialScale = getPivotScale(pivotController);
@@ -307,7 +298,7 @@ describe("XR Input Direction Verification", () => {
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            driver.frame();
+            await driver.frame();
         }
 
         // Get final state

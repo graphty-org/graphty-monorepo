@@ -484,6 +484,12 @@ export abstract class DataSource {
     nodeSchema: z.core.$ZodObject | null = null;
     protected errorAggregator: ErrorAggregator;
     protected chunkSize: number;
+    /**
+     * Bytes of the file read so far, for load progress: set once the inline data, file or URL
+     * has been read (text counts its UTF-8 bytes). Undefined until then, and for a source that
+     * reads its input some other way.
+     */
+    bytesRead: number | undefined = undefined;
     /** Backing field of {@link declaredDirection}; written only by {@link declareDirection}. */
     private declaration: DeclaredDirection | null = null;
     /** Backing field of {@link declaredTime}; written only by {@link declareTime}. */
@@ -511,31 +517,6 @@ export abstract class DataSource {
      * Used by getContent() and other shared methods
      */
     protected abstract getConfig(): BaseDataSourceConfig;
-
-    /**
-     * Standardized error message templates
-     * @returns Object containing error message template functions
-     */
-    protected get errorMessages(): {
-        missingInput: () => string;
-        fetchFailed: (url: string, attempts: number, error: string) => string;
-        parseFailed: (error: string) => string;
-        invalidFormat: (reason: string) => string;
-        extractionFailed: (path: string, error: string) => string;
-    } {
-        return {
-            missingInput: () => `${this.type}DataSource requires data, file, or url`,
-
-            fetchFailed: (url: string, attempts: number, error: string) =>
-                `Failed to fetch ${this.type} from ${url} after ${attempts} attempts: ${error}`,
-
-            parseFailed: (error: string) => `Failed to parse ${this.type}: ${error}`,
-
-            invalidFormat: (reason: string) => `Invalid ${this.type} format: ${reason}`,
-
-            extractionFailed: (path: string, error: string) => `Failed to extract data using path '${path}': ${error}`,
-        };
-    }
 
     /**
      * Fetch with retry logic and timeout
@@ -654,6 +635,16 @@ export abstract class DataSource {
      * @throws An `Error` naming the reader when the configuration has no data, file or URL.
      */
     protected async getInput(): Promise<SourceInput> {
+        const input = await this.readInput();
+        this.bytesRead = typeof input === "string" ? new Blob([input]).size : input.byteLength;
+        return input;
+    }
+
+    /**
+     * The source's contents, read from inline data, a file or a URL.
+     * @returns The text or the bytes.
+     */
+    private async readInput(): Promise<SourceInput> {
         const config = this.getConfig();
 
         if (config.data !== undefined) {
@@ -669,7 +660,12 @@ export abstract class DataSource {
             return new Uint8Array(await response.arrayBuffer());
         }
 
-        throw new Error(this.errorMessages.missingInput());
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            source: "data",
+            message: `${this.type}DataSource requires data, file, or url`,
+            details: { option: "data|file|url", format: this.type },
+        });
     }
 
     /**

@@ -26,7 +26,13 @@ import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
-import { CustomLineRenderer, type EdgeFade, type JoinedLineOptions } from "./CustomLineRenderer";
+import {
+    CustomLineRenderer,
+    type EdgeFade,
+    JOINED_PATTERN_KINDS,
+    type JoinedLineOptions,
+    type JoinedPatternKind,
+} from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
@@ -77,6 +83,7 @@ interface ArrowHeadOptions {
     image?: string; // The picture an "image" cap draws (a URL or a data URL)
     side?: "left" | "right"; // Draw only the cap's half on this side of its line (unset: all of it)
     outline?: number; // An open cap's outline thickness, in the line's width units (unset: the cap's own thin frame)
+    fill?: string; // An open cap's inside colour (unset: the inside is left empty)
 }
 
 /**
@@ -132,7 +139,13 @@ function sided(mesh: Mesh, side: "left" | "right" | undefined): Mesh {
     };
     const corner = (i: number): number[] => [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
     const out: number[] = [];
+    // a filled open cap's inside comes first (FilledArrowRenderer.createOpenOutline): what is kept of it, still first
+    const meta = mesh.metadata as { capFill?: number } | null;
+    let inside = 0;
     for (let i = 0; i + 2 < indices.length; i += 3) {
+        if (i === meta?.capFill) {
+            inside = out.length / 3;
+        }
         const kept = clipTriangle([corner(indices[i]), corner(indices[i + 1]), corner(indices[i + 2])], keep, at);
         for (let k = 1; k + 1 < kept.length; k++) {
             out.push(...kept[0], ...kept[k], ...kept[k + 1]);
@@ -143,6 +156,9 @@ function sided(mesh: Mesh, side: "left" | "right" | undefined): Mesh {
     data.positions = out;
     data.indices = Array.from({ length: out.length / 3 }, (_, i) => i);
     data.applyToMesh(mesh);
+    if (meta?.capFill !== undefined) {
+        meta.capFill = inside;
+    }
     mesh.name = `${mesh.name}-${side}-half`;
     return mesh;
 }
@@ -167,6 +183,41 @@ function widened(mesh: Mesh, breadth: number): Mesh {
     }
 
     return mesh;
+}
+
+/**
+ * What an open cap draws besides its shape, each part of its batch's key since a batch holds one geometry and one inside
+ * colour.
+ *
+ * AN OPEN CAP'S OUTLINE WIDTH (#5800), when set, frames its outline as thick as that width of line, as Graphviz and
+ * Cytoscape.js stroke an open arrow with the edge's own pen: in scene units `outline / 40` (the line's, see
+ * createPatternedLine) over the cap's length. Unset, the cap keeps its own thin frame.
+ *
+ * AN OPEN CAP'S INSIDE (#7565), when given a colour, is filled inside its frame, as yEd fills a framed edge's
+ * arrowheads: the frame drawn as an outline (the cap's own thin one when it has no width), its inside apart from it.
+ * @param type - The cap type; only open caps with an outline take either.
+ * @param options - The cap's options.
+ * @param length - The cap's length in scene units.
+ * @param widthKey - The key so far.
+ * @returns The frame's thickness in the cap's lengths, the inside's colour, and the key with both.
+ */
+function openLook(
+    type: string,
+    options: ArrowHeadOptions,
+    length: number,
+    widthKey: string,
+): { stroke: number | undefined; fill: string | undefined; key: string } {
+    if (!(type in FilledArrowRenderer.OPEN_OUTLINES)) {
+        return { stroke: undefined, fill: undefined, key: widthKey };
+    }
+    const stroke =
+        options.outline !== undefined && options.outline > 0
+            ? Math.round((options.outline / 40 / length) * 1000) / 1000
+            : undefined;
+    const { fill } = options;
+    const strokeKey = stroke === undefined ? "" : `|s${String(stroke)}`;
+    const fillKey = fill === undefined ? "" : `|f${fill}`;
+    return { stroke, fill, key: `${widthKey}${strokeKey}${fillKey}` };
 }
 
 interface ArrowGeometry {
@@ -411,27 +462,25 @@ void main() {
 
     /**
      * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
-     * slot in a line batch: every patterned type, laid along whatever route the edge takes
-     * (issue #3102), except a dashed or dotted curve, or one through bends or round a self-loop,
-     * which is a joined line in a batch that measures its dashes along the whole route. So is a dashed or dotted line
-     * with a dash length or gap of its own (`line.dashLength`, `line.dashGap`): a pattern element's shape is fixed.
+     * slot in a line batch: a pattern of two shapes (dash-dot), a wave or a glyph, laid along whatever route the edge
+     * takes (issue #3102). A dash, dot, box, diamond or star line, straight or not, is a joined line in a batch that
+     * draws its elements in its shader, measured along the whole route with the spacing pattern elements take
+     * (`EdgeLineBatch.spacingFor`): one slot per piece of the route, where pattern elements took one per element, so
+     * hundreds of thin patterned edges no longer put hundreds of thousands of pieces on every frame (issue #7404).
+     * ponytail: dash-dot, waves and glyphs still draw one slot per element; give the shader their shapes if a graph of
+     * many thin ones is ever slow.
      * @param style - The resolved style.
-     * @param loop - Whether the edge is a self-loop, which is never a straight line.
      * @returns True for pattern elements.
      */
-    static drawsAsPattern(style: EdgeStyleConfig, loop = false): boolean {
+    static drawsAsPattern(style: EdgeStyleConfig): boolean {
         const lineType = style.line?.type ?? "solid";
         if (!PATTERNED_TYPES.has(lineType)) {
             return false;
         }
 
-        const { line } = style;
-        const routed =
-            loop ||
-            line?.bezier === true ||
-            [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
-        const ownDashes = line?.dashLength !== undefined || line?.dashGap !== undefined;
-        return !((routed || ownDashes) && (lineType === "dash" || lineType === "dot"));
+        // a pattern of one plain shape draws in a joined line's shader, so it costs one slot per piece of its route
+        // whatever its length or width (issue #7404)
+        return !Object.hasOwn(JOINED_PATTERN_KINDS, lineType);
     }
 
     /**
@@ -509,7 +558,6 @@ void main() {
      * @param widened - A batch whose slots carry a taper (`edge.taper`): a joined line with the
      *     static attributes (`EdgeLineBatch`), in a batch of its own. An animated line is drawn
      *     still when widened.
-     * @param loop - Whether the edge is a self-loop (see {@link EdgeMesh.drawsAsPattern}).
      * @param byShape - Share the batch with every line of the same shape, whatever its color (see
      *     above); the caller then colors each slot it takes.
      * @returns The batch to take a slot in, or null for a patterned line.
@@ -520,7 +568,6 @@ void main() {
         style: EdgeStyleConfig,
         scene: Scene,
         widened = false,
-        loop = false,
         byShape = false,
     ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
@@ -552,7 +599,7 @@ void main() {
         const fade = widened ? this.fadeOf(style) : undefined;
         const opaque = this.drawsOpaque(style);
 
-        if (this.drawsAsPattern(style, loop)) {
+        if (this.drawsAsPattern(style)) {
             return null;
         }
 
@@ -561,7 +608,7 @@ void main() {
         // are placed along a straight line from end to end, so they cannot follow a bend. Its
         // width and element sizes are the pattern elements' own (world units), so a bent dashed
         // edge is as thick as the straight one beside it.
-        if (lineType === "dash" || lineType === "dot") {
+        if (Object.hasOwn(JOINED_PATTERN_KINDS, lineType)) {
             const is2D = this.is2DMode(scene);
             const width = options.width / 40;
             return cache.getBatch(
@@ -577,7 +624,7 @@ void main() {
                             minScreenWidth: style.line?.minScreenWidth,
                             fade,
                             opaque,
-                            pattern: this.joinedPattern(lineType, width, style),
+                            pattern: this.joinedPattern(lineType as JoinedPatternKind, width, style),
                         },
                         scene,
                     ),
@@ -618,24 +665,27 @@ void main() {
     }
 
     /**
-     * The dashes or dots of a dashed or dotted joined line, in world units.
-     * @param kind - Dashes or dots.
+     * The elements of a patterned joined line, in world units.
+     * @param kind - Dashes, dots, boxes, diamonds or stars.
      * @param width - The line's width, in world units.
      * @param style - The resolved style.
      * @returns The pattern.
      */
     private static joinedPattern(
-        kind: "dash" | "dot",
+        kind: JoinedPatternKind,
         width: number,
         style: EdgeStyleConfig,
     ): NonNullable<JoinedLineOptions["pattern"]> {
-        const { dashLength, dashGap } = style.line ?? {};
+        // a dash length or gap of its own is a dashed or dotted line's (`line.dashLength`, `line.dashGap`)
+        const own = kind === "dash" || kind === "dot";
+        const dashLength = own ? style.line?.dashLength : undefined;
+        const dashGap = own ? style.line?.dashGap : undefined;
         // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
         // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
         const dotShort = kind === "dot" ? (dashLength ?? 1) - 1 : 0;
         return {
             kind,
-            elementLength: kind === "dash" ? width * (style.line?.dashLength ?? 3) : width,
+            elementLength: kind === "dash" ? width * (dashLength ?? 3) : width,
             count: style.line?.patternCount,
             gap: dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort),
         };
@@ -888,17 +938,17 @@ void main() {
             throw new Error(`Unsupported arrow type: ${options.type}`);
         }
 
-        // AN OPEN CAP'S OUTLINE WIDTH (#5800), when set, frames its outline as thick as that width of line, as Graphviz
-        // and Cytoscape.js stroke an open arrow with the edge's own pen: in scene units `outline / 40` (the line's, see
-        // createPatternedLine) over the cap's length, which a batch's one geometry holds, so it is part of the key.
-        // Unset, the cap keeps its own thin frame.
-        const stroke =
-            options.outline !== undefined && options.outline > 0 && arrowType in FilledArrowRenderer.OPEN_OUTLINES
-                ? Math.round((options.outline / 40 / length) * 1000) / 1000
-                : undefined;
-        const openKey = stroke === undefined ? widthKey : `${widthKey}|s${String(stroke)}`;
+        const { stroke, fill, key: openKey } = openLook(arrowType, options, length, widthKey);
         const open = (): Mesh | null =>
-            stroke === undefined ? null : FilledArrowRenderer.createOpenOutline(arrowType, scene, stroke, breadth);
+            stroke === undefined && fill === undefined
+                ? null
+                : FilledArrowRenderer.createOpenOutline(
+                      arrowType,
+                      scene,
+                      stroke ?? FilledArrowRenderer.FILLED_FRAME,
+                      breadth,
+                      fill !== undefined,
+                  );
 
         if (is2D) {
             // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
@@ -920,6 +970,9 @@ void main() {
                             ),
                         side,
                     );
+                    if (fill !== undefined) {
+                        FilledArrowRenderer.paintInside2D(source, fill, opacity, scene);
+                    }
                     source.visibility = opacity;
                     return source;
                 },
@@ -939,6 +992,7 @@ void main() {
                 size: length, // World-space length (e.g., 0.5 units)
                 color: options.color,
                 opacity,
+                fill,
             },
             scene,
             reuse,
@@ -1565,10 +1619,18 @@ void main() {
         arrowLength: number,
         geometry: ArrowGeometry,
     ): Vector3 {
+        return surfacePoint.subtract(direction.scale(this.lineStopOf(arrowLength, geometry)));
+    }
+
+    /**
+     * How far before the surface point a line stops for an arrow head ({@link EdgeMesh.calculateLineEndpoint}).
+     * @param arrowLength - The arrow's length.
+     * @param geometry - The arrow's geometry.
+     * @returns The distance.
+     */
+    static lineStopOf(arrowLength: number, geometry: ArrowGeometry): number {
         // Line gap equals actual arrow size (base size × scale factor)
-        const scaleFactor = geometry.scaleFactor ?? 1;
-        const actualSize = arrowLength * scaleFactor * (geometry.lineStop ?? 1);
-        return surfacePoint.subtract(direction.scale(actualSize));
+        return arrowLength * (geometry.scaleFactor ?? 1) * (geometry.lineStop ?? 1);
     }
 
     /**

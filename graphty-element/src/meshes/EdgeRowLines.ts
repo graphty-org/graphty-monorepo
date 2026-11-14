@@ -55,6 +55,8 @@ class LineColumns {
     piece = new Int32Array(FIRST_ROWS);
     source = new Int32Array(FIRST_ROWS);
     target = new Int32Array(FIRST_ROWS);
+    /** 1 for a row the edge masks hide: its piece draws nothing, and keeps its rows here to be shown again. */
+    hidden = new Uint8Array(FIRST_ROWS);
 
     has(row: number): boolean {
         return (this.batchOf[row] ?? NO_LINE) !== NO_LINE;
@@ -74,12 +76,16 @@ class LineColumns {
             this.piece = grown(this.piece);
             this.source = grown(this.source);
             this.target = grown(this.target);
+            const hidden = new Uint8Array(rows);
+            hidden.set(this.hidden);
+            this.hidden = hidden;
         }
 
         this.batchOf[row] = batch;
         this.piece[row] = piece;
         this.source[row] = source;
         this.target[row] = target;
+        this.hidden[row] = 0;
     }
 }
 
@@ -181,6 +187,34 @@ export class EdgeRowLines {
     }
 
     /**
+     * Whether an edge row's line is hidden ({@link EdgeRowLines.setHidden}).
+     * @param row - The edge row.
+     * @returns True for a drawn row that is hidden; false for a shown one or a row not drawn here.
+     * @internal
+     */
+    isHidden(row: number): boolean {
+        return this.lines.has(row) && this.lines.hidden[row] === 1;
+    }
+
+    /**
+     * Hide or show an edge row's line, as the edge masks say: its piece draws nothing while hidden and keeps its
+     * place, look and nodes' rows, so a time window that hides and shows rows builds no `Edge` and writes only the
+     * pieces' hidden flags. Nothing for a row not drawn here.
+     * @param row - The edge row.
+     * @param hidden - Whether it is hidden.
+     */
+    setHidden(row: number, hidden: boolean): void {
+        const { lines } = this;
+        if (!lines.has(row) || (lines.hidden[row] === 1) === hidden) {
+            return;
+        }
+
+        lines.hidden[row] = hidden ? 1 : 0;
+        this.batches[lines.batchOf[row]].setHidden(lines.piece[row], hidden);
+        this.host.requestFrame();
+    }
+
+    /**
      * Whether a paint is one a row line draws: a shown, plain solid straight line with no cap, words or band,
      * while lines do not fade by age. A hidden paint is refused: an `Edge` hides its line.
      * @param style - The resolved style.
@@ -260,9 +294,10 @@ export class EdgeRowLines {
             () => rows.positionTexture,
             { route: "straight", lean: this.host.lean() },
         );
-        const piece = batch.acquire();
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
-        batch.setLook(piece, look.rgb, look.opacity, EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20);
+        const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
+        const piece = batch.acquire(drawnWidth);
+        batch.setLook(piece, look.rgb, look.opacity, drawnWidth);
         batch.setRows(piece, source, target);
         let at = this.batches.indexOf(batch);
         if (at === -1) {
@@ -316,8 +351,10 @@ export class EdgeRowLines {
                 continue;
             }
 
+            const hidden = lines.hidden[row] === 1;
             batch.setRows(piece, source, target);
             this.lines.set(edge, lines.batchOf[row], piece, source, target);
+            this.lines.hidden[edge] = hidden ? 1 : 0;
             this.drawn++;
         }
 

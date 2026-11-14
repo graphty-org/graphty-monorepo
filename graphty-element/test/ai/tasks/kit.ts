@@ -526,19 +526,24 @@ export function assistantLayers(s: GraphSession): ReturnType<GraphSession["style
 }
 
 /**
- * Whether a value was read out by the assistant: it appears in its final answer or in a tool result.
- * @param messages - The messages (the last one is read).
- * @param values - Values any one of which will do (numbers are matched to 2 decimals as well).
+ * Escape a string for use inside a regular expression.
+ * @param text - The text.
+ * @returns It, with every special character escaped.
+ */
+function escapeRegExp(text: string): string {
+    return text.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+}
+
+/**
+ * Whether a value appears in a text as a whole token: a number not inside a longer number (2 is
+ * not in 329 or 1.25), a word not at the tail of a longer word (weighted is not in unweighted).
+ * A word may be a prefix ("communit" matches "communities").
+ * @param haystack - The text, lowercased.
+ * @param values - Values any one of which will do (numbers are matched to 2 and 3 decimals and
+ *     with thousands separators as well).
  * @returns True when one appears.
  */
-export function answered(messages: readonly MessageRecord[], ...values: readonly (string | number)[]): boolean {
-    const last = messages.at(-1);
-    if (last === undefined) {
-        return false;
-    }
-
-    const haystack =
-        `${last.text}\n${last.results.map((result) => JSON.stringify(result.body)).join("\n")}`.toLowerCase();
+function appears(haystack: string, values: readonly (string | number)[]): boolean {
     return values.some((value) => {
         if (typeof value === "number") {
             const forms = new Set([
@@ -546,16 +551,31 @@ export function answered(messages: readonly MessageRecord[], ...values: readonly
                 value.toFixed(2),
                 value.toFixed(3),
                 String(Math.round(value * 1e6) / 1e6),
+                value.toLocaleString("en-US"),
             ]);
-            return [...forms].some((form) => haystack.includes(form));
+            return [...forms].some((form) =>
+                new RegExp(String.raw`(?<![\d.])${escapeRegExp(form)}(?!\.?\d|,\d{3}(?!\d))`).test(haystack),
+            );
         }
 
-        return haystack.includes(value.toLowerCase());
+        return new RegExp(String.raw`(?<![a-z0-9])${escapeRegExp(value.toLowerCase())}`).test(haystack);
     });
 }
 
 /**
- * Assert a question was answered with a value.
+ * Whether the assistant's final answer gives a value. Only the model's own words count: a value
+ * that is only in a tool result was read, not answered.
+ * @param messages - The messages (the last one is read).
+ * @param values - Values any one of which will do, matched as whole tokens.
+ * @returns True when one appears.
+ */
+export function answered(messages: readonly MessageRecord[], ...values: readonly (string | number)[]): boolean {
+    const last = messages.at(-1);
+    return last !== undefined && appears(last.text.toLowerCase(), values);
+}
+
+/**
+ * Assert the final answer gives a value.
  * @param messages - The messages.
  * @param what - What the value is, for the failure message.
  * @param values - Acceptable values.
@@ -569,6 +589,22 @@ export function assertAnswered(
         answered(messages, ...values),
         `the answer does not give ${what} (${values.join(" or ")}); it said: ${messages.at(-1)?.text.slice(0, 300) ?? ""}`,
     );
+}
+
+/**
+ * Assert the final answer says a yes/no fact holds: it names the word and never negates it
+ * ("not directed", "isn't weighted", "undirected", "unweighted", "non-directed").
+ * @param messages - The messages.
+ * @param word - The fact, such as "directed".
+ */
+export function assertAffirmed(messages: readonly MessageRecord[], word: string): void {
+    const text = messages.at(-1)?.text.toLowerCase() ?? "";
+    const w = escapeRegExp(word.toLowerCase());
+    const negated = new RegExp(
+        String.raw`(?:\bnot|n't|\bno|\bnon)[\s-]+(?:\w+[\s-]+)?${w}\b|(?:un|non-?)${w}\b|"${w}":\s*false`,
+    );
+    assert.isTrue(appears(text, [word]), `the answer does not say it is ${word}; it said: ${text.slice(0, 300)}`);
+    assert.isFalse(negated.test(text), `the answer says it is not ${word}; it said: ${text.slice(0, 300)}`);
 }
 
 /**

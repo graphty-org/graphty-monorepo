@@ -186,6 +186,12 @@ export interface RepaintSources {
      * @returns Milliseconds.
      */
     readonly now?: () => number;
+    /**
+     * Called once per layer and code when a pass finds a layer that paints nothing, so a host
+     * can publish it. Absent says nothing; `problems()` still holds it.
+     * @param problem - The layer and why.
+     */
+    readonly onProblem?: (problem: RepaintProblem) => void;
 }
 
 /**
@@ -1219,7 +1225,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     /** The layers the pass in progress could not paint. */
     let problems: RepaintProblem[] = [];
     /**
-     * The problems already said on the console, by layer and code. `problems()` is internal, so
+     * The problems already handed to `onProblem`, by layer and code. `problems()` is internal, so
      * without this a layer the pass refused -- a palette with fewer colours than the groups --
      * would paint nothing and tell no one why.
      */
@@ -1947,7 +1953,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     };
 
     /**
-     * Prepare one layer, recording (and warning once about) a layer that paints nothing.
+     * Prepare one layer, recording (and reporting once) a layer that paints nothing.
      * @param entry - The layer.
      * @returns The prepared layer, or null when it has nothing to paint.
      */
@@ -1959,9 +1965,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             const key = `${layer.problem.layerId}\u0000${layer.problem.code}`;
             if (!reported.has(key)) {
                 reported.add(key);
-                console.warn(
-                    `[graphty] The style layer "${entry.layer.name}" paints nothing: ${layer.problem.message} (${layer.problem.code})`,
-                );
+                sources.onProblem?.(layer.problem);
             }
 
             return null;

@@ -421,6 +421,7 @@ export const KamadaKawai: Story = {
             dim: 3,
             scale: 1,
             weighted: false,
+            seed: 42, // the 3D start is random without a seed; a fixed one keeps the picture stable
         },
         kamadaScale: 1,
         kamadaWeighted: false,
@@ -520,7 +521,7 @@ export const KamadaKawaiWeighted: Story = {
     argTypes: KamadaKawai.argTypes,
     args: {
         ...KamadaKawai.args,
-        layoutConfig: { dim: 3, scale: 1, weighted: true },
+        layoutConfig: { dim: 3, scale: 1, weighted: true, seed: 42 },
         kamadaWeighted: true,
     },
     parameters: KamadaKawai.parameters,

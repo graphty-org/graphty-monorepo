@@ -7,6 +7,7 @@ import { useRef } from "react";
 
 import { hasPendingEdit, isTypingTarget } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { logUnexpected } from "./words";
 
 /** The notice a layer's refused rule leaves. */
 const RULE_REFUSED = "That rule could not be used for this layer";
@@ -69,7 +70,8 @@ export function useStepWriter(
                         store.set({ notice: null });
                     }
                 })
-                .catch(() => {
+                .catch((error: unknown) => {
+                    logUnexpected("styles.updateMany", error);
                     store.set({ notice: { message: RULE_REFUSED, error: true } });
                 })
                 .finally(() => {

@@ -658,7 +658,16 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         maxSagitta: curves.reduce((most, points) => Math.max(most, sagittaOf(points)), 0),
         arrowMeshNames: [...new Set(drawnCaps.map((cap) => cap.name))].sort(),
         arrowCaps: drawnCaps,
-        linePatternNames: [...new Set(patternElements.map((element) => element.name))].sort(),
+        // a dash, dot, box, diamond or star line's elements are drawn by its line's shader (issue #7404)
+        linePatternNames: [
+            ...new Set([
+                ...patternElements.map((element) => element.name),
+                ...edges.flatMap((edge) => {
+                    const pattern = edge.drawnLine?.pattern ?? null;
+                    return pattern === null ? [] : [`pattern-${pattern}`];
+                }),
+            ]),
+        ].sort(),
         edgeLabelPlanes: Math.max(0, planes.length - nodePlanes),
         arrowCaptions: captions,
         edgeStyleNames: [...new Set(drawnEdgeLines)].sort(),

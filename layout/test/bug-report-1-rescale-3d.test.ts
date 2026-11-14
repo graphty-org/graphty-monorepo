@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import type { PositionMap } from "../src/types/index.js";
 import { rescaleLayout } from "../src/utils/rescale";
@@ -16,21 +16,21 @@ describe("Bug Report #1: rescaleLayout causes NaN for Z coordinates in 3D", () =
         const rescaled = rescaleLayout(positions3D);
 
         // Check that all positions are returned
-        expect(Object.keys(rescaled)).toHaveLength(3);
+        assert.lengthOf(Object.keys(rescaled), 3);
 
         // Check each position
         Object.values(rescaled).forEach((pos) => {
-            expect(pos).toHaveLength(3); // Should have 3 coordinates
+            assert.lengthOf(pos, 3); // Should have 3 coordinates
 
             // X and Y should be valid numbers
-            expect(typeof pos[0]).toBe("number");
-            expect(typeof pos[1]).toBe("number");
-            expect(isNaN(pos[0])).toBe(false);
-            expect(isNaN(pos[1])).toBe(false);
+            assert.isNumber(pos[0]);
+            assert.isNumber(pos[1]);
+            assert.isNotNaN(pos[0]);
+            assert.isNotNaN(pos[1]);
 
             // Z coordinate should now be valid (bug fixed)
-            expect(typeof pos[2]).toBe("number");
-            expect(isNaN(pos[2])).toBe(false); // Fixed: Z is now valid
+            assert.isNumber(pos[2]);
+            assert.isNotNaN(pos[2]); // Fixed: Z is now valid
         });
     });
 
@@ -45,11 +45,11 @@ describe("Bug Report #1: rescaleLayout causes NaN for Z coordinates in 3D", () =
         const rescaled = rescaleLayout(positions3D, 1, [0, 0, 0]);
 
         Object.values(rescaled).forEach((pos) => {
-            expect(pos).toHaveLength(3);
+            assert.lengthOf(pos, 3);
             // All coordinates should be valid numbers
-            expect(isNaN(pos[0])).toBe(false);
-            expect(isNaN(pos[1])).toBe(false);
-            expect(isNaN(pos[2])).toBe(false); // Z should be valid when center is 3D
+            assert.isNotNaN(pos[0]);
+            assert.isNotNaN(pos[1]);
+            assert.isNotNaN(pos[2]); // Z should be valid when center is 3D
         });
     });
 
@@ -74,8 +74,11 @@ describe("Bug Report #1: rescaleLayout causes NaN for Z coordinates in 3D", () =
         );
 
         // Verify the bug is fixed
-        expect(isNaN(result.a[2])).toBe(false);
-        expect(isNaN(result.b[2])).toBe(false);
-        expect(isNaN(result.c[2])).toBe(false);
+        assert.isNumber(result.a[2]);
+        assert.isNotNaN(result.a[2]);
+        assert.isNumber(result.b[2]);
+        assert.isNotNaN(result.b[2]);
+        assert.isNumber(result.c[2]);
+        assert.isNotNaN(result.c[2]);
     });
 });

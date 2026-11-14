@@ -582,6 +582,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.chartLineWidth": "Chart line width",
     "node.chartBorderColor": "Chart border color",
     "node.chartBorderWidth": "Chart border width",
+    "node.chartBackgroundColor": "Chart background color",
+    "node.chartBackgroundOpacity": "Chart background opacity",
     "node.exactCornerRadius": "Exact corner radius",
     "node.cornerFraction": "Corner fraction",
     "node.shapeStretchPoints": "Polygon stretch",
@@ -628,6 +630,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Target end side",
     "edge.arrowHeadOutlineWidth": "Target end outline width",
+    "edge.arrowHeadFillColor": "Target end fill color",
     "edge.arrowHeadGap": "Target end gap",
     "edge.arrowHeadStack": "Target end stack",
     "edge.arrowHeadImage": "Target end image",
@@ -641,6 +644,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadTextOffsetY": "Label at target end offset y",
     "edge.arrowTailSide": "Source end side",
     "edge.arrowTailOutlineWidth": "Source end outline width",
+    "edge.arrowTailFillColor": "Source end fill color",
     "edge.arrowTailGap": "Source end gap",
     "edge.arrowTailStack": "Source end stack",
     "edge.arrowTailImage": "Source end image",
@@ -657,6 +661,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleHeadWidth": "Arrow middle head width",
     "edge.arrowMiddleHeadSide": "Arrow middle head side",
     "edge.arrowMiddleHeadOutlineWidth": "Arrow middle head outline width",
+    "edge.arrowMiddleHeadFillColor": "Arrow middle head fill color",
     "edge.arrowMiddleHeadPosition": "Arrow middle head position",
     "edge.arrowMiddleHeadColor": "Arrow middle head color",
     "edge.arrowMiddleHeadOpacity": "Arrow middle head opacity",
@@ -666,6 +671,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleTailWidth": "Arrow middle tail width",
     "edge.arrowMiddleTailSide": "Arrow middle tail side",
     "edge.arrowMiddleTailOutlineWidth": "Arrow middle tail outline width",
+    "edge.arrowMiddleTailFillColor": "Arrow middle tail fill color",
     "edge.arrowMiddleTailPosition": "Arrow middle tail position",
     "edge.arrowMiddleTailColor": "Arrow middle tail color",
     "edge.arrowMiddleTailOpacity": "Arrow middle tail opacity",
@@ -1209,6 +1215,27 @@ export const REFUSAL_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> 
 export function failureWords(what: string, verb: string, error: unknown): string {
     const reason = error instanceof GraphtyError ? REFUSAL_WORDS[error.code] : undefined;
     return reason === undefined ? `${what} could not be ${verb}.` : `${what} could not be ${verb}: ${reason}.`;
+}
+
+/**
+ * Logs what a graphty-element call threw when it is not a refusal the caller expects, so a catch
+ * that answers a refusal quietly never hides a bug: anything that is not a GraphtyError, the
+ * element's own `E_INTERNAL`, or a code outside `expected`. A disposed session is never logged.
+ * @param where - the call, such as "styles.preview".
+ * @param error - what it threw.
+ * @param expected - the refusal codes the caller answers; left out, every code but `E_INTERNAL`.
+ * @returns whether it was logged.
+ */
+export function logUnexpected(where: string, error: unknown, expected?: readonly GraphtyErrorCode[]): boolean {
+    if (
+        error instanceof GraphtyError &&
+        (error.code === "E_DISPOSED" ||
+            (expected === undefined ? error.code !== "E_INTERNAL" : expected.includes(error.code)))
+    ) {
+        return false;
+    }
+    console.error(`[style] ${where} failed:`, error);
+    return true;
 }
 
 /** The control a value of one property is edited with: one per kind of property. */

@@ -148,7 +148,7 @@ export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
         const targetIndex = this.nodeIndex(snapshot, "target", target);
         const estimate = heuristic === "none" ? () => 0 : layoutDistance(input.graph, snapshot);
 
-        context.report({ phase: "Searching for the route", total: null });
+        context.report({ phase: "searching-for-the-route", total: null });
         const value = astar(snapshot, sourceIndex, targetIndex, estimate);
         context.signal.throwIfAborted();
 
@@ -156,7 +156,7 @@ export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
         value.path.forEach((index, position) => orderOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Marking the route", nodeIds, (nodeId) => {
+        await forEachChunked(context, "marking-the-route", nodeIds, (nodeId) => {
             const index = ids.indexOf(nodeId);
             const order = index === INVALID_INDEX ? undefined : orderOf.get(index);
             nodes.push({ id: nodeId, values: { onPath: order !== undefined, order } });
@@ -165,7 +165,7 @@ export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
         const scoped = scopeEdges(input);
         const onRoute = routeEdgeRows(input, scoped, edgeRemap, new Set(value.edges));
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Marking the route", scoped, (edge) => {
+        await forEachChunked(context, "marking-the-route", scoped, (edge) => {
             edges.push({ id: edge.id, values: { onPath: onRoute.has(edge.row) } });
         });
 

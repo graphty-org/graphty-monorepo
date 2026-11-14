@@ -103,6 +103,21 @@ function restPose(mesh: Mesh): VertexData {
 }
 
 /**
+ * Move vertex data by a transform, keeping its triangles facing out when the transform mirrors.
+ * @param data - The data, changed in place.
+ * @param world - The transform.
+ * @returns The data.
+ */
+function placeAt(data: VertexData, world: Matrix): VertexData {
+    data.transform(world);
+    if (world.determinant() < 0 && data.indices !== null) {
+        flipWinding(data.indices);
+    }
+
+    return data;
+}
+
+/**
  * Bake every drawable part of the container into world-space vertex data, turned upright.
  * @param container - The loaded model.
  * @param turn - The orientation to bake in.
@@ -125,14 +140,8 @@ function bakeParts(container: AssetContainer, turn: Matrix): Part[] {
         // ponytail: per-instance colors (`_COLOR_0`) are not carried over; bake them as vertex colors if a file needs them.
         const instances = mesh.thinInstanceGetWorldMatrices();
         for (const instance of instances.length === 0 ? [Matrix.Identity()] : instances) {
-            const world = instance.multiply(placed);
             const copy = instances.length > 1 ? data.clone() : data;
-            copy.transform(world);
-            if (world.determinant() < 0 && copy.indices !== null) {
-                flipWinding(copy.indices);
-            }
-
-            parts.push({ data: copy, material, key });
+            parts.push({ data: placeAt(copy, instance.multiply(placed)), material, key });
         }
     }
 

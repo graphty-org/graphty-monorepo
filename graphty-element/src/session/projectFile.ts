@@ -2124,8 +2124,8 @@ function outsideSelector(selector: Selector): Selector {
  * Bring a timed project saved before what lies outside the time window had a state of its own up
  * to date. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant what
  * lay outside the window, so they read `"outsideWindow"` now, and the saved `outside` (hidden
- * unless it says `"ghost"`) is written to the style layers the way `time.setSettings` writes it. A project brought up to date
- * reads no `"ghosted"`, so this finds nothing the second time.
+ * unless it says `"ghost"`) is written to the style layers the way `time.setSettings` writes it.
+ * A project brought up to date reads no `"ghosted"`, so this finds nothing the second time.
  * @param tx - The transaction.
  * @param playback - The saved timeline settings.
  */

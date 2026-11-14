@@ -293,13 +293,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(session.layout.id, before);
     });
 
-    it("names the view mode on the Mode tool, draws its icon, and offers 2D, 3D and VR or AR", async () => {
+    it("names the view mode on the Mode tool, shows it as words, and offers 2D, 3D and VR or AR", async () => {
         const session = await openKarate();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        // Named with the mode its icon shows (WCAG 2.5.3).
+        // Named with the mode its face shows (WCAG 2.5.3).
         const view = within(toolbar).getByRole("button", { name: "Mode, 3D" });
-        const face = (): string | null | undefined => view.querySelector("svg")?.getAttribute("data-mode");
+        const face = (): string | null | undefined => view.querySelector("[data-mode]")?.getAttribute("data-mode");
         assert.equal(face(), "3d");
+        assert.equal(view.textContent, "3D");
         // No XR buttons on the canvas: the menu is the one way in.
         assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
 
@@ -335,10 +336,18 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.equal(session.layout.dimension, "2d");
             assert.equal(face(), "2d");
         });
+        assert.equal(view.textContent, "2D");
         assert.equal(view.getAttribute("aria-label"), "Mode, 2D");
         await userEvent.click(view);
         const flat = await screen.findByRole("menu", { name: /^Mode/ });
         assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
+        // Key 5 switches back, and the face says so.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("5");
+        await waitFor(() => {
+            assert.equal(session.layout.dimension, "3d");
+            assert.equal(view.textContent, "3D");
+        });
     });
 
     it("moves the camera from the Camera tool, turns Auto-rotate on and off, and keeps 3D views for 3D", async () => {

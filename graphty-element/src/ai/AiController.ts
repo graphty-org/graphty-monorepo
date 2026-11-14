@@ -95,6 +95,7 @@ import {
     type GateKind,
     type JsonObject,
     type MessageState,
+    type ToolHost,
 } from "./tools/types";
 
 export type { AiApprovalVerdict, AiToolCallFacts } from "./tools/types";
@@ -1342,6 +1343,21 @@ export class AiController {
     }
 
     /**
+     * What a message's tools reach the host by.
+     * @param emit - Hands the reader's application an event.
+     * @param readerText - The reader's own text in this message.
+     * @returns The host.
+     */
+    private toolHost(emit: ToolHost["emit"], readerText: string): ToolHost {
+        return {
+            emit,
+            readerText,
+            ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
+            ...(this.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: this.datasetBaseUrl }),
+        };
+    }
+
+    /**
      * The loop's run of one message: its conversation, engine, tools and state, and the
      * controller's settings that shape it.
      * @param run - The message.
@@ -1406,12 +1422,7 @@ export class AiController {
                 ...(this.recordsEvidence(session) ? { evidence: true } : {}),
                 ...(binding === undefined ? {} : { binding }),
             },
-            host: {
-                emit,
-                readerText: input,
-                ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
-                ...(this.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: this.datasetBaseUrl }),
-            },
+            host: this.toolHost(emit, input),
             hold: (held, messageId, helper) =>
                 this.hold({
                     held,

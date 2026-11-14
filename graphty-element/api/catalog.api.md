@@ -620,8 +620,6 @@ export interface ChannelDescriptor {
         readonly code: "channel.not-drawn";
         readonly params: Readonly<Record<string, never>>;
     };
-    // @deprecated
-    readonly unsupportedReason?: string;
     readonly values?: readonly string[];
 }
 
@@ -2216,8 +2214,9 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     attributeType?: AttributeType;
     // (undocumented)
     default?: unknown;
-    // (undocumented)
+    // @deprecated
     description?: string;
+    descriptionId?: string;
     // (undocumented)
     group?: string;
     // (undocumented)
@@ -2237,8 +2236,6 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     // (undocumented)
     type: OptionType;
     unsupported?: OptionUnsupported;
-    // @deprecated
-    unsupportedReason?: string;
     // (undocumented)
     values?: readonly OptionChoice[];
 }

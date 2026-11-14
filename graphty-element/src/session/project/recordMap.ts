@@ -28,6 +28,16 @@ interface RowTag {
 
 const ROW_TAG = Symbol("graphty.columnRow");
 
+/**
+ * Whether a record was built from columns for a load, so the graph slice keeps only its row and a
+ * holder may read it back from the slice instead of keeping it.
+ * @param record - The record.
+ * @returns True for a record from columns.
+ */
+export function fromColumns(record: object): boolean {
+    return ROW_TAG in record;
+}
+
 /** Records built from columns, counted: what the stage 29 test reads (no timing). */
 export const recordsBuilt = { count: 0 };
 

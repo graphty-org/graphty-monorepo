@@ -53,6 +53,7 @@ import {
     isStorableId,
     type StoredEdge,
 } from "../session/project/ingest";
+import { fromColumns } from "../session/project/recordMap";
 import type { GraphSlice } from "../session/project/state";
 import { readonlyMapView } from "../session/sealed";
 import type { ImportOutcome } from "../session/styles/fileStyles/apply";
@@ -65,6 +66,12 @@ import { bootstrapEdgePaint, bootstrapNodePaint, type NodePaint } from "./StyleP
 
 /** The graph value a plugin algorithm's graph-level results are kept under. */
 const GRAPH_RESULTS = "graphResults";
+
+/**
+ * Kept for a row whose record the graph slice holds as columns (row-renderer.md 4.6, "Records into
+ * columns"), so this manager holds no second reference to it and reads it from the slice when needed.
+ */
+const IN_SLICE: Record<string | number, unknown> = Object.freeze({});
 
 export type { AddEdgesOptions } from "../session/project/ingest";
 
@@ -693,7 +700,10 @@ export class DataManager implements Manager {
         dataManagerInternals.builtNode = (manager, id) => manager.nodeMap.builtOf(id);
         dataManagerInternals.incidentEdgeIds = (manager, id) => manager.incidentEdgeIdsOf(id);
         dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
-        dataManagerInternals.unbuiltRecord = (manager, index) => manager.unbuilt.get(index)?.record;
+        dataManagerInternals.unbuiltRecord = (manager, index) => {
+            const row = manager.unbuilt.get(index);
+            return row === undefined ? undefined : manager.recordOf(row.id, row.record);
+        };
         dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
         dataManagerInternals.buildAll = (manager) => {
             for (const id of manager.unbuiltRows.ids()) {
@@ -2634,7 +2644,7 @@ export class DataManager implements Manager {
      */
     private storeUnbuilt(id: NodeIdType, record: Record<string | number, unknown>, index: number): void {
         this.graphContext?.getNodeBatches?.()?.prepareSource(bootstrapNodePaint());
-        this.unbuilt.set(index, { id, record });
+        this.unbuilt.set(index, { id, record: fromColumns(record) ? IN_SLICE : record });
         this.unbuiltIds.set(id, index);
         this.arrivedRows.push(id);
         this.builtUnpainted(`n:${JSON.stringify(id)}`, "node", index);
@@ -2669,6 +2679,17 @@ export class DataManager implements Manager {
     }
 
     /**
+     * A row's record as this manager keeps it, read from the graph slice when the slice holds it as
+     * columns ({@link IN_SLICE}).
+     * @param id - The node.
+     * @param record - What this manager keeps.
+     * @returns The record.
+     */
+    private recordOf(id: NodeIdType, record: Record<string | number, unknown>): Record<string | number, unknown> {
+        return record === IN_SLICE ? (this.graph.slice.nodes.get(id) ?? record) : record;
+    }
+
+    /**
      * Build the `Node` of a row stored with no `Node`, which then draws the row in its place.
      * @param id - The id.
      * @returns The `Node`, or undefined for an id with no such row.
@@ -2686,7 +2707,7 @@ export class DataManager implements Manager {
         const look = batches?.lookOf(index) ?? null;
         batches?.unpaintRow(index);
         const before = this.nodeVersion;
-        const node = this.buildNode(id, row.record, index, false, look);
+        const node = this.buildNode(id, this.recordOf(id, row.record), index, false, look);
         this.lateNodeVersions += this.nodeVersion - before;
         this.graphContext?.getUpdateManager?.().adoptBuiltNode(node);
         return node;
@@ -3093,7 +3114,7 @@ export class DataManager implements Manager {
      */
     private storeUnbuiltEdge(stored: StoredEdge): void {
         const { edgeIndex, edgeId } = stored;
-        this.unbuiltEdges.set(edgeIndex, stored);
+        this.unbuiltEdges.set(edgeIndex, fromColumns(stored.record) ? { ...stored, record: IN_SLICE } : stored);
         this.unbuiltEdgeIds.set(edgeId, edgeIndex);
         // ponytail: one hand-over per edge; buffer them as `arrivedRows` does if a profile shows the calls.
         this.layoutEdgeRows?.add([edgeRowOf(stored)]);
@@ -3178,7 +3199,11 @@ export class DataManager implements Manager {
         const lined = queue && this.graphContext?.getEdgeRowLines?.()?.has(row) === true;
         // The layout keeps the row's place for the `Edge` (`adopt`), so it is not dropped here.
         this.forgetUnbuiltEdge(row, false);
-        const edge = this.makeEdge(stored, false, queue);
+        const record =
+            stored.record === IN_SLICE
+                ? (this.graph.slice.edges.get(edgeIdOf(stored.edgeId)) ?? IN_SLICE)
+                : stored.record;
+        const edge = this.makeEdge({ ...stored, record }, false, queue);
         const paint = lined ? (this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null) : null;
         if (paint !== null) {
             edge.applySessionPaint(paint);

@@ -6,6 +6,7 @@ import { defaultEdgeStyle } from "../../../src/config/EdgeStyle";
 import { defaultNodeStyle, NodeShapes } from "../../../src/config/NodeStyle";
 import {
     type ArrowValue,
+    asColorValue,
     type AuthoredValue,
     CHANNEL_DESCRIPTORS,
     type ChannelDescriptor,
@@ -76,6 +77,7 @@ const DECLARED = [
     "node.tooltipStyle",
     "node.opacity",
     "node.outline",
+    "node.outlineWidth",
     "node.glow",
     "node.glowStrength",
     "node.halo",
@@ -177,6 +179,8 @@ const DECLARED = [
     "node.chartLineWidth",
     "node.chartBorderColor",
     "node.chartBorderWidth",
+    "node.chartBackgroundColor",
+    "node.chartBackgroundOpacity",
     "node.groupPadding",
     "node.groupPaddingRatio",
     "node.groupPaddingOf",
@@ -279,6 +283,7 @@ const DECLARED = [
     "edge.arrowHeadGap",
     "edge.arrowHeadStack",
     "edge.arrowHeadColor",
+    "edge.arrowHeadFillColor",
     "edge.arrowHeadOpacity",
     "edge.arrowHeadImage",
     "edge.arrowHeadText",
@@ -302,6 +307,7 @@ const DECLARED = [
     "edge.arrowTailGap",
     "edge.arrowTailStack",
     "edge.arrowTailColor",
+    "edge.arrowTailFillColor",
     "edge.arrowTailOpacity",
     "edge.arrowTailImage",
     "edge.arrowTailText",
@@ -323,6 +329,7 @@ const DECLARED = [
     "edge.arrowMiddleHeadOutlineWidth",
     "edge.arrowMiddleHeadPosition",
     "edge.arrowMiddleHeadColor",
+    "edge.arrowMiddleHeadFillColor",
     "edge.arrowMiddleHeadOpacity",
     "edge.arrowMiddleHeadImage",
     "edge.arrowMiddleTail",
@@ -332,6 +339,7 @@ const DECLARED = [
     "edge.arrowMiddleTailOutlineWidth",
     "edge.arrowMiddleTailPosition",
     "edge.arrowMiddleTailColor",
+    "edge.arrowMiddleTailFillColor",
     "edge.arrowMiddleTailOpacity",
     "edge.arrowMiddleTailImage",
     "edge.animationSpeed",
@@ -421,9 +429,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and two node channels and one hundred and sixty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 202);
-        assert.strictEqual(channelsFor("edge").length, 165);
+    it("splits into two hundred and five node channels and one hundred and sixty-nine edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 205);
+        assert.strictEqual(channelsFor("edge").length, 169);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -466,7 +474,9 @@ describe("what the element can really draw", () => {
         // A curvature is a switch, not an amount.
         assert.isDefined(CHANNEL_DESCRIPTORS["edge.curvature"].caveat);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.curvature"].accepts, "boolean");
-        assert.isDefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
+        // An outline's width is set per layer by `node.outlineWidth`, so the outline carries no caveat.
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveatCode);
         // A glow's strength is drawn per style (one source mesh per strength), so it carries no
         // caveat: the old one said two glowing styles shared whichever strength landed last.
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.glowStrength"].caveat);
@@ -712,6 +722,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.chartMax",
         "node.chartLineWidth",
         "node.chartBorderColor",
+        "node.chartBackgroundColor",
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",
@@ -746,6 +757,11 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, an end cap is drawn alone, with no row of caps behind it.
         "edge.arrowHeadStack",
         "edge.arrowTailStack",
+        // Unset, an open cap's inside is left empty.
+        "edge.arrowHeadFillColor",
+        "edge.arrowTailFillColor",
+        "edge.arrowMiddleHeadFillColor",
+        "edge.arrowMiddleTailFillColor",
         // Unset, a cap is drawn whole.
         "edge.arrowHeadSide",
         "edge.arrowTailSide",
@@ -961,7 +977,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the thirty-seven that carry a colour, and the type says the same thirty-seven", () => {
+    it("are the forty-one that carry a colour, and the type says the same forty-one", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -980,6 +996,7 @@ describe("colour channels", () => {
             "node.overlayColor",
             "node.glyphColor",
             "node.chartBorderColor",
+            "node.chartBackgroundColor",
             "node.shapeLineHaloColor",
             "node.gradientColor",
             "edge.color",
@@ -988,11 +1005,15 @@ describe("colour channels", () => {
             "edge.underlayColor",
             "edge.overlayColor",
             "edge.arrowHeadColor",
+            "edge.arrowHeadFillColor",
             "edge.arrowHeadTextColor",
             "edge.arrowTailColor",
+            "edge.arrowTailFillColor",
             "edge.arrowTailTextColor",
             "edge.arrowMiddleHeadColor",
+            "edge.arrowMiddleHeadFillColor",
             "edge.arrowMiddleTailColor",
+            "edge.arrowMiddleTailFillColor",
             "node.tooltipColor",
             "node.tooltipBackground",
             "edge.labelColor",
@@ -1057,6 +1078,15 @@ describe("what each channel carries", () => {
 
         assert.strictEqual(kinds.filter((kind) => kind === "nothing").length, 1);
         assert.isFalse(drawn(CHANNEL_DESCRIPTORS["node.marker"]));
+    });
+});
+
+describe("asColorValue", () => {
+    it("accepts a carried colour and refuses an object whose hex is not a string", () => {
+        const color = toColorValue("#ff0000");
+        assert.strictEqual(asColorValue(color), color);
+        assert.isNull(asColorValue({ hex: 5 }));
+        assert.isNull(asColorValue("#ff0000"));
     });
 });
 
@@ -1210,5 +1240,7 @@ describe("which drawn part a channel adjusts", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].modifies, "an end label is a part of its own");
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].modifies, "node.outline");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].stylePath, "effect.outline.width");
     });
 });

@@ -176,6 +176,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.chartLineWidth": "mesh",
     "node.chartBorderColor": "mesh",
     "node.chartBorderWidth": "mesh",
+    "node.chartBackgroundColor": "mesh",
+    "node.chartBackgroundOpacity": "mesh",
     // How a group is sized round its members: read by the layout each frame, no mesh's identity.
     "node.groupPadding": "content",
     "node.groupPaddingRatio": "content",
@@ -241,6 +243,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // the renderer can express, and it is exactly the one `NodeEffects.resolveRenderedMesh`
     // describes: one source mesh is precisely the set of nodes sharing one effect configuration.
     "node.outline": "mesh",
+    // The ring's width picks its cached ring source, keyed by colour and width (NodeEffects).
+    "node.outlineWidth": "mesh",
     "node.glow": "mesh",
     // A glow's STRENGTH is keyed the same way. `NodeEffects.syncGlowStrengths` gives each SOURCE
     // mesh its own intensity (Babylon's per-mesh `setEffectIntensity`, keyed by uniqueId), so two
@@ -287,6 +291,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowHeadGap": "mesh",
     "edge.arrowHeadStack": "mesh",
     "edge.arrowHeadColor": "mesh",
+    "edge.arrowHeadFillColor": "mesh",
     "edge.arrowHeadOpacity": "mesh",
     "edge.arrowHeadImage": "mesh",
     "edge.arrowTail": "mesh",
@@ -298,6 +303,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowTailGap": "mesh",
     "edge.arrowTailStack": "mesh",
     "edge.arrowTailColor": "mesh",
+    "edge.arrowTailFillColor": "mesh",
     "edge.arrowTailOpacity": "mesh",
     "edge.arrowTailImage": "mesh",
     "edge.arrowMiddleHead": "mesh",
@@ -307,6 +313,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowMiddleHeadOutlineWidth": "mesh",
     "edge.arrowMiddleHeadPosition": "mesh",
     "edge.arrowMiddleHeadColor": "mesh",
+    "edge.arrowMiddleHeadFillColor": "mesh",
     "edge.arrowMiddleHeadOpacity": "mesh",
     "edge.arrowMiddleHeadImage": "mesh",
     "edge.arrowMiddleTail": "mesh",
@@ -316,6 +323,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowMiddleTailOutlineWidth": "mesh",
     "edge.arrowMiddleTailPosition": "mesh",
     "edge.arrowMiddleTailColor": "mesh",
+    "edge.arrowMiddleTailFillColor": "mesh",
     "edge.arrowMiddleTailOpacity": "mesh",
     "edge.arrowMiddleTailImage": "mesh",
 

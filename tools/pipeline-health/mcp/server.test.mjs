@@ -120,14 +120,17 @@ test("filters: one pull request's rows, hotspots at a level, one shard", async (
     });
 });
 
-test("category reads Issues at 28d by default or all, and refuses a 1-hour range there", async () => {
+test("category takes every range the read API serves for a page, and its default", async () => {
     await withClient(base, async (client) => {
         assert.equal((await call(client, "category", { name: "issues" })).body.range, "28d");
-        const all = (await call(client, "category", { name: "issues", range: "all" })).body;
-        assert.equal(all.page, "issues");
-        assert.equal(all.range, "all");
-        assert.equal((await call(client, "category", { name: "issues", range: "1h" })).isError, true);
-        assert.equal((await call(client, "category", { name: "costs" })).body.range, "28d");
+        for (const range of ["1h", "6h", "1d", "7d", "28d", "all"]) {
+            const body = (await call(client, "category", { name: "issues", range })).body;
+            assert.equal(body.page, "issues");
+            assert.equal(body.range, range);
+        }
+        assert.equal((await call(client, "category", { name: "issues", range: "24h" })).isError, true);
+        assert.equal((await call(client, "category", { name: "costs" })).body.range, "7d");
+        assert.equal((await call(client, "category", { name: "costs", range: "28d" })).body.range, "28d");
     });
 });
 

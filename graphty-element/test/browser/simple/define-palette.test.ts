@@ -208,21 +208,23 @@ describe("the brand palettes from the guide's first example", () => {
         element.nodeData = ["a", "b", "c", "d", "e", "f"].map((id) => ({ id, team: id }));
         await operationQueueOf(element.graph).waitForCompletion();
         const before = painted("a");
-        const warned: string[] = [];
-        const original = console.warn;
-        console.warn = (...args: unknown[]) => warned.push(args.map(String).join(" "));
+        const failed: { cause: string; code: string; target: unknown }[] = [];
+        const stop = element.session.on("style:repaint-failed", ({ cause, error }) => {
+            failed.push({ cause, code: error.code, target: error.target });
+        });
         try {
             await addLayer(colourBy("data.team", "ordinal", "acme-brand"));
         } finally {
-            console.warn = original;
+            stop();
         }
 
+        const layerId = element.session.styles.list().find((layer) => layer.name === "Colour by data.team")?.id;
+
         assert.strictEqual(painted("a"), before, "six groups do not fit five colours, so the layer paints nothing");
-        assert.isTrue(
-            warned.some(
-                (line) => line.includes('"Colour by data.team" paints nothing') && line.includes("E_CAP_EXCEEDED"),
-            ),
-            `the element says why on the console; it said: ${JSON.stringify(warned)}`,
+        assert.deepInclude(
+            failed,
+            { cause: "layer", code: "E_CAP_EXCEEDED", target: { kind: "layer", id: layerId } },
+            `the element publishes why as a code; it published: ${JSON.stringify(failed)}`,
         );
     });
 

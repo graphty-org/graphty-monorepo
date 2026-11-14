@@ -97,6 +97,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.tooltipStyle": "Tooltip",
     "node.opacity": "Opacity",
     "node.outline": "Outline",
+    "node.outlineWidth": "Outline",
     "node.glow": "Glow",
     "node.glowStrength": "Glow",
     "node.halo": "Halo",
@@ -305,6 +306,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.chartLineWidth": "Chart line width",
     "node.chartBorderColor": "Chart border color",
     "node.chartBorderWidth": "Chart border width",
+    "node.chartBackgroundColor": "Chart background color",
+    "node.chartBackgroundOpacity": "Chart background opacity",
     "node.exactCornerRadius": "Exact corner radius",
     "node.cornerFraction": "Corner fraction",
     "node.shapeStretchPoints": "Shape",
@@ -351,6 +354,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Arrow",
     "edge.arrowHeadOutlineWidth": "Arrow",
+    "edge.arrowHeadFillColor": "Arrow",
     "edge.arrowHeadGap": "Arrow",
     "edge.arrowHeadStack": "Arrow",
     "edge.arrowHeadImage": "Arrow",
@@ -364,6 +368,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadTextOffsetY": "Arrow",
     "edge.arrowTailSide": "Arrow",
     "edge.arrowTailOutlineWidth": "Arrow",
+    "edge.arrowTailFillColor": "Arrow",
     "edge.arrowTailGap": "Arrow",
     "edge.arrowTailStack": "Arrow",
     "edge.arrowTailImage": "Arrow",
@@ -380,6 +385,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleHeadWidth": "Arrow",
     "edge.arrowMiddleHeadSide": "Arrow",
     "edge.arrowMiddleHeadOutlineWidth": "Arrow",
+    "edge.arrowMiddleHeadFillColor": "Arrow",
     "edge.arrowMiddleHeadPosition": "Arrow",
     "edge.arrowMiddleHeadColor": "Arrow",
     "edge.arrowMiddleHeadOpacity": "Arrow",
@@ -389,6 +395,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleTailWidth": "Arrow",
     "edge.arrowMiddleTailSide": "Arrow",
     "edge.arrowMiddleTailOutlineWidth": "Arrow",
+    "edge.arrowMiddleTailFillColor": "Arrow",
     "edge.arrowMiddleTailPosition": "Arrow",
     "edge.arrowMiddleTailColor": "Arrow",
     "edge.arrowMiddleTailOpacity": "Arrow",
@@ -503,26 +510,26 @@ export function directionNote(statistics: GraphStatistics): string {
 }
 
 /**
- * An edge by its two ends' names (the element's `data.name`, else the id): "Ava -> Kofi" on a
- * directed graph, "Ava -- Kofi" otherwise.
+ * An edge by its two ends' names (the element's `data.edgeName`): "Ava -> Kofi" on a directed
+ * graph, "Ava -- Kofi" otherwise.
  * @param session - the session, which names the ends and says whether the graph is directed.
  * @param edge - the edge's record.
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    const end = (id: EdgeRecord["source"]): string => session.data.name(id) ?? String(id);
-    return `${end(edge.source)}${edgeJoiner(session)}${end(edge.target)}`;
+    const { source, target } = session.data.edgeName(edge);
+    return `${source.name}${edgeJoiner(session)}${target.name}`;
 }
 
 /**
  * What the status line calls one selected node: the label graphty-element gives it
- * (`session.data.name`, the label column's value), else its id.
+ * (`session.data.nodeName`, the label column's value), else its id.
  * @param session - the session.
  * @param id - the node id.
  * @returns such as "Nebraska", or "74" when the graph has no label column.
  */
 export function nodeName(session: GraphSession, id: EdgeRecord["source"]): string {
-    return session.data.name(id) ?? String(id);
+    return session.data.nodeName(id).name;
 }
 
 /**

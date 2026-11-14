@@ -93,6 +93,11 @@
     "peerDependencies": {
         "@babylonjs/core": "^8.36.1"
     },
+    "peerDependenciesMeta": {
+        "@babylonjs/core": {
+            "optional": true
+        }
+    },
     "devDependencies": {
         "@babylonjs/core": "^8.36.1",
         "@types/ngeohash": "^0.6.8",

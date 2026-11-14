@@ -51,11 +51,21 @@ import { SCALE_DESCRIPTORS } from "../catalog/scales";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets";
 import { shaderDescriptors } from "../catalog/shaderRegistry";
 import type { ShaderDescriptor } from "../catalog/shaders";
-import type { AlgorithmDescriptor, FormatDescriptor, LayoutDescriptor } from "../catalog/types";
+import type {
+    AlgorithmDescriptor,
+    AttributeDescriptor,
+    FormatDescriptor,
+    LayoutDescriptor,
+    Path,
+    Query,
+    QueryValidation,
+} from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
+import { isGraphtyError } from "../errors";
 import { transitionDescriptors } from "../transitions/registry";
 import { describeMetrics, type MetricsSource } from "./metrics";
 import { optionsFor, type OptionsForSource } from "./optionsFor";
+import { nearestNames } from "./results/ResultsApi";
 import { sessionChannels } from "./styles/channels";
 import type { SessionCatalogApi } from "./types";
 
@@ -224,6 +234,90 @@ const layoutsWithoutStyles = deriver<LayoutDescriptor>((list) =>
     }),
 );
 
+/** What `validate` reads: the session's one query engine and the paths it answers. */
+export interface CatalogQuerySource {
+    /**
+     * The paths an expression reads that nothing in the session answers.
+     * @param where - The expression.
+     * @returns The unresolved paths.
+     * @throws A `GraphtyError` coded `E_BAD_SELECTOR` when the expression does not parse.
+     */
+    readonly unresolvedPathsOf: (where: Query) => readonly Path[];
+    /**
+     * Every path the session answers, on nodes or edges, for the nearest candidates.
+     * @returns The paths.
+     */
+    readonly answerablePaths: () => readonly Path[];
+}
+
+/**
+ * The attributes that hold time: the declared time columns, then the timeline's candidates (the
+ * columns whose values read as time), best first.
+ * @param attributes - The session's attributes.
+ * @param candidates - `session.time.candidates()`: the columns that read as time, best first.
+ * @returns The time attributes.
+ */
+function timeAttributesOf(
+    attributes: readonly AttributeDescriptor[],
+    candidates: readonly { readonly kind: "node" | "edge"; readonly column: string }[],
+): readonly AttributeDescriptor[] {
+    const declared = attributes.filter((each) => each.roles?.includes("time") === true);
+    const read = candidates.flatMap(
+        ({ kind, column }) =>
+            attributes.find(
+                (each) => each.kind === kind && each.name === column && each.roles?.includes("time") !== true,
+            ) ?? [],
+    );
+    return Object.freeze([...declared, ...read]);
+}
+
+/**
+ * Check an expression without running it.
+ * @param source - The query engine and the answered paths; absent, nothing is reported unresolved.
+ * @param query - The expression.
+ * @param kind - Which kind of expression it is.
+ * @returns The check.
+ */
+function validateQuery(
+    source: CatalogQuerySource | undefined,
+    query: Query,
+    kind: "selector" | "filter" | "formula" = "selector",
+): QueryValidation {
+    if (kind === "formula") {
+        return Object.freeze({
+            ok: false,
+            error: Object.freeze({ code: "E_UNSUPPORTED", position: 0, params: Object.freeze({ kind }) }),
+            unresolvedPaths: Object.freeze([]),
+        });
+    }
+
+    let unresolved: readonly Path[];
+    try {
+        unresolved = source?.unresolvedPathsOf(query) ?? [];
+    } catch (error) {
+        if (!isGraphtyError(error)) {
+            throw error;
+        }
+
+        const params = Object.freeze({ ...error.details });
+        const position = typeof params.position === "number" ? params.position : 0;
+        return Object.freeze({
+            ok: false,
+            error: Object.freeze({ code: error.code, position, params }),
+            unresolvedPaths: Object.freeze([]),
+        });
+    }
+
+    const answerable = unresolved.length === 0 ? [] : [...new Set(source?.answerablePaths() ?? [])];
+    const runs = new Set(answerable.filter((path) => path.startsWith("results.")).map((path) => path.split(".")[1]));
+    const unresolvedPaths = unresolved.map((path) => {
+        const [root, run] = path.split(".");
+        const reason = root === "results" && !runs.has(run) ? "unknown-run" : "unknown-attribute";
+        return Object.freeze({ path, reason, candidates: nearestNames(path, answerable) } as const);
+    });
+    return Object.freeze({ ok: unresolvedPaths.length === 0, unresolvedPaths: Object.freeze(unresolvedPaths) });
+}
+
 /**
  * One session's catalogue: the shared tables, plus the metric listing and the option resolver for
  * its own graph.
@@ -238,6 +332,10 @@ export function createSessionCatalog(
             readonly projectShaders?: () => readonly ShaderDescriptor[];
             /** Whether the file styles experiment is on; absent reads on. */
             readonly fileStyles?: () => boolean;
+            /** `session.time.candidates()`, for `timeAttributes`; absent, only declared time columns are listed. */
+            readonly timeCandidates?: () => readonly { readonly kind: "node" | "edge"; readonly column: string }[];
+            /** What `validate` checks expressions against; absent, no path is reported unresolved. */
+            readonly query?: CatalogQuerySource;
         },
 ): SessionCatalogApi {
     const fileStyles = (): boolean => source.fileStyles?.() !== false;
@@ -286,6 +384,18 @@ export function createSessionCatalog(
          * @returns one entry per algorithm, in catalogue order
          */
         metrics: () => describeMetrics(source),
+        /**
+         * The attributes that hold points in time.
+         * @returns The time attributes, declared ones first.
+         */
+        timeAttributes: () => timeAttributesOf(source.attributes?.() ?? [], source.timeCandidates?.() ?? []),
+        /**
+         * Check an expression against this session without running it.
+         * @param query - The expression.
+         * @param o - Which kind of expression it is.
+         * @returns The check.
+         */
+        validate: (query, o) => validateQuery(source.query, query, o?.kind),
         /**
          * One algorithm's or layout's options, with data-dependent bounds and node choices
          * resolved over a scope of this graph.

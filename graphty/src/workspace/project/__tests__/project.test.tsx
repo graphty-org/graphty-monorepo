@@ -100,6 +100,22 @@ describe("the Project package", () => {
         assert.isNotNull(screen.getByRole("heading", { level: 1, name: /^Analyze any network\./ }));
     });
 
+    it("puts Rename directly under New project in the main menu, and Rename opens the name", async () => {
+        render(<Workspace store={createWorkspaceStore(OPEN)} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        const menu = await screen.findByRole("menu");
+        const names = within(menu)
+            .getAllByRole("menuitem")
+            .map((item) => item.textContent ?? "");
+        const at = names.findIndex((name) => name.startsWith("New project"));
+        assert.isAtLeast(at, 0);
+        assert.match(names[at + 1], /^Rename/);
+
+        await userEvent.click(within(menu).getByRole("menuitem", { name: /^Rename/ }));
+        assert.isNotNull(await screen.findByRole("textbox", { name: "Project name" }));
+    });
+
     it("lists recent projects with their size, asks for a downloaded file with Locate..., and removes one", async () => {
         await rememberRecent({ id: "a", name: "Older", nodes: 1, at: 1 });
         await rememberRecent({ id: "b", name: "Les Miserables", nodes: 77, at: 2 });
@@ -120,6 +136,35 @@ describe("the Project package", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("gridcell", { name: /^Older/ }));
         });
+    });
+
+    it("reopens a remembered file asking only to read it, never to edit it", async () => {
+        const dir = await navigator.storage.getDirectory();
+        const handle = await dir.getFileHandle("reopen-read.graphty.json", { create: true });
+        const proto = FileSystemHandle.prototype as unknown as {
+            queryPermission: (options: { mode: string }) => Promise<PermissionState>;
+            requestPermission: (options: { mode: string }) => Promise<PermissionState>;
+        };
+        vi.spyOn(proto, "queryPermission").mockResolvedValue("prompt");
+        const request = vi
+            .spyOn(proto, "requestPermission")
+            .mockImplementation(({ mode }) => Promise.resolve(mode === "read" ? "granted" : "denied"));
+        const read = vi.spyOn(FileSystemFileHandle.prototype, "getFile");
+        await rememberRecent({ id: "h", name: "Handled", nodes: 2, at: 1, handle });
+        render(<Workspace />);
+
+        await userEvent.click(await screen.findByRole("gridcell", { name: /^Handled/ }));
+        await waitFor(() => {
+            assert.isAbove(request.mock.calls.length, 0);
+        });
+        assert.deepEqual(
+            request.mock.calls.map(([options]) => options.mode),
+            ["read"],
+        );
+        await waitFor(() => {
+            assert.isAbove(read.mock.calls.length, 0);
+        });
+        await dir.removeEntry("reopen-read.graphty.json");
     });
 
     it("lists a project kept in this browser, and Remove from this browser asks first, then deletes it", async () => {

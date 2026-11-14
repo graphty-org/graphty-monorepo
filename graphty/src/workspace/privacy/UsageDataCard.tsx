@@ -1,5 +1,5 @@
-import { Anchor, Button, Group, Paper, Stack, Text } from "@mantine/core";
-import React, { useState } from "react";
+import { Anchor, Button, CloseButton, Group, Paper, Stack, Text } from "@mantine/core";
+import React, { type RefObject, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import { answerUsageData, type UsageAnswer, useUsageAnswer } from "./usageData";
@@ -12,44 +12,72 @@ const ANSWER_WORDS: Record<UsageAnswer, string> = {
 };
 
 /**
- * The usage data card at the foot of the start screen (tier1-design.md section 2.11): shown on
- * every launch until it is answered, never blocking; a sample can be opened first. After an
- * answer, one line says what was chosen and where to change it.
+ * The usage data question (tier1-design.md section 2.11), pinned to the foot of the window on
+ * every page -- the start screen or an open project -- until it is answered, so a first visit is
+ * asked wherever it lands. It never blocks: a sample can be opened first, and nothing is collected
+ * until the reader answers. After an answer, one line says what was chosen and where to change it,
+ * until it is closed; an answer from an earlier visit shows nothing.
  * @param props - Component props
- * @param props.onAnswered - Called after an answer, as the card (and the button holding focus) goes
- * @returns The card, the answer line, or nothing once answered on an earlier launch
+ * @param props.returnFocus - Where focus goes when the answer line is closed from inside it, else
+ * the drawing
+ * @returns The question, the answer line, or nothing
  */
-export function UsageDataCard({ onAnswered }: Readonly<{ onAnswered?: () => void }>): React.JSX.Element | null {
-    const { run, store } = useWorkspace();
+export function UsageDataCard({
+    returnFocus,
+}: Readonly<{ returnFocus?: RefObject<HTMLElement | null> }>): React.JSX.Element | null {
+    const { run, store, element } = useWorkspace();
     const answer = useUsageAnswer();
     const [answeredNow, setAnsweredNow] = useState(false);
+    const [closed, setClosed] = useState(false);
+    // The button pressed goes with the question: when it held focus, the answer line's close takes it.
+    const [focusClose, setFocusClose] = useState(false);
+    const card = useRef<HTMLDivElement>(null);
     const choose = (next: UsageAnswer): void => {
+        setFocusClose(card.current?.contains(document.activeElement) === true);
         setAnsweredNow(true);
         answerUsageData(next);
         // Spoken by the status line already on the page; the line below arrives with its words.
         store.set({ announcement: `${ANSWER_WORDS[next]} Change this in Settings > Privacy` });
-        onAnswered?.();
     };
 
     if (answer !== null) {
-        return answeredNow ? (
-            <Text size="xs" className="ws-start-answer">
-                {ANSWER_WORDS[answer]}{" "}
-                <Anchor
-                    component="button"
-                    size="xs"
-                    onClick={() => {
-                        run("settings.privacy");
-                    }}
-                >
-                    Change this in Settings &gt; Privacy
-                </Anchor>
-            </Text>
-        ) : null;
+        if (!answeredNow || closed) {
+            return null;
+        }
+        return (
+            <Paper ref={card} withBorder p="xs" className="ws-usage-notice">
+                <Group gap="xs" wrap="nowrap" align="center">
+                    <Text size="xs" className="ws-start-answer">
+                        {ANSWER_WORDS[answer]}{" "}
+                        <Anchor
+                            component="button"
+                            size="xs"
+                            onClick={() => {
+                                run("settings.privacy");
+                            }}
+                        >
+                            Change this in Settings &gt; Privacy
+                        </Anchor>
+                    </Text>
+                    <CloseButton
+                        autoFocus={focusClose}
+                        size="sm"
+                        aria-label="Close"
+                        onClick={() => {
+                            const hadFocus = card.current?.contains(document.activeElement) === true;
+                            setClosed(true);
+                            if (hadFocus) {
+                                (returnFocus?.current ?? element)?.focus();
+                            }
+                        }}
+                    />
+                </Group>
+            </Paper>
+        );
     }
 
     return (
-        <Paper component="aside" aria-label="Usage data" withBorder p="sm" className="ws-start-card">
+        <Paper ref={card} component="aside" aria-label="Usage data" withBorder p="sm" className="ws-usage-notice">
             <Stack gap={6}>
                 <UsageDataText />
                 <Text size="xs" c="dimmed">

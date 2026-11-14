@@ -140,16 +140,9 @@ try {
                     });
                     cy.forceRender();
                 });
-                const S = (e, keys) =>
-                    Object.fromEntries(
-                        keys.map((k) => {
-                            try {
-                                return [k, e.style(k)];
-                            } catch {
-                                return [k, null];
-                            }
-                        }),
-                    );
+                // No try/catch here or around an edge's points: a value Cytoscape.js cannot read fails the
+                // run, as in cyjs.mjs, instead of a reference recording a value or a path it never drew.
+                const S = (e, keys) => Object.fromEntries(keys.map((k) => [k, e.style(k)]));
                 const nodeKeys = [
                     "shape",
                     "background-color",
@@ -217,17 +210,7 @@ try {
                             id: e.id(),
                             source: e.source().id(),
                             target: e.target().id(),
-                            points: (() => {
-                                try {
-                                    return [
-                                        p(e.sourceEndpoint()),
-                                        ...(e.segmentPoints() ?? []).map(p),
-                                        p(e.targetEndpoint()),
-                                    ];
-                                } catch {
-                                    return [p(e.source().position()), p(e.target().position())];
-                                }
-                            })(),
+                            points: [p(e.sourceEndpoint()), ...(e.segmentPoints() ?? []).map(p), p(e.targetEndpoint())],
                             quad,
                             style: S(e, edgeKeys),
                         };

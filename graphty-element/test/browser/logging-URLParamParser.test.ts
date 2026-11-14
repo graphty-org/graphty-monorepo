@@ -156,6 +156,41 @@ describe("URLParamParser", () => {
         });
     });
 
+    describe("graphty-element-remote-log param", () => {
+        test("ignores a remote server when the embedder allowed none", () => {
+            setURLParams("graphty-element-logging=true&graphty-element-remote-log=https://attacker.example");
+            const result = parseLoggingURLParams();
+            assert.isNotNull(result);
+            assert.isUndefined(result.remoteLogUrl);
+        });
+
+        test("ignores a remote server whose origin is not allowed", () => {
+            setURLParams("graphty-element-logging=true&graphty-element-remote-log=https://attacker.example/log");
+            const result = parseLoggingURLParams({ allowedRemoteLogOrigins: ["https://localhost:9080"] });
+            assert.isUndefined(result?.remoteLogUrl);
+        });
+
+        test("ignores a same-host server on another port or protocol", () => {
+            setURLParams("graphty-element-logging=true&graphty-element-remote-log=http://localhost:9081");
+            const result = parseLoggingURLParams({
+                allowedRemoteLogOrigins: ["https://localhost:9081", "http://localhost:9080"],
+            });
+            assert.isUndefined(result?.remoteLogUrl);
+        });
+
+        test("accepts a remote server whose origin is allowed", () => {
+            setURLParams("graphty-element-logging=true&graphty-element-remote-log=https://localhost:9080/log");
+            const result = parseLoggingURLParams({ allowedRemoteLogOrigins: ["https://localhost:9080/"] });
+            assert.strictEqual(result?.remoteLogUrl, "https://localhost:9080/log");
+        });
+
+        test("ignores a non-http remote server even when listed", () => {
+            setURLParams("graphty-element-logging=true&graphty-element-remote-log=javascript:alert(1)");
+            const result = parseLoggingURLParams({ allowedRemoteLogOrigins: ["javascript:alert(1)"] });
+            assert.isUndefined(result?.remoteLogUrl);
+        });
+    });
+
     describe("edge cases", () => {
         test("should handle URL with other params", () => {
             setURLParams("other=value&graphty-element-logging=true&another=param");

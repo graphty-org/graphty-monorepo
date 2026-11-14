@@ -20,7 +20,12 @@ import {
     type ShaderTextDraft,
     splitShaderText,
 } from "@graphty/graphty-element/catalog";
-import { type GraphSession, GraphtyError, type ShaderAddResult } from "@graphty/graphty-element/session";
+import {
+    type GraphSession,
+    GraphtyError,
+    type ShaderAddResult,
+    type TransactionScope,
+} from "@graphty/graphty-element/session";
 import { Anchor, Button, Group, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -432,7 +437,7 @@ interface ShaderEditorDialogProps {
      * the background), through the scope given, so the add and the write are one undo step. Used
      * only while the switch is on that list's tab; absent from the menu.
      */
-    readonly put?: (scope: GraphSession, id: string, params: ShaderParams) => Promise<void>;
+    readonly put?: (scope: TransactionScope, id: string, params: ShaderParams) => Promise<void>;
     readonly init: PasteInit;
     readonly onClose: () => void;
 }
@@ -821,8 +826,7 @@ export function ShaderEditorDialog({
             const step = history.steps[history.position - 1]?.id;
             await session.transaction(
                 `Add the shader ${id}`,
-                // The writes reach only the parts a transaction scope has, never its history.
-                (tx) => put(tx as GraphSession, id, {}),
+                (tx) => put(tx, id, {}),
                 step === undefined ? undefined : { after: step },
             );
             store.set({ announcement: `${added.descriptor.plainName} added` });

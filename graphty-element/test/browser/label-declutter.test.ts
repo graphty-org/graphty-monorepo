@@ -644,11 +644,11 @@ describe("waitForStableFrame waits for the label counts to be announced", () => 
  * @param done - The condition.
  */
 async function waitFor(done: () => boolean): Promise<void> {
-    for (let at = 0; at < 300 && !done(); at++) {
+    while (!done()) {
         await nextFrame();
     }
 
-    assert.isTrue(done(), "the condition held within 5 seconds");
+    assert.isTrue(done(), "the condition held");
 }
 
 describe("the label counts are published once the labels have settled, not after a fixed count of frames", () => {

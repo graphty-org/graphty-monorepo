@@ -1,11 +1,11 @@
-import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
+import { type ColumnRef, type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
 
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import { labelLine } from "../style/commands";
 import { designate, panelsInView, timelineOn } from "../time/timeActions";
 import { openFilterDraft } from "./filterCards";
-import { labelRefusalWords } from "./words";
+import { GONE_WORD, labelRefusalWords } from "./words";
 
 /** One verb on an attribute: its words, why it cannot run now (or null), and what it does. */
 export interface AttributeAction {
@@ -20,13 +20,16 @@ export interface AttributeAction {
  * @param column - the node attribute.
  * @returns the reason, or null.
  */
-function labelRefusalFor(session: GraphSession, column: ColumnRef): string | null {
+export function labelRefusalFor(session: GraphSession, column: ColumnRef): string | null {
     try {
         const proposal = session.styles.proposeEncoding({ column, channel: "node.label" });
         return proposal.ok ? null : labelRefusalWords(proposal.refusal);
-    } catch {
-        // The attribute went away under the open menu.
-        return "No longer in the data";
+    } catch (error) {
+        // The attribute went away under the open menu; anything else is the element's to report.
+        if (isGraphtyError(error) && error.code === "E_UNKNOWN_ATTRIBUTE") {
+            return GONE_WORD;
+        }
+        throw error;
     }
 }
 

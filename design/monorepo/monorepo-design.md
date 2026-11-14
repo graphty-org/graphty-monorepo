@@ -629,7 +629,7 @@ This decision was made during the initial monorepo migration design phase (2024)
 - [ ] Create developer documentation
 - [ ] Verify conventional commit compliance
 - [ ] Run parallel testing period
-- [ ] Deprecate semantic-release
+- [x] Deprecate semantic-release
 
 ## Conclusion
 

@@ -28,6 +28,7 @@
 #    asks for it before opening the pull request (CLAUDE.md, "Shipping a change", step 2; issue #3269).
 #
 # It runs every step, prints a summary and exits 1 when any failed. No tool self-tests, no screenshots.
+# Each step's time goes into <main checkout>/tmp/step-times.jsonl (tools/step-log.mjs).
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 ROOT_DIR="$PWD"
@@ -55,12 +56,20 @@ unset $(git rev-parse --local-env-vars)
 export PUSH_BASE_REF="$BASE"
 
 MB="$(git merge-base "$BASE" HEAD)" || { echo "no merge base with $BASE" >&2; exit 2; }
+# How long each step and the whole run took, one line each in <main checkout>/tmp/step-times.jsonl
+# (tools/step-log.mjs). The log never fails or changes a step.
+log_step() { node "$ROOT_DIR/tools/step-log.mjs" "$@" >/dev/null 2>&1 || true; }
+RUN_START="$(date +%s%3N)"
+trap 'log_step check-quick "$RUN_START" total "$?"' EXIT
 FAILED=()
 step() {
-    local name="$1"
+    local name="$1" start rc=0
     shift
     echo "> $name"
-    if "$@"; then echo "[PASS] $name"; else echo "[FAIL] $name"; FAILED+=("$name"); fi
+    start="$(date +%s%3N)"
+    "$@" || rc=$?
+    log_step check-quick-step "$start" "$name" "$rc"
+    if [ "$rc" = 0 ]; then echo "[PASS] $name"; else echo "[FAIL] $name"; FAILED+=("$name"); fi
     echo ""
 }
 
@@ -88,6 +97,12 @@ step "SonarQube (changed lines)" node tools/sonar-gate.mjs
 # GPU step, and a failing nx must not read as "not affected".
 AFFECTED="$(pnpm exec nx show projects --affected --base="$BASE")" || FAILED+=("Affected projects (nx show projects)")
 affected() { grep -qx "$1" <<<"$AFFECTED"; }
+# graph-io's fidelity stories compile against graphty-element's source, but graph-io drops its project edge to
+# graphty-element (a build cycle), so an element-only change leaves graph-io's lint unrun. CI type-checks them
+# in the Storybooks job (graph-io:build-storybook depends on typecheck-stories).
+if affected graphty-element; then
+    step "graph-io fidelity stories type-check" pnpm exec nx run graph-io:typecheck-stories
+fi
 if affected webgpu-graph-algorithms; then
     step "webgpu-graph-algorithms on the local NVIDIA GPU" gpu_tests
 fi

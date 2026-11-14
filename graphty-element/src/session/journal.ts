@@ -16,6 +16,7 @@ import type { RunId } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { SessionCommand } from "./planning";
 import type { ExecutedCommand } from "./project/Dispatcher";
+import { reportCaught } from "./project/strict";
 import type { EngineVersions } from "./runs/types";
 
 /** The identity of a journal entry. Opaque; unique within its session. */
@@ -83,6 +84,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "algo.legacy": "run",
     "algo.remove": "run",
     "algo.move": "run",
+    "algo.rename": "run",
     // Never journaled itself: each member of a batch writes its own entry.
     batch: "data",
     "config.set": "config",
@@ -101,6 +103,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.columns": "data",
     "layout.scope": "layout",
     "layout.set": "layout",
+    "layout.rerun": "layout",
     "layout.transport": "layout",
     "note.add": "note",
     "note.merge": "note",
@@ -227,8 +230,13 @@ export function createJournal(options: {
             for (const fn of subscribers) {
                 try {
                     fn(entry);
-                } catch {
-                    // A subscriber's failure is the subscriber's. The journal carries on.
+                } catch (error) {
+                    // A subscriber's failure is the subscriber's: the journal carries on, and the
+                    // error is reported and rethrown unhandled, as an EventTarget listener's is.
+                    reportCaught(error);
+                    queueMicrotask(() => {
+                        throw error;
+                    });
                 }
             }
 

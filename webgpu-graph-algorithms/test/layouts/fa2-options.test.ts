@@ -371,6 +371,8 @@ describe("resolveForceAtlas2Options (contract 3.13; spec 7.14)", () => {
             [{ center: [1, 2, 3, 4] }, "center"],
             [{ center: [1, Number.NaN] }, "center"],
             [{ seed: Number.POSITIVE_INFINITY }, "seed"],
+            [{ seed: -1 }, "seed"],
+            [{ seed: 1.5 }, "seed"],
             [{ linlog: 1 }, "linlog"],
             [{ strongGravity: "yes" }, "strongGravity"],
         ];

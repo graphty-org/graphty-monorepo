@@ -3,24 +3,16 @@
  * "a stable code such as E_UNKNOWN_NODE"; the CLAUDE.md principle that nothing is silently
  * dropped implies every recorded code is discoverable through its format's table).
  *
- * Three tests here fail deliberately; each pins a finding of the audit report:
- * - "every subpath exports <FMT>_ISSUE and <FMT>_LOSS": DOT exports DOT_ISSUE /
- *   DOT_LOSS and Pajek exports PAJEK_ISSUE, so a consumer cannot look a code table up by
+ * The tests guard findings of the audit report that are now fixed:
+ * - every subpath exports <FMT>_ISSUE and <FMT>_LOSS, so a consumer can look a code table up by
  *   format name;
- * - "a concept shared by several formats has one code": the same condition is spelled
- *   E_MISSING_ID (GEXF, GraphML, JSON, Neo4j), E_GML_MISSING_ID (GML) and E_CSV_MISSING_ID (CSV);
- *   W_DUPLICATE_NODE / E_GML_DUPLICATE_NODE / W_CSV_DUPLICATE_NODE / W_PAJEK_DUPLICATE_VERTEX; and
- *   so on, so a UI cannot switch on a condition across formats;
- * - "every code an importer records is a member of its table": the GML tokenizer's four fatal
- *   codes, GEXF's E_XML_SYNTAX and the Neo4j reader's E_CSV_UNCLOSED_QUOTE / W_CSV_TEXT_AFTER_QUOTE
- *   reach the report but are missing from GML_ISSUE / GEXF_ISSUE / NEO4J_ISSUE, whose JSDoc says
- *   "the issue codes the importer records ... by name";
- * - "a code shared by several modules is one constant": E_MISSING_ID, E_MISSING_ENDPOINT,
- *   W_DUPLICATE_NODE, E_NO_GRAPH, E_XML_SYNTAX, W_OPTION_IGNORED, W_MULTIPLE_GRAPHS,
- *   E_UNKNOWN_PARENT, E_HYPEREDGE, W_ROLE_DROPPED, W_PARENTS_DROPPED are spelled as independent
- *   string literals in two to four modules (and W_PRECISION / W_TEMPORAL_DROPPED once in
- *   src/common and once more in a format), so they agree by coincidence only; W_ID_MERGED and
- *   W_SINK_OPTION show the intended shape (one constant in src/common, aliased by every table).
+ * - a concept shared by several formats has one code (not E_MISSING_ID in some formats and
+ *   E_GML_MISSING_ID / E_CSV_MISSING_ID in others), so a UI can switch on a condition across
+ *   formats;
+ * - every code an importer records is a member of its format's table, whose JSDoc says "the issue
+ *   codes the importer records ... by name";
+ * - a code shared by several modules is one constant in src/common aliased by every table, never
+ *   independent string literals that agree by coincidence.
  */
 
 import { readdirSync, readFileSync, statSync } from "node:fs";

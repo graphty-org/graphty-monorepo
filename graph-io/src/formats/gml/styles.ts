@@ -2174,8 +2174,8 @@ function writeGraphicsColumns(
     const approximate: Approximate = (property, value) => {
         approximated.add(target, property, value);
     };
-    const get = elementValues((t, p) => input.picture(t, p as never), target, GML_STYLE_CAPABILITIES[target]);
-    const getNode = elementValues((t, p) => input.picture(t, p as never), "node", GML_STYLE_CAPABILITIES.node);
+    const get = elementValues((t, p) => input.picture(t, p), target, GML_STYLE_CAPABILITIES[target]);
+    const getNode = elementValues((t, p) => input.picture(t, p), "node", GML_STYLE_CAPABILITIES.node);
     const size = (k: number): BendPoint => {
         const [w, h] = [getNode(k)("width"), getNode(k)("height")];
         return typeof w === "number" && typeof h === "number" ? [w, h] : sizeOf(snapshot, k);

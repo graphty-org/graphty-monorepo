@@ -19,7 +19,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { planar } from "@graphty/layout";
 
-import { type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
+import { askedWeight, type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
 import { layoutAlias, layoutDescriptor, layoutEntry, layoutIdForEngine } from "../catalog/layouts";
 import type {
     AlgorithmDescriptor,
@@ -42,7 +42,7 @@ import {
     type LocationDesignation,
     resolveLocation,
 } from "../layout/locationMap/source";
-import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand } from "./commands/algo";
+import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { BatchCommand } from "./commands/index";
@@ -129,6 +129,7 @@ export type SessionCommand =
     | AlgoLegacyCommand
     | AlgoRemoveCommand
     | AlgoMoveCommand
+    | AlgoRenameCommand
     | DataCommand
     | DataIssuesCommand
     | SourceExpandOpCommand
@@ -656,7 +657,7 @@ function weighedCaveats(
     try {
         const reading = resolveRunWeight(
             descriptor?.weightMeaning ?? null,
-            command.params?.weight,
+            askedWeight(command.params?.weight, descriptor?.options),
             context.loadedWeight?.() ?? null,
         );
         return {

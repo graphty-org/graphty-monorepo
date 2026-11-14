@@ -270,7 +270,9 @@ describe("fade by age", () => {
         assert.closeTo(await alphaAt(graphty, screen(graphty, 0, 5)), 1, ALPHA_TOLERANCE);
     });
 
-    it("leaves a straight dashed line unfaded", async () => {
+    // A straight dashed line is a joined line whose shader draws its dashes (issue #7404), so it fades as a solid one
+    // does; drawn as pattern elements it used to stay at full strength.
+    it("fades a straight dashed line as a solid one", async () => {
         const graphty = await element(["timeline"], { "edge.style": "dash" });
         await windowed(graphty);
         await graphty.session.time.setSettings({ ageFade: 0.2 });
@@ -281,7 +283,7 @@ describe("fade by age", () => {
             alpha = Math.max(alpha, await alphaAt(graphty, screen(graphty, x, 5)));
         }
 
-        assert.closeTo(alpha, 1, ALPHA_TOLERANCE);
+        assert.closeTo(alpha, 0.2, ALPHA_TOLERANCE);
     });
 
     it("a step writes the uniform and no edge slot", async () => {

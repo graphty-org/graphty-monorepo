@@ -45,6 +45,7 @@ import "./src/graphty-element";
 // Core classes
 // =============================================================================
 export { Edge, type EdgeCapEnd } from "./src/Edge";
+// what `Edge.mesh` is for a line drawn as pattern elements, so a consumer can narrow it (issue #7127)
 export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
@@ -57,6 +58,7 @@ export type {
     GraphtySkyboxLoadedDetail,
 } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
+export type { PatternedLineMesh } from "./src/meshes/PatternedLineMesh";
 export type { NodeIdType } from "./src/Node";
 export { Node } from "./src/Node";
 // `Styles`, `StylesOpts`, `NodeStyleId` and `EdgeStyleId` are no longer published, and neither is
@@ -105,7 +107,6 @@ export type {
     XRControllerButton,
     XRInputConfig,
     XRModeConfig,
-    XRTeleportationConfig,
     XRUIConfig,
 } from "./src/config/index";
 
@@ -246,12 +247,14 @@ export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSourc
 export { DataSource } from "./src/data/DataSource";
 export type {
     ExportGraphOptions,
+    ExportGroupTable,
     ExportLoss,
     ExportLossCode,
     ExportResult,
     ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
+export type { GroupSummary, GroupTableOptions } from "./src/session/types";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -336,6 +339,8 @@ export type {
     NodeGenericEvent,
     NodeHoverEvent,
     OperationCancelledEvent,
+    RenderLostEvent,
+    RenderRestoredEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
     XRSessionEndedEvent,
@@ -378,12 +383,13 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // Screenshot exports
 // =============================================================================
 export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
-export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
 export type {
     CameraAnimationOptions,
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendOptions,
+    ScreenshotLegendPosition,
     ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
@@ -393,7 +399,7 @@ export type {
 export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
-export type { CapabilityCheck } from "./src/screenshot/capability-check";
+export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/capability-check";
 
 // =============================================================================
 // Video capture exports

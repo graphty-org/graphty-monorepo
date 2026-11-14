@@ -8,14 +8,17 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../src/index.js";
+import { toNeutral } from "../../src/positions/convert.js";
 import {
     extractPositions,
     type FilePositions,
     type PositionColumnExtra,
     toFilePositions,
+    writtenPositions,
 } from "../../src/positions/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -56,5 +59,65 @@ describe("toFilePositions inverts extractPositions", () => {
     it("leaves unplaced rows NaN", () => {
         const back = toFilePositions(Float64Array.of(Number.NaN, Number.NaN, Number.NaN, 1, 2, 0), { yAxis: "down" });
         expect(Array.from(back)).toEqual([Number.NaN, Number.NaN, Number.NaN, 1, -2, 0]);
+    });
+});
+
+/**
+ * Read a file's positions in the neutral convention.
+ * @param text - the file
+ * @param format - its format
+ * @returns x, y, z per node
+ */
+async function neutral(text: string | Uint8Array, format: "pajek" | "graphml"): Promise<Float64Array> {
+    const { snapshot, report } = await registry.importGraph(text, { format });
+    return (extractPositions(registry.importer(format), snapshot, report) as FilePositions).coords;
+}
+
+describe("positions survive import, export, import", () => {
+    it("a 3D Pajek drawing with nodes on the z = 0 plane", async () => {
+        // node 2 sits at Pajek's z origin, 0.5, which is neutral z 0
+        const file = '*Vertices 3\n1 "a" 0.1 0.2 0.3\n2 "b" 0.4 0.5 0.5\n3 "c" 0.7 0.8 0.9\n*Edges\n1 2\n';
+        const first = await neutral(file, "pajek");
+        expect(first[5]).toBe(0);
+        // export as graphty-element does: the neutral coordinates spelled for Pajek's writer
+        const written = writtenPositions("pajek", first);
+        const b = new GraphBuilder({ directed: false });
+        const pos = b.declareNodeColumn({ name: "position", dtype: "f64", components: 3, role: "position" });
+        const label = b.declareNodeColumn({ name: "label", dtype: "string" });
+        for (let i = 0; i < 3; i++) {
+            const node = b.addNode(i + 1);
+            b.setNodeValue(label, node, "abc"[i]);
+            b.setNodeValue(pos, node, Array.from(written.subarray(3 * i, 3 * i + 3)));
+        }
+        const text = await registry.exportGraphToString(b.freeze(), "pajek");
+        const again = await neutral(text, "pajek");
+        Array.from(again).forEach((v, k) => expect(v, String(k)).toBeCloseTo(first[k], 12));
+    });
+
+    it("a yEd drawing", async () => {
+        const file = readFileSync(join(HERE, "fixtures", "yed-groups.graphml"));
+        const first = await neutral(file, "graphml");
+        expect(first.some(Number.isFinite)).toBe(true);
+        const { snapshot } = await registry.importGraph(file, { format: "graphml" });
+        const text = await registry.exportGraphToString(snapshot, "graphml");
+        const again = await neutral(text, "graphml");
+        Array.from(again).forEach((v, k) => expect(v, String(k)).toBeCloseTo(first[k], 9));
+    });
+
+    it("a stretched top-left spelling inverts toNeutral", () => {
+        const extra: PositionColumnExtra = { yAxis: "down", anchor: "top-left", pxPerUnit: 500, pxPerUnitY: 250 };
+        for (const yAxis of ["down", "up"] as const) {
+            const p: [number, number, number] = [3, 7, 0];
+            toNeutral(p, { ...extra, yAxis }, [10, 20], false);
+            const back = toFilePositions(
+                Float64Array.from(p),
+                { ...extra, yAxis },
+                {
+                    width: Float64Array.of(10),
+                    height: Float64Array.of(20),
+                },
+            );
+            expect(Array.from(back)).toEqual([3, 7, 0]);
+        }
     });
 });

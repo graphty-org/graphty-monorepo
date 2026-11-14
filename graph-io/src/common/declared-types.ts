@@ -345,7 +345,8 @@ export function parsePointText(text: string): Readonly<Record<string, number | s
     if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
         throw typeError(text, "point");
     }
-    const out: Record<string, number | string> = {};
+    // no prototype, so a key such as `__proto__` is an own key like any other
+    const out = Object.create(null) as Record<string, number | string>;
     const inner = trimmed.slice(1, -1).trim();
     if (inner.length === 0) {
         return out;

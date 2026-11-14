@@ -334,6 +334,38 @@ describe("watchSteps", () => {
         );
     });
 
+    it("checkStep refuses a filter step reading a run over the visible graph, however the rule names it", async () => {
+        const session = await lesMis();
+        await session.visibility.addCondition({ effect: "keep", rule: STAFF });
+        const run = session.runs.start("degree", {}, { scope: "visible", style: false });
+        await run;
+        const field = `results.${run.id}.value`;
+        const rules: RuleTree[] = [
+            { kind: "range", attribute: field, min: 1 },
+            { kind: "threshold", path: field, top: 3 },
+            { kind: "expression", where: `${field} > \`1\`` },
+            { kind: "edges", where: `${field} > \`1\`` },
+            { kind: "member", of: { where: `${field} > \`1\`` } },
+            { kind: "item", item: { result: run.id, key: { field: "group", value: 1 } } },
+            { kind: "not", of: { kind: "any", of: [STAFF, { kind: "expression", where: `${field} > \`1\`` }] } },
+        ];
+        for (const rule of rules) {
+            assert.deepEqual(
+                session.scope.checkStep({ op: "keep", rule }, { side: "nodes", within: "graph", host: "filter" }),
+                { code: "circular-scope", params: {} },
+                rule.kind,
+            );
+        }
+
+        assert.isNull(
+            session.scope.checkStep(
+                { op: "keep", rule: rules[2] },
+                { side: "nodes", within: "graph", host: "selector" },
+            ),
+            "only a filter reads its own output",
+        );
+    });
+
     it("the branch palette never wraps", async () => {
         const session = await lesMis();
         session.scope.setOptions({ branchPalette: ["#009E73"] });

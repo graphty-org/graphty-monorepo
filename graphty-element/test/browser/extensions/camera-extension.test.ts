@@ -48,7 +48,6 @@ import {
     registerCameraView,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
-import { operationQueueOf } from "../../../src/Graph";
 import { assertPlaced } from "../../helpers/placed-position";
 
 /** Three nodes at known coordinates, so every box in this file can be checked by eye. */
@@ -251,11 +250,18 @@ describe("a third party's camera view", () => {
     }
 
     /**
-     * Where the element currently has every node, which is the box a view frames by default.
+     * The box every node is drawn in, which is what a view framing the whole graph is handed by
+     * default (issue #6804): each node out to its drawn box, not only its centre.
      * @returns The centre of the graph and its longest side.
      */
     function graphBox(): { center: Coords; maxDimension: number } {
-        return boxAround(graph.getNodes().map((node) => placedPosition(node)));
+        return boxAround(
+            graph.getNodes().flatMap((node) => {
+                placedPosition(node);
+                const { min, max } = node.framingBounds();
+                return [min, max];
+            }),
+        );
     }
 
     /**
@@ -658,9 +664,7 @@ describe("a third party's camera view", () => {
             const travelling = graph.applyCameraView("acme-corner", { animate: true, duration: 4000 });
             await waitFor(() => cameraHasLeft({ x: 1, y: 1, z: 1 }), "the camera animation to take its first step");
 
-            for (const id of operationQueueOf(graph).getActiveOperations()) {
-                operationQueueOf(graph).cancelOperation(id);
-            }
+            assert.isTrue(graph.cancelCameraAnimation(), "a camera move was under way to cancel");
 
             // Cancelling a camera move is not a failure: the element stops the animation where it
             // is and the caller's await finishes. Rejecting would make every cancelled move an

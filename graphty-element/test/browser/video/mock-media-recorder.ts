@@ -10,9 +10,12 @@ export class MockMediaRecorder {
     onerror: ((e: Event) => void) | null = null;
     state: "inactive" | "recording" | "paused" = "inactive";
     mimeType: string;
+    /** The stream the last recorder was made for, so a test can see what was recorded. */
+    static lastStream: MediaStream | undefined;
 
     constructor(stream: MediaStream, options?: { mimeType?: string; videoBitsPerSecond?: number }) {
         this.mimeType = options?.mimeType ?? "video/webm";
+        MockMediaRecorder.lastStream = stream;
     }
 
     start(timeslice?: number): void {

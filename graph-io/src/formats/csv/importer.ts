@@ -10,7 +10,10 @@
  *   weight (when `weightFrom` is not null), then `column4`... as attributes.
  * - Endpoint and node ids are text cells coerced by ONE rule per import call (`ids`, default
  *   "canonical": `"1"` becomes the number 1, `"01"` stays a string) over the node table and the
- *   edge table alike, so they agree across the two files.
+ *   edge table alike, so they agree across the two files. Spaces and tabs around an unquoted id
+ *   cell are trimmed (CSVW's trim), so `a, b` names `a` and `b`; a quoted cell is kept as written.
+ *   A blank endpoint, quoted (`""`) or not, is a missing endpoint; in a node table or an adjacency
+ *   row a quoted `""` is the empty-string id.
  * - Direction is per row in the Gephi dialect (`Type` = Directed / Undirected / Mutual, blank =
  *   `defaultDirected`) and `defaultDirected` (true) otherwise; the first edge row sets the sink's
  *   direction and later rows that differ go through `onMixedDirection` (expansion by default).
@@ -284,7 +287,8 @@ export const SINGLE_COLUMN_CODE = "W_CSV_SINGLE_COLUMN";
  */
 export const AMBIGUOUS_COLUMN_CODE = "W_CSV_AMBIGUOUS_COLUMN";
 /**
- * An unquoted id with leading or trailing whitespace (kept, RFC 4180), distinct from the bare id.
+ * An unquoted id starts or ends in whitespace other than spaces and tabs (a no-break space, a
+ * U+FEFF), which is kept, so it is a different id from the trimmed text. Spaces and tabs are trimmed.
  * @category Issue and loss codes
  */
 export const PADDED_ID_CODE = "W_CSV_PADDED_ID";
@@ -298,6 +302,12 @@ export const COMMENT_LIKE_RECORD_CODE = "W_CSV_COMMENT_LIKE_RECORD";
  * @category Issue and loss codes
  */
 export const TRAILING_DELIMITER_CODE = "W_CSV_TRAILING_DELIMITER";
+/**
+ * The first row was read as data, but it could be a header: every cell is a word of three or more characters that no other row
+ * repeats (`from_node,to_node` over rows of names). Pass `header: true` if it is one.
+ * @category Issue and loss codes
+ */
+export const POSSIBLE_HEADER_CODE = "W_CSV_POSSIBLE_HEADER";
 /**
  * A headerless three-column table's third column holds text, so it is an attribute, not the weight.
  * @category Issue and loss codes
@@ -446,13 +456,46 @@ function directionName(directed: boolean): string {
 }
 
 /**
- * Whether an unquoted id cell has leading or trailing whitespace (kept as written, RFC 4180).
- * @param text - the cell text
+ * Whether an unquoted id cell, after idCell() trimmed its spaces and tabs, still starts or ends
+ * in whitespace (a no-break space, a U+FEFF), which is kept as written.
+ * @param text - the trimmed cell text
  * @param quoted - whether the cell was quoted
  * @returns true when padded
  */
 function isPadded(text: string, quoted: boolean | undefined): boolean {
     return quoted !== true && text.trim().length !== text.length;
+}
+
+/**
+ * The id an id cell names: an unquoted cell without the spaces and tabs around it (CSVW's trim,
+ * so `a, b` names `a` and `b`); a quoted cell as written.
+ * @param text - the cell text
+ * @param quoted - whether the cell was quoted
+ * @returns the id text
+ */
+function idCell(text: string, quoted: boolean | undefined): string {
+    if (quoted === true) {
+        return text;
+    }
+    // index scans, not a regex: a trailing-run pattern backtracks quadratically on a long run of spaces
+    let start = 0;
+    let end = text.length;
+    while (start < end && isSpaceOrTab(text[start])) {
+        start++;
+    }
+    while (end > start && isSpaceOrTab(text[end - 1])) {
+        end--;
+    }
+    return start === 0 && end === text.length ? text : text.slice(start, end);
+}
+
+/**
+ * Whether a character is a space or a tab.
+ * @param char - the character
+ * @returns true for U+0020 and U+0009
+ */
+function isSpaceOrTab(char: string): boolean {
+    return char === " " || char === "\t";
 }
 
 /**
@@ -601,6 +644,17 @@ function isUnset(text: string, quoted: boolean | undefined): boolean {
 }
 
 /**
+ * Whether an endpoint cell names no node: unset, or the quoted empty string (`""`), which an edge
+ * row reads as blank (csv-spectrum's empty.csv); a quoted `" "` is a set id.
+ * @param text - the cell text
+ * @param quoted - whether the cell was quoted
+ * @returns true when the endpoint is missing
+ */
+function isMissingEndpoint(text: string, quoted: boolean | undefined): boolean {
+    return isUnset(text, quoted) || idCell(text, quoted).length === 0;
+}
+
+/**
  * The number of set neighbor cells of an adjacency row (every cell after the first).
  * @param row - the cells
  * @param quoted - whether each cell was quoted
@@ -712,10 +766,14 @@ function parseKind(text: string): EdgeKind | null | undefined {
  * weight when it is a number, nothing when it is empty (`a:1:` is the id `a:1`, unweighted, the
  * form the exporter writes for an id containing a colon), and part of the id otherwise.
  * @param text - the cell text
+ * @param report - the import report; when given, a weight beyond the double range is reported
  * @returns the id text and the weight (undefined when the cell has none)
  * @category Plugin helpers
  */
-export function splitNeighbour(text: string): { readonly id: string; readonly weight: number | undefined } {
+export function splitNeighbour(
+    text: string,
+    report?: ImportReportBuilder,
+): { readonly id: string; readonly weight: number | undefined } {
     const colon = text.lastIndexOf(":");
     if (colon < 0) {
         return { id: text, weight: undefined };
@@ -724,18 +782,19 @@ export function splitNeighbour(text: string): { readonly id: string; readonly we
     if (suffix.length === 0) {
         return { id: text.slice(0, colon), weight: undefined };
     }
-    const weight = numberOrNull(suffix);
+    const weight = numberOrNull(suffix, report);
     return weight === null ? { id: text, weight: undefined } : { id: text.slice(0, colon), weight };
 }
 
 /**
  * A weight suffix as a number, or null when the text is not one.
  * @param text - the suffix
+ * @param report - the import report, or undefined
  * @returns the number, or null
  */
-function numberOrNull(text: string): number | null {
+function numberOrNull(text: string, report?: ImportReportBuilder): number | null {
     try {
-        return parseWeightText(text) ?? null;
+        return parseWeightText(text, report) ?? null;
     } catch {
         // not a number: the colon belongs to the id
         return null;
@@ -768,6 +827,9 @@ class TableReader {
     private labelHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
     private dataRows = 0;
+
+    /** The cells of a first row read as data that could be a header, until a later row repeats one of them. */
+    private possibleHeader: { cells: ReadonlySet<string>; line: number } | null = null;
 
     private nodeOrdinal = 0;
     /** Whether a field-count error has already suggested `table: "adjacency"`. */
@@ -889,7 +951,21 @@ class TableReader {
                 line: firstLine,
             });
         }
+        this.reportPossibleHeader();
         this.reportReaderFindings();
+    }
+
+    /** Warn when a first row read as data could be a header and no later row repeated any of its cells. */
+    private reportPossibleHeader(): void {
+        if (this.possibleHeader === null) {
+            return;
+        }
+        this.state.report.warning(
+            "validation-error",
+            POSSIBLE_HEADER_CODE,
+            "the first row is read as data, but no other row repeats its cells, so it may be a header; pass header: true if it is",
+            { line: this.possibleHeader.line },
+        );
     }
 
     /**
@@ -920,6 +996,9 @@ class TableReader {
         }
         if (!header) {
             pending.push(first);
+            if (mode === "auto" && second !== null && couldBeHeader(first.row)) {
+                this.possibleHeader = { cells: new Set(first.row.map((c) => c.trim())), line: first.line };
+            }
         }
         if (second !== null) {
             pending.push(second);
@@ -1570,6 +1649,10 @@ class TableReader {
     private processRow(row: string[], quoted: readonly boolean[], line: number): void {
         const plan = this.requirePlan();
         this.dataRows++;
+        const possible = this.possibleHeader;
+        if (possible !== null && line !== possible.line && row.some((cell) => possible.cells.has(cell.trim()))) {
+            this.possibleHeader = null;
+        }
         if (this.state.csv.decimalComma) {
             for (let i = 0; i < row.length; i++) {
                 if (DECIMAL_COMMA.test(row[i])) {
@@ -1599,6 +1682,7 @@ class TableReader {
         where.line = line;
         where.element = null;
         const neighbors = setNeighborCells(row, quoted);
+        const node = idCell(row[0], quoted[0]);
         if (isUnset(row[0], quoted[0])) {
             report.error("missing-value", MISSING_ID_CODE, `blank node cell`, { line });
             counts.skippedNodes++;
@@ -1612,8 +1696,9 @@ class TableReader {
         }
         let source: NodeId;
         try {
-            where.element = row[0];
-            source = this.coerce(row[0]);
+            where.element = node;
+            this.checkPadded(node, quoted[0], line);
+            source = this.coerce(node);
             if (sink.indexOf(source) === INVALID_INDEX) {
                 counts.nodes++;
             }
@@ -1628,9 +1713,10 @@ class TableReader {
             if (isUnset(row[k], quoted[k])) {
                 continue;
             }
-            where.element = row[k];
+            const text = idCell(row[k], quoted[k]);
+            where.element = text;
             try {
-                const cell = splitNeighbour(row[k]);
+                const cell = splitNeighbour(text, report);
                 const target = this.coerce(cell.id);
                 const targetNew = sink.indexOf(target) === INVALID_INDEX;
                 const before = sink.edgeCount;
@@ -1660,10 +1746,11 @@ class TableReader {
             counts.skippedEdges++;
             return;
         }
-        const sourceText = row[plan.source];
-        const targetText = row[plan.target];
-        const sourceMissing = isUnset(sourceText, quoted[plan.source]);
-        if (sourceMissing || isUnset(targetText, quoted[plan.target])) {
+        // a quoted empty endpoint names no node either: the empty-string id lives only in a node table
+        const sourceText = idCell(row[plan.source], quoted[plan.source]);
+        const targetText = idCell(row[plan.target], quoted[plan.target]);
+        const sourceMissing = isMissingEndpoint(row[plan.source], quoted[plan.source]);
+        if (sourceMissing || isMissingEndpoint(row[plan.target], quoted[plan.target])) {
             report.error("missing-value", MISSING_ENDPOINT_CODE, `blank ${sourceMissing ? "source" : "target"} cell`, {
                 line,
             });
@@ -1828,8 +1915,8 @@ class TableReader {
             counts.skippedNodes++;
             return;
         }
-        const idText = plan.id >= 0 ? row[plan.id] : String(ordinal);
-        if (plan.id >= 0 && isUnset(idText, quoted[plan.id])) {
+        const idText = plan.id >= 0 ? idCell(row[plan.id], quoted[plan.id]) : String(ordinal);
+        if (plan.id >= 0 && isUnset(row[plan.id], quoted[plan.id])) {
             report.error("missing-value", MISSING_ID_CODE, `blank id cell`, { line });
             counts.skippedNodes++;
             return;
@@ -1866,9 +1953,9 @@ class TableReader {
     }
 
     /**
-     * Warn once per import about an unquoted id cell with leading or trailing whitespace, which is
-     * a different id from the bare text (RFC 4180 keeps spaces).
-     * @param text - the cell text
+     * Warn once per import about an unquoted id cell that, with its spaces and tabs trimmed, still
+     * starts or ends in whitespace (a no-break space, a U+FEFF), kept as a different id from the bare text.
+     * @param text - the trimmed cell text
      * @param quoted - whether the cell was quoted
      * @param line - the row's line
      */
@@ -1877,7 +1964,7 @@ class TableReader {
             this.state.report.warnOnce(
                 "validation-error",
                 PADDED_ID_CODE,
-                `id ${JSON.stringify(text)} has leading or trailing whitespace and is kept as written, a different id from the trimmed text`,
+                `id ${JSON.stringify(text)} starts or ends in whitespace other than spaces and tabs and is kept as written, a different id from the trimmed text`,
                 { line, element: text },
             );
         }
@@ -1962,6 +2049,22 @@ class TableReader {
             }
         }
     }
+}
+
+/**
+ * A column-name-like word: three or more characters, a letter or underscore first, then letters, digits, `_`, `.`,
+ * `:` or `-` (short ids such as `a`, `b1` or `u` are left alone).
+ */
+const NAME_LIKE = /^[A-Za-z_][\w.:-]{2,}$/;
+
+/**
+ * Whether a first row could be a header of unknown column names: two or more distinct name-like cells.
+ * @param row - the first row
+ * @returns true when it could be a header
+ */
+function couldBeHeader(row: readonly string[]): boolean {
+    const cells = row.map((c) => c.trim());
+    return cells.length >= 2 && new Set(cells).size === cells.length && cells.every((c) => NAME_LIKE.test(c));
 }
 
 /**

@@ -33,7 +33,9 @@ describe("the Analyze popover's words", () => {
             result: { graph: { length: 5, hops: 4, cost: 14 } },
         } as unknown as Run;
     }
-    const names = { data: { name: (id: string | number) => String(id) } } as unknown as GraphSession;
+    const names = {
+        data: { nodeName: (id: string | number) => ({ id, name: String(id), labeled: false }) },
+    } as unknown as GraphSession;
 
     it("words a weighted path by its total in the weight column, and an unweighted one by its hops", () => {
         const weighted = pathRun({ attribute: "minutes", meaning: "distance" });

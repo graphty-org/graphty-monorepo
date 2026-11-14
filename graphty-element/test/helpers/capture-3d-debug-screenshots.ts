@@ -26,6 +26,25 @@
 import { resolve } from "path";
 import { chromium, type Page } from "playwright";
 
+/** One axis of a Babylon.js `AxesViewer`, as far as this script colors it. */
+interface AxisNode {
+    getChildMeshes(): { material: { emissiveColor: unknown; diffuseColor: unknown } | null }[];
+}
+
+/** The parts of the page's global Babylon.js namespace this script uses. */
+interface BabylonGlobal {
+    AxesViewer: new (
+        scene: unknown,
+        size: number,
+    ) => {
+        _xAxis: AxisNode;
+        _yAxis: AxisNode;
+        _zAxis: AxisNode;
+        dispose: () => void;
+    };
+    Color3: new (r: number, g: number, b: number) => unknown;
+}
+
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 const TMP_DIR = resolve(process.cwd(), "tmp");
 
@@ -210,34 +229,22 @@ async function enableAxesViewer(page: Page): Promise<void> {
         // Create AxesViewer using global BABYLON namespace
         // Size 5 makes axes visible but not too large
 
-        const axes = new (window as any).BABYLON.AxesViewer(scene, 5);
+        const { BABYLON } = globalThis as typeof globalThis & { BABYLON: BabylonGlobal };
+        const axes = new BABYLON.AxesViewer(scene, 5);
 
         // Make the colors bright and vivid (graphty-element's scene settings can wash out colors)
         // Set both emissive and diffuse colors to full brightness
-
-        axes._xAxis.getChildMeshes().forEach((mesh: any) => {
-            if (mesh.material) {
-                mesh.material.emissiveColor = new (window as any).BABYLON.Color3(1, 0, 0); // Bright red
-
-                mesh.material.diffuseColor = new (window as any).BABYLON.Color3(1, 0, 0);
+        const paint = (axis: AxisNode, r: number, g: number, b: number): void => {
+            for (const mesh of axis.getChildMeshes()) {
+                if (mesh.material) {
+                    mesh.material.emissiveColor = new BABYLON.Color3(r, g, b);
+                    mesh.material.diffuseColor = new BABYLON.Color3(r, g, b);
+                }
             }
-        });
-
-        axes._yAxis.getChildMeshes().forEach((mesh: any) => {
-            if (mesh.material) {
-                mesh.material.emissiveColor = new (window as any).BABYLON.Color3(0, 1, 0); // Bright green
-
-                mesh.material.diffuseColor = new (window as any).BABYLON.Color3(0, 1, 0);
-            }
-        });
-
-        axes._zAxis.getChildMeshes().forEach((mesh: any) => {
-            if (mesh.material) {
-                mesh.material.emissiveColor = new (window as any).BABYLON.Color3(0, 0, 1); // Bright blue
-
-                mesh.material.diffuseColor = new (window as any).BABYLON.Color3(0, 0, 1);
-            }
-        });
+        };
+        paint(axes._xAxis, 1, 0, 0); // Bright red
+        paint(axes._yAxis, 0, 1, 0); // Bright green
+        paint(axes._zAxis, 0, 0, 1); // Bright blue
 
         // Store reference
         scene.metadata ??= {};

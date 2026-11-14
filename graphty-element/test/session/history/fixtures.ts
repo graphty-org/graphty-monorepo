@@ -354,6 +354,15 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "algo.move", runId: "deg", before: null },
     },
     {
+        name: "algo.rename: a run given the reader's own name",
+        tags: BOTH,
+        before: async (session) => {
+            await session.runs.start("degree", {}, { as: "deg" });
+            await session.styles.settled();
+        },
+        command: { op: "algo.rename", runId: "deg", name: "Connections" },
+    },
+    {
         name: "style.patch add",
         variant: "add",
         tags: BOTH,
@@ -972,6 +981,14 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         name: "layout.set: a layout over part of the graph",
         tags: ["session"],
         command: { op: "layout.set", id: "force", scope: { nodes: ["n1", "n2"] } },
+    },
+    {
+        // On a renderer only: with nothing drawn, no node moves, so the step changes no state. An
+        // unseeded random layout lands somewhere new on every run.
+        name: "layout.rerun: the current layout run again",
+        tags: ["renderer"],
+        before: (session) => session.layout.set("random"),
+        command: { op: "layout.rerun" },
     },
     {
         name: "layout.scope: part of the graph",

@@ -1418,6 +1418,21 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
+        this.#writeRows(snapshot, simPositions, viaCard);
+        if (drawn !== null) {
+            drawn.stepped ||= landed !== null;
+            this.#publishDrawn(drawn, viaCard === null ? null : landed);
+        }
+    }
+
+    /**
+     * Write the rows of the latest landing into the lane: the CPU half of a publish.
+     * @param snapshot - The snapshot being laid out.
+     * @param simPositions - The simulation's coordinates, three per row.
+     * @param viaCard - The transform the landed batch drew with, or null for the envelope's.
+     */
+    #writeRows(snapshot: GraphSnapshot, simPositions: F32, viaCard: DrawnTransform | null): void {
+        const store = this.#dataManager[WRITABLE_LANE];
         const scale = viaCard?.scale ?? this.#envelopeScale;
         const centre = viaCard?.center ?? this.#simCentre;
         const target = viaCard?.target ?? this.#targetCentre;
@@ -1463,10 +1478,6 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.publishColumn(first, rows, coords, count, true);
         // A pinned or dragged row was left out of the publish above; it is still drawn, where it is kept.
         this.keepInPublishedBox(first, this.#fixedRows);
-        if (drawn !== null) {
-            drawn.stepped ||= landed !== null;
-            this.#publishDrawn(drawn, viaCard === null ? null : landed);
-        }
     }
 
     /**

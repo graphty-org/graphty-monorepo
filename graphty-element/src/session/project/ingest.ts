@@ -650,6 +650,14 @@ export class Ingest<K extends KnownEdge> {
         return result;
     }
 
+    /**
+     * How many source nodes the duplicate-pair index holds now, for tests.
+     * @returns The count, 0 when none is kept.
+     */
+    get pairIndexSources(): number {
+        return this.storedPairs?.bySource.size ?? 0;
+    }
+
     /** Forget everything about the graph that was: called when the host discards its store. */
     reset(): void {
         this.edgesByRecordId.clear();
@@ -1280,6 +1288,9 @@ export class Ingest<K extends KnownEdge> {
             // slice builds them, or the store holds them and nothing draws them.
             this.recordMadeEndpoints(writer);
             this.loadMadeEndpoints.clear();
+            // Only a load's next chunk reuses the pair index (`pairsFor`); outside one it is
+            // garbage that would hold one Set per source node until the next batch.
+            this.storedPairs = null;
             // A push of records rather than a file, so there is no enclosing load to seal the
             // report. Seal one here, or `session.data.lastImport()` would answer about the last
             // FILE for a graph whose edges came from a consumer's own array.
@@ -1571,11 +1582,9 @@ export class Ingest<K extends KnownEdge> {
         options: AddEdgesOptions | undefined,
     ): ResolvedEndpoints {
         if (options?.source !== undefined && options.target !== undefined) {
-            const declared: ResolvedEndpoints = {
-                source: options.source,
-                target: options.target,
-                resolvedFrom: "declared",
-            };
+            // Through resolveEndpoints so a malformed declared expression is refused with
+            // E_OPTION_RANGE instead of reading null for every record.
+            const declared = resolveEndpoints(edges, { source: options.source, target: options.target });
             if (this.loadTally !== null && edges.length > 0) {
                 // The load's answer too, so its report (and the columns' roles) name the columns
                 // the reader chose rather than the configured defaults it never read.

@@ -55,9 +55,13 @@ describe("Video Capture - 2D Orthographic Camera", () => {
         assert.ok(result.blob.type.startsWith("video/webm"));
         assert.equal(result.metadata.fps, 30);
         assert.equal(result.metadata.format, "webm"); // Format detected from blob type
-        assert.ok(result.metadata.framesCaptured >= 0);
-        assert.ok(result.metadata.width > 0);
-        assert.ok(result.metadata.height > 0);
+        // 1 s at 30 fps: every frame expected is either captured or dropped, and a 2D graph drawn
+        // every frame while it records draws some of them.
+        const { framesCaptured, framesDropped } = result.metadata;
+        assert.ok(framesCaptured > 0, `frames captured: ${String(framesCaptured)}`);
+        assert.equal(framesCaptured + framesDropped, 30);
+        assert.equal(result.metadata.width, graph.canvas.width);
+        assert.equal(result.metadata.height, graph.canvas.height);
     });
 
     test("2D video capture respects custom dimensions", async () => {

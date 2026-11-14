@@ -530,6 +530,15 @@ const RELOAD_SOURCE_EXPECT: readonly unknown[] = [
     },
     ...RELOAD_SOURCE_STEPS,
 ];
+/** What `data.remap({ mapping: {} })` dispatches inside its batch: reloadSource's steps, the mapping kept with the load. */
+const REMAP_STEPS: readonly SessionCommand[] = RELOAD_SOURCE_STEPS.map((step) =>
+    step.op === "data.import" ? { ...step, choices: { mapping: {} } } : step,
+);
+/** What `data.remap({ mapping: {} })` dispatches: the batch, then its steps. */
+const REMAP_EXPECT: readonly unknown[] = [
+    { ...(RELOAD_SOURCE_EXPECT[0] as object), steps: REMAP_STEPS },
+    ...REMAP_STEPS,
+];
 /** What `data.replaceSource("s1", ...)` dispatches: the batch, then its steps. */
 const REPLACE_SOURCE_EXPECT: readonly unknown[] = [
     {
@@ -2830,6 +2839,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 },
                 expect: RELOAD_SOURCE_EXPECT,
             },
+            // Reads the only load's rows again under the mapping, as reloadSource's one batch.
+            remap: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: [{ mapping: {} }],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import(DOOR_SHIPS_SOURCE);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: REMAP_EXPECT,
+            },
             // The values the join wrote go back, and the table joins anew, as one batch.
             editJoin: {
                 kind: "dispatches",
@@ -4165,6 +4189,7 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.removeSource": "edit",
     "SessionDataApi.replaceSource": "edit",
     "SessionDataApi.reloadSource": "edit",
+    "SessionDataApi.remap": "edit",
     "SessionDataApi.editJoin": "edit",
     "SessionDataApi.setType": "edit",
     "SessionDataApi.renameColumn": "edit",

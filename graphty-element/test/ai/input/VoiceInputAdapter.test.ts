@@ -63,6 +63,25 @@ describe("VoiceInputAdapter", () => {
             assert.strictEqual(recognizer.lang, "de-DE");
         });
 
+        it("leaves the recognizer's language unset without one, so the page's language is used", async () => {
+            const { speech } = await started();
+            assert.strictEqual(speech.recognizers[0].lang, "");
+        });
+
+        it("a removed input callback hears nothing more, and the others still do", async () => {
+            const { adapter, speech } = await started();
+            const removed = vi.fn<InputCallback>();
+            const kept = vi.fn<InputCallback>();
+            const off = adapter.onInput(removed);
+            adapter.onInput(kept);
+
+            off();
+            speech.recognizers[0].hear("hello", true);
+
+            assert.strictEqual(removed.mock.calls.length, 0);
+            assert.deepStrictEqual(kept.mock.calls, [["hello", true]]);
+        });
+
         it("hands every registered callback what the recognizer heard, interim and final", async () => {
             const { adapter, speech } = await started();
             const one = vi.fn<InputCallback>();

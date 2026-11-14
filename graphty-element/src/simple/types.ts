@@ -392,6 +392,7 @@ export interface DefaultPaletteControls {
     /**
      * Choose the palette each kind of colour binding uses when it names none. Call it before
      * adding layers; `{ reapply: true }` repaints layers already written with the previous default.
+     * Settles once those layers are repainted; rejects when one could not be.
      */
     setDefaultPalettes(
         palettes: {
@@ -400,7 +401,7 @@ export interface DefaultPaletteControls {
             readonly diverging?: string;
         },
         options?: { readonly reapply?: boolean },
-    ): void;
+    ): Promise<void>;
 }
 
 // =============================================================================================

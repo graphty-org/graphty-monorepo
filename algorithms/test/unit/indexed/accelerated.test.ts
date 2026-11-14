@@ -1,5 +1,5 @@
 import { expandEdges, type F32, GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import {
     accelerated,
@@ -675,8 +675,11 @@ describe("accelerated(acc)", () => {
             const s = sixNodes();
             const calls: unknown[][] = [];
             const dispatcher = accelerated(stub(calls));
-            expect(await dispatcher.betweennessCentrality(s, { sources: [0, 3], normalized: true })).toBe(scores);
-            expect(await dispatcher.betweennessCentrality(s, { endpoints: false })).toBe(scores);
+            expect(await dispatcher.betweennessCentrality(s, { sources: [0, 3], normalized: true })).toEqual({
+                ...scores,
+                divisor: 20,
+            });
+            expect(await dispatcher.betweennessCentrality(s, { endpoints: false })).toEqual({ ...scores, divisor: 2 });
             expect(await dispatcher.edgeBetweennessCentrality(s, { k: 2 })).toBe(edgeScores);
             expect(await dispatcher.edgeBetweennessCentrality(s)).toBe(edgeScores);
             expect(calls).toEqual([
@@ -808,7 +811,23 @@ describe("accelerated(acc)", () => {
             );
             const right = { ...wrong, sigmaOverflow: false };
             const fine: AlgorithmAccelerator = { kind: "fake", betweennessCentrality: () => Promise.resolve(right) };
-            await expect(accelerated(fine).betweennessCentrality(s)).resolves.toBe(right);
+            await expect(accelerated(fine).betweennessCentrality(s)).resolves.toEqual({ ...right, divisor: 2 });
+        });
+
+        it("reports the port's divisor for the accelerator's betweenness, so a caller can undo the scaling", async () => {
+            const calls: unknown[][] = [];
+            const dispatcher = accelerated(stub(calls));
+            const path = new Graph({ directed: true });
+            path.addEdge("a", "b");
+            path.addEdge("b", "c");
+            const directed = toSnapshot(path);
+            for (const s of [sixNodes(), directed]) {
+                for (const options of [{}, { normalized: true }, { normalized: true, sources: [0] }]) {
+                    const gpu = await dispatcher.betweennessCentrality(s, options);
+                    assert.strictEqual(gpu.divisor, indexed.betweennessCentrality(s, options).divisor);
+                }
+            }
+            assert.strictEqual(calls.length, 6);
         });
     });
 

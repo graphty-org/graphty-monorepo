@@ -1241,8 +1241,19 @@ export class Node implements ModelUser {
             return;
         }
 
-        this.context.getStatsManager().startMeasurement("Node.update");
+        const stats = this.context.getStatsManager();
+        stats.startMeasurement("Node.update");
+        try {
+            this.followLayout();
+        } finally {
+            stats.endMeasurement("Node.update");
+        }
+    }
 
+    /**
+     * Place the node where the layout says, or follow a drag: the measured part of `update`.
+     */
+    private followLayout(): void {
         // Check if mesh was disposed (e.g., from 2D/3D mode switch) and recreate it.
         if (this.#anchor.isDisposed()) {
             this.updateStyle();
@@ -1250,7 +1261,6 @@ export class Node implements ModelUser {
 
         if (this.dragging) {
             this.syncOverlayPositions();
-            this.context.getStatsManager().endMeasurement("Node.update");
             return;
         }
 
@@ -1276,8 +1286,6 @@ export class Node implements ModelUser {
 
         this.syncXlabelPlace();
         this.syncOverlayPositions();
-
-        this.context.getStatsManager().endMeasurement("Node.update");
     }
 
     /**
@@ -2847,7 +2855,22 @@ export class Node implements ModelUser {
      * @param color - The per-instance colour.
      */
     private drawPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
-        this.context.getStatsManager().startMeasurement("Node.updateMesh");
+        const stats = this.context.getStatsManager();
+        stats.startMeasurement("Node.updateMesh");
+        try {
+            this.drawShadedPaint(paintKey, paintStyle, color);
+        } finally {
+            stats.endMeasurement("Node.updateMesh");
+        }
+    }
+
+    /**
+     * The measured part of `drawPaint`.
+     * @param paintKey - Which source mesh the paint draws from.
+     * @param paintStyle - The resolved style.
+     * @param color - The per-instance colour.
+     */
+    private drawShadedPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
         const shaded = this.shadedPaint(paintKey, paintStyle);
         const { meshKey, style: o } = shaded;
         this.shaderPath = shaded.path;
@@ -2888,13 +2911,11 @@ export class Node implements ModelUser {
             this.syncLabel(o, false);
             this.syncTooltip(o);
             this.syncHalo();
-            this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }
 
         if (this.movesFor(meshKey, o)) {
             this.moveTo(meshKey, o, color);
-            this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }
 
@@ -3029,8 +3050,6 @@ export class Node implements ModelUser {
         // drops its halo, and repaints it in its source mesh's own colour.
         this.applyRenderState();
         this.applyInstancePaint(o, color);
-
-        this.context.getStatsManager().endMeasurement("Node.updateMesh");
     }
 
     /**

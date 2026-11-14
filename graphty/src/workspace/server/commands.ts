@@ -13,6 +13,7 @@ import {
     type ExpandBehavior,
     type GraphSession,
     type NodeId,
+    type NodeSource,
     type SourceInput,
     type SourceKey,
     type SourceLoadOptions,
@@ -440,44 +441,13 @@ export function openServerForm(
 }
 
 /**
- * The source a node came from, when that source can expand it: the node's first load, by its
- * `_source.loads` fact.
- * @param session - the session.
- * @param id - the node.
- * @returns the load's source id, or undefined.
+ * The selected node's network source facts, when exactly one node is selected.
+ * @param ctx - the command context.
+ * @returns the facts, or null.
  */
-function expandableSource(session: GraphSession | null, id: NodeId): string | undefined {
-    const loads = session?.data.node(id)?.["_source.loads"];
-    if (!Array.isArray(loads) || session === null) {
-        return undefined;
-    }
-    const keys = new Set(loads.map((key) => String(key).split("/")[0]));
-    const load = session.data.loads().find((each) => keys.has(each.key));
-    const entry = sourceDescriptors().find((each) => each.id === load?.source);
-    return entry?.features.expand === true ? entry.id : undefined;
-}
-
-/**
- * How many more neighbors a node has on its server, when the server says.
- * @param session - the session.
- * @param id - the node.
- * @returns the count, or null when unknown or none.
- */
-function hiddenNeighbors(session: GraphSession | null, id: NodeId): number | null {
-    const hidden = session?.data.node(id)?.["_source.hidden"];
-    return typeof hidden === "number" && hidden > 0 ? hidden : null;
-}
-
-/**
- * Whether the node an expansion of another node brought (`_source.expansion` not "none") can be
- * collapsed: it has expanded at least once.
- * @param session - the session.
- * @param id - the node.
- * @returns true when Collapse applies.
- */
-function collapsible(session: GraphSession | null, id: NodeId): boolean {
-    const expansion = session?.data.node(id)?.["_source.expansion"];
-    return expansion === "partial" || expansion === "complete";
+function selectedSource(ctx: CommandContext): NodeSource | null {
+    const id = selectedNode(ctx);
+    return id === undefined || ctx.session === null ? null : ctx.session.data.nodeSource(id);
 }
 
 /**
@@ -525,14 +495,10 @@ export const registration = defineRegistration({
             group: "Selection",
             keywords: ["neighbors", "server", "fetch"],
             tooltip: (ctx) => {
-                const id = selectedNode(ctx);
-                const hidden = id === undefined ? null : hiddenNeighbors(ctx.session, id);
-                return hidden === null ? "Expand..." : `Expand... (+${String(hidden)} on the server)`;
+                const hidden = selectedSource(ctx)?.hiddenNeighbors ?? null;
+                return hidden === null || hidden <= 0 ? "Expand..." : `Expand... (+${String(hidden)} on the server)`;
             },
-            shown: (ctx) => {
-                const id = selectedNode(ctx);
-                return id !== undefined && expandableSource(ctx.session, id) !== undefined;
-            },
+            shown: (ctx) => selectedSource(ctx)?.canExpand === true,
             run: (ctx) => {
                 ctx.workspace.set({ dialog: EXPAND_DIALOG });
             },
@@ -542,10 +508,7 @@ export const registration = defineRegistration({
             label: "Collapse",
             group: "Selection",
             keywords: ["neighbors", "server"],
-            shown: (ctx) => {
-                const id = selectedNode(ctx);
-                return id !== undefined && collapsible(ctx.session, id);
-            },
+            shown: (ctx) => selectedSource(ctx)?.expanded === true,
             run: (ctx) => {
                 const id = selectedNode(ctx);
                 if (id !== undefined && ctx.session !== null) {

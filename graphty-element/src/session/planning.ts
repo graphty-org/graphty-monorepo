@@ -19,7 +19,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { planar } from "@graphty/layout";
 
-import { type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
+import { askedWeight, type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
 import { layoutAlias, layoutDescriptor, layoutEntry, layoutIdForEngine } from "../catalog/layouts";
 import type {
     AlgorithmDescriptor,
@@ -657,7 +657,7 @@ function weighedCaveats(
     try {
         const reading = resolveRunWeight(
             descriptor?.weightMeaning ?? null,
-            command.params?.weight,
+            askedWeight(command.params?.weight, descriptor?.options),
             context.loadedWeight?.() ?? null,
         );
         return {

@@ -698,6 +698,14 @@ export interface GraphtyElementJSXProps {
      */
     "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
+    /**
+     * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false meanwhile. The data, the session, the styles, the camera and the undo history are untouched.
+     */
+    "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
+    /**
+     * Emitted when the graph is drawn again after `render-lost`: the device came back, by itself or through `restartRenderer()`, and every buffer, texture and shader was rebuilt from the graph held in memory. `rendererStatus.drawing` is true again.
+     */
+    "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;

@@ -247,12 +247,14 @@ export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSourc
 export { DataSource } from "./src/data/DataSource";
 export type {
     ExportGraphOptions,
+    ExportGroupTable,
     ExportLoss,
     ExportLossCode,
     ExportResult,
     ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
+export type { GroupSummary, GroupTableOptions } from "./src/session/types";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -338,6 +340,8 @@ export type {
     NodeHoverEvent,
     OperationCancelledEvent,
     OverviewChangedEvent,
+    RenderLostEvent,
+    RenderRestoredEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
     XRSessionEndedEvent,

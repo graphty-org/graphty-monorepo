@@ -1643,6 +1643,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             accelerationMinNodes: MACHINE,
             renderer: MACHINE,
             rendererStatus: READ,
+            restartRenderer: RENDER,
             renderPath: MACHINE,
             antialias: MACHINE,
             limits: MACHINE,
@@ -1673,6 +1674,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setRenderer: MACHINE,
             rendererRequest: READ,
             rendererStatus: READ,
+            restartRenderer: RENDER,
             expectRenderer: LIFECYCLE,
             eventManager: READ,
             nodeLabelCounts: READ,
@@ -2968,6 +2970,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             histogram: READ,
             valueCounts: READ,
             overRepresented: READ,
+            groupTable: READ,
             // The column commands, each one batch.
             setRole: {
                 kind: "dispatches",
@@ -3673,6 +3676,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,
+            // A layout drawing from the card owes the lane its frame; settling it writes the rows.
+            owe: LANE,
+            forgive: LANE,
+            settle: LANE,
+            keeps: READ,
+            unsettledView: READ,
         },
     },
     {

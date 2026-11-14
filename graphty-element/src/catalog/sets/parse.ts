@@ -751,24 +751,34 @@ function checkUnion(value: Loose, walker: Walker): void {
         }
 
         for (const step of branch.steps as readonly unknown[]) {
-            if (!isObject(step)) {
-                throw bad("A union step is an object with an op and a rule.", { step });
-            }
-
-            walker.fields(step, "unionStep", STEP_FIELDS);
-            unique(step.id, "step");
-            checkFlagAndText(step, ["mode"]);
-            checkStepEnums(step);
-            walker.inStep++;
-            try {
-                checkTree(step.rule, walker);
-                if (step.links !== undefined) {
-                    checkLinks(step.links, walker);
-                }
-            } finally {
-                walker.inStep--;
-            }
+            checkStep(step, walker, unique);
         }
+    }
+}
+
+/**
+ * Check one step of a union branch: its fields, its id, its enums, its rule and its links.
+ * @param step - The step.
+ * @param walker - The pass.
+ * @param unique - Marks an id used in the leaf, refusing a repeat.
+ */
+function checkStep(step: unknown, walker: Walker, unique: (id: unknown, what: string) => void): void {
+    if (!isObject(step)) {
+        throw bad("A union step is an object with an op and a rule.", { step });
+    }
+
+    walker.fields(step, "unionStep", STEP_FIELDS);
+    unique(step.id, "step");
+    checkFlagAndText(step, ["mode"]);
+    checkStepEnums(step);
+    walker.inStep++;
+    try {
+        checkTree(step.rule, walker);
+        if (step.links !== undefined) {
+            checkLinks(step.links, walker);
+        }
+    } finally {
+        walker.inStep--;
     }
 }
 

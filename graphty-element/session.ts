@@ -134,6 +134,7 @@ export type {
     LocationKind,
     LocationUnused,
     LocationUsing,
+    MergeNodesOptions,
     ModelChange,
     ModelState,
     Neighbor,

@@ -3407,6 +3407,7 @@ export class Graphty extends LitElement {
     getCameraState(): CameraState;
     getDataManager(): DataManager;
     getEdgeCount(): number;
+    getEdges(): Edge[];
     getEventManager(): EventManager;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;

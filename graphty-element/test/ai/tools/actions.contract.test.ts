@@ -475,6 +475,7 @@ const ROWS: Record<string, Row> = {
         setup: withIssue,
     },
     "issues.ignore": { args: (s) => ({ action: "ignore", ids: [s.data.issues()[0]?.id ?? "none"] }), setup: withIssue },
+    "issues.merge_nodes": { args: { action: "merge_nodes", ids: ["e", "d"], values: { merged: true } } },
     "shaders.list": { args: { action: "list" }, setup: withShader },
     "shaders.get": { args: { action: "get", id: "user/tint" }, setup: withShader },
     "shaders.check": { args: { action: "check", text: TINT } },

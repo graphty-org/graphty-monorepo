@@ -243,7 +243,7 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "Data issues",
         core: false,
         profiles: STANDARD,
-        actions: ["list", "fix", "ignore"],
+        actions: ["list", "fix", "ignore", "merge_nodes"],
     },
     {
         name: "shaders",

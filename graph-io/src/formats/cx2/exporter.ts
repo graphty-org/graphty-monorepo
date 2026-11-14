@@ -37,6 +37,7 @@ import { type ResolvedExportOptions, resolveExportOptions } from "../../common/o
 import { plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { neutralPositions } from "../../positions/convert.js";
 import { cytoscapeCx2Aspects, type CytoscapeEmitted } from "../../styles/cytoscape/emit.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
@@ -197,6 +198,8 @@ interface Plan {
     readonly nodeBypasses: readonly Column[];
     readonly edgeBypasses: readonly Column[];
     readonly position: Column | null;
+    /** The position column's rows in the neutral form (center, y up), x, y, z per node; null without one. */
+    readonly neutral: Float64Array | null;
     readonly positionZ: boolean;
     readonly z: Column | null;
     readonly edgeIds: readonly number[];
@@ -481,6 +484,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
         nodeBypasses: [...snapshot.nodes].filter(isBypass),
         edgeBypasses: [...snapshot.edges].filter(isBypass),
         position,
+        neutral: position === null ? null : neutralPositions(snapshot, position),
         positionZ,
         z,
         edgeIds,
@@ -890,10 +894,10 @@ function nodeElement(p: Plan, ids: WrittenIds, i: number): Record<string, unknow
  * @param element - the element, which receives x, y and z
  */
 function writePosition(p: Plan, i: number, element: Record<string, unknown>): void {
-    if (p.position?.isSet(i) !== true) {
+    if (p.position?.isSet(i) !== true || p.neutral === null) {
         return;
     }
-    const point = p.position.value(i) as ArrayLike<number>;
+    const point = p.neutral.subarray(3 * i, 3 * i + 3);
     if (!Number.isFinite(point[0]) || !Number.isFinite(point[1])) {
         return;
     }

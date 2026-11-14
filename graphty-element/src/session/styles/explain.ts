@@ -194,6 +194,13 @@ export type ChannelAgreement =
            * place of the shape). Absent when none do. @since 3.36.0
            */
           readonly covered?: number;
+          /**
+           * Present only when the answer was read over a row (`over`, {@link StyleAgreement.readOver}
+           * `"row"`): on how many of the row's elements this channel is not drawn as the row's own
+           * layers paint it -- a layer outside the row decides it, or a shader draws in place of
+           * it. Each element is counted once. @since 3.40.0
+           */
+          readonly overridden?: number;
       }
     | {
           /** The channel. */
@@ -209,6 +216,13 @@ export type ChannelAgreement =
            * place of the shape). Absent when none do. @since 3.36.0
            */
           readonly covered?: number;
+          /**
+           * Present only when the answer was read over a row (`over`, {@link StyleAgreement.readOver}
+           * `"row"`): on how many of the row's elements this channel is not drawn as the row's own
+           * layers paint it -- a layer outside the row decides it, or a shader draws in place of
+           * it. Each element is counted once. @since 3.40.0
+           */
+          readonly overridden?: number;
       };
 
 /** How several elements look, channel by channel. */
@@ -227,6 +241,12 @@ export interface StyleAgreement {
      * @since 3.26.0
      */
     readonly readOver?: "row" | "everyElement";
+    /**
+     * How many nodes and how many edges the answer was read over: with `over`, every element the
+     * row matches across all its layers, each counted once.
+     * @since 3.40.0
+     */
+    readonly elements?: { readonly nodes: number; readonly edges: number };
 }
 
 /**
@@ -832,6 +852,8 @@ interface Tally {
     painted: number;
     /** How many of those draw a shader instead of the channel. */
     covered: number;
+    /** How many of those a layer outside `own` decides or a shader covers. */
+    overridden: number;
 }
 
 /**
@@ -852,10 +874,17 @@ function shareKey(layerId: LayerId, value: unknown): string {
  * @param elements - The nodes and edges to read, as dense indices.
  * @param sources - The stack, the prepared encodings and the element columns.
  * @param only - One channel to restrict the answer to. Absent, every channel is answered.
+ * @param own - The layers of the row the elements were read over. Given, each channel also counts
+ *     the elements those layers do not decide or a shader covers (`overridden`).
  * @returns Per channel, the value they agree on or how they split, and how many nothing painted.
  * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `only` names no channel.
  */
-export function styleAgreement(elements: AgreementElements, sources: ExplainSources, only?: Channel): StyleAgreement {
+export function styleAgreement(
+    elements: AgreementElements,
+    sources: ExplainSources,
+    only?: Channel,
+    own?: ReadonlySet<LayerId>,
+): StyleAgreement {
     if (only !== undefined) {
         requireChannel(only);
     }
@@ -899,12 +928,14 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
             for (const [channel, { layerId, value }] of winners) {
                 let tally = tallies.get(channel);
                 if (tally === undefined) {
-                    tally = { shares: new Map(), painted: 0, covered: 0 };
+                    tally = { shares: new Map(), painted: 0, covered: 0, overridden: 0 };
                     tallies.set(channel, tally);
                 }
 
                 tally.painted++;
-                tally.covered += covering?.covers.includes(channel) === true ? 1 : 0;
+                const covered = covering?.covers.includes(channel) === true;
+                tally.covered += covered ? 1 : 0;
+                tally.overridden += covered || own?.has(layerId) === false ? 1 : 0;
                 const key = shareKey(layerId, value);
                 const share = tally.shares.get(key);
                 if (share === undefined) {
@@ -930,7 +961,10 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
         const unpainted = totals[channel.startsWith("node.") ? "node" : "edge"] - tally.painted;
         const shares = [...tally.shares.values()];
         const [first] = shares;
-        const covered = tally.covered > 0 ? { covered: tally.covered } : {};
+        const covered = {
+            ...(tally.covered > 0 ? { covered: tally.covered } : {}),
+            ...(own === undefined ? {} : { overridden: tally.overridden }),
+        };
 
         if (shares.length === 1 && first !== undefined) {
             channels.push({
@@ -950,7 +984,7 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
         channels.push({ channel, state: "mixed", breakdown: Object.freeze(breakdown), unpainted, ...covered });
     }
 
-    return { channels: Object.freeze(channels) };
+    return { channels: Object.freeze(channels), elements: { nodes: totals.node, edges: totals.edge } };
 }
 
 /**

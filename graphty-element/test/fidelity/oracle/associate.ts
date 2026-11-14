@@ -2350,10 +2350,16 @@ export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[
     const labelInside = (n: DrawnNodes["nodes"][number]): boolean =>
         n.box === undefined ||
         (Math.abs(cx(n.box) - n.x) <= 1 + 0.1 * n.w && Math.abs(cy(n.box) - n.y) <= 1 + 0.1 * n.h);
+    // each line of a label drawn inside its shape lies within the node's box, the outer lines off its center
+    // (json-vis-synth: 29's "multi\nline\nlabel")
+    const inBox = (p: Prim, b: PBox): boolean =>
+        p.box.x0 >= b.x0 - 1 && p.box.x1 <= b.x1 + 1 && p.box.y0 >= b.y0 - 1 && p.box.y1 <= b.y1 + 1;
+    const centered = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
+        Math.abs(cx(p.box) - n.x) <= 1 + 0.1 * n.w && Math.abs(cy(p.box) - n.y) <= 1 + 0.1 * n.h;
     const on = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
-        (p.kind === "shape" || p.kind === "image" || labelInside(n)) &&
-        Math.abs(cx(p.box) - n.x) <= 1 + 0.1 * n.w &&
-        Math.abs(cy(p.box) - n.y) <= 1 + 0.1 * n.h &&
+        (p.kind === "shape" || p.kind === "image"
+            ? centered(p, n)
+            : labelInside(n) && (centered(p, n) || (n.box !== undefined && inBox(p, n.box)))) &&
         bw(p.box) <= 1.5 * n.w + 2 &&
         bh(p.box) <= 1.5 * n.h + 2;
     return prims.map((p) => {

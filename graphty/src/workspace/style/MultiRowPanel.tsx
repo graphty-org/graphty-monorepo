@@ -4,11 +4,13 @@ import type { GraphSession, HistoryStepId, Layer, LayerReach, StyleRow } from "@
 import { Stack } from "@mantine/core";
 import React, { useState } from "react";
 
+import { fileStylesOn } from "../features";
 import { findTreeRow, type FoundRow } from "../graph-place/rows";
 import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { LayerSequence, LayerValues } from "./BulkBinding";
 import { writeKind } from "./cards";
+import { ruleLine } from "./parts/ruleLine";
 import type { BeneathValue, BulkReceipt, ManyRows, RowContext } from "./PropertyRow";
 import {
     beneathOf,
@@ -454,6 +456,7 @@ function kindControl(
                 rows={layerRows.filter((id) => has(id, side))}
                 side={side}
                 autoOpen={justOn}
+                {...(fileStylesOn(session) ? { summary: ruleLine } : {})}
                 {...elsewhere}
             />
         ),

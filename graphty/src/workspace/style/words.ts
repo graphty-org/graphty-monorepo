@@ -61,6 +61,21 @@ export interface SectionSpec {
      * settings), never a "+" item of their own.
      */
     readonly inner?: readonly Channel[];
+    /** The properties its "+" offers; absent, every property it lists. */
+    readonly offer?: readonly Channel[];
+    /** Properties never drawn as a line of the section, even when set (reached from elsewhere). */
+    readonly quiet?: readonly Channel[];
+    /** Whether the row writes something in the section, drawn as a dot after its title. */
+    readonly configured?: boolean;
+    /** Row words that replace a property's own, by property. */
+    readonly words?: Readonly<Partial<Record<Channel, string>>>;
+    /**
+     * The things a list section holds (a fill's paints, the effects): one heading line per item the
+     * row sets, with a minus that takes every property of the item away, then its lines.
+     */
+    readonly items?: readonly { readonly id: string; readonly name: string; readonly channels: readonly Channel[] }[];
+    /** Properties drawn together: once the row sets one, the others show, waiting for a value. */
+    readonly together?: readonly Channel[];
 }
 
 /** A model's channels: what the Shape field names, and what Model settings sets. */
@@ -231,6 +246,19 @@ export interface SectionFlags {
     readonly cosmograph: boolean;
     /** The `node-models` experiment: Shape's models and Fill's Picture. */
     readonly nodeModels: boolean;
+}
+
+/**
+ * The properties an experiment that is off keeps out of the Style tab: with `cosmograph` off, Line's
+ * fade and blending; with `node-models` off, the model's settings and Picture.
+ * @param flags - which experiments are on.
+ * @returns the properties to leave out.
+ */
+export function experimentChannelsOff(flags: SectionFlags): ReadonlySet<Channel> {
+    return new Set<Channel>([
+        ...(flags.cosmograph ? [] : COSMOGRAPH_LINE_CHANNELS),
+        ...(flags.nodeModels ? [] : ["node.texture" as const, ...MODEL_CHANNELS]),
+    ]);
 }
 
 /**

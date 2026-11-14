@@ -230,6 +230,10 @@ export type {
     ChannelValueKind,
 } from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
+// Every value of an enum channel with a default name and picture (`catalog.channelValues`), and the
+// one reader and writer of a list channel's items (`ChannelDescriptor.listOf`).
+export type { ChannelValueDescriptor } from "./src/catalog/channelValues";
+export { readChannelList, writeChannelList } from "./src/catalog/channelValues";
 // What a shader parameter declared `varies` is bound as, by its encode address: the descriptor an
 // editor's vary picker and `styles.proposeEncoding` read for it.
 export { shaderParamChannel } from "./src/session/styles/encoding";

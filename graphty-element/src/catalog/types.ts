@@ -26,6 +26,7 @@ import type { GraphtyErrorCode } from "../errors/codes";
 import type { ChannelDescriptor } from "../session/styles/channels";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
+import type { ChannelValueDescriptor } from "./channelValues";
 import type { LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
@@ -2894,6 +2895,20 @@ export interface CatalogApi {
      * @since 3.36.0
      */
     channels(target: "node" | "edge"): readonly ChannelDescriptor[];
+    /**
+     * Every value of one enum channel this session offers, in the order of the channel's
+     * `values`, each with a default name and, for a node shape, an arrowhead or a line pattern
+     * (a border's included), a picture. With the `file-styles` experiment off it leaves out the
+     * values the experiment added, as {@link CatalogApi.channels} does.
+     *
+     * ```ts
+     * session.catalog.channelValues("node.shape"); // [{ id: "box", plainName: "Box", glyph: "<svg ..." }, ...]
+     * ```
+     * @param channel - The channel.
+     * @returns The values; empty for a channel that is not an enum or that the session does not offer.
+     * @since 3.40.0
+     */
+    channelValues(channel: Channel): readonly ChannelValueDescriptor[];
     palettes(): readonly PaletteDescriptor[];
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];

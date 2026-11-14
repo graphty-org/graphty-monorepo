@@ -11,10 +11,15 @@ import { browserProjects } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../test/features";
 import { screen, waitFor, within } from "../../test/test-utils";
 import { clearRecent } from "../project/recent";
 import { openModels, openShapes, plusMenu, reaches, shapeChoices } from "../style/__tests__/modelHarness";
 import { quadGlb } from "../style/__tests__/quadGlb";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 const MODEL = "https://models.example.com/kit/panel.glb";
 

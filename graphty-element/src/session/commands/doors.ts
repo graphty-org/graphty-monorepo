@@ -1293,6 +1293,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     layerGroups: READ,
     counts: READ,
     drawnCount: READ,
+    drawnValues: READ,
     legendOf: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],

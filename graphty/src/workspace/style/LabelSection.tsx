@@ -640,8 +640,9 @@ function partsOf(ctx: RowContext, kind: TextKindSpec): AddOption[] {
 }
 
 /**
- * One text entry at rest (design 2.3). Line 1: the kind's glyph and word in the label column, the
- * source (typed words, or a value the words read), the settings button, the minus. Then the look (previews; "Card, edited" while a field differs,
+ * One text entry at rest (design 2.3). Line 1: the kind's glyph, word and own "+" in the label
+ * column, the settings button, the minus. Line 2: the source (typed words, or a value the words
+ * read) on the field column. Then the look (previews; "Card, edited" while a field differs,
  * from graphty-element's `labelLookChanges`), the size with its vary glyph, and the position, each
  * on the panel's field column with its Clear. Accessible names carry the kind ("Node label size"),
  * since a layer on nodes and edges draws two entries.
@@ -719,13 +720,12 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
         </SourcePicker>
     );
 
-    // Typed words name their source "Fixed text" on line 1 and get a line of their own, on the
-    // field column, wide enough to show what is typed: beside the entry's buttons the box was
-    // about 30 px.
+    // Typed words name their source "Fixed text" and get a line of their own, on the field column,
+    // wide enough to show what is typed.
     const fixed = typed || typing;
     const sourceWord = fixed ? FIXED_TEXT : source;
-    // The button is narrow and cuts its words short ("Fixed t..."), so its tooltip says them whole,
-    // in the words of its name.
+    // A long source name is cut short, so the button's tooltip says it whole, in the words of its
+    // name.
     const sourceName = `${kind.name} source: ${sourceWord}`;
     const sourceControl = sourcePicker(
         <Tooltip label={sourceName}>
@@ -756,7 +756,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     </span>
                     <EntryAdd ctx={ctx} kind={kind} locked={locked} onPart={onPart} />
                 </span>
-                {sourceControl}
+                <span style={{ flex: 1 }} />
                 <SettingsPopout
                     label={`${where} settings`}
                     title={`${kind.name} settings`}
@@ -802,6 +802,13 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     </Tooltip>
                 )}
             </Group>
+            {/* Line 2: where the words come from, on the field column. Beside the kind, its "+" and
+                the three buttons it was about 30 px, too narrow for a value's name ("n..."). */}
+            <div className="ws-field ws-field-sub">
+                <div className="ws-field-control">{sourceControl}</div>
+                <span className="ws-slot ws-vary" />
+                <span className="ws-slot" />
+            </div>
             {fixed ? (
                 <div className="ws-field" data-named="">
                     <span className="ws-field-label">

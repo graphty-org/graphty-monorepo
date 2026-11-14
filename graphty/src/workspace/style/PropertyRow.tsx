@@ -470,7 +470,7 @@ interface FieldProps {
     readonly onCancel?: () => void;
     /** A style's own "+", beside its name, that adds the style's settings under its row. */
     readonly settings?: React.ReactNode;
-    /** The property is a setting drawn under its style's row, indented under it. */
+    /** The property is a setting drawn under its style's row, its name on the label column like any field. */
     readonly setting?: boolean;
 }
 

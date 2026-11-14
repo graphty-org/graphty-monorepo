@@ -381,6 +381,8 @@ export const dataManagerInternals = {} as {
     builtNodes(manager: DataManager): IterableIterator<Node>;
     /** The rows stored with no `Node` yet (see `LazyView`), by row number. */
     unbuiltRows(manager: DataManager): number[];
+    /** How many source nodes ingest's duplicate-pair index holds now (0 when it holds none). */
+    pairIndexSources(manager: DataManager): number;
     /**
      * How much of {@link DataManager.nodeVersion} came from building the `Node` of a row already
      * drawn with no `Node`: the set of rows did not change, so the applied view masks still hold.
@@ -674,6 +676,7 @@ export class DataManager implements Manager {
         dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
+        dataManagerInternals.pairIndexSources = (manager) => manager.ingest.pairIndexSources;
         dataManagerInternals.lateNodeVersions = (manager) => manager.lateNodeVersions;
         dataManagerInternals.unpaintedKeys = (manager) => [...manager.unpainted];
         dataManagerInternals.storedIdOf = (manager, id) => {

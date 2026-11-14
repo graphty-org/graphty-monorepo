@@ -57,6 +57,9 @@ export interface Notice {
     readonly action?: { readonly label: string; readonly run: () => void };
 }
 
+/** An inspector tab: Style, Values, or Notes, which shows only for an item with notes. */
+export type InspectorTab = "style" | "values" | "notes";
+
 /** What the inspector shows: a kind and, for an element or row, its id. */
 interface Inspected {
     readonly kind: string;
@@ -97,7 +100,7 @@ export interface WorkspaceState {
     readonly renamingRow: string | null;
     readonly inspected: Inspected | null;
     /** The tab last chosen per inspected kind. */
-    readonly tabs: Readonly<Record<string, "style" | "values">>;
+    readonly tabs: Readonly<Record<string, InspectorTab>>;
     /**
      * The Style tab's Node or Edge tab, one for the whole panel: kept while the next row styles
      * that kind, else the kind the row styles (combined Style panel, 2026-10-16).
@@ -562,16 +565,24 @@ export function useStoreValue<T>(store: WorkspaceStore, select: (state: Workspac
 
 /**
  * The tab an inspected kind opens on: its fixed tab, else the reader's last choice, else its
- * default, else its first tab.
+ * default, else its first tab. A remembered Notes counts only when this item has notes; with
+ * none there is no Notes tab, and it opens as though Notes had never been chosen.
  * @param kind - the kind, or undefined when it is not registered.
  * @param remembered - the tab memory.
+ * @param hasNotes - whether the inspected item has notes, so a Notes tab.
  * @returns the tab, or null for a kind with no tabs.
  */
-export function tabFor(kind: InspectedKind | undefined, remembered: WorkspaceState["tabs"]): "style" | "values" | null {
+export function tabFor(
+    kind: InspectedKind | undefined,
+    remembered: WorkspaceState["tabs"],
+    hasNotes = false,
+): InspectorTab | null {
     if (kind === undefined || kind.tabs.length === 0) {
         return null;
     }
-    return kind.alwaysOpenOn ?? remembered[kind.kind] ?? kind.defaultTab ?? kind.tabs[0];
+    const last = remembered[kind.kind];
+    const usable = last === "notes" && !hasNotes ? undefined : last;
+    return kind.alwaysOpenOn ?? usable ?? kind.defaultTab ?? kind.tabs[0];
 }
 
 /** The session storage item the reader's place is kept under, for a reload of this tab. */

@@ -20,13 +20,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { readableName } from "../../style/words";
 import { Workspace } from "../../Workspace";
 
-/** A segmented control's visible label, which a reader presses: the radio itself is drawn invisible. */
-function segment(radio: HTMLInputElement): HTMLElement {
-    const label = radio.labels?.[0];
-    assert.isDefined(label);
-    return label;
-}
-
 /**
  * A new, empty project, then Zachary's karate club opened through the element's
  * import, with the layout the element recommends for it.
@@ -300,13 +293,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(session.layout.id, before);
     });
 
-    it("names the view mode on the Mode tool, draws its icon, and offers 2D, 3D and VR or AR", async () => {
+    it("names the view mode on the Mode tool, shows it as words, and offers 2D, 3D and VR or AR", async () => {
         const session = await openKarate();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        // Named with the mode its icon shows (WCAG 2.5.3).
+        // Named with the mode its face shows (WCAG 2.5.3).
         const view = within(toolbar).getByRole("button", { name: "Mode, 3D" });
-        const face = (): string | null | undefined => view.querySelector("svg")?.getAttribute("data-mode");
+        const face = (): string | null | undefined => view.querySelector("[data-mode]")?.getAttribute("data-mode");
         assert.equal(face(), "3d");
+        assert.equal(view.textContent, "3D");
         // No XR buttons on the canvas: the menu is the one way in.
         assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
 
@@ -342,10 +336,18 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.equal(session.layout.dimension, "2d");
             assert.equal(face(), "2d");
         });
+        assert.equal(view.textContent, "2D");
         assert.equal(view.getAttribute("aria-label"), "Mode, 2D");
         await userEvent.click(view);
         const flat = await screen.findByRole("menu", { name: /^Mode/ });
         assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
+        // Key 5 switches back, and the face says so.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("5");
+        await waitFor(() => {
+            assert.equal(session.layout.dimension, "3d");
+            assert.equal(view.textContent, "3D");
+        });
     });
 
     it("moves the camera from the Camera tool, turns Auto-rotate on and off, and keeps 3D views for 3D", async () => {
@@ -498,8 +500,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         // Hops 2 in the list's header reselects two hops out and relists; the list, the
         // selection and the status line agree on the count.
-        const hops = await screen.findByRole("radiogroup", { name: "Hops" });
-        await userEvent.click(segment(within(hops).getByRole<HTMLInputElement>("radio", { name: "2" })));
+        const hops = await screen.findByRole("spinbutton", { name: "Hops" });
+        await userEvent.clear(hops);
+        await userEvent.type(hops, "2{Enter}");
         await waitFor(() => {
             assert.isAbove(session.selection.nodes.length, neighborhood);
             assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
@@ -553,8 +556,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         // Open at one hop, reach two, filter to it, twice.
         await degree();
-        const hops = await screen.findByRole("radiogroup", { name: "Hops" });
-        await userEvent.click(segment(within(hops).getByRole<HTMLInputElement>("radio", { name: "2" })));
+        const hops = await screen.findByRole("spinbutton", { name: "Hops" });
+        await userEvent.clear(hops);
+        await userEvent.type(hops, "2{Enter}");
         await waitFor(() => {
             assert.isTrue(
                 screen.getAllByRole("status").some((status) => /within 2 hops$/.test(status.textContent ?? "")),
@@ -591,8 +595,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await degree();
         const words = `${name} and ${String(grown)} connections`;
         await screen.findByRole("group", { name: words });
-        const reopened = await screen.findByRole("radiogroup", { name: "Hops" });
-        assert.isTrue(within(reopened).getByRole<HTMLInputElement>("radio", { name: "2" }).checked);
+        const reopened = await screen.findByRole<HTMLInputElement>("spinbutton", { name: "Hops" });
+        assert.equal(reopened.value, "2");
         // Reopened under its own filter, the command is still disabled.
         assert.equal(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"), "true");
         assert.equal(session.selection.nodes.length, grown + 1);

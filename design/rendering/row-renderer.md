@@ -1527,6 +1527,12 @@ object per element. Stages 26 to 28 remove that reason.
   1,153-1,154 MB after a forced collection, against 1,296-1,308 MB at G9. The 800 MB target is not met yet; the
   largest per-row holders left are the lazy-row maps (`unbuilt`, `unbuiltIds`, `unbuiltEdges`, `unbuiltEdgeIds`),
   the `ColumnRow` per node, the graph builder's `idToIndex` Map and the ingest duplicate-pair index.
+- **G11, fourth pull request.** The ingest duplicate-pair index (`storedPairs`, one Set per source node) is only
+  reused by the next chunk of the same load, but a batch outside a load (`addEdges`, `importColumns`, `edgeData`)
+  kept it until the next batch. Such a batch now drops it when it ends. Measured (1M + 1M typed, `batched`,
+  ceilings at 2,000,000, 2 runs, load average 2.2 before, 1.0 after): 1,098 MB after a forced collection, against
+  1,153-1,154 MB after the third pull request. Still above 800 MB; next are the lazy-row maps and the `ColumnRow`
+  per node.
 - With `"batched"`, that option loads a million nodes. `"objects"` with a higher limit refuses with `E_TOO_LARGE`: its heap reason stands.
   **The default stays 100,000** (section 10).
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or

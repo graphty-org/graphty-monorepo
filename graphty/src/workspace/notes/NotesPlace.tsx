@@ -227,58 +227,159 @@ function Editor({
 }
 
 /**
- * The Notes place (tier2-design.md section 3): the editor when a note is being written, then the
- * notes, newest first. The list is one Tab stop; Up and Down move between notes, Delete removes
- * the focused one, and focus then goes to the next note, or to "+" when none is left. A saved
- * note takes focus itself; Cancel puts focus on "+".
- * @returns The Notes place
+ * A list of notes, each its text, its target chips, when it was written and Delete. The list is
+ * one Tab stop; Up and Down move between notes, Delete removes the focused one, and focus then
+ * goes to the next note, or to `onEmptied` when none is left. The Notes place lists every note;
+ * the inspector's Notes tab lists the notes about what it shows.
+ * @param props - Component props
+ * @param props.notes - The notes, in the order shown
+ * @param props.pending - The note to focus once the list has drawn it; a note just saved sets it
+ * @param props.onEmptied - Called when Delete removes the last note, to put focus somewhere
+ * @returns The list
  */
-export function NotesPlace(): React.JSX.Element {
+export function NoteList({
+    notes,
+    pending: given,
+    onEmptied,
+}: Readonly<{
+    notes: readonly Note[];
+    pending?: React.RefObject<string | null>;
+    onEmptied?: () => void;
+}>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    const version = useNotesVersion(session);
-    const editing = useWorkspaceState((state) => state.noteDraft !== null);
-    const notes = session?.notes.list() ?? [];
     const [active, setActive] = useState(0);
     const items = useRef<(HTMLLIElement | null)[]>([]);
-    const plus = useRef<HTMLSpanElement>(null);
+    const own = useRef<string | null>(null);
     // The note to focus once the list has drawn it: the next one after a delete.
-    const pending = useRef<string | null>(null);
+    const pending = given ?? own;
     const current = Math.min(active, Math.max(notes.length - 1, 0));
     useEffect(() => {
-        const index = (session?.notes.list() ?? []).findIndex((note) => note.id === pending.current);
+        const index = notes.findIndex((note) => note.id === pending.current);
         if (index >= 0) {
             pending.current = null;
             setActive(index);
             items.current[index]?.focus();
         }
-    }, [version, session]);
-    const focusWhenDrawn = (id: string): void => {
-        pending.current = id;
-    };
+    }, [notes, pending]);
+    if (session === null || notes.length === 0) {
+        return null;
+    }
 
     const focusAt = (index: number): void => {
         setActive(index);
         items.current[index]?.focus();
     };
-    const focusPlus = (): void => {
-        plus.current?.querySelector("button")?.focus();
-    };
     const remove = (index: number): void => {
         const note = notes.at(index);
-        if (session === null || note === undefined) {
+        if (note === undefined) {
             return;
         }
-        // The next note, or the one above when the last one goes, or "+" when none is left.
+        // The next note, or the one above when the last one goes, or onEmptied when none is left.
         const next = notes.at(index + 1) ?? (index > 0 ? notes.at(index - 1) : undefined);
         if (next === undefined) {
-            focusPlus();
+            onEmptied?.();
         } else {
-            focusWhenDrawn(next.id);
+            pending.current = next.id;
         }
         session.notes.remove(note.id);
     };
     const openRun = (run: string): void => {
         store.set({ inspected: { kind: "run-row", id: run } });
+    };
+
+    return (
+        <ul className="nt-list" aria-label="Notes">
+            {notes.map((note, index) => {
+                const status = session.notes.status(note.id);
+                const tabbable = index === current;
+                return (
+                    <li // NOSONAR(S6847): a note in a roving list; arrow keys move between notes, as the ARIA practices describe
+                        key={note.id}
+                        ref={(node) => {
+                            items.current[index] = node;
+                        }}
+                        tabIndex={tabbable ? 0 : -1} // NOSONAR(S6845): the roving tab stop of the note list
+                        aria-label={note.text}
+                        className="nt-note"
+                        onFocus={(event) => {
+                            if (event.target === event.currentTarget) {
+                                setActive(index);
+                            }
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.target !== event.currentTarget) {
+                                return;
+                            }
+                            if (event.key === "ArrowDown" && index < notes.length - 1) {
+                                event.preventDefault();
+                                focusAt(index + 1);
+                            } else if (event.key === "ArrowUp" && index > 0) {
+                                event.preventDefault();
+                                focusAt(index - 1);
+                            } else if (event.key === "Delete") {
+                                event.preventDefault();
+                                remove(index);
+                            }
+                        }}
+                    >
+                        <Text size="sm" className="nt-note-text">
+                            {note.text}
+                        </Text>
+                        <div className="nt-note-foot">
+                            <Chips
+                                session={session}
+                                targets={note.targets}
+                                states={status.targets.map((target) => targetStateWords(target.state))}
+                                tabbable={tabbable}
+                                note={note.text}
+                                onOpen={(target) => {
+                                    openTarget(session, note, target, openRun);
+                                }}
+                            />
+                            <Text size="xs" c="dimmed">
+                                {noteTimeWords(note.time, note.edited)}
+                            </Text>
+                            <Tooltip label="Delete note">
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    aria-label={`Delete note: ${noteName(note.text)}`}
+                                    tabIndex={tabbable ? 0 : -1}
+                                    onClick={() => {
+                                        remove(index);
+                                    }}
+                                >
+                                    <GLYPHS.delete size={14} aria-hidden />
+                                </ActionIcon>
+                            </Tooltip>
+                        </div>
+                    </li>
+                );
+            })}
+        </ul>
+    );
+}
+
+/**
+ * The Notes place (tier2-design.md section 3): the editor when a note is being written, then the
+ * notes, newest first (`NoteList`). A saved note takes focus itself; Cancel, or deleting the last
+ * note, puts focus on "+".
+ * @returns The Notes place
+ */
+export function NotesPlace(): React.JSX.Element {
+    const { session } = useWorkspace();
+    // Re-reads the notes on every change to them, or to what their targets point at.
+    useNotesVersion(session);
+    const editing = useWorkspaceState((state) => state.noteDraft !== null);
+    const notes = session?.notes.list() ?? [];
+    const plus = useRef<HTMLSpanElement>(null);
+    // The note to focus once the list has drawn it: the one just saved.
+    const pending = useRef<string | null>(null);
+    const focusWhenDrawn = (id: string): void => {
+        pending.current = id;
+    };
+    const focusPlus = (): void => {
+        plus.current?.querySelector("button")?.focus();
     };
 
     return (
@@ -303,76 +404,7 @@ export function NotesPlace(): React.JSX.Element {
                         </Text>
                     )
                 ) : (
-                    <ul className="nt-list" aria-label="Notes">
-                        {session !== null &&
-                            notes.map((note, index) => {
-                                const status = session.notes.status(note.id);
-                                const tabbable = index === current;
-                                return (
-                                    <li // NOSONAR(S6847): a note in a roving list; arrow keys move between notes, as the ARIA practices describe
-                                        key={note.id}
-                                        ref={(node) => {
-                                            items.current[index] = node;
-                                        }}
-                                        tabIndex={tabbable ? 0 : -1} // NOSONAR(S6845): the roving tab stop of the note list
-                                        aria-label={note.text}
-                                        className="nt-note"
-                                        onFocus={(event) => {
-                                            if (event.target === event.currentTarget) {
-                                                setActive(index);
-                                            }
-                                        }}
-                                        onKeyDown={(event) => {
-                                            if (event.target !== event.currentTarget) {
-                                                return;
-                                            }
-                                            if (event.key === "ArrowDown" && index < notes.length - 1) {
-                                                event.preventDefault();
-                                                focusAt(index + 1);
-                                            } else if (event.key === "ArrowUp" && index > 0) {
-                                                event.preventDefault();
-                                                focusAt(index - 1);
-                                            } else if (event.key === "Delete") {
-                                                event.preventDefault();
-                                                remove(index);
-                                            }
-                                        }}
-                                    >
-                                        <Text size="sm" className="nt-note-text">
-                                            {note.text}
-                                        </Text>
-                                        <div className="nt-note-foot">
-                                            <Chips
-                                                session={session}
-                                                targets={note.targets}
-                                                states={status.targets.map((target) => targetStateWords(target.state))}
-                                                tabbable={tabbable}
-                                                note={note.text}
-                                                onOpen={(target) => {
-                                                    openTarget(session, note, target, openRun);
-                                                }}
-                                            />
-                                            <Text size="xs" c="dimmed">
-                                                {noteTimeWords(note.time, note.edited)}
-                                            </Text>
-                                            <Tooltip label="Delete note">
-                                                <ActionIcon
-                                                    variant="subtle"
-                                                    size="sm"
-                                                    aria-label={`Delete note: ${noteName(note.text)}`}
-                                                    tabIndex={tabbable ? 0 : -1}
-                                                    onClick={() => {
-                                                        remove(index);
-                                                    }}
-                                                >
-                                                    <GLYPHS.delete size={14} aria-hidden />
-                                                </ActionIcon>
-                                            </Tooltip>
-                                        </div>
-                                    </li>
-                                );
-                            })}
-                    </ul>
+                    <NoteList notes={notes} pending={pending} onEmptied={focusPlus} />
                 )}
             </ControlSection>
         </section>

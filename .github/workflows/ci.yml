@@ -128,7 +128,7 @@ env:
 
 jobs:
     # The cap on concurrent pull request runs (tools/ci-run-cap.mjs). On a pull request it waits, on one small
-    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 160) or more
+    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 150) or more
     # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a release.yml run waits for a
     # runner, so the full run goes first. Every other job needs the Build job, which needs this one, so a waiting
     # run holds nothing else. It never fails the run: an API error proceeds, and waiting has no limit but this
@@ -1647,13 +1647,14 @@ jobs:
             issues: write
         strategy:
             fail-fast: false
-            # A full run (release.yml, a dispatch, a bisect) runs at most 14 shards at once and its story tests at
-            # most 6, 20 runners in all, so the full run never starves pull requests of runners (#3448); the
+            # A full run (release.yml, a dispatch, a bisect) runs at most 24 shards at once and its story tests at
+            # most 6, 30 runners in all, so the full run never starves pull requests of runners (#3448); the
             # Run cap lets pull requests go once the full run holds that share (RELEASE_SHARE in
-            # tools/ci-run-cap.mjs). Its ~25 shards are ~260 runner-minutes, the longest ~19: about 25 minutes
-            # at 14. A pull request keeps 40. The features-on shards come last in the matrix
+            # tools/ci-run-cap.mjs), and the default pull request job budget is the ~180-runner ceiling less
+            # it: 150 (CI_PR_JOB_BUDGET overrides it). At 14 its Test jobs ended at about 66 minutes; 24 brings
+            # that to about 35-38 (#7849). A pull request keeps 40. The features-on shards come last in the matrix
             # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
-            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 14 }}
+            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 24 }}
             # a plan above GitHub's 256-job cap runs its first 256 here and the rest in test-2
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix-1 || needs.packages.outputs.test-matrix) }}
 
@@ -2077,7 +2078,7 @@ jobs:
         strategy:
             fail-fast: false
             # only a pull request's bins pass the cap, so only the pull request value matters here
-            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 14 }}
+            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 24 }}
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix-2) }}
         steps: *test-steps
 

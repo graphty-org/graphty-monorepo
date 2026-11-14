@@ -443,6 +443,17 @@ describe("runPoint", () => {
         assert.equal(calls.length, 2);
         assert.equal(await runArgs("no-such-shard-at-this-point", []), null);
     });
+
+    it("runs the files of a shard since split into parts in a part of its family", async () => {
+        // graphty-element-default became graphty-element-default-1 and -2 (#7849)
+        const [flag, shard, command] = await runArgs("graphty-element-default", ["graphty-element/test/x.test.ts"]);
+        assert.equal(flag, "--command");
+        assert.equal(shard, "graphty-element-default-1");
+        assert.match(command, /vitest run .*test\/x\.test\.ts'$/);
+        assert.doesNotMatch(command, /--shard/);
+        // a whole-shard run of a name that no longer exists is still none
+        assert.equal(await runArgs("graphty-element-default", []), null);
+    });
 });
 
 describe("a point's time limit", () => {
@@ -464,7 +475,7 @@ describe("a point's time limit", () => {
     const threeShards = {
         lane: "ci",
         next: { confirm: true },
-        targets: ["graphty-element-default", "graphty-features-on-1", "graphty-features-on-2"].map((shard, i) => ({
+        targets: ["graphty-element-default-1", "graphty-features-on-1", "graphty-features-on-2"].map((shard, i) => ({
             id: `t${i}`,
             shard,
         })),

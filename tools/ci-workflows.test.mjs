@@ -1406,9 +1406,9 @@ describe("the test matrix limited to named shards (--only, a CI bisect point)", 
                 encoding: "utf8",
             });
         assert.match(run("--only", '["graphty-2"]').stdout, /\ntest-count=1\n/);
-        const bad = run("--only", '["graphty-9"]');
+        const bad = run("--only", '["graphty-99"]');
         assert.notEqual(bad.status, 0);
-        assert.match(bad.stderr, /graphty-9/);
+        assert.match(bad.stderr, /graphty-99/);
     });
 });
 
@@ -8022,7 +8022,8 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
     // failed with every Test job green (#5537). Such a plan is cut across the test and test-2 jobs.
     it("runs a plan above 256 Test jobs as two matrices, and passes only when both did", () => {
         const dir = mkdtempSync(join(TMP, "matrix-cap-"));
-        const covers = SHARDS.filter((s) => s.shard.startsWith("graphty-element-browser-")).map((s) => s.shard);
+        // a pull request's bins cover the Off parts only (it plans no full-run-only shard)
+        const covers = SHARDS.filter((s) => /^graphty-element-browser-\d+$/.test(s.shard)).map((s) => s.shard);
         const bins = Array.from({ length: 302 }, (_, i) => ({
             name: `graphty-element-browser-bin-${i + 1}`,
             family: "graphty-element-browser",

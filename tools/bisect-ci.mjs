@@ -20,6 +20,7 @@ import { parseArgs } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { badTargets, bisectStep, classify, CONFIRM_RUNS, parentFails, short, targetsOf } from "./bisect-core.mjs";
+import { familyOf } from "./test-ledger.mjs";
 
 const ROOT = process.env.BISECT_ROOT || join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -304,17 +305,21 @@ export async function runArgs(shard, files) {
     if (shard === "llm-regression")
         return [
             "--command",
-            "graphty-element-default",
+            "graphty-element-default-1",
             `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.map(quote).join(" ")}`.trimEnd(),
         ];
     const at = (f) => import(pathToFileURL(join(ROOT, f)).href).catch(() => ({}));
     const { SHARDS = [] } = await at("tools/ci-test-matrix.mjs");
     const { selectedCommand } = await at("tools/test-select.mjs");
-    const entry = SHARDS.find((x) => x.shard === shard);
+    // a test recorded under a shard since split into parts (graphty-element-default became -1 and -2, #7849) runs
+    // its files in a part of the same family: a selection runs the family's files whatever the part
+    const entry =
+        SHARDS.find((x) => x.shard === shard) ??
+        (files.length ? SHARDS.find((x) => familyOf(x.shard) === familyOf(shard)) : undefined);
     if (!entry) return null;
     // a point older than the selector runs the whole shard
     const command = files.length && selectedCommand ? selectedCommand(ROOT, entry, files) : null;
-    return command ? ["--command", shard, command] : [shard];
+    return command ? ["--command", entry.shard, command] : [entry.shard];
 }
 
 // One run of tools/run-tests.sh, stopped after `ms`. coreutils timeout signals the run's whole process group

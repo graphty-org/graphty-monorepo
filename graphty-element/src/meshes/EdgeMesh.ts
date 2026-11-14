@@ -83,6 +83,7 @@ interface ArrowHeadOptions {
     image?: string; // The picture an "image" cap draws (a URL or a data URL)
     side?: "left" | "right"; // Draw only the cap's half on this side of its line (unset: all of it)
     outline?: number; // An open cap's outline thickness, in the line's width units (unset: the cap's own thin frame)
+    fill?: string; // An open cap's inside colour (unset: the inside is left empty)
 }
 
 /**
@@ -138,7 +139,13 @@ function sided(mesh: Mesh, side: "left" | "right" | undefined): Mesh {
     };
     const corner = (i: number): number[] => [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
     const out: number[] = [];
+    // a filled open cap's inside comes first (FilledArrowRenderer.createOpenOutline): what is kept of it, still first
+    const meta = mesh.metadata as { capFill?: number } | null;
+    let inside = 0;
     for (let i = 0; i + 2 < indices.length; i += 3) {
+        if (i === meta?.capFill) {
+            inside = out.length / 3;
+        }
         const kept = clipTriangle([corner(indices[i]), corner(indices[i + 1]), corner(indices[i + 2])], keep, at);
         for (let k = 1; k + 1 < kept.length; k++) {
             out.push(...kept[0], ...kept[k], ...kept[k + 1]);
@@ -149,6 +156,9 @@ function sided(mesh: Mesh, side: "left" | "right" | undefined): Mesh {
     data.positions = out;
     data.indices = Array.from({ length: out.length / 3 }, (_, i) => i);
     data.applyToMesh(mesh);
+    if (meta?.capFill !== undefined) {
+        meta.capFill = inside;
+    }
     mesh.name = `${mesh.name}-${side}-half`;
     return mesh;
 }
@@ -173,6 +183,41 @@ function widened(mesh: Mesh, breadth: number): Mesh {
     }
 
     return mesh;
+}
+
+/**
+ * What an open cap draws besides its shape, each part of its batch's key since a batch holds one geometry and one inside
+ * colour.
+ *
+ * AN OPEN CAP'S OUTLINE WIDTH (#5800), when set, frames its outline as thick as that width of line, as Graphviz and
+ * Cytoscape.js stroke an open arrow with the edge's own pen: in scene units `outline / 40` (the line's, see
+ * createPatternedLine) over the cap's length. Unset, the cap keeps its own thin frame.
+ *
+ * AN OPEN CAP'S INSIDE (#7565), when given a colour, is filled inside its frame, as yEd fills a framed edge's
+ * arrowheads: the frame drawn as an outline (the cap's own thin one when it has no width), its inside apart from it.
+ * @param type - The cap type; only open caps with an outline take either.
+ * @param options - The cap's options.
+ * @param length - The cap's length in scene units.
+ * @param widthKey - The key so far.
+ * @returns The frame's thickness in the cap's lengths, the inside's colour, and the key with both.
+ */
+function openLook(
+    type: string,
+    options: ArrowHeadOptions,
+    length: number,
+    widthKey: string,
+): { stroke: number | undefined; fill: string | undefined; key: string } {
+    if (!(type in FilledArrowRenderer.OPEN_OUTLINES)) {
+        return { stroke: undefined, fill: undefined, key: widthKey };
+    }
+    const stroke =
+        options.outline !== undefined && options.outline > 0
+            ? Math.round((options.outline / 40 / length) * 1000) / 1000
+            : undefined;
+    const { fill } = options;
+    const strokeKey = stroke === undefined ? "" : `|s${String(stroke)}`;
+    const fillKey = fill === undefined ? "" : `|f${fill}`;
+    return { stroke, fill, key: `${widthKey}${strokeKey}${fillKey}` };
 }
 
 interface ArrowGeometry {
@@ -893,17 +938,17 @@ void main() {
             throw new Error(`Unsupported arrow type: ${options.type}`);
         }
 
-        // AN OPEN CAP'S OUTLINE WIDTH (#5800), when set, frames its outline as thick as that width of line, as Graphviz
-        // and Cytoscape.js stroke an open arrow with the edge's own pen: in scene units `outline / 40` (the line's, see
-        // createPatternedLine) over the cap's length, which a batch's one geometry holds, so it is part of the key.
-        // Unset, the cap keeps its own thin frame.
-        const stroke =
-            options.outline !== undefined && options.outline > 0 && arrowType in FilledArrowRenderer.OPEN_OUTLINES
-                ? Math.round((options.outline / 40 / length) * 1000) / 1000
-                : undefined;
-        const openKey = stroke === undefined ? widthKey : `${widthKey}|s${String(stroke)}`;
+        const { stroke, fill, key: openKey } = openLook(arrowType, options, length, widthKey);
         const open = (): Mesh | null =>
-            stroke === undefined ? null : FilledArrowRenderer.createOpenOutline(arrowType, scene, stroke, breadth);
+            stroke === undefined && fill === undefined
+                ? null
+                : FilledArrowRenderer.createOpenOutline(
+                      arrowType,
+                      scene,
+                      stroke ?? FilledArrowRenderer.FILLED_FRAME,
+                      breadth,
+                      fill !== undefined,
+                  );
 
         if (is2D) {
             // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
@@ -925,6 +970,9 @@ void main() {
                             ),
                         side,
                     );
+                    if (fill !== undefined) {
+                        FilledArrowRenderer.paintInside2D(source, fill, opacity, scene);
+                    }
                     source.visibility = opacity;
                     return source;
                 },
@@ -944,6 +992,7 @@ void main() {
                 size: length, // World-space length (e.g., 0.5 units)
                 color: options.color,
                 opacity,
+                fill,
             },
             scene,
             reuse,

@@ -77,6 +77,7 @@ export function GradientRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.E
     const moving = useRef(false);
     const [opened, setOpened] = useState(false);
     const { stops, written } = stopsOf(ctx);
+    const bar = stops.map((stop) => `${stop.color} ${String(stop.offset * 100)}%`).join(", ");
     const write = (next: readonly ColorStop[]): void => {
         const sorted = [...next].sort((a, b) => a.offset - b.offset);
         const colors = writeChannelList(
@@ -106,9 +107,7 @@ export function GradientRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.E
                         fullWidth
                         aria-label={`Edit node ${COLORS.toLowerCase()}`}
                         className="ws-gradient-button"
-                        style={{
-                            background: `linear-gradient(to right, ${stops.map((stop) => `${stop.color} ${String(stop.offset * 100)}%`).join(", ")})`,
-                        }}
+                        style={{ background: `linear-gradient(to right, ${bar})` }}
                     />
                 </Popout.Trigger>
                 <Popout.Panel

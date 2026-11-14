@@ -10,7 +10,10 @@
  *   weight (when `weightFrom` is not null), then `column4`... as attributes.
  * - Endpoint and node ids are text cells coerced by ONE rule per import call (`ids`, default
  *   "canonical": `"1"` becomes the number 1, `"01"` stays a string) over the node table and the
- *   edge table alike, so they agree across the two files.
+ *   edge table alike, so they agree across the two files. Spaces and tabs around an unquoted id
+ *   cell are trimmed (CSVW's trim), so `a, b` names `a` and `b`; a quoted cell is kept as written.
+ *   A blank endpoint, quoted (`""`) or not, is a missing endpoint; in a node table or an adjacency
+ *   row a quoted `""` is the empty-string id.
  * - Direction is per row in the Gephi dialect (`Type` = Directed / Undirected / Mutual, blank =
  *   `defaultDirected`) and `defaultDirected` (true) otherwise; the first edge row sets the sink's
  *   direction and later rows that differ go through `onMixedDirection` (expansion by default).
@@ -284,7 +287,8 @@ export const SINGLE_COLUMN_CODE = "W_CSV_SINGLE_COLUMN";
  */
 export const AMBIGUOUS_COLUMN_CODE = "W_CSV_AMBIGUOUS_COLUMN";
 /**
- * An unquoted id with leading or trailing whitespace (kept, RFC 4180), distinct from the bare id.
+ * An unquoted id starts or ends in whitespace other than spaces and tabs (a no-break space, a
+ * U+FEFF), which is kept, so it is a different id from the trimmed text. Spaces and tabs are trimmed.
  * @category Issue and loss codes
  */
 export const PADDED_ID_CODE = "W_CSV_PADDED_ID";
@@ -452,13 +456,28 @@ function directionName(directed: boolean): string {
 }
 
 /**
- * Whether an unquoted id cell has leading or trailing whitespace (kept as written, RFC 4180).
- * @param text - the cell text
+ * Whether an unquoted id cell, after idCell() trimmed its spaces and tabs, still starts or ends
+ * in whitespace (a no-break space, a U+FEFF), which is kept as written.
+ * @param text - the trimmed cell text
  * @param quoted - whether the cell was quoted
  * @returns true when padded
  */
 function isPadded(text: string, quoted: boolean | undefined): boolean {
     return quoted !== true && text.trim().length !== text.length;
+}
+
+/** Spaces and tabs at either end of a cell. */
+const ID_PADDING = /^[ \t]+|[ \t]+$/g;
+
+/**
+ * The id an id cell names: an unquoted cell without the spaces and tabs around it (CSVW's trim,
+ * so `a, b` names `a` and `b`); a quoted cell as written.
+ * @param text - the cell text
+ * @param quoted - whether the cell was quoted
+ * @returns the id text
+ */
+function idCell(text: string, quoted: boolean | undefined): string {
+    return quoted === true ? text : text.replace(ID_PADDING, "");
 }
 
 /**
@@ -604,6 +623,17 @@ function isBlank(text: string): boolean {
  */
 function isUnset(text: string, quoted: boolean | undefined): boolean {
     return quoted !== true && isBlank(text);
+}
+
+/**
+ * Whether an endpoint cell names no node: unset, or the quoted empty string (`""`), which an edge
+ * row reads as blank (csv-spectrum's empty.csv); a quoted `" "` is a set id.
+ * @param text - the cell text
+ * @param quoted - whether the cell was quoted
+ * @returns true when the endpoint is missing
+ */
+function isMissingEndpoint(text: string, quoted: boolean | undefined): boolean {
+    return isUnset(text, quoted) || idCell(text, quoted).length === 0;
 }
 
 /**
@@ -1634,6 +1664,7 @@ class TableReader {
         where.line = line;
         where.element = null;
         const neighbors = setNeighborCells(row, quoted);
+        const node = idCell(row[0], quoted[0]);
         if (isUnset(row[0], quoted[0])) {
             report.error("missing-value", MISSING_ID_CODE, `blank node cell`, { line });
             counts.skippedNodes++;
@@ -1647,8 +1678,9 @@ class TableReader {
         }
         let source: NodeId;
         try {
-            where.element = row[0];
-            source = this.coerce(row[0]);
+            where.element = node;
+            this.checkPadded(node, quoted[0], line);
+            source = this.coerce(node);
             if (sink.indexOf(source) === INVALID_INDEX) {
                 counts.nodes++;
             }
@@ -1663,9 +1695,10 @@ class TableReader {
             if (isUnset(row[k], quoted[k])) {
                 continue;
             }
-            where.element = row[k];
+            const text = idCell(row[k], quoted[k]);
+            where.element = text;
             try {
-                const cell = splitNeighbour(row[k], report);
+                const cell = splitNeighbour(text, report);
                 const target = this.coerce(cell.id);
                 const targetNew = sink.indexOf(target) === INVALID_INDEX;
                 const before = sink.edgeCount;
@@ -1695,10 +1728,11 @@ class TableReader {
             counts.skippedEdges++;
             return;
         }
-        const sourceText = row[plan.source];
-        const targetText = row[plan.target];
-        const sourceMissing = isUnset(sourceText, quoted[plan.source]);
-        if (sourceMissing || isUnset(targetText, quoted[plan.target])) {
+        // a quoted empty endpoint names no node either: the empty-string id lives only in a node table
+        const sourceText = idCell(row[plan.source], quoted[plan.source]);
+        const targetText = idCell(row[plan.target], quoted[plan.target]);
+        const sourceMissing = isMissingEndpoint(row[plan.source], quoted[plan.source]);
+        if (sourceMissing || isMissingEndpoint(row[plan.target], quoted[plan.target])) {
             report.error("missing-value", MISSING_ENDPOINT_CODE, `blank ${sourceMissing ? "source" : "target"} cell`, {
                 line,
             });
@@ -1863,8 +1897,8 @@ class TableReader {
             counts.skippedNodes++;
             return;
         }
-        const idText = plan.id >= 0 ? row[plan.id] : String(ordinal);
-        if (plan.id >= 0 && isUnset(idText, quoted[plan.id])) {
+        const idText = plan.id >= 0 ? idCell(row[plan.id], quoted[plan.id]) : String(ordinal);
+        if (plan.id >= 0 && isUnset(row[plan.id], quoted[plan.id])) {
             report.error("missing-value", MISSING_ID_CODE, `blank id cell`, { line });
             counts.skippedNodes++;
             return;
@@ -1901,9 +1935,9 @@ class TableReader {
     }
 
     /**
-     * Warn once per import about an unquoted id cell with leading or trailing whitespace, which is
-     * a different id from the bare text (RFC 4180 keeps spaces).
-     * @param text - the cell text
+     * Warn once per import about an unquoted id cell that, with its spaces and tabs trimmed, still
+     * starts or ends in whitespace (a no-break space, a U+FEFF), kept as a different id from the bare text.
+     * @param text - the trimmed cell text
      * @param quoted - whether the cell was quoted
      * @param line - the row's line
      */
@@ -1912,7 +1946,7 @@ class TableReader {
             this.state.report.warnOnce(
                 "validation-error",
                 PADDED_ID_CODE,
-                `id ${JSON.stringify(text)} has leading or trailing whitespace and is kept as written, a different id from the trimmed text`,
+                `id ${JSON.stringify(text)} starts or ends in whitespace other than spaces and tabs and is kept as written, a different id from the trimmed text`,
                 { line, element: text },
             );
         }

@@ -23,7 +23,7 @@ import {
     type ImportedRecords,
     importRecords,
 } from "./graph-io-import.js";
-import { urlTail } from "./source-bytes.js";
+import { readOrRefuse, urlTail } from "./source-bytes.js";
 
 /** The CSV shapes the reader can be told to read, or recognises when it is not told. */
 export type CSVVariant = "neo4j" | "gephi" | "cytoscape" | "adjacency-list" | "edge-list" | "node-list" | "generic";
@@ -698,9 +698,9 @@ export class CSVDataSource extends DataSource {
         if (data !== undefined) {
             text = typeof data === "string" ? data : new TextDecoder().decode(data);
         } else if (file !== undefined) {
-            text = await file.text();
+            text = await readOrRefuse(file.text(), { file: file.name });
         } else {
-            text = await (await this.fetchWithRetry(url ?? "")).text();
+            text = await readOrRefuse((await this.fetchWithRetry(url ?? "")).text(), { url: url ?? "" });
         }
 
         const name = file?.name ?? (url === undefined ? undefined : urlTail(url));

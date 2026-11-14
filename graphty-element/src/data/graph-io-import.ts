@@ -216,7 +216,13 @@ function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError 
         code: "E_PARSE_FAILED",
         source: "data",
         message: `Failed to read the ${importer.format} file${where}: ${error.message}`,
-        details: { format: importer.format, line, errors: error.report.errorCount },
+        details: {
+            format: importer.format,
+            line,
+            errors: error.report.errorCount,
+            ...(error.issue === null ? {} : { issue: error.issue.code }),
+            ...(typeof error.issue?.element === "string" ? { element: error.issue.element } : {}),
+        },
     });
 }
 
@@ -476,7 +482,7 @@ function errorOf(issue: ImportReport["issues"][number]): Parameters<ErrorAggrega
  * @returns a `GraphtyError` with `E_PARSE_FAILED`, the same code a replacing load that stopped at
  *     the limit fails with
  */
-export function errorLimitReached(errors: ErrorAggregator, format: string): GraphtyError {
+function errorLimitReached(errors: ErrorAggregator, format: string): GraphtyError {
     const rowErrors = errors.getErrorCount();
     return new GraphtyError({
         code: "E_PARSE_FAILED",

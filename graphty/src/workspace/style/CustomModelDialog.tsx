@@ -363,6 +363,13 @@ export function CustomModelDialog({
             nameField.current?.focus();
         }
     }, [heldKey, waits]);
+    // A model that is in but cannot be drawn is said, as an intake refusal is.
+    const failureLine = draw.failure === undefined ? null : refusalLine(draw.failure);
+    useEffect(() => {
+        if (failureLine !== null) {
+            store.set({ announcement: failureLine });
+        }
+    }, [failureLine, store]);
     if (session === null) {
         return null;
     }
@@ -492,7 +499,8 @@ export function CustomModelDialog({
     }
     const addWord = forLayer ? CUSTOM_MODEL.add : CUSTOM_MODEL.addToProject;
     const add = (): void => {
-        if (ref === undefined || accepted === null) {
+        // Every way to Add (click, Enter or Space on the button, Enter in Name) stops here when blocked.
+        if (blocked !== null || ref === undefined || accepted === null) {
             return;
         }
         const wanted = name.trim();

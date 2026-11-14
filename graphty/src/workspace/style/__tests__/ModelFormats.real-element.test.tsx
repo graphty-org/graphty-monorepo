@@ -149,7 +149,7 @@ afterEach(async () => {
 
 describe("every model format and variant, through the Load custom model dialog", () => {
     it.each(TABLE.map((v) => [`${v.id}: ${v.what}`, v] as const))("%s", async (_name, variant) => {
-        const { session, tab } = await openShapes();
+        const { session, tab, store } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, variant);
 
@@ -169,10 +169,19 @@ describe("every model format and variant, through the Load custom model dialog",
             const preview = await within(dialog).findByTestId("model-preview");
             assert.isNotNull(await within(preview).findByText("Not loaded"));
             assert.isNull(preview.querySelector("img"));
-            assert.equal(
-                within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"),
-                "true",
-            );
+            const addButton = within(dialog).getByRole("button", { name: "Add model" });
+            assert.equal(addButton.getAttribute("aria-disabled"), "true");
+            // The reader is told, as an intake refusal is told.
+            const refusal = await within(dialog).findByTestId("model-refusal");
+            assert.equal(store.get().announcement, refusal.textContent, "the failure is announced");
+            // Neither a click nor Enter or Space on the blocked Add adds the model. A browser clicks an
+            // aria-disabled button; Playwright only does with `force`, which skips its own enabled check.
+            const before = written(session, "node.model");
+            await userEvent.click(addButton, { force: true });
+            await userEvent.keyboard("{Enter}");
+            await userEvent.keyboard(" ");
+            assert.equal(written(session, "node.model"), before, "a blocked Add adds nothing");
+            assert.isTrue(dialog.isConnected, "the dialog stays open");
             return;
         }
         if (variant.needs !== undefined) {

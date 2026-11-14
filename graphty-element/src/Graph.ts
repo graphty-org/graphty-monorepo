@@ -91,10 +91,12 @@ const MAP_CLEARANCE = 1e-4;
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
+import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
 import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
+import { type OverviewInputs, OverviewSource, watchOverview } from "./cameras/overview";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
@@ -133,7 +135,7 @@ import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
-import { WRITABLE_LANE } from "./data/lane";
+import { WRITABLE_LANE, writableLane } from "./data/lane";
 import { fetchBytes, sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
@@ -1890,6 +1892,8 @@ export class Graph implements GraphContext {
         this.#unwatchXrButtons = null;
         this.#unwatchFonts?.();
         this.#unwatchFonts = null;
+        this.#unwatchOverview?.();
+        this.#unwatchOverview = null;
         this.xrAvailability.dispose();
         this.basemapManager.dispose();
         this.xrUIManager?.dispose();
@@ -2620,6 +2624,14 @@ export class Graph implements GraphContext {
             this.#unwatchFonts ??= watchFontLoads(this.scene, (families) => {
                 this.refreshFonts(families);
             });
+            this.#unwatchOverview ??= watchOverview(
+                this.scene,
+                () => this.renderManager.graphRoot,
+                () => writableLane(this.dataManager),
+                () => {
+                    this.eventManager.emit("overview-changed", {});
+                },
+            );
 
             this.initialized = true;
         } catch (error) {
@@ -6575,6 +6587,62 @@ export class Graph implements GraphContext {
      */
     screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
         return pickWorldPoint(this.scene, screenPos.x, screenPos.y);
+    }
+
+    /** The last overview projection, kept while nothing it depends on moves. */
+    readonly #overview = new OverviewSource();
+
+    /** Stops the per-frame overview watch. */
+    #unwatchOverview: (() => void) | null = null;
+
+    /**
+     * Every placed node seen along the current view, laid flat in a unit frame, and the part of
+     * that frame the camera shows: what a minimap draws. See `Graphty.getOverview`.
+     * @param options - Point limit and density grid size.
+     * @returns The overview.
+     */
+    getOverview(options?: OverviewOptions): GraphOverview {
+        return this.#overview.read(this.overviewInputs(), options);
+    }
+
+    /**
+     * Move the camera, keeping its zoom and direction, so the view is centred on a point of the
+     * overview frame. See `Graphty.centerOnOverview`.
+     * @param point - The point, in the frame `getOverview()` returns.
+     * @param point.x - Frame x, 0 to 1 left to right.
+     * @param point.y - Frame y, 0 to 1 top to bottom.
+     * @param options - Animation options.
+     * @returns Resolves once the camera is there.
+     */
+    async centerOnOverview(
+        point: { x: number; y: number },
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        const shift = this.#overview.shift(this.overviewInputs(), point);
+        if (!shift) {
+            return;
+        }
+
+        const state = this.getCameraState();
+        if (state.pan) {
+            await this.setCameraState({ pan: { x: state.pan.x + shift.x, y: state.pan.y + shift.y } }, options);
+        } else if (state.position && state.target) {
+            const move = (p: { x: number; y: number; z: number }): { x: number; y: number; z: number } => ({
+                x: p.x + shift.x,
+                y: p.y + shift.y,
+                z: p.z + shift.z,
+            });
+            await this.setCameraState({ position: move(state.position), target: move(state.target) }, options);
+        }
+    }
+
+    private overviewInputs(): OverviewInputs {
+        return {
+            scene: this.scene,
+            root: this.renderManager.graphRoot,
+            lane: writableLane(this.dataManager),
+            target: this.getCameraState().target,
+        };
     }
 
     /**

@@ -93,6 +93,7 @@ const CAMERA_VERBS: Readonly<Record<string, readonly string[]>> = {
         "setCameraState",
         "setCameraPosition",
         "setCameraTarget",
+        "centerOnOverview",
         "setCameraZoom",
         "setCameraPan",
         "zoomStep",

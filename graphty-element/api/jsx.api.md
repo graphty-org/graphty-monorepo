@@ -256,6 +256,7 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     // (undocumented)
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
+    "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     // (undocumented)
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     // (undocumented)

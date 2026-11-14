@@ -13,6 +13,7 @@ import type {
     AutosaveRestored,
     AutosaveStatus,
 } from "./autosave/types";
+import type { GraphOverview, OverviewOptions } from "./camera/overview";
 import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type {
@@ -5740,6 +5741,55 @@ export class Graphty extends LitElement {
      */
     screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
         return this.#graph.screenToWorld(screenPos);
+    }
+
+    /**
+     * Everything a minimap needs: every placed node seen along the current view direction, laid
+     * flat in a unit frame (x right, y down, 0 to 1, the same scale on both axes), and `viewport`,
+     * the part of that frame the camera shows. The element draws no minimap; a consumer draws one
+     * from this and redraws it on `overview-changed`.
+     *
+     * Up to `maxPoints` placed nodes (default 5000) it returns one point per node; above that a
+     * `gridSize` by `gridSize` density grid (default 64) instead, so the result stays small.
+     * Reading costs one pass over the nodes after the nodes or the view direction moved, and
+     * nothing more while only the viewport moved (a 2D pan or zoom).
+     * @param options - `maxPoints` and `gridSize`.
+     * @returns The overview; empty, with a zero viewport, while no node is placed.
+     * @example
+     * ```ts
+     * element.addEventListener("overview-changed", () => {
+     *     const { points, viewport } = element.getOverview();
+     *     ctx.clearRect(0, 0, 150, 150);
+     *     for (let i = 0; i < points.length; i += 2) ctx.fillRect(points[i] * 150, points[i + 1] * 150, 2, 2);
+     *     ctx.strokeRect(viewport.x * 150, viewport.y * 150, viewport.width * 150, viewport.height * 150);
+     * });
+     * ```
+     */
+    getOverview(options?: OverviewOptions): GraphOverview {
+        return this.#graph.getOverview(options);
+    }
+
+    /**
+     * Move the camera so the view is centred on a point of the overview frame, keeping its zoom
+     * and direction: click-to-centre and drag-to-scrub on a minimap. It changes only the camera,
+     * so it is not an undo step. Does nothing while no node is placed.
+     * @param point - The point, in the frame {@link Graphty.getOverview} returns (0 to 1, y down).
+     * @param point.x - Frame x.
+     * @param point.y - Frame y.
+     * @param options - Animation options, as for `setCameraState`.
+     * @returns Resolves once the camera is there.
+     * @example
+     * ```ts
+     * minimap.addEventListener("pointerdown", (e) => {
+     *     void element.centerOnOverview({ x: e.offsetX / 150, y: e.offsetY / 150 });
+     * });
+     * ```
+     */
+    async centerOnOverview(
+        point: { x: number; y: number },
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.centerOnOverview(point, options);
     }
 
     /**

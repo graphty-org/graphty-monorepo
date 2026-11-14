@@ -681,6 +681,10 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-active"?: (event: CustomEvent<EventOfType<"operation-queue-active">>) => void;
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
+    /**
+     * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at most once per drawn frame, never per node; read `getOverview()` in the listener.
+     */
+    "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;

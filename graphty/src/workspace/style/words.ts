@@ -1085,12 +1085,26 @@ export function modelWords(fact: CodedFact): string {
     return words === undefined ? "The model could not be drawn." : words(fact.params);
 }
 
+/**
+ * How well a name matches a search: 0 when it is the search, 1 when it starts with it, 2 otherwise.
+ * @param name - the name as the reader sees it.
+ * @param query - the search, trimmed and lower case.
+ * @returns the rank, lower is better.
+ */
+export function nameRank(name: string, query: string): number {
+    const lower = name.toLowerCase();
+    if (lower === query) {
+        return 0;
+    }
+    return lower.startsWith(query) ? 1 : 2;
+}
+
 /** Compares names as a reader counts: GAL2 before GAL10. */
 export const NATURAL = new Intl.Collator(undefined, { numeric: true });
 
 /**
- * A search's matches with the names that start with the typed text first, then the rest, each part
- * in the order it came in: "on" lists on_record before donations.
+ * A search's matches with the name that is exactly the typed text first, then the names that start
+ * with it, then the rest, each part in the order it came in: "on" lists on_record before donations.
  * @param items - the matches, in list order.
  * @param nameOf - an item's name as the reader sees it.
  * @param query - the search text.
@@ -1102,7 +1116,7 @@ export function prefixFirst<T>(items: readonly T[], nameOf: (item: T) => string,
         return [...items];
     }
     // Array.prototype.sort is stable, so each part keeps its order.
-    const rank = (item: T): number => (nameOf(item).toLowerCase().startsWith(q) ? 0 : 1);
+    const rank = (item: T): number => nameRank(nameOf(item), q);
     return [...items].sort((a, b) => rank(a) - rank(b));
 }
 
@@ -1833,6 +1847,19 @@ export const BACKGROUND_SECTION_WORDS = {
     drawnIn: (word: string, hex: string): string => {
         const named = word === "" ? hex : `${word} (${hex})`;
         return `No color set: drawn in ${named}`;
+    },
+    /**
+     * A picture graphty-element could not decode (`E_IMAGE_DECODE`), so it is not the background.
+     * @param problem - the element's report.
+     * @returns the notice's sentence, such as "IMG_0001.HEIC is HEIC, which this browser cannot draw."
+     */
+    notDrawn: (problem: CodedFact): string => {
+        const name = typeof problem.params.fileName === "string" ? problem.params.fileName : "This image";
+        const format = typeof problem.params.format === "string" ? problem.params.format : "";
+        const kind = format.replace(/^image\//, "").toUpperCase();
+        return kind === ""
+            ? `${name} could not be drawn: this browser cannot read it as an image.`
+            : `${name} is ${kind}, which this browser cannot draw.`;
     },
 } as const;
 

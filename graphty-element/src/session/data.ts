@@ -100,6 +100,7 @@ import {
     keyExpression,
     LABEL_COLUMNS,
     LOAD_ROLES,
+    type ReadSource,
     readSource,
 } from "./draft";
 import type { LaneStore } from "./GraphSession";
@@ -220,6 +221,7 @@ import type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemapOptions,
     RemoveSourceResult,
     ReplaceReport,
     ReplaceUnboundCode,
@@ -852,6 +854,12 @@ export class SessionData implements SessionDataApi {
      */
     private readonly kept = new Map<string, DataSourceInput>();
     private keptSerial = 0;
+    /**
+     * The rows a draft read from each source, so `remap` and `reloadSource` read a load again
+     * without opening its file or fetching its URL. ponytail: held as long as the source is,
+     * which `kept` never lets go of; drop rows of loads no longer listed if memory shows up.
+     */
+    private readonly reads = new WeakMap<DataSourceInput, ReadSource>();
     /** The loads whose rows carry each column, and what they were read from. */
     private columnSourcesMemo: {
         readonly described: readonly AttributeDescriptor[];
@@ -933,7 +941,8 @@ export class SessionData implements SessionDataApi {
      */
     async importColumns(columns: ImportColumnsInput): Promise<void> {
         this.requireLive("importColumns");
-        const [nodes, edges] = columnMutations(columns);
+        // A batched graph keeps the records it builds, so the slice keeps them as they are, not a copy.
+        const [nodes, edges] = columnMutations(columns, this.pages.batched?.() === true);
         const send = this.writes.importer();
         await this.loadLine.edit(
             () =>
@@ -1915,6 +1924,26 @@ export class SessionData implements SessionDataApi {
             (change) => this.writes.progress?.(change),
             this.pages.timeline?.() === true,
         );
+        this.reads.set(source, read);
+        return this.draftOf(source, read, options);
+    }
+
+    /**
+     * A draft over rows already read: what `prepare` hands back once it has read them.
+     * @param source - What the rows were read from.
+     * @param read - The rows.
+     * @param options - As `prepare` takes them.
+     * @param options.signal - Abandons reading the file's styles.
+     * @param options.onto - `"graph"` holds the rows as a table to join onto the graph.
+     * @param options.guess - How the roles are guessed.
+     * @returns The draft.
+     */
+    private async draftOf(
+        source: DataSourceInput,
+        read: ReadSource,
+        options: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" } = {},
+    ): Promise<Draft> {
+        this.draft?.dispose();
         // With the file styles experiment off a draft does not say what styles the file carries.
         const styles = this.pages.fileStyles?.() === false ? null : await draftStyles(read, options.signal);
         const draft = new Draft(
@@ -3289,7 +3318,9 @@ export class SessionData implements SessionDataApi {
         // The command a draft of the copy would load, held back here: its rows are the copy's rows.
         let captured: DataImportCommand | undefined;
         let config: SessionCommand | undefined;
-        const draft = await this.prepare(source);
+        // Rows a draft already read from this very source are read as they are, with no I/O.
+        const read = this.reads.get(source);
+        const draft = read === undefined ? await this.prepare(source) : await this.draftOf(source, read);
         await draft.loadVia((command) => {
             const steps = command.op === "batch" ? command.steps : [command];
             config = steps.find((step) => step.op === "config.set");
@@ -3690,6 +3721,40 @@ export class SessionData implements SessionDataApi {
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
         return this.afterLoads(() => this.reloadSourceNow(key, choices));
+    }
+
+    /**
+     * Change the column roles of a load, as one undoable step, reading its rows again from what
+     * the session already holds.
+     * @param options - The mapping, and the load (the only one when absent).
+     * @returns What was added, removed and changed.
+     */
+    async remap(options: RemapOptions): Promise<ReplaceReport> {
+        this.requireLive("remap");
+        const mapping = (options as Partial<RemapOptions> | undefined)?.mapping;
+        if (typeof mapping !== "object" || mapping === null) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "remap needs a mapping, as a load takes one.",
+                source: "data",
+                details: { reason: "no-mapping" },
+            });
+        }
+
+        return this.afterLoads(async () => {
+            const known = this.sources().map((each) => each.key);
+            const key = options.source ?? (known.length === 1 ? known[0] : undefined);
+            if (key === undefined) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: "The graph holds more than one load (or none): name the one to re-map.",
+                    source: "data",
+                    details: { reason: "which-source", known },
+                });
+            }
+
+            return await this.reloadSourceNow(key, { mapping });
+        });
     }
 
     /**
@@ -4480,8 +4545,9 @@ export class SessionData implements SessionDataApi {
      * @returns degree, and on a directed graph in-degree and out-degree
      */
     structureValues(): readonly StructureValue[] {
-        // In and out degree only on a directed graph, where they differ from degree.
-        return this.statistics().directedness === "directed"
+        // In and out degree only when some edge is directed, where they differ from degree.
+        const { directedness } = this.statistics();
+        return directedness === "directed" || directedness === "mixed"
             ? STRUCTURE_VALUES
             : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
     }
@@ -4517,7 +4583,7 @@ export class SessionData implements SessionDataApi {
 
         return readableValues({
             snapshot,
-            directed: this.statistics().directedness === "directed",
+            directed: ["directed", "mixed"].includes(this.statistics().directedness),
             attributes: this.attributes(),
             declarationOf: (column) => declarations.get(declarationKey(column)),
             runs,

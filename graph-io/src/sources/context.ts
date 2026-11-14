@@ -119,6 +119,39 @@ export function isLocalNetwork(hostname: string): boolean {
     );
 }
 
+/** The Permissions API, where the page has one. */
+type Permissions = { query(descriptor: { readonly name: string }): Promise<{ readonly state: string }> };
+
+/**
+ * Whether the browser's local network permission explains a refused request: the page is on a
+ * public address, the target on a local one (Chrome's Local Network Access, Firefox's local network
+ * check), and the browser does not say the permission is granted. Chrome answers the Permissions API
+ * for `loopback-network` and `local-network` (before them, one `local-network-access`); Firefox and
+ * Safari answer none of these, so there the addresses alone decide. The refusal itself cannot be
+ * told from a closed port: a page sees the same failure for both.
+ * @param url - the refused URL
+ * @returns true when the permission is the likely cause
+ */
+export async function localNetworkRefused(url: URL): Promise<boolean> {
+    const page = (globalThis as { location?: { hostname?: string } }).location?.hostname;
+    if (page === undefined || isLocalNetwork(page) || !isLocalNetwork(url.hostname)) {
+        return false;
+    }
+    const permissions = (globalThis as { navigator?: { permissions?: Permissions } }).navigator?.permissions;
+    const names = [isLoopback(url.hostname) ? "loopback-network" : "local-network", "local-network-access"];
+    for (const name of names) {
+        // the first name this browser knows decides; an unknown name rejects
+        const state = await permissions?.query({ name }).then(
+            (status) => status.state,
+            () => undefined,
+        );
+        if (state !== undefined) {
+            return state !== "granted";
+        }
+    }
+    return true;
+}
+
 /** Requests in flight and recently sent, per source and origin, for `descriptor.rateLimit`. */
 interface Pacer {
     active: number;
@@ -644,8 +677,7 @@ class SourceFetcher {
      * @returns the cause
      */
     private async diagnose(url: URL): Promise<SourceBlockedCause> {
-        const page = (globalThis as { location?: { hostname?: string } }).location;
-        if (page?.hostname !== undefined && !isLocalNetwork(page.hostname) && isLocalNetwork(url.hostname)) {
+        if (await localNetworkRefused(url)) {
             return "local-network";
         }
         if (this.input.options.retry === false) {

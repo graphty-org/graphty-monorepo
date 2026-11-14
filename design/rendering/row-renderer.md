@@ -1613,6 +1613,28 @@ object per element. Stages 26 to 28 remove that reason.
   ceilings at 2,000,000, 2 runs, load average 2.2 before, 1.0 after): 1,098 MB after a forced collection, against
   1,153-1,154 MB after the third pull request. Still above 800 MB; next are the lazy-row maps and the `ColumnRow`
   per node.
+- **G11, fifth pull request** (from a heap snapshot of 1M + 1M typed after a forced collection, before it: 1,162 MB).
+  Five per-row holders go, all under `"batched"` only:
+    - `importColumns` freezes the records it builds, so the graph slice keeps them as they are instead of a frozen copy
+      beside the journal's (about 112 MB: a node record with its position array, and an edge record).
+    - A row's paint is shared by every row of its look painted the same color (`StylePainter.rowPaint`, up to 1,024
+      colors a look), not a paint and a color object per row (52 MB).
+    - The op log's node range keeps each seed as three numbers in one column, not an array per node (53 MB to 24 MB).
+    - The lazy-row maps: a row with no `Node` keeps its id and record in two arrays by row (`RowIdRecords`), an edge
+      row is found by its id's counter in an array (`EdgeIdRows`, which also drops a second copy of each id string),
+      and the batches keep the `ColumnRow` of each row in an array by row (about 75 MB together). `unbuiltIds`, by
+      node id, stays: a node id is any value.
+    - `ColumnRow` reads its two constant fields from its prototype (8 MB).
+
+    Measured (benchmarks/compare `lean-l-columns`, `batched`, ceilings at 2,000,000, 2 runs each, alternated, load
+    average 16.8-29.7): 1,163 MB on master, 939 MB on this branch, after a forced collection; the load's first frame
+    went from 18.9-20.7 s to 13.2-13.6 s. Measured without the fourth pull request (58 MB more to come off when both
+    are in). Still above 800 MB. The next holders: GPU-side mirrors kept as `Float32Array`s (117 MB, textures of 48, 32
+    and 16 MB among them), the shared node and edge records themselves (about 90 MB, stage 29's "records into
+    columns"), the graph builder's growable columns (83 MB, up to twice their rows), the op log's ranges (67 MB),
+    the row-indexed slot arrays of `RowMap`s (53 MB), the style resolver's per-row columns (54 MB), one `ColumnRow` per
+    node (28 MB) and the layout's scratch coordinates (24 MB).
+
 - With `"batched"`, that option loads a million nodes. `"objects"` with a higher limit refuses with `E_TOO_LARGE`: its heap reason stands.
   **The default stays 100,000** (section 10).
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or
@@ -1628,6 +1650,21 @@ object per element. Stages 26 to 28 remove that reason.
   `limits-warning` once a repaint settles, and again only when the number held plain changes. The app's
   `fitsInBrowser` and `isLarge` take the limits as an optional parameter, defaulting to `DEFAULT_LIMITS`; no caller
   passes raised ones yet, because the app does not raise `limits` on the element.
+- **Stage 124, the gaps stage 30 left** (corrections to the bullet above, batched only). The rows held plain are
+  counted by what draws them, not by sets of row numbers in `UpdateManager`: `NodeBatches.plainRowCount` (column
+  rows whose paint key starts `plain|`) and `EdgeRowLines.plainCount` (rows in a batch made for a plain paint).
+  Those follow every unpaint, removal, renumbering freeze and clear, so `W_OBJECT_CAP`'s `wanted` after a removal
+  is exact, and a clear resets what was last reported, so a reload past the budget reports again. Setting
+  `limits` queues every plain row for a repaint (`UpdateManager.limitsChanged`): a raised budget gives each row it
+  has room for its object, and a row that has its object keeps it. Under 3D `flat` lighting, which batches no
+  row, a plain paint is still drawable by a batch, drawn without the outline only a `Node` draws; and a view
+  change that drops column rows from their batch now repaints them (`NodeBatchHost.repaint`), where before
+  they drew nothing until some other paint reached them. A plain row whose own paint has a label carries
+  `labelled` on its plain paint; while label sampling is on (section 4.7) it is a candidate by row and
+  position (`RowTable.centerOf`), and when it wins its cell its `Node` is built (`UpdateManager.buildPlainRow`)
+  and its label drawn as any other, through the glyph atlas when `labelText` is `"glyphs"`. With sampling
+  off a plain row still draws no label: the label is what its object would have held. A `Node` built for a
+  label stays when a later pass drops the label, so the objects grow by the rows that ever won a cell.
 
 ## 9. Edge-case rulings (input -> expected result)
 

@@ -798,9 +798,9 @@ export interface GraphStatistics {
      * Whether the graph is directed, as a fact about the graph rather than a guess per edge.
      *
      * `"unknown"` is the honest answer for an empty graph the element was never told about:
-     * under `data.directed: "auto"` nothing has settled the question yet. `"mixed"` is in the
-     * union because a format can report it; the element does not produce it today, because a
-     * snapshot carries one flag for the whole graph.
+     * under `data.directed: "auto"` nothing has settled the question yet. `"mixed"` is a graph
+     * whose edges carry their own direction (graph-format's role-`"directed"` edge column) and
+     * do not all agree.
      */
     readonly directedness: "directed" | "undirected" | "mixed" | "unknown";
     /** Where {@link GraphStatistics.directedness} came from, so a reader can qualify the claim. */
@@ -1511,6 +1511,31 @@ export interface SessionDataApi {
      * @since 3.30.0
      */
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
+    /**
+     * Change which columns play which role -- the node id, an edge's source or target, the label,
+     * the weight -- after a load, as one undoable step. The rows the load read are read again
+     * under the new mapping, with no file picked or URL fetched: a new id column makes the nodes
+     * anew and the edges find their ends among them, and everything else (style layers, runs,
+     * filters, the load's key) stays, as {@link SessionDataApi.reloadSource} keeps it. A run whose
+     * numbers came from the old graph reads as stale (`run.stale`); nothing is run again. One undo
+     * brings back the old mapping and the old graph.
+     *
+     * ```ts
+     * await session.data.remap({ mapping: { tables: { nodes: { key: "email" } } } });
+     * ```
+     * @param options - The mapping, as a load takes it, laid over the one the load was read with,
+     *     and which load (the only one when absent).
+     * @returns What was added, removed and changed, and what no longer matches anything.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` (`details.reason`:
+     *     `"no-mapping"`, `"which-source"` with `details.known` when the graph holds more than one
+     *     load and none is named, or a role the table's rows cannot have), `E_UNKNOWN_ATTRIBUTE`
+     *     for a column the table does not have, `E_EDGE_ENDPOINTS_UNRESOLVED` for an edge table
+     *     left without an end, `E_SOURCE_UNKNOWN` for a key `sources()` does not list, and
+     *     `E_UNSUPPORTED` (`details.reason: "not-reloadable"`) for a load this session did not
+     *     read itself (`LoadedSource.reloadable`), such as one in a project opened from a file.
+     * @since 3.54.0
+     */
+    remap(options: RemapOptions): Promise<ReplaceReport>;
     /**
      * What this session read a load from, as `import` and `prepare` took it (the file itself, or
      * the text), so an application can read the load again into a draft, such as to show its rows
@@ -3236,6 +3261,14 @@ export interface ReplaceCounts {
     readonly changed: number;
 }
 
+/** What `data.remap` takes. @since 3.54.0 */
+export interface RemapOptions {
+    /** The column roles to change, as `LoadChoices.mapping` names them; a role left out stays as it is. */
+    readonly mapping: LoadMapping;
+    /** The load to re-map, from {@link SessionDataApi.sources}; the only load when absent. */
+    readonly source?: SourceKey;
+}
+
 /**
  * What `session.data.replaceSource(key, source)` did.
  * @since 3.30.0
@@ -3351,11 +3384,12 @@ export interface ProjectConfig {
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**
      * What a pinned node's halo looks like, in the shape of {@link ProjectConfig.selectionStyle}
-     * (only `color`, `scale` and `opacity` are read). Absent by default. Set while
-     * {@link ProjectConfig.startingRows} is on, the starting rows gain a fifth, Pinned (nodes in
-     * the state `"pinned"`, pinned to the top directly below Selected, drawing this halo); cleared,
-     * the row is taken away. The look is the consumer's choice, so nothing is drawn for a pinned
-     * node until it is set.
+     * (only `color`, `scale` and `opacity` are read). Absent by default. Set when
+     * {@link ProjectConfig.startingRows} turns on (in the same `config.set` or before), the default
+     * rows gain a Pinned row (nodes in the state `"pinned"`, pinned to the top directly below
+     * Selected, drawing this halo). The row is ordinary data from then on: changing or clearing
+     * this setting later leaves it as it is. The look is the consumer's choice, so nothing is drawn
+     * for a pinned node until it is set.
      *
      * ```ts
      * await session.config.set({ startingRows: true, pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } });
@@ -3364,15 +3398,15 @@ export interface ProjectConfig {
      */
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     /**
-     * Whether the style tree starts with its three starting rows: Everything (pinned to the
-     * bottom, writing nothing), Selected (pinned to the top, drawing a solid node halo and edge band
-     * in the selection settings' colors and sizes, a gold ring and a blue band by default) and Hovered
-     * (pinned to the top, writing nothing). False by default.
-     * Turned on, the rows are added in the same step, and the selection settings
-     * ({@link ProjectConfig.selectionStyle}) draw nothing themselves; `styles.restoreStartingRows()`
-     * brings back any a reader deleted. While a time field is designated, a fourth row, Ghost, sits
-     * directly below Selected: it paints the elements outside the time window grey at low opacity
-     * when the timeline draws them (`session.time.setSettings({ outside: "ghost" })`).
+     * Whether the project draws with its default rows: Everything (pinned to the bottom, writing
+     * nothing), Selected (pinned to the top, drawing a solid node halo and edge band in the selection
+     * settings' colors and sizes, a gold ring and a blue band by default) and Hovered (pinned to the
+     * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
+     * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.
+     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; with the timeline on, a
+     * Ghost row (the elements outside the time window, grey at low opacity, when the timeline draws
+     * them: `session.time.setSettings({ outside: "ghost" })`). The rows are ordinary data: a reader
+     * may delete or change any of them, and no later setting adds, removes or rewrites one.
      * @since 3.26.0
      */
     readonly startingRows: boolean;
@@ -3380,8 +3414,8 @@ export interface ProjectConfig {
      * Whether the element's base look (every node and edge value it draws before any layer says
      * otherwise) is held by the Everything starting row as ordinary values a reader can edit or
      * remove, instead of by the element's two locked base layers. False by default. With it on, the
-     * locked base layers paint nothing, the Everything row is added (or restored) holding the base
-     * values when {@link ProjectConfig.startingRows} is on, and an element that no shown layer
+     * locked base layers paint nothing, the Everything row is written holding the base values when
+     * {@link ProjectConfig.startingRows} turns on (in the same `config.set` or after), and an element that no shown layer
      * paints is not drawn: hiding the Everything row hides every element no other shown layer
      * paints, and an element a shown layer paints stays drawn in that layer's look.
      * @since 3.26.0
@@ -3648,10 +3682,19 @@ export interface SessionEventMap {
     /**
      * The layout's motion changed: it started or restarted (`running`), was paused part-way
      * (`paused`), or came to rest (`settled`). `layout.motion` is `motion` when it arrives. Only a
-     * change is published. A session that draws nothing never publishes it.
+     * change is published. A session with no renderer publishes it while `layout.play()`,
+     * `tick()` or `settle()` runs its layout. The payload also names the layout (`id`, `engine`,
+     * `kind`) and the steps its run has taken (`step`, see {@link SessionLayout.step}); those
+     * four fields arrived in 3.55.0.
      * @since 3.53.0
      */
-    "layout:motion-changed": { readonly motion: LayoutMotion };
+    "layout:motion-changed": {
+        readonly motion: LayoutMotion;
+        readonly id: LayoutId;
+        readonly engine: string;
+        readonly kind: "live" | "batch";
+        readonly step: number;
+    };
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /**
@@ -4015,7 +4058,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `style.pin-row` | `row`: its name, or its id; `pin`: `"top"`, `"bottom"` or `"none"` |
  * | `style.lock-row` | `row`: its name, or its id; `locked` |
  * | `style.hide-row` | `row`: its name, or its id; `hidden` |
- * | `style.restore-starting-rows` | none |
+ * | `style.add-default-rows` | none |
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
@@ -4024,6 +4067,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.condition-edit` | `id`; `effect`: its effect after the edit; `previousEffect`: its effect before |
  * | `visibility.steps` | none: several steps or conditions changed at once, or a reorder |
  * | `visibility.playback` | none: how `session.time` moves windows changed |
+ * | `visibility.hide-nodes`, `visibility.show-nodes` | `count`: how many nodes were named |
  * | `time.field` | `column`: the column designated as the time field |
  * | `time.clear-field` | none |
  * | `set.create` | `name`: the set's name, or null |
@@ -4106,7 +4150,7 @@ export type HistoryCode =
     | "style.lock-row"
     | "style.hide-row"
     | "style.delete-row"
-    | "style.restore-starting-rows"
+    | "style.add-default-rows"
     | "shader.add"
     | "shader.replace"
     | "shader.remove"
@@ -4128,6 +4172,8 @@ export type HistoryCode =
     | "visibility.condition-remove"
     | "visibility.steps"
     | "visibility.playback"
+    | "visibility.hide-nodes"
+    | "visibility.show-nodes"
     | "time.field"
     | "time.clear-field"
     | "set.create"
@@ -4374,6 +4420,8 @@ export interface CommandOutcomeMap {
     "visibility.conditions": Promise<void>;
     /** Settles once the playback settings are recorded. */
     "visibility.playback": Promise<void>;
+    /** Settles once the hidden list is recorded and the pass that draws it has run. */
+    "visibility.hide": Promise<void>;
     /** The new set's id, once it is recorded. */
     "set.create": Promise<SetId>;
     /** Settles once the rename is recorded. */
@@ -4510,6 +4558,81 @@ export interface SessionPositions extends ReadonlyElementPositions {
      *     not hold, in `details.ids`; nothing is released then.
      */
     unpin(ids: readonly NodeId[]): Promise<void>;
+    /**
+     * Where one node is now. An integer id may be written either way, as {@link SessionPositions.pin}.
+     * @param id - The node.
+     * @returns Its coordinates in scene units, or undefined for a node the graph does not hold or
+     *     that nothing has placed yet.
+     * @since 3.55.0
+     */
+    get(id: NodeId): { readonly x: number; readonly y: number; readonly z: number } | undefined;
+    /**
+     * Which nodes are pinned, one byte per dense node index (1 pinned, 0 not): a copy, cheap to
+     * test and to send to a worker.
+     * @returns The mask, as long as the node count.
+     * @since 3.55.0
+     */
+    pinnedMask(): Uint8Array;
+    /**
+     * Every node's coordinates now, as a copy: the ids in dense index order and x, y, z per node
+     * (NaN for a node nothing has placed). Hand it to {@link SessionPositions.restore}, on this
+     * session or another holding the same nodes.
+     *
+     * ```ts
+     * const saved = session.positions.snapshot();
+     * await session.layout.set("circular");
+     * await session.positions.restore(saved); // one undoable step
+     * ```
+     * @returns The ids and coordinates.
+     * @since 3.55.0
+     */
+    snapshot(): { readonly order: readonly NodeId[]; readonly xyz: Float32Array };
+    /**
+     * Put nodes back where a {@link SessionPositions.snapshot} found them. One step, as
+     * {@link SessionPositions.set}. A node the snapshot found unplaced is left as it is.
+     * @param saved - A snapshot, from this session or another.
+     * @param saved.order - Its ids, in the order of `xyz`.
+     * @param saved.xyz - x, y, z per id.
+     * @returns Settles once the step is recorded and the layout has taken the coordinates.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when `xyz` does not hold three
+     *     numbers per id, or for a node the graph does not hold; nothing is placed then.
+     * @since 3.55.0
+     */
+    restore(saved: { readonly order: readonly NodeId[]; readonly xyz: Float32Array }): Promise<void>;
+}
+
+/**
+ * Nodes hidden from the drawing only: each stays in the data, its results, the table, layout,
+ * counts and exports, and is simply not drawn, with every edge that touches it. Unlike a filter
+ * (`session.visibility.set`), which takes elements out of everything, this changes nothing but the
+ * picture. Hiding and showing are undoable steps, and a project file saves the list.
+ *
+ * ```ts
+ * await session.hidden.add(["n7"]); // n7 and its edges leave the canvas
+ * session.hidden.ids.has("n7"); // true
+ * await session.hidden.remove(["n7"]); // drawn again
+ * ```
+ */
+export interface SessionHidden {
+    /**
+     * The hidden node ids, as they were given. `has` takes an integer id written either way. An
+     * id the graph does not hold hides nothing; it is kept, and a project file saves only those
+     * the graph holds.
+     */
+    readonly ids: ReadonlySet<NodeId>;
+    /**
+     * Hide nodes, and the edges that touch them, from the drawing. One step; an id already hidden
+     * is left as it is.
+     * @param ids - The nodes.
+     * @returns Settles once the step is recorded and the pass that draws it has run.
+     */
+    add(ids: readonly NodeId[]): Promise<void>;
+    /**
+     * Draw hidden nodes again. One step; an id that is not hidden is left as it is.
+     * @param ids - The nodes.
+     * @returns Settles once the step is recorded and the pass that draws it has run.
+     */
+    remove(ids: readonly NodeId[]): Promise<void>;
 }
 
 /**
@@ -4573,7 +4696,8 @@ export interface SessionLayout {
     /**
      * Whether the layout is moving now: `running` while it steps, `paused` when it was stopped
      * before it came to rest (`element.setRunning(false)`), `settled` once it has come to rest
-     * or when nothing is drawn (a session with no renderer always reads `settled`). Not project
+     * or when nothing runs (a session with no renderer reads `settled` until `play`, `tick` or
+     * `settle` runs its layout). Not project
      * state and not undoable. `layout:motion-changed` publishes each change.
      *
      * ```ts
@@ -4584,6 +4708,60 @@ export interface SessionLayout {
      * @since 3.53.0
      */
     readonly motion: LayoutMotion;
+    /**
+     * The steps the current layout has taken since it was chosen, in a session with no renderer:
+     * simulation iterations for a live engine, one for a one-shot arrangement. A renderer steps
+     * its layout every frame without counting here, so a drawn session reads 0.
+     * @since 3.55.0
+     */
+    readonly step: number;
+    /**
+     * Let the layout move until it comes to rest. In a session with no renderer this runs the
+     * chosen layout with `@graphty/layout` over the session's graph, holding pinned nodes still:
+     * `forceatlas2` and `spring` step their simulations, the `force` layout's `ngraph` and `d3`
+     * engines step as ForceAtlas2 with the choice's `seed`, and a one-shot engine (`circular`,
+     * `grid`, `kamada-kawai` and the rest) is computed at once. Choosing a layout there only
+     * records it; nothing moves until this, `tick` or `settle` asks. Not a step.
+     * @returns Settles once the layout has been told.
+     * @throws A `GraphtyError` (as a rejection) with `E_UNSUPPORTED` for an engine that runs only
+     *     on a renderer (`fixed`, `location-map`, Graphviz, `spring-electrical`), in a session with
+     *     no renderer.
+     * @since 3.55.0
+     */
+    play(): Promise<void>;
+    /**
+     * Stop the layout before it comes to rest; `motion` then reads `paused`. Not a step: where the
+     * nodes stopped is sealed into the step on top.
+     * @returns Settles once the layout has been told.
+     * @since 3.55.0
+     */
+    pause(): Promise<void>;
+    /**
+     * Take steps now, without leaving the layout running: for a test or a tool that drives the
+     * layout itself. Only in a session with no renderer, which steps nothing on its own.
+     * @param count - How many; 1 when absent.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` in a session drawn by a renderer, or for an
+     *     engine that runs only on one; `E_BAD_COMMAND` for a count that is not a whole number
+     *     of at least one.
+     * @since 3.55.0
+     */
+    tick(count?: number): void;
+    /**
+     * Run the layout to rest: {@link SessionLayout.play}, then wait until it stops moving.
+     *
+     * ```ts
+     * const session = createGraphSession();
+     * await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+     * await session.data.addEdges([{ src: "a", dst: "b" }]);
+     * await session.layout.set("force", { options: { seed: 1 } });
+     * await session.layout.settle();
+     * session.positions.get("a"); // { x, y, z }
+     * ```
+     * @returns True once it came to rest; false when it was paused or the session was disposed first.
+     * @throws As {@link SessionLayout.play}.
+     * @since 3.55.0
+     */
+    settle(): Promise<boolean>;
     /**
      * Whether a layout option changes the drawing in a view, as a coded fact: the location map's
      * `mapDimension` is `setting.notIn2d`, because the 2D view always draws its 2D map; then
@@ -4722,8 +4900,8 @@ export interface StyleProblem {
  * and the measured capabilities of the machine. A renderer binds to one; a Node test uses one on
  * its own; two synchronised views of one dataset share one.
  *
- * What is deliberately NOT here yet: the layout transport. It waits on work that has not
- * landed, and is absent rather than stubbed.
+ * With no renderer it still runs layouts: `layout.play()`, `tick()` and `settle()` move the
+ * nodes, and `positions` reads and places them.
  */
 export interface GraphSession {
     /** Reading the graph. */
@@ -4832,6 +5010,11 @@ export interface GraphSession {
      * step.
      */
     readonly positions: SessionPositions;
+    /**
+     * Nodes hidden from the drawing only, with their edges, while they stay in the data, results,
+     * layout and exports; hiding and showing are undoable steps.
+     */
+    readonly hidden: SessionHidden;
     /**
      * How many nodes the DATA arrived carrying a coordinate for.
      *

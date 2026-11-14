@@ -22,10 +22,7 @@ export const registration = defineRegistration({
             group: "Layout",
             disabled: ({ session }) => nothingDrawn(session),
             run: async ({ session }) => {
-                if (session !== null) {
-                    const { id, engine, options } = session.layout;
-                    await session.layout.set(id, { engine, options });
-                }
+                await session?.layout.rerun();
             },
         },
         {

@@ -214,6 +214,7 @@ import type {
     HistoryClearOptions,
     HistoryOutcome,
     HistoryRestoreOptions,
+    LayoutMotion,
     LocationColumns,
     ModelChange,
     PositionEntry,
@@ -593,6 +594,8 @@ class Session implements ElementSession {
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
+    /** The renderer's layout motion; a session that draws nothing stays `settled`. */
+    private motion: LayoutMotion = "settled";
     /** The settings; identity-stable, every member read live. */
     readonly config: SessionConfig;
     private readonly sessionData: SessionData;
@@ -739,6 +742,7 @@ class Session implements ElementSession {
             this.dispatcher,
             (command) => this.dispatcher.dispatch(command),
             () => locationColumns(this.planning),
+            () => this.motion,
         );
         // What an import asking for a recommended layout chooses, for the graph it loaded.
         const fileGraph = (): FileGraphValue | undefined =>
@@ -985,6 +989,7 @@ class Session implements ElementSession {
                     this.dispatcher,
                     (command) => scope.dispatch(command),
                     () => locationColumns(this.planning),
+                    () => this.motion,
                 ),
             },
             transaction: {
@@ -1243,6 +1248,17 @@ class Session implements ElementSession {
     }
 
     /**
+     * Records the layout's motion and publishes `layout:motion-changed` when it changed.
+     * @param motion - The motion now.
+     */
+    layoutMotion(motion: LayoutMotion): void {
+        if (motion !== this.motion) {
+            this.motion = motion;
+            publish(this.watchers, "layout:motion-changed", { motion });
+        }
+    }
+
+    /**
      * Publishes `canvas:group-outline-click`.
      * @param target - The outline's layer, shader and group.
      */
@@ -1496,12 +1512,14 @@ function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionP
  * @param dispatcher - The session's dispatcher, whose state is read.
  * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
  * @param locate - The columns the location map reads unless its options name some.
+ * @param motion - Whether the renderer's layout is moving.
  * @returns The layout surface.
  */
 function layoutOf(
     dispatcher: Dispatcher,
     dispatch: (command: SessionCommand) => Promise<unknown>,
     locate: () => LocationColumns,
+    motion: () => LayoutMotion,
 ): SessionLayout {
     const choice = (): LayoutChoice => dispatcher.state.layout ?? DEFAULT_LAYOUT;
     return Object.freeze({
@@ -1520,6 +1538,9 @@ function layoutOf(
         get arrangedDimension() {
             return arrangedDimension(choice());
         },
+        get motion() {
+            return motion();
+        },
         set: async (
             id: LayoutId,
             options?: { readonly engine?: string; readonly options?: Readonly<Record<string, unknown>> },
@@ -1533,6 +1554,9 @@ function layoutOf(
         },
         setDimension: async (dimension: "2d" | "3d") => {
             await dispatch({ op: "view.dimension", dimension });
+        },
+        rerun: async () => {
+            await dispatch({ op: "layout.rerun" });
         },
         optionInEffect: (id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect => {
             const drawn =

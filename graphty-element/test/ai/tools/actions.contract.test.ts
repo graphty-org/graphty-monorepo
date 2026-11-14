@@ -923,6 +923,9 @@ const MORE: Record<string, Row[]> = {
         },
     ],
     "layout.unpin": [{ args: { action: "unpin", where: "all" }, setup: (s) => s.positions.pin(["a"]) }],
+    // The layout the session already has, so it is run again; a session with no renderer has no
+    // layout to run.
+    "layout.set": [{ args: { action: "set", name: "force" }, code: "E_UNSUPPORTED" }],
     "run_algorithm.run": [
         {
             // A class registered with no descriptor runs by its address, through the legacy op.

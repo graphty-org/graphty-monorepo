@@ -6,12 +6,16 @@
  * layer's. Two spellings of one colour (`#d55e00`, `#D55E00`, `rgb(213, 94, 0)`) are one colour,
  * compared by the hex {@link toColorValue} gives.
  *
+ * Two colours "fall on the same gray" when their CIE L* lightness differs by less than a threshold
+ * ({@link grayCollisionsOf}): what a grayscale print or a reader without colour vision sees.
+ *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
 import type { Binding, Channel, ChannelValue, LayerId, LayerSpec, Rgba } from "../../catalog/types";
 import { channelDescriptor, toColorValue } from "./channels";
 import type { Layer } from "./Layer";
+import { luminance } from "./legend";
 
 /** One place a layer writes a colour. */
 export interface ColorWrite {
@@ -172,4 +176,103 @@ export function replaceColorPatch(layer: Layer, from: string, to: string): Pick<
         ...(layer.set === undefined ? {} : { set }),
         ...(layer.encode === undefined ? {} : { encode }),
     };
+}
+
+/**
+ * The smallest difference in lightness, in CIE L* units (0 black to 100 white), two colours keep
+ * before `styles.grayCollisions()` lists them as falling on the same gray, unless the caller
+ * gives a threshold of its own.
+ */
+export const DEFAULT_GRAY_THRESHOLD = 10;
+
+/** One place a colour is drawn: the layer, the channel and, for a value table or palette row, the value. */
+export interface StyleGrayUse {
+    /** The layer that draws it. */
+    readonly layer: LayerId;
+    /** The channel it is drawn on, such as `node.color` or `edge.color`. */
+    readonly channel: Channel;
+    /** The data value painted this colour, for a row of a category encoding; absent for a fixed colour. */
+    readonly value?: unknown;
+}
+
+/** One colour of a {@link StyleGrayCollision}. */
+export interface StyleGrayColor {
+    /** The colour as `#rrggbb`, or `#rrggbbaa` when it is not opaque. */
+    readonly color: string;
+    /** Its CIE L* lightness, 0 (black) to 100 (white): the gray it prints as. */
+    readonly lightness: number;
+    /** Every place the shown layers draw it, bottom layer first. */
+    readonly uses: readonly StyleGrayUse[];
+}
+
+/** Two colours in use whose lightness differs by less than the threshold: they print as one gray. */
+export interface StyleGrayCollision {
+    /** The two colours, the darker first. */
+    readonly colors: readonly [StyleGrayColor, StyleGrayColor];
+    /** How far apart their lightness is, in CIE L* units (0 to 100). */
+    readonly difference: number;
+}
+
+/** What `styles.grayCollisions()` checks against. */
+export interface StyleGrayCollisionOptions {
+    /**
+     * Two colours whose CIE L* lightness (0 to 100) differs by less than this collide. Default 10.
+     */
+    readonly threshold?: number;
+}
+
+/**
+ * The CIE L* lightness of a colour (D65 white), from its WCAG relative luminance.
+ * @param color - The colour, each channel 0 to 255.
+ * @param color.r - Red.
+ * @param color.g - Green.
+ * @param color.b - Blue.
+ * @returns L*, 0 (black) to 100 (white).
+ */
+export function lightnessOf(color: { r: number; g: number; b: number }): number {
+    const y = luminance(color);
+    // CIE 1976: f(t) = cube root above (6/29)^3, a line below it.
+    const f = y > 216 / 24_389 ? Math.cbrt(y) : (y * 24_389) / 27 / 116 + 16 / 116;
+    return 116 * f - 16;
+}
+
+/**
+ * Every pair of distinct colours whose lightness differs by less than the threshold.
+ * @param uses - Each colour drawn and where, in paint order; one colour may be listed many times.
+ * @param threshold - The smallest L* difference that does not collide.
+ * @returns The pairs, closest first.
+ */
+export function grayCollisionsOf(
+    uses: readonly { readonly color: string; readonly use: StyleGrayUse }[],
+    threshold: number,
+): readonly StyleGrayCollision[] {
+    const byHex = new Map<string, { lightness: number; uses: StyleGrayUse[] }>();
+    for (const { color, use } of uses) {
+        const value = toColorValue(color);
+        if (value === null) {
+            continue;
+        }
+
+        const entry = byHex.get(value.hex) ?? { lightness: lightnessOf(value), uses: [] };
+        entry.uses.push(use);
+        byHex.set(value.hex, entry);
+    }
+
+    const colors = [...byHex].map(([color, entry]) =>
+        Object.freeze({ color, lightness: entry.lightness, uses: Object.freeze(entry.uses) }),
+    );
+    const found: StyleGrayCollision[] = [];
+    // ponytail: every pair, quadratic in the colours in use -- a few dozen in any drawing a reader prints.
+    for (let i = 0; i < colors.length; i++) {
+        for (let j = i + 1; j < colors.length; j++) {
+            const difference = Math.abs(colors[i].lightness - colors[j].lightness);
+            if (difference < threshold) {
+                const pair: [StyleGrayColor, StyleGrayColor] =
+                    colors[i].lightness <= colors[j].lightness ? [colors[i], colors[j]] : [colors[j], colors[i]];
+                found.push(Object.freeze({ colors: Object.freeze(pair), difference }));
+            }
+        }
+    }
+
+    return Object.freeze(found.sort((a, b) => a.difference - b.difference));
 }

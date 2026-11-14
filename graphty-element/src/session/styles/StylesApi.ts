@@ -161,7 +161,16 @@ import {
     readRenamedChannels,
     toColorValue,
 } from "./channels";
-import { colorsOf, replaceColorPatch, type StyleColor } from "./colors";
+import {
+    colorsOf,
+    DEFAULT_GRAY_THRESHOLD,
+    grayCollisionsOf,
+    replaceColorPatch,
+    type StyleColor,
+    type StyleGrayCollision,
+    type StyleGrayCollisionOptions,
+    type StyleGrayUse,
+} from "./colors";
 import {
     type BindingPreview,
     type PreparedBinding,
@@ -679,6 +688,26 @@ export interface StylesApi {
      * @since 3.26.0
      */
     replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
+    /**
+     * The pairs of colours in use that fall on the same gray: what a grayscale print, or a reader
+     * who sees no colour, cannot tell apart. Every colour the shown layers draw is checked, on
+     * every colour channel (fills, outlines, edges, glows, label colours), fixed colours and each
+     * row of a category palette alike; a colour ramp is left out, as its steps are meant to blend.
+     * A row painted over by a layer above, or a layer that paints nothing now, is not in use.
+     *
+     * Lightness is CIE L* (0 black to 100 white, D65), and two colours collide when theirs differ
+     * by less than `threshold` (default 10).
+     *
+     * ```ts
+     * for (const { colors: [a, b], difference } of session.styles.grayCollisions()) {
+     *     console.log(a.color, b.color, difference.toFixed(1));
+     * }
+     * ```
+     * @param options - The threshold.
+     * @returns Each pair once, closest first; empty when every colour in use stands apart.
+     * @since 3.40.0
+     */
+    grayCollisions(options?: StyleGrayCollisionOptions): readonly StyleGrayCollision[];
     /**
      * The layer rows some rows of the tree reach, folders walked through at every depth: what an
      * edit of "these rows" would write to, and what it would leave alone.
@@ -5406,6 +5435,35 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             };
 
             return edit<readonly Layer[]>("update", `Replace ${from} with ${to}`, { batch }, options);
+        },
+
+        grayCollisions(options: StyleGrayCollisionOptions = {}): readonly StyleGrayCollision[] {
+            const uses: { color: string; use: StyleGrayUse }[] = [];
+            for (const layer of legendSources.layers()) {
+                for (const block of buildLayerLegend(legendSources, layer.id) ?? []) {
+                    // A ramp blends on purpose, and a block painting nothing now is not in use.
+                    const ramp = block.kind === "sequential" || block.kind === "diverging";
+                    if (ramp || block.painted === 0 || channelDescriptor(block.channel)?.accepts !== "color") {
+                        continue;
+                    }
+
+                    for (const swatch of block.swatches) {
+                        if (
+                            swatch.color !== undefined &&
+                            swatch.paintedOverBy === undefined &&
+                            swatch.hidden !== true
+                        ) {
+                            const use = { layer: block.layerId, channel: block.channel };
+                            uses.push({
+                                color: swatch.color,
+                                use: block.kind === "literal" ? use : { ...use, value: swatch.value },
+                            });
+                        }
+                    }
+                }
+            }
+
+            return grayCollisionsOf(uses, options.threshold ?? DEFAULT_GRAY_THRESHOLD);
         },
 
         layersUnder(rowIds: readonly StyleRowId[]): readonly LayerReach[] {

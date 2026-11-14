@@ -255,6 +255,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
     const layoutTransition = read("layoutTransition") as LayoutTransitionConfig | undefined;
     const viewRotation = read("viewRotation") as number | undefined;
     const framing = read("framing") as GraphFraming | undefined;
+    const minMarkSize = read("minMarkSize") as ProjectConfig["minMarkSize"];
     const pinned = slice.has("pinnedStyle") ? (read("pinnedStyle") as GraphSelectionStyleConfig) : undefined;
     return Object.freeze({
         data: Object.freeze(data) as SessionDataConfig,
@@ -273,6 +274,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
         ...(layoutTransition === undefined ? {} : { layoutTransition }),
         ...(viewRotation === undefined ? {} : { viewRotation }),
         ...(framing === undefined ? {} : { framing }),
+        ...(minMarkSize === undefined ? {} : { minMarkSize }),
         ...(typeof author === "string" ? { author } : {}),
         ...(typeof name === "string" ? { name } : {}),
     });

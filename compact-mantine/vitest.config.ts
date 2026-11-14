@@ -156,12 +156,25 @@ const axNodes: BrowserCommand<[name: string]> = async (ctx, name) => {
                 name?: { value?: string };
                 value?: { value?: unknown };
                 properties?: { name: string; value?: { value?: unknown } }[];
+                backendDOMNodeId?: number;
             }[];
         };
         for (const node of nodes) {
             if (node.name?.value === name) {
                 const value = node.value?.value;
-                const text = node.properties?.find((property) => property.name === "valuetext")?.value?.value;
+                let text = node.properties?.find((property) => property.name === "valuetext")?.value?.value;
+                // Chromium 158 (Playwright 1.65) reports every `valuetext` here as "" (or a native range's
+                // raw number) and leaves `aria-valuetext` out of CDP's tree entirely; Chromium 143 reported
+                // it. Until CDP carries it again, an empty `valuetext` is read from the node's own
+                // `aria-valuetext`, the attribute the browser would speak.
+                if (text === "" && node.backendDOMNodeId !== undefined) {
+                    const { node: dom } = (await cdp.send("DOM.describeNode", {
+                        backendNodeId: node.backendDOMNodeId,
+                    })) as { node: { attributes?: string[] } };
+                    const attributes = dom.attributes ?? [];
+                    const at = attributes.indexOf("aria-valuetext");
+                    text = at >= 0 && at % 2 === 0 ? attributes[at + 1] : text;
+                }
                 found.push({
                     role: String(node.role?.value),
                     name,

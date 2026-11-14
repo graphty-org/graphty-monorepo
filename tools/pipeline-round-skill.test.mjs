@@ -239,4 +239,13 @@ describe("issues are read only through tools/issue-queue.mjs (#5719)", () => {
         assert.match(shared, /\| *\n? *node tools\/issue-queue\.mjs filter \| tee "\$d\/state\.json"/);
         assert.match(issueRound, /node tools\/issue-queue\.mjs list/);
     });
+    it("issue-round burns down critical and high issues first and names a blocked top (#7975)", () => {
+        const flatIssue = issueRound.replace(/\s*\n\s*/g, " ");
+        assert.doesNotMatch(flatIssue, /never takes a `?priority:critical/);
+        assert.doesNotMatch(flatIssue, /skips priority:critical/);
+        assert.match(flatIssue, /\*\*Strict priority order\*\*/);
+        assert.match(flatIssue, /start no job led by a medium or low issue/);
+        assert.match(flatIssue, /top of queue #<n>/);
+        assert.match(flatIssue, /taskset -c 0/);
+    });
 });

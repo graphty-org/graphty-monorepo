@@ -28,6 +28,7 @@ import { GraphtyLogger } from "../../logging/GraphtyLogger";
 import { deepEquals } from "../styles/predicate";
 import type { DirectionProvenance } from "../types";
 import { type Draft, frozenRecord, type OpLogEntry } from "./draft";
+import { RecordMap } from "./recordMap";
 import { createCounter, emptyGraphSlice, type GraphRecord, type GraphSlice } from "./state";
 import { builderDrift, strictViolation, verifyRetainedArrays } from "./strict";
 
@@ -255,7 +256,10 @@ interface EdgeRange {
     readonly sources: NodeId[];
     readonly targets: NodeId[];
     readonly weights: number[];
-    readonly records: GraphRecord[];
+    /** Each edge's record, or its place in `from` when it was built from columns. */
+    readonly records: (GraphRecord | number)[];
+    /** The slice map that issued the places in `records`, or null. */
+    readonly from: RecordMap<EdgeId> | null;
     /** The file's own id per edge, or undefined. */
     readonly fileIds: (string | number | undefined)[];
     /** The endpoints an edge created, by its place in the run; most create none. */
@@ -272,7 +276,10 @@ interface EdgeRange {
 interface NodeRange {
     readonly kind: "nodes";
     readonly ids: NodeId[];
-    readonly records: GraphRecord[];
+    /** Each node's record, or its place in `from` when it was built from columns. */
+    readonly records: (GraphRecord | number)[];
+    /** The slice map that issued the places in `records`, or null. */
+    readonly from: RecordMap<NodeId> | null;
     /**
      * Each node's file coordinate as three numbers, x NaN for a node with none: a seed is finite
      * (`readSeedPosition`), and three numbers in one array are not an array per node (53 MB at 1M).
@@ -307,11 +314,31 @@ function nodeAt(range: NodeRange, at: number): NodeOp {
     return {
         kind: "node",
         id: range.ids[at],
-        record: range.records[at],
+        record: recordIn(range, at),
         seed: seedAt(range.seeds, at),
         existed: range.existed[at],
         prior: range.priors.get(at),
     };
+}
+
+/**
+ * Record `at` of a run, built from its columns when the run holds its place.
+ * @param range - The run.
+ * @param at - The place in it.
+ * @returns The record.
+ */
+function recordIn(range: NodeRange | EdgeRange, at: number): GraphRecord {
+    const value = range.records[at];
+    return typeof value === "number" ? (range.from as RecordMap<unknown>).resolve(value) : value;
+}
+
+/**
+ * The slice map as a `RecordMap`, or null when it is a plain map (a slice built elsewhere).
+ * @param map - The map.
+ * @returns The record map, or null.
+ */
+function recordMapOf<K>(map: ReadonlyMap<K, GraphRecord>): RecordMap<K> | null {
+    return map instanceof RecordMap ? (map as RecordMap<K>) : null;
 }
 
 /** One edge added, as an edge op holds it. */
@@ -1207,14 +1234,15 @@ class GraphEntry implements OpLogEntry {
      * Keep one node added in the run the last op holds, or start a run: what a forward add under
      * the `"batched"` render path records instead of one op per node.
      * @param op - The node.
+     * @param from - The slice map the node's record went into, when it is a `RecordMap`.
      */
-    pushNodeRange(op: NodeOp): void {
+    pushNodeRange(op: NodeOp, from: RecordMap<NodeId> | null): void {
         const last = this.ops.at(-1);
         let range: NodeRange;
-        if (last?.kind === "nodes") {
+        if (last?.kind === "nodes" && last.from === from) {
             range = last;
         } else {
-            range = { kind: "nodes", ids: [], records: [], seeds: [], existed: [], priors: new Map() };
+            range = { kind: "nodes", ids: [], records: [], from, seeds: [], existed: [], priors: new Map() };
             this.ops.push(range);
             this.retained += 48;
         }
@@ -1224,7 +1252,7 @@ class GraphEntry implements OpLogEntry {
         }
 
         range.ids.push(op.id);
-        range.records.push(op.record);
+        range.records.push(from?.stored(op.record) ?? op.record);
         if (op.seed === null) {
             range.seeds.push(Number.NaN, 0, 0);
         } else {
@@ -1240,11 +1268,12 @@ class GraphEntry implements OpLogEntry {
      * Keep one edge added in the run the last op holds, or start a run: what a forward add under
      * the `"batched"` render path records instead of one op per edge.
      * @param op - The edge.
+     * @param from - The slice map the edge's record went into, when it is a `RecordMap`.
      */
-    pushRange(op: EdgeOp): void {
+    pushRange(op: EdgeOp, from: RecordMap<EdgeId> | null): void {
         const last = this.ops.at(-1);
         let range: EdgeRange;
-        if (last?.kind === "edges" && last.first + last.records.length === op.edgeId) {
+        if (last?.kind === "edges" && last.first + last.records.length === op.edgeId && last.from === from) {
             range = last;
         } else {
             range = {
@@ -1254,6 +1283,7 @@ class GraphEntry implements OpLogEntry {
                 targets: [],
                 weights: [],
                 records: [],
+                from,
                 fileIds: [],
                 created: new Map(),
             };
@@ -1268,7 +1298,7 @@ class GraphEntry implements OpLogEntry {
         range.sources.push(op.source);
         range.targets.push(op.target);
         range.weights.push(op.weight);
-        range.records.push(op.record);
+        range.records.push(from?.stored(op.record) ?? op.record);
         range.fileIds.push(op.fileId);
         // Five array slots per edge, not an op object.
         this.retained += 16 + recordBytes(op.record);
@@ -1448,7 +1478,7 @@ class GraphEntry implements OpLogEntry {
         for (let at = op.records.length - 1; at >= 0; at--) {
             const edgeId = op.first + at;
             identities[at] ??= store.frozenEdgeIdentity(edgeId);
-            this.undoEdge(edgeId, op.records[at], op.created.get(at) ?? [], maps, seen);
+            this.undoEdge(edgeId, recordIn(op, at), op.created.get(at) ?? [], maps, seen);
         }
     }
 
@@ -1531,13 +1561,13 @@ class GraphEntry implements OpLogEntry {
                     added.add(EDGES_ADDED);
                     break;
                 case "edges":
-                    op.records.forEach((record, at) => {
+                    op.records.forEach((_, at) => {
                         const edge = {
                             edgeId: op.first + at,
                             source: op.sources[at],
                             target: op.targets[at],
                             weight: op.weights[at],
-                            record,
+                            record: recordIn(op, at),
                             fileId: op.fileIds[at],
                         };
                         this.redoEdge(edge, op.identities?.[at], edges, seen);
@@ -1774,7 +1804,7 @@ function restore<K, V>(map: Map<K, V>, key: K, value: V | undefined): void {
  * @returns The maps.
  */
 function emptyMaps(): GraphMaps {
-    return { nodes: new Map(), edges: new Map(), values: new Map() };
+    return { nodes: new RecordMap<NodeId>(), edges: new RecordMap<EdgeId>(), values: new Map() };
 }
 
 /**
@@ -1842,7 +1872,14 @@ class Writer implements GraphWriter {
             this.graph.noteRewrite();
         }
 
-        nodes.set(id, record);
+        const lazy = recordMapOf(nodes);
+        if (lazy === null) {
+            nodes.set(id, record);
+        } else {
+            // A record built from columns is kept as its place, and built again when read.
+            lazy.put(id, lazy.stored(record));
+        }
+
         bumpFields(this.store, "node", prior, record, this.bumped);
         this.record({ kind: "node", id, record, seed, existed: merged, prior }, nodeKey(id), NODES_ADDED);
         return { index, merged };
@@ -1892,7 +1929,12 @@ class Writer implements GraphWriter {
         this.store.stampEdgeId(index, edgeId);
         this.store.recordIngestedEdge(index, edgeId, fileId, this.graph.touchesRanges);
         this.store.recordsChanged();
-        (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
+        const edges = recordMapOf(this.graph.slice.edges);
+        if (edges === null) {
+            (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
+        } else {
+            edges.put(edgeIdOf(edgeId), edges.stored(record));
+        }
         // A new row already reads the column default, 1: only another capacity costs a write.
         if (resolveEdgeCapacity(record) !== 1) {
             writeCapacity(this.store, edgeId, record);
@@ -1903,7 +1945,7 @@ class Writer implements GraphWriter {
         if (this.entry !== null && this.graph.touchesRanges) {
             // The run marks its edges, and the rows they add and move, once per run, not per edge,
             // and the op log keeps it as one range.
-            this.entry.pushRange(op);
+            this.entry.pushRange(op, edges);
             this.extendRun(edgeId);
         } else {
             this.record(op, edgeKey(edgeIdOf(edgeId)), EDGES_ADDED);
@@ -2179,7 +2221,7 @@ class Writer implements GraphWriter {
         }
 
         if (op.kind === "node" && this.graph.touchesRanges) {
-            this.entry.pushNodeRange(op);
+            this.entry.pushNodeRange(op, recordMapOf(this.graph.slice.nodes));
         } else {
             this.entry.push(op);
         }

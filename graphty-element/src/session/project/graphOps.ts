@@ -862,6 +862,152 @@ export function reshapes(log: readonly OpLogEntry[]): boolean {
     );
 }
 
+/** One op log a change applied: forward (a command or a redo) or backward (an undo). */
+export interface GraphPass {
+    readonly log: readonly OpLogEntry[];
+    readonly undo: boolean;
+}
+
+/** The nodes and edges a change added, removed or rewrote, netted, and the fields it rewrote. */
+export interface GraphDiff {
+    readonly added: { readonly nodes: NodeId[]; readonly edges: EdgeId[] };
+    readonly removed: { readonly nodes: NodeId[]; readonly edges: EdgeId[] };
+    readonly updated: { readonly nodes: NodeId[]; readonly edges: EdgeId[] };
+    readonly fields: { readonly nodes: string[]; readonly edges: string[] };
+}
+
+/**
+ * What op logs did to the graph's elements, netted over the passes in the order they were applied:
+ * a node added then removed in one change is in neither list. `fields` names the record keys whose
+ * values a record write changed on an element that was there before and after it.
+ * @param passes - The op logs, in the order applied.
+ * @returns The diff; every list empty for a change that touched no element.
+ */
+export function graphDiffOf(passes: readonly GraphPass[]): GraphDiff {
+    // Per id: whether it was there before the first op naming it, and after the last.
+    const seen = { node: new Map<NodeId, [boolean, boolean]>(), edge: new Map<EdgeId, [boolean, boolean]>() };
+    const fields = { node: new Set<string>(), edge: new Set<string>() };
+    for (const { log, undo } of passes) {
+        const mark = (target: RecordTarget, id: NodeId, before: boolean, after: boolean): void => {
+            const map = seen[target] as Map<NodeId, [boolean, boolean]>;
+            const [was, now] = undo ? [after, before] : [before, after];
+            map.set(id, [map.get(id)?.[0] ?? was, now]);
+        };
+        const ops = log.flatMap((entry) => (entry instanceof GraphEntry ? entry.ops : []));
+        for (const op of undo ? ops.reverse() : ops) {
+            diffOp(op, mark, fields);
+        }
+    }
+
+    const split = <T>(map: Map<T, [boolean, boolean]>): { added: T[]; removed: T[]; updated: T[] } => {
+        const out = { added: [] as T[], removed: [] as T[], updated: [] as T[] };
+        for (const [id, [before, after]] of map) {
+            if (before && after) {
+                out.updated.push(id);
+            } else if (before) {
+                out.removed.push(id);
+            } else if (after) {
+                out.added.push(id);
+            }
+        }
+
+        return out;
+    };
+    const nodes = split(seen.node);
+    const edges = split(seen.edge);
+    return {
+        added: { nodes: nodes.added, edges: edges.added },
+        removed: { nodes: nodes.removed, edges: edges.removed },
+        updated: { nodes: nodes.updated, edges: edges.updated },
+        fields: { nodes: [...fields.node], edges: [...fields.edge] },
+    };
+}
+
+/**
+ * Report what one op did to each element it names, as applied forward.
+ * @param op - The op.
+ * @param mark - Called per element with whether it was there before the op and after it.
+ * @param fields - Collects the record keys a record write changed.
+ */
+function diffOp(
+    op: GraphOp,
+    mark: (target: RecordTarget, id: NodeId, before: boolean, after: boolean) => void,
+    fields: Record<RecordTarget, Set<string>>,
+): void {
+    const changed = (target: RecordTarget, prior: GraphRecord | undefined, next: GraphRecord | undefined): void => {
+        for (const key of new Set([...Object.keys(prior ?? {}), ...Object.keys(next ?? {})])) {
+            if (prior?.[key] !== next?.[key]) {
+                fields[target].add(key);
+            }
+        }
+    };
+    switch (op.kind) {
+        case "node":
+            mark("node", op.id, op.existed, true);
+            if (op.existed) {
+                changed("node", op.prior, op.record);
+            }
+
+            break;
+        case "nodes":
+            op.ids.forEach((id, at) => {
+                mark("node", id, op.existed[at], true);
+                if (op.existed[at]) {
+                    changed("node", op.priors.get(at), op.records[at]);
+                }
+            });
+            break;
+        case "edge":
+            mark("edge", edgeIdOf(op.edgeId), false, true);
+            for (const id of op.created) {
+                mark("node", id, false, true);
+            }
+
+            break;
+        case "edges":
+            op.records.forEach((_, at) => {
+                mark("edge", edgeIdOf(op.first + at), false, true);
+            });
+            for (const ids of op.created.values()) {
+                for (const id of ids) {
+                    mark("node", id, false, true);
+                }
+            }
+
+            break;
+        case "weight":
+            mark("edge", edgeIdOf(op.edgeId), true, true);
+            break;
+        case "record":
+            mark(op.target, op.target === "node" ? op.id : String(op.id), true, true);
+            changed(op.target, op.prior, op.next);
+            break;
+        case "remove":
+            for (const node of op.rows.nodes) {
+                mark("node", node.id, true, false);
+            }
+
+            for (const edge of op.rows.edges) {
+                mark("edge", edgeIdOf(edge.edgeId), true, false);
+            }
+
+            break;
+        case "replace":
+            for (const id of op.prior.nodes.keys()) {
+                mark("node", id, true, false);
+            }
+
+            for (const id of op.prior.edges.keys()) {
+                mark("edge", id, true, false);
+            }
+
+            break;
+        default:
+            // "value" and "direction" name no element.
+            break;
+    }
+}
+
 /**
  * Names the elements one graph step touched.
  * @param op - The step.

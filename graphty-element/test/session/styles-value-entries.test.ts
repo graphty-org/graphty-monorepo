@@ -216,6 +216,29 @@ describe("per-value entries", () => {
         harness.session.dispose();
     });
 
+    it("keeps the scale a binding named none of when an entry is added", async () => {
+        const harness = makeSession();
+        harness.add([
+            { id: "a", weight: 1 },
+            { id: "b", weight: 2 },
+            { id: "c", weight: 3 },
+        ]);
+        const { styles } = harness.session;
+        const layer = await styles.add({
+            name: "Weight",
+            target: "node",
+            selector: { match: "has", path: "data.weight" },
+            encode: { "node.size": { by: "data.weight", range: [1, 5] } },
+        });
+
+        await styles.setValueEntry(layer.id, "node.size", 1, 10);
+
+        const saved = styles.toDocument().layers[0]?.encode?.["node.size"] as { scale?: string; map?: unknown };
+        assert.strictEqual(saved.scale, "linear", "the ramp the binding read before the entry");
+        assert.deepStrictEqual(saved.map, { "1": 10 });
+        harness.session.dispose();
+    });
+
     it("refuses an entry on a channel the layer does not paint from a value", async () => {
         const harness = makeSession();
         harness.add([{ id: "a" }]);

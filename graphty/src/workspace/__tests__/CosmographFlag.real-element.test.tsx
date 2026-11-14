@@ -89,6 +89,7 @@ describe("the cosmograph experiment's switch in the app", () => {
         await siteFeatures([]);
         await openEdgeStyle();
         assert.strictEqual(element().renderPath, "objects");
+        assert.deepStrictEqual(element().limits, {}, "the app raises no limits with the experiment off");
         const offered = await lineMenu();
         assert.include(offered, "Width", "Line's own properties are offered");
         for (const word of ["Fade end", "Blending"]) {
@@ -121,6 +122,37 @@ describe("the cosmograph experiment's switch in the app", () => {
                 .list()
                 .find((each) => each.name === "Both" && each.set?.["edge.blending"] !== undefined);
             assert.strictEqual(layer?.set?.["edge.blending"], false);
+        });
+    });
+
+    it("raises the element's limits so a million nodes and edges may draw, with the experiment on", async () => {
+        await siteFeatures(["cosmograph"]);
+        await page.viewport(1440, 900);
+        render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
+        const session = await waitFor(() => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            assert.strictEqual(element().renderPath, "batched");
+            return found;
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const { limits } = session.capabilities;
+        for (const key of ["renderCeiling", "edgesDrawn", "objectRows", "objectEdges"] as const) {
+            assert.isAtLeast(limits[key], 1_000_000, `${key} in force`);
+        }
+
+        // One past the element's default ceiling of 100,000 nodes, which it refuses unraised; laid
+        // out at random, since the rows drawn are what is asked, not a force layout of them.
+        await session.layout.set("random");
+        const count = 100_001;
+        await session.data.addNodes(Array.from({ length: count }, (_, i) => ({ id: `n${i}` })));
+        await session.data.addEdges(Array.from({ length: count - 1 }, (_, i) => ({ src: "n0", dst: `n${i + 1}` })));
+        await waitFor(() => {
+            const drawn = element().rowCounts;
+            assert.strictEqual(drawn.batchedNodes + drawn.objectNodes, count);
+            assert.strictEqual(drawn.pulledEdges + drawn.objectEdges, count - 1);
         });
     });
 });

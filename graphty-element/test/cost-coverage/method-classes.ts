@@ -293,7 +293,6 @@ export const MUTATING: readonly string[] = [
     "StylesApi.addRow",
     "StylesApi.applyTemplate",
     "StylesApi.deleteRow",
-    "StylesApi.restoreStartingRows",
     "StylesApi.encode",
     "StylesApi.hideRow",
     "StylesApi.highlight",

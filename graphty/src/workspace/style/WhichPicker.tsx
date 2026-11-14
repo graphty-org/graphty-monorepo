@@ -71,7 +71,7 @@ import {
 import { DrawnSwatches } from "./drawnSwatches";
 import { keystrokeTarget } from "./useFocusLine";
 import { useStepWriter } from "./useStepWriter";
-import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, NATURAL, prefixFirst, valueName } from "./words";
+import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, nameRank, NATURAL, prefixFirst, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
 interface PickRow {
@@ -1408,6 +1408,15 @@ export function AddCondition({
         .map(({ group, items }) => ({ group, items: prefixFirst(items.filter(foundRow), (each) => each.name, search) }))
         .filter(({ items }) => items.length > 0);
     const extraRows = [...moreShown.flatMap(({ items }) => items), ...extra];
+    // How well each listed row matches, in list order: its name is the search, starts with it,
+    // holds it, or only its other words or its words in any order match. Enter takes the best,
+    // whatever group it is in.
+    const ranks = [...groups.flatMap(({ items }) => items), ...moreShown.flatMap(({ items }) => items), ...extras]
+        .map(({ name }) => {
+            const rank = nameRank(name, typed);
+            return rank < 2 || name.toLowerCase().includes(typed) ? rank : 3;
+        })
+        .join(",");
     const count =
         groups.reduce((sum, { items }) => sum + items.length, 0) +
         moreShown.reduce((sum, { items }) => sum + items.length, 0) +
@@ -1463,19 +1472,31 @@ export function AddCondition({
             setActive(null);
             return;
         }
-        // The first match not already a condition is lit, so Enter adds something new.
+        // The best match not already a condition is lit, so Enter adds something new: an exact
+        // name before a name that starts with the search, before the rest; a tie goes to the first.
         const first = selectFirstOption();
         const options = [
             ...(document.getElementById(listId)?.querySelectorAll<HTMLElement>("[data-combobox-option]") ?? []),
         ];
-        const unused = options.findIndex((option) => option.dataset.used === undefined);
-        if (unused > 0) {
-            selectOption(unused);
-            setActive(options[unused].id === "" ? first : options[unused].id);
+        const rankOf = ranks.split(",").map(Number);
+        const score = (option: HTMLElement, index: number): number => {
+            if (option.dataset.comboboxDisabled !== undefined) {
+                return Number.POSITIVE_INFINITY;
+            }
+            const used = option.dataset.used === undefined ? 0 : 10;
+            return used + (rankOf[index] ?? 9);
+        };
+        const best = options.reduce(
+            (chosen, option, index) => (score(option, index) < score(options[chosen], chosen) ? index : chosen),
+            0,
+        );
+        if (best > 0) {
+            selectOption(best);
+            setActive(options[best].id === "" ? first : options[best].id);
             return;
         }
         setActive(first);
-    }, [typed, dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, listId]);
+    }, [typed, ranks, dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, listId]);
     const keys = (event: React.KeyboardEvent<HTMLInputElement>): void => {
         if (event.nativeEvent.isComposing) {
             return;

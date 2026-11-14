@@ -742,6 +742,15 @@ export class Graph implements GraphContext {
         this.updateManager.stopAutoZoomToFit();
     };
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
+    /**
+     * Announces a new skybox's image: `skybox-loaded` once its texture arrived, `skybox-failed`
+     * when it could not be loaded. The element turns each into its `graphty-skybox-*` DOM event.
+     * @param url - The skybox image.
+     * @param loaded - Whether its texture loaded.
+     */
+    readonly #announceSkybox = (url: string, loaded: boolean): void => {
+        this.eventManager.emit(loaded ? "skybox-loaded" : "skybox-failed", { graph: this, url });
+    };
     #autoFrame = true;
     /** Whether the wheel zooms toward the pointer; see {@link setZoomToPointer}. */
     #zoomToPointer = false;
@@ -1288,9 +1297,7 @@ export class Graph implements GraphContext {
             // steps below are idempotent.
             const { graph } = this.styles.config;
             if (changed("background")) {
-                this.renderManager.applyBackground(graph.background, (url) => {
-                    this.eventManager.emit("skybox-loaded", { graph: this, url });
-                });
+                this.renderManager.applyBackground(graph.background, this.#announceSkybox);
                 this.updateManager.meshesAdded();
             }
 
@@ -2741,9 +2748,7 @@ export class Graph implements GraphContext {
 
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.
-            this.renderManager.applyBackground(this.styles.config.graph.background, (url) => {
-                this.eventManager.emit("skybox-loaded", { graph: this, url });
-            });
+            this.renderManager.applyBackground(this.styles.config.graph.background, this.#announceSkybox);
             this.applyViewRotation(false);
 
             // Start the graph system (render loop, etc.)
@@ -5026,6 +5031,9 @@ export class Graph implements GraphContext {
     setLimits(value: LimitsOption): void {
         this.#limits.request(value);
         this.#warnLimitsIgnored();
+        // A row drawn plain past an object budget is painted again, so a raised budget gives it its object.
+        this.updateManager.limitsChanged();
+        this.renderManager.requestFrame();
     }
 
     /** Say, as a code, that the ceilings asked for are not in force. */
@@ -5118,6 +5126,14 @@ export class Graph implements GraphContext {
                     meshesChanged: () => {
                         this.updateManager.thawActiveMeshes();
                         this.updateManager.meshesShownOrHidden();
+                    },
+                    repaint: (rows) => {
+                        const painter = this.getStylePainter();
+                        for (const row of rows) {
+                            painter?.queue("node", row);
+                        }
+
+                        this.renderManager.requestFrame();
                     },
                     resized: () => {
                         if (this.layoutManager.layoutEngine?.wakeForResize() === true) {

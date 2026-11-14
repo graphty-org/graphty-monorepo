@@ -89,6 +89,22 @@ export const columnsTool: ToolDefinition = {
             },
         },
         {
+            name: "over_represented",
+            summary: "per group of the column, the node values more frequent than chance",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+            },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.overRepresented" }],
+            run: ({ tx }, args) => {
+                const group = text(args.column);
+                return Promise.resolve(ok(tx.data.overRepresented(group.includes(".") ? group : `data.${group}`)));
+            },
+        },
+        {
             name: "preview_type",
             summary: "what a type change would do",
             fields: { column, on, type: types.describe("The type.") },

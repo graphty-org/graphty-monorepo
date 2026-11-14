@@ -1914,6 +1914,13 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ELEMENT"
 /**
+* A graph was constructed with the id of a page element that the document does not hold, so
+* there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
+* or passes the element itself.
+* @since 3.40.0
+*/
+| "E_HOST_NOT_FOUND"
+/**
 * A saved document's content is malformed: not the kind it claims, a required member missing
 * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
 * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -3741,6 +3748,9 @@ export interface ModelSummary {
 }
 
 // @public
+export type MultipleTestingCorrection = "benjamini-hochberg";
+
+// @public
 export interface NamedBlob {
     // (undocumented)
     arrayBuffer(): Promise<ArrayBuffer>;
@@ -4045,6 +4055,31 @@ export const OVERFLOW_PATTERNS: readonly EdgeLineValue[];
 
 // @public
 export const OVERFLOW_SHAPES: readonly NodeShapeValue[];
+
+// @public
+export interface OverRepresentedGroup {
+    readonly group: string | number | boolean;
+    readonly size: number;
+    readonly values: readonly OverRepresentedValue[];
+}
+
+// @public
+export interface OverRepresentedValue {
+    readonly adjustedP: number;
+    readonly count: number;
+    readonly expected: number;
+    readonly p: number;
+    readonly path: Path;
+    readonly value: string | number | boolean;
+}
+
+// @public
+export interface OverRepresentedValues {
+    readonly correction: MultipleTestingCorrection;
+    readonly groupBy: Path;
+    readonly groups: readonly OverRepresentedGroup[];
+    readonly testCount: number;
+}
 
 // @public
 export interface PageColumn {
@@ -5925,6 +5960,9 @@ export interface SessionDataApi {
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     nodes(): readonly NodeRecord[];
     nodeSource(id: NodeId_2): NodeSource | null;
+    overRepresented(groupBy: Path, options?: {
+        readonly columns?: readonly Path[];
+    }): OverRepresentedValues;
     pendingSourceLoads(): readonly PendingSourceLoad[];
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;

@@ -20,13 +20,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { readableName } from "../../style/words";
 import { Workspace } from "../../Workspace";
 
-/** A segmented control's visible label, which a reader presses: the radio itself is drawn invisible. */
-function segment(radio: HTMLInputElement): HTMLElement {
-    const label = radio.labels?.[0];
-    assert.isDefined(label);
-    return label;
-}
-
 /**
  * A new, empty project, then Zachary's karate club opened through the element's
  * import, with the layout the element recommends for it.
@@ -498,8 +491,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         // Hops 2 in the list's header reselects two hops out and relists; the list, the
         // selection and the status line agree on the count.
-        const hops = await screen.findByRole("radiogroup", { name: "Hops" });
-        await userEvent.click(segment(within(hops).getByRole<HTMLInputElement>("radio", { name: "2" })));
+        const hops = await screen.findByRole("spinbutton", { name: "Hops" });
+        await userEvent.clear(hops);
+        await userEvent.type(hops, "2{Enter}");
         await waitFor(() => {
             assert.isAbove(session.selection.nodes.length, neighborhood);
             assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
@@ -553,8 +547,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         // Open at one hop, reach two, filter to it, twice.
         await degree();
-        const hops = await screen.findByRole("radiogroup", { name: "Hops" });
-        await userEvent.click(segment(within(hops).getByRole<HTMLInputElement>("radio", { name: "2" })));
+        const hops = await screen.findByRole("spinbutton", { name: "Hops" });
+        await userEvent.clear(hops);
+        await userEvent.type(hops, "2{Enter}");
         await waitFor(() => {
             assert.isTrue(
                 screen.getAllByRole("status").some((status) => /within 2 hops$/.test(status.textContent ?? "")),
@@ -591,8 +586,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await degree();
         const words = `${name} and ${String(grown)} connections`;
         await screen.findByRole("group", { name: words });
-        const reopened = await screen.findByRole("radiogroup", { name: "Hops" });
-        assert.isTrue(within(reopened).getByRole<HTMLInputElement>("radio", { name: "2" }).checked);
+        const reopened = await screen.findByRole<HTMLInputElement>("spinbutton", { name: "Hops" });
+        assert.equal(reopened.value, "2");
         // Reopened under its own filter, the command is still disabled.
         assert.equal(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"), "true");
         assert.equal(session.selection.nodes.length, grown + 1);

@@ -93,6 +93,15 @@ interface MockEdge {
 type GraphResults = Record<string, Record<string, Record<string, unknown>>>;
 
 /**
+ * What `createMockGraph` returns: a `Graph` to the algorithm under test, plus the node and edge
+ * maps the test reads back.
+ */
+export type MockGraph = Graph & {
+    readonly nodes: Map<string | number, MockNode>;
+    readonly edges: Map<string, MockEdge>;
+};
+
+/**
  * The two data-manager members an algorithm reads its input through.
  */
 export interface MockSnapshotSource {
@@ -189,9 +198,9 @@ export function createMockSnapshotSource(
  * console.log(nodeA.algorithmResults.graphty.degree.inDegree);
  * ```
  */
-export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> {
+export async function createMockGraph(opts: MockGraphOpts = {}): Promise<MockGraph> {
     const nodes = new Map<string | number, MockNode>();
-    const edges = new Map<string | number, MockEdge>();
+    const edges = new Map<string, MockEdge>();
     let graphResults: GraphResults | undefined;
 
     // Add inline nodes (deep copy to avoid shared state between tests)
@@ -264,22 +273,21 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
     };
 
     // Cast to Graph - algorithms only use getDataManager() which we implement
-    return mockGraph as unknown as Graph;
+    return mockGraph as unknown as MockGraph;
 }
 
 /**
  * Helper to get a node from the mock graph
  * @param graph - The graph (as returned by createMockGraph)
  * @param nodeId - The node ID to look up
- * @returns The node object (any type)
+ * @returns The node object, or undefined when the mock has no such node
  */
 
-export function getMockNode(graph: Graph, nodeId: string | number): any {
-    const dm = graph.getDataManager() as any;
-    return dm.nodes.get(nodeId);
+export function getMockNode(graph: MockGraph, nodeId: string | number): MockNode | undefined {
+    return graph.nodes.get(nodeId);
 }
 
 // An algorithm's result is no longer scattered onto the render objects; these read it out of what
 // the run published. See ./algorithmResults for the 1.x key vocabulary and what it became.
 export type { ResultCarrier } from "./algorithmResults";
-export { getEdgeResult, getGraphResult, getNodeResult, partitionOf } from "./algorithmResults";
+export { asNumber, getEdgeResult, getGraphResult, getNodeResult, partitionOf } from "./algorithmResults";

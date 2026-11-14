@@ -23,10 +23,11 @@ import { KindGlyph } from "../graph-place/KindGlyph";
 import { RowMenuItems } from "../graph-place/RowMenu";
 import { findTreeRow, layerKindWords, placeOf, rowName, rowsHeading, runRowKind } from "../graph-place/rows";
 import { LayerRowPanel } from "../graph-place/StyleTree";
+import { NoteList } from "../notes/NotesPlace";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
 import { useNumberFormats } from "../settings/numberFormat";
-import { tabFor, type WorkspaceState } from "../state/store";
+import { type InspectorTab, tabFor, type WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FolderPanel } from "../style/FolderPanel";
 import { MultiRowPanel } from "../style/MultiRowPanel";
@@ -232,11 +233,12 @@ function opensOnValues(session: GraphSession | null, run: Run | undefined, resol
 
 /**
  * The tab the inspector opens on: a run with `onValues` opens on Values; else the tab a link names,
- * else the one last chosen for the kind.
+ * else the one last chosen for the kind (Notes only when the item has notes).
  * @param onValues - whether it opens on Values.
  * @param kind - the kind.
  * @param inspected - the store's `inspected`.
  * @param remembered - the tab last chosen per kind.
+ * @param hasNotes - whether the item has notes, so a Notes tab.
  * @returns the tab, or null for a kind with no tabs.
  */
 function opensOnOf(
@@ -244,12 +246,31 @@ function opensOnOf(
     kind: InspectedKind | undefined,
     inspected: WorkspaceState["inspected"],
     remembered: WorkspaceState["tabs"],
-): "style" | "values" | null {
+    hasNotes: boolean,
+): InspectorTab | null {
     if (onValues) {
         return "values";
     }
     const asked = kind !== undefined && kind.tabs.length > 0 ? inspected?.tab : undefined;
-    return asked ?? tabFor(kind, remembered);
+    return asked ?? tabFor(kind, remembered, hasNotes);
+}
+
+/**
+ * The tab shown: the reader's pick for this item, else the one it opens on. A Notes pick whose last
+ * note was just deleted falls back to the tab the item opens on.
+ * @param picked - the reader's last pick and the item it was made on.
+ * @param identity - the item shown.
+ * @param hasNotes - whether it has notes, so a Notes tab.
+ * @param opensOn - the tab it opens on.
+ * @returns the tab, or null for a kind with no tabs.
+ */
+function tabShown(
+    picked: { identity: string; tab: InspectorTab } | null,
+    identity: string,
+    hasNotes: boolean,
+    opensOn: InspectorTab | null,
+): InspectorTab | null {
+    return picked?.identity === identity && (picked.tab !== "notes" || hasNotes) ? picked.tab : opensOn;
 }
 
 /**
@@ -300,21 +321,25 @@ function dataActionsOf(
 }
 
 /**
- * The inspector's body: the Style and Values tabs, or one body for a kind with no tabs.
+ * The inspector's body: the Style and Values tabs, and Notes when the item has notes, or one body
+ * for a kind with no tabs.
  * @param props - Component props
  * @param props.body - the bodies.
+ * @param props.notes - the Notes tab's list, or null when the item has no notes.
  * @param props.tab - the tab shown, or null for a kind with no tabs.
  * @param props.onPick - takes the tab the reader chose.
  * @returns the body.
  */
 function InspectorBody({
     body,
+    notes,
     tab,
     onPick,
 }: Readonly<{
     body: Body;
-    tab: "style" | "values" | null;
-    onPick: (tab: "style" | "values") => void;
+    notes: React.ReactNode;
+    tab: InspectorTab | null;
+    onPick: (tab: InspectorTab) => void;
 }>): React.ReactNode {
     if ("only" in body) {
         return body.only;
@@ -331,7 +356,7 @@ function InspectorBody({
             keepMounted={false}
             value={tab}
             onChange={(next) => {
-                if (next === "style" || next === "values") {
+                if (next === "style" || next === "values" || (next === "notes" && notes !== null)) {
                     onPick(next);
                 }
             }}
@@ -339,9 +364,11 @@ function InspectorBody({
             <Tabs.List>
                 <Tabs.Tab value="style">Style</Tabs.Tab>
                 <Tabs.Tab value="values">Values</Tabs.Tab>
+                {notes !== null && <Tabs.Tab value="notes">Notes</Tabs.Tab>}
             </Tabs.List>
             <Tabs.Panel value="style">{body.style}</Tabs.Panel>
             <Tabs.Panel value="values">{body.values}</Tabs.Panel>
+            {notes !== null && <Tabs.Panel value="notes">{notes}</Tabs.Panel>}
         </Tabs>
     );
 }
@@ -488,7 +515,7 @@ export function Inspector(): React.JSX.Element {
     const inspected = useWorkspaceState((state) => state.inspected);
     const projectName = useWorkspaceState((state) => state.project?.name);
     const remembered = useWorkspaceState((state) => state.tabs);
-    const [picked, setPicked] = useState<{ identity: string; tab: "style" | "values" } | null>(null);
+    const [picked, setPicked] = useState<{ identity: string; tab: InspectorTab } | null>(null);
     // A link that names the tab it opens on (a layer's look opens on Style) overrides the last pick.
     const [seen, setSeen] = useState(inspected);
     if (seen !== inspected) {
@@ -522,8 +549,11 @@ export function Inspector(): React.JSX.Element {
     const kindId = kindIdOf(run, resolved);
     const kind = registry.kinds.get(kindId);
     const isPath = run?.shape === "path";
-    const opensOn = opensOnOf(opensOnValues(session, run, resolved), kind, inspected, remembered);
-    const tab = picked?.identity === identity ? picked.tab : opensOn;
+    // The notes about this, listed in its Notes tab; with none there is no Notes tab.
+    const notes = session === null ? [] : notesAbout(session, resolved);
+    const hasNotes = notes.length > 0;
+    const opensOn = opensOnOf(opensOnValues(session, run, resolved), kind, inspected, remembered, hasNotes);
+    const tab = tabShown(picked, identity, hasNotes, opensOn);
     // A path is not a measure, though its run row is one.
     const kindWord = isPath ? PATH_WORD : KIND_WORDS[kindId];
     const runDraft = run !== undefined && draft?.run === run.id ? draft.values : {};
@@ -569,9 +599,7 @@ export function Inspector(): React.JSX.Element {
             void orNotice(store, `move ${row.name}`, session.styles.moveRow(row.id, place));
         }
     };
-    // How many notes are about this, as a link to the Notes place; the text stays there.
-    const notes = notesAbout(session, resolved);
-    const onPick = (next: "style" | "values"): void => {
+    const onPick = (next: InspectorTab): void => {
         setPicked({ identity, tab: next });
         store.set((state) => ({ tabs: { ...state.tabs, [kindId]: next } }));
     };
@@ -615,7 +643,9 @@ export function Inspector(): React.JSX.Element {
                             </Text>
                         )}
                         <HeaderFrom from={header.from} />
-                        {notes > 0 && (
+                        {/* How many notes are about this, as a link to the Notes place, where notes
+                            are written; the Notes tab lists them here. */}
+                        {hasNotes && (
                             <Anchor
                                 component="button"
                                 size="xs"
@@ -623,7 +653,7 @@ export function Inspector(): React.JSX.Element {
                                     runCommand("place.notes");
                                 }}
                             >
-                                {count(notes, "note")}
+                                {count(notes.length, "note")}
                             </Anchor>
                         )}
                         {selectsPaints && (
@@ -655,7 +685,12 @@ export function Inspector(): React.JSX.Element {
                     </Group>
                 </Stack>
                 {barRun !== undefined && <RunStateBar run={barRun} draft={runDraft} onDraft={onDraft} />}
-                <InspectorBody body={body} tab={tab} onPick={onPick} />
+                <InspectorBody
+                    body={body}
+                    notes={hasNotes ? <NoteList notes={notes} /> : null}
+                    tab={tab}
+                    onPick={onPick}
+                />
             </Stack>
         </PopoutManager>
     );

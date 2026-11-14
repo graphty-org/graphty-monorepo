@@ -229,7 +229,17 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "Columns",
         core: false,
         profiles: STANDARD,
-        actions: ["list", "values", "preview_type", "rename", "set_type", "set_role", "hide", "label_value"],
+        actions: [
+            "list",
+            "values",
+            "over_represented",
+            "preview_type",
+            "rename",
+            "set_type",
+            "set_role",
+            "hide",
+            "label_value",
+        ],
     },
     {
         name: "sources",

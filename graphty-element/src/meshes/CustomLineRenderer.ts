@@ -225,7 +225,7 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
         return [];
     }
 
-    const tables = ["rowPosition", "edgeRows", "edgeHidden"];
+    const tables = ["rowPosition", "edgeRows", "edgeHidden", "edgeOrder"];
     return options.pulledCurve === true ? [...tables, "edgeRoutes"] : tables;
 }
 
@@ -547,7 +547,10 @@ void main(void) {
         const mesh = new Mesh("joined-line", scene);
         const vertexData = new VertexData();
         vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
-        vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        // a pulled batch draws unindexed (`PulledLineBatch`)
+        if (options.pulled !== true) {
+            vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        }
         vertexData.applyToMesh(mesh);
 
         const { program, fade } = options;
@@ -575,6 +578,7 @@ void main(void) {
                     "color",
                     "opacity",
                     "pattern",
+                    ...(options.pulled === true ? ["edgeOrdered"] : []),
                     ...(widened ? ["edgeReach"] : []),
                     ...(fade === undefined ? [] : ["edgeFade"]),
                     ...(program?.uniforms ?? []),

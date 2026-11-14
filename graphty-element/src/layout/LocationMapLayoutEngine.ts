@@ -167,29 +167,35 @@ const locationMapOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    nodeScale: {
-        schema: z.enum(["scene", "screen"]).default("scene"),
-        meta: {
-            label: "Node Scale",
-            description:
-                "How node sizes are read: in scene units, which grow as the camera zooms in, or on screen, " +
-                "where a node keeps its size at any zoom",
-            advanced: true,
-        },
-    },
     flatNodeScale: {
         schema: z.number().positive().default(1),
         meta: {
             label: "Flat Node Scale",
             description:
-                "How many times larger a flat map's nodes are drawn with Node Scale on screen, so a map " +
-                "drawn large leaves them big enough to see; a globe's nodes keep their size",
+                "How many times larger a flat map's nodes are drawn when their size space is screen, so a " +
+                "map drawn large leaves them big enough to see; a globe's nodes keep their size",
             advanced: true,
         },
     },
 });
 
-const LocationMapLayoutConfig = z.strictObject({
+/**
+ * Drop a saved or passed `nodeScale`, which the `node.sizeSpace` style option replaced, so an old
+ * project, option string or `layout.set` call still builds the layout.
+ * @param value - The options as given.
+ * @returns Them, without `nodeScale`.
+ */
+function dropNodeScale(value: unknown): unknown {
+    if (typeof value !== "object" || value === null || !("nodeScale" in value)) {
+        return value;
+    }
+
+    const rest: Record<string, unknown> = { ...value };
+    delete rest.nodeScale;
+    return rest;
+}
+
+const LocationMapLayoutShape = z.strictObject({
     ...SimpleLayoutConfig.shape,
     location: z.string().nullable().default(null),
     latitude: z.string().nullable().default(null),
@@ -202,7 +208,6 @@ const LocationMapLayoutConfig = z.strictObject({
     mapScale: z.number().positive().default(1),
     unplaced: z.enum(["tray", "leave"]).default("tray"),
     overlap: z.enum(["spread", "stack"]).default("spread"),
-    nodeScale: z.enum(["scene", "screen"]).default("scene"),
     flatNodeScale: z.number().positive().default(1),
     map: Basemap.nullable().default(null),
     gazetteer: z.union([z.string().min(1), z.literal(false)]).default(GAZETTEER_URL),
@@ -210,6 +215,7 @@ const LocationMapLayoutConfig = z.strictObject({
     /** The view's dimension, set by the element alone; a 3D view may lay the map out with `dim` 2. */
     view: z.union([z.literal(2), z.literal(3)]).optional(),
 });
+const LocationMapLayoutConfig = z.preprocess(dropNodeScale, LocationMapLayoutShape);
 type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
 
 /**
@@ -286,6 +292,23 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
         return { dim: dimension, view: dimension };
+    }
+
+    /**
+     * The scene length that sizes a node of size 1 on the map under `node.sizeSpace: "screen"`:
+     * the data's drawn extent, over `flatNodeScale` on a flat map and over `mapScale` on a globe
+     * (a globe's radius is set so it spans `size` too). Null before the first answer.
+     * @returns The length, or null.
+     */
+    override get nodeScreenReference(): number | null {
+        const frame = this.geoFrame;
+        if (frame === null) {
+            return null;
+        }
+
+        // ponytail: a globe divides `mapScale` back out, so `mapScale` does not thin its nodes;
+        // dropping the division there too makes them six times smaller at the app's scale.
+        return frame.surface === "flat" ? frame.size / this.config.flatNodeScale : frame.size / frame.mapScale;
     }
 
     /**

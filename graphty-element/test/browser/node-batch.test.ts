@@ -670,8 +670,8 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const element = await mounted(renderer);
         await loaded(element, view);
         const { graph } = element;
+        graph.setLayoutBehavior({ node: { sizeSpace: "screen" } });
         await graph.setLayout("location-map", {
-            nodeScale: "screen",
             mapDimension: view,
             map: { source: "natural-earth-gray" },
         });
@@ -705,7 +705,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             set: { "edge.arrowHead": "normal" },
         } as never);
         await operationQueueOf(graph).waitForCompletion();
-        element.layoutBehavior = { node: { depthIndependentSize: true } };
+        element.layoutBehavior = { node: { sizeSpace: "pivot" } };
         await element.waitForStableFrame();
         await frameOn(graph, "batched");
         const scale = graph.getNode(0)?.drawnScale;

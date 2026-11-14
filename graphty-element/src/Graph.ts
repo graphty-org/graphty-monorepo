@@ -1154,6 +1154,7 @@ export class Graph implements GraphContext {
                 renderedFrame: () => this.renderManager.frameDrawn(),
                 // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
                 batched: () => this.#renderPath === "batched",
+                nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
             },
         );
 
@@ -5108,6 +5109,7 @@ export class Graph implements GraphContext {
                     root: () => this.scene.getTransformNodeByName("graph-root"),
                     view: () => ({
                         flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
+                        sizeSpace: this.styles.config.behavior.node.sizeSpace ?? "scene",
                     }),
                     nodes: () => dataManagerInternals.builtNodes(this.dataManager),
                     sourceOf: ({ meshKey, style }) =>

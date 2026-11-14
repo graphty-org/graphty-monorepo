@@ -3,7 +3,7 @@
  * the camera was turned round is faced again, the preset views look at the map's face, the wheel
  * never takes the camera inside the globe and zooms toward the pointer, a drag turns the globe
  * under the hand, a 2D drag pans with a node selected, an undo brings the map back, a camera with
- * no transition time moves at once, `nodeScale: "screen"` holds node sizes, and a map whose tiles
+ * no transition time moves at once, `node.sizeSpace: "screen"` holds node sizes, and a map whose tiles
  * cannot be reached says so and credits only what it drew. Input is made by the browser's own
  * pipeline (test/helpers/real-input.ts) and every outcome read through the element's public API.
  */
@@ -140,7 +140,7 @@ function creditText(element: Graphty): string {
 /**
  * A mounted element holding the cities (or other places), laid out on the map.
  * @param viewMode - The view mode.
- * @param options - The layout's options.
+ * @param options - The layout's options, and `sizeSpace`: the element's `layoutBehavior.node.sizeSpace`.
  * @param places - The nodes, a latitude and longitude each; routes join the cities only.
  * @returns The element.
  */
@@ -167,8 +167,12 @@ async function mounted(
             { src: "LAX", dst: "MIA" },
         ]);
     }
+    const { sizeSpace, ...layoutOptions } = options as { sizeSpace?: "scene" | "pivot" | "screen" };
+    if (sizeSpace !== undefined) {
+        element.layoutBehavior = { node: { sizeSpace } };
+    }
     await element.setViewMode(viewMode);
-    await element.session.layout.set("location-map", { options });
+    await element.session.layout.set("location-map", { options: layoutOptions });
     await applied(element);
     await vi.waitFor(() => {
         assert.isNotNull(element.mapFrame, "the map layout published its frame");
@@ -352,7 +356,7 @@ describe("the camera on a location map", () => {
     });
 
     it("holds node sizes on screen over a tilted 2D map, its arcs above it, and comes down to the map", async () => {
-        const element = await mounted("3d", { mapDimension: "2d", nodeScale: "screen" });
+        const element = await mounted("3d", { mapDimension: "2d", sizeSpace: "screen" });
         const camera = element.graph.getScene().activeCamera as FreeCamera;
         const size = (): number => {
             const node = element.graph.getNode("CHI");
@@ -378,8 +382,8 @@ describe("the camera on a location map", () => {
         assert.isBelow(Math.abs(camera.globalPosition.z), across * 0.001, "the camera comes down to the map");
     });
 
-    it("holds node sizes on screen with nodeScale: screen as the view zooms", async () => {
-        const element = await mounted("2d", { nodeScale: "screen" });
+    it("holds node sizes on screen with sizeSpace: screen as the view zooms", async () => {
+        const element = await mounted("2d", { sizeSpace: "screen" });
         const size = (): number => {
             const node = element.graph.getNode("CHI");
             assert.isDefined(node);
@@ -822,7 +826,7 @@ describe("turning the globe at the closest zoom and at the opening zoom", () => 
 });
 
 describe("zooming a map whose nodes keep their size on screen", () => {
-    // With nodeScale: "screen" every zoom step scales every node, and every edge used to be cut
+    // With node.sizeSpace: "screen" every zoom step scales every node, and every edge used to be cut
     // back to its nodes' new surfaces on each one: on the OpenFlights sample's 36,906 routes that
     // was about 300 ms a step, so the wheel and W zoomed slow and choppy while turning stayed
     // smooth. The work is counted: edges cut per zoom step.
@@ -832,7 +836,7 @@ describe("zooming a map whose nodes keep their size on screen", () => {
     // the last cut onto the last notch, or finish it before the zoom's loop ends, with nothing left
     // to cut afterwards. What does not depend on it is where the edges end once the view is at rest.
     it("cuts edges back to the nodes only as the scale drifts, then exactly where the zoom stops", async () => {
-        const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" });
+        const element = await mounted("3d", { mapDimension: "3d", sizeSpace: "screen" });
         const stats = element.getStatsManager();
         stats.enableProfiling();
         cleanups.push(() => {

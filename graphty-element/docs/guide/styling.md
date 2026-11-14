@@ -251,6 +251,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.gradientRadius`         | how far a radial gradient reaches from its middle, in halves of the node's side; 1 (its edge) by default                                         |
 | `node.size`                   | 0 or more; what it measures is `node.sizeMode`'s                                                                                                 |
 | `node.sizeMode`               | `scale` (the default), `diameter` or `uniform`: what `node.size` measures                                                                        |
+| `node.sizeSpace`              | `scene` (the default), `pivot` or `screen`: how a node's drawn size follows the camera                                                           |
 | `node.shape`                  | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...                                                                         |
 | `node.width`                  | 0 or more: the width, in the units of `node.size`                                                                                                |
 | `node.height`                 | 0 or more: the height, in the units of `node.size`                                                                                               |
@@ -545,6 +546,38 @@ Under `scale`, any other node's largest extent is its size times:
 | `icosahedron`                                            | 2.35   |
 | `elongated_square_dipyramid`                             | 2.43   |
 | `tetrahedron`, `octahedron`                              | 2.83   |
+
+### Node size and the camera
+
+`node.sizeSpace` says how a node's drawn size follows the camera:
+
+- `scene`, the default: plain perspective. A nearer node looks bigger, and zooming in grows every node.
+- `pivot`: every node is drawn as if it stood at the depth of the point the camera turns about, so
+  near and far nodes compare as their sizes; zooming still scales them. Only in a 3D view with the
+  orbit camera.
+- `screen`: a node keeps one size on screen at any depth and any zoom. A node of size `s` covers
+  `s / L` of the view's height, where `L` is 50 unless the layout supplies its own
+  (`LayoutEngine.nodeScreenReference`; the location map supplies one from the map's size, so its
+  nodes keep their size against the map as drawn).
+
+Set it on a layer for some nodes:
+
+```typescript
+await element.session.styles.add({
+    name: "Hubs stay readable",
+    target: "node",
+    selector: { match: "expression", where: "data.degree > 20" },
+    set: { "node.size": 2, "node.sizeSpace": "screen" },
+});
+```
+
+Or for every node whose style sets none:
+
+```typescript
+element.layoutBehavior = { node: { sizeSpace: "screen" } };
+```
+
+An XR session draws every node at its scene size, whatever the value.
 
 ### Drawing a style editor
 

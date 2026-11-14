@@ -25,6 +25,7 @@ import {
     type TransactionScope,
 } from "./session/project/Dispatcher";
 import { sourceLoadsOf } from "./session/sources/ids";
+import { inXR } from "./xr/inXR";
 
 /**
  * When a pointer event HAPPENED, on the `performance.now()` clock.
@@ -152,16 +153,6 @@ function tappedNode(scene: Scene, roster: NodePointerRoster, pointerInfo: Pointe
 
 /** The roster of each scene; see {@link nodePointerRosterOf}. */
 const nodePointerRosters = new WeakMap<Scene, NodePointerRoster>();
-
-/**
- * Whether the scene is in an XR session, whose input XRInputHandler handles instead.
- * @param scene - The scene.
- * @returns True in XR.
- */
-function inXR(scene: Scene): boolean {
-    const xrHelper = scene.metadata?.xrHelper;
-    return xrHelper?.baseExperience?.state === 2; // WebXRState.IN_XR
-}
 
 /**
  * Deliver one pointer event to the nodes it concerns.

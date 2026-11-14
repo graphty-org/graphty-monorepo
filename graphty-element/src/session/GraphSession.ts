@@ -421,6 +421,8 @@ interface SessionParts {
     readonly data: SessionData;
     /** Reads the project settings, live. */
     readonly readProject: () => ProjectConfig;
+    /** The renderer's graph-wide node size space, for `config.inEffect`; absent with no renderer. */
+    readonly nodeSizeSpace: (() => string | undefined) | undefined;
     /** The controller whose capabilities and policy this session publishes. */
     readonly controller: AccelerationControllerLike;
     /** The controller when this session built it, so that disposal releases it. */
@@ -485,6 +487,8 @@ interface SessionInternals {
     readonly renderedFrame?: () => Promise<void>;
     /** Whether the element draws on the `"batched"` render path, which allows the repaint's uniform mesh-key fill. */
     readonly batched?: () => boolean;
+    /** The renderer's graph-wide node size space (`layoutBehavior.node.sizeSpace`); absent with no renderer. */
+    readonly nodeSizeSpace?: () => string | undefined;
 }
 
 /**
@@ -800,7 +804,7 @@ class Session implements ElementSession {
             const base = advice.layout.scoped ? advised : { id: DEFAULT_LAYOUT.id, engine: DEFAULT_LAYOUT.engine };
             return { ...base, unplaced, placed: partial.placed };
         };
-        this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
+        this.config = configOf(this.dispatcher, parts.readProject, parts.controller, parts.nodeSizeSpace);
         this.project = projectOf(this, this.dispatcher, parts.canned, {
             announce: (change) => {
                 publish(this.watchers, "project:status", change);
@@ -1729,12 +1733,14 @@ function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConf
  * @param dispatcher - The dispatcher.
  * @param read - Reads the project settings.
  * @param controller - The acceleration controller.
+ * @param nodeSizeSpace - Reads the renderer's graph-wide node size space, for `inEffect`.
  * @returns The settings.
  */
 function configOf(
     dispatcher: Dispatcher,
     read: () => ProjectConfig,
     controller: AccelerationControllerLike,
+    nodeSizeSpace: (() => string | undefined) | undefined,
 ): SessionConfig {
     return Object.freeze({
         get data() {
@@ -1799,18 +1805,18 @@ function configOf(
             await dispatcher.dispatch({ op: "config.set", values });
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
-            settingEffect(key, dispatcher.state.layout ?? DEFAULT_LAYOUT),
+            settingEffect(key, dispatcher.state.layout ?? DEFAULT_LAYOUT, nodeSizeSpace?.()),
     });
 }
 
 /** The graph settings the 2D view ignores: it is drawn flat, and without depth. */
-const IGNORED_IN_2D: ReadonlySet<GraphSettingKey> = new Set(["lighting", "node.depthIndependentSize"]);
+const IGNORED_IN_2D: ReadonlySet<GraphSettingKey> = new Set(["lighting", "node.sizeSpace"]);
 
 /** Every graph setting `config.inEffect` answers for. */
 const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
     "background",
     "lighting",
-    "node.depthIndependentSize",
+    "node.sizeSpace",
     "node.outlineWidth",
     "labels.declutter",
     "labels.avoidNodesAndEdges",
@@ -1820,10 +1826,11 @@ const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
  * Whether a graph setting changes the drawing in a view: see `SessionConfig.inEffect`.
  * @param key - The setting.
  * @param layout - The layout as chosen: its engine and the view's dimension.
+ * @param sizeSpace - The element's `layoutBehavior.node.sizeSpace`: the 2D view keeps "screen".
  * @returns The answer, coded.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a key that names no graph setting.
  */
-function settingEffect(key: GraphSettingKey, layout: LayoutChoice): SettingEffect {
+function settingEffect(key: GraphSettingKey, layout: LayoutChoice, sizeSpace: string | undefined): SettingEffect {
     if (!GRAPH_SETTINGS.has(key)) {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",
@@ -1833,7 +1840,9 @@ function settingEffect(key: GraphSettingKey, layout: LayoutChoice): SettingEffec
         });
     }
 
-    const ignored = layout.dimension === "2d" && IGNORED_IN_2D.has(key);
+    // "screen" holds a node's size through a 2D zoom too; "pivot" needs depth, which 2D has none of.
+    const screen = key === "node.sizeSpace" && sizeSpace === "screen";
+    const ignored = layout.dimension === "2d" && IGNORED_IN_2D.has(key) && !screen;
     return Object.freeze({
         inEffect: !ignored,
         code: ignored ? "setting.notIn2d" : "setting.inEffect",
@@ -4511,6 +4520,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         features: settleFeatures,
         timelineOn,
         readProject,
+        nodeSizeSpace: internals.nodeSizeSpace,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
         xr: options.xr ?? HEADLESS_XR,

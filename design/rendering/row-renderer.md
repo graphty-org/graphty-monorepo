@@ -60,7 +60,7 @@ master. **No breaking change is needed.** Two changes are optional and held for 
 
 A row is an object row for one of two reasons. _Paint or view_: `batchableOf(paint, view)`, one pure function in
 `managers/StylePainter.ts` with a test table, says the batch cannot draw it. `view` is the scene state paint does not hold: lighting
-(until stage 14 also `depthIndependentSize` and a map's `nodeScale`, which a batched row now carries in its matrix). The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
+(until stage 14 also a view-following node size, now `node.sizeSpace`, which a batched row carries in its matrix). The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
 re-batch pass. _Mesh read_: someone holds its mesh; this is permanent. An _object edge_ is the same idea for edges; the fast form is a
 _pulled edge_.
 
@@ -295,7 +295,7 @@ leaves the ramp as the object row draws it. Nothing else changed: `batchLook` al
 gradient inside `texture`.
 
 As built (stage 14, seventh pull request: screen-scale size): `batchableOf` no longer turns every row into
-an object under `depthIndependentSize` or a map's `nodeScale: "screen"`; `BatchView` keeps only the flat
+an object under a view-following node size (now `node.sizeSpace`); `BatchView` keeps only the flat
 outline. The update loop still scales each node every frame through `Node.drawnScale`, which scales the
 anchor and re-measures the row as before, and now also keeps `Node.wholeScale`, the view's scale without a
 particle shrink (the shrink is the row table's w). When it changes, `NodeBatches.rescale` writes the
@@ -1539,7 +1539,7 @@ Options that change a picture stay off. Existing tests, unedited, prove `"object
    pixels, or at most one level per channel, the value the batch spike measured (gradients), set once and never widened to pass. Stage 8
    first runs `"objects"` against itself: a story not byte-stable between two loads is seeded, or listed by name with its reason
    (`stories/Layout.stories.ts:301`, D3 physics). Fixtures add a mid-transition frame with animation parked, flat lighting set live, and a
-   zoom on a `nodeScale: "screen"` map. The 6-vertex program also runs on the RTX (`GRAPHTY_BROWSER_GPU=nvidia`), locally, for the Proof.
+   zoom on a map with `node.sizeSpace: "screen"`. The 6-vertex program also runs on the RTX (`GRAPHTY_BROWSER_GPU=nvidia`), locally, for the Proof.
 2. **`forced-batched`**, a new test project: the browser, interaction and `xr` suites under `"batched"`. A file that inspects mesh
    structure goes on a committed list with a reason each. Real-input tests and `rowCounts` carry the proof.
 3. **Where they run.** Neither joins a pull request or the full run. A stage runs the files it touches locally. The whole of both runs by

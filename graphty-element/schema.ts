@@ -134,6 +134,7 @@ export {
     LIGHTING_VALUES,
     NodeBorderStyles,
     NodeShapes,
+    NodeSizeSpaces,
     NodeStyle,
     RichTextStyle,
     VIEW_MODE_VALUES,

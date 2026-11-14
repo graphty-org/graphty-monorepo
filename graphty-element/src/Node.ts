@@ -30,7 +30,14 @@ import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
-import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
+import {
+    batchableOf,
+    type BatchView,
+    bootstrapNodePaint,
+    type NodePaint,
+    type NodeSizeSpace,
+    shaderPartOf,
+} from "./managers/StylePainter";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
@@ -439,7 +446,7 @@ export class Node implements ModelUser {
     #anchor!: TransformNode;
     /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
     #meshHeld = false;
-    /** The view's scale on this node (`depthIndependentSize`, a map's `nodeScale: "screen"`), a shrink left out. */
+    /** The view's scale on this node (`node.sizeSpace`), a shrink left out. */
     #wholeScale = 1;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
@@ -562,7 +569,35 @@ export class Node implements ModelUser {
     private fittedExtent: { width: number; height: number } | null = null;
 
     /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
-    private drawnStyle: NodeStyleConfig | null = null;
+    #drawnStyle: NodeStyleConfig | null = null;
+
+    /**
+     * The style the current mesh was built from.
+     * @returns The style, or null before the first.
+     */
+    private get drawnStyle(): NodeStyleConfig | null {
+        return this.#drawnStyle;
+    }
+
+    /**
+     * Take the style the mesh is now drawn with, and tell the frame loop whether its size follows
+     * the view (`node.sizeSpace`), so only such nodes are visited each frame.
+     * @param style - The style.
+     */
+    private set drawnStyle(style: NodeStyleConfig | null) {
+        this.#drawnStyle = style;
+        this.context.getUpdateManager?.().markViewSized(this, (style?.shape?.sizeSpace ?? "scene") !== "scene");
+    }
+
+    /**
+     * How this node's drawn size follows the camera, as its style sets it (`node.sizeSpace`);
+     * undefined when the style sets none, and `layoutBehavior.node.sizeSpace` applies.
+     * @returns The size space, or undefined.
+     * @internal
+     */
+    get sizeSpace(): NodeSizeSpace | undefined {
+        return this.#drawnStyle?.shape?.sizeSpace;
+    }
     /** The model template this node's mesh instances, or null when it draws a built-in shape. */
     private drawnModel: ModelTemplate | null = null;
     /** The `node.texture` picture the built-in shape's mesh was built with, or null. */
@@ -865,8 +900,8 @@ export class Node implements ModelUser {
             return round === null ? null : exactOf(round, this.roundRadiusValue);
         }
 
-        // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
-        // camera turns, and its edges must stop at the surface it is drawn with.
+        // The scale too: `node.sizeSpace` rescales a node mesh as the camera moves, and its edges
+        // must stop at the surface it is drawn with.
         if (this.roundRadiusMesh === this.#anchor && this.roundRadiusScale === this.#anchor.scaling.x) {
             return this.roundRadiusValue;
         }
@@ -3093,6 +3128,7 @@ export class Node implements ModelUser {
         this.disposed = true;
         this.rowTable?.drop(this.row);
         this.context.getNodeBatches?.()?.leave(this);
+        this.context.getUpdateManager?.().viewSizedNodeDisposed(this);
 
         this.pointerHandler?.dispose();
         this.pointerHandler = undefined;

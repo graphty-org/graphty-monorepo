@@ -5104,6 +5104,7 @@ export abstract class LayoutEngine {
     get nodePositions(): ReadonlyElementPositions;
     // (undocumented)
     abstract get nodes(): Iterable<Node_2>;
+    get nodeScreenReference(): number | null;
     // @deprecated
     protected pairWeightKey(source: NodeIdType, target: NodeIdType): string;
     // @deprecated
@@ -5530,6 +5531,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     size: number;
     // @internal
+    get sizeSpace(): NodeSizeSpace | undefined;
+    // @internal
     spacingRadius(flat: boolean): number;
     // @internal
     get surfaceIsBox(): boolean;
@@ -5752,6 +5755,16 @@ export const NodeShapes: z.ZodEnum<{
 }>;
 
 // @public
+export type NodeSizeSpace = z.infer<typeof NodeSizeSpaces>;
+
+// @public
+export const NodeSizeSpaces: z.ZodEnum<{
+    screen: "screen";
+    scene: "scene";
+    pivot: "pivot";
+}>;
+
+// @public
 export interface NodeSource {
     readonly canExpand: boolean;
     readonly expanded: boolean;
@@ -5768,6 +5781,11 @@ export const NodeStyle: z.ZodObject<{
             scale: "scale";
             uniform: "uniform";
             diameter: "diameter";
+        }>>;
+        sizeSpace: z.ZodOptional<z.ZodEnum<{
+            screen: "screen";
+            scene: "scene";
+            pivot: "pivot";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
             full: "full";
@@ -8364,9 +8382,10 @@ export class UpdateManager implements Manager {
     isZoomToFitEnabled(): boolean;
     // @internal
     limitsChanged(): void;
+    // @internal
+    markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
-    get nodesScaledByView(): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
@@ -8393,6 +8412,8 @@ export class UpdateManager implements Manager {
     update(frameMs?: number): void;
     updateConfig(config: Partial<UpdateManagerConfig>): void;
     viewMoved(): void;
+    // @internal
+    viewSizedNodeDisposed(node: Node_2): void;
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }

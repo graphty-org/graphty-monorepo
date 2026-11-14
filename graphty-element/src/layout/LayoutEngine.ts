@@ -460,6 +460,17 @@ export abstract class LayoutEngine {
     static zodOptionsSchema?: OptionsSchema;
 
     /**
+     * The scene length that, filling the view's height, shows a node of size 1 under
+     * `node.sizeSpace: "screen"` at 1/that of the height; null for the element's default (50, so a
+     * size-1 node covers 2% of the view's height). A layout that knows the scale it draws at (the
+     * location map's frame) supplies it.
+     * @returns The length, or null.
+     */
+    get nodeScreenReference(): number | null {
+        return null;
+    }
+
+    /**
      * The array in use: the element's once one has been found, otherwise this engine's own.
      *
      * Undefined until the first publish or read, so an engine that is constructed and thrown away

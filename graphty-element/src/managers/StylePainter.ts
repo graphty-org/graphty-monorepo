@@ -13,6 +13,7 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
+import type { NodeSizeSpace as NodeSizeSpaceValue } from "../config/NodeStyle";
 import { drawnText } from "../config/RichTextStyle";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
 import {
@@ -73,13 +74,24 @@ export interface EdgePaint {
 export interface BatchView {
     /** 3D `flat` lighting: an outline renderer draws round every node, which has no batch path. */
     readonly flatOutline: boolean;
+    /** `layoutBehavior.node.sizeSpace`: how a node whose style sets none follows the camera. */
+    readonly sizeSpace: NodeSizeSpaceValue;
 }
+
+export type { NodeSizeSpace } from "../config/NodeStyle";
 
 /**
  * The shape options a batch draws: everything else about a shape waits for a wider batch. A z order
  * (`zIndex`, `drawOrder`) is baked into the source's vertices in 2D, which the batch's geometry copy keeps.
  */
-const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail", "zIndex", "drawOrder"]);
+const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set([
+    "type",
+    "size",
+    "detail",
+    "zIndex",
+    "drawOrder",
+    "sizeSpace",
+]);
 /** The effects a batch draws: both are in the geometry or the material. */
 const BATCHABLE_EFFECT_KEYS: ReadonlySet<string> = new Set(["wireframe", "flatShaded", "unlit"]);
 /** The style keys a plain row may set. Anything new stays an object row until a batch can draw it. */
@@ -101,7 +113,7 @@ const BATCHABLE_STYLE_KEYS: ReadonlySet<string> = new Set([
  */
 export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): boolean {
     const { style } = paint;
-    // A size that follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`) is in the row's matrix.
+    // A size that follows the view (`node.sizeSpace`) is in the row's matrix, through the row's `wholeScale`.
     if (view.flatOutline) {
         return false;
     }

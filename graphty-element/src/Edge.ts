@@ -5520,7 +5520,7 @@ export class Edge {
 
     /**
      * How much larger or smaller than its style's size a cap at a node is drawn: as the node is,
-     * so a node kept one size on screen (a map's `nodeScale: "screen"`) or drawn at one depth's
+     * so a node kept one size on screen (`node.sizeSpace: "screen"`) or drawn at one depth's
      * size keeps its arrowheads in proportion rather than buried under them.
      * An end drawn with no `Node` is read from its row, so no `Node` is built for it.
      * @param end - The end the cap stands on.

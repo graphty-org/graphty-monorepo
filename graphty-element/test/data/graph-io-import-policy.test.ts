@@ -65,9 +65,15 @@ describe("the graph-io import helper's policies", () => {
         const imported = await importDocument(fixedImporter(), "doc", {});
 
         aggregateErrors(imported.report, new ErrorAggregator(0));
-        assert.throws(() => {
-            aggregateErrors(imported.report, new ErrorAggregator(0), true);
-        }, /Too many errors/);
+        let thrown: unknown;
+        try {
+            aggregateErrors(imported.report, new ErrorAggregator(0), "doc");
+        } catch (error) {
+            thrown = error;
+        }
+
+        assert.isTrue(isGraphtyError(thrown) && thrown.code === "E_PARSE_FAILED");
+        assert.deepInclude((thrown as { details: object }).details, { format: "doc", rowErrors: 0, limit: 0 });
     });
 
     it("turns a file that must be read whole and was not into E_PARSE_FAILED naming the line", async () => {

@@ -1875,6 +1875,8 @@ export interface GraphtyErrorDetailsMap {
     E_PARSE_FAILED: {
         readonly format?: string;
         readonly line?: number;
+        readonly rowErrors?: number;
+        readonly limit?: number;
     };
     E_TOO_LARGE: {
         readonly limit?: number;

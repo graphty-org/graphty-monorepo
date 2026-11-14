@@ -165,7 +165,7 @@ rounds had closed 161 low bugs and 160 high ones in 7 days while 13 of 20 open c
       it: no live `taken` marker (see "Stale" and "Idle claims" in the shared file), no open pull request naming it, and
       no `fix attempt` marker in the last 6 hours. The queue already drops the critical alarms that are not code work
       (`release-status`, `ci-budget`, `Release held:`, `Nightly missed slot`, `Nightly held on`, `Full run red:`,
-      `Failing on master:`, owner-review waits labelled `hold` or `blocked`): those stay pipeline-round's.
+      `Failing on master:`, `Red master: CI failed on`, `canary deploy failed on`, owner-review waits labelled `hold` or `blocked`): those stay pipeline-round's.
 - [ ] While any critical or high issue is startable (free under step 4, not owner-only, not `needs-decision`), start
       no job led by a medium or low issue, from a cluster or the queue. A related medium or low issue may ride in a job
       led by a critical or high one (step 3), since it costs no extra slot.

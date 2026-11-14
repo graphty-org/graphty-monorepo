@@ -21,6 +21,8 @@ import { drag, wheel } from "../../helpers/real-input";
 
 const BIG = 3;
 const SMALL = 2.7;
+/** The edge gap that keeps a plain line off the centre-to-centre path. */
+const GAP = 0.01;
 const WIDTH = 640;
 const HEIGHT = 480;
 const CENTER = { x: WIDTH / 2, y: HEIGHT / 2 };
@@ -230,12 +232,13 @@ describe("node size space", () => {
 
     it("screen: an edge ends on its nodes' scaled surfaces once the view is still", async () => {
         await pair();
-        // No arrowhead, so the line runs from surface to surface.
+        // No arrowhead, so the line runs from surface to surface; a tiny gap, since a plain line
+        // with no cap and no gap is drawn from centre to centre under its nodes.
         await element.session.styles.add({
             name: "plain",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.arrowHead": "none" },
+            set: { "edge.arrowHead": "none", "edge.nodeGap": GAP },
         } as never);
         element.layoutBehavior = { node: { sizeSpace: "screen" } };
         await zoomIn();
@@ -248,7 +251,7 @@ describe("node size space", () => {
         const apart = a.drawnPosition.subtract(b.drawnPosition).length();
         const line = edge.drawnLine;
         assert.isNotNull(line);
-        assert.closeTo(line.length, apart - a.drawnRadius - b.drawnRadius, apart * 0.01);
+        assert.closeTo(line.length, apart - a.drawnRadius - b.drawnRadius - 2 * GAP, apart * 0.01);
     });
 
     it("screen: a row past the objectRows budget gets a node and keeps its size", async () => {

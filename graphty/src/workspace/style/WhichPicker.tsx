@@ -1462,10 +1462,13 @@ export function AddCondition({
             ...(document.getElementById(listId)?.querySelectorAll<HTMLElement>("[data-combobox-option]") ?? []),
         ];
         const rankOf = ranks.split(",").map(Number);
-        const score = (option: HTMLElement, index: number): number =>
-            option.dataset.comboboxDisabled === undefined
-                ? (option.dataset.used === undefined ? 0 : 10) + (rankOf[index] ?? 9)
-                : Number.POSITIVE_INFINITY;
+        const score = (option: HTMLElement, index: number): number => {
+            if (option.dataset.comboboxDisabled !== undefined) {
+                return Number.POSITIVE_INFINITY;
+            }
+            const used = option.dataset.used === undefined ? 0 : 10;
+            return used + (rankOf[index] ?? 9);
+        };
         const best = options.reduce(
             (chosen, option, index) => (score(option, index) < score(options[chosen], chosen) ? index : chosen),
             0,

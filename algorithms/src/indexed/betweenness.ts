@@ -328,6 +328,24 @@ function clearScratch(scratch: BrandesScratch, tail: number): void {
 }
 
 /**
+ * What betweenness sums are divided by: 2 on an undirected snapshot (each unordered pair was counted from both ends)
+ * and 1 on a directed one, or `factor` when normalising and it is positive. The dispatcher reports it for an
+ * accelerator's scores too, which follow the same rule.
+ * @param s - The snapshot
+ * @param normalized - Whether to normalise
+ * @param factor - The directed pair count to normalise by
+ * @returns The divisor
+ * @internal
+ */
+export function pairDivisor(s: GraphSnapshot, normalized: boolean | undefined, factor: number): number {
+    // Undirected: halving and then dividing by half the directed pair count is dividing by the whole count.
+    if (normalized === true && factor > 0) {
+        return factor;
+    }
+    return s.directed ? 1 : 2;
+}
+
+/**
  * Halve on an undirected snapshot (each unordered pair was counted from both ends) and divide by `factor` when
  * normalising and it is positive.
  * @param s - The snapshot
@@ -337,9 +355,7 @@ function clearScratch(scratch: BrandesScratch, tail: number): void {
  * @returns The divisor applied
  */
 function scale(s: GraphSnapshot, scores: F64, normalized: boolean | undefined, factor: number): number {
-    // Undirected: halving and then dividing by half the directed pair count is dividing by the whole count.
-    const halve = s.directed ? 1 : 2;
-    const divisor = normalized === true && factor > 0 ? factor : halve;
+    const divisor = pairDivisor(s, normalized, factor);
     for (let i = 0; i < scores.length; i++) {
         scores[i] /= divisor;
     }

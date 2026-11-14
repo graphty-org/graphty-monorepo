@@ -138,8 +138,9 @@ A red master build comes first: it also blocks canary and the build cache every 
 - **While master's build is red:** no other pull request is opened (steps 8 and 9 wait); the same holds while the
   newest full run is red. Issue jobs keep working and queue `ready` branches, and master's fix takes a test slot
   first (see "While master is red" in the shared file).
-- **A critical issue no later step owns** is still this skill's alarm (issue-round skips every `priority:critical`
-  issue): mark it and start a fix subagent the same way.
+- **A critical issue no later step owns** is still this skill's alarm (issue-round also takes free code-work
+  `priority:critical` issues first; the `in-progress` label and `taken` marker keep the two off each other): mark it
+  and start a fix subagent the same way.
 
 **Fix prompt** (alarms, holds, red pull requests), filled in, followed by the "Subagent rules" paragraph from the
 shared file:

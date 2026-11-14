@@ -16,7 +16,6 @@ export default {
         "StylesApi.pinRow",
         "StylesApi.renameRow",
         "StylesApi.replaceColor",
-        "StylesApi.restoreStartingRows",
         "StylesApi.setFoldBelow",
         "StylesApi.setValueEntries",
         "StylesApi.setValueEntry",

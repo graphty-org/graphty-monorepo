@@ -2940,7 +2940,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -6182,6 +6182,10 @@ export interface SessionEventMap {
     };
     "layout:motion-changed": {
         readonly motion: LayoutMotion;
+        readonly id: LayoutId;
+        readonly engine: string;
+        readonly kind: "live" | "batch";
+        readonly step: number;
     };
     "model:changed": ModelChange;
     "network:pending": NetworkRequest;
@@ -6311,19 +6315,38 @@ export interface SessionLayout {
     readonly motion: LayoutMotion;
     optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
     readonly options: Readonly<Record<string, unknown>>;
+    pause(): Promise<void>;
+    play(): Promise<void>;
     rerun(): Promise<void>;
     set(id: LayoutId, options?: {
         readonly engine?: string;
         readonly options?: Readonly<Record<string, unknown>>;
     }): Promise<void>;
     setDimension(dimension: "2d" | "3d"): Promise<void>;
+    settle(): Promise<boolean>;
+    readonly step: number;
+    tick(count?: number): void;
 }
 
 // @public
 export interface SessionPositions extends ReadonlyElementPositions {
+    get(id: NodeId_2): {
+        readonly x: number;
+        readonly y: number;
+        readonly z: number;
+    } | undefined;
     pin(ids: readonly NodeId_2[]): Promise<void>;
     readonly pinned: ReadonlySet<NodeId_2>;
+    pinnedMask(): Uint8Array;
+    restore(saved: {
+        readonly order: readonly NodeId_2[];
+        readonly xyz: Float32Array;
+    }): Promise<void>;
     set(entries: readonly PositionEntry[]): Promise<void>;
+    snapshot(): {
+        readonly order: readonly NodeId_2[];
+        readonly xyz: Float32Array;
+    };
     unpin(ids: readonly NodeId_2[]): Promise<void>;
 }
 
@@ -7214,7 +7237,6 @@ export interface StylesApi {
     renameRow(id: StyleRowId, name: string, options?: RunOptions): Run<StyleRow>;
     replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
-    restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
     sequence(binding: Omit<RuleBinding, "by">, options: {
         readonly channel: Channel;
         readonly count: number;

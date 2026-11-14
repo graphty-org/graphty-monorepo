@@ -128,7 +128,7 @@ describe.each([
         await page.viewport(1366, 768);
     });
 
-    it("leaves undrawn what Everything no longer paints, and Restore brings the row back", async () => {
+    it("leaves undrawn what Everything no longer paints, and Undo brings the row back", async () => {
         const session = await openProject();
         await waitFor(() => {
             assert.deepEqual(drawn(session), NODES);
@@ -140,7 +140,11 @@ describe.each([
             assert.deepEqual(drawn(session), [], "no shown layer paints a node");
         });
 
-        await userEvent.click(await screen.findByRole("button", { name: "Restore starting layers" }));
+        const header = document.querySelector<HTMLElement>(".ws-header");
+        assert.isNotNull(header, "the header");
+        await userEvent.click(
+            within(header ?? document.body).getByRole("button", { name: "Undo deleting Everything" }),
+        );
         await waitFor(() => {
             assert.isTrue(hasRow("Everything"));
             assert.deepEqual(drawn(session), NODES);

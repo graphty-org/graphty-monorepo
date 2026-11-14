@@ -1478,9 +1478,10 @@ export class Dispatcher {
         const change = {
             slices: step.slices,
             cause: direction,
-            ...graphOf(step.slices.includes("graph"), this.passing),
+            ...graphOf(step.slices.includes("graph"), this.takePassing()),
         };
-        this.emit(change, [change]);
+        // The derived event is told later and reads no op log: it does not keep one alive.
+        this.emit(change, [{ slices: step.slices, cause: direction }]);
         this.selectTouched();
         return { kind: direction === "undo" ? "undone" : "redone", steps: Object.freeze([step]) };
     }
@@ -1574,11 +1575,23 @@ export class Dispatcher {
         this.markUndone(target < position ? "undo" : "redo", passed);
         const slices = [...new Set(passed.flatMap((step) => step.slices))];
         this.emit(
-            { slices, cause: "restore", ...graphOf(slices.includes("graph"), this.passing) },
+            { slices, cause: "restore", ...graphOf(slices.includes("graph"), this.takePassing()) },
             passed.map((step) => ({ slices: step.slices, cause: "restore" as const })),
         );
         this.selectTouched();
         return { kind: "restored", steps: passed };
+    }
+
+    /**
+     * The op logs the history call just applied, let go of here: the change that carries them is
+     * all that holds them once it has been told, so a replaced graph an undo passed is not kept
+     * until the next history call.
+     * @returns The op logs, in order.
+     */
+    private takePassing(): GraphPass[] {
+        const { passing } = this;
+        this.passing = [];
+        return passing;
     }
 
     /**

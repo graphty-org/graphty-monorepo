@@ -27,6 +27,39 @@ import { GraphtyError } from "../errors";
 import { quoteEach } from "../utils/quote-each";
 import type { OptionDescriptor } from "./types";
 
+/**
+ * Give every described option without a `descriptionId` the id `<prefix>.<option name>`, which an
+ * application keys its own words on.
+ * @param prefix - The owner of the options, such as "algorithm.pagerank" or "layout.ngraph".
+ * @param options - The options.
+ * @returns The options, each described one carrying a `descriptionId`.
+ */
+export function withDescriptionIds(prefix: string, options: readonly OptionDescriptor[]): readonly OptionDescriptor[] {
+    return options.map((option) =>
+        !("description" in option) || option.descriptionId !== undefined
+            ? option
+            : { ...option, descriptionId: `${prefix}.${option.name}` },
+    );
+}
+
+/**
+ * {@link withDescriptionIds} over each descriptor of a catalogue list.
+ * @param kind - The catalogue, such as "camera"; each descriptor's options get the prefix `<kind>.<id>`.
+ * @param descriptors - The descriptors, each with an id and options.
+ * @param idOf - A descriptor's id.
+ * @returns The descriptors, their described options each carrying a `descriptionId`.
+ */
+export function withEachDescriptionIds<T extends { readonly options: readonly OptionDescriptor[] }>(
+    kind: string,
+    descriptors: readonly T[],
+    idOf: (descriptor: T) => string,
+): T[] {
+    return descriptors.map((descriptor) => ({
+        ...descriptor,
+        options: withDescriptionIds(`${kind}.${idOf(descriptor)}`, descriptor.options),
+    }));
+}
+
 /** Which extension point is being configured, which is what a failure message names. */
 export interface OptionContext {
     readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink" | "transition";

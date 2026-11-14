@@ -173,6 +173,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.set-type": () => "changing a column's type",
     "data.hide-columns": () => "hiding columns",
     "data.show-columns": () => "showing columns",
+    "data.derive": (p) => (typeof p.column === "string" ? `computing ${p.column}` : "updating the computed columns"),
     "style.add-layer": (p, s) => `adding the layer ${layerWords(s, p)}`,
     "style.update-layer": (p, s) => {
         const what = channels(p.channels);
@@ -215,6 +216,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "visibility.condition-remove": (p) => `deleting ${conditionName(p)}`,
     "visibility.steps": () => "changing the filter steps",
     "visibility.playback": () => "changing how time plays",
+    "visibility.hide-nodes": (p) => `hiding ${counted(p, "node")}`,
+    "visibility.show-nodes": (p) => `showing ${counted(p, "node")}`,
     "time.field": () => "setting the time field",
     "time.clear-field": () => "clearing the time field",
     "set.create": (p) => `creating ${text(p, "name", "a set")}`,

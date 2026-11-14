@@ -624,6 +624,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "visibility.context", show: true },
     },
     {
+        name: "visibility.hide",
+        tags: BOTH,
+        command: { op: "visibility.hide", ids: ["n1"], hidden: true },
+    },
+    {
         name: "set.create: a fixed set",
         tags: ["session"],
         command: {

@@ -721,6 +721,9 @@ export class Graph implements GraphContext {
      */
     #cameraPlaced = false;
 
+    /** The tour playing now, if any: `ended` is set to stop it at its next step or frame. */
+    #tour: TourHandle | undefined;
+
     /**
      * The reader moved the camera: the element's own framing stops until the next load or layout,
      * as it does for `setCameraState`. Left running, a re-frame still owed -- a layout that had not
@@ -739,6 +742,15 @@ export class Graph implements GraphContext {
         this.updateManager.stopAutoZoomToFit();
     };
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
+    /**
+     * Announces a new skybox's image: `skybox-loaded` once its texture arrived, `skybox-failed`
+     * when it could not be loaded. The element turns each into its `graphty-skybox-*` DOM event.
+     * @param url - The skybox image.
+     * @param loaded - Whether its texture loaded.
+     */
+    readonly #announceSkybox = (url: string, loaded: boolean): void => {
+        this.eventManager.emit(loaded ? "skybox-loaded" : "skybox-failed", { graph: this, url });
+    };
     #autoFrame = true;
     /** Whether the wheel zooms toward the pointer; see {@link setZoomToPointer}. */
     #zoomToPointer = false;
@@ -1285,9 +1297,7 @@ export class Graph implements GraphContext {
             // steps below are idempotent.
             const { graph } = this.styles.config;
             if (changed("background")) {
-                this.renderManager.applyBackground(graph.background, (url) => {
-                    this.eventManager.emit("skybox-loaded", { graph: this, url });
-                });
+                this.renderManager.applyBackground(graph.background, this.#announceSkybox);
                 this.updateManager.meshesAdded();
             }
 
@@ -2328,9 +2338,12 @@ export class Graph implements GraphContext {
         // a consumer that parked the scene's animations before WebGPU opened keeps them parked
         const animates = this.scene.animationsEnabled;
         const previous = this.renderManager;
-        const label = this.canvas.getAttribute("aria-label");
-        if (label !== null) {
-            canvas.setAttribute("aria-label", label);
+        // The name, role and description a screen reader reads follow the drawing to its new canvas.
+        for (const name of ["aria-label", "role", "aria-describedby"]) {
+            const value = this.canvas.getAttribute(name);
+            if (value !== null) {
+                canvas.setAttribute(name, value);
+            }
         }
 
         this.canvas.replaceWith(canvas);
@@ -2735,9 +2748,7 @@ export class Graph implements GraphContext {
 
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.
-            this.renderManager.applyBackground(this.styles.config.graph.background, (url) => {
-                this.eventManager.emit("skybox-loaded", { graph: this, url });
-            });
+            this.renderManager.applyBackground(this.styles.config.graph.background, this.#announceSkybox);
             this.applyViewRotation(false);
 
             // Start the graph system (render loop, etc.)
@@ -7428,7 +7439,14 @@ export class Graph implements GraphContext {
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
         const { CameraPathAnimator } = await import("./video/CameraPathAnimator.js");
 
-        const cameraPath = options.tour ? this.tourPath(options.tour, options.duration) : options.cameraPath;
+        // A path with a view or a hold is a tour, flown with the element's own camera moves; any
+        // other path, and a `tour` of names, keeps the animator (issue #7936 records its defects).
+        if (!options.tour && options.cameraPath?.some((stop) => "view" in stop || stop.hold !== undefined)) {
+            return this.captureTourVideo(options, options.cameraPath, capture, onProgress);
+        }
+        const cameraPath = options.tour
+            ? this.tourPath(options.tour, options.duration)
+            : (options.cameraPath as import("./video/VideoCapture.js").CameraWaypoint[] | undefined);
         // Validate cameraPath is provided
         if (!cameraPath || cameraPath.length < 2) {
             throw new Error("Animated camera mode requires at least 2 waypoints in cameraPath");
@@ -7490,6 +7508,157 @@ export class Graph implements GraphContext {
             }
             return { position, target, ...(index === 0 ? {} : { duration: leg }) };
         });
+    }
+
+    /**
+     * Record a tour: the stops flown with the element's own camera moves while the recording runs,
+     * and the tour stopped when the recording ends.
+     * @param options - Animation configuration options
+     * @param path - The tour's stops
+     * @param capture - Media recorder capture instance
+     * @param onProgress - Progress callback function
+     * @returns The recording
+     */
+    private async captureTourVideo(
+        options: import("./video/VideoCapture.js").AnimationOptions,
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+        capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
+        onProgress: (progress: number) => void,
+    ): Promise<import("./video/VideoCapture.js").AnimationResult> {
+        const stops = this.resolveTour(path);
+        const tour = this.beginTour();
+        const recording = capture.captureRealtime(this.canvas, options, onProgress).finally(() => {
+            if (this.#tour === tour) {
+                this.cancelCameraAnimation();
+            }
+        });
+        const [result] = await Promise.all([recording, this.flyTour(stops, options.easing, tour)]);
+        this.handleVideoDownload(result, options);
+        return result;
+    }
+
+    /**
+     * Each stop of a tour as the camera state it flies to, checked before anything moves.
+     * @param path - The stops.
+     * @returns The camera state, flight and hold of each stop.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
+     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     */
+    private resolveTour(
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+    ): { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[] {
+        const flat = this.getViewMode() === "2d";
+        return path.map((stop, index) => {
+            const view = "view" in stop ? stop.view : { position: stop.position, target: stop.target };
+            const state = orbitAnglesToPosition(typeof view === "string" ? this.resolveCameraPreset(view) : view);
+            if (flat ? state.zoom === undefined && !state.pan : !state.position || !state.target) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: `tour stop ${index} has no ${flat ? "2D zoom or pan" : "camera position and target"} to fly to`,
+                    source: "view",
+                    details: { stop: index, ...(typeof view === "string" ? { view } : {}), mode: flat ? "2d" : "3d" },
+                });
+            }
+            return { state, duration: Math.max(0, stop.duration ?? 0), hold: Math.max(0, stop.hold ?? 0) };
+        });
+    }
+
+    /**
+     * Make a new tour the one playing, ending any tour or camera move under way.
+     * @returns The tour's handle.
+     */
+    private beginTour(): TourHandle {
+        this.cancelCameraAnimation();
+        const tour = { ended: false };
+        this.#tour = tour;
+        return tour;
+    }
+
+    /**
+     * Fly a tour's stops in order, holding at each, until the last or until the tour is ended.
+     * @param stops - The resolved stops.
+     * @param easing - The easing of each flight.
+     * @param tour - The tour's handle, from `beginTour`.
+     */
+    private async flyTour(
+        stops: readonly { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[],
+        easing: import("./screenshot/types.js").CameraAnimationOptions["easing"],
+        tour: TourHandle,
+    ): Promise<void> {
+        try {
+            for (const { state, duration, hold } of stops) {
+                if (tour.ended) {
+                    return;
+                }
+                await this.setCameraState(state, { animate: duration > 0, duration, easing: easing ?? "easeInOut" });
+                await this.holdTourStop(hold, tour);
+            }
+        } finally {
+            if (this.#tour === tour) {
+                this.#tour = undefined;
+            }
+        }
+    }
+
+    /**
+     * Wait while frames are drawn until their time adds up to the hold, or the tour is ended.
+     * @param ms - The hold, in milliseconds.
+     * @param tour - The tour's handle.
+     * @returns Settles when the hold is over.
+     */
+    private holdTourStop(ms: number, tour: TourHandle): Promise<void> {
+        if (ms <= 0 || tour.ended) {
+            return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+            let held = 0;
+            const observer = this.scene.onAfterRenderObservable.add(() => {
+                held += this.engine.getDeltaTime();
+                if (held >= ms || tour.ended) {
+                    this.scene.onAfterRenderObservable.remove(observer);
+                    resolve();
+                }
+            });
+        });
+    }
+
+    /**
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
+     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
+     * `position` and `target`. Every stop is checked before the camera moves. The camera's
+     * transition time (`setCameraTransitionDuration`), when set, replaces each flight's duration.
+     * `cancelCameraAnimation` ends the tour where it is; a new tour or a capture's tour replaces it.
+     * @param path - The stops, in order.
+     * @param options - How to fly.
+     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
+     * @returns Settles when the last stop's hold is over, or the tour is ended.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
+     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @example
+     * ```typescript
+     * await graph.playTour([
+     *     { view: "overview", hold: 2000 },
+     *     { view: "cluster-a", duration: 1500, hold: 3000 },
+     * ]);
+     * ```
+     */
+    async playTour(
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+        options?: { easing?: import("./screenshot/types.js").CameraAnimationOptions["easing"] },
+    ): Promise<void> {
+        const stops = this.resolveTour(path);
+        const releaseFrames = animatesEveryFrame(this.scene);
+        try {
+            await this.flyTour(stops, options?.easing, this.beginTour());
+        } finally {
+            releaseFrames();
+        }
     }
 
     /**
@@ -7564,9 +7733,9 @@ export class Graph implements GraphContext {
 
     /**
      * Stop the camera's animated moves: the one under way stops where the camera is now, and
-     * moves still waiting their turn are dropped. Every caller awaiting one of them resolves; a
-     * cancelled move is not an error.
-     * @returns True if a camera move was cancelled, false if none was under way or waiting
+     * moves still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
+     * awaiting one of them resolves; a cancelled move is not an error.
+     * @returns True if a camera move or tour was cancelled, false if none was under way or waiting
      * @example
      * ```typescript
      * const moving = graph.applyCameraView("top", { animate: true, duration: 2000 });
@@ -7575,7 +7744,12 @@ export class Graph implements GraphContext {
      * ```
      */
     cancelCameraAnimation(): boolean {
-        return this.operationQueue.cancelByCategory("camera-update") > 0;
+        const tour = this.#tour;
+        if (tour) {
+            tour.ended = true;
+            this.#tour = undefined;
+        }
+        return this.operationQueue.cancelByCategory("camera-update") > 0 || tour !== undefined;
     }
 
     /**
@@ -10209,4 +10383,9 @@ export class Graph implements GraphContext {
 
         this.shutdown();
     }
+}
+
+/** A playing tour, ended by setting `ended`: it stops at its next step or frame. */
+interface TourHandle {
+    ended: boolean;
 }

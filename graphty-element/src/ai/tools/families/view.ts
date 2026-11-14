@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import type { CameraState } from "../../../camera/types";
 import { viewEffects } from "../effects";
-import { MAX_STRING, scopeOf, settleTarget, targetFields, text } from "../fields";
+import { idsOf, MAX_ITEMS, MAX_STRING, requireTarget, scopeOf, settleTarget, targetFields, text } from "../fields";
 import { checkOptions } from "../optionSchema";
 import { type ActionContext, type ActionSpec, type CatalogView, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, nameField, ok } from "./common";
@@ -218,3 +218,44 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         actions,
     };
 }
+
+/** The `hidden` tool: nodes taken off the canvas while the data, results and counts keep them. */
+export const hiddenTool: ToolDefinition = {
+    name: "hidden",
+    plainName: "Hidden nodes",
+    core: false,
+    description:
+        "Stop drawing nodes (and their edges) while they stay in the data, results, layout and counts; unlike filter, nothing else changes. Undoable.",
+    example: { action: "hide", ids: ["a"] },
+    actions: [
+        {
+            name: "hide",
+            summary: "stop drawing the target and its edges",
+            fields: targetFields,
+            effect: "write",
+            reaches: [{ op: "visibility.hide" }, { door: "SessionHidden.add" }],
+            run: async ({ tx }, args) => {
+                const { target, notes } = requireTarget(tx, args, "node");
+                const { ids } = idsOf(tx, target, "node", MAX_ITEMS);
+                await coded(() => tx.hidden.add(ids));
+                return ok(undefined, { ...notes, hidden: ids.length });
+            },
+        },
+        {
+            name: "show",
+            summary: "",
+            fields: targetFields,
+            effect: "write",
+            reaches: [{ door: "SessionHidden.remove" }, { door: "SessionHidden.ids" }, { op: "visibility.hide" }],
+            run: async ({ tx }, args) => {
+                const { target, notes } = requireTarget(tx, args, "node");
+                const { ids } =
+                    target.kind === "all"
+                        ? { ids: [...tx.hidden.ids].map(String) }
+                        : idsOf(tx, target, "node", MAX_ITEMS);
+                await coded(() => tx.hidden.remove(ids));
+                return ok(undefined, { ...notes, shown: ids.length });
+            },
+        },
+    ],
+};

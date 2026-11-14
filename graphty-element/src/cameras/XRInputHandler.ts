@@ -1077,7 +1077,7 @@ export class XRInputHandler {
      *
      * The hand's movement since the previous frame, turned through the pivot's rotation, moves a
      * pointer in scene space, and the node's drag handler follows that pointer: one to one across,
-     * depth multiplied by `xr.input.zAxisAmplification`, and a single jump of more than 5 units (a
+     * depth multiplied by `xr.input.zAxisAmplification`, and a jump faster than a hand can move (a
      * tracking glitch) ignored. Per-frame deltas are what keep the drag right while the pivot turns.
      * @param currentHandPosition - The current world position of the dragging hand
      */

@@ -29,6 +29,18 @@ import type { EventOfType } from "./src/events";
  */
 export interface GraphtyElementJSXProps {
     /**
+     * Sets the wording function and words the description again.
+     */
+    accessibleDescription?: Graphty["accessibleDescription"];
+    /**
+     * Sets the announcement's wording function.
+     */
+    accessibleAnnouncement?: Graphty["accessibleAnnouncement"];
+    /**
+     * Adds or removes the node list.
+     */
+    accessibleNodeList?: Graphty["accessibleNodeList"];
+    /**
      * Sets the ids: an array, or a space-separated string as the attribute carries them.
      */
     features?: Graphty["features"];
@@ -290,6 +302,10 @@ export interface GraphtyElementJSXProps {
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     "aria-label"?: string;
+    /**
+     * Adds or removes the node list.
+     */
+    "accessible-node-list"?: boolean;
     /**
      * Sets the restore mode; anything but `"manual"` is `"auto"`.
      */
@@ -596,6 +612,8 @@ export interface GraphtyElementJSXProps {
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
+    "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
@@ -693,6 +711,7 @@ export interface GraphtyElementJSXProps {
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
+    "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     /**
      * Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns.

@@ -533,6 +533,8 @@ export interface GqlCheck {
 }
 
 export interface GqlPr {
+    /** GraphQL node id (only on the open list, to ask for its checks). */
+    id?: string;
     number: number;
     title: string;
     state: string;
@@ -797,7 +799,7 @@ function screenshotWaitMs(p: GqlPr, nowMs: number): number {
 
 /**
  * The "now" members of 4.2 and "Red on the same check" of 4.1, from the open pull requests.
- * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
+ * ponytail: reads at most OPEN_CAP (300) open pull requests; past that the counts stop growing, already red.
  * @param open - the open pull requests
  * @param nowMs - the current epoch ms
  * @param masterFailing - the checks (families folded) master's newest build failed

@@ -125,6 +125,10 @@ const OFF_SHARDS = [
         "test-command": `cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook --shard=${n}/2`,
         "needs-browser": true,
         lfs: "graph-io/test/fidelity/oracles/*.png",
+        // the stories import graphty-element's source and test helpers, but graph-io/project.json negates that
+        // dependency (graphty-element depends on graph-io, and the edge would be a cycle), so nx never calls
+        // graph-io affected by a graphty-element change: these shards name the package themselves (#7196)
+        "affected-by": ["graphty-element"],
     })),
     // webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
     // project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
@@ -675,11 +679,10 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
     // a light plan's binned and empty shards run as bins, or not at all
     const replaced = new Set([...(light?.none ?? []), ...(light?.bins ?? []).flatMap((b) => b.covers ?? [b.shard])]);
     const runs = (s) => !s?.["full-run-only"] || !pullRequest || only !== undefined;
+    // a shard runs when its package is affected, or one its "affected-by" names (a dependency nx cannot see)
+    const touched = (s) => [s.package, ...(s["affected-by"] ?? [])].some((p) => affected.includes(p));
     const wanted = (s) =>
-        affected.includes(s.package) &&
-        (only === undefined || only.includes(s.shard)) &&
-        !replaced.has(s.shard) &&
-        runs(s);
+        touched(s) && (only === undefined || only.includes(s.shard)) && !replaced.has(s.shard) && runs(s);
     // A shard of its own uploads its coverage the way a group does, unless ci.yml has a step of its own
     // for it (graphty-element, webgpu-graph-algorithms) or it writes none.
     const include = shards
@@ -698,9 +701,10 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
     }
     // The On shards go last, so with ci.yml's max-parallel the Off shards always start first.
     // a packed whole family (`whole`: its package) is left out with its package, as its shards would be
-    const bins = (light?.bins ?? []).filter(
-        (b) => runs(shards.find((s) => s.shard === b.shard)) && (!b.whole || affected.includes(b.whole)),
-    );
+    const bins = (light?.bins ?? []).filter((b) => {
+        const shard = shards.find((s) => s.shard === b.shard);
+        return runs(shard) && (!b.whole || touched(shard ?? { package: b.whole }));
+    });
     const all = [...include, ...bins.map((b) => binEntry(b, shards))];
     return [...all.filter((e) => e.flags !== "on"), ...all.filter((e) => e.flags === "on")];
 }

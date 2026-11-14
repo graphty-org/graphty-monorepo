@@ -13,6 +13,8 @@ import { siteFeatures } from "../../test/siteFeatures";
 import { Workspace } from "../Workspace";
 import policeUrl from "./__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "./__fixtures__/car-kit/Textures/colormap.png?url";
+import damagedPlyUrl from "./__fixtures__/variants/damaged.ply?url";
+import pointsPlyUrl from "./__fixtures__/variants/points.ply?url";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 
@@ -700,6 +702,37 @@ export const CustomModelAdvanced: Story = nodeModelsStory(
         expect(add.bottom).toBeLessThanOrEqual(window.innerHeight);
     }),
     "Custom model, advanced",
+);
+
+/**
+ * A fixture as a file, from the story server.
+ * @param url - its URL.
+ * @param name - the file's name.
+ * @returns the file.
+ */
+async function fixtureFile(url: string, name: string): Promise<File> {
+    return new File([await (await fetch(url)).arrayBuffer()], name);
+}
+
+/** The dialog with a binary PLY point cloud: its variant under the preview, and Guessed and Approximated on Advanced. */
+export const CustomModelPointCloud: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, [await fixtureFile(pointsPlyUrl, "points.ply")]);
+        await within(dialog).findByRole("img", { name: "points preview" });
+        await within(dialog).findByText("Approximated");
+    }),
+    "Custom model, point cloud",
+);
+
+/** The dialog with a PLY whose data is damaged past its header: accepted, but graphty-element cannot draw it. */
+export const CustomModelDrawFailed: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, [await fixtureFile(damagedPlyUrl, "cube.ply")]);
+        await within(await within(dialog).findByTestId("model-preview")).findByText("Not loaded");
+    }),
+    "Custom model, draw failed",
 );
 
 /** The Main menu open on Custom model..., which opens the dialog with no layer to write to. */

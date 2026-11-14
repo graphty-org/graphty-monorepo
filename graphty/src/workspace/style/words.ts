@@ -26,6 +26,9 @@ import {
     GraphtyError,
     type GraphtyErrorCode,
     type GraphtyWarningCode,
+    type ModelCompression,
+    type ModelEncoding,
+    type ModelSummary,
     type ReadableValue,
     renamePaths,
     rulePath,
@@ -1035,7 +1038,10 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     E_MODEL_URL_BLOCKED: (p) => `This style loads a model from ${said(p.hosts)}, which is not allowed here.`,
     E_MODEL_TOO_LARGE: (p) =>
         `This model is too large: ${amount(p.found)} ${said(p.what)}, the limit is ${amount(p.limit)}. Pick a lighter one.`,
-    E_MODEL_STRUCTURE: () => "The model file is damaged.",
+    E_MODEL_STRUCTURE: (p) =>
+        p.rule === "delayLoad"
+            ? "This .babylon file keeps its meshes in other files. Export it as one file or as .glb."
+            : "The model file is damaged.",
     E_MODEL_FORMAT_UNSUPPORTED: (p) =>
         `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`,
     E_MODEL_FORMAT_UNKNOWN: (p) => `${said(p.fileName) || "This file"} is not a 3D model file graphty knows.`,
@@ -1050,13 +1056,24 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
             : "That address is a web page, not a model. Use the address of the file itself.",
     E_MODEL_PART_REQUIRED: (p) => `The model cannot be drawn without ${said(p.name)}.`,
     E_MODEL_EXTERNAL_URL: () => "This model loads parts from somewhere else, which is not allowed. Export it as .glb.",
-    E_MODEL_DECODER_UNAVAILABLE: () => "This model is compressed in a way this page cannot read yet.",
+    E_MODEL_DECODER_UNAVAILABLE: (p) => {
+        if (p.reason === "missing") {
+            return `This model's compressed pictures need ${said(p.package) || "a decoder package"}, which this page does not have.`;
+        }
+        if (p.reason === "load") {
+            return "The decoder for this model's compressed data did not load. Try again.";
+        }
+        return p.reason === "decode"
+            ? "This model's compressed data is damaged."
+            : "This model is compressed in a way this page cannot read yet.";
+    },
     E_MODEL_PARSE: (p) => `The file is damaged or not a valid ${said(p.format).toUpperCase() || "model"}.`,
     E_MODEL_ZIP: () => "The .zip could not be opened.",
     E_MODEL_NAME_TAKEN: (p) => `A different model is already called ${said(p.id).replace(/^asset:/, "")}.`,
     E_MODEL_UNKNOWN_ASSET: () => "This style needs a model that is not here. Add the model file again.",
     E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
     W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
+    W_MODEL_POINTS_APPROXIMATED: (p) => `This model's ${amount(p.points)} points are drawn as small solids.`,
     W_MODEL_HAS_ANIMATIONS: () => "This model has animations; they do not play yet.",
     W_MODEL_COLOR_IGNORED: () => "The model keeps its own colors. Use node color to paint it.",
     W_MODEL_HEAVY: (p) => `This model is detailed; with ${amount(p.nodes)} nodes the graph may be slow.`,
@@ -1927,6 +1944,31 @@ function readsWords(formats: readonly string[]): string {
     return `choose a ${formats.map((e) => e.replace(/^\./, "").toUpperCase()).join(", ")} file`;
 }
 
+/** How a model file is stored, in a reader's words. */
+const ENCODING_WORDS: Readonly<Record<ModelEncoding, string>> = {
+    ascii: "ASCII",
+    binary: "binary",
+    binaryBigEndian: "big-endian binary",
+};
+
+/** A glTF's compression, by its usual name. */
+const COMPRESSION_WORDS: Readonly<Record<ModelCompression, string>> = {
+    draco: "Draco",
+    meshopt: "meshopt",
+    ktx2: "KTX2",
+    webp: "WebP",
+    avif: "AVIF",
+};
+
+/**
+ * A model format's usual name: "glTF", "GLB", "PLY".
+ * @param format - graphty-element's format id.
+ * @returns the name.
+ */
+function formatWord(format: string): string {
+    return format === "gltf" ? "glTF" : format.toUpperCase();
+}
+
 /** The Load custom model dialog's words (node-models design 14.6). */
 export const CUSTOM_MODEL = {
     title: "Load custom model",
@@ -1961,29 +2003,43 @@ export const CUSTOM_MODEL = {
     advanced: "Advanced",
     details: "Details",
     /**
-     * The model's details in one line: "GLB, 12 triangles, 1 material, 1 texture, no animations".
+     * Which variant of its format a model is, under its preview: "PLY, binary, point cloud", "glTF, Draco".
      * @param summary - from graphty-element's `assets.inspect`.
-     * @param summary.format - its format.
-     * @param summary.triangles - its triangles.
-     * @param summary.materials - its materials.
-     * @param summary.textures - its pictures.
-     * @param summary.animations - its animations.
      * @returns the words.
      */
-    detailLine: (summary: {
-        readonly format: string;
-        readonly triangles: number;
-        readonly materials: readonly unknown[];
-        readonly textures: number;
-        readonly animations: readonly unknown[];
-    }): string =>
+    variantLine: (
+        summary: Pick<ModelSummary, "format" | "encoding" | "geometry" | "compression" | "gltfVersion">,
+    ): string =>
         [
-            summary.format.toUpperCase(),
+            summary.gltfVersion === "1.0" ? `${formatWord(summary.format)}, glTF 1.0` : formatWord(summary.format),
+            summary.encoding === undefined ? "" : ENCODING_WORDS[summary.encoding],
+            { mesh: "", points: "point cloud", splats: "Gaussian splats" }[summary.geometry ?? "mesh"],
+            ...(summary.compression ?? []).map((c) => COMPRESSION_WORDS[c]),
+        ]
+            .filter((w) => w !== "")
+            .join(", "),
+    /**
+     * The model's details in one line: "GLB, 12 triangles, 1 material, 1 texture, no animations".
+     * @param summary - from graphty-element's `assets.inspect`.
+     * @returns the words.
+     */
+    detailLine: (
+        summary: Pick<
+            ModelSummary,
+            "format" | "triangles" | "materials" | "textures" | "animations" | "points" | "vertexColors"
+        >,
+    ): string =>
+        [
+            formatWord(summary.format),
+            summary.points === undefined ? "" : counted(summary.points, "point"),
             counted(summary.triangles, "triangle"),
             counted(summary.materials.length, "material"),
             counted(summary.textures, "texture"),
             counted(summary.animations.length, "animation"),
-        ].join(", "),
+            summary.vertexColors === true ? "vertex colors" : "",
+        ]
+            .filter((w) => w !== "")
+            .join(", "),
     /**
      * What the closed Files line says about files that need nothing: "1 substituted, 2 not used".
      * @param counts - how many parts are in each state.

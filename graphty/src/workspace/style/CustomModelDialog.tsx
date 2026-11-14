@@ -17,13 +17,13 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { filesOf, fileStem, modelName, readDrop, useDropOver, useModelPicture } from "../canvas/models";
+import { filesOf, fileStem, type ModelDraw, modelName, readDrop, useDropOver, useModelDraw } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FactChip, ModelChip } from "./ModelChip";
 import { SettingRows } from "./ModelSettings";
 import { AddressForm, FileInput } from "./ModelsPopover";
-import { chipLine, countChip, middleCut, PART_CODES, partChip, roleWord } from "./modelWords";
+import { chipLine, countChip, middleCut, modelChip, PART_CODES, partChip, roleWord } from "./modelWords";
 import { PartRow, RoleGlyph } from "./PartsPopover";
 import { useStillOpen } from "./useStillOpen";
 import { CUSTOM_MODEL, logUnexpected } from "./words";
@@ -55,6 +55,15 @@ const ADDRESS_CODES: ReadonlySet<string> = new Set(["E_MODEL_FETCH", "E_MODEL_UR
 
 /** Format refusals: the line says which formats would do. */
 const FORMAT_CODES: ReadonlySet<string> = new Set(["E_MODEL_FORMAT_UNKNOWN", "E_MODEL_FORMAT_UNSUPPORTED"]);
+
+/** The warnings the closed Advanced line shows as chips, in this order. */
+const ADVANCED_CHIP_CODES: readonly string[] = [
+    "W_MODEL_UP_GUESSED",
+    "W_MODEL_HAS_ANIMATIONS",
+    "W_MODEL_BUDGET",
+    "W_MODEL_HEAVY",
+    "W_MODEL_POINTS_APPROXIMATED",
+];
 
 /** The settings a draft holds until Add. */
 export type ModelDraft = Readonly<Partial<Record<Channel, ChannelValue>>>;
@@ -174,28 +183,34 @@ function PartLine({ part }: Readonly<{ part: ModelPart }>): React.JSX.Element {
 }
 
 /**
- * The preview: a spinner while loading, the model drawn by graphty-element once it is accepted, or
- * the cube and the "N missing" chip while it waits for parts.
+ * The preview: a spinner while loading, the model drawn by graphty-element once it is accepted, the
+ * cube and the "N missing" chip while it waits for parts, or the cube and the chip saying why
+ * graphty-element could not draw it.
  * @param props - Component props
  * @param props.held - the model, if any
  * @param props.name - its name
- * @param props.style - the style values it is drawn with
+ * @param props.draw - its picture, or why it could not be drawn
  * @param props.busy - a source is loading
  * @returns The preview box
  */
 function Preview({
     held,
     name,
-    style,
+    draw,
     busy,
-}: Readonly<{ held: Held | null; name: string; style: ModelDraft; busy: boolean }>): React.JSX.Element {
+}: Readonly<{ held: Held | null; name: string; draw: ModelDraw; busy: boolean }>): React.JSX.Element {
     const accepted = held?.record.state === "accepted";
-    const ref = accepted ? (held.url ?? held.record.id) : undefined;
-    const picture = useModelPicture(ref, PREVIEW_PX, style);
     const missing = countChip(held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? []);
     let content: React.ReactNode;
-    if (picture !== undefined && !busy) {
-        content = <img src={picture} alt={CUSTOM_MODEL.preview(name)} width={PREVIEW_PX} height={PREVIEW_PX} />;
+    if (draw.url !== undefined && !busy) {
+        content = <img src={draw.url} alt={CUSTOM_MODEL.preview(name)} width={PREVIEW_PX} height={PREVIEW_PX} />;
+    } else if (draw.failure !== undefined && !busy) {
+        content = (
+            <Stack gap={4} align="center">
+                <GLYPHS.model size={32} aria-hidden />
+                <ModelChip chip={modelChip(draw.failure)} />
+            </Stack>
+        );
     } else if (busy || accepted) {
         content = <Loader size="sm" aria-label={CUSTOM_MODEL.loading(held === null ? "model" : name)} />;
     } else {
@@ -331,6 +346,11 @@ export function CustomModelDialog({
     // Focus goes where the reader acts next: Name once a model is in, its first part while it waits.
     const heldKey = held === null ? "" : `${held.record.id} ${held.record.state}`;
     const waits = waitingFor.length > 0;
+    const draw = useModelDraw(
+        held?.record.state === "accepted" ? (held.url ?? held.record.id) : undefined,
+        PREVIEW_PX,
+        { ...baseStyle, ...draft },
+    );
     useEffect(() => {
         if (heldKey === "") {
             return;
@@ -467,6 +487,8 @@ export function CustomModelDialog({
             typeof firstMissing === "string"
                 ? CUSTOM_MODEL.missing(firstMissing.split("/").pop() ?? firstMissing)
                 : CUSTOM_MODEL.addFirst;
+    } else if (draw.failure !== undefined) {
+        blocked = refusalLine(draw.failure);
     }
     const addWord = forLayer ? CUSTOM_MODEL.add : CUSTOM_MODEL.addToProject;
     const add = (): void => {
@@ -488,8 +510,15 @@ export function CustomModelDialog({
     // One self-contained file says nothing the preview and Name do not: no Files line.
     const showFiles = held !== null && (parts.length > 1 || waits);
     const filesNote = CUSTOM_MODEL.filesNote(quietCounts(parts));
-    const guessed = held?.record.problems.find((p) => p.code === "W_MODEL_UP_GUESSED");
     const summary = accepted === null ? undefined : session.assets.inspect(accepted.record.id);
+    // One chip per word: a model over the budget and heavy for its nodes is "Heavy" once.
+    const advancedChips = [
+        ...new Map(
+            ADVANCED_CHIP_CODES.flatMap((code) => accepted?.record.problems.filter((p) => p.code === code) ?? [])
+                .map(modelChip)
+                .map((chip) => [chip.word, chip]),
+        ).values(),
+    ];
     const write = (channel: Channel, value: ChannelValue): void => {
         setDraft((now) => ({ ...now, [channel]: value }));
     };
@@ -650,7 +679,14 @@ export function CustomModelDialog({
                     )}
                     {held === null && !busy ? null : (
                         <Group gap="sm" align="flex-start" wrap="nowrap">
-                            <Preview held={held} name={name} style={{ ...baseStyle, ...draft }} busy={busy} />
+                            <Stack gap={2} w={PREVIEW_PX} style={{ flexShrink: 0 }}>
+                                <Preview held={held} name={name} draw={draw} busy={busy} />
+                                {summary === undefined || busy ? null : (
+                                    <Text size="xs" c="dimmed" data-testid="model-variant">
+                                        {CUSTOM_MODEL.variantLine(summary)}
+                                    </Text>
+                                )}
+                            </Stack>
                             {held === null ? null : (
                                 <Stack gap={4} flex={1} miw={0} className="ws-model-settings">
                                     <div className="ws-row">
@@ -691,6 +727,17 @@ export function CustomModelDialog({
                                     ) : null}
                                 </Stack>
                             )}
+                        </Group>
+                    )}
+                    {draw.failure === undefined || busy ? null : (
+                        <Group gap={4} wrap="nowrap">
+                            <Refusal problem={draw.failure} />
+                            {draw.failure.code === "E_MODEL_DECODER_UNAVAILABLE" &&
+                            draw.failure.params.reason === "load" ? (
+                                <Button size="compact-xs" variant="default" onClick={draw.retry}>
+                                    Retry
+                                </Button>
+                            ) : null}
                         </Group>
                     )}
                     {held === null || !showFiles ? null : (
@@ -762,12 +809,9 @@ export function CustomModelDialog({
                                     setAdvancedOpen(!advancedOpen);
                                 }}
                             >
-                                {guessed === undefined ? null : (
-                                    <ModelChip
-                                        chip={{ word: "Guessed", tip: "up axis guessed from the file" }}
-                                        tone="warning"
-                                    />
-                                )}
+                                {advancedChips.map((chip) => (
+                                    <ModelChip key={chip.word} chip={chip} tone="warning" />
+                                ))}
                             </Disclosure>
                             <Collapse in={advancedOpen}>
                                 <Stack gap={4} data-testid="model-advanced">

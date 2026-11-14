@@ -6,7 +6,15 @@
  */
 
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
-import { type AssetSource, type GraphSession, isAssetId, type ModelChange } from "@graphty/graphty-element/session";
+import {
+    type AssetSource,
+    type CodedFact,
+    type CodedFactParam,
+    type GraphSession,
+    isAssetId,
+    isGraphtyError,
+    type ModelChange,
+} from "@graphty/graphty-element/session";
 import { type HTMLAttributes, useEffect, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -144,27 +152,43 @@ export function useModelStates(session: GraphSession | null): readonly ModelChan
     return states;
 }
 
+/** A model's picture as graphty-element drew it, or why it could not draw it. */
+export interface ModelDraw {
+    /** The picture's URL, or undefined while it is drawn, failed, or for no model. */
+    readonly url: string | undefined;
+    /** Why graphty-element could not draw an accepted model (`modelThumbnail`'s rejection), or undefined. */
+    readonly failure: CodedFact | undefined;
+    /** Asks graphty-element to draw it again: for a decoder whose files did not load. */
+    readonly retry: () => void;
+}
+
 /**
  * A model's picture, drawn by graphty-element as a node draws it (`modelThumbnail`), or a sample's
- * shipped thumbnail. Drawn again when the model or its style changes; undefined while it is drawn
- * and for a model that cannot be drawn (the cube stands in).
+ * shipped thumbnail, with the coded reason when graphty-element could not draw it. Drawn again
+ * when the model or its style changes.
  * @param ref - what a layer names, or undefined for no model.
  * @param size - the picture's side in CSS pixels; it is drawn at the screen's pixel ratio.
  * @param style - the node's style values the picture is drawn with (Up, Turn, Color...).
- * @returns the picture's URL, or undefined.
+ * @returns the picture, the failure and a retry.
  */
-export function useModelPicture(
+export function useModelDraw(
     ref: string | undefined,
     size: number,
     style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
-): string | undefined {
+): ModelDraw {
     const { session, element } = useWorkspace();
     // Read again when a model moves on, so a model that just got its parts is drawn.
     useModelStates(session);
+    const [attempt, setAttempt] = useState(0);
     const sample = ref === undefined ? undefined : session?.catalog.models().find((m) => m.id === ref)?.thumbnail;
     const record = ref === undefined || sample !== undefined ? undefined : session?.assets.find(ref);
-    const key = record?.state === "accepted" ? JSON.stringify([ref, record.digest, size, style ?? null]) : undefined;
-    const [drawn, setDrawn] = useState<{ readonly key: string; readonly url: string } | null>(null);
+    const key =
+        record?.state === "accepted" ? JSON.stringify([ref, record.digest, size, style ?? null, attempt]) : undefined;
+    const [drawn, setDrawn] = useState<{
+        readonly key: string;
+        readonly url?: string;
+        readonly failure?: CodedFact;
+    } | null>(null);
     useEffect(() => {
         if (key === undefined || element === null) {
             return undefined;
@@ -184,13 +208,44 @@ export function useModelPicture(
                     setDrawn({ key, url });
                 }
             })
-            // The cube stays: the model's own chips say why it cannot be drawn.
-            .catch(() => undefined);
+            .catch((error: unknown) => {
+                if (live) {
+                    setDrawn({
+                        key,
+                        failure: isGraphtyError(error)
+                            ? { code: error.code, params: error.details as Readonly<Record<string, CodedFactParam>> }
+                            : { code: "E_MODEL_PARSE", params: {} },
+                    });
+                }
+            });
         return () => {
             live = false;
         };
     }, [key, element]);
-    return sample ?? (drawn !== null && drawn.key === key ? drawn.url : undefined);
+    const mine = drawn !== null && drawn.key === key ? drawn : undefined;
+    return {
+        url: sample ?? mine?.url,
+        failure: sample === undefined ? mine?.failure : undefined,
+        retry: () => {
+            setAttempt((n) => n + 1);
+        },
+    };
+}
+
+/**
+ * A model's picture (see {@link useModelDraw}): undefined while it is drawn and for a model that
+ * cannot be drawn (the cube stands in; the model's own chips say why).
+ * @param ref - what a layer names, or undefined for no model.
+ * @param size - the picture's side in CSS pixels.
+ * @param style - the node's style values the picture is drawn with.
+ * @returns the picture's URL, or undefined.
+ */
+export function useModelPicture(
+    ref: string | undefined,
+    size: number,
+    style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+): string | undefined {
+    return useModelDraw(ref, size, style).url;
 }
 
 /**

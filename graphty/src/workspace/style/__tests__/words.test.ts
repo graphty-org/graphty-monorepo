@@ -2,12 +2,14 @@ import { channelsFor, PALETTE_DESCRIPTORS } from "@graphty/graphty-element/catal
 import { GraphtyError } from "@graphty/graphty-element/session";
 import { assert, describe, it, vi } from "vitest";
 
+import { modelChip } from "../modelWords";
 import {
     bindLabel,
     cellOfLocation,
     channelWord,
     clockWords,
     colorName,
+    CUSTOM_MODEL,
     enumWords,
     failureWords,
     hiddenByWords,
@@ -15,6 +17,7 @@ import {
     logUnexpected,
     madeWords,
     matchesWordStart,
+    modelWords,
     paletteWord,
     placeWords,
     positionWord,
@@ -206,5 +209,55 @@ describe("shader words", () => {
             "Starts: When this layer starts applying, over 0.3 s",
         );
         assert.equal(hiddenByWords("Sticker"), "Hidden: Sticker draws instead of the node");
+    });
+});
+
+describe("model variant words", () => {
+    it("names each model's variant under its preview", () => {
+        assert.equal(
+            CUSTOM_MODEL.variantLine({ format: "ply", encoding: "binary", geometry: "points" }),
+            "PLY, binary, point cloud",
+        );
+        assert.equal(
+            CUSTOM_MODEL.variantLine({ format: "ply", encoding: "binaryBigEndian", geometry: "mesh" }),
+            "PLY, big-endian binary",
+        );
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "glb", compression: ["draco"] }), "GLB, Draco");
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "gltf", gltfVersion: "1.0" }), "glTF, glTF 1.0");
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "spz", geometry: "splats" }), "SPZ, Gaussian splats");
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "stl", encoding: "ascii" }), "STL, ASCII");
+    });
+
+    it("counts points and says when vertex colors are drawn", () => {
+        assert.equal(
+            CUSTOM_MODEL.detailLine({
+                format: "ply",
+                points: 216,
+                triangles: 1728,
+                materials: [],
+                textures: 0,
+                animations: [],
+                vertexColors: true,
+            }),
+            "PLY, 216 points, 1728 triangles, no materials, no textures, no animations, vertex colors",
+        );
+    });
+
+    it("says why a decoder failed by its reason, and calls approximated points a chip", () => {
+        const fact = (reason: string): Parameters<typeof modelChip>[0] => ({
+            code: "E_MODEL_DECODER_UNAVAILABLE",
+            params: { reason, package: "@babylonjs/ktx2decoder" },
+        });
+        assert.equal(modelChip(fact("missing")).tip, "needs @babylonjs/ktx2decoder");
+        assert.equal(modelChip(fact("load")).tip, "decoder did not load");
+        assert.equal(modelChip(fact("decode")).tip, "compressed data damaged");
+        assert.match(modelWords(fact("missing")), /@babylonjs\/ktx2decoder/);
+        assert.match(modelWords(fact("load")), /Try again/);
+        assert.deepEqual(modelChip({ code: "W_MODEL_POINTS_APPROXIMATED", params: { points: 216, drawn: 216 } }), {
+            word: "Approximated",
+            tip: "points are drawn as small solids",
+        });
+        assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule: "ply" } }).tip, "PLY data damaged");
+        assert.match(modelWords({ code: "E_MODEL_STRUCTURE", params: { rule: "delayLoad" } }), /other files/);
     });
 });

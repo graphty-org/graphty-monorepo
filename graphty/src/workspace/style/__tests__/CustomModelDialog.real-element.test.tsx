@@ -18,6 +18,8 @@ import { userEvent } from "vitest/browser";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
+import damagedPlyUrl from "../__fixtures__/variants/damaged.ply?url";
+import pointsPlyUrl from "../__fixtures__/variants/points.ply?url";
 import { addModel, fileInput, openCustom, openModels, openShapes, previewOf, written } from "./modelHarness";
 import { dotPng, quadGlb } from "./quadGlb";
 
@@ -280,6 +282,31 @@ describe("the Load custom model dialog, on the real element", () => {
             assert.isUndefined(written(session, "node.model"));
             assert.isUndefined(written(session, "node.modelSourceUp"));
         });
+    });
+
+    it("names a point cloud's variant under its preview and flags it Approximated on the Advanced line", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await userEvent.upload(fileInput(dialog), [await fixture(pointsPlyUrl, "points.ply")]);
+        await previewOf(dialog, "points");
+        assert.equal(within(dialog).getByTestId("model-variant").textContent, "PLY, binary, point cloud");
+        const advanced = within(dialog).getByRole("button", { name: "Advanced" });
+        assert.isNotNull(within(advanced.parentElement ?? dialog).getByText("Approximated"));
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.match(String(written(session, "node.model")), /^asset:/);
+        });
+    });
+
+    it("shows why graphty-element could not draw an accepted model, and blocks Add", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await userEvent.upload(fileInput(dialog), [await fixture(damagedPlyUrl, "cube.ply")]);
+        const preview = await within(dialog).findByTestId("model-preview");
+        assert.isNotNull(await within(preview).findByText("Not loaded"));
+        assert.isNull(preview.querySelector("img"));
+        assert.match(within(dialog).getByTestId("model-refusal").textContent, /^Not loaded: /);
+        assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), "true");
     });
 
     it("offers a lone picture as the layer's picture", async () => {

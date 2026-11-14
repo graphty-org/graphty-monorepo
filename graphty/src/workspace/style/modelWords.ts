@@ -96,6 +96,32 @@ const LIMIT_WORDS: Readonly<Record<string, string>> = {
     count: "models",
 };
 
+/** What a reader of `E_MODEL_STRUCTURE` is told, by `params.rule`; any other rule is a damaged file. */
+const STRUCTURE_TIPS: Readonly<Record<string, string>> = {
+    delayLoad: "meshes kept in other files",
+    ply: "PLY data damaged",
+    splat: "splat data damaged",
+    babylon: ".babylon data damaged",
+};
+
+/**
+ * Why compressed data was not read, by `E_MODEL_DECODER_UNAVAILABLE`'s `params.reason`.
+ * @param p - the params.
+ * @returns the tip.
+ */
+function decoderTip(p: CodedFact["params"]): string {
+    switch (p.reason) {
+        case "missing":
+            return both("needs", said(p.package) || "a decoder package");
+        case "load":
+            return "decoder did not load";
+        case "decode":
+            return "compressed data damaged";
+        default:
+            return "compression not read";
+    }
+}
+
 /** Each code's chip. Typed over the element's codes, so a new one fails to compile here. */
 const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWords>> = {
     E_MODEL_MISSING_FILE: (p) => ({ word: "1 missing", tip: said(p.name) }),
@@ -118,10 +144,10 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
         word: "Too large",
         tip: both(amount(p.found), LIMIT_WORDS[said(p.what)] ?? said(p.what), "over", amount(p.limit)),
     }),
-    E_MODEL_STRUCTURE: notLoaded("file damaged"),
+    E_MODEL_STRUCTURE: (p) => ({ word: "Not loaded", tip: STRUCTURE_TIPS[said(p.rule)] ?? "file damaged" }),
     E_MODEL_FORMAT_UNKNOWN: (p) => ({ word: "Not loaded", tip: both(said(p.fileName), "not a 3D model") }),
     E_MODEL_EXTERNAL_URL: notLoaded("parts on another site; export as GLB"),
-    E_MODEL_DECODER_UNAVAILABLE: notLoaded("compression not read"),
+    E_MODEL_DECODER_UNAVAILABLE: (p) => ({ word: "Not loaded", tip: decoderTip(p) }),
     E_MODEL_PARSE: (p) => ({ word: "Not loaded", tip: both(said(p.format).toUpperCase(), "file damaged") }),
     E_MODEL_ZIP: notLoaded(".zip not opened"),
     // The id is the element's (a digest for an unnamed file), never words for a reader.
@@ -130,6 +156,7 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
     E_MODEL_DIGEST_MISMATCH: notLoaded("model in this file damaged"),
     E_MODEL_PART_REQUIRED: (p) => ({ word: "Needed", tip: said(p.name) }),
     W_MODEL_UP_GUESSED: () => ({ word: "Guessed", tip: "up axis guessed from the file" }),
+    W_MODEL_POINTS_APPROXIMATED: () => ({ word: "Approximated", tip: "points are drawn as small solids" }),
     W_MODEL_HAS_ANIMATIONS: () => ({ word: "Animated", tip: "animations do not play" }),
     W_MODEL_COLOR_IGNORED: () => ({ word: "Color unused", tip: "node color not drawn on the model" }),
     W_MODEL_HEAVY: (p) => ({ word: "Heavy", tip: both(amount(p.nodes), "nodes") }),

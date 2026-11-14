@@ -63,14 +63,6 @@
             },
             "dependsOn": ["build"]
         },
-        "semantic-release": {
-            "executor": "nx:run-commands",
-            "dependsOn": ["build"],
-            "options": {
-                "command": "semantic-release",
-                "cwd": "layout"
-            }
-        },
         "build:gh-pages": {
             "executor": "nx:run-commands",
             "outputs": ["{projectRoot}/gh-pages"],

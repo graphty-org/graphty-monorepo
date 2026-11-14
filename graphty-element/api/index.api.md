@@ -3613,7 +3613,7 @@ export class Graphty extends LitElement {
     }): void;
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
-    }): void;
+    }): Promise<void>;
     setInputEnabled(enabled: boolean): void;
     setLayout(type: string, opts?: object, options?: SetLayoutOptions): Promise<void>;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;

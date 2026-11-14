@@ -257,7 +257,8 @@ belongs to the binding rather than to the palette. No built-in palette takes con
 up when a layer is WRITTEN and the layer records the palette it got, so changing the default never
 changes what an already-saved document means. `setDefaultPalettes(palettes, { reapply: true })`
 re-resolves the layers that took the old default; without it, a call made after such layers exist
-writes a warning naming them. A binding on groups (an `ordinal` scale) takes the `categorical`
+logs a warning naming them through the element's logger, and the call returns a promise
+that settles once a `reapply` has repainted them. A binding on groups (an `ordinal` scale) takes the `categorical`
 default, a binding with a `midpoint` takes the `diverging` one, and any other binding on amounts
 takes the `sequential` one. The highlight default, `blue-highlight`, has no slot and stays fixed.
 

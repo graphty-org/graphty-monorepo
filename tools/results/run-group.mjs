@@ -719,10 +719,14 @@ export async function runGroup(
     return code;
 }
 
+/** A command that runs the On projects (tools/features-on.mjs ON_ENV; it reads graphty-element, so no import). */
+const ON_COMMAND = /(^|\s)GRAPHTY_FEATURES_ON=1\s/u;
+
 /**
  * A group's flags, run shape and variant. The flags are "on" for an On shard (its SHARDS entry says
- * `flags: "on"`, tools/ci-test-matrix.mjs FEATURES_ON_SHARDS) or under GRAPHTY_FLAGS=on, else "off";
- * RESULTS_VARIANT overrides the variant.
+ * `flags: "on"`, tools/ci-test-matrix.mjs FEATURES_ON_SHARDS), for a pull request's bin of one (its command sets
+ * GRAPHTY_FEATURES_ON=1, and its name, `<family>-<n>`, need not be a shard's), or under GRAPHTY_FLAGS=on, else
+ * "off"; RESULTS_VARIANT overrides the variant.
  * @param o the facts
  * @param o.shardName the shard
  * @param o.shard its SHARDS entry, or undefined
@@ -731,7 +735,8 @@ export async function runGroup(
  * @returns `{ flags, selected, variant }`
  */
 export function groupShape({ shardName, shard, command, env }) {
-    const flags = shard?.flags === "on" || env.GRAPHTY_FLAGS === "on" ? "on" : "off";
+    const on = shard?.flags === "on" || ON_COMMAND.test(command ?? "") || env.GRAPHTY_FLAGS === "on";
+    const flags = on ? "on" : "off";
     const selected = command !== undefined && command !== shard?.["test-command"];
     const variant = env.RESULTS_VARIANT || `${groupFamily(shardName, env)}|flags=${flags}|${runShape(env, selected)}`;
     return { flags, selected, variant };

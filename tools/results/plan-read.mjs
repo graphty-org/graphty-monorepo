@@ -23,23 +23,26 @@ const familyOf = (shard) => shard.replace(/-\d+$/, "");
 
 /**
  * The variants a light check reads for its affected packages: each shard family a pull request runs (never a
- * full-run-only one, such as the On shards), flags off, both run shapes.
+ * full-run-only one), under its flags (on for an On shard, tools/ci-test-matrix.mjs FEATURES_ON_SHARDS), both run
+ * shapes.
  * @param shards SHARDS entries
  * @param affected package directory names
  * @param [storyShards] the shards ci.yml's story-tests job runs (STORY_SHARDS), whose `-shots` family is asked too
  * @returns variant names, sorted
  */
 export function variantsOf(shards, affected, storyShards = []) {
-    const families = new Set(
-        shards.filter((s) => !s["full-run-only"] && affected.includes(s.package)).map((s) => familyOf(s.shard)),
+    const families = new Map(
+        shards
+            .filter((s) => !s["full-run-only"] && affected.includes(s.package))
+            .map((s) => [familyOf(s.shard), s.flags === "on" ? "on" : "off"]),
     );
     // a story shard's screenshot run (ci.yml's story-tests job) is a family of its own, `<family>-shots`
     const shots = new Set(storyShards.map(familyOf));
-    return [...families]
+    return [...families.keys()]
         .sort()
         .flatMap((f) => [
-            `${f}|flags=off|whole`,
-            `${f}|flags=off|selected`,
+            `${f}|flags=${families.get(f)}|whole`,
+            `${f}|flags=${families.get(f)}|selected`,
             ...(shots.has(f) ? [`${f}-shots|flags=off|shots`] : []),
         ]);
 }

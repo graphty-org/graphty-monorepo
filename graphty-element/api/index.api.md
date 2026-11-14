@@ -202,6 +202,28 @@ export interface AcceleratorFactoryOptions {
 }
 
 // @public
+export interface AccessibleAnnouncement {
+    readonly code: "selection";
+    readonly params: AccessibleSelection;
+}
+
+// @public
+export interface AccessibleGraphFacts {
+    readonly edges: number;
+    readonly legend: readonly LegendBlock[];
+    readonly nodes: number;
+    readonly selection: AccessibleSelection;
+}
+
+// @public
+export interface AccessibleSelection {
+    readonly count: number;
+    readonly neighborCount: number;
+    readonly neighbors: readonly NodeName[];
+    readonly nodes: readonly NodeName[];
+}
+
+// @public
 export type ActiveRenderer = "webgl" | "webgpu";
 
 // @public
@@ -3286,6 +3308,13 @@ export class Graphty extends LitElement {
     set acceleration(value: AccelerationPolicy);
     get accelerationMinNodes(): number;
     set accelerationMinNodes(value: number);
+    get accessibleAnnouncement(): ((announcement: AccessibleAnnouncement) => string) | undefined;
+    set accessibleAnnouncement(value: ((announcement: AccessibleAnnouncement) => string) | undefined);
+    get accessibleDescription(): ((facts: AccessibleGraphFacts) => string) | undefined;
+    set accessibleDescription(value: ((facts: AccessibleGraphFacts) => string) | undefined);
+    accessibleFacts(): AccessibleGraphFacts;
+    get accessibleNodeList(): boolean;
+    set accessibleNodeList(value: boolean);
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
         signal?: AbortSignal;

@@ -4,8 +4,8 @@
  * The field types `ID`, `LABEL`, `START_ID`, `END_ID`, `TYPE` and `IGNORE` are structural; any
  * other field type is a property type of design section 5.1 (`int`, `long`, `float`, `double`,
  * `boolean`, `byte`, `short`, `char`, `string`, `point`, `date`, `localtime`, `time`,
- * `localdatetime`, `datetime`, `duration`, each with an optional `[]` suffix); a cell without a
- * colon is a string property. An id space may follow `ID`, `START_ID` and `END_ID`; brace options
+ * `localdatetime`, `datetime`, `duration`, each with an optional `[]` suffix, and
+ * `vector{coordinateType:..., dimensions:...}`); a cell without a colon is a string property. An id space may follow `ID`, `START_ID` and `END_ID`; brace options
  * (`label`, `id-type`) may follow any structural type.
  */
 
@@ -41,49 +41,63 @@ export interface HeaderField {
 const STRUCTURAL: ReadonlySet<string> = new Set(["ID", "LABEL", "START_ID", "END_ID", "TYPE", "IGNORE"]);
 const SPACE_KINDS: ReadonlySet<string> = new Set(["ID", "START_ID", "END_ID"]);
 const HEADER_MARKER = /^[^:{}()]*:\s*(ID|START_ID|END_ID)\s*(\(|\{|$)/i;
+/** A marker as the grammar spells it: nothing between the colon, the field type and what follows. */
+const STRICT_MARKER = /^[^:{}()]*:(ID|START_ID|END_ID)(\(|\{|$)/i;
 const CELL = /^([^:(){}]*)(?::([^:(){}]*))?(?:\(([^)]*)\))?(?:\{([^}]*)\})?$/;
 
 /**
  * Whether a record looks like a section header: some cell declares an `ID`, `START_ID` or `END_ID`
  * field. The neo4j-admin convention allows several files, each with its own header; graphty's
  * single-file convention (the CSVDataSource of graphty-element) concatenates sections, so a header
- * may appear anywhere. Mid-file, a quoted marker cell (`"ref:id"`) is data unless the whole record
- * is quoted (a QUOTE_ALL export writes its headers that way) and every cell is a valid header cell.
+ * may appear anywhere. The first record of an input is always a header, so it is read leniently
+ * (`id: ID` counts). Mid-file a data cell can look like a marker, so a record starts a new section
+ * only when every cell parses as a header cell and a marker is written as the grammar spells it,
+ * with nothing between the colon and the field type (`Note: ID` is data). A quoted marker cell
+ * (`"ref:id"`) is data unless the whole record is quoted (a QUOTE_ALL export writes its headers
+ * that way).
  * ponytail: a fully quoted data row whose every cell is a valid header cell and one of them a marker
- * (`"1","ref:id"`) still reads as a header; telling them apart would need the section's column names.
+ * (`"1","ref:id"`) still reads as a header, and so does an unquoted one (`1,ref:ID`); telling them
+ * apart would need the section's column names.
  * @param cells - the record's cells
  * @param count - how many cells are valid
- * @param quoted - which cells were quoted, or undefined to look at every cell (the first record)
+ * @param quoted - which cells were quoted, or undefined for the first record of an input (lenient)
  * @returns true when the record is a header
  * @category Plugin helpers
  */
 export function isHeaderRecord(cells: readonly string[], count: number, quoted?: readonly boolean[]): boolean {
+    let marker = false;
     let quotedMarker = false;
     for (let i = 0; i < count; i++) {
         const cell = cells[i];
         // every header marker holds a colon; the includes keeps the regex off the data rows
         if (cell.includes(":") && HEADER_MARKER.test(cell.trim())) {
-            if (quoted?.[i] !== true) {
+            if (quoted === undefined) {
                 return true;
             }
-            quotedMarker = true;
+            if (quoted[i]) {
+                quotedMarker = true;
+            } else if (STRICT_MARKER.test(cell.trim())) {
+                marker = true;
+            }
         }
     }
-    return quotedMarker && quoted !== undefined && isQuotedHeader(cells, count, quoted);
+    if (marker) {
+        return allHeaderCells(cells, count);
+    }
+    return (
+        quotedMarker && quoted !== undefined && quoted.slice(0, count).every(Boolean) && allHeaderCells(cells, count)
+    );
 }
 
 /**
- * Whether a record is fully quoted and every cell parses as a header cell.
+ * Whether every cell of a record parses as a header cell.
  * @param cells - the record's cells
  * @param count - how many cells are valid
- * @param quoted - which cells were quoted
- * @returns true when the record reads as a quoted header
+ * @returns true when every cell is a header cell
+ * @category Plugin helpers
  */
-function isQuotedHeader(cells: readonly string[], count: number, quoted: readonly boolean[]): boolean {
+export function allHeaderCells(cells: readonly string[], count: number): boolean {
     for (let i = 0; i < count; i++) {
-        if (!quoted[i]) {
-            return false;
-        }
         try {
             parseHeaderField(cells[i]);
         } catch {

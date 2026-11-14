@@ -1,2 +1,2 @@
-a:ID,b:ID,name
+a:ID(A),b:ID(B),name
 1,2,x

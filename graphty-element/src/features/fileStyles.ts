@@ -142,6 +142,8 @@ export const FILE_STYLE_CHANNELS: ReadonlySet<string> = new Set([
     "node.borderWaveAmplitude",
     "node.borderWavePeriod",
     "node.borderWidth",
+    "node.chartBackgroundColor",
+    "node.chartBackgroundOpacity",
     "node.chartBorderColor",
     "node.chartBorderWidth",
     "node.chartColors",

@@ -64,7 +64,7 @@ import { batchUploadFrames } from "./meshes/FrameRoster";
 import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
-import { curvePathPoint, type CurveSpan, curveSpan, loopShape, viaShare } from "./meshes/pulledCurve";
+import { curvePathPoint, type CurveSpan, curveSpan, loopShape, routed, viaShare } from "./meshes/pulledCurve";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -2974,12 +2974,11 @@ export class Edge {
             run.push(piece);
         }
 
-        const bends = span?.bends ?? null;
         const kept = pulled.route ?? null;
-        // a line through bends' cut path itself, its ends and the bends between, placed in doubles as `placeBent`
-        // places them, so the card draws the very points the object path does
+        // a routed path's points themselves (a line through bends' ends and bends, a center arc's cut samples), placed in
+        // doubles as the object path places them, so the card draws the very points the object path does
         const points =
-            span === null || bends === null
+            span === null || !routed(span)
                 ? null
                 : Array.from({ length: span.pieces + 1 }, (_, j) => curvePathPoint(src, dst, span, j)).flatMap((p) => [
                       p.x,

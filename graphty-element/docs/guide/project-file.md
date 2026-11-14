@@ -320,7 +320,7 @@ You need this section only to read or write the file yourself. A graphty documen
 | `graphty-data`        | the nodes and edges, embedded in the `node-link` JSON dialect, and the `source` and `sources` they were loaded from |
 | `graphty-session`     | the settings, layout, filter and time window, sets and named views                                                  |
 | `graphty-arrangement` | each placed node's id and position, and the pinned nodes                                                            |
-| `graphty-results`     | each finished run: what ran, its fields, and its values as columns                                                  |
+| `graphty-results`     | each finished run: what ran, the name the reader gave it, its fields, and its values as columns                     |
 | `graphty-style`       | the style layers, and the code of every shader they or the background use                                           |
 | `graphty-notes`       | the notes                                                                                                           |
 | `graphty-view-state`  | the selection; never needed to open the file                                                                        |

@@ -72,3 +72,17 @@ these interleaved runs.
     pnpm exec nx run graphty-element:build --skip-nx-cache -> ok
     node tools/sonar-gate.mjs -> no new issue or hotspot on the changed lines
 No public API change (PulledLineBatch is internal), so no api report.
+
+## Review finding: slots above the sorted range
+
+The fresh-context review found that while two widths interleave, a piece handed out after a sort whose key equals
+its own number asked for no new sort, so its slot kept 0 in the draw order table: piece 0 drew twice and the new
+piece never drew. Fixed in PulledLineBatch.sort(): every slot from highWater to the end of the table names its own
+piece, as the old index builder did. New test "draws a piece handed out after a sort even when no new sort follows"
+in test/mesh-testing/pulled-line-draw-order.test.ts failed first (expected [0, 1, 0] to equal [0, 1, 2]) and passes
+after. Batched path only; the objects path does not use PulledLineBatch.
+
+    npx vitest run --project=mesh test/mesh-testing/pulled-line-draw-order.test.ts -> 6 passed
+    npx vitest run --project=mesh test/mesh-testing/pulled-line-upload-runs.test.ts -> 3 passed
+    npx vitest run --project=browser pulled-edge-lines, pulled-edges-on-graph, pulled-curves-batched, node-batch -> 89 passed
+    npm run lint -> clean; npm run build -> ok; node tools/sonar-gate.mjs -> no new issue on changed lines

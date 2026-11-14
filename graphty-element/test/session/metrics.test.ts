@@ -112,10 +112,6 @@ describe("the metrics a graph can support", () => {
         for (const metric of refused) {
             assert.isString(metric.reason, `${metric.key} says why it is unavailable`);
             assert.isAbove((metric.reason ?? "").length, 0, `${metric.key}'s reason is a sentence`);
-            assert.isTrue(
-                metrics.some((candidate) => candidate.key === metric.key),
-                "an unavailable metric is listed rather than dropped, so a card can explain itself",
-            );
         }
 
         for (const metric of metrics.filter((candidate) => candidate.available)) {

@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { seedSchema } from "./seedOption";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -25,7 +26,7 @@ const randomLayoutOptionsSchema = defineOptions({
         },
     },
     seed: {
-        schema: z.number().int().nonnegative().nullable().default(null),
+        schema: seedSchema,
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible random positions",
@@ -39,7 +40,7 @@ const RandomLayoutConfig = z.strictObject({
     scalingFactor: z.number().default(100),
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(2),
-    seed: z.number().int().nonnegative().or(z.null()).default(null),
+    seed: seedSchema,
 });
 type RandomLayoutConfigType = z.infer<typeof RandomLayoutConfig>;
 type RandomLayoutOpts = Partial<RandomLayoutConfigType>;

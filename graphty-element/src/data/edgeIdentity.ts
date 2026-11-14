@@ -359,7 +359,37 @@ function sortPairs(lo: Uint32Array, hi: Uint32Array, nodeBound: number): { perm:
 }
 
 /**
+ * The graph with `hashOf` added when it has none: each node's hash computed the first time an edge
+ * reads it and kept, so a pass over many edges hashes each node id once, not twice per edge.
+ * @param graph - where ids are read
+ * @param nodeBound - one past the largest node row
+ * @returns the graph, unchanged when it already gives hashes
+ */
+export function withNodeHashes(graph: IdentityGraph, nodeBound: number): IdentityGraph {
+    if (graph.hashOf !== undefined) {
+        return graph;
+    }
+
+    const lanes = new Uint32Array(2 * nodeBound);
+    const known = new Uint8Array(nodeBound);
+    return {
+        ...graph,
+        hashOf: (node) => {
+            if (known[node] === 0) {
+                const { a, b } = hashNodeId(graph.idOf(node));
+                lanes[2 * node] = a;
+                lanes[2 * node + 1] = b;
+                known[node] = 1;
+            }
+
+            return { a: lanes[2 * node], b: lanes[2 * node + 1] };
+        },
+    };
+}
+
+/**
  * The hash of a session edge: its file id when it has one, else the id minted from its counter.
+ * Equal to `hashEdgeMember` of that member whether or not `graph.hashOf` gives the ends' hashes.
  * @param graph - where endpoints and ids are read
  * @param row - the edge row
  * @param counter - its counter value
@@ -375,11 +405,14 @@ export function sessionEdgeHash(
     ordered: boolean,
 ): LanePair {
     const [u, v] = graph.endpoints(row);
+    const id = fileId ?? mintedEdgeId(counter);
+    // Ends already hashed (a first freeze hashes every node) are read, not hashed again per edge:
+    // at 1M edges that was about 0.2 s of the first freeze. An id discriminates, so no ordinal is read.
+    if (graph.hashOf !== undefined) {
+        return hashEdgeEnds(graph.hashOf(u), graph.hashOf(v), ordered, id, -1, -1);
+    }
 
-    return hashEdgeMember(
-        { source: graph.idOf(u), target: graph.idOf(v), id: fileId ?? mintedEdgeId(counter) },
-        ordered,
-    );
+    return hashEdgeMember({ source: graph.idOf(u), target: graph.idOf(v), id }, ordered);
 }
 
 /** The four identity columns of a snapshot, read or computed. */

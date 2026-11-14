@@ -1,5 +1,5 @@
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
@@ -19,7 +19,7 @@ import { baseTest } from "../vitest.base.mjs";
  */
 function figmaStudyDir(): string | null {
     if (process.env.FIGMA_STUDY_DIR) {
-        return process.env.FIGMA_STUDY_DIR;
+        return resolve(process.env.FIGMA_STUDY_DIR);
     }
     for (let dir = __dirname; dir !== dirname(dir); dir = dirname(dir)) {
         const candidate = join(dir, "design/ui/figma");
@@ -48,7 +48,8 @@ const readFigmaCapture: BrowserCommand<[path: string]> = (_ctx, path) => {
         throw new Error("the Figma study (design/ui/figma) is not in this checkout; set FIGMA_STUDY_DIR");
     }
     const file = resolve(root, `${path}.styles.json`);
-    if (!file.startsWith(root)) {
+    const inside = relative(root, file);
+    if (inside.startsWith("..") || isAbsolute(inside)) {
         throw new Error(`${path} is outside the Figma study`);
     }
     return JSON.parse(readFileSync(file, "utf8")) as unknown;
@@ -340,6 +341,9 @@ const config = defineConfig({
                 test: {
                     name: "default",
                     globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
                     environment: "jsdom",
                     setupFiles: ["./tests/setup.ts"],
                     include: ["tests/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
@@ -360,6 +364,9 @@ const config = defineConfig({
                 test: {
                     name: "browser",
                     globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.browser.test.{ts,tsx}"],
@@ -385,6 +392,9 @@ const config = defineConfig({
                 test: {
                     name: "touch",
                     globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.touch.browser.test.{ts,tsx}"],
                     fileParallelism: false,
@@ -405,6 +415,9 @@ const config = defineConfig({
                 test: {
                     name: "scrollbars",
                     globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.scrollbars.browser.test.{ts,tsx}"],
                     fileParallelism: false,
@@ -423,6 +436,7 @@ const config = defineConfig({
                 optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "storybook",
+                    restoreMocks: true,
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.storybook.test.{ts,tsx}"],

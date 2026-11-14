@@ -12,8 +12,9 @@ import { type GraphSnapshot } from "@graphty/graph-format";
 import { minimumSpanningTree } from "../../src/algorithms/mst.js";
 import { type GpuContext } from "../../src/context.js";
 import { type GpuMstResult } from "../../src/types/structure.js";
-import { type EdgeSpec, KARATE_EDGES, randomEdgesLoose, snapshotOf, xorshift } from "./graphs.js";
 // type-only: sabotage.ts pulls in the Node GPU setup, and the browser project imports this file
+import { refusedReport } from "./check-report.js";
+import { type EdgeSpec, KARATE_EDGES, randomEdgesLoose, snapshotOf, xorshift } from "./graphs.js";
 import type { CheckReport } from "./sabotage.js";
 
 /** The relative tolerance of `totalWeight`: both sides sum the same f32 weights in f64, in different orders. */
@@ -113,8 +114,8 @@ function checkGraphs(): [string, GraphSnapshot][] {
 }
 
 /**
- * The sabotage check of `mst-best` and `mst-link`: the device forest against `kruskalMST` on the graphs above; a throw
- * is Infinity.
+ * The sabotage check of `mst-best` and `mst-link`: the device forest against `kruskalMST` on the graphs above; a refused
+ * result (E_VALIDATION) is Infinity, any other error is rethrown.
  * @param ctx - the context
  * @returns the merged report
  */
@@ -123,8 +124,8 @@ export async function mstReport(ctx: GpuContext): Promise<CheckReport> {
     for (const [label, s] of checkGraphs()) {
         try {
             reports.push(mstAgreement(label, s, await minimumSpanningTree(ctx, s)));
-        } catch {
-            reports.push({ worst: Infinity, worstLabel: `${label} threw`, samples: 1 });
+        } catch (err) {
+            reports.push(refusedReport(label, err));
         }
         ctx.release(s);
     }

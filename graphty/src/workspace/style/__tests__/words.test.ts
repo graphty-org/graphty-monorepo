@@ -1,6 +1,6 @@
 import { channelsFor, PALETTE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { GraphtyError } from "@graphty/graphty-element/session";
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import {
     bindLabel,
@@ -12,6 +12,7 @@ import {
     failureWords,
     hiddenByWords,
     locationOfCell,
+    logUnexpected,
     madeWords,
     matchesWordStart,
     paletteWord,
@@ -144,6 +145,26 @@ describe("failure notices", () => {
 
     it("say only what failed when the reason is not one the app words", () => {
         assert.equal(failureWords("The layer", "added", new Error("boom")), "The layer could not be added.");
+    });
+});
+
+describe("an error a quiet catch answers", () => {
+    const coded = (code: "E_UNKNOWN_LAYER" | "E_INTERNAL" | "E_DISPOSED" | "E_BAD_COMMAND"): GraphtyError =>
+        new GraphtyError({ code, message: code, source: "style" });
+
+    it("is logged when it is a bug, never when it is a refusal the caller answers", () => {
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        try {
+            assert.isTrue(logUnexpected("a", new TypeError("x")));
+            assert.isTrue(logUnexpected("a", coded("E_INTERNAL")));
+            assert.isFalse(logUnexpected("a", coded("E_BAD_COMMAND")));
+            assert.isFalse(logUnexpected("a", coded("E_UNKNOWN_LAYER"), ["E_UNKNOWN_LAYER"]));
+            assert.isTrue(logUnexpected("a", coded("E_BAD_COMMAND"), ["E_UNKNOWN_LAYER"]));
+            assert.isFalse(logUnexpected("a", coded("E_DISPOSED"), ["E_UNKNOWN_LAYER"]));
+            assert.equal(logged.mock.calls.length, 3);
+        } finally {
+            logged.mockRestore();
+        }
     });
 });
 

@@ -19,11 +19,11 @@ const engines: [string, object][] = [
     ["bipartite", { nodes: ["a", "c"] }],
     ["circular", {}],
     ["grid", {}],
-    ["kamada-kawai", {}],
+    ["kamada-kawai", { seed: 42 }], // its 3D start is random without a seed
     ["multipartite", { subsetKey: { first: ["a", "c"], second: ["b", "d"] } }],
     ["planar", {}],
     ["radial", {}],
-    ["random", { seed: 1 }],
+    ["random", { seed: 42 }], // unseeded by default, so each run would scatter differently
     ["shell", {}],
     ["spectral", {}],
     ["spiral", {}],

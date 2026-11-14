@@ -59,10 +59,27 @@ export interface TileCounts {
     failed: number;
 }
 
+/**
+ * Why a tile failed. `code` is `load` when the loader rejected or threw (`cause` is what it gave:
+ * for the default loader, the image's error, which a browser gives alike for CORS, 403, 404 and
+ * 429), or `no-canvas` when a `tone: "gray"` source has no 2D canvas to make its gray picture with
+ * (Node, a worker).
+ */
+export interface MapTileError {
+    /** The source's index, bottom layer first. */
+    layer: number;
+    /** The tile's or picture's URL. */
+    url: string;
+    code: "load" | "no-canvas";
+    cause: unknown;
+}
+
 /** What a map is doing: tiles loading, loaded and failed, over every source and per source. */
 export interface MapStatus extends TileCounts {
     /** The same counts for each source, bottom layer first. */
     layers: TileCounts[];
+    /** Why each failed tile failed. */
+    errors: MapTileError[];
 }
 
 /** A source's credit, and where it links to. */
@@ -93,6 +110,8 @@ interface Entry {
     failures: number;
     /** When a failed tile may be asked for again, in `Date.now()` milliseconds. */
     retryAt: number;
+    /** Why its last load failed. */
+    error?: { code: MapTileError["code"]; cause: unknown };
 }
 
 /** What one wanted tile is drawn with. */
@@ -172,15 +191,43 @@ export const loadTexture: TextureLoader = (url, scene) =>
     });
 
 /**
+ * The gray pictures made in this page, by the URL of their picture. Making one takes seconds on a
+ * slow machine (a full-size read and re-encode), and a flat map that continues past the
+ * antimeridian draws the same picture once per world copy, so each is made once and shared. Only
+ * a picture source has a tone, so this holds one entry per gray picture used, never per tile.
+ */
+const grayPictures = new Map<string, Promise<string>>();
+
+/** A gray picture was asked for where there is no 2D canvas to make it with. */
+class NoCanvasError extends Error {}
+
+/**
+ * {@link grayPicture}, made once per picture; a failure is not kept, so a retry makes it again.
+ * @param url - The picture's URL.
+ * @returns A data URL of the gray picture.
+ */
+function sharedGrayPicture(url: string): Promise<string> {
+    let picture = grayPictures.get(url);
+    if (picture === undefined) {
+        picture = grayPicture(url);
+        grayPictures.set(url, picture);
+        picture.catch(() => {
+            grayPictures.delete(url);
+        });
+    }
+    return picture;
+}
+
+/**
  * A picture as a light gray backdrop: each pixel's luminance, compressed into the light end, so
  * the land and water still read and anything drawn over it stands out. Needs a DOM canvas; without
- * one (Node) the picture is returned as it is.
+ * one (Node, a worker) it rejects with a {@link NoCanvasError}, never drawing the picture in color.
  * @param url - The picture's URL.
- * @returns A data URL of the gray picture, or `url`.
+ * @returns A data URL of the gray picture.
  */
 async function grayPicture(url: string): Promise<string> {
     if (typeof document === "undefined" || typeof Image === "undefined") {
-        return url;
+        throw new NoCanvasError(url);
     }
     const image = new Image();
     image.crossOrigin = "anonymous";
@@ -196,9 +243,10 @@ async function grayPicture(url: string): Promise<string> {
     const canvas = document.createElement("canvas");
     canvas.width = image.naturalWidth;
     canvas.height = image.naturalHeight;
-    const context = canvas.getContext("2d");
+    // Read back once in full: a canvas kept on the CPU reads its pixels without a GPU round trip.
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     if (context === null) {
-        return url;
+        throw new NoCanvasError(url);
     }
     context.drawImage(image, 0, 0);
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -227,8 +275,9 @@ export abstract class MapSurface {
     /** Every map mesh is a child of this node; move, rotate or scale it to place the map. */
     readonly root: TransformNode;
     /**
-     * Fires when the drawn picture changes (a tile loaded or failed, or the sources drawn and so the
-     * credits changed); render a frame then.
+     * Fires when the drawn picture changes (a tile loaded or failed, the sources drawn and so the
+     * credits changed, or the sources, frame, radius or how far the map goes were set); render a
+     * frame then.
      */
     readonly onChangedObservable = new Observable<MapSurface>();
 
@@ -319,12 +368,16 @@ export abstract class MapSurface {
     get status(): MapStatus {
         const layers = this.layers.map(() => ({ loading: 0, ready: 0, failed: 0 }));
         const status = { loading: 0, ready: 0, failed: 0 };
+        const errors: MapTileError[] = [];
         for (const e of this.entries.values()) {
             const state = e.state === "queued" ? "loading" : e.state;
             status[state]++;
             layers[e.layer.index][state]++;
+            if (e.state === "failed" && e.error) {
+                errors.push({ layer: e.layer.index, url: e.layer.resolved.url(e.tile), ...e.error });
+            }
         }
-        return { ...status, layers };
+        return { ...status, layers, errors };
     }
 
     /**
@@ -354,7 +407,7 @@ export abstract class MapSurface {
         this.disposeCaps();
         this.queue.length = 0;
         this.drawn = new Set();
-        this.dirty = true;
+        this.changed();
     }
 
     /**
@@ -546,7 +599,7 @@ export abstract class MapSurface {
             this.disposeMesh(e);
         }
         this.disposeCaps();
-        this.dirty = true;
+        this.changed();
     }
 
     /** Something changed the picture: update before the next render, and tell the host to render. */
@@ -842,15 +895,21 @@ export abstract class MapSurface {
             entry.state = "loading";
             this.inflight++;
             const url = entry.layer.resolved.url(entry.tile);
-            const load =
-                entry.layer.resolved.tone === "gray"
-                    ? grayPicture(url).then((source) => this.options.loadTexture(source, this.scene))
-                    : this.options.loadTexture(url, this.scene);
+            // Started at once, inside the executor: a loader that throws before returning a promise
+            // fails the tile, never the render.
+            const load = new Promise<BaseTexture>((resolve) => {
+                resolve(
+                    entry.layer.resolved.tone === "gray"
+                        ? sharedGrayPicture(url).then((source) => this.options.loadTexture(source, this.scene))
+                        : this.options.loadTexture(url, this.scene),
+                );
+            });
             load.then(
                 (texture) => {
                     this.loaded(entry, texture);
                 },
-                () => {
+                (cause: unknown) => {
+                    entry.error = { code: cause instanceof NoCanvasError ? "no-canvas" : "load", cause };
                     this.loaded(entry, null);
                 },
             );

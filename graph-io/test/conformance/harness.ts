@@ -18,8 +18,9 @@ import { type Column, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@gr
 import { collectBytes } from "../../src/common/writer.js";
 import { importAllGraphs, importGraph, type ImportGraphResult, listGraphs, registry } from "../../src/registry.js";
 import { SNIFF_HEAD_BYTES } from "../../src/sniff.js";
-import { ImportError, type ImportReport } from "../../src/types.js";
-import { compareSnapshots } from "../helpers/roundtrip.js";
+import { ImportError, type ImportReport, type LossNote } from "../../src/types.js";
+import { compareSnapshots, type SnapshotDiff, valuesEqual } from "../helpers/roundtrip.js";
+import { isAnnouncedRefusal } from "./generative.js";
 
 /** test/conformance/fixtures. */
 const FIXTURES_ROOT = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -111,10 +112,16 @@ export interface Fixture {
     readonly options?: Readonly<Record<string, unknown>>;
     /** The expected result. */
     readonly expected: Expected;
-    /** Set when graph-io does not meet the expectation today: the cause and its sources.md section. */
+    /** Set when graph-io does not meet the expectation today: the cause, its sources.md section and its tracking issue (#N). */
     readonly knownFailure?: string;
-    /** Set when the import -> export -> import round trip does not hold today: the cause. */
+    /** Set when the import -> export -> import round trip does not hold today: the cause and its tracking issue (#N). */
     readonly roundTripFailure?: string;
+    /**
+     * Set when the exporter refuses this graph by design under its default options (the file needs
+     * an option such as `sanitizeIds: "mangle"`): the E_ code check() must announce and export()
+     * must throw. The round trip then checks the refusal instead of the read-back.
+     */
+    readonly roundTripRefusal?: string;
     /** networkx-differential only: where networkx's own read-back departs from the spec, and why the expectation does not follow it. */
     readonly networkxDisagrees?: string;
     /** Where the oracle departs from the specification: what it does instead, and why the expectation follows the spec. */
@@ -501,10 +508,101 @@ export function roundTrips(format: string, fixture: Fixture): boolean {
     return fixture.expected.outcome === "pass" && fixture.knownFailure === undefined && registry.hasExporter(format);
 }
 
+/** The paths of one column's differences: the column, a cell or a part of its declaration. */
+const columnPath = (name: string): RegExp =>
+    new RegExp(
+        `^(nodes|edges|graph)\\.${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\[\\d+\\]|\\.(dtype|itemDtype|components|role|origin\\.type|length))?$`,
+    );
+
+/** The row of a cell path ("nodes.label[3]": 3), or -1. */
+const rowOf = (path: string): number => Number(/\[(\d+)\]$/.exec(path)?.[1] ?? -1);
+
+/** A value with every non-finite number (nested in lists too) as null: what JSON writes for it. */
+const nonFiniteAsNull = (v: unknown): unknown => {
+    if (typeof v === "number") {
+        return Number.isFinite(v) ? v : null;
+    }
+    return Array.isArray(v) ? v.map(nonFiniteAsNull) : v;
+};
+
 /**
- * Import a fixture, export it in its own format and import that again. Without loss notes from
- * the exporter's check() the two snapshots must be equal; with notes, the declared losses are
- * allowed and only the shape (direction, node and edge counts) must survive.
+ * A non-finite number written as null: a cell that reads back as null or unset, or a column of
+ * nothing else that reads back absent.
+ * @param d - the difference
+ * @param first - the snapshot that was exported
+ * @returns true when the note explains it
+ */
+function nonFiniteWaived(d: SnapshotDiff, first: GraphSnapshot): boolean {
+    if (d.actual === "absent") {
+        const [table, ...rest] = d.path.split(".");
+        const column =
+            table === "nodes" || table === "edges" || table === "graph" ? first[table].get(rest.join(".")) : null;
+        if (column === null) {
+            return false;
+        }
+        for (let r = 0; r < column.length; r++) {
+            if (column.isSet(r) && nonFiniteAsNull(column.value(r)) !== null) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return rowOf(d.path) >= 0 && valuesEqual(nonFiniteAsNull(d.expected), d.actual ?? null, 0);
+}
+
+/**
+ * The differences a note announces beyond its own columns, by note code: each takes exactly the
+ * difference the note's message describes.
+ */
+const NOTE_WAIVERS: Readonly<
+    Partial<Record<string, (d: SnapshotDiff, note: LossNote, first: GraphSnapshot) => boolean>>
+> = {
+    // the importer's record of mangled ids reads back as the node ids
+    W_ROLE_ASSUMED: (d, note, first) => {
+        const column = note.column === null ? null : first.nodes.get(note.column);
+        const row = rowOf(d.path);
+        return d.path.startsWith("ids[") && column?.isSet(row) === true && Object.is(column.value(row), d.actual);
+    },
+    // Pajek numbers the nodes 1..N and keeps an old id as the label of a node without one
+    W_ID_RENUMBERED: (d, _note, first) => {
+        const row = rowOf(d.path);
+        if (d.path.startsWith("ids[")) {
+            return d.actual === row + 1;
+        }
+        return (
+            d.path.startsWith("nodes.label[") && d.expected === undefined && d.actual === String(first.ids.idOf(row))
+        );
+    },
+    W_NONFINITE_AS_NULL: (d, _note, first) => nonFiniteWaived(d, first),
+    W_CX2_NONFINITE_AS_NULL: (d, _note, first) => nonFiniteWaived(d, first),
+    // the edge table drops exactly the isolated nodes
+    W_CSV_ISOLATED_NODES: (d, note) =>
+        d.path === "nodeCount" && note.count !== null && d.actual === (d.expected as number) - note.count,
+};
+
+/**
+ * Whether one of the exporter's notes announces a difference: a note about a column (or several)
+ * announces any difference in that column, and the notes in NOTE_WAIVERS announce the exact
+ * difference their message describes. A note announces nothing else.
+ * @param d - the difference
+ * @param notes - check()'s notes
+ * @param first - the snapshot that was exported
+ * @returns true when a note announces it
+ */
+function announced(d: SnapshotDiff, notes: readonly LossNote[], first: GraphSnapshot): boolean {
+    return notes.some((note) => {
+        const columns = note.column === null ? (note.columns ?? []) : [note.column];
+        return (
+            columns.some((name) => columnPath(name).test(d.path)) ||
+            (NOTE_WAIVERS[note.code]?.(d, note, first) ?? false)
+        );
+    });
+}
+
+/**
+ * Import a fixture, export it in its own format and import that again. The two snapshots must be
+ * equal but for the differences check()'s loss notes announce (see announced()); one note does
+ * not waive the ids, the topology, the weights or another column.
  * @param format - the format name
  * @param fixture - the fixture
  * @returns the problems found, empty when the round trip holds
@@ -516,6 +614,11 @@ export async function checkRoundTrip(format: string, fixture: Fixture): Promise<
         // a session's node ids are Cytoscape SUIDs; a 2.x session's are names, which need new ones
         const options = format === "cys" ? { sanitizeIds: "mangle" as const } : {};
         const notes = exporter.check(first.snapshot, options);
+        if (fixture.roundTripRefusal !== undefined) {
+            return await checkRefusal(fixture.roundTripRefusal, notes, () =>
+                exporter.exportToString(first.snapshot, options),
+            );
+        }
         // a session is a zip archive: only export() writes it
         const written =
             format === "cys"
@@ -525,18 +628,39 @@ export async function checkRoundTrip(format: string, fixture: Fixture): Promise<
         // a note that names the reading option a file needs (Typedef nodes) is followed
         const typedefs = notes.some((n) => n.code === "W_TYPEDEF_NODES");
         const second = await importGraph(written, typedefs ? { format, typedefs: "nodes" } : { format });
-        if (notes.length === 0) {
-            return compareSnapshots(first.snapshot, second.snapshot, { tolerance: 1e-9, limit: 5 }).map(
-                (d) => d.message,
-            );
-        }
-        return compareSnapshots(first.snapshot, second.snapshot, { limit: 1 })
-            .filter((d) => d.path === "directed" || d.path === "nodeCount" || d.path === "edgeCount")
-            .map((d) => `${d.message} (despite loss notes: ${notes.map((n) => n.code).join(", ")})`);
+        const codes = notes.length === 0 ? "" : ` (loss notes: ${[...new Set(notes.map((n) => n.code))].join(", ")})`;
+        return compareSnapshots(first.snapshot, second.snapshot, { tolerance: 1e-9, limit: Infinity })
+            .filter((d) => !announced(d, notes, first.snapshot))
+            .slice(0, 5)
+            .map((d) => `${d.message}${codes}`);
     } catch (err) {
         const name = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
         return [`threw: ${name.slice(0, 300)}`];
     }
+}
+
+/**
+ * Check a declared refusal: check() announces the note and export() throws the refusal error
+ * that carries it out (E_ID_CHARSET is thrown as E_INVALID_ID).
+ * @param code - the E_ note code
+ * @param notes - check()'s notes
+ * @param write - the export
+ * @returns the problems, empty when the refusal is as declared
+ */
+async function checkRefusal(code: string, notes: readonly LossNote[], write: () => Promise<string>): Promise<string[]> {
+    const announced = notes.filter((n) => n.code.startsWith("E_")).map((n) => n.code);
+    const problems = announced.includes(code)
+        ? []
+        : [`check() announced ${announced.join(", ") || "no E_ code"}, not ${code}`];
+    try {
+        await write();
+        problems.push(`export() wrote the file instead of refusing it with ${code}`);
+    } catch (err) {
+        if (!isAnnouncedRefusal(err, [code])) {
+            problems.push(`export() threw ${String((err as { code?: unknown }).code)}, not the refusal of ${code}`);
+        }
+    }
+    return problems;
 }
 
 /**

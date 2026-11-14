@@ -35,7 +35,7 @@ import {
 } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { link, linked, unlink } from "./connection";
+import { failureOf, link, linked, unlink } from "./connection";
 import { PROVIDER_PAGES } from "./providerPages";
 import { effortRows, endWords, keyHelpWords, keyShapeWords, providerWords, WORDS } from "./words";
 
@@ -182,7 +182,10 @@ export default function AiProviderSection({
     const saveButton = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         if (element !== null && saved !== null) {
-            void linked(element, store, saved).catch(() => undefined);
+            linked(element, store, saved).catch((error: unknown) => {
+                const failed = failureOf(error, "AI_NOT_ENABLED");
+                setProblem(endWords(failed.code, failed.params, saved.provider, false)?.line ?? null);
+            });
         }
     }, [element, store, saved]);
     useEffect(() => {
@@ -219,8 +222,9 @@ export default function AiProviderSection({
         try {
             await link(element, store, choice, typed === "" ? undefined : typed);
             writeAssistantChoice(choice);
-        } catch {
-            setProblem(endWords("AI_CONFIG_INVALID", {}, provider, false)?.line ?? null);
+        } catch (error) {
+            const failed = failureOf(error, "AI_CONFIG_INVALID");
+            setProblem(endWords(failed.code, failed.params, provider, false)?.line ?? null);
             keyField.current?.focus();
             return;
         }

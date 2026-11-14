@@ -79,8 +79,10 @@ fragment W on Comment { author { __typename login } editor { __typename login } 
   node tools/issue-queue.mjs filter | tee "$d/state.json"
 gh run list -R graphty-org/graphty-monorepo --workflow ci.yml --branch master --event push --limit 3 \
   --json status,conclusion,headSha,url --jq '.[] | "\(.status) \(.conclusion) \(.headSha[0:9]) \(.url)"'
-for wf in deploy-pages.yml release.yml; do gh run list -R graphty-org/graphty-monorepo --workflow $wf --status completed \
-  --limit 1 --json conclusion,headSha,databaseId,url --jq ".[] | \"$wf \(.conclusion) \(.headSha[0:9]) \(.url)\""; done
+gh run list -R graphty-org/graphty-monorepo --workflow deploy-pages.yml --status completed --limit 1 \
+  --json conclusion,headSha,url --jq '.[] | "deploy-pages.yml \(.conclusion) \(.headSha[0:9]) \(.url)"'
+# the newest full run's verdict: its Verdict job's record (artifact verdict-<attempt>) unless the run succeeded
+gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 10 --json databaseId,conclusion,headSha --jq '.[]|"\(.databaseId) \(.conclusion) \(.headSha[0:9])"' | while read id c sha; do s=$c; if [ "$c" != success ]; then v=$(mktemp -d); gh run download $id -R graphty-org/graphty-monorepo -p 'verdict-*' -D $v >/dev/null 2>&1; s=$(jq -rs 'max_by(.attempt)|if .forward then "forward" elif .deferred or .state==null then "" else .state end' $v/*/*.json 2>/dev/null); [ -z "$s" ] && { [ "$c" = cancelled ] && continue; s=$c; }; fi; [ "$s" = forward ] && continue; echo "release.yml $s $sha run $id"; break; done
 ```
 
 issue-round runs the block with `ROUND=issue-round` set, so it writes `tmp/issue-round/state.json` and two clients do
@@ -88,8 +90,15 @@ not overwrite each other. `marked` returns at most 30 issues with their last 20 
 say so and work on what it returned. If git, the broker file or GitHub cannot be read, say so in one line and end the
 round: unknown is a state, not "nothing to do". If the broker's `fetchedAt` is more than a few minutes old, start it
 (see "The GitHub API budget" in CLAUDE.md). master's build is **red** when the newest _completed_ run above failed (an
-in-progress run is no verdict). **Master is red** -- the owner's meaning (2026-10-26) -- when the newest completed full
-run (the `release.yml` line above) failed, or master's build is red.
+in-progress run is no verdict). **Master is red** -- the owner's meaning (2026-10-26) -- when the newest full run's
+verdict (the `release.yml` line above) is not green, or master's build is red. The line walks the newest completed
+`release.yml` runs: a `success` run is green; any other run is judged by the state its Verdict job recorded (the
+newest attempt's `verdict-<attempt>` artifact), so a run whose lanes all passed is green (`green-clean`,
+`green-images`) even when an advisory job left its conclusion `cancelled` or `failure`, and `owner-item` is the
+owner's, not red. A `failure` with no usable record (the Verdict job crashed, an attempt 1 deferred to a re-run that
+never decided, an artifact that could not be read) stays `failure`, which is red. Skipped: a `cancelled` run with no
+record (someone cancelled it) and a run on a held candidate (`forward`, not master's). An empty line is unknown, which
+is red.
 
 ## Renewing the loop
 
@@ -100,24 +109,36 @@ created; a one-client loop running both skills keeps it under `tmp/pipeline-roun
 a job CronList no longer shows, or is 6 days old or more: CronCreate a new recurring job with the same cron and prompt,
 CronDelete the old one if it is still listed, and rewrite the file.
 
+**A lapsed issue loop.** issue-round writes `tmp/issue-round/last-round` every round (an ISO time and its session).
+Every pipeline-round reads it. When it is more than 75 minutes old and the owner did not stop that loop on purpose
+(a loop the owner stopped is a pause, not a lapse), send one `SendMessage` to that session if `ListAgents` finds it,
+saying its loop lapsed and to run "Renewing the loop", and write `tmp/pipeline-round/lapse-messaged` (the
+`last-round` line it answered): message once per lapse, never again while `last-round` is unchanged. When no such
+session is found, put
+`issue loop lapsed <N> h, no session` in the round's last line; pipeline-round never starts issue work itself. The
+2026-11-12 lapse went unnoticed for 10 hours.
+
 ## While master is red
 
 Work continues; pull requests wait. A pull request opened onto a red master only queues behind its fix and lands on a
 base nobody has tested.
 
-- **Jobs still start**, up to the free test slots (issue-round's step 1). CI's runners are not checked for them: they
+- **Jobs still start**, by issue-round's step 1. CI's runners are not checked for them: they
   open nothing until master is green.
 - **A job stops before its pull request.** Just before opening it, the job reads master's state itself (see "Subagent
   rules"); while master is red it stops after its commit, its push and `pipeline-round: ready <branch> <sha>`, and runs
   no `pr-open.sh`.
 - **Master's fix and its reverts open at once**, and a fix job for a red master or a red full run takes a test slot
   before any issue job: issue-round starts no job while one waits for a slot.
-- **When master is green**, each pipeline-round opens the queued `ready` branches (its step 9), oldest first, a few
-  at a time, as many as CI's runners allow (the `pipeline-health` MCP tool `runners`), each through `tools/pr-open.sh`,
-  which merges master first.
-- **The ready queue's cap is 20** branches whose newest marker is `ready` with no open pull request. At the cap,
-  issue-round starts no new fix job and does no-PR work instead (its step 1), so the queue does not bury master in
-  conflicts when it opens.
+- **When master is green**, each pipeline-round opens the queued `ready` branches (its step 9), oldest first, one
+  after another while CI's runners allow (the `pipeline-health` MCP tool `runners`, checked again after each), each
+  through `tools/pr-open.sh`, which merges master first. Queued branches can conflict with each other as master moves:
+  an exit 2 goes to a fix subagent.
+- **No cap on the ready queue.** A cap stops issue work to protect master from a burst that step 9 already paces; on
+  2026-11-13 eighteen finished branches waited about 6 hours behind a red master while the queue was frozen.
+- **Master red for more than 1 hour with no fix job running is pipeline-round's first item**, including a red
+  verdict with every test green (a full run whose benchmark job hit its time limit held everything for 5.3 hours on
+  2026-11-13). Never call such a run green: fix or re-run what made the verdict red.
 
 ## Markers
 
@@ -197,10 +218,11 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > holds the commands you ran and what they showed; keep it in tmp/<name>/, because an untracked file in the worktree
 > is refused), write `pipeline-round: opened <branch> <url>` on the issue, and
 > stop. Unless your job is master's fix or revert, first check master yourself, just before opening:
-> `gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 10 --json conclusion
---jq '[.[]|select(.conclusion=="success" or .conclusion=="failure")][0].conclusion'` (the newest full run that
-> reached a verdict: a cancelled run says nothing) and the same for `ci.yml --branch master --event push`; while
-> either is `failure`, master is red: stop after the commit, the push and `pipeline-round: ready <branch> <full sha>` on every issue of the group,
+> `gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 10 --json databaseId,conclusion,headSha --jq '.[]|"\(.databaseId) \(.conclusion) \(.headSha[0:9])"' | while read id c sha; do s=$c; if [ "$c" != success ]; then v=$(mktemp -d); gh run download $id -R graphty-org/graphty-monorepo -p 'verdict-*' -D $v >/dev/null 2>&1; s=$(jq -rs 'max_by(.attempt)|if .forward then "forward" elif .deferred or .state==null then "" else .state end' $v/*/*.json 2>/dev/null); [ -z "$s" ] && { [ "$c" = cancelled ] && continue; s=$c; }; fi; [ "$s" = forward ] && continue; echo "release.yml $s $sha run $id"; break; done`
+> (the newest full run's verdict, whatever the run's GitHub conclusion)
+> and master's newest build that reached a verdict:
+> `gh run list -R graphty-org/graphty-monorepo --workflow ci.yml --branch master --event push --status completed --limit 10 --json conclusion --jq '[.[]|select(.conclusion=="success" or .conclusion=="failure")][0].conclusion'`;
+> unless the first prints `green-clean`, `green-images`, `owner-item` or `success` and the second `success`, master is red (an empty line is unknown, which counts as red): stop after the commit, the push and `pipeline-round: ready <branch> <full sha>` on every issue of the group,
 > without `pr-open.sh` (a later round opens it once master is green). Always: never wait for CI, never merge, never push to master; never git stash, reset, restore, clean or check out
 > files, nor write a tracked file back from git any other way (`git show HEAD:<file> > <file>`): if a run rewrites a
 > tracked file, leave it uncommitted and say so in your report; never cherry-pick or rebase (merge instead); read issues only with `node tools/issue-queue.mjs show <n>`, never

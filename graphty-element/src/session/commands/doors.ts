@@ -692,11 +692,11 @@ const ADD_FROM_SOURCE = calls(
     [imports("merge", { type: "json", config: { data: TINY_JSON } })],
 );
 
-/** Loading from a URL: the text fetched, and the id path the element reads. */
-const LOAD_FROM_URL = calls(
-    [TINY_JSON_URL],
-    [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES, nodeIdPath: "id" } })],
-);
+/**
+ * Loading from a URL: the bytes fetched, and no id path, since the element's is the default "id" and
+ * naming it would turn off the JSON reader's own-shape reading.
+ */
+const LOAD_FROM_URL = calls([TINY_JSON_URL], [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES } })]);
 
 /**
  * Loading from a URL on the element, whose rows above set the node id path to `key` and the edge
@@ -2162,6 +2162,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getSnapshot: LANE,
             undirected: READ,
             nodeAtRow: READ,
+            nodeIdAtRow: READ,
             positions: LANE,
             seededNodeCount: READ,
             directionSettledBy: READ,
@@ -3179,10 +3180,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             start: calls(["degree"], [RUN_DEGREE]),
             answered: READ,
             batch: calls([[{ algorithm: "degree" }]], [RUN_DEGREE]),
+            sweep: calls(
+                ["pagerank", "dampingFactor", [0.9]],
+                [
+                    {
+                        op: "algo.run",
+                        algorithm: "pagerank",
+                        params: { dampingFactor: 0.9 },
+                        as: "pagerank_dampingfactor_0_9",
+                    },
+                ],
+            ),
             get: READ,
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             move: calls(["door-run", null], [{ op: "algo.move", runId: "door-run", before: null }]),
+            rename: calls(["door-run", "Influence"], [{ op: "algo.rename", runId: "door-run", name: "Influence" }]),
             bindings: READ,
             readers: READ,
             painting: READ,

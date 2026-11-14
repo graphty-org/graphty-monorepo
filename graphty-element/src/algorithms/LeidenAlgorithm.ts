@@ -151,7 +151,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
         // Undirected: modularity is defined over unordered pairs.
         const { snapshot, run } = this.accelerated("leiden", "undirected");
 
-        context.report({ phase: "Refining communities", total: null });
+        context.report({ phase: "refining-communities", total: null });
 
         const { value: result, precision } = await run((dispatch, s) =>
             dispatch.leiden(s, {
@@ -163,7 +163,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
         );
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             nodes.push({ id: nodeId, values: { group: result.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
         });
 

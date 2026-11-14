@@ -1,5 +1,6 @@
 import type { Camera, Scene, WebXRDefaultExperience, WebXRDefaultExperienceOptions } from "@babylonjs/core";
 
+import { GraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger, type Logger } from "../logging";
 import { laserOnRows } from "./laserOnRows";
 
@@ -39,6 +40,8 @@ interface XRSessionConfig {
     };
     /** Whether XR sessions track hands (`xr.input.handTracking`). Defaults to true. */
     handTracking?: boolean;
+    /** Whether hands and controllers touch and grab up close (`xr.input.nearInteraction`). Defaults to true. */
+    nearInteraction?: boolean;
     /** Called once when a session the manager started ends, however it ended. */
     onSessionEnded?: (ended: { mode: "immersive-vr" | "immersive-ar"; cause: XRSessionEndCause }) => void;
 }
@@ -78,7 +81,7 @@ const OFFLINE_XR_OPTIONS = {
  */
 export class XRSessionManager {
     private readonly scene: Scene;
-    private readonly _config: XRSessionConfig;
+    private _config: XRSessionConfig;
     private xrHelper: WebXRDefaultExperience | null = null;
     private activeMode: "immersive-vr" | "immersive-ar" | null = null;
     private referenceSpaceType: XRGrantedReferenceSpaceType | null = null;
@@ -93,6 +96,15 @@ export class XRSessionManager {
         this.scene = scene;
         this._config = config;
         logger.debug("Created", { vr: config.vr, ar: config.ar });
+    }
+
+    /**
+     * Replace the configuration. A running session keeps going: the new settings apply from the
+     * next session started.
+     * @param config - XR session configuration
+     */
+    public configure(config: XRSessionConfig): void {
+        this._config = config;
     }
 
     /**
@@ -120,22 +132,7 @@ export class XRSessionManager {
      * @returns Promise resolving to true if VR is supported
      */
     public async isVRSupported(): Promise<boolean> {
-        if (!this.isXRSupported()) {
-            return false;
-        }
-
-        try {
-            // navigator.xr is guaranteed to exist after isXRSupported() check
-            const { xr } = navigator;
-            if (!xr) {
-                return false;
-            }
-
-            return await xr.isSessionSupported("immersive-vr");
-        } catch (error) {
-            console.warn("Failed to check VR support:", error);
-            return false;
-        }
+        return this.isSessionSupported("immersive-vr");
     }
 
     /**
@@ -143,20 +140,24 @@ export class XRSessionManager {
      * @returns Promise resolving to true if AR is supported
      */
     public async isARSupported(): Promise<boolean> {
-        if (!this.isXRSupported()) {
+        return this.isSessionSupported("immersive-ar");
+    }
+
+    /**
+     * Ask the browser whether it supports a session mode.
+     * @param mode - The session mode
+     * @returns True when it does; false without WebXR or when the browser fails to answer
+     */
+    private async isSessionSupported(mode: XRSessionMode): Promise<boolean> {
+        const xr = this.isXRSupported() ? navigator.xr : undefined;
+        if (!xr) {
             return false;
         }
 
         try {
-            // navigator.xr is guaranteed to exist after isXRSupported() check
-            const { xr } = navigator;
-            if (!xr) {
-                return false;
-            }
-
-            return await xr.isSessionSupported("immersive-ar");
+            return await xr.isSessionSupported(mode);
         } catch (error) {
-            console.warn("Failed to check AR support:", error);
+            logger.warn("Could not ask the browser whether it supports the mode", { mode, error });
             return false;
         }
     }
@@ -165,135 +166,115 @@ export class XRSessionManager {
      * Enter VR mode and optionally transfer camera position from a previous camera
      * @param previousCamera - Optional camera to copy position from
      * @returns Promise that resolves when VR session is active
+     * @throws A `GraphtyError`: `E_UNSUPPORTED` without WebXR, `E_XR_SESSION_FAILED` when the
+     *     session cannot start (see {@link XRSessionManager.enter})
      */
     public async enterVR(previousCamera?: Camera): Promise<void> {
-        if (!this.isXRSupported()) {
-            throw new Error("WebXR is not supported in this browser");
-        }
-
-        if (this.activeMode) {
-            throw new Error("An XR session is already active");
-        }
-
-        try {
-            logger.debug("Creating VR XR experience");
-
-            // Import WebXR module dynamically
-            const { WebXRDefaultExperience } = await import("@babylonjs/core");
-
-            this.xrHelper = await WebXRDefaultExperience.CreateAsync(this.scene, {
-                ...OFFLINE_XR_OPTIONS,
-                floorMeshes: [],
-                optionalFeatures: true,
-                disableTeleportation: true, // Match demo
-                // Babylon turns hand tracking on by default; the configuration decides instead.
-                disableHandTracking: this._config.handTracking === false,
-            });
-
-            // Actually enter the VR session
-            logger.debug("Entering VR session");
-            await this.enterSession(this.xrHelper, "immersive-vr", this._config.vr.referenceSpaceType);
-            logger.debug("Entered VR session");
-
-            // Log available features
-            const enabledFeatures = this.xrHelper.baseExperience.featuresManager.getEnabledFeatures();
-            logger.debug("Enabled XR features", { features: enabledFeatures.join(", ") });
-
-            // If previous camera provided and not VR-specific, optionally transfer position
-            if (previousCamera) {
-                const xrCamera = this.getXRCamera();
-                if (xrCamera) {
-                    xrCamera.position.copyFrom(previousCamera.position);
-                    logger.debug("Transferred camera position from previous camera");
-                }
-            }
-
-            this.activeMode = "immersive-vr";
-        } catch (error) {
-            console.error("🎮 [XRSessionManager] Failed to enter VR:", error);
-            this.xrHelper = null;
-            this.activeMode = null;
-            throw new Error(`Failed to enter VR mode: ${error instanceof Error ? error.message : String(error)}`);
-        }
+        await this.enter("immersive-vr", previousCamera);
     }
 
     /**
      * Enter AR mode and optionally transfer camera position from a previous camera
      * @param previousCamera - Optional camera to copy position from
      * @returns Promise that resolves when AR session is active
+     * @throws A `GraphtyError`: `E_UNSUPPORTED` without WebXR, `E_XR_SESSION_FAILED` when the
+     *     session cannot start (see {@link XRSessionManager.enter})
      */
     public async enterAR(previousCamera?: Camera): Promise<void> {
+        await this.enter("immersive-ar", previousCamera);
+    }
+
+    /**
+     * Build the WebXR experience, start a session in it, and put the XR camera where
+     * `previousCamera` stands. When the session cannot start, the experience built for it is
+     * disposed, so a failed attempt leaves nothing on the scene and the next one starts clean.
+     * @param mode - The session mode
+     * @param previousCamera - Optional camera to copy position from
+     * @returns Promise that resolves when the session is active
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` without WebXR, or with `E_XR_SESSION_FAILED`
+     *     (`details.mode`, the browser's error as `cause`) when another session is running or the
+     *     browser or headset refuses the session
+     */
+    private async enter(mode: "immersive-vr" | "immersive-ar", previousCamera?: Camera): Promise<void> {
+        const viewMode = mode === "immersive-vr" ? "vr" : "ar";
         if (!this.isXRSupported()) {
-            throw new Error("WebXR is not supported in this browser");
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `${viewMode.toUpperCase()} needs WebXR, and this browser has none.`,
+                source: "view",
+                details: { mode: viewMode, reason: "no-webxr" },
+            });
         }
 
         if (this.activeMode) {
-            throw new Error("An XR session is already active");
+            throw new GraphtyError({
+                code: "E_XR_SESSION_FAILED",
+                message: `Cannot enter ${viewMode.toUpperCase()}: an XR session is already running.`,
+                source: "view",
+                details: { mode: viewMode, reason: "active" },
+            });
         }
 
+        let helper: WebXRDefaultExperience | null = null;
         try {
-            logger.debug("Creating AR XR experience");
-
-            // Import WebXR module dynamically
+            logger.debug("Creating XR experience", { mode });
             const { WebXRDefaultExperience } = await import("@babylonjs/core");
-
-            // For AR, we explicitly DON'T request hand-tracking as an optional feature
-            // This prevents dots/spheres from appearing in AR mode
-            // Controller triggers still work for gestures without the hand tracking feature
-            this.xrHelper = await WebXRDefaultExperience.CreateAsync(this.scene, {
+            helper = await WebXRDefaultExperience.CreateAsync(this.scene, {
                 ...OFFLINE_XR_OPTIONS,
                 floorMeshes: [],
-                // Don't request all optional features - this prevents hand-tracking from being enabled
-                optionalFeatures: false,
+                // The session's optional features are the mode's `optionalFeatures`, asked for in
+                // enterSession; Babylon reads this option only for its own enter button, which is off.
                 disableTeleportation: true,
-                // Babylon enables its hand tracking feature regardless of optionalFeatures.
+                // Babylon turns hand tracking on by default; the configuration decides instead.
                 disableHandTracking: this._config.handTracking === false,
-                uiOptions: {
-                    sessionMode: "immersive-ar",
-                },
+                disableNearInteraction: this._config.nearInteraction === false,
+                ...(mode === "immersive-ar" ? { uiOptions: { sessionMode: mode } } : {}),
+            });
+            this.xrHelper = helper;
+
+            await this.enterSession(helper, mode, mode === "immersive-vr" ? this._config.vr : this._config.ar);
+            logger.debug("Entered XR session", {
+                mode,
+                features: helper.baseExperience.featuresManager.getEnabledFeatures().join(", "),
             });
 
-            logger.debug("AR mode: Created without hand tracking (controller gestures still work)");
-
-            // Actually enter the AR session
-            logger.debug("Entering AR session");
-            await this.enterSession(this.xrHelper, "immersive-ar", this._config.ar.referenceSpaceType);
-            logger.debug("Entered AR session");
-
-            // Log available features
-            const enabledFeatures = this.xrHelper.baseExperience.featuresManager.getEnabledFeatures();
-            logger.debug("Enabled XR features", { features: enabledFeatures.join(", ") });
-
-            // Always transfer camera position for AR mode
-            if (previousCamera) {
-                const xrCamera = this.getXRCamera();
-                if (xrCamera) {
-                    xrCamera.position.copyFrom(previousCamera.position);
-                    logger.debug("Transferred camera position from previous camera");
-                }
+            const xrCamera = this.getXRCamera();
+            if (previousCamera && xrCamera) {
+                xrCamera.position.copyFrom(previousCamera.position);
             }
 
-            this.activeMode = "immersive-ar";
+            this.activeMode = mode;
         } catch (error) {
-            console.error("🎮 [XRSessionManager] Failed to enter AR:", error);
+            logger.warn("Could not enter the XR session", { mode, error });
             this.xrHelper = null;
             this.activeMode = null;
-            throw new Error(`Failed to enter AR mode: ${error instanceof Error ? error.message : String(error)}`);
+            this.referenceSpaceType = null;
+            helper?.dispose();
+            throw new GraphtyError({
+                code: "E_XR_SESSION_FAILED",
+                message: `Cannot enter ${viewMode.toUpperCase()}: ${error instanceof Error ? error.message : String(error)}`,
+                source: "view",
+                recoverable: true,
+                details: { mode: viewMode },
+                cause: error,
+            });
         }
     }
 
     /**
      * Start the session, in the configured reference space or the first fallback the device grants
-     * (see {@link referenceSpaceFallbacks}), and watch for it to end.
+     * (see {@link referenceSpaceFallbacks}), with the mode's configured optional features
+     * requested, and watch for it to end.
      * @param helper - The XR experience the session runs in
      * @param mode - The session mode
-     * @param requested - The configured reference space type
+     * @param modeConfig - The mode's configuration
      */
     private async enterSession(
         helper: WebXRDefaultExperience,
         mode: "immersive-vr" | "immersive-ar",
-        requested: XRReferenceSpaceType,
+        modeConfig: XRSessionConfig["vr"],
     ): Promise<void> {
+        const requested = modeConfig.referenceSpaceType;
         const { baseExperience } = helper;
         const { sessionManager } = baseExperience;
         const candidates = referenceSpaceFallbacks(requested);
@@ -320,7 +301,8 @@ export class XRSessionManager {
         };
 
         // A fallback is granted only if the session was asked for it; "local" always is.
-        const optionalFeatures = candidates.slice(1).filter((type) => type !== "local");
+        const fallbacks = candidates.slice(1).filter((type) => type !== "local");
+        const optionalFeatures = [...new Set([...fallbacks, ...(modeConfig.optionalFeatures ?? [])])];
         await baseExperience.enterXRAsync(mode, requested, undefined, { optionalFeatures });
         logger.debug("Reference space", { requested, granted: this.referenceSpaceType });
         const stopLaserOnRows = laserOnRows(this.scene, helper);
@@ -369,7 +351,7 @@ export class XRSessionManager {
             this.xrHelper = null;
             this.activeMode = null;
             this.referenceSpaceType = null;
-            throw new Error(`Failed to exit XR mode: ${error instanceof Error ? error.message : String(error)}`);
+            throw GraphtyError.wrap(error, { code: "E_INTERNAL", message: "Failed to exit XR mode", source: "view" });
         } finally {
             this.exiting = false;
         }

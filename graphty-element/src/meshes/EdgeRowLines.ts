@@ -40,11 +40,53 @@ function noCap(cap: EdgeStyleConfig["arrowHead"]): boolean {
 }
 
 /** What a row line is drawn with: a straight pulled piece, the batch it came from, and its nodes' rows. */
-interface RowLine {
-    readonly batch: PulledLineBatch;
-    readonly piece: number;
-    readonly source: number;
-    readonly target: number;
+/** A row's batch column value when the row draws no line here. */
+const NO_LINE = -1;
+
+/** The first rows the line columns hold before they grow. */
+const FIRST_ROWS = 1024;
+
+/**
+ * The row lines, by edge row, as columns: no object per row line (43 B an edge at a million).
+ */
+class LineColumns {
+    /** Each row's batch, as its place in {@link batches}, or {@link NO_LINE}. */
+    batchOf = new Int32Array(FIRST_ROWS).fill(NO_LINE);
+    piece = new Int32Array(FIRST_ROWS);
+    source = new Int32Array(FIRST_ROWS);
+    target = new Int32Array(FIRST_ROWS);
+    /** 1 for a row the edge masks hide: its piece draws nothing, and keeps its rows here to be shown again. */
+    hidden = new Uint8Array(FIRST_ROWS);
+
+    has(row: number): boolean {
+        return (this.batchOf[row] ?? NO_LINE) !== NO_LINE;
+    }
+
+    set(row: number, batch: number, piece: number, source: number, target: number): void {
+        if (row >= this.batchOf.length) {
+            const rows = Math.max(row + 1, this.batchOf.length * 2);
+            const grown = (from: Int32Array<ArrayBuffer>): Int32Array<ArrayBuffer> => {
+                const to = new Int32Array(rows);
+                to.set(from);
+                return to;
+            };
+            const batchOf = grown(this.batchOf);
+            batchOf.fill(NO_LINE, this.batchOf.length);
+            this.batchOf = batchOf;
+            this.piece = grown(this.piece);
+            this.source = grown(this.source);
+            this.target = grown(this.target);
+            const hidden = new Uint8Array(rows);
+            hidden.set(this.hidden);
+            this.hidden = hidden;
+        }
+
+        this.batchOf[row] = batch;
+        this.piece[row] = piece;
+        this.source[row] = source;
+        this.target[row] = target;
+        this.hidden[row] = 0;
+    }
 }
 
 /** What a style draws a row line with ({@link EdgeRowLines.paintRow}); `setLook` copies `rgb`, so it is shared. */
@@ -75,7 +117,14 @@ export interface EdgeRowLinesHost {
  * a self-loop, a route the layout's map arcs, and an end drawn behind edges are the caller's to rule out.
  */
 export class EdgeRowLines {
-    private readonly lines = new Map<number, RowLine>();
+    /**
+     * Each drawn row's line, at its row: a million-row load spent about 0.3 s of CPU in a map keyed by row
+     * (design/rendering/cosmos-gap.md G8). Rows are dense, so the array stays packed when a load paints in order.
+     */
+    private lines = new LineColumns();
+    /** The batches the row lines are drawn in, one per look: a row names its batch by its place here. */
+    private readonly batches: PulledLineBatch[] = [];
+    private drawn = 0;
     private lastLook: RowLook | null = null;
 
     /**
@@ -89,7 +138,24 @@ export class EdgeRowLines {
      * @returns The count.
      */
     get count(): number {
-        return this.lines.size;
+        return this.drawn;
+    }
+
+    /**
+     * The objects held in plain arrays here, beyond the per-look batch list: every object slot of every
+     * other array field, so a list that keeps an object per row line shows up however it is named.
+     * @returns How many.
+     * @internal
+     */
+    get rowObjects(): number {
+        let count = 0;
+        for (const [key, value] of Object.entries(this)) {
+            if (key !== "batches" && Array.isArray(value)) {
+                count += value.filter((slot) => typeof slot === "object" && slot !== null).length;
+            }
+        }
+
+        return count;
     }
 
     /**
@@ -106,7 +172,7 @@ export class EdgeRowLines {
      * @returns Them, a copy.
      */
     rows(): number[] {
-        return [...this.lines.keys()];
+        return this.drawnRows();
     }
 
     /**
@@ -116,8 +182,36 @@ export class EdgeRowLines {
      * @internal
      */
     endsOf(row: number): [number, number] | undefined {
-        const line = this.lines.get(row);
-        return line === undefined ? undefined : [line.source, line.target];
+        const { lines } = this;
+        return lines.has(row) ? [lines.source[row], lines.target[row]] : undefined;
+    }
+
+    /**
+     * Whether an edge row's line is hidden ({@link EdgeRowLines.setHidden}).
+     * @param row - The edge row.
+     * @returns True for a drawn row that is hidden; false for a shown one or a row not drawn here.
+     * @internal
+     */
+    isHidden(row: number): boolean {
+        return this.lines.has(row) && this.lines.hidden[row] === 1;
+    }
+
+    /**
+     * Hide or show an edge row's line, as the edge masks say: its piece draws nothing while hidden and keeps its
+     * place, look and nodes' rows, so a time window that hides and shows rows builds no `Edge` and writes only the
+     * pieces' hidden flags. Nothing for a row not drawn here.
+     * @param row - The edge row.
+     * @param hidden - Whether it is hidden.
+     */
+    setHidden(row: number, hidden: boolean): void {
+        const { lines } = this;
+        if (!lines.has(row) || (lines.hidden[row] === 1) === hidden) {
+            return;
+        }
+
+        lines.hidden[row] = hidden ? 1 : 0;
+        this.batches[lines.batchOf[row]].setHidden(lines.piece[row], hidden);
+        this.host.requestFrame();
     }
 
     /**
@@ -200,11 +294,18 @@ export class EdgeRowLines {
             () => rows.positionTexture,
             { route: "straight", lean: this.host.lean() },
         );
-        const piece = batch.acquire();
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
-        batch.setLook(piece, look.rgb, look.opacity, EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20);
+        const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
+        const piece = batch.acquire(drawnWidth);
+        batch.setLook(piece, look.rgb, look.opacity, drawnWidth);
         batch.setRows(piece, source, target);
-        this.lines.set(row, { batch, piece, source, target });
+        let at = this.batches.indexOf(batch);
+        if (at === -1) {
+            at = this.batches.push(batch) - 1;
+        }
+
+        this.lines.set(row, at, piece, source, target);
+        this.drawn++;
         this.host.requestFrame();
         return true;
     }
@@ -214,10 +315,11 @@ export class EdgeRowLines {
      * @param row - The edge row.
      */
     unpaintRow(row: number): void {
-        const line = this.lines.get(row);
-        if (line !== undefined) {
-            line.batch.release(line.piece);
-            this.lines.delete(row);
+        const { lines } = this;
+        if (lines.has(row)) {
+            this.batches[lines.batchOf[row]].release(lines.piece[row]);
+            lines.batchOf[row] = NO_LINE;
+            this.drawn--;
             this.host.requestFrame();
         }
     }
@@ -229,25 +331,31 @@ export class EdgeRowLines {
      * @param edgeRemap - The freeze's edge remap, the same way.
      */
     rowsMoved(nodeRemap: ArrayLike<number> | null, edgeRemap: ArrayLike<number> | null): void {
-        if ((nodeRemap === null && edgeRemap === null) || this.lines.size === 0) {
+        if ((nodeRemap === null && edgeRemap === null) || this.drawn === 0) {
             return;
         }
 
         const moved = (remap: ArrayLike<number> | null, row: number): number =>
             remap === null ? row : (remap[row] ?? INVALID_INDEX);
-        const lines = [...this.lines];
-        this.lines.clear();
-        for (const [row, line] of lines) {
+        const { lines } = this;
+        this.lines = new LineColumns();
+        this.drawn = 0;
+        for (const row of this.drawnRows(lines)) {
+            const batch = this.batches[lines.batchOf[row]];
+            const piece = lines.piece[row];
             const edge = moved(edgeRemap, row);
-            const source = moved(nodeRemap, line.source);
-            const target = moved(nodeRemap, line.target);
+            const source = moved(nodeRemap, lines.source[row]);
+            const target = moved(nodeRemap, lines.target[row]);
             if (edge === INVALID_INDEX || source === INVALID_INDEX || target === INVALID_INDEX) {
-                line.batch.release(line.piece);
+                batch.release(piece);
                 continue;
             }
 
-            line.batch.setRows(line.piece, source, target);
-            this.lines.set(edge, { ...line, source, target });
+            const hidden = lines.hidden[row] === 1;
+            batch.setRows(piece, source, target);
+            this.lines.set(edge, lines.batchOf[row], piece, source, target);
+            this.lines.hidden[edge] = hidden ? 1 : 0;
+            this.drawn++;
         }
 
         this.host.requestFrame();
@@ -255,8 +363,26 @@ export class EdgeRowLines {
 
     /** Stop drawing every edge row here. */
     clear(): void {
-        for (const row of [...this.lines.keys()]) {
+        for (const row of this.drawnRows()) {
             this.unpaintRow(row);
         }
+
+        this.lines = new LineColumns();
+        this.batches.length = 0;
+    }
+
+    /**
+     * The rows a line list draws, in row order.
+     * @param lines - The list, by row.
+     * @returns Them.
+     */
+    private drawnRows(lines = this.lines): number[] {
+        const rows: number[] = [];
+        lines.batchOf.forEach((batch, row) => {
+            if (batch !== NO_LINE) {
+                rows.push(row);
+            }
+        });
+        return rows;
     }
 }

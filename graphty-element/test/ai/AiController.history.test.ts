@@ -413,6 +413,36 @@ describe("AiController history", () => {
         );
     });
 
+    it("byProject: a project that opens while the store is still being read brings back its conversation", async () => {
+        const store = new MemoryStore();
+        const history = { store: "memory", byProject: true } as const;
+        const session = await assistantSession();
+        const first = new ScriptedAssistant(session, { history, store });
+        await first.say("hello");
+        const id = first.controller.getConversation()?.id;
+        const { text } = await session.project.save();
+        first.controller.dispose();
+
+        // A reload whose autosave restore opens the project before the store's first read answers.
+        let release = (): void => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const slow = Object.assign(Object.create(store) as MemoryStore, {
+            list: async (key?: string) => {
+                await held;
+                return store.list(key);
+            },
+        });
+        const reloaded = new ScriptedAssistant(await assistantSession(), { history, store: slow });
+        await reloaded.session.project.open(text, { discard: true });
+        release();
+        await reloaded.controller.ready();
+        await vi.waitFor(() => {
+            assert.strictEqual(reloaded.controller.getConversation()?.id, id);
+        });
+    });
+
     it("byProject: opening another project swaps out a conversation that has messages", async () => {
         const store = new MemoryStore();
         const history = { store: "memory", byProject: true } as const;

@@ -20,7 +20,7 @@ import {
     flattenQuadSpline,
     nodeOffsetsToPoints,
 } from "../../styles/canon/bends.js";
-import { canonColor, colorOpacity } from "../../styles/canon/color.js";
+import { canonColor, colorOpacity, hexChannels } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
@@ -40,7 +40,13 @@ import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
-import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
+import type {
+    StyleProperty,
+    StyleTarget,
+    StyleValue,
+    StyleWorkBudget,
+    StyleWriteCapabilities,
+} from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { YED_UML_STEREOTYPE_DROP, yedNodePicture, yedUmlClassPicture } from "./styles-yed-drawing.js";
 import { type BpmnDrawing, svgPicture, yedBpmnPicture } from "./styles-yed-live-drawing.js";
@@ -1803,7 +1809,7 @@ function readPicture(real: Realizer, resources: ReadonlyMap<string, string>, put
  * @returns the darker color
  */
 function javaDarker(hex: string): string {
-    return hexOf(channelsOf(hex).map((c) => Math.floor(c * 0.7)));
+    return hexOf(hexChannels(hex).map((c) => Math.floor(c * 0.7)));
 }
 
 /**
@@ -1813,19 +1819,10 @@ function javaDarker(hex: string): string {
  * @returns the brighter color
  */
 function javaBrighter(hex: string): string {
-    const channels = channelsOf(hex);
+    const channels = hexChannels(hex);
     return channels.every((c) => c === 0)
         ? "#030303"
         : hexOf(channels.map((c) => Math.min(255, Math.floor((c > 0 && c < 3 ? 3 : c) / 0.7))));
-}
-
-/**
- * The red, green and blue of a color.
- * @param hex - the `#rrggbb` color
- * @returns the three channels, 0 to 255
- */
-function channelsOf(hex: string): number[] {
-    return [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
 }
 
 /**
@@ -1859,7 +1856,7 @@ export function putRaisedBorder(fill: string | null, put: PutValue): void {
  * @returns the lighter color
  */
 export function towardWhite(hex: string, share: number): string {
-    return hexOf(channelsOf(hex).map((c) => Math.round(c + (255 - c) * share)));
+    return hexOf(hexChannels(hex).map((c) => Math.round(c + (255 - c) * share)));
 }
 
 /**
@@ -1932,7 +1929,7 @@ export function putPanelPaint(color: string, put: PutValue): void {
     put("fill", towardWhite(color, 0.75));
     put("fillGradient", color);
     put("fillGradientAngle", 90);
-    put("borderColor", hexOf(channelsOf(color).map((c) => Math.round(c * 0.8))));
+    put("borderColor", hexOf(hexChannels(color).map((c) => Math.round(c * 0.8))));
     put("borderWidth", 1);
 }
 
@@ -2361,8 +2358,9 @@ export function yedArrowWidth(arrow: unknown): number | null {
  * @param line - its `y:LineStyle`
  * @param put - receives the values
  * @param at - the sites
+ * @returns the fill color its arrowheads are filled with (see {@link readFramedHeads}), or null for an outline alone
  */
-function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): void {
+function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): string | null {
     const band = canonNumber(treeAttr(line, "width"), at("width")) ?? 1;
     const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
     const fill = treeAttr(
@@ -2371,7 +2369,7 @@ function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): v
     );
     if (fill === undefined || band <= 1) {
         put("width", band + 1);
-        return;
+        return null;
     }
     readColor(treeAttr(line, "color"), "outlineColor", "outlineOpacity", put, at);
     // its arrowheads are part of the outline, in the line's color (yed-graphml-specimen-edges-lines generic-framed)
@@ -2380,6 +2378,29 @@ function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): v
     readColor(fill, "color", "opacity", put, at);
     put("width", band - 1);
     put("outlineWidth", 2);
+    return fill;
+}
+
+/**
+ * Reads a filled framed edge's arrowheads as yEd draws them: each a triangle outlined in the line's color and filled
+ * with `FramedEdgePainter.fillColor`, whatever its arrow type (a `delta` in graphml-galaxy-lcms-workflow and a
+ * `standard` in yed-graphml-specimen-edges-lines generic-framed both draw so).
+ * @param arrows - the edge's `y:Arrows`
+ * @param fill - the fill color
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readFramedHeads(arrows: unknown, fill: string, put: PutValue, at: SiteOf): void {
+    for (const end of ["source", "target"] as const) {
+        const arrow = treeAttr(arrows, end);
+        if (arrow !== undefined && arrow !== "none") {
+            // as long as the standard head (12 on a line 1 wide), not yEd's white_delta (16), and as wide as the
+            // white_delta: its outline reaches past the band's (graphml-galaxy-lcms-workflow's heads 14.4 long, 14.6 wide)
+            put(`${end}Arrow`, "triangle-open");
+            put(`${end}ArrowLength`, 12 / 16);
+            readColor(fill, `${end}ArrowFillColor`, null, put, at);
+        }
+    }
 }
 
 /**
@@ -2391,12 +2412,13 @@ function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): v
 function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
     const { r } = real;
     const line = treeChild(r, "LineStyle");
+    let framedFill: string | null = null;
     if (line !== undefined) {
         readColor(treeAttr(line, "color"), "color", "opacity", put, at);
         put("width", yedDrawnWidth(canonNumber(treeAttr(line, "width"), at("width"))));
         put("lineStyle", canonEnum("lineStyle", treeAttr(line, "type"), "yed", at("lineStyle")));
         if (real.type === "GenericEdge" && treeAttr(r, "configuration") === "com.yworks.edge.framed") {
-            readFramedEdge(r, line, put, at);
+            framedFill = readFramedEdge(r, line, put, at);
         }
     }
     const arrows = treeChild(r, "Arrows");
@@ -2407,6 +2429,9 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("targetArrowLength", yedArrowLength(treeAttr(arrows, "target")));
         put("sourceArrowWidth", yedArrowWidth(treeAttr(arrows, "source")));
         put("targetArrowWidth", yedArrowWidth(treeAttr(arrows, "target")));
+        if (framedFill !== null) {
+            readFramedHeads(arrows, framedFill, put, at);
+        }
     }
     if (treeAttr(line, "hasColor") === "false") {
         // a line with no color paints neither itself nor its arrowheads (yed-graphml-specimen-edges-lines
@@ -2946,7 +2971,7 @@ function nestedGroupPut(put: PutValue): PutValue {
     return (property, value) => {
         const darker =
             property === "fill" && typeof value === "string" && HEX_COLOR.test(value)
-                ? hexOf(channelsOf(value).map((c) => Math.max(0, c - YED_NESTED_GROUP_DARKER)))
+                ? hexOf(hexChannels(value).map((c) => Math.max(0, c - YED_NESTED_GROUP_DARKER)))
                 : value;
         put(property, darker);
     };
@@ -3807,8 +3832,8 @@ export function graphmlStyledExport(
         (property, value) => {
             approximated.add(target, property, value);
         };
-    const picture = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
-        input.picture(target, property as never);
+    const picture = (t: StyleTarget, property: StyleProperty): readonly (StyleValue | null)[] =>
+        input.picture(t, property);
     const nodeColumns = treeColumns(snapshot.nodes);
     const edgeColumns = treeColumns(snapshot.edges);
     const getNode = elementValues(picture, "node", GRAPHML_STYLE_CAPABILITIES.node);

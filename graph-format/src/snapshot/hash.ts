@@ -17,6 +17,7 @@
 import { isColumnDetached } from "../columns/column.js";
 import { GraphFormatError } from "../errors.js";
 import { type Column, type GraphSnapshot } from "../types/index.js";
+import { jsonKey } from "../util/json-key.js";
 import { unsupportedDtype } from "../util/typed-array.js";
 
 /** Lane A: the 32-bit FNV-1a offset basis. */
@@ -187,7 +188,10 @@ function mixColumn(hasher: Fnv1aHasher, column: Column): void {
             mixColumn(hasher, column.child);
             break;
         case "json":
-            hasher.text(JSON.stringify(column.values));
+            hasher.word(column.values.length);
+            for (const value of column.values) {
+                hasher.text(jsonKey(value));
+            }
             break;
         default:
             unsupportedDtype(dtype);

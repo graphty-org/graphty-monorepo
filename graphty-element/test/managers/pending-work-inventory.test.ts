@@ -66,7 +66,14 @@ const INVENTORY: Record<string, Covered> = {
             "test, list, preview, read and check read a source and draw nothing",
     },
     "src/data/DataSource.ts": { count: 2, kind: "load", reason: "a data source's download, inside a load" },
-    "src/data/source-bytes.ts": { count: 1, kind: "load", reason: "a source's download, inside a load" },
+    "src/data/source-bytes.ts": {
+        count: 1,
+        kind: "load",
+        reason:
+            "a source's download, inside a load; also fetchJson's, for Styles.fromUrl (a style object handed " +
+            "to its caller, drawing nothing) and InputManager's playback file (the input it replays moves the " +
+            "camera like a reader)",
+    },
     "src/session/assets/unzip.ts": { count: 1, kind: "load", reason: "unzipping a file being loaded" },
     "src/session/assets/AssetsApi.ts": {
         count: 3,
@@ -133,14 +140,6 @@ const INVENTORY: Record<string, Covered> = {
         reason:
             "timeline playback started by the reader, like a drag; each step it writes is repainted, and a " +
             "repaint holds the frame",
-    },
-    "src/managers/InputManager.ts": {
-        count: 1,
-        reason: "an input recording read for playback; the input it replays moves the camera like a reader",
-    },
-    "src/Styles.ts": {
-        count: 1,
-        reason: "Styles.fromUrl builds a style object for its caller, who hands it to the graph; it draws nothing",
     },
     "src/screenshot/ScreenshotCapture.ts": {
         count: 5,
@@ -225,7 +224,7 @@ const INVENTORY: Record<string, Covered> = {
         reason: "a shader's thumbnail for a picker, fetched for the application; never drawn on the canvas",
     },
     "src/xr/XRSessionManager.ts": {
-        count: 2,
+        count: 1,
         reason: "an immersive session's module; while one runs the picture moves with the head and is never final",
     },
 };

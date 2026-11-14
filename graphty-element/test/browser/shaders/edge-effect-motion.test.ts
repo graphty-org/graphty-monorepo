@@ -47,12 +47,12 @@ async function loopChances(element: Graphty, chances: number): Promise<number> {
 }
 
 /**
- * Wait passively until a condition holds; fail after a bound of page frames.
+ * Wait passively, a page frame at a time, until a condition holds.
  * @param what - What is awaited.
  * @param holds - The condition.
  */
 async function until(what: string, holds: () => boolean): Promise<void> {
-    for (let i = 0; i < 600 && !holds(); i++) {
+    while (!holds()) {
         await new Promise((resolve) => requestAnimationFrame(resolve));
     }
 

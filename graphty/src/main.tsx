@@ -86,7 +86,8 @@ ReactDOM.createRoot(rootElement).render(
 // buttons paint before their code is fetched and run.
 requestAnimationFrame(() => {
     setTimeout(() => {
-        void loadGraphtyElement();
+        // A failure here is said where a graph is drawn, which loads again and offers Retry.
+        loadGraphtyElement().catch(() => undefined);
         void loadFrame();
     }, 0);
 });

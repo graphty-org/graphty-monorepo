@@ -68,7 +68,7 @@
           }
         ]
       },
-      "knownFailure": "a quoted empty endpoint becomes an empty-string node id instead of E_MISSING_ENDPOINT (sources.md 7.4)"
+      "knownFailure": "a quoted empty endpoint becomes an empty-string node id instead of E_MISSING_ENDPOINT (sources.md 7.4) (#7634)"
     },
     {
       "file": "csv-spectrum/empty_crlf.csv",
@@ -103,7 +103,7 @@
           }
         ]
       },
-      "knownFailure": "a quoted empty endpoint becomes an empty-string node id instead of E_MISSING_ENDPOINT (sources.md 7.4)"
+      "knownFailure": "a quoted empty endpoint becomes an empty-string node id instead of E_MISSING_ENDPOINT (sources.md 7.4) (#7634)"
     },
     {
       "file": "csv-spectrum/escaped_quotes.csv",
@@ -931,7 +931,7 @@
           "c"
         ]
       },
-      "knownFailure": "unquoted id cells are not trimmed (sources.md 7.4)"
+      "knownFailure": "unquoted id cells are not trimmed (sources.md 7.4) (#7635)"
     },
     {
       "file": "dialect/unknown-header-text.csv",
@@ -945,8 +945,7 @@
         "warnings": [
           "W_CSV_POSSIBLE_HEADER"
         ]
-      },
-      "knownFailure": "a header of unknown names over text rows is read as data silently (sources.md 7.4)"
+      }
     },
     {
       "file": "dialect/comment-lines-anywhere.csv",
@@ -1229,7 +1228,7 @@
           }
         ]
       },
-      "knownFailure": "adjacency-list rows misread as edge rows (sources.md 7.4)"
+      "knownFailure": "adjacency-list rows misread as edge rows (sources.md 7.4) (#7637)"
     },
     {
       "file": "gephi/mixed.csv",
@@ -1254,7 +1253,7 @@
           }
         ]
       },
-      "knownFailure": "adjacency-list rows misread as edge rows (sources.md 7.4)"
+      "knownFailure": "adjacency-list rows misread as edge rows (sources.md 7.4) (#7637)"
     },
     {
       "file": "gephi/matrix.csv",
@@ -1279,7 +1278,7 @@
           }
         ]
       },
-      "knownFailure": "matrix CSV not detected (sources.md 7.4)"
+      "knownFailure": "matrix CSV not detected (sources.md 7.4) (#7637)"
     },
     {
       "file": "gephi/spreadsheet-edges.csv",
@@ -1326,8 +1325,7 @@
           "Beta",
           "Gamma"
         ]
-      },
-      "roundTripFailure": "a node table without edges exports as an edge list, which drops isolated nodes (declared loss W_CSV_ISOLATED_NODES)"
+      }
     },
     {
       "file": "snap/facebook_combined-head.txt",
@@ -1537,7 +1535,7 @@
         "edges": 14,
         "directed": false
       },
-      "knownFailure": "KONECT bip id spaces collide (sources.md 7.4)"
+      "knownFailure": "KONECT bip id spaces collide (sources.md 7.4) (#7637)"
     },
     {
       "file": "netzschleuder/karate-edges.csv",
@@ -1596,7 +1594,7 @@
           33
         ]
       },
-      "knownFailure": "a header in a leading # comment line is not read (sources.md 7.4)"
+      "knownFailure": "a header in a leading # comment line is not read (sources.md 7.4) (#7637)"
     },
     {
       "file": "openflights/routes-sample.dat",
@@ -1680,7 +1678,7 @@
           }
         ]
       },
-      "knownFailure": "networkx dict-repr data column not parsed (sources.md 7.4)"
+      "knownFailure": "networkx dict-repr data column not parsed (sources.md 7.4) (#7637)"
     },
     {
       "file": "networkx/karate.weighted_edgelist",
@@ -1756,7 +1754,7 @@
           }
         ]
       },
-      "knownFailure": "adjacency-list rows misread as edge rows (sources.md 7.4)"
+      "knownFailure": "adjacency-list rows misread as edge rows (sources.md 7.4) (#7637)"
     },
     {
       "file": "networkx/multidigraph.edgelist",
@@ -1779,7 +1777,7 @@
         ],
         "edgeChecks": []
       },
-      "knownFailure": "networkx dict-repr data column not parsed (sources.md 7.4)"
+      "knownFailure": "networkx dict-repr data column not parsed (sources.md 7.4) (#7637)"
     },
     {
       "file": "networkx-generated/edgelist-path-0.edgelist",

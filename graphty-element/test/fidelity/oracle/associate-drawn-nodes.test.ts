@@ -94,4 +94,28 @@ describe("oracle nodes no id or label names", () => {
             [null, null],
         );
     });
+
+    it("names a text on a node's center for no node whose label is drawn below its shape", () => {
+        // json-vis-nodelegend: s's label sits below its square, right on d's dot; d's label is below d
+        const text = (index: number, x: number, y: number, content: string): Prim => ({
+            ...body(index, x, y, "#000000"),
+            kind: "text",
+            fill: null,
+            box: { x0: x - 20, y0: y - 7, x1: x + 20, y1: y + 7 },
+            text: { content } as Prim["text"],
+        });
+        const below = {
+            nodes: [
+                { id: "s", x: 100, y: 100, w: 40, h: 46, box: { x0: 80, y0: 84, x1: 120, y1: 130 } },
+                { id: "d", x: 100, y: 135, w: 76, h: 46, box: { x0: 62, y0: 119, x1: 138, y1: 165 } },
+            ],
+        };
+        const inside = {
+            nodes: [{ id: "b", x: 100, y: 135, w: 60, h: 30, box: { x0: 70, y0: 120, x1: 130, y1: 150 } }],
+        };
+        const server = text(5, 100, 135, "Server");
+        assert.strictEqual(nameDrawnNodes([server], below)[0].hint, null);
+        assert.strictEqual(nameDrawnNodes([body(6, 100, 135, "#000000")], below)[0].hint?.id, "d");
+        assert.strictEqual(nameDrawnNodes([server], inside)[0].hint?.id, "b");
+    });
 });

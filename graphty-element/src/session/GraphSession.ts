@@ -102,6 +102,7 @@ import {
 } from "./project/Dispatcher";
 import { EDGES_ADDED, forEachEdgeOfKey, namesEdges, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
+import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { type RecipeDocument, recipeOf } from "./recipe";
@@ -1924,8 +1925,9 @@ function valueSourceOf(
 ): FilterValueSource {
     const keyOf = (path: Path): string =>
         path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
-    // A run's value and a node's value read at an edge's end are the style source's to read.
-    const isResult = (path: Path): boolean => path.startsWith("results.") || edgeEndPathOf(path) !== undefined;
+    // A run's value and every value under `graphty.` (an end's node value, a degree, a note value,
+    // a file's style value) are the style source's to read.
+    const isResult = (path: Path): boolean => path.startsWith("results.") || path.startsWith("graphty.");
 
     return {
         nodeValue: (index: number, path: Path): unknown =>
@@ -1946,9 +1948,10 @@ function valueSourceOf(
 }
 
 /**
- * Which halves carry a value path: a run field's declared kinds, or the kinds of the data
- * attribute at that path.
- * @param path - `results.<run>.<field>`, `data.<field>`, or either read at an edge's end.
+ * Which halves carry a value path: a run field's declared kinds, the kinds of the data attribute
+ * at that path, or for a value graphty-element provides, the kinds it is on.
+ * @param path - `results.<run>.<field>`, `data.<field>`, either read at an edge's end, a degree,
+ *     a note value or a file's style value.
  * @param data - The session's data surface.
  * @param fieldsOf - A run's published fields, or undefined when it has no result.
  * @returns The kinds, `"node"`, `"edge"` or both.
@@ -1962,6 +1965,20 @@ function fieldKindsOf(
     const end = edgeEndPathOf(path);
     if (end !== undefined) {
         return fieldKindsOf(end.node, data, fieldsOf).includes("node") ? ["edge"] : [];
+    }
+
+    // The values graphty-element provides: a file's style value is on the kind its path names.
+    const style = parseFileStylePath(path);
+    if (style !== undefined) {
+        return [style.kind];
+    }
+
+    if (noteFieldOf(path) !== undefined) {
+        return ["node", "edge"];
+    }
+
+    if ((STRUCTURE_PATHS as readonly string[]).includes(path)) {
+        return ["node"];
     }
 
     if (path.startsWith("results.")) {
@@ -3405,6 +3422,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, event, detail);
         },
         ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
+        asDates: (kind, name) => {
+            const column = data.attributes().find((each) => each.kind === kind && each.name === name);
+            if (column?.type !== "string" || data.previewType({ kind, name }, "date").fails > 0) {
+                return undefined;
+            }
+
+            return data.setType({ kind, name }, "date");
+        },
     });
     timeInternals = time.internals;
     dispatcher.services.timeFieldChanged = () => {
@@ -3927,7 +3952,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // airline routes rebuilt every edge's paint in one frame, about 5.8 seconds on a phone-class
     // CPU, for a run that colours nodes alone.
     dispatcher.lane.register("runs", async (rendered, target, dirty) => {
-        const changed = new Set([...dirty].filter((id) => rendered.runs.get(id) !== target.runs.get(id)));
+        // By result: an entry that changed only around its columns (a rename) repaints nothing.
+        const changed = new Set(
+            [...dirty].filter((id) => rendered.runs.get(id)?.result !== target.runs.get(id)?.result),
+        );
         if (changed.size === 0) {
             return;
         }
@@ -4293,6 +4321,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
             fileStyles: fileStylesOn,
+            // The timeline experiment gates detection, as `session.time.candidates()` is gated.
+            timeCandidates: () => (timelineOn() ? time.api.candidates() : []),
+            query: {
+                unresolvedPathsOf: (where) => engine.unresolvedPathsOf(where),
+                answerablePaths: () => [
+                    ...(paths.candidates?.("", "node") ?? []),
+                    ...(paths.candidates?.("", "edge") ?? []),
+                ],
+            },
         }),
         features: settleFeatures,
         timelineOn,
@@ -4654,7 +4691,8 @@ function requireQuery(held: QueryEngine | null): QueryEngine {
  *
  * A copy of the subscriber set is walked, so that a handler unsubscribing itself -- which a
  * "tell me once" listener does -- cannot change the set under the loop it is in. A throwing
- * handler is contained: one broken status chip must not stop the next one being told.
+ * handler is contained: one broken status chip must not stop the next one being told, and its
+ * error still reaches the console and `window.onerror`.
  * @param watchers - Every subscriber, by event.
  * @param event - Which event.
  * @param detail - What to tell them.
@@ -4669,8 +4707,13 @@ function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, 
     for (const handler of [...subscribers]) {
         try {
             (handler as (value: SessionEventMap[K]) => void)(detail);
-        } catch {
-            // A watcher's failure is the watcher's. The session carries on.
+        } catch (error) {
+            // A watcher's failure is the watcher's: the session carries on, and the error is
+            // reported and rethrown unhandled, as an EventTarget listener's is.
+            reportCaught(error);
+            queueMicrotask(() => {
+                throw error;
+            });
         }
     }
 }

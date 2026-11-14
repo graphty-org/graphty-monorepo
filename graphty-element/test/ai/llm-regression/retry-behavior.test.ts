@@ -2,14 +2,15 @@
  * Retry Behavior LLM Regression Tests
  * @module test/ai/llm-regression/retry-behavior
  *
- * Tests that verify the retry logic of the LLM regression harness.
- * These tests ensure proper handling of transient errors and rate limits.
+ * Live checks of the harness against the real API: a valid prompt answers, and a request the API
+ * refuses fails with the API's own error. The retry loop itself (maxRetries, retryOn) is tested
+ * offline in harness.test.ts, where a failure can be made to happen.
  */
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { assertAnswered, LlmRegressionTestHarness, type RetryOptions } from "../../helpers/llm-regression-harness";
+import { assertAnswered, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
@@ -25,108 +26,30 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
         harness.dispose();
     });
 
-    describe("retry configuration", () => {
-        it("supports custom retry options", async () => {
-            const retryOptions: RetryOptions = {
-                maxRetries: 2,
-            };
-
-            // Test with retry options - should work normally
-            const result = await harness.testPrompt("How many nodes are there?", undefined, retryOptions);
-
-            assert.ok(result, "Expected a result");
-            assert.ok(result.prompt === "How many nodes are there?");
+    it("completes successfully without retries for valid prompts", async () => {
+        const result = await harness.testPrompt("How many edges exist?", undefined, {
+            maxRetries: 3,
         });
 
-        it("respects maximum retry count", async () => {
-            const retryOptions: RetryOptions = {
-                maxRetries: 0, // No retries allowed
-            };
-
-            // With maxRetries: 0, errors should not be retried
-            // A normal prompt should still succeed on first try
-            const result = await harness.testPrompt("Give me a summary of the graph", undefined, retryOptions);
-
-            assert.ok(result, "Expected a result");
-            // The prompt should succeed without needing retries
-        });
-
-        it("uses default retry options when not specified", async () => {
-            // When no retry options are provided, defaults should be used
-            const result = await harness.testPrompt("What layout is being used?");
-
-            assert.ok(result, "Expected a result");
-            assert.ok(result.toolWasCalled || result.llmText);
-        });
+        assertAnswered(result, ["query"], /\b3\b|three/i);
     });
 
-    describe("successful operations", () => {
-        it("completes successfully without retries for valid prompts", async () => {
-            const result = await harness.testPrompt("How many edges exist?", undefined, {
-                maxRetries: 3,
-            });
-
-            assertAnswered(result, ["query"], /\b3\b|three/i);
+    it("throws the API's own error when the request fails", async () => {
+        // A request the API refuses must fail the test with its real cause, not surface as
+        // "no tool was called". A model that does not exist is refused before any tokens are
+        // spent, so this costs nothing.
+        const broken = await LlmRegressionTestHarness.create({
+            graphData: serverNetworkFixture,
+            model: "graphty-no-such-model",
         });
-
-        it("includes retry options in complex prompts", async () => {
-            const retryOptions: RetryOptions = {
-                maxRetries: 2,
-            };
-
-            const result = await harness.testPrompt("Find all server nodes and make them red", undefined, retryOptions);
-
-            // Should complete successfully
-            assert.ok(result, "Expected a result");
-        });
-    });
-
-    describe("error handling with retries", () => {
-        it("handles rate limit errors gracefully", async () => {
-            // This tests that the harness can handle scenarios where
-            // API calls might be rate limited. In practice, the actual
-            // rate limiting is controlled by the API provider.
-            const retryOptions: RetryOptions = {
-                maxRetries: 2,
-                // Would retry on a rate limit
-                retryOn: (failure) => failure.code === "AI_PROVIDER_ERROR" && failure.params?.status === 429,
-            };
-
-            // Normal operation should work fine
-            const result = await harness.testPrompt("What algorithms are available?", undefined, retryOptions);
-
-            assert.ok(result, "Expected a result");
-            // If there was a rate limit, the retry logic would have handled it
-        });
-
-        it("throws the API's own error when the request fails", async () => {
-            // A request the API refuses must fail the test with its real cause, not surface as
-            // "no tool was called". A model that does not exist is refused before any tokens are
-            // spent, so this costs nothing.
-            const broken = await LlmRegressionTestHarness.create({
-                graphData: serverNetworkFixture,
-                model: "graphty-no-such-model",
-            });
-            try {
-                await broken.testPrompt("Run pagerank algorithm", undefined, { maxRetries: 0 });
-                assert.fail("Expected the failed request to throw");
-            } catch (error) {
-                assert.ok(error instanceof Error);
-                assert.match(error.message, /request failed before any tool ran: .*graphty-no-such-model/);
-            } finally {
-                broken.dispose();
-            }
-        });
-    });
-
-    describe("latency tracking with retries", () => {
-        it("tracks total latency including retries", async () => {
-            const result = await harness.testPrompt("Show me some example nodes", undefined, {
-                maxRetries: 2,
-            });
-
-            // Latency should be tracked regardless of retry configuration
-            assert.ok(result.latencyMs > 0, "Expected positive latency");
-        });
+        try {
+            await broken.testPrompt("Run pagerank algorithm", undefined, { maxRetries: 0 });
+            assert.fail("Expected the failed request to throw");
+        } catch (error) {
+            assert.ok(error instanceof Error);
+            assert.match(error.message, /request failed before any tool ran: .*graphty-no-such-model/);
+        } finally {
+            broken.dispose();
+        }
     });
 });

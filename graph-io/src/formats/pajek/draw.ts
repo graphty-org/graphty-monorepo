@@ -6,6 +6,7 @@
 
 import { GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
+import { hexChannels } from "../../styles/canon/color.js";
 import type { StyleValue } from "../../styles/types.js";
 
 /**
@@ -380,12 +381,8 @@ function effect3d(snapshot: GraphSnapshot, node: Values): void {
     };
     for (let i = 0; i < n; i++) {
         const color = typeof fill[i] === "string" ? String(fill[i]) : VERTEX_FILL;
-        end[i] = `#${[1, 3, 5]
-            .map((k) =>
-                half(Number.parseInt(color.slice(k, k + 2), 16))
-                    .toString(16)
-                    .padStart(2, "0"),
-            )
+        end[i] = `#${hexChannels(color)
+            .map((c) => half(c).toString(16).padStart(2, "0"))
             .join("")}`;
         const phi = snapshot.nodes.has("phi") ? Number(snapshot.nodes.value("phi", i)) : 0;
         angle[i] = Number.isFinite(phi) ? (((90 - phi) % 360) + 360) % 360 : 90;

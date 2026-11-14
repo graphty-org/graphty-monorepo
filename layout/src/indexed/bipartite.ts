@@ -19,8 +19,8 @@ export interface BipartiteLayoutOptions extends CommonLayoutOptions {
 }
 
 /**
- * Two lines of nodes, `aspectRatio` apart before rescaling, each line's nodes evenly spaced from its start in the
- * order listed.
+ * Two lines of nodes, `aspectRatio` apart before rescaling, each line's nodes evenly spaced from its start to its end
+ * in the order listed, as NetworkX's `bipartite_layout` places them.
  * @param n - node count (rows)
  * @param left - node indices of the first line
  * @param right - node indices of the second line
@@ -43,7 +43,8 @@ function bipartiteRows(
     return layeredRows(
         n,
         [left, right],
-        (k, _count, j, size) => [k * width - width / 2, j / size - 1 / 2],
+        // NetworkX's np.linspace(0, 1, size): each line spans the full height; a lone node sits at its start
+        (k, _count, j, size) => [k * width - width / 2, (size > 1 ? j / (size - 1) : 0) - 1 / 2],
         align,
         scale,
         center,

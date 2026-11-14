@@ -388,13 +388,18 @@ describe("session.assets: hostile files, each refused with its code", () => {
         assertRejected(await add({ files: gltfPair(shortBuffer) }), "E_MODEL_STRUCTURE", { rule: "accessor" });
     });
 
-    it("refuses compression with no decoder and GPU instancing", async () => {
+    it("accepts compression it bundles a decoder for, and refuses an unknown required extension and GPU instancing", async () => {
         const draco = triangleGltf({
             extensionsUsed: ["KHR_draco_mesh_compression"],
             extensionsRequired: ["KHR_draco_mesh_compression"],
         });
-        assertRejected(await add({ files: gltfPair(draco) }), "E_MODEL_DECODER_UNAVAILABLE", {
-            extension: "KHR_draco_mesh_compression",
+        const assets = createAssetsApi();
+        const accepted = await assets.add({ files: gltfPair(draco) });
+        assert.strictEqual(accepted.state, "accepted", JSON.stringify(accepted.problems));
+        assert.deepStrictEqual(assets.inspect(accepted.id).compression, ["draco"]);
+        const unknown = triangleGltf({ extensionsUsed: ["EXT_unknown"], extensionsRequired: ["EXT_unknown"] });
+        assertRejected(await add({ files: gltfPair(unknown) }), "E_MODEL_FORMAT_UNSUPPORTED", {
+            extension: "EXT_unknown",
         });
         const instanced = triangleGltf({ extensionsUsed: ["EXT_mesh_gpu_instancing"] });
         assertRejected(await add({ files: gltfPair(instanced) }), "E_MODEL_STRUCTURE", { rule: "instancing" });
@@ -407,8 +412,15 @@ describe("session.assets: hostile files, each refused with its code", () => {
         assertRejected(await add(file(utf8("hello"), "notes.txt")), "E_MODEL_FORMAT_UNKNOWN", {
             fileName: "notes.txt",
         });
-        const points = utf8("ply\nformat ascii 1.0\nelement vertex 1\nproperty float x\nend_header\n0\n");
-        assertRejected(await add(file(points, "cloud.ply")), "E_MODEL_FORMAT_UNSUPPORTED", { format: "points" });
+        assertRejected(await add(file(utf8("HIERARCHY\nROOT Hips\n"), "walk.bvh")), "E_MODEL_FORMAT_UNSUPPORTED", {
+            format: "bvh",
+        });
+        const points = utf8(
+            "ply\nformat ascii 1.0\nelement vertex 1\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n",
+        );
+        const cloud = await add(file(points, "cloud.ply"));
+        assert.strictEqual(cloud.state, "accepted", JSON.stringify(cloud.problems));
+        assert.deepInclude(cloud.problems, { code: "W_MODEL_POINTS_APPROXIMATED", params: { points: 1, drawn: 1 } });
     });
 
     it("asks which file when two different candidates tie, and takes the caller's choice", async () => {
@@ -864,7 +876,7 @@ describe("detectModelFormat", () => {
             supported: false,
         });
         assert.deepStrictEqual(detectModelFormat({ filename: "rig.fbx" }), { format: "fbx", supported: false });
-        assert.deepStrictEqual(detectModelFormat({ filename: "a.splat" }), { format: "splat", supported: false });
+        assert.deepStrictEqual(detectModelFormat({ filename: "a.splat" }), { format: "splat", supported: true });
     });
 
     it("says nothing about graph data", () => {

@@ -1,18 +1,30 @@
 /**
- * @file Cheap scans of OBJ, STL and PLY before anything parses them for drawing.
+ * @file Cheap scans of OBJ, STL, PLY, Gaussian splats (`.splat`, `.spz`, `.sog`) and `.babylon`
+ * before anything parses them for drawing.
  *
  * - OBJ: every `f` line's vertex indices are in range (no zero, no index past the vertices, no
  *   negative index reaching before the first), triangles are counted against the limit, and the
  *   `mtllib` files and the `map_*` files inside them pass the reference allowlist.
  * - STL: a binary file's declared triangle count matches its length; an ASCII file's facets are
  *   counted.
- * - PLY: the header's vertex and face counts fit the file's length.
+ * - PLY: the header's vertex and face counts fit the file's length; a point cloud or a splat is
+ *   counted as the small solids it is drawn as.
+ * - Splats: a `.splat` is whole 32-byte rows, an `.spz` inflates to an `NGSP` header whose count
+ *   fits, a SOG's `meta.json` names its pictures.
+ * - `.babylon`: every index is in range and no mesh loads from another file.
  *
  * Text formats parse on the main thread, so they also have the lower text byte limit.
  */
 
+import { gunzipSync } from "fflate";
+
+import { babylonTextureNames, readBabylon } from "../../models/readers/babylon";
+import { ModelReadError, pointsDrawn, SPLAT_ROW_BYTES, TRIANGLES_PER_POINT } from "../../models/readers/geometry";
+import { plyGeometryKind, type PlyHeader, plyTextureFile, readPlyHeader } from "../../models/readers/ply";
+import { stlFacts } from "../../models/readers/stl";
 import type { CodedFact } from "../shared";
 import type { ModelLimits, ModelSummary } from "./AssetsApi";
+import { parseGltfJson } from "./gltfChecks";
 import {
     baseName,
     cut,
@@ -141,8 +153,8 @@ function mtlNames(text: string): string[] {
     return text
         .split("\n")
         .map((raw) => raw.trim())
-        .filter((line) => line.startsWith("mtllib"))
-        .map((line) => line.slice(6).trim());
+        .filter((line) => isStatement(line, "mtllib"))
+        .flatMap((line) => line.slice(6).trim().split(/\s+/));
 }
 
 /**
@@ -239,6 +251,8 @@ function addFace(line: string, vertices: number, triangles: number, limits: Mode
 /** What one pass over an OBJ's lines finds. */
 interface ObjGeometry {
     vertices: number;
+    /** Whether a `v` line carries a color after its position. */
+    colored: boolean;
     triangles: number;
     groups: number;
     readonly mtlFiles: string[];
@@ -252,19 +266,20 @@ interface ObjGeometry {
  * @returns What it holds.
  */
 function readObjGeometry(text: string, limits: ModelLimits): ObjGeometry {
-    const found: ObjGeometry = { vertices: 0, triangles: 0, groups: 0, mtlFiles: [], box: new Box() };
+    const found: ObjGeometry = { vertices: 0, colored: false, triangles: 0, groups: 0, mtlFiles: [], box: new Box() };
     for (const raw of text.split("\n")) {
         const line = raw.trim();
         if (isStatement(line, "v")) {
             found.vertices++;
-            const [, x, y, z] = line.split(/\s+/);
-            found.box.add(Number(x), Number(y), Number(z));
+            const tokens = line.split(/\s+/);
+            found.box.add(Number(tokens[1]), Number(tokens[2]), Number(tokens[3]));
+            found.colored ||= tokens.length >= 7;
         } else if (isStatement(line, "f")) {
             found.triangles = addFace(line, found.vertices, found.triangles, limits);
         } else if (line.startsWith("o ") || line.startsWith("g ")) {
             found.groups++;
-        } else if (line.startsWith("mtllib")) {
-            found.mtlFiles.push(line.slice(6).trim());
+        } else if (isStatement(line, "mtllib")) {
+            found.mtlFiles.push(...line.slice(6).trim().split(/\s+/));
         }
     }
 
@@ -381,7 +396,7 @@ function readMtls(
  */
 export function scanObj(path: string, files: ReadonlyMap<string, Uint8Array>, limits: ModelLimits): Scanned {
     const text = textOf(files.get(path) as Uint8Array, limits);
-    const { vertices, triangles, groups, mtlFiles, box } = readObjGeometry(text, limits);
+    const { vertices, colored, triangles, groups, mtlFiles, box } = readObjGeometry(text, limits);
 
     // A positive index may only name a vertex the file has.
     checkPositiveIndices(text, vertices);
@@ -397,6 +412,8 @@ export function scanObj(path: string, files: ReadonlyMap<string, Uint8Array>, li
             textures: textures.size,
             textureBytes,
             transparent,
+            geometry: "mesh",
+            ...(colored ? { vertexColors: true } : {}),
             ...(bounds === undefined ? {} : { bounds }),
         }),
         warnings: [],
@@ -480,6 +497,7 @@ export function scanStl(bytes: Uint8Array, limits: ModelLimits): Scanned {
     const box = new Box();
     const isBinary = bytes.length >= 84 && bytes.length === 84 + 50 * view.getUint32(80, true);
     const triangles = isBinary ? readBinaryStl(view, limits, box) : readAsciiStl(bytes, limits, box);
+    const facts = stlFacts(bytes, isBinary ? undefined : textOf(bytes, limits));
 
     const bounds = box.value;
     return {
@@ -490,6 +508,9 @@ export function scanStl(bytes: Uint8Array, limits: ModelLimits): Scanned {
             materials: Object.freeze([]),
             textures: 0,
             textureBytes: 0,
+            geometry: "mesh",
+            encoding: facts.encoding,
+            ...(facts.vertexColors ? { vertexColors: true } : {}),
             ...(bounds === undefined ? {} : { bounds }),
         }),
         warnings: [{ code: "W_MODEL_UP_GUESSED", params: { format: "stl", up: "z" } }],
@@ -516,80 +537,35 @@ const PLY_TYPES: Readonly<Record<string, number>> = {
     float64: 8,
 };
 
-/** One `element` of a PLY header. */
-interface PlyElement {
-    readonly name: string;
-    readonly count: number;
-    size: number;
-    listMin: number;
-    readonly properties: string[];
-}
-
 /**
- * Add a `property` line to its element: a scalar's bytes, or a list's least bytes.
- * @param element - The element it belongs to.
- * @param tokens - The line's tokens.
+ * Run a reader of `src/models/readers/`, turning a damaged file into the refusal it is.
+ * @param read - The reading.
+ * @returns What it returns.
  */
-function addPlyProperty(element: PlyElement, tokens: readonly string[]): void {
-    if (tokens[1] === "list") {
-        // A list holds its length, then at least three entries for a face.
-        element.listMin += (PLY_TYPES[tokens[2]] ?? 1) + 3 * (PLY_TYPES[tokens[3]] ?? 1);
-    } else {
-        element.size += PLY_TYPES[tokens[1]] ?? 4;
-    }
-
-    element.properties.push(tokens.at(-1) ?? "");
-}
-
-/**
- * Read a PLY header's format and elements.
- * @param header - The header text before `end_header`.
- * @returns The format and the elements, in order.
- */
-function readPlyHeader(header: string): { format: string; elements: PlyElement[] } {
-    let format = "";
-    const elements: PlyElement[] = [];
-    for (const line of header.split(/\r?\n/)) {
-        const tokens = line.trim().split(/\s+/);
-        if (tokens[0] === "format") {
-            format = tokens[1] ?? "";
-        } else if (tokens[0] === "element") {
-            const count = Number(tokens[2]);
-            if (!Number.isSafeInteger(count) || count < 0) {
-                refuse("E_MODEL_STRUCTURE", { rule: "header" });
-            }
-
-            elements.push({ name: tokens[1] ?? "", count, size: 0, listMin: 0, properties: [] });
-        } else if (tokens[0] === "property") {
-            const element = elements.at(-1);
-            if (element !== undefined) {
-                addPlyProperty(element, tokens);
-            }
+function asRefusal<T>(read: () => T): T {
+    try {
+        return read();
+    } catch (error) {
+        if (error instanceof ModelReadError) {
+            refuse("E_MODEL_STRUCTURE", { rule: error.rule });
         }
-    }
 
-    return { format, elements };
+        throw error;
+    }
 }
 
 /**
  * Refuse a PLY body too short for the elements its header declares.
  * @param bytes - The file.
- * @param headerLength - Where the body starts.
- * @param format - The header's format.
- * @param elements - The header's elements.
+ * @param header - The header.
  * @param limits - The limits in force.
  */
-function checkPlyBody(
-    bytes: Uint8Array,
-    headerLength: number,
-    format: string,
-    elements: readonly PlyElement[],
-    limits: ModelLimits,
-): void {
-    if (format === "ascii") {
+function checkPlyBody(bytes: Uint8Array, header: PlyHeader, limits: ModelLimits): void {
+    const { elements, bodyAt } = header;
+    if (header.format === "ascii") {
         textOf(bytes, limits);
         let lines = 0;
-        for (let i = headerLength; i < bytes.length; i++) {
+        for (let i = bodyAt; i < bytes.length; i++) {
             if (bytes[i] === 0x0a) {
                 lines++;
             }
@@ -599,60 +575,332 @@ function checkPlyBody(
         if (needed > lines + 1) {
             refuse("E_MODEL_STRUCTURE", { rule: "length" });
         }
-    } else if (format === "binary_little_endian" || format === "binary_big_endian") {
-        const needed = elements.reduce((sum, e) => sum + e.count * (e.size + e.listMin), 0);
-        if (needed > bytes.length - headerLength) {
-            refuse("E_MODEL_STRUCTURE", { rule: "length" });
-        }
-    } else {
-        refuse("E_MODEL_STRUCTURE", { rule: "header" });
+
+        return;
+    }
+
+    // A list holds its length, then at least three entries for a face.
+    const rowBytes = (props: PlyHeader["elements"][number]["properties"]): number =>
+        props.reduce(
+            (sum, p) =>
+                sum + (p.countType === undefined ? PLY_TYPES[p.type] : PLY_TYPES[p.countType] + 3 * PLY_TYPES[p.type]),
+            0,
+        );
+    const needed = elements.reduce((sum, e) => sum + e.count * rowBytes(e.properties), 0);
+    if (needed > bytes.length - bodyAt) {
+        refuse("E_MODEL_STRUCTURE", { rule: "length" });
+    }
+}
+
+/**
+ * The summary fields and warning of a model drawn as small solids, one per point or splat.
+ * @param geometry - `points` or `splats`.
+ * @param points - The points in the file.
+ * @param limits - The limits in force.
+ * @returns The triangles drawn, the facts, and the warning.
+ */
+function pointFacts(
+    geometry: "points" | "splats",
+    points: number,
+    limits: ModelLimits,
+): { triangles: number; facts: Partial<ModelSummary>; warning: CodedFact } {
+    const drawn = pointsDrawn(points);
+    const triangles = drawn * TRIANGLES_PER_POINT;
+    if (triangles > limits.maxTriangles) {
+        refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
+    }
+
+    return {
+        triangles,
+        facts: { geometry, points },
+        warning: { code: "W_MODEL_POINTS_APPROXIMATED", params: { points, drawn } },
+    };
+}
+
+/**
+ * Look up the picture a PLY names in a `comment TextureFile` line.
+ * @param path - The PLY's path in the set.
+ * @param files - The set.
+ * @param findings - Where a missing picture goes.
+ */
+export function findPlyParts(path: string, files: ReadonlyMap<string, Uint8Array>, findings: Findings): void {
+    const name = plyTextureFile(asRefusal(() => readPlyHeader(files.get(path) as Uint8Array)));
+    if (name !== undefined) {
+        findReference(name, path, files, "texture", findings);
     }
 }
 
 /**
  * Scan a PLY header against the file's length.
- * @param bytes - The file.
+ * @param path - The PLY's path in the set.
+ * @param files - The set.
  * @param limits - The limits in force.
  * @returns The summary.
  */
-export function scanPly(bytes: Uint8Array, limits: ModelLimits): Scanned {
-    const headText = new TextDecoder("latin1").decode(bytes.subarray(0, Math.min(bytes.length, 65536)));
-    const end = headText.indexOf("end_header");
-    if (end < 0) {
-        refuse("E_MODEL_STRUCTURE", { rule: "header" });
+export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, limits: ModelLimits): Scanned {
+    const bytes = files.get(path) as Uint8Array;
+    const header = asRefusal(() => readPlyHeader(bytes));
+    const kind = plyGeometryKind(header);
+    const vertex = header.elements.find((e) => e.name === "vertex");
+    const face = header.elements.find((e) => e.name === "face");
+    checkPlyBody(bytes, header, limits);
+
+    const names = new Set(vertex?.properties.map((p) => p.name));
+    const encoding = new Map([
+        ["ascii", "ascii"],
+        ["binary_little_endian", "binary"],
+        ["binary_big_endian", "binaryBigEndian"],
+    ] as const);
+    const warnings: CodedFact[] = [{ code: "W_MODEL_UP_GUESSED", params: { format: "ply", up: "y" } }];
+    let triangles = face?.count ?? 0;
+    let facts: Partial<ModelSummary> = { geometry: "mesh" };
+    if (kind === "mesh") {
+        if (triangles > limits.maxTriangles) {
+            refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
+        }
+    } else {
+        const points = pointFacts(kind, vertex?.count ?? 0, limits);
+        ({ triangles, facts } = points);
+        warnings.push(points.warning);
     }
 
-    const headerLength = headText.indexOf("\n", end) + 1;
-    if (headerLength === 0) {
-        refuse("E_MODEL_STRUCTURE", { rule: "header" });
-    }
-
-    const { format, elements } = readPlyHeader(headText.slice(0, end));
-    const vertex = elements.find((e) => e.name === "vertex");
-    const face = elements.find((e) => e.name === "face");
-    if (vertex?.properties.some((p) => p.startsWith("f_dc_") || p.startsWith("scale_")) === true) {
-        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "splat" });
-    }
-
-    if (face === undefined || face.count === 0) {
-        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "points" });
-    }
-
-    checkPlyBody(bytes, headerLength, format, elements, limits);
-    if (face.count > limits.maxTriangles) {
-        refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: face.count, limit: limits.maxTriangles });
-    }
-
+    const textureName = plyTextureFile(header);
+    const texture = textureName === undefined ? undefined : resolveReference(textureName, path, files);
     return {
         summary: Object.freeze({
             ...baseSummary("ply", "y"),
-            triangles: face.count,
+            triangles,
+            meshes: 1,
+            materials: Object.freeze([]),
+            textures: texture === undefined ? 0 : 1,
+            textureBytes: texture === undefined ? 0 : textureBytesOf(texture.bytes, texture.path),
+            ...facts,
+            encoding: encoding.get(header.format as "ascii"),
+            ...(kind === "splats" || names.has("red") || names.has("diffuse_red") ? { vertexColors: true } : {}),
+        }),
+        warnings,
+    };
+}
+
+/**
+ * A summary of a splat file.
+ * @param format - `splat`, `spz` or `sog`.
+ * @param points - The splats in the file.
+ * @param limits - The limits in force.
+ * @returns The summary and its warning.
+ */
+function splatScanned(format: string, points: number, limits: ModelLimits): Scanned {
+    const { triangles, facts, warning } = pointFacts("splats", points, limits);
+    return {
+        summary: Object.freeze({
+            ...baseSummary(format, "y"),
+            triangles,
             meshes: 1,
             materials: Object.freeze([]),
             textures: 0,
             textureBytes: 0,
+            ...facts,
+            vertexColors: true,
         }),
-        warnings: [{ code: "W_MODEL_UP_GUESSED", params: { format: "ply", up: "y" } }],
+        warnings: [warning],
+    };
+}
+
+/**
+ * Scan a raw `.splat`: whole 32-byte rows.
+ * @param bytes - The file.
+ * @param limits - The limits in force.
+ * @returns The summary.
+ */
+export function scanSplat(bytes: Uint8Array, limits: ModelLimits): Scanned {
+    if (bytes.length === 0 || bytes.length % SPLAT_ROW_BYTES !== 0) {
+        refuse("E_MODEL_STRUCTURE", { rule: "splat" });
+    }
+
+    return splatScanned("splat", bytes.length / SPLAT_ROW_BYTES, limits);
+}
+
+/**
+ * Scan an `.spz`: gzip whose declared size is under the decoded limit, inflating to an `NGSP`
+ * header (version 2 or 3) whose splat count fits the data.
+ * @param bytes - The file.
+ * @param limits - The limits in force.
+ * @returns The summary.
+ */
+export function scanSpz(bytes: Uint8Array, limits: ModelLimits): Scanned {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const declared = bytes.length >= 18 ? view.getUint32(bytes.length - 4, true) : 0;
+    if (declared > limits.maxDecodedBytes) {
+        refuse("E_MODEL_TOO_LARGE", { what: "decodedBytes", found: declared, limit: limits.maxDecodedBytes });
+    }
+
+    let raw: Uint8Array;
+    try {
+        raw = gunzipSync(bytes);
+    } catch {
+        return refuse("E_MODEL_STRUCTURE", { rule: "splat" });
+    }
+
+    const header = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+    const version = raw.length >= 16 ? header.getUint32(4, true) : 0;
+    if (raw.length < 16 || header.getUint32(0, true) !== 0x5053474e || (version !== 2 && version !== 3)) {
+        refuse("E_MODEL_STRUCTURE", { rule: "splat" });
+    }
+
+    const count = header.getUint32(8, true);
+    // Positions 9, alpha 1, color 3, scale 3 and rotation 3 (version 2) or 4 bytes per splat.
+    if (16 + count * (version === 3 ? 20 : 19) > raw.length) {
+        refuse("E_MODEL_STRUCTURE", { rule: "splat" });
+    }
+
+    return splatScanned("spz", count, limits);
+}
+
+/**
+ * The pictures a SOG's `meta.json` names, and its splat count.
+ * @param text - The `meta.json` text.
+ * @returns The count and the picture names.
+ */
+function readSogMeta(text: string): { count: number; pictures: string[] } {
+    const meta = parseGltfJson(text);
+    const group = (key: string): Record<string, unknown> | undefined => {
+        const value = meta[key];
+        return typeof value === "object" && value !== null && !Array.isArray(value)
+            ? (value as Record<string, unknown>)
+            : undefined;
+    };
+    const shape = group("means")?.shape;
+    const fromShape = Array.isArray(shape) ? Number(shape[0]) : NaN;
+    const count = typeof meta.count === "number" ? meta.count : fromShape;
+    if (!Number.isSafeInteger(count) || count < 0) {
+        refuse("E_MODEL_STRUCTURE", { rule: "splat" });
+    }
+
+    const pictures = ["means", "scales", "quats", "sh0", "shN"].flatMap((key) => {
+        const list = group(key)?.files;
+        return Array.isArray(list) ? list.filter((f) => typeof f === "string") : [];
+    });
+    return { count, pictures };
+}
+
+/**
+ * Look up the pictures a SOG's `meta.json` names.
+ * @param path - The `meta.json`'s path in the set.
+ * @param files - The set.
+ * @param limits - The limits in force.
+ * @param findings - Where missing pictures go.
+ */
+export function findSogParts(
+    path: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    limits: ModelLimits,
+    findings: Findings,
+): void {
+    for (const name of readSogMeta(textOf(files.get(path) as Uint8Array, limits)).pictures) {
+        findReference(name, path, files, "geometry", findings);
+    }
+}
+
+/**
+ * Scan an unbundled SOG: its `meta.json` count, and every picture it names in the set.
+ * @param path - The `meta.json`'s path in the set.
+ * @param files - The set.
+ * @param limits - The limits in force.
+ * @returns The summary.
+ */
+export function scanSog(path: string, files: ReadonlyMap<string, Uint8Array>, limits: ModelLimits): Scanned {
+    const { count, pictures } = readSogMeta(textOf(files.get(path) as Uint8Array, limits));
+    for (const name of pictures) {
+        resolveReference(name, path, files);
+    }
+
+    return splatScanned("sog", count, limits);
+}
+
+/**
+ * The parsed JSON of a `.babylon` file, under the text limit and the strict JSON rules.
+ * @param bytes - The file.
+ * @param limits - The limits in force.
+ * @returns The JSON.
+ */
+function babylonJson(bytes: Uint8Array, limits: ModelLimits): Record<string, unknown> {
+    return parseGltfJson(textOf(bytes, limits));
+}
+
+/**
+ * Look up the pictures a `.babylon` file's materials name.
+ * @param path - The file's path in the set.
+ * @param files - The set.
+ * @param limits - The limits in force.
+ * @param findings - Where missing pictures go.
+ */
+export function findBabylonParts(
+    path: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    limits: ModelLimits,
+    findings: Findings,
+): void {
+    for (const name of babylonTextureNames(babylonJson(files.get(path) as Uint8Array, limits))) {
+        findReference(name, path, files, "texture", findings);
+    }
+}
+
+/**
+ * Scan a `.babylon` file: its meshes' triangles, bounds and vertex colors, its materials and the
+ * pictures they name.
+ * @param path - The file's path in the set.
+ * @param files - The set.
+ * @param limits - The limits in force.
+ * @returns The summary.
+ */
+export function scanBabylon(path: string, files: ReadonlyMap<string, Uint8Array>, limits: ModelLimits): Scanned {
+    const json = babylonJson(files.get(path) as Uint8Array, limits);
+    const scene = asRefusal(() => readBabylon(json));
+    const box = new Box();
+    let triangles = 0;
+    for (const mesh of scene.meshes) {
+        triangles += mesh.geometry.indices.length / 3;
+        const { positions } = mesh.geometry;
+        for (let i = 0; i + 2 < positions.length; i += 3) {
+            box.add(positions[i], positions[i + 1], positions[i + 2]);
+        }
+    }
+
+    if (triangles > limits.maxTriangles) {
+        refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
+    }
+
+    let textureBytes = 0;
+    const names = babylonTextureNames(json);
+    for (const name of names) {
+        const image = resolveReference(name, path, files);
+        textureBytes += textureBytesOf(image.bytes, image.path);
+    }
+
+    if (textureBytes > limits.maxTextureBytes) {
+        refuse("E_MODEL_TOO_LARGE", { what: "textureBytes", found: textureBytes, limit: limits.maxTextureBytes });
+    }
+
+    const bounds = box.value;
+    const materials = Array.isArray(json.materials) ? json.materials : [];
+    return {
+        summary: Object.freeze({
+            ...baseSummary("babylon", "y"),
+            triangles,
+            meshes: scene.meshes.filter((m) => m.geometry.indices.length > 0).length,
+            materials: Object.freeze(
+                materials.map((m: unknown) =>
+                    cut(typeof (m as { name?: unknown }).name === "string" ? (m as { name: string }).name : ""),
+                ),
+            ),
+            textures: names.length,
+            textureBytes,
+            transparent: scene.materials.some((m) => m.alpha !== undefined && m.alpha < 1),
+            geometry: "mesh",
+            ...(scene.meshes.some((m) => m.geometry.colors !== undefined) ? { vertexColors: true } : {}),
+            ...(bounds === undefined ? {} : { bounds }),
+        }),
+        warnings: [],
     };
 }
 

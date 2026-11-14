@@ -481,6 +481,7 @@ const config: KnipConfig = {
         "wait", // Shell built-in used in npm scripts
         // System tools that scripts and tests run with execFileSync or spawn (knip 6 reads those calls;
         // knip 5 did not): none is an npm package, so none can be listed as a dependency.
+        "convert", // ImageMagick, for the model variant fixtures (graphty-element/test/fixtures/models/variants)
         "dot", // Graphviz
         "fc-list",
         "flock",

@@ -648,11 +648,11 @@ export type GraphtyErrorCode =
      */
     | "E_MODEL_TOO_LARGE"
     /**
-     * A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+     * A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
      */
     | "E_MODEL_STRUCTURE"
     /**
-     * A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+     * A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
      * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
      */
     | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -694,7 +694,7 @@ export type GraphtyErrorCode =
      */
     | "E_MODEL_EXTERNAL_URL"
     /**
-     * A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+     * A model's compressed data could not be decoded. `params.reason`: `missing` when the decoder is an optional package the page has not installed (KTX2 textures need `@babylonjs/ktx2decoder`; `params.package` names it), `load` when the decoder's files could not be loaded, `decode` when the data is damaged. `params.extension` names the glTF extension when known. Draco and meshopt decoders are bundled; nothing is fetched from a CDN.
      */
     | "E_MODEL_DECODER_UNAVAILABLE"
     /**
@@ -852,6 +852,12 @@ export type GraphtyWarningCode =
     | "W_MODEL_UP_GUESSED"
     /** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
     | "W_MODEL_HAS_ANIMATIONS"
+    /**
+     * A point cloud or Gaussian splat model is drawn as small solids, one per point: a splat's
+     * size, opacity falloff and rotation are not drawn, and more points than are drawn were thinned
+     * evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
+     */
+    | "W_MODEL_POINTS_APPROXIMATED"
     /**
      * A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
      * `params.layerIds` names the layers that write `node.color`.

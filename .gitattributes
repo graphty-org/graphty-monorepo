@@ -6,6 +6,9 @@
 graph-io/test/corpus/** -text
 graph-io/docs/samples/** -text
 graphty-element/test/helpers/corpus/** -text
+# Model fixtures and vendored decoders keep their exact bytes (ASCII STL, PLY, OBJ and .gltf included).
+graphty-element/test/fixtures/models/** -text
+graphty-element/src/models/decoders/vendor/** -text
 *.gsnp binary
 *.png binary
 *.zip binary

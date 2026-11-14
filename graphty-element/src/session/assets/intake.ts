@@ -13,6 +13,7 @@ import {
     isZip,
     type ModelFormat,
 } from "../../catalog/detectModel";
+import { isGltf1, readGlb1, upgradeGltf1 } from "../../models/readers/gltf1";
 import { isPrivateHost } from "../network";
 import type { CodedFact } from "../shared";
 import type { AddAssetOptions, AssetSource, ModelLimits, ModelPart, ModelSummary, NamedBlob } from "./AssetsApi";
@@ -28,7 +29,20 @@ import {
     refuseAll,
     roleOfName,
 } from "./references";
-import { findObjParts, scanObj, scanPly, scanStl, withSkips } from "./textFormats";
+import {
+    findBabylonParts,
+    findObjParts,
+    findPlyParts,
+    findSogParts,
+    scanBabylon,
+    scanObj,
+    scanPly,
+    scanSog,
+    scanSplat,
+    scanSpz,
+    scanStl,
+    withSkips,
+} from "./textFormats";
 import { unzipModel } from "./unzip";
 
 /** Something with bytes to read: a Blob, a File, or anything shaped like one. */
@@ -183,7 +197,10 @@ export async function unpackZip(
     }
 
     const [[name, only]] = given;
-    if (!isZip(only) || detectModelFormat({ filename: name, head: only })?.format !== "zip") {
+    // A .sog is a zip of a meta.json and the pictures it names: unpacked as a set, so its
+    // meta.json is the main file.
+    const format = isZip(only) ? detectModelFormat({ filename: name, head: only })?.format : undefined;
+    if (format !== "zip" && format !== "sog") {
         return given;
     }
 
@@ -996,8 +1013,8 @@ function bestOfEachBase(candidates: readonly Candidate[]): Candidate[] {
 }
 
 /**
- * Choose the main file of a set (design 3.2): ranked GLB, glTF, OBJ, STL, PLY, then formats the
- * element does not load; of files sharing a base name only the best ranked counts; two different
+ * Choose the main file of a set (design 3.2): ranked GLB, glTF, OBJ, STL, PLY, .babylon, SPZ, SOG,
+ * .splat, then formats the element does not load; of files sharing a base name only the best ranked counts; two different
  * candidates of the best rank are ambiguous.
  * @param files - The set.
  * @param forced - A format the caller forced.
@@ -1072,6 +1089,43 @@ function gltfText(bytes: Uint8Array): string {
     }
 }
 
+/** A glTF's JSON, upgraded to 2.0 when it was 1.0, and a GLB's binary chunk. */
+interface GltfJson {
+    readonly json: Record<string, unknown>;
+    readonly bin?: Uint8Array;
+    readonly upgraded: boolean;
+}
+
+/**
+ * Read a glTF or GLB's JSON with the strict rules, upgrading glTF 1.0 (and a GLB version 1) to
+ * glTF 2.0 JSON, so one checker reads both.
+ * @param bytes - The main file.
+ * @param format - `glb` or `gltf`.
+ * @returns The JSON and the binary chunk.
+ */
+function gltfJsonOf(bytes: Uint8Array, format: "glb" | "gltf"): GltfJson {
+    if (
+        format === "glb" &&
+        bytes.length >= 8 &&
+        new DataView(bytes.buffer, bytes.byteOffset, 8).getUint32(4, true) === 1
+    ) {
+        let glb1: { text: string; body: Uint8Array };
+        try {
+            glb1 = readGlb1(bytes);
+        } catch {
+            return refuse("E_MODEL_STRUCTURE", { rule: "json" });
+        }
+
+        return { json: upgradeGltf1(parseGltfJson(glb1.text)), bin: glb1.body, upgraded: true };
+    }
+
+    const { text, bin } = format === "glb" ? readGlb(bytes) : { text: gltfText(bytes), bin: undefined };
+    const json = parseGltfJson(text);
+    return isGltf1(json)
+        ? { json: upgradeGltf1(json), ...(bin === undefined ? {} : { bin }), upgraded: true }
+        : { json, ...(bin === undefined ? {} : { bin }), upgraded: false };
+}
+
 /**
  * Run the checks of the main file's format. Every part the model names is looked up first, so
  * every missing one is reported at once.
@@ -1089,9 +1143,9 @@ function checkByFormat(
 ): { summary: ModelSummary; warnings: readonly CodedFact[] } {
     const bytes = files.get(main.path) as Uint8Array;
     switch (main.format) {
-        case "glb": {
-            const { text, bin } = readGlb(bytes);
-            const json = parseGltfJson(text);
+        case "glb":
+        case "gltf": {
+            const { json, bin, upgraded } = gltfJsonOf(bytes, main.format);
             findGltfParts(json, main.path, files, findings);
             refuseMissing(findings);
             return checkGltf({
@@ -1100,14 +1154,9 @@ function checkByFormat(
                 path: main.path,
                 files,
                 limits,
-                format: "glb",
+                format: main.format,
+                upgraded,
             });
-        }
-        case "gltf": {
-            const json = parseGltfJson(gltfText(bytes));
-            findGltfParts(json, main.path, files, findings);
-            refuseMissing(findings);
-            return checkGltf({ json, path: main.path, files, limits, format: "gltf" });
         }
         case "obj":
             findObjParts(main.path, files, limits, findings);
@@ -1115,8 +1164,24 @@ function checkByFormat(
             return scanObj(main.path, files, limits);
         case "stl":
             return scanStl(bytes, limits);
+        case "ply":
+            findPlyParts(main.path, files, findings);
+            refuseMissing(findings);
+            return scanPly(main.path, files, limits);
+        case "splat":
+            return scanSplat(bytes, limits);
+        case "spz":
+            return scanSpz(bytes, limits);
+        case "sog":
+            findSogParts(main.path, files, limits, findings);
+            refuseMissing(findings);
+            return scanSog(main.path, files, limits);
+        case "babylon":
+            findBabylonParts(main.path, files, limits, findings);
+            refuseMissing(findings);
+            return scanBabylon(main.path, files, limits);
         default:
-            return scanPly(bytes, limits);
+            return refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: main.format, fileName: cut(main.path) });
     }
 }
 
@@ -1156,6 +1221,47 @@ export async function checkFileSet(
 }
 
 /**
+ * Look up every file a model names, by its format, for its parts list.
+ * @param main - The main file.
+ * @param bytes - Its bytes.
+ * @param files - The set.
+ * @param limits - The limits in force.
+ * @param findings - Where found, missing and ambiguous parts go.
+ */
+function findPartsByFormat(
+    main: MainFile,
+    bytes: Uint8Array | undefined,
+    files: ReadonlyMap<string, Uint8Array>,
+    limits: ModelLimits,
+    findings: Findings,
+): void {
+    if (bytes === undefined) {
+        return;
+    }
+
+    switch (main.format) {
+        case "glb":
+        case "gltf":
+            findGltfParts(gltfJsonOf(bytes, main.format).json, main.path, files, findings);
+            break;
+        case "obj":
+            findObjParts(main.path, files, limits, findings);
+            break;
+        case "ply":
+            findPlyParts(main.path, files, findings);
+            break;
+        case "sog":
+            findSogParts(main.path, files, limits, findings);
+            break;
+        case "babylon":
+            findBabylonParts(main.path, files, limits, findings);
+            break;
+        default:
+            break;
+    }
+}
+
+/**
  * The parts of a model, for `AssetRecord.parts` (node-models design 14.4): the main file, each
  * file it names (found ones, then missing ones), then the set's files nothing names. Read from the
  * files alone, so a model waiting for parts lists them too.
@@ -1182,12 +1288,7 @@ export function partsOf(
     const findings: Findings = { warnings: [], missing: [], found: [] };
     const bytes = files.get(main.path);
     try {
-        if (bytes !== undefined && (main.format === "glb" || main.format === "gltf")) {
-            const text = main.format === "glb" ? readGlb(bytes).text : gltfText(bytes);
-            findGltfParts(parseGltfJson(text), main.path, files, findings);
-        } else if (main.format === "obj") {
-            findObjParts(main.path, files, limits, findings);
-        }
+        findPartsByFormat(main, bytes, files, limits, findings);
     } catch (error) {
         // A file that cannot be read says why in the record's problems; its parts are what was found.
         if (!(error instanceof Refusal)) {

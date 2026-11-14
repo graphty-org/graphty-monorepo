@@ -46,6 +46,8 @@ export default tseslint.config(
             // The lifecycle tests' Chrome extension: a service worker Chrome loads, two lines.
             "test/lifecycle/discard-extension/**",
             "test/fast-check-experiment/**",
+            // Third-party decoders copied unchanged (src/models/decoders/vendor/*/README.md).
+            "src/models/decoders/vendor/**",
             "examples/**/*.js",
             "bin/**",
             ".storybook/webllm-stub.js",

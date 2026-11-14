@@ -267,9 +267,13 @@ function mergeGroups(
         mesh.isPickable = false;
         mesh.metadata = { graphtyModelGroup: key };
         // The instanced colour is always there, white by default: tint is then one write per
-        // instance, and no node's tint can change the template's shader.
-        mesh.registerInstancedBuffer("color", 4);
-        mesh.instancedBuffers.color = new Color4(1, 1, 1, 1);
+        // instance, and no node's tint can change the template's shader. Babylon names it
+        // "color", the same kind as per-vertex colors, so a group with vertex colors registers
+        // it under another name: its colors draw, and tint writes land where nothing reads them.
+        // ponytail: `node.modelTint` does not tint vertex-colored parts; a material plugin can.
+        const kind = (merged.colors?.length ?? 0) === 0 ? "color" : "graphtyTint";
+        mesh.registerInstancedBuffer(kind, 4);
+        mesh.instancedBuffers[kind] = new Color4(1, 1, 1, 1);
         mesh.freezeWorldMatrix();
     }
 }

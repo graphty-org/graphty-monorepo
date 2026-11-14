@@ -9,15 +9,18 @@
  *   buffer; the sum over all accessors, sparse ones included, is under the decoded-bytes limit;
  * - triangles are counted per use (a mesh used by three nodes counts three times);
  * - nodes, meshes, materials, textures, animations, morph targets and joints are capped;
- * - `EXT_mesh_gpu_instancing` is refused, and so are the compression extensions no decoder is
- *   bundled for;
+ * - `EXT_mesh_gpu_instancing` is refused, and so is a required extension the loader does not read;
+ * - a meshopt-compressed view's source fits its buffer, and its decoded size counts toward the
+ *   limit; a Draco primitive's buffer view and attribute ids are in range;
  * - image sizes are read from their headers (in buffer views and `data:` URLs too).
+ *
+ * A glTF 1.0 file is upgraded to 2.0 JSON first (src/models/readers/gltf1.ts) and checked as that.
  *
  * What comes out is the model's summary, built from the same JSON.
  */
 
 import type { CodedFact } from "../shared";
-import type { ModelLimits, ModelSummary } from "./AssetsApi";
+import type { ModelCompression, ModelLimits, ModelSummary } from "./AssetsApi";
 import { cut, type Findings, findReference, refuse, resolveReference, textureBytesOf } from "./references";
 
 /** The counts a glTF may hold, so a file cannot stall the main thread on shader or hierarchy work. */
@@ -32,7 +35,12 @@ const GLTF_CAPS = Object.freeze({
     depth: 64,
 });
 
-/** Required extensions the bundled loader reads (src/models/chunk.ts registers each). */
+/**
+ * Required extensions the bundled loader reads (src/models/chunk.ts registers each, and
+ * src/models/decoders/ the decoders). The transmission family (transmission, volume, dispersion,
+ * diffuse_transmission, volume_scatter) is not: it needs a scene-wide render target that thousands
+ * of instances cannot afford, so a file that only uses it draws opaque.
+ */
 const READABLE_EXTENSIONS = new Set([
     "KHR_texture_transform",
     "KHR_mesh_quantization",
@@ -44,14 +52,35 @@ const READABLE_EXTENSIONS = new Set([
     "KHR_materials_specular",
     "KHR_materials_sheen",
     "EXT_texture_webp",
+    "EXT_texture_avif",
+    "KHR_materials_anisotropy",
+    "KHR_materials_iridescence",
+    "KHR_materials_variants",
+    "KHR_materials_diffuse_roughness",
+    "KHR_materials_coat",
+    "KHR_materials_fuzz",
+    "KHR_lights_punctual",
+    "KHR_node_visibility",
+    "KHR_xmp_json_ld",
+    "MSFT_sRGBFactors",
+    "KHR_draco_mesh_compression",
+    "EXT_meshopt_compression",
+    "KHR_meshopt_compression",
+    "KHR_texture_basisu",
 ]);
 
-/** Compression extensions that need a decoder, and the package that will bring one. */
-const DECODERS: ReadonlyMap<string, string> = new Map([
+/** The compression each glTF extension stands for, in {@link ModelCompression} terms. */
+const COMPRESSION: ReadonlyMap<string, ModelCompression> = new Map([
     ["KHR_draco_mesh_compression", "draco"],
     ["EXT_meshopt_compression", "meshopt"],
-    ["KHR_texture_basisu", "@babylonjs/ktx2decoder"],
+    ["KHR_meshopt_compression", "meshopt"],
+    ["KHR_texture_basisu", "ktx2"],
+    ["EXT_texture_webp", "webp"],
+    ["EXT_texture_avif", "avif"],
 ]);
+
+/** The two names of meshopt compression. */
+const MESHOPT = ["EXT_meshopt_compression", "KHR_meshopt_compression"];
 
 /** Bytes per component, by glTF componentType. */
 const COMPONENT_BYTES: Readonly<Record<number, number>> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
@@ -312,6 +341,8 @@ export interface GltfInput {
     readonly limits: ModelLimits;
     /** "glb" or "gltf". */
     readonly format: "glb" | "gltf";
+    /** The JSON was upgraded from glTF 1.0. */
+    readonly upgraded?: boolean;
 }
 
 /** What {@link checkGltf} returns. */
@@ -335,11 +366,6 @@ function checkExtensions(json: Record<string, unknown>): string[] {
     }
 
     for (const extension of required) {
-        const decoder = DECODERS.get(extension);
-        if (decoder !== undefined) {
-            refuse("E_MODEL_DECODER_UNAVAILABLE", { extension, package: decoder });
-        }
-
         if (!READABLE_EXTENSIONS.has(extension)) {
             refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "gltf", extension: cut(extension) });
         }
@@ -485,7 +511,19 @@ function checkTree(json: Record<string, unknown>, nodes: readonly Record<string,
 }
 
 /**
- * The bytes behind each buffer: a GLB's binary chunk, a file in the set, or a `data:` URL.
+ * Whether a buffer is a meshopt fallback: declared, holding no data, read only through
+ * meshopt-compressed views.
+ * @param buffer - The buffer.
+ * @returns True for a fallback.
+ */
+function isMeshoptFallback(buffer: Record<string, unknown>): boolean {
+    const extensions = isObject(buffer.extensions) ? buffer.extensions : {};
+    return MESHOPT.some((name) => isObject(extensions[name]) && extensions[name].fallback === true);
+}
+
+/**
+ * The bytes behind each buffer: a GLB's binary chunk, a file in the set, or a `data:` URL. A
+ * meshopt fallback with no `uri` has none (its length is its declared one).
  * @param input - The glTF input.
  * @param buffers - Its buffers.
  * @returns Each buffer's bytes.
@@ -494,7 +532,9 @@ function bufferBytes(input: GltfInput, buffers: readonly Record<string, unknown>
     return buffers.map((buffer, i) => {
         const declared = integer(buffer.byteLength, "buffer.byteLength");
         let bytes: Uint8Array;
-        if (buffer.uri === undefined) {
+        if (buffer.uri === undefined && isMeshoptFallback(buffer) && (i !== 0 || input.bin === undefined)) {
+            return new Uint8Array(0);
+        } else if (buffer.uri === undefined) {
             if (i !== 0 || input.bin === undefined) {
                 refuse("E_MODEL_STRUCTURE", { rule: "accessor", where: "buffer" });
             }
@@ -517,6 +557,40 @@ function bufferBytes(input: GltfInput, buffers: readonly Record<string, unknown>
 }
 
 /**
+ * Check a meshopt-compressed view's source range against its buffer's bytes, and return what it
+ * decodes to.
+ * @param view - The buffer view.
+ * @param buffers - Each buffer's bytes.
+ * @returns The decoded bytes, or 0 for a view that is not compressed.
+ */
+function meshoptBytes(view: Record<string, unknown>, buffers: readonly Uint8Array[]): number {
+    const extensions = isObject(view.extensions) ? view.extensions : {};
+    const name = MESHOPT.find((n) => isObject(extensions[n]));
+    if (name === undefined) {
+        return 0;
+    }
+
+    const meshopt = extensions[name] as Record<string, unknown>;
+    const buffer = index(meshopt.buffer, buffers.length, "meshopt.buffer");
+    if (buffer === undefined) {
+        refuse("E_MODEL_STRUCTURE", { rule: "index", where: "meshopt.buffer" });
+    }
+
+    const end =
+        integer(meshopt.byteOffset, "meshopt.byteOffset", 0) + integer(meshopt.byteLength, "meshopt.byteLength");
+    if (end > buffers[buffer].length) {
+        refuse("E_MODEL_STRUCTURE", { rule: "accessor", where: "meshopt" });
+    }
+
+    const decoded = integer(meshopt.count, "meshopt.count") * integer(meshopt.byteStride, "meshopt.byteStride");
+    if (decoded > integer(view.byteLength, "bufferView.byteLength")) {
+        refuse("E_MODEL_STRUCTURE", { rule: "accessor", where: "meshopt" });
+    }
+
+    return decoded;
+}
+
+/**
  * Check every buffer view, accessor and their sizes; refuse when the decoded total is over the limit.
  * @param json - The glTF.
  * @param buffers - Each buffer's bytes.
@@ -529,21 +603,25 @@ function checkAccessors(
     limits: ModelLimits,
 ): { accessors: Record<string, unknown>[]; views: Record<string, unknown>[] } {
     const views = list(json, "bufferViews");
+    const declared = list(json, "buffers").map((b) => integer(b.byteLength, "buffer.byteLength"));
+    let decoded = 0;
     for (const view of views) {
         const buffer = index(view.buffer, buffers.length, "bufferView.buffer") as number;
         if (view.buffer === undefined) {
             refuse("E_MODEL_STRUCTURE", { rule: "index", where: "bufferView.buffer" });
         }
 
+        // A compressed view's own range is in a fallback buffer that holds nothing.
+        const compressed = meshoptBytes(view, buffers);
+        decoded += compressed;
         const end =
             integer(view.byteOffset, "bufferView.byteOffset", 0) + integer(view.byteLength, "bufferView.byteLength");
-        if (end > buffers[buffer].length) {
+        if (end > (compressed > 0 ? Math.max(buffers[buffer].length, declared[buffer]) : buffers[buffer].length)) {
             refuse("E_MODEL_STRUCTURE", { rule: "accessor", where: "bufferView" });
         }
     }
 
     const accessors = list(json, "accessors");
-    let decoded = 0;
     const fits = (viewIndex: unknown, offset: number, count: number, size: number, stride?: number): void => {
         const v = index(viewIndex, views.length, "accessor.bufferView");
         if (v === undefined) {
@@ -674,6 +752,7 @@ function checkTargets(targets: readonly unknown[], accessors: number): void {
  * @param accessors - The glTF's accessors.
  * @param materials - How many materials it has.
  * @param tally - Where it is counted.
+ * @param views - How many buffer views the glTF has.
  */
 function tallyPrimitive(
     primitive: unknown,
@@ -681,6 +760,7 @@ function tallyPrimitive(
     accessors: readonly Record<string, unknown>[],
     materials: number,
     tally: MeshTally,
+    views: number,
 ): void {
     if (!isObject(primitive) || !isObject(primitive.attributes)) {
         refuse("E_MODEL_STRUCTURE", { rule: "json", key: "mesh.primitives" });
@@ -690,6 +770,7 @@ function tallyPrimitive(
         index(a, accessors.length, "primitive.attributes");
     }
 
+    checkDraco(primitive, views);
     const position = index(primitive.attributes.POSITION, accessors.length, "primitive.attributes");
     const indices = index(primitive.indices, accessors.length, "primitive.indices");
     index(primitive.material, materials, "primitive.material");
@@ -707,22 +788,45 @@ function tallyPrimitive(
 }
 
 /**
+ * Check a Draco-compressed primitive's buffer view and attribute ids.
+ * @param primitive - The primitive.
+ * @param views - How many buffer views the glTF has.
+ */
+function checkDraco(primitive: Record<string, unknown>, views: number): void {
+    const extensions = isObject(primitive.extensions) ? primitive.extensions : {};
+    const draco = extensions.KHR_draco_mesh_compression;
+    if (draco === undefined) {
+        return;
+    }
+
+    if (!isObject(draco) || index(draco.bufferView, views, "draco.bufferView") === undefined) {
+        refuse("E_MODEL_STRUCTURE", { rule: "index", where: "draco.bufferView" });
+    }
+
+    for (const id of Object.values(isObject(draco.attributes) ? draco.attributes : {})) {
+        integer(id, "draco.attributes");
+    }
+}
+
+/**
  * Check every mesh's primitives, and count their triangles, morph targets and bounds.
  * @param meshes - The glTF's meshes.
  * @param accessors - Its accessors.
  * @param materials - How many materials it has.
+ * @param views - How many buffer views the glTF has.
  * @returns The tally.
  */
 function tallyMeshes(
     meshes: readonly Record<string, unknown>[],
     accessors: readonly Record<string, unknown>[],
     materials: number,
+    views: number,
 ): MeshTally {
     const tally: MeshTally = { triangles: new Float64Array(meshes.length), morphTargets: 0, bounds: undefined };
     meshes.forEach((mesh, m) => {
         const primitives = Array.isArray(mesh.primitives) ? (mesh.primitives as unknown[]) : [];
         for (const primitive of primitives) {
-            tallyPrimitive(primitive, m, accessors, materials, tally);
+            tallyPrimitive(primitive, m, accessors, materials, tally, views);
         }
     });
 
@@ -789,6 +893,13 @@ function checkTextureIndices(
     for (const texture of textures) {
         index(texture.source, images, "texture.source");
         index(texture.sampler, samplers, "texture.sampler");
+        const extensions = isObject(texture.extensions) ? texture.extensions : {};
+        for (const name of ["EXT_texture_webp", "EXT_texture_avif", "KHR_texture_basisu"]) {
+            const extension = extensions[name];
+            if (isObject(extension)) {
+                index(extension.source, images, "texture.source");
+            }
+        }
     }
 
     for (const material of materials) {
@@ -930,10 +1041,14 @@ export function checkGltf(input: GltfInput): GltfChecked {
     const { json, limits } = input;
     const { asset } = json;
     if (!isObject(asset) || typeof asset.version !== "string" || !asset.version.startsWith("2")) {
-        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "gltf1", fileName: cut(input.path) });
+        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "gltf", fileName: cut(input.path) });
     }
 
     const extensionsRequired = checkExtensions(json);
+    const used = Array.isArray(json.extensionsUsed)
+        ? json.extensionsUsed.filter((e): e is string => typeof e === "string")
+        : [];
+    const compression = [...new Set([...used, ...extensionsRequired].flatMap((e) => COMPRESSION.get(e) ?? []))];
     const nodes = list(json, "nodes");
     const meshes = list(json, "meshes");
     const materials = list(json, "materials");
@@ -950,7 +1065,7 @@ export function checkGltf(input: GltfInput): GltfChecked {
 
     // Every index the loader follows.
     checkNodes(nodes, meshes.length, skins.length, cameras.length);
-    const { triangles, morphTargets, bounds } = tallyMeshes(meshes, accessors, materials.length);
+    const { triangles, morphTargets, bounds } = tallyMeshes(meshes, accessors, materials.length, views.length);
     const drawn = drawnTriangles(reached, nodes, triangles, limits);
 
     cap("nodes", nodes.length, GLTF_CAPS.nodes);
@@ -978,6 +1093,11 @@ export function checkGltf(input: GltfInput): GltfChecked {
         morphTargets,
         transparent: materials.some((m) => m.alphaMode === "BLEND"),
         extensionsRequired: Object.freeze(extensionsRequired.map(cut)),
+        geometry: "mesh" as const,
+        ...(input.upgraded === true ? { gltfVersion: "1.0" as const } : { gltfVersion: "2.0" as const }),
+        extensionsUsed: Object.freeze(used.map(cut)),
+        ...(compression.length > 0 ? { compression: Object.freeze(compression) } : {}),
+        ...(hasVertexColors(meshes) ? { vertexColors: true } : {}),
     });
 
     const warnings: CodedFact[] = [];
@@ -986,6 +1106,19 @@ export function checkGltf(input: GltfInput): GltfChecked {
     }
 
     return { summary, warnings };
+}
+
+/**
+ * Whether any primitive carries a `COLOR_0` attribute.
+ * @param meshes - The glTF's meshes.
+ * @returns True when one does.
+ */
+function hasVertexColors(meshes: readonly Record<string, unknown>[]): boolean {
+    return meshes.some((mesh) =>
+        (Array.isArray(mesh.primitives) ? mesh.primitives : []).some(
+            (p: unknown) => isObject(p) && isObject(p.attributes) && p.attributes.COLOR_0 !== undefined,
+        ),
+    );
 }
 
 /**

@@ -12,7 +12,7 @@
 export type ModelFormat = string; // NOSONAR(S6564): published, documented name for the open union of model format ids
 
 /** The model formats graphty-element reads itself. */
-export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply";
+export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "splat" | "spz" | "sog" | "babylon";
 
 /** The built-in formats, best first: the order a main file is chosen in. */
 export const BUILT_IN_MODEL_FORMATS: readonly BuiltInModelFormat[] = Object.freeze([
@@ -21,6 +21,10 @@ export const BUILT_IN_MODEL_FORMATS: readonly BuiltInModelFormat[] = Object.free
     "obj",
     "stl",
     "ply",
+    "babylon",
+    "spz",
+    "sog",
+    "splat",
 ]);
 
 /** What {@link detectModelFormat} is given: a file name, its first bytes, or both. */
@@ -36,7 +40,7 @@ export interface ModelDetection {
     /**
      * The format: a {@link BuiltInModelFormat}, `"zip"` for an archive that may hold a model, or a
      * recognized format graphty-element cannot load (`"fbx"`, `"usdz"`, `"usd"`, `"dae"`, `"3mf"`,
-     * `"blend"`, `"babylon"`, `"splat"`).
+     * `"blend"`, `"bvh"`).
      */
     readonly format: ModelFormat;
     /** Whether graphty-element can load it. */
@@ -53,10 +57,7 @@ const UNSUPPORTED_EXTENSIONS: Readonly<Record<string, string>> = {
     dae: "dae",
     "3mf": "3mf",
     blend: "blend",
-    babylon: "babylon",
-    splat: "splat",
-    spz: "splat",
-    sog: "splat",
+    bvh: "bvh",
 };
 
 const BUILT_IN_EXTENSIONS: Readonly<Record<string, BuiltInModelFormat>> = {
@@ -65,6 +66,10 @@ const BUILT_IN_EXTENSIONS: Readonly<Record<string, BuiltInModelFormat>> = {
     obj: "obj",
     stl: "stl",
     ply: "ply",
+    splat: "splat",
+    spz: "spz",
+    sog: "sog",
+    babylon: "babylon",
 };
 
 /**
@@ -132,16 +137,18 @@ const UNSUPPORTED_MAGIC: readonly (readonly [string, string])[] = [
     ["Kaydara FBX Binary", "fbx"],
     ["BLENDER", "blend"],
     ["PXR-USDC", "usd"],
+    ["HIERARCHY", "bvh"],
 ];
 
 /**
- * The answer for a file that starts `glTF`: a GLB, supported when it is version 2.
+ * The answer for a file that starts `glTF`: a GLB, supported in version 1 (`KHR_binary_glTF`,
+ * upgraded on reading) and version 2.
  * @param head - The first bytes.
  * @returns The detection.
  */
 function glbDetection(head: Uint8Array): ModelDetection {
     const version = head.length >= 8 ? new DataView(head.buffer, head.byteOffset, 8).getUint32(4, true) : 2;
-    return { format: "glb", supported: version === 2 };
+    return { format: "glb", supported: version === 1 || version === 2 };
 }
 
 /**
@@ -152,6 +159,11 @@ function glbDetection(head: Uint8Array): ModelDetection {
 function zipDetection(ext: string): ModelDetection | undefined {
     if (ext === "usdz" || ext === "3mf") {
         return { format: ext, supported: false };
+    }
+
+    // A PlayCanvas SOG bundle: a zip of meta.json and the WebP pictures it names.
+    if (ext === "sog") {
+        return { format: "sog", supported: true };
     }
 
     // A zip with another extension (a Cytoscape session, an office file) is not a model kit.
@@ -175,19 +187,27 @@ function isBinaryStl(head: Uint8Array, ext: string): boolean {
 }
 
 /**
- * The answer for text that starts `{`: a glTF, a .babylon, or nothing.
+ * The answer for text that starts `{`: a glTF, a .babylon, an unbundled SOG's `meta.json`, or
+ * nothing.
  * @param text - The head as text.
  * @param ext - The lower-cased extension.
  * @returns The detection, or undefined.
  */
 function jsonDetection(text: string, ext: string): ModelDetection | undefined {
-    if (/"asset"\s*:/.test(text)) {
+    if (/"means"\s*:/.test(text) && /"quats"\s*:/.test(text)) {
+        return { format: "sog", supported: true };
+    }
+
+    if (ext === "babylon" && /"producer"\s*:|"meshes"\s*:/.test(text)) {
+        return { format: "babylon", supported: true };
+    }
+
+    // A glTF 1.0 file without an `asset` names its meshes by id.
+    if (/"asset"\s*:/.test(text) || (ext === "gltf" && /"meshes"\s*:/.test(text))) {
         return { format: "gltf", supported: true };
     }
 
-    return /"producer"\s*:|"meshes"\s*:/.test(text) && ext === "babylon"
-        ? { format: "babylon", supported: false }
-        : undefined;
+    return undefined;
 }
 
 /**
@@ -251,6 +271,11 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
         return { format: "ply", supported: true };
     }
 
+    // Niantic's SPZ is gzip; its `NGSP` magic is inside, read by the scan after inflating.
+    if (ext === "spz" && head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b) {
+        return { format: "spz", supported: true };
+    }
+
     if (isBinaryStl(head, ext)) {
         return { format: "stl", supported: true };
     }
@@ -264,7 +289,9 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
  * Every drop target calls this before treating a file as graph data. Bytes come first: a GLB
  * starts `glTF`, a glTF is JSON with an `asset`, a binary STL is exactly 84 + 50 bytes per
  * triangle long, an ASCII STL starts `solid` and holds a `facet`, a PLY starts `ply`, an OBJ has
- * `v` and `f` lines, a zip starts `PK`. With nothing in the bytes, the extension decides.
+ * `v` and `f` lines, a zip starts `PK` (a `.sog` is a zip too), an SPZ is gzip named `.spz`, a BVH
+ * starts `HIERARCHY`. With nothing in the bytes, the extension decides: a raw `.splat` is rows of
+ * 32 bytes and nothing more.
  * @param input - The file name, the first bytes, or both.
  * @returns The format and whether it loads, or undefined when it is not a model file.
  * @example
@@ -283,7 +310,7 @@ export function detectModelFormat(input: ModelDetectionInput): ModelDetection | 
         }
     }
 
-    // Formats whose bytes are not distinctive (splats, .babylon) or a head too short to tell.
+    // Formats whose bytes are not distinctive (a raw .splat) or a head too short to tell.
     if (ext in BUILT_IN_EXTENSIONS) {
         return { format: BUILT_IN_EXTENSIONS[ext], supported: true };
     }
@@ -352,12 +379,21 @@ export function detectAssetKind(input: ModelDetectionInput): AssetKind | undefin
     return !hasHead && IMAGE_EXTENSIONS.has(extensionOf(input.filename)) ? "image" : undefined;
 }
 
-/** The parts a model's files may come with, beyond its pictures: glTF buffers and OBJ materials. */
-const PART_EXTENSIONS = ["bin", "mtl"];
+/** The parts a model's files may come with, beyond its pictures: glTF buffers, OBJ materials, an unbundled SOG's meta.json. */
+const PART_EXTENSIONS = ["bin", "mtl", "json"];
+
+/** Pictures a model's files may name, beyond the ones an image asset may be. */
+const PART_PICTURE_EXTENSIONS = ["tga", "bmp", "gif", "dds", "ktx2", "avif"];
 
 const ASSET_FILE_EXTENSIONS: Readonly<Record<AssetKind, readonly string[]>> = Object.freeze({
     model: Object.freeze(
-        [...Object.keys(BUILT_IN_EXTENSIONS), ...PART_EXTENSIONS, "zip", ...IMAGE_EXTENSIONS].map((ext) => `.${ext}`),
+        [
+            ...Object.keys(BUILT_IN_EXTENSIONS),
+            ...PART_EXTENSIONS,
+            "zip",
+            ...IMAGE_EXTENSIONS,
+            ...PART_PICTURE_EXTENSIONS,
+        ].map((ext) => `.${ext}`),
     ),
     image: Object.freeze([...IMAGE_EXTENSIONS].map((ext) => `.${ext}`)),
 });

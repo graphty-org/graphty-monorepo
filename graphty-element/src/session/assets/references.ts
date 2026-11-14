@@ -433,7 +433,76 @@ export function imageSize(bytes: Uint8Array): ImageSize | undefined {
         return webpSize(bytes, view);
     }
 
+    return otherImageSize(bytes, view);
+}
+
+/** The KTX2 identifier: `\xABKTX 20\xBB\r\n\x1A\n`. */
+const KTX2_MAGIC = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/**
+ * The size of a picture a model may name beyond PNG, JPEG and WebP: KTX2, AVIF, BMP, GIF, DDS, TGA.
+ * @param bytes - The picture.
+ * @param view - A view of it.
+ * @returns The size, or undefined.
+ */
+function otherImageSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    const ascii = (at: number, text: string): boolean =>
+        bytes.length >= at + text.length &&
+        Array.from(text, (c) => c.codePointAt(0)).every((c, i) => bytes[at + i] === c);
+    if (bytes.length >= 28 && KTX2_MAGIC.every((b, i) => bytes[i] === b)) {
+        return { width: view.getUint32(20, true), height: Math.max(view.getUint32(24, true), 1) };
+    }
+
+    if (ascii(4, "ftyp") && (ascii(8, "avif") || ascii(8, "avis") || ascii(8, "mif1"))) {
+        return avifSize(bytes, view);
+    }
+
+    if (ascii(0, "BM") && bytes.length >= 26) {
+        return { width: Math.abs(view.getInt32(18, true)), height: Math.abs(view.getInt32(22, true)) };
+    }
+
+    if (ascii(0, "GIF8") && bytes.length >= 10) {
+        return { width: view.getUint16(6, true), height: view.getUint16(8, true) };
+    }
+
+    if (ascii(0, "DDS ") && bytes.length >= 20) {
+        return { width: view.getUint32(16, true), height: view.getUint32(12, true) };
+    }
+
+    return tgaSize(bytes, view);
+}
+
+/**
+ * An AVIF's size, from its `ispe` (image spatial extent) property.
+ * @param bytes - The picture.
+ * @param view - A view of it.
+ * @returns The size, or undefined when it has none.
+ */
+function avifSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    const end = Math.min(bytes.length - 16, 65536);
+    for (let at = 4; at < end; at++) {
+        if (bytes[at] === 0x69 && bytes[at + 1] === 0x73 && bytes[at + 2] === 0x70 && bytes[at + 3] === 0x65) {
+            return { width: view.getUint32(at + 8), height: view.getUint32(at + 12) };
+        }
+    }
+
     return undefined;
+}
+
+/**
+ * A TGA's size, which has no magic: a known image type and pixel depth decide.
+ * @param bytes - The picture.
+ * @param view - A view of it.
+ * @returns The size, or undefined when the header is not a TGA's.
+ */
+function tgaSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    if (bytes.length < 18 || bytes[1] > 1 || ![1, 2, 3, 9, 10, 11].includes(bytes[2])) {
+        return undefined;
+    }
+
+    return [8, 15, 16, 24, 32].includes(bytes[16])
+        ? { width: view.getUint16(12, true), height: view.getUint16(14, true) }
+        : undefined;
 }
 
 /**

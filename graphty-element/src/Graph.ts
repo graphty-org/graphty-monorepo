@@ -219,7 +219,7 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
-import { loadChunk, loadModel } from "./models/loadModel";
+import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { optionsOf } from "./models/ModelCache";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
@@ -6995,7 +6995,9 @@ export class Graph implements GraphContext {
      * @param options - The size and the node's style values.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected or waiting model, its first problem's code and params.
+     *     rejected or waiting model, its first problem's code and params; for an accepted model that
+     *     could not be drawn, the load failure's code (`E_MODEL_STRUCTURE`, `E_MODEL_PARSE`,
+     *     `E_MODEL_DECODER_UNAVAILABLE`, `E_MODEL_EXTERNAL_URL`) and its params as `details`.
      */
     async modelThumbnail(ref: string, options: ModelThumbnailOptions = {}): Promise<string> {
         const { assets } = this.getSession();
@@ -7054,7 +7056,24 @@ export class Graph implements GraphContext {
         if (shot === undefined) {
             shot = this.#thumbnailQueue.then(async () => {
                 const files = assets.files(record.id);
-                const container = await loadModel(this.scene, files, record.path ?? "", record.format, record.skipped);
+                const container = await loadModel(
+                    this.scene,
+                    files,
+                    record.path ?? "",
+                    record.format,
+                    record.skipped,
+                ).catch((error: unknown) => {
+                    if (!(error instanceof ModelLoadFailure)) {
+                        throw error;
+                    }
+
+                    throw new GraphtyError({
+                        code: error.fact.code as GraphtyError["code"],
+                        source: "data",
+                        message: `The model ${ref} could not be drawn.`,
+                        details: error.fact.params,
+                    });
+                });
                 const chunk = await loadChunk();
                 const template = await chunk.prepareTemplate(
                     this.scene,

@@ -199,7 +199,37 @@ export interface ModelSummary {
     readonly transparent: boolean;
     /** glTF only. */
     readonly extensionsRequired: readonly string[];
+    /**
+     * What the file draws: triangles (`mesh`), a point cloud (`points`) or Gaussian splats
+     * (`splats`). Points and splats are drawn as small solids, one per point, and earn
+     * `W_MODEL_POINTS_APPROXIMATED`. Absent for a picture.
+     */
+    readonly geometry?: ModelGeometry;
+    /** Points or splats in the file, before thinning. Points and splats only. */
+    readonly points?: number;
+    /** STL and PLY: how the file is stored. */
+    readonly encoding?: ModelEncoding;
+    /** The file carries per-vertex or per-face colors, and they are drawn. */
+    readonly vertexColors?: boolean;
+    /** glTF only: the compression its data uses, from `extensionsUsed`. */
+    readonly compression?: readonly ModelCompression[];
+    /** glTF only: `"1.0"` for a glTF 1.0 file, upgraded to 2.0 on reading. */
+    readonly gltfVersion?: "1.0" | "2.0";
+    /** glTF only: every extension the file uses, beside `extensionsRequired`. */
+    readonly extensionsUsed?: readonly string[];
 }
+
+/** What a model file draws: see {@link ModelSummary.geometry}. */
+export type ModelGeometry = "mesh" | "points" | "splats";
+
+/** How an STL or PLY file is stored: see {@link ModelSummary.encoding}. */
+export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
+
+/**
+ * A compression a glTF's data uses: Draco or meshopt geometry, KTX2 / Basis Universal, WebP or
+ * AVIF pictures. See {@link ModelSummary.compression}.
+ */
+export type ModelCompression = "draco" | "meshopt" | "ktx2" | "webp" | "avif";
 
 /** The limits that protect the tab. Only the page's code sets them; a document never does. */
 export interface ModelLimits {

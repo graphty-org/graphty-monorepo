@@ -320,11 +320,11 @@ describe("the model chunk", () => {
     });
 
     it("loads a binary STL with no request", async () => {
-        const { loadModelContainer } = await import("../../../src/models/chunk");
+        const { loadModel } = await import("../../../src/models/loadModel");
         const scene = makeScene();
 
         const recording = recordRequests();
-        const container = await loadModelContainer(scene, stlBytes(), ".stl");
+        const container = await loadModel(scene, new Map([["model.stl", stlBytes()]]), "model.stl", "stl");
         container.addAllToScene();
         await vi.waitFor(() => {
             assert.isTrue(scene.isReady(), "the scene compiled its shaders");

@@ -216,6 +216,16 @@ export function thirdPartyLicenses(): Plugin {
                         .map((file) => readFileSync(`${dir}/${file}`, "utf8").trim());
                     return [`${name}@${version} (${license ?? "see below"})`, ...texts].join("\n\n");
                 });
+            // The decoders graphty-element copies into its own source (src/models/decoders/vendor/),
+            // which the build writes beside its chunks.
+            const vendor = resolve(__dirname, "src/models/decoders/vendor");
+            for (const dir of readdirSync(vendor).sort((a, b) => a.localeCompare(b))) {
+                const texts = ["README.md", "LICENSE.md"].map((file) =>
+                    readFileSync(`${vendor}/${dir}/${file}`, "utf8").trim(),
+                );
+                sections.push([`src/models/decoders/vendor/${dir}`, ...texts].join("\n\n"));
+            }
+
             this.emitFile({
                 type: "asset",
                 fileName: "THIRD-PARTY-LICENSES.txt",

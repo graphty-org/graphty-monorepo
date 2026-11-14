@@ -1,0 +1,750 @@
+[
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "glb",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB, plain geometry",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-bin",
+        "format": "gltf",
+        "color": "blue",
+        "what": ".gltf with its .bin beside it",
+        "files": ["cube.gltf", "cube.bin"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-embedded",
+        "format": "gltf",
+        "color": "blue",
+        "what": ".gltf with its buffer as a data: URL",
+        "files": ["cube.gltf"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "zip-gltf",
+        "format": "gltf",
+        "color": "blue",
+        "what": "a .zip holding a .gltf and its .bin",
+        "files": ["cube.zip"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_AMBIGUOUS"
+        },
+        "upload": "files",
+        "id": "zip-two-models",
+        "format": "zip",
+        "color": "any",
+        "what": "a .zip holding two models: which one is meant",
+        "files": ["two.zip"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-textured",
+        "format": "gltf",
+        "color": "green",
+        "what": ".gltf, .bin and a PNG texture",
+        "files": ["cube.gltf", "cube.bin", "cube.png"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "glb-textured",
+        "format": "glb",
+        "color": "green",
+        "what": "GLB with its PNG texture inside",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-vertex-colors",
+        "format": "glb",
+        "color": "red",
+        "what": "GLB with per-vertex colors",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-no-indices",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB with no index buffer",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-quantized",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB with KHR_mesh_quantization (SHORT positions)",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-animated",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB with an animation (drawn in its rest pose)",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-morph",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB with a morph target",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-skinned",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB with a skin",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-unlit",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB with KHR_materials_unlit",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-two-scenes",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB with two scenes (the default one is drawn)",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-transmission-used",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB using KHR_materials_transmission (drawn opaque)",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "glb-draco",
+        "format": "glb",
+        "compression": ["draco"],
+        "color": "blue",
+        "what": "GLB, Draco compressed",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-draco",
+        "format": "gltf",
+        "compression": ["draco"],
+        "color": "blue",
+        "what": ".gltf and .bin, Draco compressed",
+        "files": ["cube.gltf", "cube.bin"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-meshopt-ext",
+        "format": "gltf",
+        "compression": ["meshopt"],
+        "color": "blue",
+        "what": ".gltf and .bin, EXT_meshopt_compression",
+        "files": ["cube.gltf", "cube.bin"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-meshopt-khr",
+        "format": "gltf",
+        "compression": ["meshopt"],
+        "color": "blue",
+        "what": ".gltf and .bin, KHR_meshopt_compression",
+        "files": ["cube.gltf", "cube.bin"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-webp",
+        "format": "gltf",
+        "compression": ["webp"],
+        "color": "green",
+        "what": ".gltf with a WEBP texture (EXT_texture_webp)",
+        "files": ["cube.gltf", "cube.bin", "cube.webp"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-avif",
+        "format": "gltf",
+        "compression": ["avif"],
+        "color": "green",
+        "what": ".gltf with a AVIF texture (EXT_texture_avif)",
+        "files": ["cube.gltf", "cube.bin", "cube.avif"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-ktx2",
+        "format": "gltf",
+        "compression": ["ktx2"],
+        "color": "any",
+        "what": ".gltf with a KTX2 / Basis Universal texture (needs @babylonjs/ktx2decoder)",
+        "files": ["cube.gltf", "cube.bin", "cube.ktx2"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf1-bin",
+        "format": "gltf",
+        "gltfVersion": "1.0",
+        "color": "blue",
+        "what": "glTF 1.0 .gltf and .bin (its GLSL shaders are never asked for)",
+        "files": ["cube.gltf", "cube.bin"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf1-embedded",
+        "format": "gltf",
+        "gltfVersion": "1.0",
+        "color": "blue",
+        "what": "glTF 1.0 with its buffer as a data: URL",
+        "files": ["cube.gltf"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "glb1",
+        "format": "glb",
+        "gltfVersion": "1.0",
+        "color": "blue",
+        "what": "GLB version 1 (KHR_binary_glTF)",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "obj-alone",
+        "format": "obj",
+        "color": "any",
+        "what": "OBJ with no .mtl",
+        "files": ["cube.obj"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "obj-mtl",
+        "format": "obj",
+        "color": "blue",
+        "what": "OBJ and its .mtl (a blue Kd)",
+        "files": ["cube.obj", "cube.mtl"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "obj-vertex-colors",
+        "format": "obj",
+        "color": "red",
+        "what": "OBJ with colors on its v lines",
+        "files": ["cube.obj"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "folder",
+        "id": "obj-mtl-png",
+        "format": "obj",
+        "color": "green",
+        "what": "OBJ, .mtl and a PNG texture",
+        "files": ["cube.obj", "cube.mtl", "cube.png"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "folder",
+        "id": "obj-mtl-tga",
+        "format": "obj",
+        "color": "green",
+        "what": "OBJ, .mtl and a TGA texture",
+        "files": ["cube.obj", "cube.mtl", "cube.tga"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "folder",
+        "id": "obj-mtl-bmp",
+        "format": "obj",
+        "color": "green",
+        "what": "OBJ, .mtl and a BMP texture",
+        "files": ["cube.obj", "cube.mtl", "cube.bmp"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "folder",
+        "id": "obj-mtl-gif",
+        "format": "obj",
+        "color": "green",
+        "what": "OBJ, .mtl and a GIF texture",
+        "files": ["cube.obj", "cube.mtl", "cube.gif"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "folder",
+        "id": "obj-mtl-dds",
+        "format": "obj",
+        "color": "green",
+        "what": "OBJ, .mtl and a DDS texture",
+        "files": ["cube.obj", "cube.mtl", "cube.dds"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_PART_SKIPPED"],
+        "refused": null,
+        "upload": "files",
+        "id": "obj-mtl-missing-png",
+        "format": "obj",
+        "color": "blue",
+        "what": "OBJ and .mtl whose texture is missing: drawn without it",
+        "needs": "cube.png",
+        "files": ["cube.obj", "cube.mtl"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "stl",
+        "id": "stl-ascii",
+        "encoding": "ascii",
+        "color": "any",
+        "what": "ASCII STL",
+        "files": ["cube.stl"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "stl",
+        "id": "stl-ascii-unnamed",
+        "encoding": "ascii",
+        "color": "any",
+        "what": "ASCII STL with an unnamed solid and another name on endsolid",
+        "files": ["cube.stl"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "stl",
+        "id": "stl-ascii-zero-normals",
+        "encoding": "ascii",
+        "color": "any",
+        "what": "ASCII STL whose facet normals are all 0 0 0",
+        "files": ["cube.stl"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "stl",
+        "id": "stl-binary",
+        "encoding": "binary",
+        "color": "any",
+        "what": "binary STL",
+        "files": ["cube.stl"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "stl",
+        "id": "stl-binary-colored",
+        "encoding": "binary",
+        "color": "red",
+        "what": "binary STL with VisCAM face colors",
+        "files": ["cube.stl"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "stl",
+        "id": "stl-binary-materialise",
+        "encoding": "binary",
+        "color": "red",
+        "what": "binary STL with Materialise face colors (COLOR= header)",
+        "files": ["cube.stl"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "id": "ply-ascii",
+        "encoding": "ascii",
+        "color": "any",
+        "what": "ASCII PLY mesh",
+        "files": ["cube.ply"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "id": "ply-le",
+        "encoding": "binary",
+        "color": "any",
+        "what": "binary little-endian PLY mesh",
+        "files": ["cube.ply"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "id": "ply-be",
+        "encoding": "binaryBigEndian",
+        "color": "any",
+        "what": "binary big-endian PLY mesh",
+        "files": ["cube.ply"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "id": "ply-ascii-colors",
+        "encoding": "ascii",
+        "color": "red",
+        "what": "ASCII PLY mesh with vertex colors",
+        "files": ["cube.ply"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "id": "ply-quads",
+        "encoding": "ascii",
+        "color": "any",
+        "what": "ASCII PLY mesh of quads",
+        "files": ["cube.ply"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "folder",
+        "format": "ply",
+        "id": "ply-uv-png",
+        "encoding": "ascii",
+        "color": "green",
+        "what": "ASCII PLY with texture coordinates and a PNG (comment TextureFile)",
+        "files": ["cube.ply", "cube.png"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_UP_GUESSED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "id": "ply-damaged",
+        "encoding": "binary",
+        "color": "any",
+        "what": "binary PLY whose face names a vertex it does not have",
+        "drawFails": ["E_MODEL_STRUCTURE"],
+        "files": ["cube.ply"]
+    },
+    {
+        "geometry": "points",
+        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "id": "ply-points-ascii",
+        "encoding": "ascii",
+        "color": "red",
+        "what": "ASCII PLY point cloud",
+        "files": ["points.ply"]
+    },
+    {
+        "geometry": "points",
+        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "id": "ply-points-bin",
+        "encoding": "binary",
+        "color": "red",
+        "what": "binary PLY point cloud",
+        "files": ["points.ply"]
+    },
+    {
+        "geometry": "splats",
+        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "id": "ply-splat",
+        "encoding": "binary",
+        "color": "red",
+        "what": "3D Gaussian splat PLY",
+        "files": ["splat.ply"]
+    },
+    {
+        "geometry": "splats",
+        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
+        "refused": null,
+        "upload": "files",
+        "format": "ply",
+        "id": "ply-splat-compressed",
+        "encoding": "binary",
+        "color": "any",
+        "what": "PlayCanvas compressed splat PLY (Babylon sample)",
+        "files": ["combined_SPZv3.compressed.ply"]
+    },
+    {
+        "geometry": "splats",
+        "warnings": ["W_MODEL_POINTS_APPROXIMATED"],
+        "refused": null,
+        "upload": "files",
+        "format": "splat",
+        "id": "splat",
+        "color": "red",
+        "what": "raw .splat (32-byte rows)",
+        "files": ["points.splat"]
+    },
+    {
+        "geometry": "splats",
+        "warnings": ["W_MODEL_POINTS_APPROXIMATED"],
+        "refused": null,
+        "upload": "files",
+        "format": "spz",
+        "id": "spz",
+        "color": "any",
+        "what": "Niantic .spz (Babylon sample)",
+        "files": ["combined_SPZv3.spz"]
+    },
+    {
+        "geometry": "splats",
+        "warnings": ["W_MODEL_POINTS_APPROXIMATED"],
+        "refused": null,
+        "upload": "files",
+        "format": "sog",
+        "id": "sog",
+        "color": "any",
+        "what": "PlayCanvas .sog bundle (Babylon sample)",
+        "files": ["combined_SPZv3.sog"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "babylon",
+        "format": "babylon",
+        "color": "blue",
+        "what": ".babylon mesh with a blue material",
+        "files": ["cube.babylon"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "folder",
+        "id": "babylon-textured",
+        "format": "babylon",
+        "color": "green",
+        "what": ".babylon mesh with a PNG texture",
+        "files": ["cube.babylon", "cube.png"]
+    },
+    {
+        "id": "fbx",
+        "upload": "files",
+        "format": "fbx",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "fbx"
+            }
+        },
+        "what": "FBX (refused)",
+        "files": ["cube.fbx"]
+    },
+    {
+        "id": "dae",
+        "upload": "files",
+        "format": "dae",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "dae"
+            }
+        },
+        "what": "COLLADA (refused)",
+        "files": ["cube.dae"]
+    },
+    {
+        "id": "3mf",
+        "upload": "files",
+        "format": "3mf",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "3mf"
+            }
+        },
+        "what": "3MF (refused)",
+        "files": ["cube.3mf"]
+    },
+    {
+        "id": "usdz",
+        "upload": "files",
+        "format": "usdz",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "usdz"
+            }
+        },
+        "what": "USDZ (refused)",
+        "files": ["cube.usdz"]
+    },
+    {
+        "id": "blend",
+        "upload": "files",
+        "format": "blend",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "blend"
+            }
+        },
+        "what": "Blender (refused)",
+        "files": ["cube.blend"]
+    },
+    {
+        "id": "bvh",
+        "upload": "files",
+        "format": "bvh",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "bvh"
+            }
+        },
+        "what": "BVH animation with no mesh (refused)",
+        "files": ["walk.bvh"]
+    }
+]

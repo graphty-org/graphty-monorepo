@@ -71,11 +71,22 @@ compile per file.
 | `.blend` (Blender)                         | 1                   | everything            | Blender's own  | either                            | yes         | yes      | yes    | yes                       | yes                                    | no: export GLB from Blender                                                 |
 | PDB / mmCIF (molecules)                    | 1                   | no: atoms and bonds   | no             | no                                | no          | no       | no     | no                        | angstroms                              | no: convert to GLB (ChimeraX), or import as a graph                         |
 
-graphty-element version 1 reads **GLB, glTF, OBJ, STL and PLY (triangle meshes)**. Splats are not
-triangle meshes, so they cannot be merged, instanced or fitted like the rest; `.babylon` can name
-remote node materials, sounds, procedural textures and arbitrary classes, and every tool that
-writes it also writes GLB. Both are left out; FBX, USDZ, DAE, 3MF and `.blend` are recognized and
-answered with `E_MODEL_FORMAT_UNSUPPORTED`, which tells the reader to export GLB.
+graphty-element reads every format Babylon 8.56 can decode: **GLB and glTF 2.0** (compressed with
+Draco, meshopt, KTX2, WebP or AVIF, or not), **glTF 1.0** (upgraded to 2.0 JSON on reading, so one
+checker and one loader serve both; techniques and GLSL are dropped and a material draws its
+diffuse color or picture), **OBJ**, **STL**, **PLY** (meshes, point clouds, Gaussian splats and
+PlayCanvas compressed splats), **`.splat`, `.spz` and `.sog`**, and **`.babylon`** (geometry and
+diffuse materials only, read by the element's own reader; Babylon's `.babylon` loader is never
+imported). STL and PLY have the element's own readers too: Babylon's STL loader draws nothing for
+an unnamed solid and drops face colors, and its PLY reading decodes only little-endian binary.
+
+Points and splats are drawn as small solids, an 8-triangle octahedron per point in its color, sized
+by a splat's own scale or by the points' spacing; splats under 0.1 opacity are dropped and more than
+50,000 points are thinned evenly (`W_MODEL_POINTS_APPROXIMATED { points, drawn }`). True splat
+rendering, one sorted `GaussianSplattingMesh` per node, cannot be instanced and does not scale.
+
+FBX, USD and USDZ, DAE, 3MF, `.blend` and BVH (animation only, no mesh) are recognized and answered
+with `E_MODEL_FORMAT_UNSUPPORTED`, which tells the reader to export GLB.
 
 ### 1.3 Is there one standard package that holds everything?
 
@@ -107,21 +118,21 @@ WebAssembly download from Babylon's CDN.
 
 ### 1.5 Common problems, and how the element removes each one
 
-| Problem                                                  | Why it happens                                                      | What the element does                                                                                                                                     |
-| -------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The model is huge or tiny                                | Files mix centimeters, millimeters and meters                       | Fits every model into the same cube a box node of the same `node.size` fills, so units never matter (3.4)                                                 |
-| The model sits off to one side of the node               | Its origin is far from its center                                   | Centers the bounding box on the node (3.4)                                                                                                                |
-| The model lies on its back                               | Z-up formats (STL, many CAD exports)                                | glTF is converted by the loader; STL is assumed Z up; `node.modelSourceUp` and the app's "Turn upright" control fix the rest                              |
-| The model is gray, textures missing                      | A `.gltf` or `.obj` was loaded without its `.bin`, `.mtl` or images | Accepts a `.zip`, a folder or several files together; checks every reference before loading and names the missing file (`E_MODEL_MISSING_FILE`)           |
-| The model is black                                       | PBR metal needs an environment light, and the scene has none        | Uses the scene's environment when one is set, else a small bundled neutral one, for model materials only (3.5)                                            |
-| The model starts moving on load                          | Babylon plays the first clip by default                             | Animation is off unless asked for (3.6)                                                                                                                   |
-| A loading screen covers the graph                        | Babylon's default for every load                                    | Turned off                                                                                                                                                |
-| Thousands of nodes load the same file thousands of times | One load per node                                                   | One load per model, every node an instance (3.10)                                                                                                         |
-| The frame rate collapses at scale                        | Heavy models times many nodes                                       | Instancing, merged templates, `W_MODEL_HEAVY` and `W_MODEL_BUDGET` (8.2)                                                                                  |
-| Edges stop inside or far from the model                  | Edge ends are trimmed for spheres                                   | Model nodes report the radius of their fitted bounding sphere (3.8)                                                                                       |
-| A compressed model fails in Safari or offline            | Decoders are fetched from Babylon's CDN                             | Never fetched from a CDN. Version 1 refuses Draco, meshopt and KTX2 files with `E_MODEL_DECODER_UNAVAILABLE`; a later package adds bundled decoders (3.3) |
-| `color` does nothing on a textured model                 | The texture is the color                                            | `node.color` applies only with `node.modelTint`, and the element reports `W_MODEL_COLOR_IGNORED` when a color is set and not applied (3.5)                |
-| A user's file is hostile                                 | Size, allocation and decompression bombs, external fetches          | Structural checks before decoding, an allowlist of references, and a guard on every request during a load (8.1)                                           |
+| Problem                                                  | Why it happens                                                      | What the element does                                                                                                                           |
+| -------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| The model is huge or tiny                                | Files mix centimeters, millimeters and meters                       | Fits every model into the same cube a box node of the same `node.size` fills, so units never matter (3.4)                                       |
+| The model sits off to one side of the node               | Its origin is far from its center                                   | Centers the bounding box on the node (3.4)                                                                                                      |
+| The model lies on its back                               | Z-up formats (STL, many CAD exports)                                | glTF is converted by the loader; STL is assumed Z up; `node.modelSourceUp` and the app's "Turn upright" control fix the rest                    |
+| The model is gray, textures missing                      | A `.gltf` or `.obj` was loaded without its `.bin`, `.mtl` or images | Accepts a `.zip`, a folder or several files together; checks every reference before loading and names the missing file (`E_MODEL_MISSING_FILE`) |
+| The model is black                                       | PBR metal needs an environment light, and the scene has none        | Uses the scene's environment when one is set, else a small bundled neutral one, for model materials only (3.5)                                  |
+| The model starts moving on load                          | Babylon plays the first clip by default                             | Animation is off unless asked for (3.6)                                                                                                         |
+| A loading screen covers the graph                        | Babylon's default for every load                                    | Turned off                                                                                                                                      |
+| Thousands of nodes load the same file thousands of times | One load per node                                                   | One load per model, every node an instance (3.10)                                                                                               |
+| The frame rate collapses at scale                        | Heavy models times many nodes                                       | Instancing, merged templates, `W_MODEL_HEAVY` and `W_MODEL_BUDGET` (8.2)                                                                        |
+| Edges stop inside or far from the model                  | Edge ends are trimmed for spheres                                   | Model nodes report the radius of their fitted bounding sphere (3.8)                                                                             |
+| A compressed model fails in Safari or offline            | Decoders are fetched from Babylon's CDN                             | Never fetched from a CDN: Draco and meshopt decoders and the KTX2 transcoders are files of the element's package (3.3)                          |
+| `color` does nothing on a textured model                 | The texture is the color                                            | `node.color` applies only with `node.modelTint`, and the element reports `W_MODEL_COLOR_IGNORED` when a color is set and not applied (3.5)      |
+| A user's file is hostile                                 | Size, allocation and decompression bombs, external fetches          | Structural checks before decoding, an allowlist of references, and a guard on every request during a load (8.1)                                 |
 
 ---
 
@@ -507,7 +518,7 @@ source (URL | File | files | bytes)
   -> pick the main file, detect its format by bytes                  -> E_MODEL_FORMAT_*, E_MODEL_AMBIGUOUS
   -> check references against the file set (allowlist)               -> E_MODEL_MISSING_FILE, E_MODEL_EXTERNAL_URL
   -> check structure and counts (glTF JSON, OBJ/STL/PLY scan)        -> E_MODEL_STRUCTURE, E_MODEL_TOO_LARGE
-  -> check required decoders                                         -> E_MODEL_DECODER_UNAVAILABLE
+  -> check decoder data (meshopt ranges, Draco indices)              -> E_MODEL_STRUCTURE
   -> digest, store, summary (AssetRecord "accepted")                 [Babylon-free up to here: ./session]
   -> lazy import of the model chunk                                  [Babylon from here on]
   -> LoadAssetContainerAsync with every request guarded              -> E_MODEL_PARSE, E_MODEL_EXTERNAL_URL
@@ -585,18 +596,34 @@ own JSON: no `__proto__` key, no duplicate key, at most 64 levels deep):
 
 A failure is `E_MODEL_STRUCTURE { rule }` or `E_MODEL_TOO_LARGE { what, found, limit }`.
 
-**OBJ, STL and PLY** are scanned cheaply: OBJ counts `f` lines against the triangle limit and
-checks every face index is in range (no negative or huge ones beyond the vertex count); binary
-STL's declared triangle count must match its length; a PLY header's vertex and face counts must
-fit the file's length. Text formats have a lower byte limit (8 MB) because they parse on the main
+**OBJ, STL, PLY, splats and `.babylon`** are scanned cheaply: OBJ counts `f` lines against the
+triangle limit and checks every face index is in range (no negative or huge ones beyond the vertex
+count); binary STL's declared triangle count must match its length; a PLY header's vertex and face
+counts must fit the file's length; a `.splat` is whole 32-byte rows; an `.spz`'s declared inflated
+size is under the decoded-bytes limit and it inflates to an `NGSP` header whose count fits; a SOG's
+`meta.json` names pictures the set holds; every `.babylon` index is in range and no mesh loads from
+another file (`delayLoadingFile`). A point cloud or splat counts 8 triangles per point drawn. Text formats have a lower byte limit (8 MB) because they parse on the main
 thread.
 
-**Decoders.** A glTF's `extensionsRequired` names what it needs. Version 1 bundles no decoder:
-`KHR_draco_mesh_compression`, `EXT_meshopt_compression` and `KHR_texture_basisu` are
-`E_MODEL_DECODER_UNAVAILABLE { extension, package }`. A later package adds them with the bounds
-they need (8.1): KTX2 through `@babylonjs/ktx2decoder` as an optional peer dependency the element
-imports itself, Draco and meshopt as lazily loaded chunks with their declared output checked
-before decoding. No decoder is ever fetched from cdn.babylonjs.com.
+**Decoders.** Each decoder is its own chunk (src/models/decoders/), loaded only for a glTF whose
+`extensionsUsed` names it, and none is fetched from cdn.babylonjs.com:
+
+- Draco: Google's glTF build (`draco_wasm_wrapper_gltf.js`, `draco_decoder_gltf.wasm`, Apache-2.0)
+  is copied into the element's source and served beside the chunk; `DracoDecoder` decodes in one
+  worker. A primitive's Draco buffer view and attribute ids are index-checked.
+- meshopt: the `meshoptimizer` dependency, whose decoder carries its WebAssembly inline, through an
+  extension of the element's own registered under both `EXT_meshopt_compression` and
+  `KHR_meshopt_compression`. Each compressed view's source must fit its buffer, its decoded size
+  (`count x byteStride`) must fit the view and counts toward the decoded-bytes limit, and a
+  fallback buffer with no data is allowed.
+- KTX2: `@babylonjs/ktx2decoder` is an optional peer the element imports itself; its transcoders
+  are copied into the element's source and served beside the chunk. Without the peer the model
+  fails to draw with `E_MODEL_DECODER_UNAVAILABLE { extension, package, reason: "missing" }`.
+
+A decoder whose files cannot load is `reason: "load"`; damaged compressed data is `reason: "decode"`.
+The transmission family (transmission, volume, dispersion, diffuse transmission, volume scatter) is
+not registered: it needs a scene-wide render target thousands of instances cannot afford, so a file
+that only uses it draws opaque, and one that requires it is refused.
 
 ### 3.4 Load and normalize
 
@@ -730,7 +757,7 @@ string param from a file (names, clip names) is cut to 256 characters.
 | `E_MODEL_AMBIGUOUS`           | `candidates`                                                                                                                         | Two different main files in one set                                                                | "Which one is the model?" with the list                                                                                                                               |
 | `E_MODEL_MISSING_FILE`        | `name`, `referencedBy`                                                                                                               | A `.bin`, texture or `.mtl` is not in the set                                                      | "robot.gltf needs robot.bin. Drop the whole folder or a .zip, or export as .glb."                                                                                     |
 | `E_MODEL_EXTERNAL_URL`        | `url`                                                                                                                                | A reference outside the file set                                                                   | "This model loads parts from somewhere else, which is not allowed. Export it as .glb."                                                                                |
-| `E_MODEL_DECODER_UNAVAILABLE` | `extension`, `package`                                                                                                               | Draco, meshopt or KTX2 compression, and no decoder                                                 | "This model is compressed in a way this page cannot read yet."                                                                                                        |
+| `E_MODEL_DECODER_UNAVAILABLE` | `reason` (`missing`, `load`, `decode`), `extension`, `package`                                                                       | The KTX2 peer is not installed, a decoder's files did not load, or compressed data is damaged      | "Install @babylonjs/ktx2decoder to draw this model's pictures." / "Try again." / "This model's data is damaged."                                                      |
 | `E_MODEL_PARSE`               | `format`                                                                                                                             | Babylon could not read a file that passed the checks                                               | "The file is damaged or not a valid GLB."                                                                                                                             |
 | `E_MODEL_ZIP`                 | `reason: "corrupt" \| "encrypted" \| "empty" \| "duplicate" \| "ratio" \| "entries" \| "nested"`                                     | The zip cannot be read safely                                                                      | "The .zip could not be opened."                                                                                                                                       |
 | `E_MODEL_NAME_TAKEN`          | `id`                                                                                                                                 | A name already held by different files, or a reserved `asset:sample/` name                         | "A different model is already called rack."                                                                                                                           |
@@ -742,6 +769,7 @@ string param from a file (names, clip names) is cut to 256 characters.
 | `W_MODEL_TEXTURES_REDUCED`    | `from`, `to`                                                                                                                         | Textures above `maxTextureSize` were drawn smaller                                                 | (usually nothing)                                                                                                                                                     |
 | `W_MODEL_TRANSPARENT`         | `nodes`                                                                                                                              | Many blended instances may sort wrongly                                                            | "See-through parts may look wrong where models overlap."                                                                                                              |
 | `W_MODEL_HAS_ANIMATIONS`      | `clips`                                                                                                                              | Clips exist and animation is off                                                                   | Offer a "Play animation" control (later)                                                                                                                              |
+| `W_MODEL_POINTS_APPROXIMATED` | `points`, `drawn`                                                                                                                    | A point cloud or splat drawn as small solids                                                       | Say the points are drawn as small solids                                                                                                                              |
 | `W_MODEL_TEXTURE_FAILED`      | `name`                                                                                                                               | One texture could not be decoded; the rest of the model is drawn                                   | "One texture (bark.png) could not be read; the model shows without it."                                                                                               |
 | `W_MODEL_UP_GUESSED`          | `format`, `up`                                                                                                                       | STL or PLY: the up axis is a guess                                                                 | Show the "Turn upright" control near the model                                                                                                                        |
 | `W_MODEL_REMOVED`             | `id`, `layerIds`                                                                                                                     | An asset in use was removed                                                                        | "Layers that used this model now show the plain shape."                                                                                                               |

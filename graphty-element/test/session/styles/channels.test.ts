@@ -429,8 +429,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and four node channels and one hundred and sixty-nine edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 204);
+    it("splits into two hundred and five node channels and one hundred and sixty-nine edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 205);
         assert.strictEqual(channelsFor("edge").length, 169);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

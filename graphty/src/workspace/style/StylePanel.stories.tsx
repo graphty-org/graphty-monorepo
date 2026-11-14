@@ -780,11 +780,11 @@ export const RouteValues: Story = sceneStory(async ({ runs }) => {
     await page().findByRole("group", { name: "Nodes in order" });
 });
 
-/** Graph settings: lighting, label rules and the highlight color. */
+/** Graph settings in 2D: the label rules and the highlight color. */
 export const GraphSettings: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Graph settings" }));
-    // Lighting shows only in 3D, the scene's view.
-    await page().findByRole("combobox", { name: "Lighting" });
+    // The scene is 2D, where Lighting and the Canvas section hide; the Labels rows show in every view.
+    await page().findByRole("switch", { name: "Hide overlapping labels" });
 });
 
 // College football: a number column that names groups, painted one color per value.

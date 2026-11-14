@@ -32,7 +32,6 @@
  */
 
 import "../../src/graphty-element";
-import "../../webgpu";
 
 import { Vector3 } from "@babylonjs/core";
 import { fromEdgeArrays } from "@graphty/graph-format";
@@ -47,6 +46,7 @@ import {
 } from "../../src/acceleration";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import type { RunResult } from "../../src/session/results/types";
+import { configureWebGpu } from "../../webgpu";
 import { storyGraph } from "../helpers/story-graph";
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
@@ -707,32 +707,51 @@ async function tierAt(accelerator: GraphAccelerator, n: number): Promise<"exact"
     }
 }
 
-// SwiftShader is left out: the element never measures a software adapter (its probes would take
+// SwiftShader is left out: even opted in, the element never measures a software adapter (its probes would take
 // tens of seconds of processor time), so there is nothing to see there.
 describe.skipIf(!GPU_LANE || ADAPTER.startsWith("swiftshader"))(
     "graphty-element on a real WebGPU device: the measured exact-tier ceiling",
     () => {
-        it("measures the device after its first layout, and builds the next accelerator with the measurement", async () => {
-            await until(() => status(gpu).exactMaxNodesBasis === "measured", "the device to be measured");
-            const measured = status(gpu).exactMaxNodes ?? 0;
+        it("leaves the shipped ceiling alone unless the page opts in", () => {
+            assert.equal(status(gpu).exactMaxNodes, 32_768);
+            assert.equal(status(gpu).exactMaxNodesBasis, "default");
+        });
+
+        it("opted in, measures the device after its first layout, and builds the next accelerator with the measurement", async () => {
+            configureWebGpu({ exactMaxNodes: "measured" });
+            let measured = 0;
+            try {
+                const opted = await mount("required");
+                await until(() => status(opted).exactMaxNodesBasis === "measured", "the device to be measured");
+                measured = status(opted).exactMaxNodes ?? 0;
+                opted.parentElement?.remove();
+            } finally {
+                configureWebGpu({ exactMaxNodes: "default" });
+            }
             console.log(`[webgpu-layout] adapter=${ADAPTER} measured exactMaxNodes=${String(measured)}`);
             assert.isAbove(measured, 0);
             assert.isAtMost(measured, 32_768);
-
-            const entry = acceleratorRegistry.list().find((candidate) => candidate.name === "webgpu-graph-algorithms");
-            const accelerator = await entry?.factory({});
-            assert.isDefined(accelerator ?? undefined, "the factory built an accelerator");
-            if (accelerator === null || accelerator === undefined) {
-                return;
-            }
-
+            // A fresh accelerator on the same device starts from the cached measurement.
+            configureWebGpu({ exactMaxNodes: "measured" });
             try {
-                assert.deepEqual(accelerator.exactMaxNodes, { value: measured, basis: "measured" });
-                // What reached createAccelerator as layout.exactMaxNodes decides the tier.
-                assert.equal(await tierAt(accelerator, measured), "exact");
-                assert.equal(await tierAt(accelerator, measured + 1), "grid");
+                const entry = acceleratorRegistry
+                    .list()
+                    .find((candidate) => candidate.name === "webgpu-graph-algorithms");
+                const accelerator = await entry?.factory({});
+                if (accelerator === null || accelerator === undefined) {
+                    assert.fail("the factory built an accelerator");
+                }
+
+                try {
+                    assert.deepEqual(accelerator.exactMaxNodes, { value: measured, basis: "measured" });
+                    // What reached createAccelerator as layout.exactMaxNodes decides the tier.
+                    assert.equal(await tierAt(accelerator, measured), "exact");
+                    assert.equal(await tierAt(accelerator, measured + 1), "grid");
+                } finally {
+                    accelerator.dispose?.();
+                }
             } finally {
-                accelerator.dispose?.();
+                configureWebGpu({ exactMaxNodes: "default" });
             }
         });
     },

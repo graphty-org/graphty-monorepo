@@ -192,7 +192,8 @@ export interface GraphAccelerator {
      * after the first accelerated work on it has finished, so the measurement never delays the
      * first frame or the first layout. It does not count as work and does not move the published
      * state. A failure rejects and leaves the accelerator as it was. A backend with nothing to
-     * measure omits it.
+     * measure omits it, and so does the WebGPU backend unless the page asked for a measured
+     * ceiling (`configureWebGpu({ exactMaxNodes: "measured" })` from `@graphty/graphty-element/webgpu`).
      * @returns Resolves when the measurement is taken and applied.
      */
     calibrate?(): Promise<void>;

@@ -112,9 +112,9 @@ silently do nothing:
 - **Neighbour pages.** The session's data surface answers one node and one edge by id, and has
   no verb for "the neighbours of this node". Walking the records yourself is the only route.
 - **`session.calibrate()`.** The limits a session publishes are shipped defaults, not measured
-  ones. The one measured number is the GPU layout's exact-computation ceiling, which the element
-  times by itself after the first accelerated work (`capabilities.acceleration.exactMaxNodes`);
-  there is no call to ask for a measurement.
+  ones. The only thing the element can measure is the GPU layout's exact-computation ceiling,
+  and only when the page opts in with `configureWebGpu({ exactMaxNodes: "measured" })` from
+  `@graphty/graphty-element/webgpu` (reported on `capabilities.acceleration.exactMaxNodes`).
 - **Counting what a `{ where }` scope matches.** A scope that names an expression is refused
   rather than resolved, so "how many nodes would this selector pick" has no answer.
 - **A time role.** Nothing infers that an attribute is a timestamp, so there is no way to ask

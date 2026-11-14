@@ -1,16 +1,15 @@
 /**
  * @file How the `./webgpu` entry point measures the exact-tier ceiling, with the peer stubbed.
  *
- * The peer's `calibrateLayout` times this device and suggests an `exactMaxNodes`; the entry point
+ * Measuring is opt-in (`configureWebGpu({ exactMaxNodes: "measured" })`): by default the
+ * accelerator is built with the shipped ceiling and nothing is measured. Opted in, the peer's `calibrateLayout` times this device and suggests an `exactMaxNodes`; the entry point
  * hands that number to the peer's `createAccelerator` as `layout.exactMaxNodes`, caches it per
  * device, and reports which number an accelerator uses. The controller runs the measurement once,
  * after the first accelerated work goes idle, and republishes the status. The real device is
  * exercised in `test/browser/webgpu-layout.test.ts` (the GPU lane).
  */
 
-import "../../webgpu";
-
-import { assert, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import {
     AccelerationController,
@@ -20,6 +19,8 @@ import {
     acceleratorRegistry,
     type GraphAccelerator,
 } from "../../src/acceleration";
+import { isGraphtyError } from "../../src/errors";
+import { configureWebGpu } from "../../webgpu";
 
 const peer = vi.hoisted(() => ({
     calibrateLayout: vi.fn(),
@@ -81,18 +82,55 @@ async function build(options: { exactMaxNodes?: number } = {}): Promise<GraphAcc
     return accelerator;
 }
 
-describe("the ./webgpu entry point: measuring the exact-tier ceiling", () => {
+/** Resets the stubbed peer before each case. */
+function resetPeer(): void {
+    peer.calibrateLayout.mockReset();
+    peer.createAccelerator.mockReset();
+    peer.current.mockReset();
+    peer.calibrateLayout.mockResolvedValue({ suggestedExactMaxNodes: 2048 });
+    peer.createAccelerator.mockImplementation((ctx: unknown, options: unknown) => ({
+        kind: "webgpu",
+        ctx,
+        options,
+        forceAtlas2: (): string => "measured tier",
+    }));
+}
+
+describe("the ./webgpu entry point: the exact-tier ceiling by default", () => {
+    beforeEach(resetPeer);
+
+    it("builds the accelerator exactly as before: the shipped default, nothing to measure", async () => {
+        peer.current.mockResolvedValue(ready("default path"));
+
+        const accelerator = await build();
+
+        assert.deepStrictEqual(accelerator.exactMaxNodes, { value: 32_768, basis: "default" });
+        assert.isUndefined(accelerator.calibrate, "no measurement is offered unless the page asks for one");
+        assert.strictEqual(peer.createAccelerator.mock.calls.length, 0);
+        assert.strictEqual(peer.calibrateLayout.mock.calls.length, 0);
+        assert.strictEqual((accelerator.forceAtlas2 as () => string)(), "default tier");
+    });
+
+    it("refuses an exactMaxNodes option it does not take", () => {
+        let failure: unknown;
+        try {
+            configureWebGpu({ exactMaxNodes: "fast" as "measured" });
+        } catch (error: unknown) {
+            failure = error;
+        }
+
+        assert.isTrue(isGraphtyError(failure) && failure.code === "E_OPTION_RANGE");
+    });
+});
+
+describe("the ./webgpu entry point: measuring the exact-tier ceiling, opted in", () => {
     beforeEach(() => {
-        peer.calibrateLayout.mockReset();
-        peer.createAccelerator.mockReset();
-        peer.current.mockReset();
-        peer.calibrateLayout.mockResolvedValue({ suggestedExactMaxNodes: 2048 });
-        peer.createAccelerator.mockImplementation((ctx: unknown, options: unknown) => ({
-            kind: "webgpu",
-            ctx,
-            options,
-            forceAtlas2: (): string => "measured tier",
-        }));
+        resetPeer();
+        configureWebGpu({ exactMaxNodes: "measured" });
+    });
+
+    afterEach(() => {
+        configureWebGpu({ exactMaxNodes: "default" });
     });
 
     it("starts on the shipped default and builds nothing extra", async () => {
@@ -135,13 +173,24 @@ describe("the ./webgpu entry point: measuring the exact-tier ceiling", () => {
         assert.deepStrictEqual((await build()).exactMaxNodes, { value: 32_768, basis: "default" });
     });
 
-    it("keeps a configured ceiling when it measures", async () => {
+    it("ignores a cached measurement once the page goes back to the default", async () => {
+        peer.current.mockResolvedValue(ready("fifth"));
+        await (await build()).calibrate?.();
+        peer.createAccelerator.mockClear();
+        configureWebGpu({ exactMaxNodes: "default" });
+
+        const after = await build();
+
+        assert.deepStrictEqual(after.exactMaxNodes, { value: 32_768, basis: "default" });
+        assert.strictEqual(peer.createAccelerator.mock.calls.length, 0);
+    });
+
+    it("keeps a configured ceiling and offers nothing to measure", async () => {
         peer.current.mockResolvedValue(ready("fourth"));
         const accelerator = await build({ exactMaxNodes: 1000 });
 
-        await accelerator.calibrate?.();
-
         assert.deepStrictEqual(accelerator.exactMaxNodes, { value: 1000, basis: "configured" });
+        assert.isUndefined(accelerator.calibrate);
         assert.strictEqual(peer.createAccelerator.mock.calls.length, 0);
     });
 });

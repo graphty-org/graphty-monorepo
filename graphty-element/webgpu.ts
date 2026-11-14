@@ -218,6 +218,60 @@ function declineFailure(declined: AcceleratorDeclined): GraphtyError {
  */
 const CALIBRATE_SIZES: readonly number[] = [1024, 2048, 4096, 8192, 16_384, 32_768];
 
+/** What {@link configureWebGpu} accepts. */
+export interface WebGpuOptions {
+    /**
+     * The node count up to which GPU layouts compute every pair of nodes exactly, above which they
+     * approximate (faster on large graphs, slightly less accurate):
+     *
+     * - `"default"` (the default) -- the shipped ceiling of 32,768 nodes, the same on every device.
+     * - `"measured"` -- the element times this device once its first accelerated work has finished
+     *   and uses the crossover it finds, usually far lower on a fast card, so large layouts get
+     *   faster and approximate sooner. The first frame and the first layout never wait for it, and
+     *   the answer is kept for every element on the page that uses the same device.
+     *
+     * `capabilities.acceleration.exactMaxNodes` and `exactMaxNodesBasis` report the ceiling in use.
+     */
+    readonly exactMaxNodes?: "default" | "measured";
+}
+
+/** Whether the page asked for the exact-tier ceiling to be measured. Off unless configureWebGpu says so. */
+let measureExactMaxNodes = false;
+
+/**
+ * Configures the WebGPU integration for the whole page. Optional: importing this entry point is
+ * all a consumer needs, and every option has a neutral default.
+ *
+ * Takes effect for accelerators built after the call, so call it next to the import, before an
+ * element attaches one.
+ * @example Measuring the exact-tier ceiling on the reader's own GPU
+ * ```js
+ * import "@graphty/graphty-element";
+ * import { configureWebGpu } from "@graphty/graphty-element/webgpu";
+ *
+ * configureWebGpu({ exactMaxNodes: "measured" });
+ * ```
+ * @param options - The options; a member left out keeps its current value.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` for a value the option does not take.
+ */
+export function configureWebGpu(options: WebGpuOptions): void {
+    const { exactMaxNodes } = options;
+    if (exactMaxNodes === undefined) {
+        return;
+    }
+
+    if (exactMaxNodes !== "default" && exactMaxNodes !== "measured") {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `exactMaxNodes must be "default" or "measured", not ${String(exactMaxNodes)}`,
+            source: "acceleration",
+            details: { option: "exactMaxNodes", value: exactMaxNodes, expected: ["default", "measured"] },
+        });
+    }
+
+    measureExactMaxNodes = exactMaxNodes === "measured";
+}
+
 /**
  * The exact-tier ceiling measured on each device this page has calibrated, keyed by
  * {@link deviceKey}. Kept for the page's lifetime only: a new accelerator on the same device (a
@@ -292,20 +346,20 @@ function toGraphAccelerator(
         get exactMaxNodes(): AcceleratorExactMaxNodes {
             return exactMaxNodes;
         },
-        // Measures this device and, unless the ceiling was configured, re-tunes the layouts built
-        // from now on. A failure (a lost or disposed device) rejects and changes nothing.
-        calibrate: async (): Promise<void> => {
+    };
+
+    // Offered only when the page opted in (configureWebGpu) and the ceiling is the shipped one:
+    // the element then measures this device after its first accelerated work and re-tunes the
+    // layouts built from then on. A failure (a lost or disposed device) rejects and changes nothing.
+    if (measureExactMaxNodes && tuning.basis === "default") {
+        wrapped.calibrate = async (): Promise<void> => {
             const calibration = await peerModule.calibrateLayout(ctx, { sizes: CALIBRATE_SIZES });
             const measured = Math.min(calibration.suggestedExactMaxNodes, peerModule.EXACT_MAX_NODES);
             measuredExactMaxNodes.set(deviceKey(accelerator), measured);
-            if (exactMaxNodes.basis === "configured") {
-                return;
-            }
-
             forwardMembers(retuned(peerModule, accelerator, measured), wrapped);
             exactMaxNodes = { value: measured, basis: "measured" };
-        },
-    };
+        };
+    }
 
     forwardMembers(accelerator, wrapped);
     return wrapped;
@@ -351,7 +405,7 @@ async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Pro
     let tuning: AcceleratorExactMaxNodes = { value: EXACT_MAX_NODES, basis: "default" };
     if (exactMaxNodes !== undefined) {
         tuning = { value: exactMaxNodes, basis: "configured" };
-    } else {
+    } else if (measureExactMaxNodes) {
         const measured = measuredExactMaxNodes.get(deviceKey(accelerator));
         if (measured !== undefined) {
             accelerator = retuned(peerModule, accelerator, measured);

@@ -1164,7 +1164,8 @@ export class AccelerationController {
 
     /**
      * Measures the attached accelerator's device once, after its first accelerated work has
-     * finished, and republishes the status with what was measured.
+     * finished, and republishes the status with what was measured. Only an accelerator that
+     * offers `calibrate` is measured; the WebGPU one offers it only when the page opted in.
      *
      * Waiting for that work is what keeps the measurement off the critical path: the first frame
      * and the first layout have already run on the shipped default. An accelerator whose ceiling

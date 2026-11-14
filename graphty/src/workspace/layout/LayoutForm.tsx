@@ -11,13 +11,19 @@ import { selectionWorkspaceOn } from "../features";
 import { OptionRow, OptionsForm } from "../options/OptionsForm";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
-import { engineOf, isDrawn, LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
+import {
+    engineOf,
+    isDrawn,
+    LAYOUT_SEED,
+    layoutName,
+    MAP_LAYOUT,
+    randomSeed,
+    startingValues,
+    unavailable,
+} from "./methods";
 import { columnFitWords, layoutErrorWords, locationFieldWords } from "./refusalWords";
 import { TransitionRow } from "./TransitionRow";
 import { SHOWN_ONLY_WORDS } from "./words";
-
-/** The location map's id, whose form names the columns it read and picks the map it draws on. */
-const MAP_LAYOUT = "location-map";
 
 /**
  * The map's options its form does not draw: Data > Fields designates its location columns, Shape

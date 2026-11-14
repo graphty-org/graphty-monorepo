@@ -394,7 +394,6 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
             utm: "UTM",
         },
     },
-    "location-map.nodeScale": { label: "Node size", choices: { scene: "Scales with zoom", screen: "Fixed on screen" } },
     "location-map.size": { label: "Size" },
     "location-map.mapScale": { label: "Map size" },
     "location-map.flatNodeScale": { label: "Flat map node size" },

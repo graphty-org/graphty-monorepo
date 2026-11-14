@@ -8,10 +8,11 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { MAP_DEPTH_INDEPENDENT_SIZE } from "../../settings/preferences";
 import { datasetBase } from "../../start/open";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -356,8 +357,10 @@ describe("the location map", () => {
             assert.strictEqual(element.basemapStatus.state, "ready", "a map is drawn");
         });
         assert.strictEqual(element.session.layout.id, "location-map");
-        // The app's own choices: nodes one size on screen, on a map six times the element's default.
-        assert.strictEqual(element.session.layout.options.nodeScale, "screen");
+        // The app's own choices: nodes one size on screen (the map rule in Settings), on a map six
+        // times the element's default.
+        assert.notProperty(element.session.layout.options, "nodeScale");
+        assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
         assert.strictEqual(element.session.layout.options.mapScale, 6);
         assert.strictEqual(element.session.layout.options.flatNodeScale, 2);
         // West to east on screen: Seattle, Chicago, New York; Seattle, the farthest north, highest.
@@ -558,5 +561,88 @@ describe("the location map", () => {
         assert.isNotNull(await within(popover).findByRole("radiogroup", { name: "Shape" }));
         assert.isNull(within(popover).queryByRole("combobox", { name: "Map type" }));
         assert.isNull(within(popover).queryByRole("combobox", { name: "Projection" }));
+    });
+});
+
+describe("Settings' map layout node size rule", () => {
+    afterEach(() => {
+        localStorage.removeItem(MAP_DEPTH_INDEPENDENT_SIZE.key);
+    });
+
+    /**
+     * Applies the Map layout from its form and waits for it.
+     * @param element - the element.
+     */
+    async function applyMap(element: Element): Promise<void> {
+        const popover = await openMapForm();
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(() => {
+            assert.strictEqual(element.session.layout.id, "location-map");
+        });
+    }
+
+    /**
+     * Opens Settings with its shortcut and finds the rule's switch.
+     * @returns the switch.
+     */
+    async function ruleSwitch(): Promise<HTMLElement> {
+        await userEvent.keyboard("{Control>},{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        return within(dialog).getByRole("switch", {
+            name: "Map layout automatically enables depth-independent size",
+        });
+    }
+
+    it("is on by default, sizes the map's nodes on screen, and off leaves them in the scene", async () => {
+        const { element } = await openWorkspace(false, CITIES);
+        await applyMap(element);
+        await waitFor(() => {
+            assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
+
+        const rule = await ruleSwitch();
+        assert.isTrue((rule as HTMLInputElement).checked, "on by default");
+        await userEvent.click(rule);
+        await waitFor(() => {
+            assert.notStrictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
+        assert.strictEqual(localStorage.getItem(MAP_DEPTH_INDEPENDENT_SIZE.key), "off");
+        await userEvent.click(rule);
+        await waitFor(() => {
+            assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("keeps the reader's off for the next visit", async () => {
+        localStorage.setItem(MAP_DEPTH_INDEPENDENT_SIZE.key, "off");
+        const { element } = await openWorkspace(false, CITIES);
+        await applyMap(element);
+        assert.isFalse(((await ruleSwitch()) as HTMLInputElement).checked);
+        assert.notStrictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("follows the layout: another layout turns it off and an undo back to the map turns it on", async () => {
+        const { element } = await openWorkspace(false, CITIES);
+        await applyMap(element);
+        await waitFor(() => {
+            assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        await userEvent.click(within(popover).getByRole("option", { name: /^Circular/ }));
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(() => {
+            assert.notStrictEqual(element.session.layout.id, "location-map");
+            assert.notStrictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
+        await userEvent.keyboard("{Escape}");
+        await userEvent.click(element);
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(element.session.layout.id, "location-map");
+            assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
     });
 });

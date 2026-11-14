@@ -349,6 +349,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.color": "Color",
     "node.size": "Size",
     "node.sizeMode": "Size mode",
+    "node.sizeSpace": "Size space",
     "node.shape": "Shape",
     "node.model": "Model",
     "node.modelSourceUp": "Model up axis",

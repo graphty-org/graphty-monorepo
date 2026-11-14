@@ -48,6 +48,9 @@ const LAYOUT_NAMES: Readonly<Record<string, string>> = {
  */
 export const LAYOUT_SEED = 1;
 
+/** The location map's id: its form names the columns it read, and the map rule sizes its nodes on screen. */
+export const MAP_LAYOUT = "location-map";
+
 /**
  * A new random layout seed.
  * @returns a non-negative 31-bit integer.
@@ -210,13 +213,12 @@ export function startingValues(session: GraphSession, descriptor: LayoutDescript
     const values: Record<string, unknown> = descriptor.options.some((option) => option.name === "seed")
         ? { seed: LAYOUT_SEED }
         : {};
-    // On a map the app keeps nodes one size on screen, so zooming to a region pulls apart the nodes
-    // a world view draws on top of one another (the element's own default scales them with zoom),
-    // and draws the map, flat or globe, six times larger than the element's default under the same
-    // nodes and edges, so a dense region (the United States, Europe) is not one grey patch. That
-    // leaves a flat map's nodes too small to see, so they are drawn twice that size: still apart.
-    if (descriptor.id === "location-map") {
-        values.nodeScale = "screen";
+    // On a map the app draws the map, flat or globe, six times larger than the element's default
+    // under the same nodes and edges, so a dense region (the United States, Europe) is not one grey
+    // patch. With nodes one size on screen (Settings, "Map layout automatically enables
+    // depth-independent size", frame/ElementHost.tsx) that leaves a flat map's nodes too small to
+    // see, so they are drawn twice that size: still apart.
+    if (descriptor.id === MAP_LAYOUT) {
         values.mapScale = 6;
         values.flatNodeScale = 2;
     }

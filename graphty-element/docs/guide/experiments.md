@@ -97,8 +97,10 @@ A project saved with the timeline on keeps its time settings when it is opened a
 off. Playback settings and a window's `nodes` and `missing` options do nothing meanwhile, and
 `project.open` reports each in `problems` as `E_FEATURE_OFF` with `{ feature, key }`. A column's time
 role stays and is not reported. A saved window still limits what shows, by its bounds only, and
-`session.visibility.setWindow(null)` clears it. `styles.tree()` leaves out the saved Ghost row, and
-a saved run's `caveats.window` is left out of what `session.runs` hands over.
+`session.visibility.setWindow(null)` clears it. A saved Timeline Hidden row stays in the style tree
+like any row and matches nothing, and a saved run's `caveats.window` is left out of what
+`session.runs` hands over. With the timeline on, a window narrows nothing: it only changes how
+elements are drawn (see [What lies outside the window](./timeline.md#what-lies-outside-the-window)).
 
 Versions 3.31.0 to 3.35.0 had the timeline on for everyone. A page written against them adds
 `features="timeline"` to keep it.

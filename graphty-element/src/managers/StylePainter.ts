@@ -1569,7 +1569,7 @@ export class StylePainter {
         }
 
         // ONE PAINT PER KEY. Edges painted by their key alone share one paint object, so a pass that
-        // moves thousands of edges between two looks (a time window's Ghost row) builds two paints,
+        // moves thousands of edges between two looks (a time window's ghost look) builds two paints,
         // not thousands, and an edge handed the paint it is already drawn from skips by reference.
         // The interned mesh style is held beside it because a released mesh key is minted again
         // for another style.

@@ -1046,12 +1046,15 @@ function groups(gs: GroupRow[]): string {
         .map((g) => {
             const bar = { shard: g.group, runs: g.runs, minRuns: 1, medianS: g.newest.totalS, p90S: g.worst.totalS };
             const { svg } = budgetBar({ ...bar, budgetS: g.limitS }, maxS);
-            const over = g.newest.pct > g.warnPct;
-            const note = `${fmtN(g.newest.pct)}% of ${mins(g.limitS)} min deadline${over ? `, over ${fmtN(g.warnPct)}%` : ""}`;
+            const warn = `, over ${fmtN(g.warnPct)}%`;
+            const over = g.newest.pct > g.warnPct ? warn : "";
+            const note = `${fmtN(g.newest.pct)}% of ${mins(g.limitS)} min deadline${over}`;
+            const entry = (m: GroupRow["members"][number]): string =>
+                m.tableS === null ? "none" : `${mins(m.tableS)} min`;
+            const staleTag = (m: GroupRow["members"][number]): string =>
+                `${esc(m.member)} <small class="tag">${mins(m.maxS)} min, table ${entry(m)}</small>`;
             const stale = g.members.filter((m) => m.stale);
-            const tail = stale.length
-                ? `<p class="more">${stale.map((m) => `${esc(m.member)} <small class="tag">${mins(m.maxS)} min, table ${m.tableS === null ? "none" : `${mins(m.tableS)} min`}</small>`).join(", ")}</p>`
-                : "";
+            const tail = stale.length ? `<p class="more">${stale.map(staleTag).join(", ")}</p>` : "";
             return (
                 `<div class="srow"><span class="nm">${esc(g.group)}</span><span class="num">${fmtN(g.runs)}</span><span class="num">${mins(g.newest.totalS)}</span><span class="num">${mins(g.worst.totalS)}</span>` +
                 `<span>${svg}</span><span class="note2">${esc(note)}</span><span></span></div>${tail}`

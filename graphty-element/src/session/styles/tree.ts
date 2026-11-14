@@ -589,8 +589,8 @@ export function folderIdsOf(rows: Rows): StyleRowId[] {
 /**
  * Whether the stack draws what lies outside the time window: for nodes and for edges alike, the
  * topmost layer that paints (enabled, its row not hidden), selects
- * `{ match: "state", state: "outsideWindow" }` and sets `visible` does not set it false; with no
- * such layer nothing hides it, so it is drawn.
+ * `{ match: "state", state: "outsideWindow" }` and sets `visible` sets it true. With no such
+ * layer it is drawn as any other element, which this does not count as drawing it.
  * @param stack - The stack.
  * @returns True when both kinds are drawn.
  */
@@ -620,5 +620,32 @@ export function drawsOutsideWindowOf(painted: readonly CompiledLayer[], target: 
         }
     }
 
-    return true;
+    return false;
+}
+
+/**
+ * Whether the stack hides what lies outside the time window, of either kind: the topmost painting
+ * layer selecting `{ match: "state", state: "outsideWindow" }` that sets `visible` sets it false.
+ * @param stack - The stack.
+ * @returns True when nodes or edges outside the window are hidden.
+ */
+export function hidesOutsideWindow(stack: readonly CompiledLayer[]): boolean {
+    const painted = paintedStack(stack);
+    return (["node", "edge"] as const).some((target) => {
+        for (let at = painted.length - 1; at >= 0; at--) {
+            const { layer } = painted[at];
+            const visible = layer.set?.[`${target}.visible`];
+            if (
+                layer.enabled &&
+                layer.target === target &&
+                layer.selector.match === "state" &&
+                layer.selector.state === "outsideWindow" &&
+                visible !== undefined
+            ) {
+                return visible === false;
+            }
+        }
+
+        return false;
+    });
 }

@@ -3788,6 +3788,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             outsideWindowBytes: READ,
             windowMasks: READ,
             windowCounts: READ,
+            insideMasks: READ,
             hold: exempt(
                 "Draws a condition's removals as ghosts while a reader edits it; the conditions are unchanged.",
             ),

@@ -27,6 +27,7 @@ import {
     timeIndexCounters,
 } from "../../../src/session/time/timeIndex";
 import { instantOfWall, wallClock } from "../../../src/session/time/zone";
+import { windowEdges, windowNodes } from "../../helpers/time-window";
 import { makeSession } from "../helpers";
 
 const BIG = SLICED_ROWS + 1000;
@@ -536,17 +537,17 @@ describe("counted work", () => {
                 return typeof t !== "number" || (t * 1000 >= from && t * 1000 < to) ? 1 : 0;
             };
             assert.deepEqual(
-                [...session.visibility.nodeMask()],
+                [...windowNodes(session.visibility)],
                 Array.from({ length: snapshot.nodeCount }, (_, row) => inWindow(nodes.get(snapshot.ids.idOf(row)))),
                 `nodes in round ${String(round)}`,
             );
             const space = edgeSpaceOf(snapshot);
             const inView = (row: number): number =>
                 inWindow(edges.get(space.idOf(row))) &&
-                session.visibility.nodeMask()[snapshot.edgeSource(row)] &&
-                session.visibility.nodeMask()[snapshot.edgeTarget(row)];
+                windowNodes(session.visibility)[snapshot.edgeSource(row)] &&
+                windowNodes(session.visibility)[snapshot.edgeTarget(row)];
             assert.deepEqual(
-                [...session.visibility.edgeMask()],
+                [...windowEdges(session.visibility)],
                 Array.from({ length: snapshot.edgeCount }, (_, row) => inView(row)),
                 `edges in round ${String(round)}`,
             );
@@ -590,7 +591,7 @@ describe("over the threshold", () => {
 
         await session.time.window({ from: (T0 + 2) * 1000, to: (T0 + 4) * 1000, nodes: "all" });
 
-        const mask = session.visibility.nodeMask();
+        const mask = windowNodes(session.visibility);
         assert.strictEqual(
             mask.reduce((sum, shown) => sum + shown, 0),
             3,
@@ -860,7 +861,7 @@ describe("a streaming load", () => {
         ]);
 
         // The window needs the instants now, so this indexes `x` before its record has arrived.
-        session.visibility.nodeMask();
+        windowNodes(session.visibility);
         open();
         await load;
         await session.time.ready;
@@ -933,7 +934,7 @@ describe("with the timeline off", () => {
     async function keptBetween(session: GraphSession, min: number, max: number): Promise<number[]> {
         const rule = { kind: "range", attribute: "data.t", min, max, as: "time" } as const;
         await session.visibility.setConditions([{ effect: "keep", rule }]);
-        return [...session.visibility.nodeMask()];
+        return [...windowNodes(session.visibility)];
     }
 
     it("reads each value as readInstant does with no zone", async () => {
@@ -1014,7 +1015,7 @@ describe("with the timeline off", () => {
 
         assert.strictEqual(session.time.parse("2026-01-15"), Date.UTC(2026, 0, 15));
         assert.strictEqual(timeIndexCounters.parsed - before, 3);
-        assert.deepEqual([...session.visibility.nodeMask()], [1, 1, 0]);
+        assert.deepEqual([...windowNodes(session.visibility)], [1, 1, 0]);
 
         open();
         await load;

@@ -40,8 +40,8 @@ describe("the timeline guide's first example", () => {
 
         assert.strictEqual(time.extent()?.edges.timed, 6);
         const visible = new Set<number>();
-        g.session.on("time:step", () => {
-            visible.add(g.session.visibility.summary.visibleEdges);
+        g.session.on("time:step", (step) => {
+            visible.add(step.visible.edges);
         });
         const ended = new Promise((r) => {
             g.session.on("time:end", r);
@@ -50,7 +50,7 @@ describe("the timeline guide's first example", () => {
         assert.isTrue(time.playing);
         await ended;
         assert.isTrue(steps.some((step) => step.entered.edges > 0));
-        assert.isAbove(visible.size, 1, "the visible edge count moved");
+        assert.isAbove(visible.size, 1, "the window's edge count moved");
         assert.isFalse(time.playing);
     });
 });

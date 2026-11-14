@@ -74,7 +74,7 @@ describe("the Timeline Hidden row", () => {
         }
 
         const tree = session.styles.tree().map((row) => row.name);
-        assert.strictEqual(tree.indexOf("Timeline Hidden"), tree.indexOf("Selected") + 1, tree.join(", "));
+        assert.strictEqual(tree.indexOf("Timeline Hidden"), tree.indexOf("Selected") - 1, tree.join(", "));
         assert.strictEqual(session.config.timelineHiddenLook, "hidden");
 
         // Asked again, nothing comes twice.

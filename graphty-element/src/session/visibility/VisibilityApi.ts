@@ -540,6 +540,11 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     windowCounts(): { readonly nodes: number; readonly edges: number };
     /**
+     * {@link SessionVisibilityApi.windowMasks} as read-only masks, which a move of the window
+     * writes by the rows it changes: the visible masks while no timeline window is in force.
+     */
+    readonly insideMasks: ScopeVisibilitySource;
+    /**
      * A run that moves windows of its own, so nothing on screen, in the project or in history moves. It describes the graph and the filter as they stand when `work` opens the walk.
      * @param algorithm - What the run is.
      * @param params - What it was asked for.
@@ -2545,6 +2550,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const visibleEdgeCopy = copies(edgeMaskValue);
     const drawnNodeCopy = copies(drawnNodes);
     const drawnEdgeCopy = copies(drawnEdges);
+    const insideNodeCopy = copies(inNodes);
+    const insideEdgeCopy = copies(inEdges);
 
     return {
         nodeMask(): Uint8Array {
@@ -2783,6 +2790,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             }
 
             return { nodes: inNodes.bytes(), edges: inEdges.bytes() };
+        },
+
+        insideMasks: {
+            nodes: () => (insideUpToDate() ? insideNodeCopy() : visibleNodeCopy()),
+            edges: () => (insideUpToDate() ? insideEdgeCopy() : visibleEdgeCopy()),
         },
 
         windowCounts() {

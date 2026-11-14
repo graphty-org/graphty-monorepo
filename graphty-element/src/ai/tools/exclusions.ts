@@ -374,6 +374,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "outsideWindowBytes",
             "windowMasks",
             "windowCounts",
+            "insideMasks",
         ],
         reason: "raw-data",
         kind: BY_DESIGN,

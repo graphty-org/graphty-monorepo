@@ -382,9 +382,9 @@ export interface TimeSettings {
      * Whether elements outside the window are hidden or drawn as ghosts. Read from the style
      * layers selecting `{ match: "state", state: "outsideWindow" }`, and written to them:
      * `"ghost"` sets `visible: true` and `"hide"` sets `visible: false` on every layer of the stack
-     * that selects the state (adding one when none does and it is not drawn that way). With no
-     * such layer nothing is hidden, which reads `"ghost"`. Never a layout input: what lies outside
-     * the window keeps its place.
+     * that selects the state (adding one for each kind when none does). It reads `"ghost"` only
+     * while such layers draw both kinds; with none, nothing hides them and it reads `"hide"`.
+     * Never a layout input: what lies outside the window keeps its place.
      */
     readonly outside: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in, unless a call or the window names its own. */
@@ -1714,7 +1714,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     /**
      * The style writes that make what lies outside the window draw one way: for nodes and for
      * edges, `visible` on every painting layer a reader or a template put in the stack selecting
-     * that state, or a new layer when none does and it is not drawn the way asked.
+     * that state, or a new layer when none does.
      * @param outside - How it draws.
      * @returns The commands.
      */
@@ -1725,7 +1725,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             const own = outsideLayers(target);
             if (own.length === 0) {
                 // A kind already drawn the way asked needs no layer of its own.
-                return drawsOutsideWindowOf(painted, target) !== drawn
+                return !drawn || !drawsOutsideWindowOf(painted, target)
                     ? [
                           {
                               op: "style.patch",

@@ -212,7 +212,7 @@ describe("timeline ghosts", () => {
         session.dispose();
     });
 
-    it("adds a layer that hides what lies outside when no layer selects it", async () => {
+    it("adds the layers Outside asks for when no layer selects what lies outside", async () => {
         const session = await trace(false);
         await session.time.window({ from: 3, to: 6 });
         const selecting = (): Record<string, unknown>[] =>
@@ -221,10 +221,12 @@ describe("timeline ghosts", () => {
                 .filter((layer) => layer.selector.match === "state" && layer.selector.state === "outsideWindow")
                 .map((layer) => ({ ...layer.set }));
         assert.deepStrictEqual(selecting(), []);
-        assert.strictEqual(session.time.settings.outside, "ghost", "nothing hides it");
+        assert.strictEqual(session.time.settings.outside, "hide");
+        assert.isTrue(drawn(session, { node: "s0" }), "nothing hides it");
 
         await session.time.setSettings({ outside: "ghost" });
-        assert.deepStrictEqual(selecting(), [], "already drawn");
+        assert.deepStrictEqual(selecting(), [{ "node.visible": true }, { "edge.visible": true }]);
+        assert.strictEqual(session.time.settings.outside, "ghost");
 
         await session.time.setSettings({ outside: "hide" });
         assert.deepStrictEqual(selecting(), [{ "node.visible": false }, { "edge.visible": false }]);
@@ -336,8 +338,7 @@ describe("timeline ghosts", () => {
 
         const row = session.styles.list().find((layer) => layer.name === "Timeline Hidden");
         await session.styles.hideRow(row?.row ?? row?.id ?? "", true);
-        assert.strictEqual(session.time.settings.outside, "ghost", "nothing hides it");
-        assert.isTrue(drawn(session, { node: "s0" }));
+        assert.isTrue(drawn(session, { node: "s0" }), "nothing hides it");
 
         await session.time.setSettings({ outside: "hide" });
         assert.strictEqual(session.time.settings.outside, "hide");

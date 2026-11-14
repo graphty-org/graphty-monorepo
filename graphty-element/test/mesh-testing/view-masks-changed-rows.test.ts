@@ -176,9 +176,9 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
     );
     manager.bindViewMasks({
         selection: { nodes: () => session.selection.nodeMembers(), edges: () => session.selection.edgeMembers() },
-        // A mask a window moves by rows: the visible masks. The element binds the drawn masks, which
+        // A mask a window moves by rows: the in-window masks. The element binds the drawn masks, which
         // a window leaves alone (what lies outside it is hidden by style), so the rows path is fed here.
-        visibility: session.visibility.masks,
+        visibility: session.visibility.insideMasks,
         showContext: () => session.visibility.showContext,
         ghost: () => false,
         timeline: () => true,
@@ -214,8 +214,8 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         frame,
         assertDrawnAsMasks(when) {
             const hidden = session.visibility.showContext ? "context" : "hidden";
-            const nodeMask = session.visibility.masks.nodes();
-            const edgeMask = session.visibility.masks.edges();
+            const nodeMask = session.visibility.insideMasks.nodes();
+            const edgeMask = session.visibility.insideMasks.edges();
             for (const node of nodes) {
                 assert.strictEqual(node.state, nodeMask.has(node.index) ? "visible" : hidden, `${when}: node`);
             }

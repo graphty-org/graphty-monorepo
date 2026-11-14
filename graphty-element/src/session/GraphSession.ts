@@ -3362,15 +3362,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // A run over the visible graph records the time window it was computed in.
             const bounds =
                 spec === "visible" && timelineOn() ? windowBoundsOf(visibility.window, boundZone) : undefined;
-            const summary = bounds === undefined || bounds === null ? null : visibility.summary;
+            // How much the window held: the timeline's count, never a narrowing of the scope.
+            const inside = bounds === undefined || bounds === null ? null : visibility.windowCounts();
             const window =
                 bounds === undefined
                     ? {}
                     : {
                           window:
-                              bounds === null || summary === null
+                              bounds === null || inside === null
                                   ? null
-                                  : { ...bounds, nodes: summary.visibleNodes, edges: summary.visibleEdges },
+                                  : { ...bounds, nodes: inside.nodes, edges: inside.edges },
                       };
 
             return kept === undefined

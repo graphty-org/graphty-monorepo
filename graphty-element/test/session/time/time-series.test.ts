@@ -9,6 +9,7 @@ import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { TimeSeriesRow } from "../../../src/session/time/series";
 import type { TimeStepEvent } from "../../../src/session/time/TimeApi";
 import { slideCounters } from "../../../src/session/visibility/slide";
+import { windowEdges, windowNodes } from "../../helpers/time-window";
 import { type Harness, makeSession } from "../helpers";
 
 // The timeline is an experiment: this file's sessions switch it on.
@@ -369,8 +370,8 @@ describe("time.series", () => {
                     for (const row of rows) {
                         await session.time.window({ from: row.from, to: row.to, step: 70, missing, mode });
                         const now = {
-                            nodes: [...session.visibility.nodeMask()],
-                            edges: [...session.visibility.edgeMask()],
+                            nodes: [...windowNodes(session.visibility)],
+                            edges: [...windowEdges(session.visibility)],
                         };
                         assert.deepEqual(row.visible, {
                             nodes: now.nodes.filter((shown) => shown === 1).length,
@@ -437,8 +438,8 @@ describe("time.series", () => {
         const { session } = harness;
         await session.time.setField({ edges: { start: "w" } });
         await session.time.window({ from: 100, to: 200, step: 100 });
-        const nodes = [...session.visibility.nodeMask()];
-        const edges = [...session.visibility.edgeMask()];
+        const nodes = [...windowNodes(session.visibility)];
+        const edges = [...windowEdges(session.visibility)];
         const { position } = session.history;
         const { window } = session.visibility;
         let moved = 0;
@@ -450,8 +451,8 @@ describe("time.series", () => {
         stopStep();
         stopChange();
         assert.strictEqual(moved, 0);
-        assert.deepEqual([...session.visibility.nodeMask()], nodes);
-        assert.deepEqual([...session.visibility.edgeMask()], edges);
+        assert.deepEqual([...windowNodes(session.visibility)], nodes);
+        assert.deepEqual([...windowEdges(session.visibility)], edges);
         assert.strictEqual(session.history.position, position);
         assert.strictEqual(session.visibility.window, window);
     });

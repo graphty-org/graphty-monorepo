@@ -12,6 +12,7 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { ElementSession } from "../../src/session/types";
+import { windowCount } from "../helpers/time-window";
 
 // The timeline is an experiment: the time window's case switches it on.
 beforeAll(() => {
@@ -151,7 +152,8 @@ describe("a layout over only what the filter shows", () => {
             await graph.waitForSettled();
         }
 
-        assert.isBelow(session.visibility.summary.visibleNodes, IDS.length, "the window hides nodes");
+        assert.isBelow(windowCount(session.visibility).nodes, IDS.length, "the window leaves nodes out");
+        assert.strictEqual(session.visibility.summary.visibleNodes, IDS.length, "all of them still visible");
         assert.strictEqual(layoutsRun, runs, "no layout ran");
         assert.deepEqual(positionsOf(graph), before, "no node moved");
         assert.strictEqual(JSON.stringify(graph.getCameraState()), camera, "the camera stayed");

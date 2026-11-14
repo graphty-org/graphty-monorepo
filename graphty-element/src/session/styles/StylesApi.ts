@@ -254,6 +254,7 @@ import {
     findRow,
     folderIdsOf,
     hiddenRowKeys,
+    hidesOutsideWindow,
     insertRow,
     layerIdsOf,
     lockedByReader,
@@ -2639,6 +2640,19 @@ function heldLayers(state: "ghosted" | "outsideWindow", show: boolean): LayerSpe
 }
 
 /**
+ * The layers a branches view hides what lies outside the time window with, while the stack hides it.
+ * @returns The node layer and the edge layer.
+ */
+function hiddenOutside(): LayerSpec[] {
+    return (["node", "edge"] as const).map((target) => ({
+        name: "Held",
+        target,
+        selector: { match: "state", state: "outsideWindow" },
+        set: { [`${target}.visible`]: false },
+    }));
+}
+
+/**
  * Build the style stack one session holds.
  * @param sources - What a selector compiles against, the element's own layers, the scales, the
  *     repaint seam, the dispatcher and the change hook.
@@ -2930,7 +2944,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const restLayers = view.rest === "faint" ? 2 : 0;
         const ghostAt = view.base === "full" ? restLayers : specs.length;
         // What lies outside the window stays drawn: the view suspends the layers that draw it.
-        const outside = drawsOutsideWindow(current()) ? heldLayers("outsideWindow", true) : [];
+        // A layer that hides it is suspended too, so the view hides it in its place.
+        let outside: LayerSpec[] = [];
+        if (drawsOutsideWindow(current())) {
+            outside = heldLayers("outsideWindow", true);
+        } else if (hidesOutsideWindow(current())) {
+            outside = hiddenOutside();
+        }
+
         specs.splice(ghostAt, 0, ...heldLayers("ghosted", false), ...outside);
 
         const layers = specs.map((spec, at) => {

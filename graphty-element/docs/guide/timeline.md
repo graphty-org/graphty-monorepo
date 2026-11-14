@@ -267,9 +267,10 @@ await g.session.styles.add({
 ```
 
 `time.setSettings({ outside: "hide" })` sets `visible: false` on every layer that selects the state,
-adding one for nodes and one for edges when none hides them, and `outside: "ghost"` sets
-`visible: true` on them. `time.settings.outside` reads the layers: it says `"hide"` while a layer
-hides nodes or edges outside the window, and `"ghost"` otherwise.
+adding one for nodes and one for edges when no layer selects it, and `outside: "ghost"` sets
+`visible: true` on them the same way. `time.settings.outside` reads the layers: it
+says `"ghost"` only while layers selecting the state draw both nodes and edges outside the window,
+and `"hide"` otherwise.
 
 A play, a step or a jump moves no node and no camera, even with `layout.visibleOnly`, which lays
 out only what the filter keeps. A hidden element's halo, label and support point go with it.

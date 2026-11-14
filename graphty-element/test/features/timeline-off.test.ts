@@ -17,6 +17,7 @@ import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { slideCounters } from "../../src/session/visibility/slide";
 import { FakeClock, FakeLocks } from "../autosave/fakes";
+import { windowCount } from "../helpers/time-window";
 
 const TIMELINE_HIDDEN = "graphty:timeline-hidden";
 const OFF = { features: [] };
@@ -193,7 +194,7 @@ describe("session.time with the timeline off", () => {
         assert.strictEqual((refused as GraphtyError).code, "E_FEATURE_OFF");
 
         await session.visibility.setWindow(FIRST_DAYS);
-        assert.strictEqual(session.visibility.summary.visibleEdges, 2);
+        assert.strictEqual(windowCount(session.visibility).edges, 2);
     });
 
     it("refuses the same request inside a batch, and keeps the marker of a restore private", async () => {
@@ -231,7 +232,7 @@ describe("a live window with the timeline off", () => {
                 await session.config.set({ data: { knownFields: { edgeTimePath: "at" } } });
             }
             await session.visibility.setWindow({ attribute: "at", from, to });
-            counts.push(session.visibility.summary.visibleEdges);
+            counts.push(windowCount(session.visibility).edges);
         }
         return counts as [number, number];
     }
@@ -256,15 +257,15 @@ describe("a live window with the timeline off", () => {
         await off.project.open((await session.project.save()).text);
         await off.config.set({ data: { knownFields: { edgeTimePath: "at" } } });
         await off.visibility.setWindow({ attribute: "at", from: 1999, to: 2006 });
-        assert.strictEqual(off.visibility.summary.visibleEdges, 2);
+        assert.strictEqual(windowCount(off.visibility).edges, 2);
 
         const { text } = await off.project.save();
         const reopened = createGraphSession({ ...OFF, runs: { execute } });
         await reopened.project.open(text);
-        assert.strictEqual(reopened.visibility.summary.visibleEdges, 2);
+        assert.strictEqual(windowCount(reopened.visibility).edges, 2);
         const again = createGraphSession({ ...OFF, runs: { execute } });
         await again.project.open((await reopened.project.save()).text);
-        assert.strictEqual(again.visibility.summary.visibleEdges, 2);
+        assert.strictEqual(windowCount(again.visibility).edges, 2);
     });
 });
 
@@ -389,8 +390,8 @@ describe("a project saved with the timeline on, opened with it off", () => {
         assert.strictEqual(session.visibility.window?.nodes, "ends");
 
         await session.visibility.setSteps([{ id: "first", on: true, rule: { kind: "edges", where: "source == 'A'" } }]);
-        assert.strictEqual(session.visibility.summary.visibleEdges, 1);
-        assert.strictEqual(session.visibility.summary.visibleNodes, 4, "the option stays saved and is not applied");
+        assert.strictEqual(windowCount(session.visibility).edges, 1);
+        assert.strictEqual(windowCount(session.visibility).nodes, 4, "the option stays saved and is not applied");
     });
 
     it("moves a window under a filter by plain passes, with no slide and no kept filter", async () => {
@@ -434,7 +435,7 @@ describe("a project saved with the timeline on, opened with it off", () => {
         const { text } = await saved.project.save();
         const session = createGraphSession({ ...OFF, runs: { execute } });
         await session.project.open(text);
-        assert.strictEqual(session.visibility.summary.visibleNodes, 2);
+        assert.strictEqual(windowCount(session.visibility).nodes, 2);
     });
 
     it("keeps its time field, its settings and its Timeline Hidden row, which matches nothing", async () => {
@@ -459,8 +460,8 @@ describe("a project saved with the timeline on, opened with it off", () => {
         // The saved window keeps its `nodes: "ends"`, and only its bounds apply: that option would
         // leave only the three nodes of the two edges inside it.
         assert.strictEqual(session.visibility.window?.nodes, "ends");
-        assert.strictEqual(session.visibility.summary.visibleEdges, 2);
-        assert.strictEqual(session.visibility.summary.visibleNodes, 4);
+        assert.strictEqual(windowCount(session.visibility).edges, 2);
+        assert.strictEqual(windowCount(session.visibility).nodes, 4);
         const ghostRows = (each: GraphSession): number =>
             each.styles
                 .list()
@@ -495,15 +496,16 @@ describe("a project saved with the timeline on, opened with it off", () => {
         await saved.time.setField(field);
         const { from, to } = saved.time.extent() ?? { from: 0, to: 0 };
         await saved.time.window({ from: (from + to) / 2, to: to + 1 });
-        const { visibleNodes, visibleEdges, totalNodes, totalEdges } = saved.visibility.summary;
+        const { totalNodes, totalEdges } = saved.visibility.summary;
+        const { nodes: visibleNodes, edges: visibleEdges } = windowCount(saved.visibility);
         assert.isAbove(visibleNodes + visibleEdges, 0);
         assert.isBelow(visibleNodes + visibleEdges, totalNodes + totalEdges);
 
         const session = createGraphSession({ ...OFF, runs: { execute } });
         await session.project.open((await saved.project.save()).text);
-        assert.strictEqual(session.visibility.summary.visibleEdges, visibleEdges);
+        assert.strictEqual(windowCount(session.visibility).edges, visibleEdges);
         if ("nodes" in field) {
-            assert.strictEqual(session.visibility.summary.visibleNodes, visibleNodes);
+            assert.strictEqual(windowCount(session.visibility).nodes, visibleNodes);
         }
     });
 
@@ -512,18 +514,18 @@ describe("a project saved with the timeline on, opened with it off", () => {
         await saved.time.setField({ edges: { start: "at", unit: "year" } });
         const { from, to } = saved.time.extent() ?? { from: 0, to: 0 };
         await saved.time.window({ from: (from + to) / 2, to: to + 1 });
-        const { visibleEdges } = saved.visibility.summary;
+        const { edges: visibleEdges } = windowCount(saved.visibility);
         assert.isAbove(visibleEdges, 0);
 
         const session = createGraphSession({ ...OFF, runs: { execute } });
         await session.project.open((await saved.project.save()).text);
         await session.visibility.setWindow(null);
         await session.undo();
-        assert.strictEqual(session.visibility.summary.visibleEdges, visibleEdges);
+        assert.strictEqual(windowCount(session.visibility).edges, visibleEdges);
 
         const reopened = createGraphSession({ ...OFF, runs: { execute } });
         await reopened.project.open((await session.project.save()).text);
-        assert.strictEqual(reopened.visibility.summary.visibleEdges, visibleEdges);
+        assert.strictEqual(windowCount(reopened.visibility).edges, visibleEdges);
     });
 
     it("hands out no saved run's window, and saves it", async () => {

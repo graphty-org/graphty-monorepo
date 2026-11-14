@@ -443,6 +443,9 @@ const ROWS: Record<string, Row> = {
     "columns.list": { args: { action: "list" } },
     "columns.values": { args: { action: "values", column: "team" } },
     "columns.over_represented": { args: { action: "over_represented", column: "team" } },
+    "columns.group_table": {
+        args: { action: "group_table", column: "team", summaries: { "data.load": ["mean"] } },
+    },
     "columns.preview_type": { args: { action: "preview_type", column: "load", type: "text" } },
     "columns.rename": { args: { action: "rename", column: "team", name: "squad" } },
     "columns.set_type": { args: { action: "set_type", column: "load", type: "text" } },

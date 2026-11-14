@@ -514,6 +514,27 @@ graph.on("data-cleared", () => {
 });
 ```
 
+### Follow every data change on the session
+
+A session -- the element's, or one from `createGraphSession()` with no view -- publishes
+`data:changed` once per change to the data: a load, an add, a removal, an attribute edit, and an
+undo, redo or restore of any of them. It arrives right after the change, so `data.node(id)` already
+reads the new values:
+
+```typescript
+const session = createGraphSession();
+session.on("data:changed", ({ added, removed, updated, fields, cause }) => {
+    console.log(added.nodes, removed.edges, updated.nodes, fields.nodes, cause);
+});
+await session.data.addNodes([{ id: "a", type: "host" }]); // added.nodes: ["a"], cause: "command"
+await session.data.updateNodes([{ id: "a", values: { type: "service" } }]); // fields.nodes: ["type"]
+await session.undo(); // updated.nodes: ["a"], cause: "undo"
+```
+
+Load progress is `progress:changed` with `task: "load"` (see
+[graphty-progress-change](#graphty-progress-change)); the load's `data:changed` follows when it
+commits.
+
 ### Loading Indicator
 
 ```typescript

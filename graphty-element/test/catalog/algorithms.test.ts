@@ -294,7 +294,7 @@ describe("built-in algorithm catalogue", () => {
 
             assert.deepEqual(
                 pagerank.options.map((option) => option.name),
-                ["dampingFactor", "maxIterations", "tolerance", "useDelta", "weight"],
+                ["dampingFactor", "maxIterations", "tolerance", "directed", "useDelta", "weight"],
             );
             assert.deepInclude(pagerank.options[0], {
                 type: "number",

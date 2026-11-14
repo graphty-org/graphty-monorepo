@@ -240,6 +240,7 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
             "list",
             "values",
             "over_represented",
+            "group_table",
             "preview_type",
             "rename",
             "set_type",

@@ -640,7 +640,7 @@ function checkMeasure(value: Loose, walker: Walker): void {
 }
 
 /** The fields a union branch and a union step define. */
-const BRANCH_FIELDS = ["id", "name", "color", "on", "start", "steps"];
+const BRANCH_FIELDS = ["id", "name", "autoName", "color", "on", "start", "steps"];
 const STEP_FIELDS = ["id", "op", "on", "rule", "computedOn", "links", "ends", "frozenFrom", "mode"];
 
 /** The leaf kinds that speak only nodes, or hold a selection: a step's `links` refuses them. */
@@ -738,6 +738,9 @@ function checkUnion(value: Loose, walker: Walker): void {
         walker.fields(branch, "unionBranch", BRANCH_FIELDS);
         unique(branch.id, "branch");
         checkFlagAndText(branch, ["name", "color"]);
+        if (branch.autoName !== undefined && typeof branch.autoName !== "boolean") {
+            throw bad("A union branch's autoName is true or false.", { autoName: branch.autoName });
+        }
 
         if (branch.start !== "all" && branch.start !== "none") {
             throw bad('A union branch\'s start is "all" or "none".', { start: branch.start });

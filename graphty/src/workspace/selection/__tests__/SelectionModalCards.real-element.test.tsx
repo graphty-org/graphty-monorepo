@@ -372,6 +372,35 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         assert.match(cards().at(-1)?.getAttribute("aria-label") ?? "", /^D, /, "the last card reads D");
     });
 
+    it("a card the reader named like a letter keeps its name when the other card is deleted", async () => {
+        const { session, layer } = await twoCards();
+        await userEvent.click(within(cards()[1]).getByRole("button", { name: /^Rename B/ }));
+        await userEvent.keyboard("{Control>}a{/Control}NY{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(unionOf(session, layer.id)?.branches[1]?.name, "NY");
+        });
+        await userEvent.click(within(cards()[0]).getByRole("button", { name: "Delete A" }));
+        await waitFor(() => {
+            assert.deepEqual(
+                (unionOf(session, layer.id)?.branches ?? []).map((each) => each.name),
+                ["NY"],
+                "the typed name stays",
+            );
+        });
+        assert.match(cards()[0]?.getAttribute("aria-label") ?? "", /^NY, /, "the card still reads NY");
+    });
+
+    it("the last card left loses only the letter it was given", async () => {
+        const { session, layer } = await twoCards();
+        await userEvent.click(within(cards()[0]).getByRole("button", { name: "Delete A" }));
+        await waitFor(() => {
+            const branches = unionOf(session, layer.id)?.branches ?? [];
+            assert.lengthOf(branches, 1);
+            assert.isUndefined(branches[0]?.name, "B was a given letter");
+            assert.isUndefined(branches[0]?.autoName);
+        });
+    });
+
     it("a card dragged by its grip, or moved with Ctrl+[ and Ctrl+] on it, takes its new place; arrows do not", async () => {
         const { session, layer } = await twoCards();
         const idsNow = (): string[] => (unionOf(session, layer.id)?.branches ?? []).map((each) => each.id ?? "");

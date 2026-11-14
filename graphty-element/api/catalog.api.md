@@ -3113,6 +3113,7 @@ export type TransitionDrawable = "particles";
 
 // @beta
 export interface UnionBranch {
+    readonly autoName?: boolean;
     readonly color?: string;
     readonly id?: string;
     readonly name?: string;

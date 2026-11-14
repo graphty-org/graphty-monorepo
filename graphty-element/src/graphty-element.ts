@@ -6743,6 +6743,35 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Gets the graph drawn again after the browser took away its graphics device.
+     *
+     * When the WebGL context or the WebGPU device is lost (a driver reset, a GPU process crash),
+     * the element fires `render-lost` and asks for the device back by itself; `render-restored`
+     * follows once the graph is drawn again. The data, the styles, the camera and the undo
+     * history are never touched. Call this when the device has not come back -- from a "Restart
+     * viewer" button, say: it asks the browser again and rebuilds the picture from the graph in
+     * memory, with nothing loaded again. It resolves at once while nothing is lost.
+     * @returns A promise that resolves when the graph is drawn again.
+     * @throws A `GraphtyError` with `E_RENDER_LOST` when the browser cannot give a WebGL context
+     *     back, or `E_DEVICE_LOST` when no new WebGPU device can be opened.
+     * @since 3.53.0
+     * @example
+     * ```js
+     * const element = document.querySelector("graphty-element");
+     * element.addEventListener("render-lost", () => {
+     *     restartButton.hidden = false;
+     * });
+     * element.addEventListener("render-restored", () => {
+     *     restartButton.hidden = true;
+     * });
+     * restartButton.addEventListener("click", () => element.restartRenderer());
+     * ```
+     */
+    restartRenderer(): Promise<void> {
+        return this.#graph.restartRenderer();
+    }
+
+    /**
      * The node count at or above which accelerated work uses the accelerator.
      *
      * Below it the element takes the CPU path even with an accelerator attached, and

@@ -336,6 +336,8 @@ export type {
     NodeGenericEvent,
     NodeHoverEvent,
     OperationCancelledEvent,
+    RenderLostEvent,
+    RenderRestoredEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
     XRSessionEndedEvent,

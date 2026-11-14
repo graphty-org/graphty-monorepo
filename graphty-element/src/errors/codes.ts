@@ -486,6 +486,13 @@ export type GraphtyErrorCode =
      */
     | "E_DEVICE_LOST"
     /**
+     * The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+     * device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+     * The session and its data are untouched; the element asks for the device back, and
+     * `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+     */
+    | "E_RENDER_LOST"
+    /**
      * No WebGL context could be created, so nothing can be rendered. `details` carry what the
      * canvas reported. The session's data and results still work; only the view is unavailable.
      */
@@ -1067,6 +1074,7 @@ const CODE_TABLE = {
     E_SOFTWARE_ONLY: "E_SOFTWARE_ONLY",
     E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
+    E_RENDER_LOST: "E_RENDER_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
     E_SHADER_REFUSED: "E_SHADER_REFUSED",
     E_XR_SESSION_FAILED: "E_XR_SESSION_FAILED",

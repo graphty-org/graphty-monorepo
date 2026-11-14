@@ -6,6 +6,7 @@ import isEqual from "lodash/isEqual.js";
 
 import type { Rgba } from "../catalog/types";
 import { drawnText } from "../config/RichTextStyle";
+import { RowMap } from "../data/RowMap";
 import { batchableOf, type BatchView, type NodePaint, shaderPartOf } from "../managers/StylePainter";
 import type { Node } from "../Node";
 import type { RowMeasure } from "../render/RowTable";
@@ -489,10 +490,22 @@ const ROUND_TYPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
  * overlay of its own, so it never needs a frame's visit (design/rendering/row-renderer.md 4.6).
  */
 export class ColumnRow implements RowMeasure {
-    /** A row's paint draws at its source's size: only a `Node` scales with the view. */
-    readonly wholeScale = 1;
-    /** Nothing hangs from the row, so a frame's walk never visits it. */
-    readonly walksEachFrame = false;
+    /**
+     * A row's paint draws at its source's size: only a `Node` scales with the view. A getter, not a
+     * field, so a million rows do not each carry it.
+     * @returns 1.
+     */
+    get wholeScale(): number {
+        return 1;
+    }
+
+    /**
+     * Nothing hangs from the row, so a frame's walk never visits it.
+     * @returns False.
+     */
+    get walksEachFrame(): boolean {
+        return false;
+    }
 
     /**
      * Hold a row's paint.
@@ -703,8 +716,8 @@ export class NodeBatches {
      */
     private readonly nodeGroups = new Map<Node, RowGroup>();
     private readonly objectRows = new Set<BatchRow>();
-    /** The rows drawn with no `Node`, by row. */
-    private readonly columnRows = new Map<number, ColumnRow>();
+    /** The rows drawn with no `Node`, by row: an array slot each, not a Map entry (G11). */
+    private readonly columnRows = new RowMap<ColumnRow>();
 
     /**
      * Whether any row drawn with no `Node` has been painted below z-index 0, which a 2D view draws behind edges.
@@ -742,7 +755,7 @@ export class NodeBatches {
      * @returns How many.
      */
     get rowMapEntries(): number {
-        const perLook = new Set<unknown>([this.groups, this.families, this.columnRows]);
+        const perLook = new Set<unknown>([this.groups, this.families]);
         const entries = (owner: object): number => {
             let count = 0;
             for (const value of Object.values(owner)) {

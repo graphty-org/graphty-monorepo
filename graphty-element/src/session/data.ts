@@ -919,7 +919,8 @@ export class SessionData implements SessionDataApi {
      */
     async importColumns(columns: ImportColumnsInput): Promise<void> {
         this.requireLive("importColumns");
-        const [nodes, edges] = columnMutations(columns);
+        // A batched graph keeps the records it builds, so the slice keeps them as they are, not a copy.
+        const [nodes, edges] = columnMutations(columns, this.pages.batched?.() === true);
         const send = this.writes.importer();
         await this.loadLine.edit(
             () =>

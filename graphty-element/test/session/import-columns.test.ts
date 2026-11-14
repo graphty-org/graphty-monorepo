@@ -115,6 +115,61 @@ describe("session.data.importColumns", () => {
         });
     }
 
+    for (const batched of [false, true]) {
+        it(`seeds each node's file position again when redo puts the nodes back, on the ${batched ? "batched" : "objects"} path`, async () => {
+            const session = createElementSession({}, { batched: () => batched });
+            await byColumns(session);
+            await session.undo();
+            const { store } = dispatcherOf(session).graph as unknown as { store: GraphStore };
+            const seeded: unknown[] = [];
+            const set = store.builder.setNodeValue.bind(store.builder);
+            store.builder.setNodeValue = (column, index, value) => {
+                if (column === store.seedColumn) {
+                    seeded[index] = [...(value as number[])];
+                }
+
+                set(column, index, value);
+            };
+            await session.redo();
+            assert.deepStrictEqual(
+                seeded,
+                IDS.map((_, row) => [POSITIONS[row * 3], POSITIONS[row * 3 + 1], POSITIONS[row * 3 + 2]]),
+            );
+        });
+    }
+
+    it("keeps one copy of each record a batched importColumns makes: the graph's is the journal's (G11)", async () => {
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            await byColumns(session);
+            // Each step of the batch writes its own entry, the command exactly as it ran.
+            const added = (kind: string): unknown[] => {
+                for (const { command } of session.journal.entries) {
+                    if (
+                        command.op === "data.apply" &&
+                        command.mutation.kind === kind &&
+                        "records" in command.mutation
+                    ) {
+                        return [...command.mutation.records];
+                    }
+                }
+
+                return [];
+            };
+            const node = added("add-nodes")[1];
+            const edge = added("add-edges")[1];
+            assert.isDefined(node);
+            const { graph } = dispatcherOf(session).state;
+            // A frozen copy of every record beside the journal's own was 112 MB at 1M + 1M.
+            assert.strictEqual(graph.nodes.get("b") === node, batched, `node record shared: ${String(batched)}`);
+            assert.strictEqual(
+                [...graph.edges.values()][1] === edge,
+                batched,
+                `edge record shared: ${String(batched)}`,
+            );
+        }
+    });
+
     it("numbers the nodes by row when no ids are given", async () => {
         const session = createElementSession({});
         await session.data.importColumns({ sources: [0, 1], targets: [1, 2], nodeCount: 4 });

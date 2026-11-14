@@ -273,7 +273,11 @@ interface NodeRange {
     readonly kind: "nodes";
     readonly ids: NodeId[];
     readonly records: GraphRecord[];
-    readonly seeds: (readonly [number, number, number] | null)[];
+    /**
+     * Each node's file coordinate as three numbers, x NaN for a node with none: a seed is finite
+     * (`readSeedPosition`), and three numbers in one array are not an array per node (53 MB at 1M).
+     */
+    readonly seeds: number[];
     readonly existed: boolean[];
     /** The record the slice held before, by the node's place in the run; most had none. */
     readonly priors: Map<number, GraphRecord>;
@@ -281,6 +285,17 @@ interface NodeRange {
 
 /** One node added, as a node op holds it. */
 type NodeOp = Extract<GraphOp, { kind: "node" }>;
+
+/**
+ * Node `at`'s seed in a run's seed column.
+ * @param seeds - x, y and z per node, x NaN for none.
+ * @param at - The node's place in the run.
+ * @returns The seed, or null.
+ */
+function seedAt(seeds: readonly number[], at: number): readonly [number, number, number] | null {
+    const x = seeds[at * 3];
+    return Number.isNaN(x) ? null : [x, seeds[at * 3 + 1], seeds[at * 3 + 2]];
+}
 
 /**
  * Node `at` of a run, as a node op.
@@ -293,7 +308,7 @@ function nodeAt(range: NodeRange, at: number): NodeOp {
         kind: "node",
         id: range.ids[at],
         record: range.records[at],
-        seed: range.seeds[at],
+        seed: seedAt(range.seeds, at),
         existed: range.existed[at],
         prior: range.priors.get(at),
     };
@@ -1006,9 +1021,14 @@ class GraphEntry implements OpLogEntry {
 
         range.ids.push(op.id);
         range.records.push(op.record);
-        range.seeds.push(op.seed);
+        if (op.seed === null) {
+            range.seeds.push(Number.NaN, 0, 0);
+        } else {
+            range.seeds.push(op.seed[0], op.seed[1], op.seed[2]);
+        }
+
         range.existed.push(op.existed);
-        // Four array slots per node and a seed reference, not an op object.
+        // Array slots and three seed numbers per node, not an op object or a seed array.
         this.retained += 20 + recordBytes(op.record);
     }
 

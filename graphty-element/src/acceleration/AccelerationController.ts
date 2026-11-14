@@ -1199,19 +1199,23 @@ export class AccelerationController {
         }
 
         attachment.calibrating = true;
-        calibrate().then(
-            () => {
-                if (!this.#disposed && !attachment.released && this.#attachment === attachment) {
-                    this.#transition(this.#state, this.#reason, this.#code);
-                }
-            },
-            (error: unknown) => {
-                logger.warn("Measuring the accelerator's device failed; it keeps its shipped tuning", {
-                    accelerator: accelerator.name,
-                    error: error instanceof Error ? error.message : String(error),
-                });
-            },
-        );
+        // Through a promise, so a backend's `calibrate` that throws synchronously still lands in
+        // the rejection handler below instead of escaping the work's `finally`.
+        Promise.resolve()
+            .then(calibrate)
+            .then(
+                () => {
+                    if (!this.#disposed && !attachment.released && this.#attachment === attachment) {
+                        this.#transition(this.#state, this.#reason, this.#code);
+                    }
+                },
+                (error: unknown) => {
+                    logger.warn("Measuring the accelerator's device failed; it keeps its shipped tuning", {
+                        accelerator: accelerator.name,
+                        error: error instanceof Error ? error.message : String(error),
+                    });
+                },
+            );
     }
 
     /**

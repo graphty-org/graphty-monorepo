@@ -720,12 +720,14 @@ describe.skipIf(!GPU_LANE || ADAPTER.startsWith("swiftshader"))(
         it("opted in, measures the device after its first layout, and builds the next accelerator with the measurement", async () => {
             configureWebGpu({ exactMaxNodes: "measured" });
             let measured = 0;
+            let opted: Graphty | undefined;
             try {
-                const opted = await mount("required");
-                await until(() => status(opted).exactMaxNodesBasis === "measured", "the device to be measured");
-                measured = status(opted).exactMaxNodes ?? 0;
-                opted.parentElement?.remove();
+                opted = await mount("required");
+                const element = opted;
+                await until(() => status(element).exactMaxNodesBasis === "measured", "the device to be measured");
+                measured = status(element).exactMaxNodes ?? 0;
             } finally {
+                opted?.parentElement?.remove();
                 configureWebGpu({ exactMaxNodes: "default" });
             }
             console.log(`[webgpu-layout] adapter=${ADAPTER} measured exactMaxNodes=${String(measured)}`);

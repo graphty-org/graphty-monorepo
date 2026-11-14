@@ -1,6 +1,9 @@
 import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import { type InstancedMesh, Mesh, Ray, type Scene, Vector3, type WebXRDefaultExperience } from "@babylonjs/core";
+import type { InstancedMesh, Scene, WebXRDefaultExperience } from "@babylonjs/core";
+import { Ray } from "@babylonjs/core/Culling/ray.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 import { rowScanOf, type ScannedRow } from "../render/PickService";
 

@@ -2,7 +2,9 @@
 // here so any path that reaches a batch has them. See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import { Buffer, Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
+import type { Mesh, Scene } from "@babylonjs/core";
+import { Buffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
 import { UNTIMED_AGE } from "../session/time/ageFade";
 import { CustomLineRenderer, type JoinedPatternKind } from "./CustomLineRenderer";

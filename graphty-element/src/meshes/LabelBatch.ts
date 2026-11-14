@@ -9,19 +9,19 @@
  * texture's GPU texture out of five lists by `indexOf`. A frame that draws or removes a label on
  * every node did that once per label, so N labels cost about N x N.
  */
-import {
-    type AbstractMesh,
-    type BaseTexture,
-    Constants,
-    type DynamicTexture,
-    type ImageProcessingConfiguration,
-    type InternalTexture,
-    type Material,
-    type Observer,
-    type Scene,
-    type StandardMaterial,
-    type UniformBuffer,
+import type {
+    AbstractMesh,
+    BaseTexture,
+    DynamicTexture,
+    ImageProcessingConfiguration,
+    InternalTexture,
+    Material,
+    Observer,
+    Scene,
+    StandardMaterial,
+    UniformBuffer,
 } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
 
 /** What one label owns in the scene: the three things its disposal hands back. */
 export interface LabelResources {

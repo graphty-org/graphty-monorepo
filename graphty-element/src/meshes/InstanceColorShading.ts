@@ -1,4 +1,6 @@
-import { MaterialPluginBase, ShaderLanguage, type StandardMaterial } from "@babylonjs/core";
+import type { StandardMaterial } from "@babylonjs/core";
+import { MaterialPluginBase } from "@babylonjs/core/Materials/materialPluginBase.js";
+import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage.js";
 
 /**
  * @file Make a node's per-instance colour shade like a colour the material carries itself.

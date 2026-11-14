@@ -12,7 +12,8 @@
  * share it if both on at once ever measures too costly on an iPad.
  */
 
-import { type AbstractMesh, GlowLayer, type Mesh, type Observer, type Scene } from "@babylonjs/core";
+import type { AbstractMesh, Mesh, Observer, Scene } from "@babylonjs/core";
+import { GlowLayer } from "@babylonjs/core/Layers/glowLayer.js";
 
 import { QUALITY_LEVELS, type QualityLevel } from "../managers/ShaderGuard";
 

@@ -1,18 +1,17 @@
-import {
-    type AbstractEngine,
-    type AbstractMesh,
-    Camera,
-    type EffectLayer,
-    Frustum,
-    type Mesh,
-    type Nullable,
-    type Observer,
-    type Plane,
-    Quaternion,
-    type Scene,
-    type TransformNode,
-    Vector3,
+import type {
+    AbstractEngine,
+    AbstractMesh,
+    EffectLayer,
+    Mesh,
+    Nullable,
+    Observer,
+    Plane,
+    Scene,
+    TransformNode,
 } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Frustum } from "@babylonjs/core/Maths/math.frustum.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { CameraManager } from "../cameras/CameraManager";

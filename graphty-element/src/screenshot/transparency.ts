@@ -1,4 +1,5 @@
-import { type BaseTexture, Color4, type Mesh, type Scene } from "@babylonjs/core";
+import type { BaseTexture, Mesh, Scene } from "@babylonjs/core";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
 
 interface BackgroundState {
     clearColor: Color4;

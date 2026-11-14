@@ -1,4 +1,5 @@
-import { type Matrix, type Mesh, type Scene, type ShaderMaterial, Vector3 } from "@babylonjs/core";
+import type { Matrix, Mesh, Scene, ShaderMaterial } from "@babylonjs/core";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
 import { motionOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";

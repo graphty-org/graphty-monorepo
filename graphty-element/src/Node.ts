@@ -1,23 +1,14 @@
-import {
-    AbstractMesh,
-    type ActionManager,
-    type BaseTexture,
-    type BoundingBox,
-    BoundingInfo,
-    Camera,
-    Color3,
-    Color4,
-    InstancedMesh,
-    type Matrix,
-    Mesh,
-    MeshBuilder,
-    type Plane,
-    type Ray,
-    type Scene,
-    StandardMaterial,
-    TransformNode,
-    Vector3,
-} from "@babylonjs/core";
+import type { ActionManager, BaseTexture, BoundingBox, Matrix, Plane, Ray, Scene } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";

@@ -24,24 +24,17 @@
  * Loaded with the shader runtime, never by a graph that names no shader.
  */
 
-import {
-    Buffer,
-    type Camera,
-    Color4,
-    Constants,
-    EffectRenderer,
-    Layer,
-    Matrix,
-    Mesh,
-    type Observer,
-    type RenderTargetTexture,
-    type Scene,
-    ShaderMaterial,
-    type TransformNode,
-    Vector3,
-    VertexData,
-    Viewport,
-} from "@babylonjs/core";
+import type { Camera, Observer, RenderTargetTexture, Scene, TransformNode } from "@babylonjs/core";
+import { Buffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { Layer } from "@babylonjs/core/Layers/layer.js";
+import { EffectRenderer } from "@babylonjs/core/Materials/effectRenderer.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Viewport } from "@babylonjs/core/Maths/math.viewport.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 
 import { fixedParamsOf, motionOf, type ShaderDescriptor, type ShaderParams } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";

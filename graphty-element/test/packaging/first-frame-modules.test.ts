@@ -32,7 +32,8 @@ interface Chunk {
 const DEFERRED: readonly [RegExp, string][] = [
     [/^@babylonjs\/core$/, "the whole-library barrel, which loads every Babylon.js module"],
     [
-        /^@babylonjs\/core\/(XR|Physics|FlowGraph|FrameGraph|Particles|Audio|AudioV2|Sprites|Gizmos|Loading)\//,
+        // XR/webXRTypes.js is the one exception: its enums (WebXRState), with no imports of its own.
+        /^@babylonjs\/core\/(XR\/(?!webXRTypes\.js$)|Physics|FlowGraph|FrameGraph|Particles|Audio|AudioV2|Sprites|Gizmos|Loading)\//,
         "a Babylon.js feature no 2D frame draws",
     ],
     [/^@babylonjs\/loaders/, "the Babylon.js file loaders"],

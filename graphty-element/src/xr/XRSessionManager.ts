@@ -218,7 +218,7 @@ export class XRSessionManager {
         let helper: WebXRDefaultExperience | null = null;
         try {
             logger.debug("Creating XR experience", { mode });
-            const { WebXRDefaultExperience } = await import("@babylonjs/core");
+            const { WebXRDefaultExperience } = await import("@babylonjs/core/XR/webXRDefaultExperience.js");
             helper = await WebXRDefaultExperience.CreateAsync(this.scene, {
                 ...OFFLINE_XR_OPTIONS,
                 floorMeshes: [],

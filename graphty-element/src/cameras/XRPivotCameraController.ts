@@ -1,4 +1,5 @@
-import { type Scene, type TransformNode, type WebXRDefaultExperience, WebXRState } from "@babylonjs/core";
+import type { Scene, TransformNode, WebXRDefaultExperience } from "@babylonjs/core";
+import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 
 import { GraphtyLogger, type Logger } from "../logging";
 import { PivotController } from "./PivotController";

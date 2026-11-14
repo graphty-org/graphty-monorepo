@@ -1,13 +1,6 @@
-import {
-    type AbstractEngine,
-    type BaseTexture,
-    Constants,
-    type Mesh,
-    RawTexture,
-    type Scene,
-    type ShaderMaterial,
-    type ThinEngine,
-} from "@babylonjs/core";
+import type { AbstractEngine, BaseTexture, Mesh, Scene, ShaderMaterial, ThinEngine } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 
 import { DirtyRuns } from "./DirtyRuns";
 import {

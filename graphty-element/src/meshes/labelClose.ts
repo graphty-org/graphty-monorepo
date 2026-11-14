@@ -7,7 +7,8 @@
  * what a test reads and what a click hits cannot drift apart.
  */
 
-import { type AbstractMesh, type Scene, Vector3 } from "@babylonjs/core";
+import type { AbstractMesh, Scene } from "@babylonjs/core";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
 /** A rectangle: on the label's canvas, or in CSS pixels on the graph's canvas. */
 export interface CloseRect {

@@ -6,7 +6,12 @@
  * annotation sits just behind the graph; a foreground one is drawn on top of it.
  */
 
-import { Color3, DynamicTexture, type Mesh, MeshBuilder, type Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
+import type { Mesh, Scene } from "@babylonjs/core";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
 import type {
     AnnotationBeside,
     AnnotationPoint,

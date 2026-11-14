@@ -7,28 +7,20 @@ import "./algorithms/index"; // register all internal algorithms
 import "@babylonjs/core/Culling/ray.js";
 import "@babylonjs/core/Animations/animatable.js";
 
-import {
-    type AbstractEngine,
-    AbstractMesh,
-    Animation,
-    Camera,
-    CubicEase,
-    EasingFunction,
-    type Effect,
-    Engine,
-    type Nullable,
-    NullEngine,
-    Observable,
-    type Observer,
-    PointerEventTypes,
-    Quaternion,
-    RenderingGroup,
-    Scene,
-    type SubMesh,
-    Vector3,
-    WebGPUEngine,
-    WebXRDefaultExperience,
-} from "@babylonjs/core";
+import type { AbstractEngine, Effect, Nullable, Observer, SubMesh } from "@babylonjs/core";
+import { Animation } from "@babylonjs/core/Animations/animation.js";
+import { CubicEase, EasingFunction } from "@babylonjs/core/Animations/easing.js";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
+import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { Observable } from "@babylonjs/core/Misc/observable.js";
+import { RenderingGroup } from "@babylonjs/core/Rendering/renderingGroup.js";
+import { Scene } from "@babylonjs/core/scene.js";
+import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";

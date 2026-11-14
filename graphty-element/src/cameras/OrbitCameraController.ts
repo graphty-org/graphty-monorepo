@@ -1,7 +1,13 @@
 // Babylon installs scene.createPickingRay only when this loads.
 import "@babylonjs/core/Culling/ray.js";
 
-import { Camera, Color4, Matrix, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
+import type { TransformNode } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Scalar } from "@babylonjs/core/Maths/math.scalar.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Scene } from "@babylonjs/core/scene.js";
 import { raySphere } from "babylonjs-map/projection";
 
 import { type FreeArea, freeArea, fullInsets, paddedArea } from "../camera/insets";

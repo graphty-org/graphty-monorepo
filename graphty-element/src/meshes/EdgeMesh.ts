@@ -1,25 +1,20 @@
-import {
-    AbstractMesh,
-    type BaseTexture,
-    Camera,
-    Color3,
-    Effect,
-    Engine,
-    GreasedLineBaseMesh,
-    GreasedLineMeshColorMode,
-    Mesh,
-    MeshBuilder,
-    RawTexture,
-    type Scene,
-    type ShaderMaterial,
-    StandardMaterial,
-    Texture,
-    Vector2,
-    Vector3,
-    VertexBuffer,
-    VertexData,
-} from "@babylonjs/core";
+import type { BaseTexture, Scene, ShaderMaterial } from "@babylonjs/core";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { Effect } from "@babylonjs/core/Materials/effect.js";
+import { GreasedLineMeshColorMode } from "@babylonjs/core/Materials/GreasedLine/greasedLineMaterialInterfaces.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBuilder.js";
+import { GreasedLineBaseMesh } from "@babylonjs/core/Meshes/GreasedLine/greasedLineBaseMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";

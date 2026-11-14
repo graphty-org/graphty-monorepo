@@ -20,7 +20,9 @@
  * - Phase 4: Connected patterns (sinewave, zigzag) with seamless connection
  */
 
-import { Mesh, type Scene, type Vector3, VertexData } from "@babylonjs/core";
+import type { Scene, Vector3 } from "@babylonjs/core";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 
 import type { ArrowCap } from "./ArrowCapBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";

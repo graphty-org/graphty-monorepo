@@ -3,7 +3,8 @@
 // See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import { InstancedMesh, Mesh, type Scene, type TransformNode } from "@babylonjs/core";
+import type { InstancedMesh, Scene, TransformNode } from "@babylonjs/core";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import { NodeBatch } from "./NodeBatch";

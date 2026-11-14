@@ -1,4 +1,6 @@
-import { Axis, type Camera, Matrix, type Mesh, type Scene, type TransformNode, Vector3 } from "@babylonjs/core";
+import type { Camera, Mesh, Scene, TransformNode } from "@babylonjs/core";
+import { Axis } from "@babylonjs/core/Maths/math.axis.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
 import { FrameRoster } from "./FrameRoster";
 

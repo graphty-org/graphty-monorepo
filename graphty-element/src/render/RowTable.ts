@@ -7,7 +7,10 @@
  * one null check per move.
  */
 
-import { type AbstractEngine, Constants, RawTexture, type Scene, type ThinEngine, Vector3 } from "@babylonjs/core";
+import type { AbstractEngine, Scene, ThinEngine } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import type { ElementPositions } from "../data/positions";

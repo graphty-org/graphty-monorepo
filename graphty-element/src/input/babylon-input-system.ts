@@ -1,6 +1,8 @@
-import { KeyboardEventTypes, PointerEventTypes, PointerInfo as BabylonPointerInfo, Scene } from "@babylonjs/core";
+import { KeyboardEventTypes } from "@babylonjs/core/Events/keyboardEvents.js";
+import { PointerEventTypes, PointerInfo as BabylonPointerInfo } from "@babylonjs/core/Events/pointerEvents.js";
 import { Vector2 } from "@babylonjs/core/Maths/math.vector.js";
 import { Observable } from "@babylonjs/core/Misc/observable.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { firstSight } from "./first-sight";
 import { DeviceType, KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo } from "./types";

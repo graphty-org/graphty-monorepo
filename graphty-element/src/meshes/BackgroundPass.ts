@@ -14,20 +14,13 @@
  * Loaded with the shader runtime, never by a graph that names no shader.
  */
 
-import {
-    type BaseTexture,
-    Camera,
-    Constants,
-    EffectRenderer,
-    Layer,
-    Matrix,
-    type Observer,
-    type RenderTargetTexture,
-    type Scene,
-    ThinTexture,
-    Vector2,
-    Vector3,
-} from "@babylonjs/core";
+import type { BaseTexture, Observer, RenderTargetTexture, Scene } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { Layer } from "@babylonjs/core/Layers/layer.js";
+import { EffectRenderer } from "@babylonjs/core/Materials/effectRenderer.js";
+import { ThinTexture } from "@babylonjs/core/Materials/Textures/thinTexture.js";
+import { Matrix, Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
 import { inferShaderReads } from "../catalog/shaderGlsl";
 import { motionOf, type ShaderParams } from "../catalog/shaders";

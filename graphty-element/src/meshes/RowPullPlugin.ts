@@ -1,13 +1,6 @@
-import {
-    type AbstractMesh,
-    type Material,
-    MaterialPluginBase,
-    type RawTexture,
-    type Scene,
-    ShaderLanguage,
-    type SubMesh,
-    type UniformBuffer,
-} from "@babylonjs/core";
+import type { AbstractMesh, Material, RawTexture, Scene, SubMesh, UniformBuffer } from "@babylonjs/core";
+import { MaterialPluginBase } from "@babylonjs/core/Materials/materialPluginBase.js";
+import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage.js";
 
 /**
  * @file Place a thin instance from the row table instead of from its matrix.

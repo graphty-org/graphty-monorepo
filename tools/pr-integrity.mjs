@@ -10,11 +10,12 @@
  *   - no breaking change: a `!` in the title or a commit subject, or a `BREAKING CHANGE:` footer, fails
  *     unless a code owner approved the head; a commit master's release-not-breaking.json lists is the owner's
  *     ruling that it is not breaking, and is skipped;
- *   - saved format: a change to the save-file checks (graphty-element/test/saved-format/, their exceptions
- *     list among them, tools/check-saved-format-allowlist.mjs, graphty-element/eslint.config.js that turns its lint
- *     rule on, and the shipped and revoked shader hash lists) fails unless a code owner approved the head,
- *     since anyone can type the `Saved-Format-Exception-Approved:` trailer the push check reads
- *     (design/architecture/self-contained-save-files.md, 2.6);
+ *   - saved format: a change that weakens the save-file checks (graphty-element/test/saved-format/, their
+ *     exceptions list among them, tools/check-saved-format-allowlist.mjs, graphty-element/eslint.config.js that
+ *     turns its lint rule on, and the shipped and revoked shader hash lists) fails unless a code owner approved
+ *     the head, since anyone can type the `Saved-Format-Exception-Approved:` trailer the push check reads; a
+ *     change the allowlist check's judge finds only narrows them (an exception removed with its kind's row
+ *     added, a test added) merges on agent review (design/architecture/self-contained-save-files.md, 2.6);
  *   - baselines signed: a change to a PNG or story settings file under visual-baselines/ (review
  *     records aside) needs the owner's signed approval of the head's tree, checked with master's own
  *     visual-review/trusted/gate.mjs (`git archive`, never the pull request's copy);
@@ -45,7 +46,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { judge, LISTS as SAVED_FORMAT_LISTS } from "./check-saved-format-allowlist.mjs";
+import {
+    judge,
+    LIBRARY as SAVED_FORMAT_LIBRARY,
+    LISTS as SAVED_FORMAT_LISTS,
+} from "./check-saved-format-allowlist.mjs";
 import { check as testIntegrity } from "./check-test-integrity.mjs";
 import { ruledNotBreaking } from "./release-not-breaking.mjs";
 
@@ -70,6 +75,8 @@ export const isSavedFormatGuard = (f) =>
 const APPROVALS = "visual-review-approvals";
 /** The self-contained kinds' rows: a change that only adds lines adds a kind, which needs no owner. */
 const SAVED_FORMAT_KINDS = "graphty-element/test/saved-format/kinds.ts";
+/** The save-file tests, judged like the allowlist check judges them: deleting one needs the owner. */
+const SAVED_FORMAT_TEST = /^graphty-element\/test\/saved-format\/.*\.test\.[cm]?[jt]s$/;
 
 const git = (cwd, args, input) =>
     execFileSync("git", args, { cwd, input, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["pipe", "pipe", "pipe"] });
@@ -223,9 +230,13 @@ export function revertedMerge(cwd, { base, mergeBase, head, text }) {
 }
 
 /**
- * The saved-format guard paths a pull request changes that need a code owner. A change limited to
- * the exception lists (and lines added to the kinds' rows) needs one only when the allowlist check's
- * judge says it widens them; anything else under the guard always does.
+ * The saved-format guard paths a pull request changes that need a code owner. The allowlist check's
+ * judge decides the exception lists, the shader-library snapshot and the tests under
+ * test/saved-format/: adding or editing a test, adding a self-contained kind and removing an
+ * exception are free, while widening an exception, deleting a test or changing the snapshot is not
+ * (the test-integrity rule still reviews an edited test). Lines added to the kinds' rows are free
+ * too. Anything else under the guard (the checks' own code, their lint rule, the shader hash lists)
+ * always needs one.
  * @param cwd the repository
  * @param mergeBase the merge base
  * @param head the head
@@ -234,7 +245,8 @@ export function revertedMerge(cwd, { base, mergeBase, head, text }) {
  */
 export function savedFormatNeedingOwner(cwd, mergeBase, head, files) {
     const guarded = files.filter(isSavedFormatGuard);
-    if (guarded.length === 0 || !guarded.every((f) => f === SAVED_FORMAT_LISTS || f === SAVED_FORMAT_KINDS)) {
+    const judged = (f) => f === SAVED_FORMAT_LISTS || f === SAVED_FORMAT_LIBRARY || SAVED_FORMAT_TEST.test(f);
+    if (guarded.length === 0 || !guarded.every((f) => judged(f) || f === SAVED_FORMAT_KINDS)) {
         return guarded;
     }
     if (guarded.includes(SAVED_FORMAT_KINDS)) {
@@ -248,7 +260,14 @@ export function savedFormatNeedingOwner(cwd, mergeBase, head, files) {
             return { lists: {}, shipped: [], revoked: [] };
         }
     };
-    const { needsOwner, forbidden } = judge(lists(mergeBase), lists(head), []);
+    const changes = git(cwd, ["diff", "--name-status", "--no-renames", mergeBase, head, "--", ...guarded])
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+            const [status, path] = line.split("\t");
+            return { status, path };
+        });
+    const { needsOwner, forbidden } = judge(lists(mergeBase), lists(head), changes);
     return needsOwner.length + forbidden.length === 0 ? [] : guarded;
 }
 

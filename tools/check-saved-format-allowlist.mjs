@@ -19,8 +19,9 @@
 // `git revert -m 1 <merge>` makes when master is red): it may drop the hashes that merge added. Free: adding a shipped hash with its text, adding a revoked hash, adding a selfContained
 // kind, removing an exception, and editing an exception's finding or issue.
 //
-// PR Integrity (tools/pr-integrity.mjs) separately needs a code owner's approval for any change to
-// these files, since anyone can type a trailer.
+// PR Integrity (tools/pr-integrity.mjs) separately needs a code owner's approval, since anyone can type a
+// trailer: it runs this judge over the pull request's diff, so a change that only narrows the lists needs
+// none, and any change to this file always does.
 //
 // ponytail: merge commits are not judged (their parents' commits are); a conflict resolution that edits
 // the lists slips past this check but not PR Integrity's owner approval.

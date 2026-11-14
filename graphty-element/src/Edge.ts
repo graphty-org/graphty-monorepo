@@ -1539,12 +1539,24 @@ export class Edge {
         // a placed end that moves is a move; a first placement, or one after invalidatePositionCache, is at rest
         this.endsMoving = (srcMoved && this._lastSrcPos !== null) || (dstMoved && this._lastDstPos !== null);
 
-        this.context.getStatsManager().startMeasurement("Edge.update");
+        const stats = this.context.getStatsManager();
+        stats.startMeasurement("Edge.update");
+        try {
+            this.followLayout(srcPos, dstPos);
+        } finally {
+            stats.endMeasurement("Edge.update");
+        }
+    }
 
+    /**
+     * Draw the edge where the layout puts it: the measured part of `update`.
+     * @param srcPos - The source end's position this frame.
+     * @param dstPos - The target end's position this frame.
+     */
+    private followLayout(srcPos: Vector3, dstPos: Vector3): void {
         const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
         if (!lnk) {
             this.endsMoving = false;
-            this.context.getStatsManager().endMeasurement("Edge.update");
             return;
         }
 
@@ -1583,8 +1595,6 @@ export class Edge {
         this._lastSrcPos = srcPos.clone();
         this._lastDstPos = dstPos.clone();
         this.endsMoving = false;
-
-        this.context.getStatsManager().endMeasurement("Edge.update");
     }
 
     /**
@@ -4851,33 +4861,36 @@ export class Edge {
         path: readonly Vector3[] = [],
     ): void {
         // Use common arrow geometry functions for positioning
-        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
         const arrowStyle = this.currentStyle;
-        const along = pointFromEnd(path, arrowStyle.arrowHead?.position ?? 0);
-        if (along !== null) {
-            dstPoint = new Vector3(along.tip.x, along.tip.y, along.tip.z);
-            direction = new Vector3(along.toward.x, along.toward.y, along.toward.z);
-        } else {
-            dstPoint = dstPoint.subtract(direction.scale(Edge.capGap(arrowStyle.arrowHead)));
-        }
+        const arrowPosition = this.context.getStatsManager().measure("Edge.transformArrowCap.mainPath", () => {
+            const along = pointFromEnd(path, arrowStyle.arrowHead?.position ?? 0);
+            if (along !== null) {
+                dstPoint = new Vector3(along.tip.x, along.tip.y, along.tip.z);
+                direction = new Vector3(along.toward.x, along.toward.y, along.toward.z);
+            } else {
+                dstPoint = dstPoint.subtract(direction.scale(Edge.capGap(arrowStyle.arrowHead)));
+            }
 
-        const arrowType = arrowStyle.arrowHead?.type;
-        const arrowSize = arrowStyle.arrowHead?.size ?? 1;
-        const scale = this.capScaleAt("target");
-        arrowCap.setScale(scale);
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
-        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(arrowStyle, arrowStyle.arrowHead));
+            const arrowType = arrowStyle.arrowHead?.type;
+            const arrowSize = arrowStyle.arrowHead?.size ?? 1;
+            const scale = this.capScaleAt("target");
+            arrowCap.setScale(scale);
+            const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
+            const geometry = EdgeMesh.getArrowGeometry(
+                arrowType ?? "normal",
+                Edge.capOf(arrowStyle, arrowStyle.arrowHead),
+            );
 
-        // PHASE 4: Override scaleFactor for 2D arrows
-        // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
-        // so their scaleFactor should be 1.0, not 0.25
-        if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
-            geometry.scaleFactor = 1;
-        }
+            // PHASE 4: Override scaleFactor for 2D arrows
+            // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
+            // so their scaleFactor should be 1.0, not 0.25
+            if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
+                geometry.scaleFactor = 1;
+            }
 
-        // Calculate arrow position using common function
-        const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
-        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
+            // Calculate arrow position using common function
+            return EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
+        });
 
         arrowCap.place(arrowPosition, direction);
         Edge.placeStack(this.headStack, arrowStyle.arrowHead, dstPoint, direction);
@@ -4906,43 +4919,56 @@ export class Edge {
         const direction = fallbackDst.subtract(fallbackSrc).normalize();
 
         // Get arrow length (including size multiplier)
-        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
         const style = this.currentStyle;
-        const arrowSize = style.arrowHead?.size ?? 1;
-        const scale = this.capScaleAt("target");
-        arrowCap.setScale(scale);
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
+        const { arrowLength, dstNodeRadius, srcNodeRadius } = this.context
+            .getStatsManager()
+            .measure("Edge.transformArrowCap.styleAndGeometry", () => {
+                const arrowSize = style.arrowHead?.size ?? 1;
+                const scale = this.capScaleAt("target");
+                arrowCap.setScale(scale);
+                const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
 
-        // Where the line leaves each node's bounding box. Not its bounding SPHERE: that is fitted
-        // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
-        // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
-        // (graph-root) space, the space the centres above are in.
-        const dstNodeRadius = this.boxReachAt("target", direction);
-        const srcNodeRadius = this.boxReachAt("source", direction);
-        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
+                // Where the line leaves each node's bounding box. Not its bounding SPHERE: that is fitted
+                // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
+                // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
+                // (graph-root) space, the space the centres above are in.
+                const dstNodeRadius = this.boxReachAt("target", direction);
+                const srcNodeRadius = this.boxReachAt("source", direction);
+                return { arrowLength, dstNodeRadius, srcNodeRadius };
+            });
 
         // Calculate surface intersection points
-        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.vectorMath");
-        const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
-        const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius + Edge.capGap(style.arrowHead)));
+        const { srcSurfacePoint, dstSurfacePoint, arrowPosition, lineEndPoint } = this.context
+            .getStatsManager()
+            .measure("Edge.transformArrowCap.vectorMath", () => {
+                const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
+                const dstSurfacePoint = fallbackDst.subtract(
+                    direction.scale(dstNodeRadius + Edge.capGap(style.arrowHead)),
+                );
 
-        // Use common arrow geometry functions for positioning
-        const arrowType = style.arrowHead?.type;
-        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(style, style.arrowHead));
+                // Use common arrow geometry functions for positioning
+                const arrowType = style.arrowHead?.type;
+                const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(style, style.arrowHead));
 
-        // PHASE 4: Override scaleFactor for 2D arrows
-        // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
-        // so their scaleFactor should be 1.0, not 0.25
-        if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
-            geometry.scaleFactor = 1;
-        }
+                // PHASE 4: Override scaleFactor for 2D arrows
+                // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
+                // so their scaleFactor should be 1.0, not 0.25
+                if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
+                    geometry.scaleFactor = 1;
+                }
 
-        // Calculate arrow position using common function
-        const arrowPosition = EdgeMesh.calculateArrowPosition(dstSurfacePoint, direction, arrowLength, geometry);
+                // Calculate arrow position using common function
+                const arrowPosition = EdgeMesh.calculateArrowPosition(
+                    dstSurfacePoint,
+                    direction,
+                    arrowLength,
+                    geometry,
+                );
 
-        // Calculate line endpoint using common function
-        const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
-        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
+                // Calculate line endpoint using common function
+                const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
+                return { srcSurfacePoint, dstSurfacePoint, arrowPosition, lineEndPoint };
+            });
 
         arrowCap.place(arrowPosition, direction);
         Edge.placeStack(this.headStack, style.arrowHead, dstSurfacePoint, direction);

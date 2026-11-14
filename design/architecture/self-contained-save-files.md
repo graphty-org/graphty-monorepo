@@ -352,11 +352,20 @@ Free: adding a shipped hash with its archived text, adding a revoked hash, addin
 `selfContained` kind, and removing an exception in the same commit that adds its kind's row.
 
 Anyone can type a trailer, so CI enforces the owner's approval: `tools/pr-integrity.mjs` (PR
-Integrity) fails a pull request whose diff from its merge base changes any file under
-`graphty-element/test/saved-format/` or `tools/check-saved-format-allowlist.mjs` unless a code
-owner approved the head (`ownerApproved`), as it already does for a breaking change; a revert is
-exempt, and `tools/pr-integrity.test.mjs` gains a case per path. `GUARD_PATHS` in `pr-open.sh`
-gains both paths, so auto-merge stays off. Shipped hashes stay outside, as presets add them.
+Integrity) fails a pull request that weakens these checks unless a code owner approved the head
+(`ownerApproved`), as it already does for a breaking change; a revert is exempt. It asks for the
+owner by the same judge the trailer check uses, applied to the diff from the merge base: a change
+limited to `saved-format-lists.json`, the shader-library snapshot, lines added to `kinds.ts` and the
+`test/saved-format/*.test.ts` files needs him only when the judge finds an added exception, path,
+`notSaved` key or `volatile` field, a removed `selfContained` kind, a deleted test, or a changed
+snapshot. Removing exceptions while adding their kinds' rows, and adding kinds or tests, merges on
+agent review (owner, 2026-11-13: "a change that only removes save-file exceptions merges on agent
+review"); an edited test still meets PR Integrity's test-integrity rule. Any other change under
+`test/saved-format/`, to `tools/check-saved-format-allowlist.mjs`, to the lint rule's switch in
+`graphty-element/eslint.config.js`, or to the shipped and revoked hash lists always needs him.
+`tools/pr-integrity.test.mjs` has a case per path. `GUARD_PATHS` in `pr-open.sh` holds
+`test/saved-format/`, the allowlist check and `tools/pr-integrity.mjs`, so auto-merge stays off for
+them.
 
 ### 2.7 Where each check runs
 

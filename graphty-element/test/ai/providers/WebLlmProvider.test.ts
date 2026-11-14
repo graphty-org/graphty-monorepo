@@ -1,7 +1,48 @@
-import { assert, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { LlmProviderEngine } from "../../../src/ai/engine/LlmProviderEngine";
 import type { StreamCallbacks } from "../../../src/ai/providers/types";
 import { WebLlmProvider } from "../../../src/ai/providers/WebLlmProvider";
+import { GraphtyError } from "../../../src/errors/GraphtyError";
+
+/** The responses the fake engine gives, in order; an empty queue answers with plain text. */
+const responses: unknown[] = [];
+/** How many times the fake engine was unloaded. */
+let unloads = 0;
+
+// WebLLM's engine replaced by a fake, so these tests run the provider's own mapping with no model.
+vi.mock("@mlc-ai/web-llm", () => ({
+    functionCallingModelIds: ["Hermes-2-Pro-Mistral-7B-q4f16_1-MLC"],
+    CreateMLCEngine: () =>
+        Promise.resolve({
+            chat: {
+                completions: {
+                    create: () =>
+                        Promise.resolve(responses.shift() ?? { choices: [{ message: { content: "plain answer" } }] }),
+                },
+            },
+            interruptGenerate: () => undefined,
+            unload: () => {
+                unloads++;
+                return Promise.resolve();
+            },
+        }),
+}));
+
+/** WebLLM's snake_case response key. */
+const TOOL_CALLS = "tool_calls";
+
+/**
+ * A provider initialized against the fake engine, with a model WebLLM sends tools to.
+ * @returns The ready provider
+ */
+async function readyProvider(): Promise<WebLlmProvider> {
+    vi.spyOn(WebLlmProvider, "isWebGPUAvailable").mockResolvedValue(true);
+    const provider = new WebLlmProvider();
+    provider.configure({ model: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC" });
+    await provider.initialize();
+    return provider;
+}
 
 /** Create a StreamCallbacks object with no-op defaults and optional overrides */
 function createCallbacks(overrides?: Partial<StreamCallbacks>): StreamCallbacks {
@@ -30,6 +71,13 @@ describe("WebLlmProvider", () => {
 
     beforeEach(() => {
         provider = new WebLlmProvider();
+        responses.length = 0;
+        unloads = 0;
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
     });
 
     describe("initialization", () => {
@@ -186,87 +234,160 @@ describe("WebLlmProvider", () => {
         });
     });
 
-    describe("mock mode for testing", () => {
-        it("can operate in mock mode without WebGPU", async () => {
-            provider.enableMockMode();
+    describe("generate (initialized)", () => {
+        it("returns the engine's text", async () => {
+            const ready = await readyProvider();
+            const response = await ready.generate([{ role: "user", content: "Hello" }], []);
 
-            // Should be able to generate in mock mode
-            const response = await provider.generate([{ role: "user", content: "Hello" }], []);
-
-            assert.ok(response.text.length > 0);
-            assert.ok(Array.isArray(response.toolCalls));
+            assert.deepStrictEqual(response, { text: "plain answer", toolCalls: [], usage: undefined });
         });
 
-        it("mock mode supports streaming", async () => {
-            provider.enableMockMode();
+        it("streams the engine's text and completes with it", async () => {
+            const chunks = [{ choices: [{ delta: { content: "He" } }] }, { choices: [{ delta: { content: "llo" } }] }];
+            responses.push({ [Symbol.asyncIterator]: () => chunks[Symbol.iterator]() });
+            const ready = await readyProvider();
+            const seen: string[] = [];
+            let completed: string | undefined;
+            await ready.generateStream(
+                [{ role: "user", content: "Hello" }],
+                [],
+                createCallbacks({
+                    onChunk: (text) => seen.push(text),
+                    onComplete: (result) => {
+                        completed = result.text;
+                    },
+                }),
+            );
 
-            const chunks: string[] = [];
-            let completed = false;
-            const callbacks = createCallbacks({
-                onChunk: (text) => chunks.push(text),
-                onComplete: () => {
-                    completed = true;
-                },
-            });
-
-            await provider.generateStream([{ role: "user", content: "Hello" }], [], callbacks);
-
-            assert.ok(chunks.length > 0);
-            assert.strictEqual(completed, true);
+            assert.deepStrictEqual(seen, ["He", "llo"]);
+            assert.strictEqual(completed, "Hello");
         });
 
-        it("mock mode can be disabled", () => {
-            provider.enableMockMode();
-            assert.strictEqual(provider.isMockMode, true);
-
-            provider.disableMockMode();
-            assert.strictEqual(provider.isMockMode, false);
-        });
-
-        it("mock mode respects abort signal", async () => {
-            provider.enableMockMode();
-
+        it("rejects an aborted request before calling the engine", async () => {
+            const ready = await readyProvider();
             const controller = new AbortController();
             controller.abort();
 
             await expect(
-                provider.generate([{ role: "user", content: "test" }], [], { signal: controller.signal }),
-            ).rejects.toThrow(/aborted/i);
+                ready.generate([{ role: "user", content: "test" }], [], { signal: controller.signal }),
+            ).rejects.toThrow("Request was aborted");
+        });
+    });
+
+    describe("tool call arguments", () => {
+        for (const [label, text] of [
+            ["malformed JSON", '{"nodeIds":'],
+            ["a JSON string", '"a"'],
+            ["a JSON array", '["a"]'],
+            ["JSON null", "null"],
+        ] as const) {
+            it(`flags a call whose arguments are ${label} as invalid, with no arguments`, async () => {
+                responses.push({
+                    choices: [
+                        {
+                            message: {
+                                content: null,
+                                [TOOL_CALLS]: [{ id: "c1", function: { name: "zoom", arguments: text } }],
+                            },
+                        },
+                    ],
+                });
+                const ready = await readyProvider();
+                const response = await ready.generate([{ role: "user", content: "zoom" }], []);
+
+                assert.deepStrictEqual(response.toolCalls, [
+                    { id: "c1", name: "zoom", arguments: {}, invalidArguments: true },
+                ]);
+            });
+        }
+
+        it("hands an invalid call to the assistant's engine flagged, so it is refused rather than run", async () => {
+            responses.push({
+                choices: [
+                    {
+                        message: {
+                            content: null,
+                            [TOOL_CALLS]: [{ id: "c1", function: { name: "zoom", arguments: "7" } }],
+                        },
+                    },
+                ],
+            });
+            const engine = new LlmProviderEngine(await readyProvider());
+            const calls: unknown[] = [];
+            const turn = { system: "", messages: [], tools: [], toolMode: "auto" } as const;
+            for await (const event of engine.turn(turn, new AbortController().signal)) {
+                if (event.type === "tool-call") {
+                    calls.push(event);
+                }
+            }
+
+            assert.deepStrictEqual(calls, [
+                { type: "tool-call", id: "c1", name: "zoom", arguments: {}, invalidArguments: true },
+            ]);
+        });
+
+        it("streams an invalid call in the completed response but never to onToolCall", async () => {
+            const chunks = [
+                {
+                    choices: [
+                        {
+                            delta: {
+                                [TOOL_CALLS]: [
+                                    { id: "c1", function: { name: "zoom", arguments: "[1]" } },
+                                    { id: "c2", function: { name: "fit", arguments: '{"all":true}' } },
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ];
+            responses.push({ [Symbol.asyncIterator]: () => chunks[Symbol.iterator]() });
+            const ready = await readyProvider();
+            const started: string[] = [];
+            let completed: unknown;
+            await ready.generateStream(
+                [{ role: "user", content: "zoom" }],
+                [],
+                createCallbacks({
+                    onToolCall: (name) => started.push(name),
+                    onComplete: (result) => {
+                        completed = result.toolCalls;
+                    },
+                }),
+            );
+
+            assert.deepStrictEqual(started, ["fit"]);
+            assert.deepStrictEqual(completed, [
+                { id: "c1", name: "zoom", arguments: {}, invalidArguments: true },
+                { id: "c2", name: "fit", arguments: { all: true } },
+            ]);
         });
     });
 
     describe("error handling", () => {
-        it("provides meaningful error for missing WebGPU", async () => {
-            // In mock mode disabled (default), trying to initialize without WebGPU
-            // should provide a helpful error message
-            try {
-                await provider.initialize();
-                // If we get here, WebGPU is available (unlikely in test env)
-            } catch (error) {
-                assert.ok(error instanceof Error);
-                // Error message should mention WebGPU or browser requirements
-                const message = error.message.toLowerCase();
-                assert.ok(
-                    message.includes("webgpu") ||
-                        message.includes("browser") ||
-                        message.includes("not supported") ||
-                        message.includes("not initialized"),
-                    `Expected helpful error message, got: ${error.message}`,
-                );
-            }
+        it("rejects with E_NO_WEBGPU when the browser has no WebGPU", async () => {
+            vi.stubGlobal("navigator", {});
+
+            const error = await provider.initialize().then(
+                () => null,
+                (error_: unknown) => error_,
+            );
+
+            assert.instanceOf(error, GraphtyError);
+            assert.strictEqual(error.code, "E_NO_WEBGPU");
+            assert.strictEqual(provider.isInitialized, false);
         });
     });
 
     describe("resource cleanup", () => {
-        it("provides dispose method for cleanup", async () => {
-            provider.enableMockMode();
+        it("dispose unloads the engine and leaves the provider not ready", async () => {
+            const ready = await readyProvider();
 
-            // Dispose should not throw
-            await provider.dispose();
+            await ready.dispose();
 
-            // After disposal, should not be ready
-            assert.strictEqual(provider.isReady, false);
-            assert.strictEqual(provider.isInitialized, false);
+            assert.strictEqual(unloads, 1);
+            assert.strictEqual(ready.isReady, false);
+            assert.strictEqual(ready.isInitialized, false);
         });
     });
 });

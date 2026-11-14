@@ -196,11 +196,13 @@ fi
 # config, graphty's in-test comparison), the release (approvals, holds, release.yml and the scripts that read
 # them), the agents' credential guard and settings, the quarantine list and its reader, the two safeguards
 # left on an unheld CI change (the fresh review and PR Integrity), and the two that hold breaking changes
-# (this script and pr-title.yml), and the save-file checks with their exceptions list (graphty-element/test/
-# saved-format/ and its push check). A change to one waits for the owner; every other CI change merges on green.
+# (this script and pr-title.yml), and the save-file push check (tools/check-saved-format-allowlist.mjs). A change
+# to one waits for the owner; every other CI change merges on green. graphty-element/test/saved-format/ is not
+# here: it is held below only when PR Integrity's judge finds the change weakens the checks (owner, 2026-11-13:
+# "a change that only removes save-file exceptions merges on agent review").
 # Gap the owner accepted: ci.yml's own gate steps are not held, so a pull request can still change a check
 # that judges it; code-owner review closes that when it is turned on.
-GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$|graphty-element/test/saved-format/|tools/check-saved-format-allowlist\.mjs$)'
+GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$|tools/check-saved-format-allowlist\.mjs$)'
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
 # A commit master's release-not-breaking.json lists is the owner's ruling that it is not breaking: skipped.
@@ -214,6 +216,17 @@ if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$msgs"; then
     hold="it holds a breaking change (it bumps a published major)"
 elif guarded=$(git diff --name-only --no-renames "$base" HEAD | grep -E "$GUARD_PATHS"); then
     hold="it changes what guards the owner: $(echo $guarded)"
+# PR Integrity is not a required check, so its judge of a save-file change runs here too: a change that weakens
+# the save-file checks waits for the owner, and one that only narrows them merges on green. A failed judge holds.
+# The paths go in the environment, not argv: pr-integrity.mjs runs its CLI when argv[1] names it.
+elif ! saved=$(git diff --name-only --no-renames "$base" HEAD | JUDGE="$here/pr-integrity.mjs" BASE="$base" node --input-type=module -e '
+import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+const { savedFormatNeedingOwner } = await import(pathToFileURL(process.env.JUDGE).href);
+const files = readFileSync(0, "utf8").split("\n").filter(Boolean);
+console.log(savedFormatNeedingOwner(process.cwd(), process.env.BASE, "HEAD", files).join(" "));
+') || [ -n "$saved" ]; then
+    hold="it weakens the save-file checks: ${saved:-the save-file judge failed}"
 elif [ "$author" != "$agent" ]; then
     hold="it was opened by $author, not by $agent"
 fi

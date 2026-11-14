@@ -6700,7 +6700,7 @@ describe("pnpm-lock.yaml", () => {
             const versions = new Set(
                 [...lock.matchAll(new RegExp(`^  '?${escaped}@(\\d[^:'(]*)'?:`, "gm"))].map((m) => m[1]),
             );
-            assert.deepEqual([...versions], ["1.57.0"], `${name} versions in pnpm-lock.yaml`);
+            assert.deepEqual([...versions], ["1.65.0"], `${name} versions in pnpm-lock.yaml`);
         }
     });
 });

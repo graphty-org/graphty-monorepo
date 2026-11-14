@@ -172,6 +172,6 @@ overrides:
     # lockfile re-resolution moved @vitest/browser-playwright's playwright peer to it, so every
     # browser shard failed with "Executable doesn't exist ... chromium_headless_shell-1243". Move
     # all three together, with the browser cache key. tools/ci-workflows.test.mjs checks the lock.
-    playwright: 1.57.0
-    playwright-core: 1.57.0
-    "@playwright/test": 1.57.0
+    playwright: 1.65.0
+    playwright-core: 1.65.0
+    "@playwright/test": 1.65.0

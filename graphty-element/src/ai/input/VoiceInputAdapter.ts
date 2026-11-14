@@ -155,7 +155,10 @@ export class VoiceInputAdapter implements InputAdapter {
         this.recognition = new this.SpeechRecognitionCtor();
         this.recognition.continuous = options?.continuous ?? false;
         this.recognition.interimResults = options?.interimResults ?? true;
-        this.recognition.lang = options?.language ?? "en-US";
+        // Left unset without one, so the recognizer uses the page's language (`<html lang>`).
+        if (options?.language !== undefined) {
+            this.recognition.lang = options.language;
+        }
         if (options?.processLocally === true) {
             this.recognition.processLocally = true;
             this.setPhrases(this.recognition, options.phrases);
@@ -292,9 +295,13 @@ export class VoiceInputAdapter implements InputAdapter {
     /**
      * Register a callback for input events.
      * @param callback - Function called when voice input is received
+     * @returns A function that removes the callback again
      */
-    onInput(callback: InputCallback): void {
+    onInput(callback: InputCallback): () => void {
         this.callbacks.push(callback);
+        return () => {
+            this.callbacks = this.callbacks.filter((registered) => registered !== callback);
+        };
     }
 
     /**

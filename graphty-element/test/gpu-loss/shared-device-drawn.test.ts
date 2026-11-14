@@ -53,7 +53,8 @@ describe("the layout filling the row table on a shared device", () => {
         const lane = graph.getDataManager()[WRITABLE_LANE];
         const engine = layoutOf(graph);
         const { copies, repackedRows } = table;
-        const written = lane.generation;
+        const written = lane.changes;
+        const { generation } = lane;
         const walked = engine.rowsWalked;
         await landed(graph);
         await landed(graph);
@@ -61,15 +62,40 @@ describe("the layout filling the row table on a shared device", () => {
 
         // each landing went up by copy, and no row was written, repacked or walked on the CPU for it
         assert.isAtLeast(table.copies - copies, 2);
-        assert.strictEqual(lane.generation - written, 0);
+        assert.strictEqual(lane.changes - written, 0);
         assert.strictEqual(table.repackedRows - repackedRows, 0);
         assert.strictEqual(engine.rowsWalked - walked, 0);
+        // yet the public generation says the coordinates moved, once a landing
+        assert.isAtLeast(lane.generation - generation, 3);
 
         // a read publishes the rows the card shows
         const at = graph.getNode("n0")?.getPosition();
         assert.isTrue(Number.isFinite(at?.x));
-        assert.isAbove(lane.generation - written, 0);
+        assert.isAbove(lane.changes - written, 0);
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+    });
+
+    it("keeps a pinned node in the box it frames while a landing is owed on the card", async () => {
+        const graph = await running("batched");
+        await copied(graph);
+        await landed(graph);
+        const { positions } = graph.getSession();
+        await positions.set([{ id: "n0", x: 500, y: -400, z: 300 }]);
+        await positions.pin(["n0"]);
+        const lane = graph.getDataManager()[WRITABLE_LANE];
+        await copied(graph);
+        await landed(graph);
+        const written = lane.changes;
+        await landed(graph);
+        await landed(graph);
+
+        // the landings were owed, not written, and the box still holds the pinned node
+        assert.strictEqual(lane.changes - written, 0);
+        const box = layoutOf(graph).publishedBounds();
+        assert.isNotNull(box);
+        assert.isAtLeast(box[3], 500);
+        assert.isAtMost(box[1], -400);
+        assert.isAtLeast(box[5], 300);
     });
 
     it("shows the rows added while it runs once the layout places them", async () => {

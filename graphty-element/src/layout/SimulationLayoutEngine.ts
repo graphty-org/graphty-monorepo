@@ -64,7 +64,7 @@ import { narrowLayout } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION, type GraphAccelerator } from "../acceleration/types";
 import { asStrength } from "../algorithms/input/weight";
 import { WRITABLE_LANE } from "../data/lane";
-import type { ElementPositions } from "../data/positions";
+import { type ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
@@ -1413,7 +1413,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 return;
             }
 
-            this.#owedBox = this.holdsAny ? null : this.#envelopeBox(viaCard.target);
+            this.#owedBox = this.holdsAny ? null : this.#keepFixedIn(this.#envelopeBox(viaCard.target));
             store.owe(this.#owedPublish);
             return;
         }
@@ -1503,6 +1503,29 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     override publishedBounds(): Readonly<Float64Array> | null {
         return this.#owedBox ?? this.lastPublishedBox();
+    }
+
+    /**
+     * Grow an owed landing's box by the pinned and dragged rows, which the publish leaves where they
+     * are kept, as `keepInPublishedBox` does for a written one. Reads them without writing the owed rows.
+     * @param box - Min x, y, z then max x, y, z; grown in place.
+     * @returns The box.
+     */
+    #keepFixedIn(box: Float64Array): Float64Array {
+        const store = this.#dataManager[WRITABLE_LANE];
+        const array = store.unsettledView();
+        const live = store.count;
+        for (const row of this.#fixedRows) {
+            const base = POSITION_COMPONENTS * row;
+            if (row < live && isStorableCoordinate(array[base])) {
+                for (let axis = 0; axis < 3; axis++) {
+                    box[axis] = Math.min(box[axis], array[base + axis]);
+                    box[axis + 3] = Math.max(box[axis + 3], array[base + axis]);
+                }
+            }
+        }
+
+        return box;
     }
 
     /**

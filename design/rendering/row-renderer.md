@@ -1131,17 +1131,23 @@ simulation engine copies it, sends the transform and owes the lane its publish (
 or write of a row writes it: `view`, `read`, `isPlaced`, `write`, `grow`, `remap`, `setPinned`, and on the table
 `rowPosition`, `rowBounds` and `centerOf` (`RowTable.catchUp`), so a pick, a node's position, an export, a drag and a
 freeze see the rows the card shows. The rows come from the newest landing, with the transform that landing drew with.
-`generation` and `changes` do not trigger it, so a frame that only checks whether the lane moved writes nothing. The undo history's question is different: whether the lane moved since its last capture (`Arrangement.moved`) writes the owed publish first, so a rest point (a pause), an undo or redo, or a `positions.set` during a run seals the arrangement the card shows; those are not per frame. A
+`generation` and `changes` do not trigger it, so a frame that only checks whether the lane moved writes nothing. Owing
+moves the public `generation` once per landing, since the coordinates a reader would get have changed (a consumer
+polling it re-reads, and the read writes the publish); `changes` moves only when the publish is written. A pinned row
+is one the publish leaves alone, so `RowTable.centerOf` of a pinned, placed row (`ElementPositions.keeps`) reads it
+without writing the rest. The undo history's question is different: whether the lane moved since its last capture (`Arrangement.moved`) writes the owed publish first, so a rest point (a pause), an undo or redo, or a `positions.set` during a run seals the arrangement the card shows; those are not per frame. A
 flush that has touched rows to send writes the owed publish first, because rows go up in whole texture lines. The skip
 walk runs only when something can have changed it: a fixed row, a hold or followers, or a table write to a row it
 keeps (`RowTable.ownRowWrites`). Three things are left. The envelope is still measured on every landing, because it is
 the transform the next batches draw with; that is two read-only passes over the read-back (13 ms a frame at 1M rows).
 While a publish is owed, the zoom-to-fit of a running layout frames the envelope's sphere (target centre plus or minus
-the scaling radius) instead of the rows' own box, which can frame a little more loosely. And a built `Node`, a label on
+the scaling radius) grown by every pinned or dragged row, as a written publish grows its box, instead of the rows' own
+box, which can frame a little more loosely. And a built `Node`, a label on
 one, or anything else that reads a row on every frame still writes the publish on every frame, at today's cost.
-Counted in `shared-device-drawn.test.ts`: across three copied landings, `ElementPositions.generation`,
+Counted in `shared-device-drawn.test.ts`: across three copied landings, `ElementPositions.changes`,
 `RowTable.repackedRows` and the engine's `rowsWalked` do not move; reading a node's position then publishes the rows,
-and the texture equals the CPU copy. Measured on paced WebGPU, interleaved, load average 16-20: the layout frame went
+and the texture equals the CPU copy, while `generation` moves once a landing. A node pinned at x 500 stays inside the
+box framed while landings are owed, and the pinned node's per-frame read writes no row. Measured on paced WebGPU, interleaved, load average 16-20: the layout frame went
 from 169 ms to 86 ms at 1M + 1M and from 114 ms to 73 ms at 100k + 1M. Both are now GPU-bound, on the line draw plus
 the layout's own passes on the shared device.
 

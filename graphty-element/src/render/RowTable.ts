@@ -438,7 +438,11 @@ export class RowTable {
      * @returns A new vector.
      */
     centerOf(row: number): Vector3 {
-        this.catchUp();
+        // A pinned row is one an owed publish leaves where it is, so a frame that reads it writes no row.
+        if (!this.lane().keeps(row)) {
+            this.catchUp();
+        }
+
         const { floats } = this.positions;
         const base = row * POSITION_FLOATS;
         return new Vector3(floats[base], floats[base + 1], floats[base + 2]);

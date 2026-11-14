@@ -188,12 +188,38 @@ export class ElementPositions {
      * Owe the rows a publish instead of writing them now: a layout whose answer is already drawn
      * from the card (design/rendering/row-renderer.md 4.5) writes no row per frame, and the rows are
      * published the first time anything reads or writes them. `generation` and `changes` do not ask
-     * for it, so a frame that only checks whether the lane moved writes nothing.
+     * for it, so a frame that only checks whether the lane moved writes nothing. Owing moves
+     * `generation`, since the coordinates a reader would get have changed; `changes` moves when the
+     * publish is written.
      * @param publish - Writes the rows; null to owe nothing.
      * @internal
      */
     owe(publish: (() => void) | null): void {
         this.owed = publish;
+        if (publish !== null) {
+            this.moves++;
+        }
+    }
+
+    /**
+     * Whether a row is pinned where it is placed: a row an owed publish leaves alone, so reading it
+     * needs no {@link ElementPositions.settle}.
+     * @param index - node index
+     * @returns True when the row is pinned and carries a storable x.
+     * @internal
+     */
+    keeps(index: number): boolean {
+        return this.isPinned(index) && this.hasStorableX(POSITION_COMPONENTS * index);
+    }
+
+    /**
+     * The rows as they stand, without writing an owed publish: only for a reader of rows that
+     * publish leaves alone (a layout's pinned rows).
+     * @returns The backing array; rows past `count` are not live.
+     * @internal
+     */
+    unsettledView(): Readonly<F32> {
+        return this.array;
     }
 
     /**

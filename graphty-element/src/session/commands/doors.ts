@@ -3619,6 +3619,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             owe: LANE,
             forgive: LANE,
             settle: LANE,
+            keeps: READ,
+            unsettledView: READ,
         },
     },
     {

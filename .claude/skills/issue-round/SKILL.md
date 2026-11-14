@@ -232,12 +232,13 @@ Compare the job's files (the cluster's `files`, or step 3's) with:
 
 Two paths overlap only when they are the same file. A directory in a running job's `taken` marker or an older cluster
 plan blocks only the files the job's issues name inside it; refine it to the files that job has changed (its branch
-diff) once it has any. On an overlap with this session's own
-unmerged pull request (usually the previous job of the same cluster), the job waits for it: leave the cluster, and a
-later round starts the job once that pull request has merged.
+diff) once it has any. When the job's plan touches the same function or hunk as this session's own unmerged pull
+request (usually the previous job of the same cluster), the job waits for it: leave the cluster, and a later round
+starts the job once that pull request has merged.
 
-**An overlap that merges cleanly does not block.** A shared file with an open, still-counting pull request (not
-this session's own) lets the job start when both can merge: the open branch merges cleanly with master
+**An overlap that merges cleanly does not block.** A shared file with an open, still-counting pull request (this
+session's own included: on 2026-11-13 most of the issues still blocked were blocked by this session's own open pull
+requests, which spend hours in CI) lets the job start when both can merge: the open branch merges cleanly with master
 (`git merge-tree --write-tree --name-only origin/master origin/<that branch>` prints only its tree line, after
 `git fetch origin <that branch>`), and the job's planned change sits in other places of the shared file than that
 pull request's diff (`git diff origin/master...origin/<that branch> -- <file>`). Why: on 2026-11-13, 79 of 99 pairs of

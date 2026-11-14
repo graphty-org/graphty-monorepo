@@ -1131,7 +1131,7 @@ simulation engine copies it, sends the transform and owes the lane its publish (
 or write of a row writes it: `view`, `read`, `isPlaced`, `write`, `grow`, `remap`, `setPinned`, and on the table
 `rowPosition`, `rowBounds` and `centerOf` (`RowTable.catchUp`), so a pick, a node's position, an export, a drag and a
 freeze see the rows the card shows. The rows come from the newest landing, with the transform that landing drew with.
-`generation` and `changes` do not trigger it, so a frame that only checks whether the lane moved writes nothing. A
+`generation` and `changes` do not trigger it, so a frame that only checks whether the lane moved writes nothing. The undo history's question is different: whether the lane moved since its last capture (`Arrangement.moved`) writes the owed publish first, so a rest point (a pause), an undo or redo, or a `positions.set` during a run seals the arrangement the card shows; those are not per frame. A
 flush that has touched rows to send writes the owed publish first, because rows go up in whole texture lines. The skip
 walk runs only when something can have changed it: a fixed row, a hold or followers, or a table write to a row it
 keeps (`RowTable.ownRowWrites`). Three things are left. The envelope is still measured on every landing, because it is

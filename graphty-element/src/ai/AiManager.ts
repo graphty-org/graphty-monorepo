@@ -4,7 +4,7 @@
  * @module ai/AiManager
  */
 
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { XRInputHandler } from "../cameras/XRInputHandler";
 import {

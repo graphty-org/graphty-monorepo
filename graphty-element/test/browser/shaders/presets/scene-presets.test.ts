@@ -506,6 +506,10 @@ describe("the scene presets on a real element", () => {
             color: "#000000",
             shader: { id: nebula, params: { drift: 0, tintBy: "groups" } },
         };
+        // The new parameters reach the pass after the shader's chunks load (tracked pending work),
+        // which can take more than a few frames: wait for the picture to be final, as setParams does.
+        await element.updateComplete;
+        await element.graph.waitForStableFrame();
         await drawnFrames(element.graph.getScene(), 3);
         const tinted = await canvasPixels(element);
         await commands.writeFile("tmp/scene-presets/nebula-tinted.png", await pngOf(tinted), "base64");

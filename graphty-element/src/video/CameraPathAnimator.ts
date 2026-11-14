@@ -1,15 +1,12 @@
 // Installs scene.beginAnimation; see test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Animations/animatable.js";
 
-import {
-    Animation,
-    Camera,
-    CubicEase,
-    EasingFunction,
-    type IEasingFunction,
-    type Scene,
-    Vector3,
-} from "@babylonjs/core";
+import type { IEasingFunction } from "@babylonjs/core";
+import { Animation } from "@babylonjs/core/Animations/animation.js";
+import { CubicEase, EasingFunction } from "@babylonjs/core/Animations/easing.js";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { CameraWaypoint } from "./VideoCapture.js";
 

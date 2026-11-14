@@ -1239,7 +1239,9 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   Records into columns (stage 29, built): under `"batched"`, `importColumns` copies its columns into a row source
   (`session/project/recordMap.ts`) and keeps no record from the load: the load still builds each row's record
   (short-lived, some rows two or three times) as the record doors read it, and drops it. The journal's `add-nodes` and `add-edges` commands
-  hold an array view that builds each record when read; the graph slice's maps are a `RecordMap` (a `Map` subclass)
+  hold the columns and hand out `records` as a getter that builds a plain frozen array of plain records on read
+  (kept by a `WeakRef` only while the reader holds it), so `JournalEntry.command` stays plain data: it clones,
+  deep-freezes and reads the same record twice, as on the objects path; the graph slice's maps are a `RecordMap` (a `Map` subclass)
   holding a row number per column record, as do the op log's `nodes` and `edges` ranges; rows stored with no `Node`
   or `Edge` keep a marker and read the record from the slice. Corrections to this section and to the stage note:
   the record had four holders, not two (the journal's command and the data manager's unbuilt rows besides the

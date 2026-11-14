@@ -176,8 +176,8 @@ describe("session.data.importColumns", () => {
             const edges = added("add-edges");
             assert.strictEqual(nodes.length, IDS.length);
             assert.strictEqual(edges.length, SOURCES.length);
-            // The objects path keeps the records it built; the batched path's journal builds each on read.
-            assert.strictEqual(nodes[1] === nodes[1], !batched, `journal keeps node objects: ${String(batched)}`);
+            // The batched journal builds its records when read and keeps them only while they are held.
+            assert.strictEqual(nodes[1], nodes[1]);
             const { graph } = dispatcherOf(session).state;
             const node = graph.nodes.get("b");
             assert.deepStrictEqual(node, { id: "b", position: [1, 0, 0], group: 1 });
@@ -188,10 +188,45 @@ describe("session.data.importColumns", () => {
             assert.strictEqual(graph.nodes.get("b") === node, !batched, `slice keeps the record: ${String(batched)}`);
             assert.deepStrictEqual(graph.nodes.get("b"), node);
             assert.isTrue(Object.isFrozen(node));
-            // Each read after the load builds the record again: four from the journal's view, three
-            // node reads and one edge iteration from the slice.
-            assert.strictEqual(recordsBuilt.count - before - built, batched ? 4 + 3 + SOURCES.length : 0);
+            // Each read after the load builds the record again: the journal's two record lists, read
+            // once each, three node reads and one edge iteration from the slice.
+            assert.strictEqual(
+                recordsBuilt.count - before - built,
+                batched ? IDS.length + SOURCES.length + 3 + SOURCES.length : 0,
+            );
         }
+    });
+
+    it("keeps the journal's commands as plain data on both paths, the batched one building its records on read", async () => {
+        const commands: unknown[] = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            await byColumns(session);
+            const entries = session.journal.entries.map((entry) => entry.command);
+            // What a consumer does with plain data: clone it to a worker or IndexedDB, freeze it.
+            const cloned = structuredClone(entries);
+            const deepFreeze = (value: unknown): void => {
+                if (typeof value === "object" && value !== null && !ArrayBuffer.isView(value)) {
+                    Object.freeze(value);
+                    Object.values(value).forEach(deepFreeze);
+                }
+            };
+            deepFreeze(entries);
+            for (const command of entries) {
+                if (command.op === "data.apply" && "records" in command.mutation) {
+                    const { records } = command.mutation;
+                    assert.isTrue(Array.isArray(records));
+                    assert.strictEqual(records[0], records[0], `the same record twice: ${String(batched)}`);
+                    // The batched journal holds the columns: its records are built on each read.
+                    const held = Object.getOwnPropertyDescriptor(command.mutation, "records");
+                    assert.strictEqual(held?.get !== undefined, batched, `records built on read: ${String(batched)}`);
+                }
+            }
+
+            commands.push(cloned);
+        }
+
+        assert.deepStrictEqual(commands[1], commands[0]);
     });
 
     it("builds the records again from columns after undo and redo on the batched path", async () => {

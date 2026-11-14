@@ -76,7 +76,7 @@ export function rowsView(source: RowSource): readonly GraphRecord[] {
         const row = Number(key);
         return Number.isInteger(row) && row >= 0 && row < source.size && String(row) === key ? row : -1;
     };
-    return new Proxy<GraphRecord[]>([], {
+    const view = new Proxy<GraphRecord[]>([], {
         get(target, key, receiver) {
             if (key === "length") {
                 return source.size;
@@ -110,6 +110,41 @@ export function rowsView(source: RowSource): readonly GraphRecord[] {
             return false;
         },
     });
+    viewSources.set(view, source);
+    return view;
+}
+
+/** Each `rowsView` array's source, so the journal can hand out its records as plain data. */
+const viewSources = new WeakMap<object, RowSource>();
+
+/**
+ * A `rowsView` array as the journal hands it out: a getter that builds a plain frozen array of
+ * plain records on read, so a consumer may clone or freeze it, and keeps it only while the reader
+ * holds it, so the journal keeps the columns, not a million objects. Anything else is returned as
+ * it is.
+ * @param records - The records a command holds.
+ * @returns A property descriptor for `records`.
+ */
+export function plainRecords(records: readonly GraphRecord[]): PropertyDescriptor {
+    const source = viewSources.get(records);
+    if (source === undefined) {
+        return { value: records, enumerable: true };
+    }
+
+    let last: WeakRef<readonly GraphRecord[]> | undefined;
+    return {
+        enumerable: true,
+        get(): readonly GraphRecord[] {
+            let built = last?.deref();
+            if (built === undefined) {
+                recordsBuilt.count += source.size;
+                built = Object.freeze(Array.from({ length: source.size }, (_, row) => source.build(row)));
+                last = new WeakRef(built);
+            }
+
+            return built;
+        },
+    };
 }
 
 /**

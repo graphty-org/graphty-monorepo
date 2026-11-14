@@ -114,7 +114,15 @@ import type {
     SourceRefreshReport,
     SourceSettings,
 } from "./sources/types";
-import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
+import type {
+    ElementPaint,
+    SessionStylesApi,
+    StyleBatchChange,
+    StyleChange,
+    StyleRefusal,
+    StyleRepaintFailure,
+    StylesApi,
+} from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { EdgeAgeFade } from "./time/ageFade";
 import type { TimeUnit } from "./time/parse";
@@ -3481,6 +3489,14 @@ export interface SessionEventMap {
      * looking at an old picture that reads as an answer.
      */
     "style:problem": StyleProblem;
+    /**
+     * A repaint the element started on its own failed -- one following the selection, the
+     * pointer, a peek, a set's members or a branches view -- or a pass found a layer it could not
+     * paint at all. The picture on screen is stale until the next repaint. Carries a code, never
+     * words; a repaint stopped because the session ended is not reported.
+     * @since 3.52.0
+     */
+    "style:repaint-failed": StyleRepaintFailure;
     /**
      * Every acceleration transition, and every change to what VR and AR can do: the probe
      * settling, a WebXR device change, entering or leaving a session (including the headset

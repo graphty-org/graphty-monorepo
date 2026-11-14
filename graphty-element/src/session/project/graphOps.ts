@@ -24,6 +24,7 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeId, NodeId } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import type { EdgeIdentityCells, GraphStore, KeptGraph, RemovedRows } from "../../data/GraphStore";
+import { GraphtyLogger } from "../../logging/GraphtyLogger";
 import { deepEquals } from "../styles/predicate";
 import type { DirectionProvenance } from "../types";
 import { type Draft, frozenRecord, type OpLogEntry } from "./draft";
@@ -508,7 +509,7 @@ export class GraphOps {
 
             if (!this.warned) {
                 this.warned = true;
-                console.warn("[graphty] The graph was written outside a command; that write cannot be undone.");
+                GraphtyLogger.getLogger(["graphty", "data"]).warn("Graph written outside a command; not undoable");
             }
         }
 

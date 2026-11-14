@@ -123,6 +123,8 @@ export type {
     StyleChange,
     StyleFileDocument,
     StyleRefusal,
+    StyleRepaintCause,
+    StyleRepaintFailure,
     StylesApi,
     StylesSources,
     StyleUpdateOptions,

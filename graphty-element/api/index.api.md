@@ -312,7 +312,6 @@ export interface AnimationOptions {
     fps?: number;
     height?: number;
     tour?: readonly string[];
-    transparentBackground?: boolean;
     videoBitrate?: number;
     width?: number;
 }

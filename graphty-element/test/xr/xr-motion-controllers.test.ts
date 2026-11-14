@@ -41,4 +41,3 @@ describe("lazy WebXR load", () => {
         },
     );
 });
-

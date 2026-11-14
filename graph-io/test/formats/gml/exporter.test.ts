@@ -301,6 +301,22 @@ graph [
     });
 });
 
+describe("gmlExporter: texts equal to NetworkX's list markers", () => {
+    it("escapes a text cell and a list item equal to a marker so they read back as text (#7649)", async () => {
+        const builder = new GraphBuilder({ directed: false });
+        builder.declareNodeColumn({ name: "t", dtype: "string" });
+        builder.declareNodeColumn({ name: "l", dtype: "list", itemDtype: "string" });
+        builder.setNodeValue("t", builder.addNode(1), "[]");
+        builder.setNodeValue("l", builder.addNode(2), ["()", LIST_START_MARKER]);
+        const snapshot = builder.freeze();
+        expect(gmlExporter.check(snapshot)).toEqual([]);
+        const rt = await roundTrip(snapshot, gmlExporter, gmlImporter);
+        expect(rt.text).toContain('t "&#91;]"');
+        expect(rt.text).toContain('l "&#40;)"');
+        expectSameSnapshot(snapshot, rt.snapshot, { allowExtraColumns: false });
+    });
+});
+
 describe("gmlExporter: graphics and positions", () => {
     it("round-trips positions through graphics x / y / z merged with the graphics record", async () => {
         const text =

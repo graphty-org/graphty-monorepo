@@ -5,7 +5,14 @@ import {
     RangeSlider,
     useNumberParser,
 } from "@graphty/compact-mantine";
-import type { GraphSession, Layer, LayerPatch, RuleTree, Scope } from "@graphty/graphty-element/session";
+import {
+    fileStyleOf,
+    type GraphSession,
+    type Layer,
+    type LayerPatch,
+    type RuleTree,
+    type Scope,
+} from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Autocomplete,
@@ -441,8 +448,13 @@ export function WhichPicker({
     // several layers at once and held cards keep the cards. Cards opened stay until
     // they close, even when an edit there leaves a selector the selection editor reads (the last
     // card removed): swapping editors mid-edit would drop the cards and their notice's Undo.
+    // A layer read from a file selects by a mark the load left, which the selection editor can only
+    // spell out raw: with a summary to give, its row reads the rule line instead.
+    const fromFile = summary !== undefined && rows.length === 1 && fileStyleOf(rows[0].layer) !== null;
     const editable =
-        held === undefined && rows.length === 1 ? layerSelection(session, rows[0].layer.selector, side) : null;
+        held === undefined && rows.length === 1 && !fromFile
+            ? layerSelection(session, rows[0].layer.selector, side)
+            : null;
     const [onCards, setOnCards] = useState(() => open && editable === null);
     const selection = open && onCards ? null : editable;
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
@@ -513,7 +525,7 @@ export function WhichPicker({
                     buttonRef={rowButton}
                     regionId={regionId}
                     line={
-                        summary === undefined || shown.length === 0
+                        summary === undefined
                             ? undefined
                             : summary(
                                   session,
@@ -585,7 +597,7 @@ function WhichRow({
     const hint = `All ${many(total, side)}`;
     // What the folded row reads after its count: every element, the one rule line, or each chip.
     let ruleWords: readonly string[] = line === undefined ? spoken : [line];
-    if (shown.length === 0) {
+    if (shown.length === 0 && line === undefined) {
         ruleWords = [hint];
     }
     // A layer whose conditions leave nothing is flagged on its count, or on a chip that leaves none.

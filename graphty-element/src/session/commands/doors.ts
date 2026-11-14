@@ -890,6 +890,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     views: READ,
     layout: READ,
     positions: READ,
+    hidden: READ,
     seededNodeCount: READ,
     status: READ,
     catalog: READ,
@@ -3635,6 +3636,16 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ order: ["n1"], xyz: Float32Array.of(1, 2, 3) }],
                 [{ op: "positions.set", entries: [{ id: "n1", x: 1, y: 2, z: 3 }] }],
             ),
+        },
+    },
+    {
+        name: "SessionHidden",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            ids: READ,
+            add: calls([["n1"]], [{ op: "visibility.hide", ids: ["n1"], hidden: true }]),
+            remove: calls([["n1"]], [{ op: "visibility.hide", ids: ["n1"], hidden: false }]),
         },
     },
     {

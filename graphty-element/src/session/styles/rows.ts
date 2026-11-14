@@ -258,18 +258,6 @@ export interface StartingRow {
 }
 
 /**
- * The glow a Selected row starts with, between the node and its halo.
- *
- * The halo is the selection settings' own color (a gold ring by default, the yellow highlight
- * readers expect), and a gold ring meets the light background and the default palette's yellow
- * at well under 3:1. The near-black glow is the second tone that carries the ring there: 4:1 or
- * better against whitesmoke, every color of the default categorical palette and the default node
- * color, while the gold stands well off the dark backgrounds and a black node.
- * `test/session/style-panel-facts.test.ts` measures both.
- */
-export const STARTING_SELECTED_LOOK = { glow: "#111111" } as const;
-
-/**
  * The starting rows, with the Selected row's look from the selection settings.
  * @param look - The selection settings' node halo and edge band.
  * @param look.color - The halo's color.
@@ -308,7 +296,6 @@ export function startingRows(look: {
                     "node.haloColor": look.color,
                     "node.haloScale": look.scale,
                     "node.haloOpacity": 1,
-                    "node.glow": STARTING_SELECTED_LOOK.glow,
                     "edge.bandColor": look.edgeColor,
                     "edge.bandWidth": look.edgeScale,
                     "edge.bandOpacity": 1,

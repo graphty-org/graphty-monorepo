@@ -3121,9 +3121,9 @@ export interface ProjectConfig {
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     /**
      * Whether the style tree starts with its three starting rows: Everything (pinned to the
-     * bottom, writing nothing), Selected (pinned to the top, drawing a solid near-black node halo
-     * with a white glow and a near-black edge band, at the selection settings' sizes, which
-     * reads on the default background and every default palette color) and Hovered (pinned to the top, writing nothing). False by default.
+     * bottom, writing nothing), Selected (pinned to the top, drawing a solid node halo and edge band
+     * in the selection settings' colors and sizes, a gold ring and a blue band by default) and Hovered
+     * (pinned to the top, writing nothing). False by default.
      * Turned on, the rows are added in the same step, and the selection settings
      * ({@link ProjectConfig.selectionStyle}) draw nothing themselves; `styles.restoreStartingRows()`
      * brings back any a reader deleted. While a time field is designated, a fourth row, Ghost, sits

@@ -837,6 +837,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
             ...(dispatcher.state.visibility.playback === undefined || dispatcher.state.visibility.playback === null
                 ? {}
                 : { playback: dispatcher.state.visibility.playback }),
+            // Written only when a node is hidden from the drawing, so a project without saves as before.
+            ...((dispatcher.state.visibility.hidden ?? []).length === 0
+                ? {}
+                : { hidden: dispatcher.state.visibility.hidden }),
         },
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
         views: [...session.views].map(([name, camera]) => ({ name, camera })),
@@ -1487,6 +1491,10 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
         await (tx.visibility as SessionVisibilityApi).restorePlayback(null);
     }
 
+    if (tx.hidden.ids.size > 0) {
+        await tx.hidden.remove([...tx.hidden.ids]);
+    }
+
     await tx.data.clear();
 }
 
@@ -1922,6 +1930,13 @@ async function readProject(
             await tx.positions.pin((arrangement.pins as NodeId[]).filter((id) => nodeIds.has(id)));
             opening.restored.add("pins");
         });
+    }
+
+    const hidden = (state.visibility as { hidden?: unknown } | undefined)?.hidden;
+    if (Array.isArray(hidden)) {
+        await attempt(opening, "visibility", () =>
+            tx.hidden.add((hidden as unknown[]).filter((id): id is NodeId => nodeIds.has(id as NodeId))),
+        );
     }
 
     // Before the runs: a run over the selection reads it. The selection is not project state.

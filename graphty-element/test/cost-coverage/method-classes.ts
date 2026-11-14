@@ -260,6 +260,8 @@ export const MUTATING: readonly string[] = [
     "SessionDataApi.setValueLabel",
     "SessionDataApi.updateEdges",
     "SessionDataApi.updateNodes",
+    "SessionHidden.add",
+    "SessionHidden.remove",
     "SessionHistory.clear",
     "SessionHistory.restoreTo",
     "SessionLayout.rerun",

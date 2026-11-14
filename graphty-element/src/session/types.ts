@@ -1233,8 +1233,8 @@ export interface SessionDataApi {
      * whole graph on every call, so read it when the graph changes, not every frame.
      * @param options - Which nodes.
      * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"` for
-     *     every node; absent, what is shown while the session's `workingGraph` is on, every node
-     *     while it is off.
+     *     every node; absent, the working graph (what the filters show, the time window aside)
+     *     while the session's `workingGraph` is on, every node while it is off.
      * @returns the records, deep-frozen
      */
     nodes(options?: { readonly scope?: "graph" | "visible" }): readonly NodeRecord[];
@@ -1243,8 +1243,8 @@ export interface SessionDataApi {
      * whole graph on every call, so read it when the graph changes, not every frame.
      * @param options - Which edges.
      * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"` for
-     *     every edge; absent, what is shown while the session's `workingGraph` is on, every edge
-     *     while it is off.
+     *     every edge; absent, the working graph (what the filters show, the time window aside)
+     *     while the session's `workingGraph` is on, every edge while it is off.
      * @returns the records, deep-frozen
      */
     edges(options?: { readonly scope?: "graph" | "visible" }): readonly EdgeRecord[];
@@ -1257,8 +1257,8 @@ export interface SessionDataApi {
      * ```
      * @param options - What to count.
      * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"`
-     *     for the whole graph; absent, what is shown while the session's `workingGraph` is on (the
-     *     default), the whole graph while it is off.
+     *     for the whole graph; absent, the working graph (what the filters show, the time window
+     *     aside) while the session's `workingGraph` is on (the default), the whole graph while it is off.
      * @returns the node count and the edge count
      */
     count(options?: { readonly scope?: "graph" | "visible" }): { readonly nodes: number; readonly edges: number };
@@ -1633,8 +1633,9 @@ export interface SessionDataApi {
      * @param path - A path {@link SessionDataApi.structureValues} lists (`graphty.degree`).
      * @param options - Where to measure.
      * @param options.scope - `"visible"` measures among what the filter and the time window leave
-     *     shown, where a hidden node has no value; `"graph"` the whole graph. Default `"graph"`, or
-     *     `"visible"` while the session's `workingGraph` option is on (since 3.36.0).
+     *     shown, where a hidden node has no value; `"graph"` the whole graph. Default `"graph"`, or the
+     *     working graph (what the filters leave shown, the time window aside) while the session's
+     *     `workingGraph` option is on (since 3.40.0).
      * @returns The value, or undefined for an unknown node or a path that is no structure value.
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      * @example
@@ -1796,8 +1797,9 @@ export interface SessionDataApi {
      * @param options - `bins`: how many bars, or how many values a categorical column lists (20
      *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it;
      *     `scope`: `"visible"` counts only what the filter and the time window leave shown,
-     *     `"graph"` every element -- default `"graph"`, or `"visible"` while the session's
-     *     `workingGraph` option is on (since 3.36.0)
+     *     `"graph"` every element -- default `"graph"`, or the working graph (what the filters
+     *     leave shown, the time window aside) while the session's `workingGraph` option is on
+     *     (since 3.40.0)
      * @returns the distribution
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
      *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
@@ -1821,8 +1823,9 @@ export interface SessionDataApi {
      * @param options.kind - Nodes or edges; by default the kind `readableValues()` lists the path
      *     on, nodes first.
      * @param options.scope - `"visible"` counts only what the filter and the time window leave
-     *     shown (`total` included), `"graph"` every element. Default `"graph"`, or `"visible"` while
-     *     the session's `workingGraph` option is on (since 3.36.0).
+     *     shown (`total` included), `"graph"` every element. Default `"graph"`, or the working graph
+     *     (what the filters leave shown, the time window aside) while the session's `workingGraph`
+     *     option is on (since 3.40.0).
      * @returns The counts, most elements first.
      * @since 3.37.0
      */
@@ -1834,8 +1837,8 @@ export interface SessionDataApi {
      * Per group, the values of the nodes' categorical and list columns that occur in the group
      * more often than chance: count in the group against the expected count, with the
      * hypergeometric p and that p corrected (Benjamini-Hochberg) over every group, column and
-     * value tested. Group by a community run's `group` field or any node path. Walks the nodes on
-     * every call.
+     * value tested. Group by a community run's `group` field or any node path. Reads what is shown
+     * while `workingGraph` is on, the whole graph while it is off. Walks the nodes on every call.
      *
      * ```ts
      * const profile = session.data.overRepresented(session.results.path("louvain", "group"));
@@ -1851,7 +1854,8 @@ export interface SessionDataApi {
     /**
      * One row per group of the nodes -- a community run's `group`, a component, any node path --
      * with its size and the summaries of numeric columns the caller asks for. Write it as a file
-     * with `exportGraph("csv" | "json", { groupTable: { groupBy } })`. Walks the nodes on every call.
+     * with `exportGraph("csv" | "json", { groupTable: { groupBy } })`. Reads what is shown while
+     * `workingGraph` is on, the whole graph while it is off. Walks the nodes on every call.
      *
      * ```ts
      * const table = session.data.groupTable("results.louvain.group", {
@@ -1869,8 +1873,9 @@ export interface SessionDataApi {
      * The graph's shape. Walked once per snapshot and cached.
      * @param options - What to measure.
      * @param options.scope - `"visible"` measures only what the filters and the time window leave
-     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`, or
-     *     `"visible"` while the session's `workingGraph` option is on.
+     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`, or the
+     *     working graph (what the filters leave shown, the time window aside) while the session's
+     *     `workingGraph` option is on.
      * @returns the statistics
      */
     statistics(options?: { readonly scope?: "all" | "visible" }): GraphStatistics;
@@ -3728,7 +3733,7 @@ export interface SessionEventMap {
      * shown is, or is no longer, kept from drawing by the `workingGraph` option (the option
      * toggled, `showContext` set, a branches view's hold started or ended, time ghosts asked for).
      * Experimental: may change or be removed in a minor release.
-     * @since 3.36.0
+     * @since 3.40.0
      * @beta
      */
     "visibility:not-drawn-changed": { readonly notDrawn: readonly HiddenNotDrawn[] };
@@ -4991,22 +4996,24 @@ export interface GraphSession {
      */
     acceleration: AccelerationPolicy;
     /**
-     * Whether readers read the working graph: the part of the graph the visibility filter and the
-     * time window leave shown. The graph itself is unchanged -- edits, undo and the project file act
-     * on all of it, and hidden nodes keep their positions, styles and results -- and a reader that
-     * names the whole graph (`scope: "graph"`) still reads all of it.
+     * Whether readers read the working graph: the part of the graph the filters leave shown. A
+     * filter means the subset you work with, so layouts, counts, styles, framing and algorithms read
+     * it. The time window is not part of it: a window step hides elements by drawing and never
+     * moves the layout. The graph itself is unchanged -- edits, undo and the project file act on all
+     * of it, and hidden nodes keep their positions, styles and results -- and a reader that names
+     * the whole graph (`scope: "graph"`) still reads all of it.
      *
-     * On, nothing outside what is shown is drawn: `visibility.showContext`, a
-     * `styles.showBranches` view's `hold` and `base: "full"`, and time ghosts (`outside: "ghost"`)
-     * are kept but draw no hidden node, and `visibility.notDrawn` lists each one as a
-     * `W_HIDDEN_NOT_DRAWN` fact (`visibility:not-drawn-changed` tells each change). Off, they draw
-     * as before.
+     * On, nothing a filter hides is drawn: `visibility.showContext`, and a `styles.showBranches`
+     * view's `hold` and `base: "full"`, are kept but draw no hidden node, and `visibility.notDrawn`
+     * lists each one as a `W_HIDDEN_NOT_DRAWN` fact (`visibility:not-drawn-changed` tells each
+     * change). Time ghosts (`outside: "ghost"`) are drawn either way. Off, everything draws as
+     * before.
      *
-     * On by default. Off keeps every reader on the whole graph, as before 3.36.0. Settable; a session
+     * On by default. Off keeps every reader on the whole graph, as before 3.40.0. Settable; a session
      * setting that records no undo step and is not saved in a project file. Set it when creating the
      * session with `createGraphSession({ workingGraph: false })`, or on the element with
      * `working-graph="false"`.
-     * @since 3.36.0
+     * @since 3.40.0
      */
     workingGraph: boolean;
     /**
@@ -5267,10 +5274,10 @@ export interface CreateGraphSessionOptions {
      */
     readonly features?: readonly string[];
     /**
-     * Start with the working graph on: readers that name no scope read what the filter and the time
-     * window leave shown. Default true; false keeps them on the whole graph. See
+     * Start with the working graph on: readers that name no scope read what the filters leave
+     * shown (never the time window). Default true; false keeps them on the whole graph. See
      * `GraphSession.workingGraph`.
-     * @since 3.36.0
+     * @since 3.40.0
      */
     readonly workingGraph?: boolean;
 }

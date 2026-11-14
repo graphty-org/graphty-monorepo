@@ -2876,14 +2876,6 @@ export interface GroupOverlap {
     readonly count: number;
 }
 
-// @beta
-export interface HiddenNotDrawn {
-    readonly code: "W_HIDDEN_NOT_DRAWN";
-    readonly params: {
-        readonly asked: "showContext" | "hold" | "full" | "ghost";
-    };
-}
-
 // @public
 export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
 
@@ -2901,6 +2893,14 @@ export interface GroupTableOptions {
 
 // @public
 export type GroupTableRow = Readonly<Record<string, string | number | boolean | null>>;
+
+// @beta
+export interface HiddenNotDrawn {
+    readonly code: "W_HIDDEN_NOT_DRAWN";
+    readonly params: {
+        readonly asked: "showContext" | "hold" | "full";
+    };
+}
 
 // @public
 export interface HighlightSpec {

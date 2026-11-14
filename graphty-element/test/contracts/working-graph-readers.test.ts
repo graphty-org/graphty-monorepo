@@ -1,8 +1,8 @@
 /**
  * @file Every reader honors the working graph (design/working-graph/design.md section 9).
  *
- * The owner's agreement (2026-11-07): every reader uses the view -- what the filter and the time
- * window leave shown -- and only the readers that must see everything read the whole graph, by
+ * The owner's agreement (2026-11-07): every reader uses the view -- what the filters leave shown,
+ * never the time window (owner rule 2026-11-12) -- and only the readers that must see everything read the whole graph, by
  * name. This test finds the readers itself: it walks the `GraphSession` interface in the committed
  * API report (`api/session.api.md`), so a method added to the session tomorrow fails here until it
  * is classified below.
@@ -104,8 +104,12 @@ interface ViewReader {
     readonly view: Ask;
     /** The reader naming the whole graph, when it has a word for it. */
     readonly whole?: Ask;
-    /** It reads the filter over all time, the window aside (design decision 39). */
-    readonly windowAside?: true;
+    /**
+     * It reads what is visible through the visibility masks, which the time window still narrows:
+     * the window is not part of the working graph, but it hides through those masks until PR #7424
+     * moves it to styles.
+     */
+    readonly windowMasks?: true;
 }
 
 /**
@@ -210,6 +214,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.edgePage()": {
         view: (s) => s.data.edgePage({ limit: 50 }),
         whole: (s) => s.data.edgePage({ limit: 50, scope: "graph" }),
+        windowMasks: true,
     },
     "data.count()": { view: (s) => s.data.count() },
     "data.edges()": { view: (s) => s.data.edges() },
@@ -217,6 +222,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.editJoinReport()": "not the graph",
     "data.expand()": "writes",
     "data.fingerprint()": "not the graph",
+    "data.edgeName()": "names its target",
+    "data.groupTable()": { view: (s) => s.data.groupTable("data.type", { summaries: { "data.weight": ["sum"] } }) },
     "data.fix()": "writes",
     "data.generate()": "writes",
     "data.hiddenColumns()": "not the graph",
@@ -227,6 +234,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.ignoreIssue()": "writes",
     "data.ignoreIssues()": "writes",
     "data.import()": "writes",
+    "data.importColumns()": "writes",
+    "data.mergeNodes()": "writes",
     // What is wrong with the data is a fact about the original, which every fix edits (design
     // decision 74, which the owner has not seen; listed so the list's ratchet covers it).
     "data.issues()": {
@@ -248,14 +257,18 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.neighbors()": {
         view: (s) => s.data.neighbors("a"),
         whole: (s) => s.data.neighbors("a", { scope: "graph" }),
+        windowMasks: true,
     },
     "data.node()": "names its target",
     "data.nodePage()": {
         view: (s) => s.data.nodePage({ limit: 50 }),
         whole: (s) => s.data.nodePage({ limit: 50, scope: "graph" }),
+        windowMasks: true,
     },
     "data.nodes()": { view: (s) => s.data.nodes() },
     "data.nodeSource()": "names its target",
+    "data.nodeName()": "names its target",
+    "data.overRepresented()": { view: (s) => s.data.overRepresented("data.type") },
     "data.pendingSourceLoads()": "not the graph",
     "data.prepare()": "writes",
     "data.previewSource()": "not the graph",
@@ -264,6 +277,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.refresh()": "writes",
     "data.reloadSource()": "writes",
     "data.removeEdges()": "writes",
+    "data.remap()": "writes",
     "data.removeNodes()": "writes",
     "data.removeSource()": "writes",
     "data.renameColumn()": "writes",
@@ -278,6 +292,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.snapshot()": { wholeProbe: (s) => s.data.snapshot().nodeCount },
     "data.source()": "not the graph",
     "data.sources()": "not the graph",
+    "data.sourceInput()": "names its target",
     "data.sourcesOf()": "names its target",
     "data.statistics()": {
         view: (s) => s.data.statistics(),
@@ -318,8 +333,12 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "find()": {
         view: (s) => s.find("host"),
         whole: (s) => s.find("host", { scope: "graph" }),
+        windowMasks: true,
     },
     "fingerprint()": "not the graph",
+    "hidden.add()": "writes",
+    "hidden.ids": "state",
+    "hidden.remove()": "writes",
     "history.bytes": "not the graph",
     "history.cancel()": "writes",
     "history.clear()": "writes",
@@ -341,7 +360,9 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "layout.engine": "not the graph",
     "layout.id": "not the graph",
     "layout.locationColumns()": "not the graph",
+    "layout.motion": "state",
     "layout.optionInEffect()": "not the graph",
+    "layout.rerun()": "writes",
     "layout.options": "not the graph",
     "layout.set()": "writes",
     "layout.setDimension()": "writes",
@@ -403,7 +424,9 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "runs.queue": "state",
     "runs.readers()": "state",
     "runs.remove()": "writes",
+    "runs.rename()": "writes",
     "runs.start()": "writes",
+    "runs.sweep()": "writes",
     "scope.allowRun()": "writes",
     "scope.asUnion()": "names its target",
     "scope.cancelRun()": "writes",
@@ -426,12 +449,14 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
             await s.selection.apply({ where: "type == 'host'" });
             return [...s.selection.nodes];
         },
+        windowMasks: true,
     },
     "selection.cap": "not the graph",
     "selection.checkRule()": "names its target",
     "selection.clear()": "writes",
     "selection.count()": {
         view: (s) => s.selection.count({ where: "type == 'host'" }),
+        windowMasks: true,
     },
     "selection.edgeMask()": "state",
     "selection.edges": "state",
@@ -446,6 +471,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "selection.originPaths": "state",
     "selection.previewHover()": "writes",
     "selection.promote()": "writes",
+    "selection.previous()": "state",
+    "selection.restore()": "writes",
     "selection.size": "state",
     "selection.statistics()": "state",
     "selection.truncated": "state",
@@ -489,7 +516,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "styles.addRow()": "writes",
     "styles.agreement()": "names its target",
     "styles.applyTemplate()": "writes",
-    "styles.categories()": { view: (s) => s.styles.categories(layerOf(s), "node.color") },
+    "styles.categories()": { view: (s) => s.styles.categories(layerOf(s), "node.color"), windowMasks: true },
     "styles.colors()": "names its target",
     "styles.counts()": {
         view: (s) => {
@@ -500,13 +527,14 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
             const { matched, painted, noValue } = s.styles.counts(layerOf(s), { scope: "graph" });
             return { matched, painted, noValue };
         },
+        windowMasks: true,
     },
     "styles.defaultValue()": "not the graph",
     "styles.deleteRow()": "writes",
     "styles.encode()": "writes",
     "styles.explain()": "names its target",
     "styles.get()": "not the graph",
-    "styles.groups()": { view: (s) => s.styles.groups(layerOf(s), "data.type") },
+    "styles.groups()": { view: (s) => s.styles.groups(layerOf(s), "data.type"), windowMasks: true },
     "styles.hideRow()": "writes",
     "styles.highlight()": "writes",
     "styles.highlightStyle()": "names its target",
@@ -514,9 +542,10 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "styles.layersUnder()": "names its target",
     // A key's rows are the categories some shown element carries; its painted count is the whole
     // graph's unless the legend names `within` (decision C), so the probes read the rows.
-    "styles.legend()": { view: async (s) => legendRows(await weightLayer(s), s.styles.legend()) },
+    "styles.legend()": { view: async (s) => legendRows(await weightLayer(s), s.styles.legend()), windowMasks: true },
     "styles.legendOf()": {
         view: async (s) => legendRows(await weightLayer(s), s.styles.legendOf(await weightLayer(s))),
+        windowMasks: true,
     },
     "styles.list()": "not the graph",
     "styles.lockRow()": "writes",
@@ -557,7 +586,6 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "time.bins()": {
         view: (s) => s.time.bins({ count: 4, from: 1, to: 6 }),
         whole: (s) => s.time.bins({ count: 4, from: 1, to: 6, scope: "all" }),
-        windowAside: true,
     },
     "time.candidates()": "not the graph",
     "time.changes()": "not the graph",
@@ -848,9 +876,17 @@ describe("a view reader answers as on the graph without what is hidden", () => {
             const view = await answers(kind.view);
             assert.deepStrictEqual(view.filtered, view.without, `${member} with no scope reads the view`);
             assert.notDeepEqual(view.unfiltered, view.without, `${member}'s probe tells the two graphs apart`);
-            if (kind.windowAside !== true) {
-                const windowed = await answers(kind.view, "window");
-                assert.deepStrictEqual(windowed.filtered, windowed.without, `${member} reads the time window too`);
+            // The time window is not part of the working graph (owner rule 2026-11-12): a reader of
+            // the view reads a node only the window hides as if nothing hid it.
+            const windowed = await answers(kind.view, "window");
+            if (kind.windowMasks === true) {
+                assert.deepStrictEqual(windowed.filtered, windowed.without, `${member} reads the visible masks`);
+            } else {
+                assert.deepStrictEqual(
+                    windowed.filtered,
+                    windowed.unfiltered,
+                    `${member} leaves the time window aside`,
+                );
             }
             if (kind.whole !== undefined) {
                 const whole = await answers(kind.whole);

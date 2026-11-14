@@ -1,8 +1,8 @@
 /**
  * @file Framing over the working graph (design/working-graph/design.md section 5, owner decision
  * A). With the session's `workingGraph` option on, Fit and the standard camera views frame what the
- * filter shows when they are given no nodes; with the option off, they frame the whole graph as
- * before.
+ * filter shows when they are given no nodes; with the option off they frame only what is drawn
+ * too, since a hidden node never stretches the box.
  */
 
 import "../../src/graphty-element";
@@ -21,9 +21,6 @@ const NODES = [
 
 /** What the filter shows. */
 const SHOWN = ["a", "b"];
-
-/** Every node. */
-const ALL = NODES.map((node) => node.id);
 
 const cleanups: (() => void)[] = [];
 
@@ -59,14 +56,29 @@ async function filtered(working: boolean): Promise<Graphty> {
     return element;
 }
 
+/**
+ * What a view frames once the filter is cleared and every node is drawn.
+ * @param element - The element.
+ * @param view - The camera view.
+ * @returns The camera state.
+ */
+async function unfilteredFit(element: Graphty, view: string): Promise<unknown> {
+    await element.session.visibility.set(null);
+    await element.graph.waitForSettled();
+    await element.waitForStableFrame();
+    return element.graph.resolveCameraPreset(view);
+}
+
 describe("framing over the working graph", () => {
     for (const view of ["fitToGraph", "topView", "isometric"]) {
         it(`frames what is shown for ${view} with the option on`, async () => {
-            const { graph } = await filtered(true);
+            const element = await filtered(true);
+            const { graph } = element;
 
+            // The whole graph is framed by what is drawn (`framing.extent` unset); name it for the subset.
             const fit = graph.resolveCameraPreset(view);
-            assert.deepStrictEqual(fit, graph.resolveCameraPreset(view, { nodes: SHOWN }));
-            assert.notDeepEqual(fit, graph.resolveCameraPreset(view, { nodes: ALL }));
+            assert.deepStrictEqual(fit, graph.resolveCameraPreset(view, { nodes: SHOWN, extent: "drawn" }));
+            assert.notDeepEqual(fit, await unfilteredFit(element, view), "the hidden node would stretch the box");
         });
     }
 
@@ -91,11 +103,12 @@ describe("framing over the working graph", () => {
         assert.deepStrictEqual(mixed, graph.getCameraState(), "the hidden selected node is not framed");
     });
 
-    it("frames the whole graph with the option off, as before", async () => {
-        const { graph } = await filtered(false);
+    it("frames only what is drawn with the option off too: a hidden node never stretches the box", async () => {
+        const element = await filtered(false);
+        const { graph } = element;
 
         const fit = graph.resolveCameraPreset("fitToGraph");
-        assert.deepStrictEqual(fit, graph.resolveCameraPreset("fitToGraph", { nodes: ALL }));
-        assert.notDeepEqual(fit, graph.resolveCameraPreset("fitToGraph", { nodes: SHOWN }));
+        assert.deepStrictEqual(fit, graph.resolveCameraPreset("fitToGraph", { nodes: SHOWN, extent: "drawn" }));
+        assert.notDeepEqual(fit, await unfilteredFit(element, "fitToGraph"), "the hidden node would stretch the box");
     });
 });

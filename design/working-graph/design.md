@@ -6,20 +6,22 @@ Issue #6201: the design the owner agreed on 2026-11-07; choices he has not seen 
 
 - **The original graph is the only graph.** Edits, undo, history, loading a sample and the
   project file act on it; nothing copies it (decision 24).
-- **The working graph is a view**: the session's visible masks (filter plus time window), built
+- **The working graph is a view**: what the filters keep, never the time window (owner rule
+  2026-11-12: "the layout shouldn't change because of the nodes that are / aren't visible due to
+  the timeline"; `visibility.keptMasks`), built
   with graph-format's `inducedSubgraph({ mask })`, then `filterEdges(mask)` when an edge filter
   hides more than the hidden nodes' edges: a compact graph plus a map from its rows back to the
   original's. graph-format needs nothing new.
 - **Built once per state, cached, shared.** The state (the cache key) is the store's snapshot
-  plus the masks' versions: a filter change, a window step, a data edit, or an undo or redo of
-  one; drawing options and style previews never rebuild it. The session
+  plus the masks' versions: a filter change, a data edit, or an undo or redo of one (a window
+  step never); drawing options and style previews never rebuild it. The session
   pins the current state's view outside the byte-bounded derived-input cache, so every reader of
   one state gets the same object, dropped once no run holds it (decision 57); with nothing hidden
   it is the store's snapshot.
 - **Hidden nodes keep everything** (positions, styles, run results, notes) keyed by original ids;
   nothing syncs when a filter clears. The selection is the exception (decision B).
-- **Ghosts** (outside the time window) are not in the view and keep their positions (decision D);
-  with the option on they are not drawn (section 3).
+- **Ghosts** (outside the time window) are in the view: they keep their places in the one layout
+  and are drawn faint, option on or off.
 
 ## 2. The public API
 
@@ -53,7 +55,7 @@ window (its `"visible"` reading); `"graph"` reads everything (decisions 39, 59).
 (decision 40), returns a `FilterDraft` (decision 51) with `update(rule)`, `counts()`, `commit()` and `cancel()`;
 `commit()` is one history step, `cancel()` writes nothing.
 
-**`waitForSettled()`** resolves after the re-layout that a filter or time-window change starts.
+**`waitForSettled()`** resolves after the re-layout that a filter change starts.
 
 **The canonical example:**
 
@@ -184,7 +186,7 @@ Each applies only with the option on; with it off, today's behavior holds.
 - **Snapshot layouts** (circle, grid, Graphviz and the rest) get the view's compact
   snapshot as `graph` and `stored`, `fixed` and `scope` in view rows; answers map back through the
   row map: one slot per shown node, no invalid rows for Graphviz.
-- **Following the view.** A filter change, a window step, or an undo or redo of either re-runs the
+- **Following the view.** A filter change, or an undo or redo of one, re-runs the
   layout: nodes that left are removed, nodes that came back enter at their last positions, a
   simulation restarts, a one-pass layout runs again. A data edit does not re-lay out the graph: an
   added node is placed as today.
@@ -192,20 +194,11 @@ Each applies only with the option on; with it off, today's behavior holds.
   narrowing beyond it, as naming no scope does, and every other named scope is intersected with
   the view.
 
-## 8. Time window (agreed point 8)
+## 8. Time window (agreed point 8, changed by the owner's rule of 2026-11-12)
 
-Each slider step moves the masks and rebuilds the view; counts read it and the layout follows
-(decision 33). Plan step 2 measures a 50,000-node rebuild; only if it exceeds 16 ms does the
-view rebuild on a 200 ms pause instead, and the counts update then (decisions 13 and 14).
-
-Measured 2026-11-08 (`test/session/working-graph-view.bench.test.ts`, 50,000 nodes, 250,000
-edges): a rebuild per slider step takes a median 21.8 ms, over the 16 ms line. In the app, a drag
-with the circular layout (which isolates the view from the force simulation) runs at about 40
-frames per second with no frame over 100 ms, because the view is built only when a reader asks
-for it and a drag step asks for it at most once. The pause rule is therefore not built: the
-agreement's test is whether the drag is too slow, and the view does not slow it. The slow frames
-in a drag with the default force layout come from the simulation, which is as slow with the option
-off and before any filter (decision 77).
+The time window is not part of the view. A slider step, a play and its pause hide what the window
+leaves out by drawing (the visible masks), and never rebuild the view, so the layout, the counts
+and the styles that read the view do not move. Only a filter change does.
 
 ## 9. The honesty check (agreed point 10)
 
@@ -266,7 +259,7 @@ off and before any filter (decision 77).
 7. **Decided by the owner (2026-11-08): with the option on, `hold`, `base: "full"` and
    `showContext` draw nothing outside the view**, each reported as `W_HIDDEN_NOT_DRAWN` in
    `visibility.notDrawn` (and the view's `notDrawn`); with it off they draw as before (section 3).
-8. **The layout re-runs on a filter or window change** or its undo, never on a data edit; filter
+8. **The layout re-runs on a filter change** or its undo, never on a data edit; filter
    changes animate.
 9. **Framing after a filter re-layout** is today's auto-framing.
 10. **Simulations drop hidden nodes**, not hold them inert.
@@ -304,14 +297,14 @@ off and before any filter (decision 77).
 31. **The draft counts over the full graph but draws over what is shown.**
 32. **Not readers**: XR picking, captureScreenshot, cytoscape-extensions, suggested styles, a
     run's result layers, Why this look, state looks.
-33. **Every time-window step re-lays out** with no animated transition.
+33. **No time-window step lays anything out** (owner rule 2026-11-12; supersedes "every step re-lays out").
 34. **The default run scope's docs line gains "includes the time window".**
 35. **Turning a filter off** shows hidden nodes where they were, then lays out with the transition.
 36. **The owner's path is an acceptance script** (College football, Louvain 1, 4, 5, 7):
     Circle and Grid place 49 nodes.
 37. **Group boxes, the map extent, curve supports, label declutter and the AI tools (queryGraph, schema facts, findNodes) read the
     view**; an all-hidden group draws no box.
-38. **`waitForSettled()` resolves after the re-layout a filter or window change starts.**
+38. **`waitForSettled()` resolves after the re-layout a filter change starts.**
 39. **With the option on, `time.bins` with no scope reads the filter over all time.**
 40. **`visibility.draft(id)` opens a draft on an existing condition.**
 41. **The preview's look is fixed** (card colors, today's faint look), no option yet.

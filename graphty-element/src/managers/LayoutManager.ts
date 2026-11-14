@@ -602,7 +602,7 @@ interface LayoutScopeSource {
      */
     nodeValues?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
     /**
-     * The working graph a layout runs over: what the filter and the time window leave shown, while
+     * The working graph a layout runs over: what the filters leave shown (never the time window), while
      * the session's `workingGraph` option is on. Absent, or null, layouts run over the whole graph.
      * @returns The view; a whole view when nothing is hidden.
      */

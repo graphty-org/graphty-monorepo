@@ -792,8 +792,8 @@ export abstract class LayoutEngine {
     }
 
     /**
-     * The working graph this engine lays out: the part of the graph the visibility filter and the
-     * time window leave shown, while the session's `workingGraph` option is on and something is
+     * The working graph this engine lays out: the part of the graph the filters leave shown (never
+     * the time window), while the session's `workingGraph` option is on and something is
      * hidden. Null lays out the whole graph. A node or edge it hides is never added to the engine,
      * and no layout write reaches its row, so it keeps its last position.
      * @returns The view, or null.

@@ -1,7 +1,7 @@
 /**
  * @file Layouts over the working graph (design/working-graph/design.md, section 7). With the
  * session's `workingGraph` option on, every layout -- one-pass, simulation, incremental, a third
- * party's -- lays out only what the visibility filter and the time window show: a hidden node gets
+ * party's -- lays out only what the filters show (never the time window): a hidden node gets
  * no slot and exerts no force, it keeps its last position, and a change of what is shown lays the
  * graph out again, once. With the option off, a layout runs over the whole graph as it always has.
  *
@@ -487,7 +487,7 @@ describe("the time window and the working graph", () => {
         setDefaultFeatures([]);
     });
 
-    it("lays out what the window shows, ghosts taking no part and keeping their places", async () => {
+    it("never lays out again for the window: every node keeps its place and ghosts are drawn", async () => {
         const { graph, container } = await emptyGraph(true);
         try {
             const session = graph.getSession() as ElementSession;
@@ -501,13 +501,9 @@ describe("the time window and the working graph", () => {
             await session.time.setSettings({ outside: "ghost" });
             await session.time.window({ from: 0, to: 5 });
             await graph.waitForSettled();
-            // Asked for, but not drawn: the working graph draws nothing outside the view.
-            assert.isFalse(session.visibility.ghosting, "the nodes outside the window are not drawn");
-            const after = positionsOf(graph);
-            assert.closeTo(smallestGap(after, FIVE), 72, 0.5, "the five in the window on a circle of their own");
-            for (const id of IDS.slice(5)) {
-                assert.deepEqual(after.get(id), before.get(id), `ghost ${id} stayed where it was`);
-            }
+            // The time window is not part of the working graph (owner rule 2026-11-12).
+            assert.isTrue(session.visibility.ghosting, "the nodes outside the window are drawn as ghosts");
+            assert.deepEqual(positionsOf(graph), before, "no node moved for the window");
         } finally {
             graph.dispose();
             container.remove();

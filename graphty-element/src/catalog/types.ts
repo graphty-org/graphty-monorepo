@@ -2272,7 +2272,7 @@ export type RuleTree =
            * place does not move as a filter changes; `"visible"` ranks only what the filter and the
            * time window leave shown. Inside a step, the step's own population is ranked. A filter
            * cannot rank within what it shows itself.
-           * @since 3.36.0
+           * @since 3.40.0
            */
           readonly within?: "graph" | "visible";
       }

@@ -253,7 +253,7 @@ export interface FilterConditionCount {
  * await draft.commit(); // one step: the filter changes, and the graph is laid out again over it
  * ```
  * Experimental: may change or be removed in a minor release.
- * @since 3.36.0
+ * @since 3.40.0
  * @beta
  */
 export interface FilterDraft {
@@ -300,19 +300,20 @@ export interface FilterDraft {
  * - `"full"`: a `styles.showBranches` view asked for `base: "full"`; it is drawn over what is
  *   shown, and what the filter removes is not drawn. Reported only for a view that also holds a
  *   condition: with no `hold`, `"full"` draws nothing outside what is shown anyway.
- * - `"ghost"`: the time setting `outside` is `"ghost"` and a window is in force; what the window
- *   leaves out is not drawn.
+ *
+ * Time ghosts are never kept from drawing: the time window is not part of the working graph, so
+ * what it leaves out keeps its place in the layout and is drawn faint where it is.
  *
  * `visibility:not-drawn-changed` fires whenever the list in `visibility.notDrawn` changes.
  * Experimental: may change or be removed in a minor release.
- * @since 3.36.0
+ * @since 3.40.0
  * @beta
  */
 export interface HiddenNotDrawn {
     /** What kind of fact this is. */
     readonly code: "W_HIDDEN_NOT_DRAWN";
     /** What was asked for. */
-    readonly params: { readonly asked: "showContext" | "hold" | "full" | "ghost" };
+    readonly params: { readonly asked: "showContext" | "hold" | "full" };
 }
 
 /** No {@link HiddenNotDrawn} fact. */
@@ -554,7 +555,7 @@ export interface VisibilityApi {
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) when no condition has that id, or the new
      *     condition is malformed or its id is taken.
      * Experimental: may change or be removed in a minor release.
-     * @since 3.36.0
+     * @since 3.40.0
      * @beta
      */
     draft(target: FilterConditionInput | string): FilterDraft;
@@ -580,7 +581,7 @@ export interface VisibilityApi {
      * option is off, or while nothing of the kind is asked for. `visibility:not-drawn-changed`
      * fires each time it changes.
      * Experimental: may change or be removed in a minor release.
-     * @since 3.36.0
+     * @since 3.40.0
      * @beta
      */
     readonly notDrawn: readonly HiddenNotDrawn[];
@@ -600,6 +601,14 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * masks' `version`, one per membership, so nothing holding one can change what is visible.
      */
     readonly masks: ScopeVisibilitySource;
+    /**
+     * What the filter and its steps keep, the time window aside: the working graph's masks, so a
+     * time window never changes what layouts, counts and styles read (owner rule 2026-11-12: "the
+     * layout shouldn't change because of the nodes that are / aren't visible due to the
+     * timeline"). Read-only copies, one per membership, as {@link masks}; the same copies as
+     * `masks` while no window is in force.
+     */
+    readonly keptMasks: ScopeVisibilitySource;
     /** The one rule the masks evaluate: the filter AND every step that is on, or null. */
     readonly rule: RuleTree | null;
     /**
@@ -1206,6 +1215,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const nodeMaskValue = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1, sources.onMaskVersion);
     const edgeMaskValue = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1, sources.onMaskVersion);
 
+    // What the filter and its steps keep with no window, for the working graph: evaluated only
+    // while a window is in force.
+    const keptNodes = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1);
+    const keptEdges = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1);
+    let keptTag: {
+        readonly graph: GraphSnapshot;
+        readonly filter: RuleTree | null;
+        readonly inputs: readonly unknown[];
+    } | null = null;
+
     // What the filter alone keeps, for drawing ghosts: evaluated only while ghosting.
     const drawnNodes = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1);
     const drawnEdges = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1);
@@ -1658,10 +1677,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         dispatcher.state.visibility.playback?.outside === "ghost" &&
         (dispatcher.state.visibility.window !== null || slid);
     /**
-     * Whether ghosts are drawn now: asked for, and the working graph off.
+     * Whether ghosts are drawn now: whenever asked for. The time window is not part of the working
+     * graph, so its ghosts keep their places in the one layout, working graph on or off.
      * @returns True when drawn.
      */
-    const timeGhosting = (): boolean => ghostsAsked() && !workingOn();
+    const timeGhosting = ghostsAsked;
 
     /** The condition a reader is editing, whose removals stay drawn as ghosts (`hold`). */
     let held: string | null = null;
@@ -1721,7 +1741,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             ...(dispatcher.state.visibility.showContext ? [hiddenNotDrawn("showContext")] : []),
             ...(held === null ? [] : [hiddenNotDrawn("hold")]),
             ...(heldAll ? [hiddenNotDrawn("full")] : []),
-            ...(ghostsAsked() ? [hiddenNotDrawn("ghost")] : []),
         ]);
     };
     /** What `notDrawn` last told, by its `asked` values. */
@@ -1772,6 +1791,33 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         drawnTag = { graph: active.graph, filter, window, inputs };
 
         return active;
+    };
+
+    /**
+     * Bring the window-free masks up to date: evaluated again only when the graph, the filter or
+     * what it reads changed, so a window step costs nothing here.
+     */
+    const keptUpToDate = (): void => {
+        const active = upToDate();
+        const filter = ruleNow();
+        const inputs = inputsFor(filter, null);
+        if (keptTag?.graph === active.graph && keptTag.filter === filter && sameInputs(keptTag.inputs, inputs)) {
+            return;
+        }
+
+        keptNodes.grow(active.graph.nodeCount);
+        keptEdges.grow(active.graph.edgeCount);
+        keptNodes.clear();
+        keptEdges.clear();
+        if (filter === null) {
+            keptNodes.fill();
+            keptEdges.fill();
+        } else {
+            const compiled = compileVisibility(active.graph, filter, null, passSources(active.graph));
+            runPass({ compiled, edges: keptEdges, graph: active.graph, nodes: keptNodes });
+        }
+
+        keptTag = { graph: active.graph, filter, inputs };
     };
 
     let ghostCache: { readonly key: readonly unknown[]; readonly node: Uint8Array; readonly edge: Uint8Array } | null =
@@ -2676,6 +2722,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const visibleEdgeCopy = copies(edgeMaskValue);
     const drawnNodeCopy = copies(drawnNodes);
     const drawnEdgeCopy = copies(drawnEdges);
+    const keptNodeCopy = copies(keptNodes);
+    const keptEdgeCopy = copies(keptEdges);
 
     return {
         nodeMask(): Uint8Array {
@@ -3061,6 +3109,25 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         masks: {
             nodes: visibleNodeCopy,
             edges: visibleEdgeCopy,
+        },
+
+        keptMasks: {
+            nodes: () => {
+                if (dispatcher.state.visibility.window === null) {
+                    return visibleNodeCopy();
+                }
+
+                keptUpToDate();
+                return keptNodeCopy();
+            },
+            edges: () => {
+                if (dispatcher.state.visibility.window === null) {
+                    return visibleEdgeCopy();
+                }
+
+                keptUpToDate();
+                return keptEdgeCopy();
+            },
         },
 
         get ghosting(): boolean {

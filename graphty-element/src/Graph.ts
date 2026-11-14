@@ -1726,7 +1726,7 @@ export class Graph implements GraphContext {
         this.layoutManager.setScopeSource({
             // What layouts run over while the session reads the working graph, or while
             // `layout.visibleOnly` asks for it: the one way a layout runs over only what is shown.
-            working: () => (this.followsShown(working) ? working.view("visible") : null),
+            working: () => (this.followsShown(working) ? working.filtered() : null),
             nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),

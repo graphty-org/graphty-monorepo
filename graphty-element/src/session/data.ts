@@ -4650,6 +4650,28 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * The rows of one kind the working graph shows, in row order, or null when it shows them all.
+     * @param kind - Nodes or edges.
+     * @param rows - How many rows the kind has.
+     * @returns The shown rows, or null.
+     */
+    private shownRows(kind: "node" | "edge", rows: number): number[] | null {
+        const shown = this.shownOf(kind, undefined);
+        if (shown === null) {
+            return null;
+        }
+
+        const kept: number[] = [];
+        for (let row = 0; row < rows; row++) {
+            if (maskTest(shown, row)) {
+                kept.push(row);
+            }
+        }
+
+        return kept;
+    }
+
+    /**
      * The view a scope-taking reader reads, or null for the whole graph.
      * @param scope - The scope it was asked for; absent, what the working graph says.
      * @returns The view, or null when it is the whole graph.
@@ -5376,12 +5398,18 @@ export class SessionData implements SessionDataApi {
                         (each.measurement === "categorical" || each.measurement === "ordinal"),
                 )
                 .map((each) => each.path);
+        // Over what is shown while the working graph is on: a hidden node is in no group.
+        const rows = this.shownRows("node", snapshot.nodeCount);
+        const rowOf = rows === null ? (index: number) => index : (index: number) => rows[index];
         // ponytail: walked on every call; cache by data revision when a profile is read per frame.
         return overRepresentedValues(
             groupBy,
-            (index) => this.pages.valueAt("node", index, groupBy),
-            snapshot.nodeCount,
-            paths.map((path) => ({ path, valueAt: (index: number) => this.pages.valueAt("node", index, path) })),
+            (index) => this.pages.valueAt("node", rowOf(index), groupBy),
+            rows?.length ?? snapshot.nodeCount,
+            paths.map((path) => ({
+                path,
+                valueAt: (index: number) => this.pages.valueAt("node", rowOf(index), path),
+            })),
         );
     }
 
@@ -5413,9 +5441,13 @@ export class SessionData implements SessionDataApi {
         const labels = this.valueLabels(groupBy);
         const members = new Map<ColumnScalar, number[]>(groups.map((each) => [each.value, []]));
         const groupAt = this.valueReader("node", groupBy);
+        // Over what is shown while the working graph is on, as the group sizes are.
+        const shown = this.shownOf("node", undefined);
         const count = this.current().nodeCount;
         for (let index = 0; summaries.length > 0 && index < count; index++) {
-            members.get(groupAt(index) as ColumnScalar)?.push(index);
+            if (shown === null || maskTest(shown, index)) {
+                members.get(groupAt(index) as ColumnScalar)?.push(index);
+            }
         }
 
         const columns = ["group", ...(labels.size > 0 ? ["label"] : []), "size"];
@@ -5463,10 +5495,12 @@ export class SessionData implements SessionDataApi {
             this.graphStore.directionSettledBy,
         );
         const working = this.pages.working?.();
-        const scope = options.scope ?? (working?.enabled === true ? "visible" : "all");
-        if (working !== undefined && scope === "visible") {
-            // Read over the working graph's view, built once per filter state and shared.
-            const view = working.view("visible");
+        // Naming no scope reads the working graph (the filters, the window aside); "visible" names
+        // what is visible now, the window included.
+        const read = options.scope === undefined ? working?.enabled === true : options.scope === "visible";
+        if (working !== undefined && read) {
+            // Read over the view, built once per filter state and shared.
+            const view = working.view(options.scope === "visible" ? "visible" : undefined);
             if (view.whole) {
                 return derived.statistics;
             }
@@ -5480,7 +5514,7 @@ export class SessionData implements SessionDataApi {
             return held;
         }
 
-        const masks = scope === "visible" ? this.pages.visibleMasks?.() : undefined;
+        const masks = options.scope === "visible" ? this.pages.visibleMasks?.() : undefined;
         if (masks === undefined || (!masks.nodes.includes(0) && !masks.edges.includes(0))) {
             return derived.statistics;
         }

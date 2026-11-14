@@ -10,6 +10,7 @@ import { assert, describe, it } from "vitest";
 import type { UnionLeaf } from "../../../src/catalog/types";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createGraphSession } from "../../../src/session";
+import { workingGraphOfSession } from "../../../src/session/GraphSession";
 import type { ElementSession } from "../../../src/session/types";
 import { lesMiserables } from "../../helpers/les-miserables";
 
@@ -257,27 +258,18 @@ describe("time ghosts and the working graph", () => {
         return session;
     }
 
-    it("draws the nodes outside the window as ghosts with the option off, as before", async () => {
-        const session = await ghostTrace(false);
-        assert.isTrue(session.visibility.ghosting);
-        assert.strictEqual(session.visibility.drawnMasks.nodes().size, 10);
-        assert.deepStrictEqual(asked(session.visibility.notDrawn), []);
-        session.dispose();
-    });
-
-    it("draws nothing outside the window with the option on, says why, and follows the option", async () => {
-        const session = await ghostTrace(true);
-        assert.isFalse(session.visibility.ghosting, "no ghosts");
-        assert.isNull(session.visibility.ghosts());
-        assert.strictEqual(session.visibility.drawnMasks.nodes().size, session.visibility.summary.visibleNodes);
-        assert.deepStrictEqual(asked(session.visibility.notDrawn), ["ghost"]);
-
-        session.workingGraph = false;
-        assert.isTrue(session.visibility.ghosting);
-        assert.strictEqual(session.visibility.drawnMasks.nodes().size, 10);
-        assert.deepStrictEqual(asked(session.visibility.notDrawn), []);
-        session.dispose();
-    });
+    it.each([[false], [true]])(
+        "draws the nodes outside the window as ghosts with the option %s, and keeps them in the view",
+        async (workingGraph) => {
+            const session = await ghostTrace(workingGraph);
+            assert.isTrue(session.visibility.ghosting);
+            assert.strictEqual(session.visibility.drawnMasks.nodes().size, 10);
+            assert.deepStrictEqual(asked(session.visibility.notDrawn), []);
+            // The window is not part of the working graph: every node stays in the view.
+            assert.strictEqual(workingGraphOfSession(session).filtered().nodeCount, 10);
+            session.dispose();
+        },
+    );
 });
 
 describe("telling a consumer that what is not drawn moved", () => {

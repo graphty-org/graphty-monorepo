@@ -512,7 +512,7 @@ export interface StylesApi {
      * @returns Ends the view, the stack's picture back in the same repaint; and `notDrawn`, what
      *   the view asked to draw outside what is shown (`hold`, `base: "full"`) that is not drawn
      *   because the session's `workingGraph` option is on, empty otherwise; read when it is read, so
-     *   it follows the option, and empty once the view has ended (since 3.36.0).
+     *   it follows the option, and empty once the view has ended (since 3.40.0).
      * @throws `E_BAD_COMMAND` for a rule that is not a valid union leaf.
      * @beta
      */
@@ -1059,7 +1059,7 @@ export interface StylesApi {
      * after a data or run change.
      * @param id - The layer.
      * @param options - How to count.
-     * @param options.scope - Which elements are counted (since 3.36.0): `"graph"` the whole graph,
+     * @param options.scope - Which elements are counted (since 3.40.0): `"graph"` the whole graph,
      *     `"visible"` only what the filter and the time window leave shown. Absent, the whole
      *     graph, or what is shown while the session reads the working graph.
      * @returns What it matches, where it wins each channel, and what it could not paint.

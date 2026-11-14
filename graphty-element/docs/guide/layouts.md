@@ -694,8 +694,8 @@ The same scope is the `layoutScope` property and the `layout-scope` attribute (J
 
 ## Laying out only what the filter shows
 
-A layout runs over what is shown -- the nodes and edges the [visibility filter](./filter-conditions)
-and the time window leave visible -- while the element's `workingGraph` option is on, the default,
+A layout runs over what is shown -- the nodes and edges the [filters](./filter-conditions) leave
+visible -- while the element's `workingGraph` option is on, the default,
 and over the whole graph while it is off. Set `layout.visibleOnly` in the layout behaviour to choose for layouts
 alone: `true` lays out only what is shown, `false` the whole graph, hidden nodes included, so the
 shown nodes keep the places the whole graph gave them.
@@ -709,13 +709,11 @@ await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "
 
 - **A hidden node takes no part.** It pushes and pulls nothing, its edges pull nothing, and a
   circle, a grid or any other layout gives it no slot. Every layout honours it, your own included.
-- **The layout runs again when what is shown changes**, and when `visibleOnly` is switched.
+- **The layout runs again when a filter changes what is shown**, and when `visibleOnly` is switched.
 - **A hidden node stays where it was**, so taking the filter away shows it where it last was
   drawn; the layout then runs again over everything shown.
-- **While time plays, it can hold.** A playing [time window](./timeline) changes what the
-  filter shows at every step, so by default the layout runs again at every step. Set
-  `layout.visibleOnlyWhilePlaying: "hold"` to keep the nodes where they are during the play and
-  lay out once, over what is shown, when the play pauses or ends.
+- **The time window never moves it.** A [time window](./timeline) hides what it leaves out by
+  drawing, so a window step, a play and its pause lay nothing out: every node keeps its place.
 - **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and
   those still push and pull on its members unless the filter hides them.
 

@@ -1,6 +1,6 @@
 /**
  * @file The working graph's view (design/working-graph/design.md sections 1 and 6): the part of the
- * original graph the visibility filter and the time window leave shown, derived with
+ * original graph the filters leave shown (never the time window), derived with
  * graph-format's `inducedSubgraph` and `filterEdges`, built once per filter state, shared by every
  * reader, and handed to a run over what is shown instead of a derivation of its own. Builds and
  * derivations are counted, never timed.
@@ -176,21 +176,26 @@ describe("the view", () => {
         harness.session.dispose();
     });
 
-    it("is rebuilt when the filter changes, the window moves or the data changes", async () => {
+    it("is rebuilt when the filter or the data changes, never when the window moves", async () => {
         const harness = harnessOf();
         const working = workingGraphOfSession(harness.session);
 
         await harness.session.visibility.set(HOSTS);
-        assert.deepStrictEqual(idsOf(working.view().snapshot), ["a", "b", "c"]);
+        const filtered = working.view();
+        assert.deepStrictEqual(idsOf(filtered.snapshot), ["a", "b", "c"]);
         assert.strictEqual(workingViewCounters.builds, 1);
 
+        // The time window is not part of the working graph (owner rule 2026-11-12).
         await harness.session.visibility.setWindow(EARLY);
-        assert.deepStrictEqual(idsOf(working.view().snapshot), ["a", "b"]);
+        assert.strictEqual(working.view(), filtered, "a window step leaves the working graph alone");
+        assert.strictEqual(working.filtered(), filtered);
+        assert.strictEqual(workingViewCounters.builds, 1);
+        // Naming "visible" reads what is visible now, the window included.
+        assert.deepStrictEqual(idsOf(working.view("visible").snapshot), ["a", "b"]);
         assert.strictEqual(workingViewCounters.builds, 2);
 
         harness.add([{ id: "f", type: "host", seen: 2 }], [{ src: "a", dst: "f", strength: 5 }]);
-        assert.deepStrictEqual(idsOf(working.view().snapshot), ["a", "b", "f"]);
-        assert.strictEqual(working.view().snapshot.edgeCount, 2);
+        assert.deepStrictEqual(idsOf(working.view().snapshot), ["a", "b", "c", "f"]);
         assert.strictEqual(workingViewCounters.builds, 3);
 
         await harness.session.visibility.setWindow(null);

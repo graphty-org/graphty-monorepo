@@ -1164,8 +1164,8 @@ class Session implements ElementSession {
     }
 
     /**
-     * Whether a reader that names no scope reads the working graph -- what the filter and the time
-     * window leave shown -- rather than the whole graph.
+     * Whether a reader that names no scope reads the working graph -- what the filters leave shown,
+     * the time window aside -- rather than the whole graph.
      * @returns True when on, the default.
      */
     get workingGraph(): boolean {
@@ -4414,7 +4414,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     );
 
     const working = createWorkingGraph(
-        { snapshot, masks: visibility.masks, store: store.store },
+        { snapshot, masks: visibility.masks, kept: visibility.keptMasks, store: store.store },
         options.workingGraph !== false,
     );
     shareInputs(store.store, working.shared);

@@ -1,16 +1,17 @@
 /**
  * @file The working graph (design/working-graph/design.md sections 1 and 6): one view of what the
- * visibility filter and the time window leave shown, which every reader reads when it names no
- * scope and the session's `workingGraph` option is on.
+ * filters leave shown, which every reader reads when it names no scope and the session's
+ * `workingGraph` option is on. The time window is never part of it: a window step hides by
+ * drawing and never changes what layouts, counts or styles read (owner rule 2026-11-12).
  *
  * A VIEW, NOT A COPY. The original snapshot stays the only graph: edits, undo and the project file
  * act on it, and positions, styles, run results and notes stay keyed by its ids. The view holds only
  * structure -- graph-format's `inducedSubgraph` over the visible node mask, then `filterEdges` when
  * an edge filter hides more than the hidden nodes' edges -- plus the row maps both ways.
  *
- * BUILT ONCE PER STATE. The state is the store's snapshot and the two visible masks' read-only
- * copies, which the visibility API replaces exactly when the membership changes: a filter change, a
- * time-window step, a data edit, or an undo or redo of one. A selection, a style or a drawing option
+ * BUILT ONCE PER STATE. The state is the store's snapshot and the two filter masks' read-only
+ * copies (`visibility.keptMasks`), which the visibility API replaces exactly when the membership
+ * changes: a filter change, a data edit, or an undo or redo of one. A selection, a style or a drawing option
  * never touches them, so it never rebuilds the view. Nothing hidden, the view is the snapshot itself.
  * The view is built on its first read in a state, held outside the run cache, and shared: a run over
  * the same membership takes it through `shareInputs` instead of deriving its own.
@@ -58,15 +59,22 @@ export interface WorkingView {
 
 /** The session's working graph. */
 export interface WorkingGraph {
-    /** Whether a reader naming no scope reads what is shown; off, it reads the whole graph. */
+    /** Whether a reader naming no scope reads what the filters show; off, it reads the whole graph. */
     enabled: boolean;
     /**
      * The view a reader reads.
-     * @param scope - `"visible"` for what is shown, `"graph"` for the whole graph; absent, what
-     *   `enabled` says.
+     * @param scope - `"visible"` for what is visible now (the filters and the time window), `"graph"`
+     *   for the whole graph; absent, the working graph (what the filters show, the window aside)
+     *   while `enabled`, else the whole graph.
      * @returns The view, the same object until the state changes.
      */
     view(scope?: WorkingScope): WorkingView;
+    /**
+     * What the filters show, the time window aside, whether or not `enabled`: what a layout over only
+     * what is shown runs over.
+     * @returns The view, the same object until the state changes.
+     */
+    filtered(): WorkingView;
     /** What a run over the visible membership takes instead of deriving, while `enabled`. */
     readonly shared: SharedInputLookup;
 }
@@ -75,8 +83,10 @@ export interface WorkingGraph {
 export interface WorkingGraphSources {
     /** The store's current snapshot. */
     readonly snapshot: () => GraphSnapshot;
-    /** The visible masks; each read returns the same copy until its membership changes. */
+    /** What is visible now (the filters and the time window); each read returns the same copy until its membership changes. */
     readonly masks: ScopeVisibilitySource;
+    /** What the filters keep, the time window aside; the same copies as `masks` while no window is in force. */
+    readonly kept: ScopeVisibilitySource;
     /** The store, which a run's membership names. */
     readonly store: object;
 }
@@ -84,8 +94,8 @@ export interface WorkingGraphSources {
 /** One state's masks, packed, and its view once built. */
 interface State {
     readonly graph: GraphSnapshot;
-    readonly nodeKey: object;
-    readonly edgeKey: object;
+    nodeKey: object;
+    edgeKey: object;
     readonly nodes: U32;
     readonly edges: U32;
     readonly nodeCount: number;
@@ -178,36 +188,60 @@ function wholeView(graph: GraphSnapshot): WorkingView {
 
 /**
  * Build a session's working graph.
- * @param sources - The snapshot, the visible masks and the store.
+ * @param sources - The snapshot, the filter masks and the store.
  * @param enabled - Whether it starts on.
  * @returns The working graph.
  */
 export function createWorkingGraph(sources: WorkingGraphSources, enabled = false): WorkingGraph {
-    let state: State | null = null;
+    // One state per mask source: what the filters keep, and what is visible now. While no window is
+    // in force both read the same copies, so they hold the same view.
+    const states: { kept: State | null; visible: State | null } = { kept: null, visible: null };
     let whole: WorkingView | null = null;
 
     /**
-     * The current state, packed again only when the snapshot or a mask copy changed.
+     * A source's current state, packed again only when the snapshot or a mask copy changed.
+     * @param which - The filters alone, or what is visible now.
      * @returns The state.
      */
-    const current = (): State => {
+    const current = (which: "kept" | "visible"): State => {
+        const masks = which === "kept" ? sources.kept : sources.masks;
         const graph = sources.snapshot();
-        const nodeMask = sources.masks.nodes();
-        const edgeMask = sources.masks.edges();
-        if (state?.graph !== graph || state.nodeKey !== nodeMask || state.edgeKey !== edgeMask) {
-            state = {
-                graph,
-                nodeKey: nodeMask,
-                edgeKey: edgeMask,
-                nodes: nodeMask.pack(graph.nodeCount),
-                edges: edgeMask.pack(graph.edgeCount),
-                nodeCount: nodeMask.size,
-                edgeCount: edgeMask.size,
-                view: null,
-            };
+        const nodeMask = masks.nodes();
+        const edgeMask = masks.edges();
+        const state = states[which];
+        if (state?.graph === graph && state.nodeKey === nodeMask && state.edgeKey === edgeMask) {
+            return state;
         }
 
-        return state;
+        // The other source's state, when it reads the same copies: its view is this one.
+        const other = states[which === "kept" ? "visible" : "kept"];
+        if (other?.graph === graph && other.nodeKey === nodeMask && other.edgeKey === edgeMask) {
+            states[which] = other;
+            return other;
+        }
+
+        const nodes = nodeMask.pack(graph.nodeCount);
+        const edges = edgeMask.pack(graph.edgeCount);
+        // New copies of the same membership (a window coming into force swaps the filter's copies
+        // for its own) keep the view: nothing a reader reads changed.
+        if (state?.graph === graph && sameWords(state.nodes, nodes) && sameWords(state.edges, edges)) {
+            state.nodeKey = nodeMask;
+            state.edgeKey = edgeMask;
+            return state;
+        }
+
+        const next: State = {
+            graph,
+            nodeKey: nodeMask,
+            edgeKey: edgeMask,
+            nodes,
+            edges,
+            nodeCount: nodeMask.size,
+            edgeCount: edgeMask.size,
+            view: null,
+        };
+        states[which] = next;
+        return next;
     };
 
     /**
@@ -258,33 +292,49 @@ export function createWorkingGraph(sources: WorkingGraphSources, enabled = false
         return at.view;
     };
 
+    /**
+     * A state's view, or the whole graph's when it hides nothing.
+     * @param at - The state.
+     * @returns The view.
+     */
+    const viewOf = (at: State): WorkingView =>
+        at.nodeCount === at.graph.nodeCount && at.edgeCount === at.graph.edgeCount ? wholeOf(at.graph) : built(at);
+
+    /**
+     * A state's derived input, when a run's membership is exactly that state's.
+     * @param at - The state.
+     * @param membership - The run's membership.
+     * @param declared - The snapshot the run declared.
+     * @returns The input, or undefined.
+     */
+    const sharedOf = (at: State, membership: InputMembership, declared: GraphSnapshot): DerivedInput | undefined =>
+        at.graph !== declared ||
+        (at.nodeCount === at.graph.nodeCount && at.edgeCount === at.graph.edgeCount) ||
+        !sameWords(at.nodes, membership.nodes) ||
+        !sameWords(at.edges, membership.edges)
+            ? undefined
+            : built(at).input;
+
     const working: WorkingGraph = {
         enabled,
         view(scope?: WorkingScope): WorkingView {
-            const asked = scope ?? (working.enabled ? "visible" : "graph");
-            const at = current();
-            if (asked === "graph" || (at.nodeCount === at.graph.nodeCount && at.edgeCount === at.graph.edgeCount)) {
-                return wholeOf(at.graph);
+            if (scope === "graph" || (scope === undefined && !working.enabled)) {
+                return wholeOf(sources.snapshot());
             }
 
-            return built(at);
+            return viewOf(current(scope === "visible" ? "visible" : "kept"));
+        },
+        filtered(): WorkingView {
+            return viewOf(current("kept"));
         },
         shared(membership: InputMembership, declared: GraphSnapshot): DerivedInput | undefined {
             if (!working.enabled || membership.store !== sources.store) {
                 return undefined;
             }
 
-            const at = current();
-            if (
-                at.graph !== declared ||
-                (at.nodeCount === at.graph.nodeCount && at.edgeCount === at.graph.edgeCount) ||
-                !sameWords(at.nodes, membership.nodes) ||
-                !sameWords(at.edges, membership.edges)
-            ) {
-                return undefined;
-            }
-
-            return built(at).input;
+            return (
+                sharedOf(current("kept"), membership, declared) ?? sharedOf(current("visible"), membership, declared)
+            );
         },
     };
 

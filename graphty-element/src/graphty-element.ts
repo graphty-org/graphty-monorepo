@@ -6683,7 +6683,7 @@ export class Graphty extends LitElement {
      * A session setting, the same one as `session.workingGraph`: it records no undo step and is not
      * saved in a project file.
      * @returns True when on.
-     * @since 3.36.0
+     * @since 3.40.0
      * @example HTML attribute
      * ```html
      * <graphty-element working-graph="false"></graphty-element>

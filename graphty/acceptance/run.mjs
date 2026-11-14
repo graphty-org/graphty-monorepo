@@ -449,7 +449,7 @@ async function walk(chromium, route, origin) {
 }
 
 // The pieces the production smoke test (smoke.mjs) walks the same routes with, in a software-drawn browser.
-export { eventually, hands, readersOf, serve };
+export const smokeKit = { eventually, hands, readersOf, serve };
 
 // ---------------------------------------------------------------- entry
 

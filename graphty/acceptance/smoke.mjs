@@ -32,7 +32,9 @@ import { parseArgs } from "node:util";
 
 import { PNG } from "pngjs";
 
-import { eventually, hands, readersOf, select, serve } from "./run.mjs";
+import { select, smokeKit } from "./run.mjs";
+
+const { eventually, hands, readersOf, serve } = smokeKit;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");

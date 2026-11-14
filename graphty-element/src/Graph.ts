@@ -7,28 +7,22 @@ import "./algorithms/index"; // register all internal algorithms
 import "@babylonjs/core/Culling/ray.js";
 import "@babylonjs/core/Animations/animatable.js";
 
-import {
-    type AbstractEngine,
-    AbstractMesh,
-    Animation,
-    Camera,
-    CubicEase,
-    EasingFunction,
-    type Effect,
-    Engine,
-    type Nullable,
-    NullEngine,
-    Observable,
-    type Observer,
-    PointerEventTypes,
-    Quaternion,
-    RenderingGroup,
-    Scene,
-    type SubMesh,
-    Vector3,
-    WebGPUEngine,
-    WebXRDefaultExperience,
-} from "@babylonjs/core";
+import type { AbstractEngine, Nullable, Observer } from "@babylonjs/core";
+import { Animation } from "@babylonjs/core/Animations/animation.js";
+import { CubicEase, EasingFunction } from "@babylonjs/core/Animations/easing.js";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
+import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
+import type { Effect } from "@babylonjs/core/Materials/effect.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
+import { Observable } from "@babylonjs/core/Misc/observable.js";
+import { RenderingGroup } from "@babylonjs/core/Rendering/renderingGroup.js";
+import { Scene } from "@babylonjs/core/scene.js";
+import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
@@ -1375,6 +1369,9 @@ export class Graph implements GraphContext {
         this.layoutManager.onRest = () => {
             dispatcherOf(this.session).arrangement.rest();
         };
+        this.layoutManager.onMotion = (motion) => {
+            this.session.layoutMotion(motion);
+        };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
         // Not the write being derived: a replacing import runs until its own placement pass, and
@@ -2704,6 +2701,8 @@ export class Graph implements GraphContext {
 
                     this.reportSettlementChange();
                 }
+
+                this.layoutManager.checkMotion();
             });
         });
 

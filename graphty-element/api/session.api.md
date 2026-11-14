@@ -650,6 +650,7 @@ export interface CommandOutcomeMap {
     "data.setFileStyles": Promise<void>;
     "data.setSource": Promise<void>;
     "data.source-expand": Promise<void>;
+    "layout.rerun": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
     "layout.transport": Promise<void>;
@@ -975,6 +976,7 @@ export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" |
 export interface DraftRow {
     readonly line: number;
     readonly missingEnds?: readonly EdgeEnd[];
+    readonly reason?: RowReason;
     readonly values: Readonly<Record<string, unknown>>;
 }
 
@@ -1020,6 +1022,12 @@ export interface EdgeMember {
     readonly ordinal?: number;
     readonly source: NodeId;
     readonly target: NodeId;
+}
+
+// @public
+export interface EdgeName {
+    readonly source: NodeName;
+    readonly target: NodeName;
 }
 
 // @public
@@ -2812,6 +2820,24 @@ export interface GroupOverlap {
 }
 
 // @public
+export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
+
+// @public
+export interface GroupTable {
+    readonly columns: readonly string[];
+    readonly groupBy: Path;
+    readonly rows: readonly GroupTableRow[];
+}
+
+// @public
+export interface GroupTableOptions {
+    readonly summaries?: Readonly<Record<Path, readonly GroupSummary[]>>;
+}
+
+// @public
+export type GroupTableRow = Readonly<Record<string, string | number | boolean | null>>;
+
+// @public
 export interface HighlightSpec {
     readonly field?: string;
     readonly name?: string;
@@ -2862,7 +2888,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -2908,6 +2934,9 @@ export interface HopsLeaf {
     readonly max?: number;
     readonly of?: StepReference;
 }
+
+// @public
+export const IMPORT_ROWS_KEPT = 100;
 
 // @public
 export interface ImportColumnsInput {
@@ -3278,6 +3307,9 @@ export interface LayerUnmatchedGroup {
 }
 
 // @public
+export type LayoutMotion = "running" | "paused" | "settled";
+
+// @public
 export interface LayoutRecommendation {
     readonly fact: CodedFact<LayoutRecommendationCode>;
     readonly layout: LayoutDescriptor;
@@ -3549,6 +3581,10 @@ export interface LoadReport extends ImportReport {
     readonly kinds?: {
         readonly sharedIds: number;
         readonly byKind: Readonly<Record<string, number>>;
+    };
+    readonly rows?: {
+        readonly rejected: readonly DraftRow[];
+        readonly unmatched: readonly DraftRow[];
     };
     readonly styles?: LoadStyleReport;
     readonly tooLarge: TooLargeDetails | null;
@@ -3848,6 +3884,13 @@ export function nodeConditions<F extends ConditionField>(selector: Selector_2, f
 
 // @public
 export type NodeId = string | number;
+
+// @public
+export interface NodeName {
+    readonly id: NodeId_2;
+    readonly labeled: boolean;
+    readonly name: string;
+}
 
 // @public
 export interface NodeRecord {
@@ -4987,6 +5030,15 @@ export interface RowParts {
 }
 
 // @public
+export interface RowReason {
+    readonly code: RowReasonCode;
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export type RowReasonCode = "refused-row" | "unknown-end";
+
+// @public
 export interface RowSpec extends Omit<LayerSpec, "target" | "set" | "encode" | "row"> {
     readonly encode?: RowEncoding;
     readonly set?: RowStyle;
@@ -5913,6 +5965,11 @@ export interface SessionDataApi {
     };
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
+    edgeName(edge: {
+        readonly source: NodeId_2;
+        readonly target: NodeId_2;
+    }): EdgeName;
+    edgeName(edge: EdgeId): EdgeName | undefined;
     edgePage(options: EdgePageOptions & {
         readonly columns: readonly ResultColumn[];
     }): RecordPage<EdgeRecord> & {
@@ -5927,6 +5984,7 @@ export interface SessionDataApi {
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
+    groupTable(groupBy: Path, options?: GroupTableOptions): GroupTable;
     hiddenColumns(): readonly ColumnRef[];
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
@@ -5951,6 +6009,7 @@ export interface SessionDataApi {
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
+    nodeName(id: NodeId_2): NodeName;
     nodePage(options: RecordPageOptions & {
         readonly columns: readonly ResultColumn[];
     }): RecordPage<NodeRecord> & {
@@ -6035,6 +6094,9 @@ export interface SessionEventMap {
     };
     "journal:appended": {
         readonly entry: JournalEntry;
+    };
+    "layout:motion-changed": {
+        readonly motion: LayoutMotion;
     };
     "model:changed": ModelChange;
     "network:pending": NetworkRequest;
@@ -6154,8 +6216,10 @@ export interface SessionLayout {
     readonly engine: string;
     readonly id: LayoutId;
     locationColumns(): LocationColumns;
+    readonly motion: LayoutMotion;
     optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
     readonly options: Readonly<Record<string, unknown>>;
+    rerun(): Promise<void>;
     set(id: LayoutId, options?: {
         readonly engine?: string;
         readonly options?: Readonly<Record<string, unknown>>;

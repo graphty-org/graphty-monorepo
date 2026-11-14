@@ -907,6 +907,33 @@ export function assertCalled(result: LlmRegressionResult, name: string | readonl
 }
 
 /**
+ * What a message's requests show of web content: whether a tool result read on the web (a research
+ * helper's answer) reached the model -- which marks the conversation, so every later write is
+ * refused for web content -- and the calls refused for it, each counted once though every later
+ * request repeats it. A model told its changes would be refused may make none (#7871), so a test
+ * judges the mark, which the element guarantees, and counts the refusals.
+ * @param requests - The message's requests.
+ * @returns The mark and the refused calls.
+ */
+export function webContentOf(requests: readonly TurnRequest[]): { marked: boolean; refused: number } {
+    const parts = requests.flatMap((request) => request.messages.flatMap((message) => message.parts));
+    const refused = new Set(
+        parts.flatMap((part) =>
+            part.type === "tool-result" &&
+            part.code === "AI_TOOL_DENIED_BY_POLICY" &&
+            part.params.reason === "web-content"
+                ? [part.callId]
+                : [],
+        ),
+    );
+
+    return {
+        marked: parts.some((part) => part.type === "tool-result" && part.origin === "web"),
+        refused: refused.size,
+    };
+}
+
+/**
  * Named CSS colors mapping to their hex values.
  * Used for color normalization in isColorMatch.
  */

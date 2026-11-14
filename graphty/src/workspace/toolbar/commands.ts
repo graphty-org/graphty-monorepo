@@ -318,7 +318,7 @@ export const registration = defineRegistration({
                     workspace.set({
                         inspected: { kind: "neighborhood", id: neighborhoodKey(center, depth) },
                         announcement: neighborhoodWords(
-                            session.data.name(center) ?? String(center),
+                            session.data.nodeName(center).name,
                             nodes.filter((node) => node !== center).length,
                             depth,
                         ),

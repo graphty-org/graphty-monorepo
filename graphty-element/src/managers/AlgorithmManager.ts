@@ -217,7 +217,7 @@ export class AlgorithmManager implements Manager {
         // The note is appended here rather than in each algorithm because the merge is the
         // element's doing, not any one algorithm's.
         const { caveats } = result.summary();
-        const policy = (algorithm.constructor as typeof Algorithm).parallelEdges ?? "sum";
+        const policy = algorithm.parallelEdgePolicy() ?? "sum";
         const merged = policy === "none" ? 0 : mergedParallelEdges(this.graph.getDataManager());
         const mergedFact = caveat("parallel-edges.merged", { count: merged, policy });
         const stated =

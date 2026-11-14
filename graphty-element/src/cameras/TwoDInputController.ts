@@ -1,5 +1,6 @@
 // TwoDInputController.ts
-import { type Observer, PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babylonjs/core";
+import type { Observer, PointerInfoPre } from "@babylonjs/core";
+import { PointerEventTypes, type PointerInfo } from "@babylonjs/core/Events/pointerEvents.js";
 import Hammer from "hammerjs";
 
 import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";

@@ -313,7 +313,11 @@ The join shader reads six points as attributes. A new define `EDGE_PULLED` build
 `gl_VertexID`, an edge table texture of two row numbers (8 MB at a million) and `texelFetch`; every later line is untouched, so the line
 draws the same pixels (0 on all four renderer and API pairs), and a million-edge move uploads 1.5 MB, not 80 MB. **Pulled edges are one
 non-instanced `gl_VertexID` draw on every renderer, never instanced**: instancing gains nothing on the RTX and is 4 to 6 times slower on
-SwiftShader. The 14-vertex form needs an index buffer, 120 MB at capacity 2^20; expanded lines take 1,408 MB.
+SwiftShader. The draw is unindexed (stage 123, #6389): `gl_VertexID / 30` is the draw slot and the rest the corner, which
+the shader's own copy of the template's index list turns into a template vertex (6 corners for the lean and animated programs).
+Correction: this section said the 14-vertex form needs an index buffer, 120 MB at capacity 2^20; it needs none. While pieces
+of two widths interleave, a draw order table (a float a slot, `edgeOrder`) names the piece each slot draws, which the index
+list's order did before (#6392); with one width no table is read. Expanded lines take 1,408 MB.
 
 `repeatPerVertex` is deleted at stage 16, once pulled edges are the path: expanded lines die past 524,288 pieces on SwiftShader, which is why
 software renderers cannot load a million edges. Object lines there then draw instanced as on hardware: 0 pixels different, 15-53% slower.
@@ -1325,6 +1329,27 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   378 and 491 ms, all under `finish`, before; after, 270 and 311 ms under the one first-frame read (the GPU drawing
   and uploading the first complete frame: 1M pulled lines) and 75-78 ms under `finish` for still frames drawn after
   the load returned, inside the profile window.
+- **The first freeze and layout start (stage 121).** Under `"batched"` an edge added in the session with no file id
+  is no longer completed at the freeze: its ordinal and among already read -1 by default, and its row is marked in an
+  internal u8 edge column, `graphty.edgeHashDeferred` (`GraphStore.recordIngestedEdge`, `deferMinted`), declared only
+  when the first such edge is recorded, so an objects-path store never carries it. `identityColumnsOf` fills the hash
+  of every marked row from the `graphty.edgeId` counter the first time a snapshot's identity is read (a saved set
+  binding, a membership digest), undo completes a marked edge again as a new one, and the data digest reads the
+  filled hashes and leaves the marker out, so both paths give the same hashes and digests. The marker, not an unset
+  hash cell, says a hash is deferred: a hash column written whole (a file import) has no unset cells, and a snapshot
+  frozen while a load is open has unset cells that are not deferred
+  (`test/session/import-columns.test.ts`, minted ids hashed while a batched load freezes: 0). The objects path
+  hashes at the freeze as before. Profiled, 100k + 1M, interleaved, load average 17-22: `getSnapshot` 946 to 247 ms
+  (identity completion 782 to 11 ms); what is left is graph-format's own freeze (143-222 ms). Correction to the stage
+  note "starting a layout at 1M + 1M rebuilds the snapshot in about 1.2 s": the layout reads the snapshot the load
+  froze and freezes nothing (`test/browser/batched-layout-start.test.ts`). Its cost was the rows drawn with no
+  `Node` gathered into a set three times (`LayoutManager.columnRows`, about 0.25 s at 1M) and the undirected view a
+  simulation loads (`GraphStore.undirected`, graph-format `toUndirected`, 0.26-0.46 s profiled), derived once per
+  snapshot and already reused by the next layout. The rows are now a mask, gathered once, and not at all for the
+  `Node` filter when a batched load built none. `setLayout` to first frame at 1M + 1M, unprofiled, interleaved: master
+  1.21 and 1.23 s, branch 0.96 and 0.95 s; the 0.5 s target is missed by the undirected derive, which only a
+  derive ahead of the layout (more heap held for every batched load, against stage 111's target) or a cheaper
+  symmetrization in graph-format would remove.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.
@@ -2021,6 +2046,17 @@ unoptimized and boxed a number per coordinate (about 16 MB over 60 layout frames
 one loop per function. The framing walk at a layout's start and settle still allocates a few vectors per row; it is
 not per frame. `test/browser/batched-still-frame-allocates-nothing-per-row.test.ts` counts the bytes a still frame
 allocates at two sizes.
+
+Stage 122 (still-frame collection at 1M) found the same at 1M + 1M, on master f6a0dc7ebc (WebGL drawing, `lean`,
+batched, `renderCeiling` and `edgesDrawn` 2,000,000), so it changes no code. Counted with the sampling heap profiler
+(64-byte interval, collected objects kept) over 120 still frames after a 300-frame warm-up, a still frame allocates
+about 13.9 KB at 1M + 1M and the same at 100k + 1M (1.62 MB and 1.63 MB over the stage): nothing per row, the same
+fixed work stage 116 named. Correction to the 2026-11-12 comparison: its 2.4 ms of collection per still frame at
+1M + 1M was again the memory reducer, one major collection of the loaded heap (a single `MajorGC` of 52 ms in a
+trace, `GCFinalizeMCReduceMemory`, 653 MB to 618 MB; 39-199 ms over the stage across three profiles, each time one
+burst) that lands in the first still frames after a load. After the warm-up the still frames spent 0.6-1.3 ms
+collecting over 120 frames, 0.005-0.011 ms a frame, under the 0.5 ms target. What that one collection costs scales
+with the live heap, which is stage 111's target, not a still frame's.
 
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

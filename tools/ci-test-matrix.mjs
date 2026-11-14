@@ -99,12 +99,15 @@ const OFF_SHARDS = [
         "test-command": "pnpm exec nx run graph-format:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
-    // graph-io - single shard (Node.js, no browser); resolves @graphty/graph-format through graph-format/dist
+    // graph-io - single shard (Node.js, no browser); resolves @graphty/graph-format through graph-format/dist.
+    // needs-schema-python installs lxml and jsonschema (tools/schema-python.sh) and sets GRAPH_IO_REQUIRE_SCHEMAS,
+    // so the conformance suite's schema layer runs, and fails rather than skips without that Python (#7188).
     {
         shard: "graph-io",
         package: "graph-io",
         "test-command": "pnpm exec nx run graph-io:coverage --exclude-task-dependencies",
         "needs-browser": false,
+        "needs-schema-python": true,
     },
     // graph-io network sources in Chromium: CORS refusals and the blocked-request diagnosis against a
     // local server on another origin (vitest.browser.config.ts); no coverage, the node shard measures the package

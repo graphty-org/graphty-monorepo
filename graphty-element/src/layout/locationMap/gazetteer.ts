@@ -1,29 +1,20 @@
 /**
  * @file Place names to coordinates: the gazetteer the location map layout reads a column of
- * countries, regions or cities with. Three layers, one gzipped JSON file each, hosted at
- * {@link GAZETTEER_URL} (built by `scripts/build-gazetteer.mjs`), fetched on first use and kept for
- * the page. Matching is offline once a layer is here.
+ * countries, regions or cities with. Three layers (countries, regions, cities), each loaded on first
+ * use from the optional package `@graphty/gazetteer`, or from the consumer's own source (the layout's
+ * `gazetteer` option), and kept for the page. Nothing is fetched from the network by this module.
  *
  * Babylon-free and DOM-free: the session's planning and issues read it.
  */
 
+import { missingPackage } from "../../ai/missingPackage";
 import { GraphtyError } from "../../errors/GraphtyError";
-
-/** Where graphty.app hosts the gazetteer; the location map layout's `gazetteer` option default. */
-export const GAZETTEER_URL = "https://graphty.app/data/gazetteer/v1/";
 
 /** What kind of place a column names. */
 export type PlaceRole = "country" | "region" | "city";
 
 /** The roles, coarsest first: the order ties are broken in. */
 export const PLACE_ROLES: readonly PlaceRole[] = ["country", "region", "city"];
-
-/** Each layer's file under the gazetteer's address. */
-const PLACE_FILES: Readonly<Record<PlaceRole, string>> = {
-    country: "countries.json.gz",
-    region: "regions.json.gz",
-    city: "cities.json.gz",
-};
 
 /** A credit a map shows while a layer's places are drawn. */
 interface PlaceCredit {
@@ -32,8 +23,8 @@ interface PlaceCredit {
 }
 
 /**
- * One layer's file, as `scripts/build-gazetteer.mjs` writes it: `places` rows hold `fields` in
- * order, `[name, alternates, country, region, latitude, longitude, population]`. `country` is the
+ * One layer's file, as `@graphty/gazetteer` holds it (built by its `scripts/build-gazetteer.mjs`):
+ * `places` rows hold `fields` in order, `[name, alternates, country, region, latitude, longitude, population]`. `country` is the
  * ISO 3166-1 alpha-2 code; `region` is the first-level region key (`"US.TX"`), null for a country
  * or a region with no key. The city layer also names the regions its cities are in, by key.
  */
@@ -151,12 +142,64 @@ function layerFromFile(file: unknown): GazetteerLayer {
     return { role: f.layer, attribution: f.attribution ?? null, byName, regionKeys };
 }
 
-/** The layers fetched or being fetched, by address. A failed fetch is forgotten. */
-const loading = new Map<string, Promise<GazetteerLayer>>();
-/** The layers here, by address. */
-const loaded = new Map<string, GazetteerLayer>();
-/** The address of the gazetteer loaded last, which the data issues read. */
-let lastBase: string | null = null;
+/**
+ * Where the gazetteer's layers come from (the location map layout's `gazetteer` option): `true` for
+ * the optional package `@graphty/gazetteer`, loaded on first use; or the consumer's own layer files,
+ * by role. A layer file is what `@graphty/gazetteer` holds: `{ format: "graphty-gazetteer",
+ * version: 1, layer, attribution, places }`. Plain data only, never a function: layout options are
+ * command arguments and project state, copied with `structuredClone` and saved as JSON.
+ */
+export type GazetteerSource = true | Readonly<Partial<Record<PlaceRole, unknown>>>;
+
+/**
+ * Whether a value is a gazetteer source: `true`, or a plain object of layer files.
+ * @param value - The value.
+ * @returns True for a source.
+ */
+export function isGazetteerSource(value: unknown): value is GazetteerSource {
+    return (
+        value === true ||
+        (typeof value === "object" && value !== null && Object.getPrototypeOf(value) === Object.prototype)
+    );
+}
+
+/** The package the default source loads. */
+const GAZETTEER_PACKAGE = "@graphty/gazetteer";
+
+/**
+ * One layer from `@graphty/gazetteer`, loaded on first use: it is an optional peer, so it is never
+ * imported statically (src/ai/missingPackage.ts says why).
+ * @param role - The layer.
+ * @returns The layer's file.
+ * @throws A `GraphtyError` with code `E_MISSING_PACKAGE` (`details.package` `@graphty/gazetteer`)
+ *     when the package is not installed.
+ */
+async function packageLayer(role: PlaceRole): Promise<unknown> {
+    let gazetteer: { loadLayer: (role: PlaceRole) => Promise<unknown> };
+    try {
+        gazetteer = await import("@graphty/gazetteer");
+    } catch (error) {
+        throw missingPackage(GAZETTEER_PACKAGE, "location-map-place-names", error);
+    }
+
+    return gazetteer.loadLayer(role);
+}
+
+/**
+ * The object a source's layers are kept under: the package's loader stands for `true`.
+ * @param source - The source.
+ * @returns The key.
+ */
+function keyOf(source: GazetteerSource): object {
+    return source === true ? packageLayer : source;
+}
+
+/** The layers loaded or being loaded, by source. A failed load is forgotten. */
+const loading = new WeakMap<object, Map<PlaceRole, Promise<GazetteerLayer>>>();
+/** The layers here, by source. */
+const loaded = new WeakMap<object, Gazetteer>();
+/** The source loaded last, which the data issues read. */
+let lastSource: GazetteerSource | null = null;
 /** Counts the layers loaded, so a reader that keeps answers knows when to read again. */
 let generation = 0;
 
@@ -166,22 +209,6 @@ let generation = 0;
  */
 export function gazetteerGeneration(): number {
     return generation;
-}
-
-/**
- * A file's bytes as text, gunzipped when they are gzip (a server that sent them with
- * `Content-Encoding: gzip` already did).
- * @param response - The response.
- * @returns The text.
- */
-async function gunzipText(response: Response): Promise<string> {
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) {
-        return new TextDecoder().decode(bytes);
-    }
-
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-    return new Response(stream).text();
 }
 
 /**
@@ -198,39 +225,56 @@ function layersFor(role: PlaceRole | "auto"): readonly PlaceRole[] {
 }
 
 /**
- * Fetch the layers a role needs from a gazetteer address, once per page.
- * @param base - The address, ending in `/`.
+ * One layer's file from a source.
+ * @param source - The source.
+ * @param role - The layer.
+ * @returns The file, unchecked.
+ */
+async function layerFileOf(source: GazetteerSource, role: PlaceRole): Promise<unknown> {
+    if (source === true) {
+        return packageLayer(role);
+    }
+
+    return source[role];
+}
+
+/**
+ * Load the layers a role needs from a source, once per page.
+ * @param source - The source.
  * @param role - The role.
  * @returns The layers.
- * @throws A `GraphtyError` with code `E_FETCH_FAILED` when a layer could not be fetched or read.
+ * @throws A `GraphtyError` with code `E_MISSING_PACKAGE` when the source is `@graphty/gazetteer`
+ *     and it is not installed, or `E_FETCH_FAILED` when a layer could not be loaded or read.
  */
-export async function loadGazetteer(base: string, role: PlaceRole | "auto"): Promise<Gazetteer> {
+export async function loadGazetteer(source: GazetteerSource, role: PlaceRole | "auto"): Promise<Gazetteer> {
     const roles = layersFor(role);
-    lastBase = base;
+    const key = keyOf(source);
+    lastSource = source;
+    let pendings = loading.get(key);
+    if (pendings === undefined) {
+        pendings = new Map();
+        loading.set(key, pendings);
+    }
+
+    const pendingOf = pendings;
     const layers = await Promise.all(
         roles.map((each) => {
-            const url = new URL(PLACE_FILES[each], base).href;
-            let pending = loading.get(url);
+            let pending = pendingOf.get(each);
             if (pending === undefined) {
                 pending = (async () => {
-                    const response = await fetch(url);
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${String(response.status)}`);
-                    }
-
-                    const layer = layerFromFile(JSON.parse(await gunzipText(response)));
-                    loaded.set(url, layer);
+                    const layer = layerFromFile(await layerFileOf(source, each));
+                    loaded.set(key, { ...loaded.get(key), [each]: layer });
                     generation++;
                     return layer;
                 })().catch((error: unknown) => {
-                    loading.delete(url);
+                    pendingOf.delete(each);
                     throw GraphtyError.wrap(error, {
                         code: "E_FETCH_FAILED",
                         source: "layout",
-                        details: { layout: "location-map", url },
+                        details: { layout: "location-map", layer: each },
                     });
                 });
-                loading.set(url, pending);
+                pendingOf.set(each, pending);
             }
 
             return pending;
@@ -240,24 +284,12 @@ export async function loadGazetteer(base: string, role: PlaceRole | "auto"): Pro
 }
 
 /**
- * The layers of a gazetteer already here, without fetching.
- * @param base - The address; the one loaded last when absent.
+ * The layers of a gazetteer already here, without loading.
+ * @param source - The source; the one loaded last when absent.
  * @returns The layers here, possibly none.
  */
-export function cachedGazetteer(base: string | null = lastBase): Gazetteer {
-    const out: Gazetteer = {};
-    if (base === null) {
-        return out;
-    }
-
-    for (const role of PLACE_ROLES) {
-        const layer = loaded.get(new URL(PLACE_FILES[role], base).href);
-        if (layer !== undefined) {
-            out[role] = layer;
-        }
-    }
-
-    return out;
+export function cachedGazetteer(source: GazetteerSource | null = lastSource): Gazetteer {
+    return source === null ? {} : { ...loaded.get(keyOf(source)) };
 }
 
 /**

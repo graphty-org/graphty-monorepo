@@ -79,8 +79,9 @@ export function writeDeclarationShims({ packageRoot, entries, extraShims = {} })
  * @param options.packageRoot the package's directory
  * @param options.entries output name under dist/ to source entry, relative to packageRoot
  * @param options.extraShims see writeDeclarationShims
+ * @param options.sourcemap whether to write source maps (default true; gazetteer, whose modules are data, writes none)
  */
-export async function buildBundle({ build, packageRoot, entries, extraShims }) {
+export async function buildBundle({ build, packageRoot, entries, extraShims, sourcemap = true }) {
     try {
         const entry = Object.fromEntries(
             Object.entries(entries).map(([name, source]) => [name, path.resolve(packageRoot, source)]),
@@ -104,7 +105,7 @@ export async function buildBundle({ build, packageRoot, entries, extraShims }) {
                     },
                 },
                 minify: false,
-                sourcemap: true,
+                sourcemap,
             },
         });
 

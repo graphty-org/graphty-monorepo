@@ -161,6 +161,19 @@ const config: KnipConfig = {
             project: ["src/**/*.ts!", "data/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
+        // gazetteer package: the root and one subpath per layer are entries; data/ is the layers, imported by them
+        gazetteer: {
+            entry: [
+                "src/index.ts!",
+                "src/countries.ts!",
+                "src/regions.ts!",
+                "src/cities.ts!",
+                "test/**/*.test.ts",
+                "scripts/**/*.{js,mjs}",
+            ],
+            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{js,mjs}"],
+        },
+
         // babylonjs-map package: the root and the Babylon-free "./location" and "./projection" subpaths are entries
         "babylonjs-map": {
             entry: ["src/index.ts!", "src/location/index.ts!", "src/projection/index.ts!", "test/**/*.test.ts"],
@@ -305,7 +318,7 @@ const config: KnipConfig = {
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
-                // The optional peers: the GPU package, Graphviz and the key store. Each is an optional
+                // The optional peers: the GPU package, the gazetteer, Graphviz and the key store. Each is an optional
                 // peer and an exact devDependency, imported from src so the element works without it
                 // and lights up with it. `lint:knip:prod` runs --strict, which reads only peers and
                 // dependencies, and would report them as unlisted; the default run resolves them as
@@ -313,6 +326,7 @@ const config: KnipConfig = {
                 ...(production
                     ? [
                           "@graphty/webgpu-graph-algorithms",
+                          "@graphty/gazetteer",
                           "encrypt-storage",
                           "@hpcc-js/wasm-graphviz",
                           // the types of React, for the types-only ./jsx entry (dist/jsx.d.ts imports

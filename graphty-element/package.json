@@ -181,6 +181,7 @@
     "devDependencies": {
         "@babylonjs/core": "^8.36.1",
         "@babylonjs/loaders": "8.56.2",
+        "@graphty/gazetteer": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": "1.29.2",
@@ -233,6 +234,7 @@
     "peerDependencies": {
         "@babylonjs/core": "^8.0.0",
         "@babylonjs/loaders": "^8.0.0",
+        "@graphty/gazetteer": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": ">=1.29.0",
         "@mlc-ai/web-llm": ">=0.2.0",
@@ -242,6 +244,9 @@
         "neo4j-driver": "^5.0.0"
     },
     "peerDependenciesMeta": {
+        "@graphty/gazetteer": {
+            "optional": true
+        },
         "@graphty/webgpu-graph-algorithms": {
             "optional": true
         },

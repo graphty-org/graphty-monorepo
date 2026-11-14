@@ -1,0 +1,102 @@
+{
+    "name": "@graphty/gazetteer",
+    "version": "0.1.0",
+    "private": false,
+    "description": "Place names with coordinates for offline lookup: Natural Earth countries and first-level regions, and GeoNames cities of 15,000 people or more, one ES module per layer",
+    "author": "Adam Powers <apowers@ato.ms>",
+    "type": "module",
+    "main": "dist/gazetteer.js",
+    "types": "dist/gazetteer.d.ts",
+    "typesVersions": {
+        "*": {
+            "countries": [
+                "dist/countries.d.ts"
+            ],
+            "regions": [
+                "dist/regions.d.ts"
+            ],
+            "cities": [
+                "dist/cities.d.ts"
+            ]
+        }
+    },
+    "exports": {
+        ".": {
+            "types": "./dist/gazetteer.d.ts",
+            "import": "./dist/gazetteer.js",
+            "default": "./dist/gazetteer.js"
+        },
+        "./countries": {
+            "types": "./dist/countries.d.ts",
+            "import": "./dist/countries.js",
+            "default": "./dist/countries.js"
+        },
+        "./regions": {
+            "types": "./dist/regions.d.ts",
+            "import": "./dist/regions.js",
+            "default": "./dist/regions.js"
+        },
+        "./cities": {
+            "types": "./dist/cities.d.ts",
+            "import": "./dist/cities.js",
+            "default": "./dist/cities.js"
+        }
+    },
+    "sideEffects": false,
+    "files": [
+        "dist/*.js",
+        "dist/*.d.ts",
+        "dist/src/**/*.d.ts",
+        "README.md",
+        "LICENSE",
+        "NOTICE"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "engines": {
+        "node": ">=18.19.0"
+    },
+    "scripts": {
+        "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+        "build:bundle": "node scripts/build-bundle.js",
+        "build:all": "npm run build && npm run build:bundle",
+        "data:build": "node scripts/build-gazetteer.mjs",
+        "lint": "eslint && tsc --noEmit -p tsconfig.json",
+        "lint:fix": "eslint --fix",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "test": "vitest",
+        "test:run": "vitest run",
+        "coverage": "vitest run --coverage",
+        "ready:commit": "npm run build:all && npm run lint && npm run test:run"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "gazetteer"
+    },
+    "keywords": [
+        "gazetteer",
+        "geocoding",
+        "place-names",
+        "countries",
+        "regions",
+        "cities",
+        "geonames",
+        "natural-earth",
+        "offline"
+    ],
+    "license": "MIT AND CC-BY-4.0",
+    "bugs": {
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
+    },
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/gazetteer#readme",
+    "devDependencies": {
+        "@vitest/coverage-v8": "catalog:",
+        "eslint": "^9.29.0",
+        "typescript": "^5.9.3",
+        "vite": "^8.1.6",
+        "vitest": "catalog:"
+    }
+}

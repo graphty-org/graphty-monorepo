@@ -302,7 +302,8 @@ So there are two paths:
    Earth admin-0 and admin-1 label points (public domain, https://www.naturalearthdata.com/about/terms-of-use/)
    and GeoNames `cities15000` (CC BY 4.0, about 26,000 cities, 3.2 MB zipped,
    https://download.geonames.org/export/dump/). Trimmed to name, alternate names, country, region,
-   lat, lon and population it is about 1 to 2 MB gzipped, fetched once on first use. "Paris"
+   lat, lon and population it is about 2 MB gzipped, shipped in the npm package
+   `@graphty/gazetteer` and loaded once on first use, one module per layer. "Paris"
    resolves to the most populous match unless the value or a `country` hint narrows it. The
    attribution "GeoNames (CC BY 4.0)" joins the map attribution while it is in use.
 2. **A keyed geocoder**, the reader's own account: OpenCage, LocationIQ or ArcGIS Location
@@ -313,8 +314,14 @@ So there are two paths:
    geocode again), and progress is reported with `W_GEOCODE_PENDING`. Nodes move into place as
    answers arrive.
 
-Where the gazetteer is hosted is a choice for the owner (section 13): graph-samples already serves
-its datasets from graphty.app, and the same hosting fits.
+The gazetteer is its own package, `@graphty/gazetteer` (owner, 2026-11-13: graphty-element must
+not depend on graphty.app, and the gazetteer is a library, never a hosted file). graphty-element
+loads it with a dynamic `import()` on first use as an optional peer dependency, the way it loads
+`@graphty/webgpu-graph-algorithms`; without it a map by place names rejects with
+`E_MISSING_PACKAGE` (`details.package: "@graphty/gazetteer"`). The layout's `gazetteer` option is
+`true` (the package, the default), `false`, or the consumer's own layer files by role (plain data,
+since layout options are saved with the project; no loader function). The package's `scripts/build-gazetteer.mjs` builds the
+data, which is committed in the package so every build is the same and the package works offline.
 
 ## 5. Projections and the view matrix
 
@@ -690,7 +697,9 @@ chunk plus `babylonjs-map`".
   (`new URL("./assets/natural-earth.jpg", import.meta.url)`), not inlined in JavaScript. The
   `./bundle` single-file build (budget 3.2 MB) would either inline it as a data URL or fetch it from
   the same directory; inlining would grow `./bundle` by about 20%.
-- The gazetteer data (1 to 2 MB) is never in the package; it is fetched on first use.
+- The gazetteer data (about 2 MB gzipped) is never in graphty-element: it is the optional package
+  `@graphty/gazetteer`, loaded on first use, and left out of the `./bundle` build (a page maps it in
+  an import map).
 - Photorealistic 3D Tiles (last phase) follow the `@graphty/webgpu-graph-algorithms` model: an
   optional peer dependency, `3d-tiles-renderer`, reached only from an opt-in entry point, so the
   core never imports a package a consumer may not have installed.
@@ -719,8 +728,9 @@ These are public names or contracts that would be breaking to change once publis
 5. **Whether the default map is the bundled Natural Earth image.** The alternative is a network
    tile source by default (sharper, but every consumer's readers would contact a third party
    without the consumer choosing it). Recommended: bundled image, network sources opt-in.
-6. **Where the gazetteer is hosted**: graphty.app beside the graph-samples datasets (a URL that
-   third-party consumers then depend on), with a `gazetteerUrl` option to self-host.
+6. **Where the gazetteer comes from**: decided by the owner (2026-11-13): the npm package
+   `@graphty/gazetteer`, an optional peer of graphty-element loaded on first use, never a file
+   hosted on graphty.app; the `gazetteer` option takes the consumer's own layers instead.
 
 Still open after the 2026-10-22 decisions (the package name `babylonjs-map` is decided): items 1
 to 6 above, which the prototype uses under the proposed names, and the public API of

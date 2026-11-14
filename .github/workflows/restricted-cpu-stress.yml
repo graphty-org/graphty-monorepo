@@ -107,6 +107,7 @@ jobs:
                       graph-io/dist/
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
+                      gazetteer/dist/
                       babylonjs-map/dist/
                       algorithms/dist/
                       layout/dist/

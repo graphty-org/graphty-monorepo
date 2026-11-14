@@ -5820,6 +5820,7 @@ export const NodeStyle: z.ZodObject<{
         }, z.core.$strict>>;
         outline: z.ZodOptional<z.ZodObject<{
             color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            width: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>>;
         halo: z.ZodOptional<z.ZodObject<{
             enabled: z.ZodOptional<z.ZodBoolean>;

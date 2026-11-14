@@ -34,12 +34,8 @@ const NodeBehaviorOpts = z
         depthIndependentSize: z.boolean().optional(),
 
         /*
-         * How wide every node outline is drawn, as a multiple of the renderer's own stroke (about
-         * four device pixels at 1).
-         *
-         * ONE WIDTH FOR EVERY OUTLINE, which is why it is a graph setting and not a style channel:
-         * the renderer draws all outlines in one full-screen pass, and the stroke's width belongs
-         * to that pass (see the `node.outline` channel's caveat). Unset, the renderer's own width.
+         * How wide a node outline is drawn when its style sets no width (the `node.outlineWidth`
+         * channel), as a multiple of the ring's own band. Unset, the ring's own width (1).
          */
         outlineWidth: z.number().positive().max(10).optional(),
     })

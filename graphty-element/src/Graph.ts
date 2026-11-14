@@ -2924,7 +2924,12 @@ export class Graph implements GraphContext {
         this.writeViewSettings((settings) => {
             settings.behavior = view;
         });
-        NodeEffects.setOutlineWidth(this.scene, parsed.node.outlineWidth);
+        if (NodeEffects.outlineWidthOf(this.scene, undefined) !== (parsed.node.outlineWidth ?? 1)) {
+            NodeEffects.setOutlineWidth(this.scene, parsed.node.outlineWidth);
+            // A ring the shader batch draws packs the width when painted, so it is painted again.
+            NodeShaderDrawing.peek(this.scene)?.outlineWidthChanged();
+        }
+
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();
         // `layout.visibleOnly` switched lays the graph out again over what it now covers.

@@ -13,6 +13,7 @@ import { assert, describe, it, vi } from "vitest";
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import { createGraphSession, type GraphSession } from "../../../src/session";
 import { dispatcherOf } from "../../../src/session/GraphSession";
+import type { ProjectState } from "../../../src/session/project/state";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 
@@ -74,12 +75,29 @@ describe("project:derived", () => {
     it("every derivation hook that runs is followed by a project:derived", async () => {
         const s: GraphSession = createGraphSession({ runs: { execute: (context) => degree(() => s, context) } });
         const { lane } = dispatcherOf(s);
-        // A marker hook per slice, registered after the session's own: hooks of one slice run in the order
-        // registered, so the marker finishing means that slice's hooks have all finished.
+        // A marker hook on every slice, registered after the session's own: hooks of one slice run in the
+        // order registered, so the marker finishing means that slice's hooks have all finished. The record
+        // names every slice of the project state, so adding a slice fails to compile until it is listed.
+        const every: Record<keyof ProjectState, true> = {
+            graph: true,
+            layout: true,
+            pins: true,
+            arrangement: true,
+            config: true,
+            attributes: true,
+            valueLabels: true,
+            shaders: true,
+            runs: true,
+            sets: true,
+            notes: true,
+            styles: true,
+            visibility: true,
+            views: true,
+        };
         let seq = 0;
         const finished: { slice: string; at: number }[] = [];
         const published: number[] = [];
-        for (const slice of ["graph", "runs", "notes", "styles", "visibility"] as const) {
+        for (const slice of Object.keys(every) as (keyof ProjectState)[]) {
             lane.register(slice, () => {
                 finished.push({ slice, at: seq++ });
             });

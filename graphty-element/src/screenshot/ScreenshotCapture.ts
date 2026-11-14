@@ -21,12 +21,12 @@ import { CustomLineRenderer } from "../meshes/CustomLineRenderer.js";
 import { RichTextLabel } from "../meshes/RichTextLabel.js";
 import { SELECTION_HALO_MESH } from "../Node.js";
 import { downloadBlob } from "../utils/download.js";
+import { captureError } from "./captureError.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
 import { drawLegend, legendBox } from "./drawLegend.js";
 import { resolvePreset } from "./presets.js";
-import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import { enableTransparentBackground, restoreBackground } from "./transparency.js";
 import type {
     CameraState,
@@ -149,9 +149,10 @@ export class ScreenshotCapture {
         const gl = (this.engine as Engine)._gl;
 
         if (gl && !gl.getContextAttributes()?.preserveDrawingBuffer) {
-            throw new ScreenshotError(
+            throw captureError(
+                "E_UNSUPPORTED",
                 "Screenshot requires Engine to be created with preserveDrawingBuffer: true",
-                ScreenshotErrorCode.ENGINE_NOT_CONFIGURED,
+                { reason: "preserve-drawing-buffer" },
             );
         }
 
@@ -334,10 +335,10 @@ export class ScreenshotCapture {
 
         // Validate format-specific options
         if (finalOptions.transparentBackground && format !== "png" && format !== "webp") {
-            throw new ScreenshotError(
-                "Transparent background requires PNG or WebP format",
-                ScreenshotErrorCode.TRANSPARENT_REQUIRES_PNG,
-            );
+            throw captureError("E_BAD_COMMAND", "Transparent background requires PNG or WebP format", {
+                fields: ["transparentBackground", "format"],
+                format,
+            });
         }
 
         // Handle transparent background
@@ -491,7 +492,7 @@ export class ScreenshotCapture {
     /**
      * Waits for the layout engine to settle before capturing a screenshot.
      * If no layout engine is active or it's already settled, returns immediately.
-     * Throws ScreenshotError with LAYOUT_SETTLE_TIMEOUT if the layout doesn't settle
+     * Throws a GraphtyError with E_NOT_SETTLED if the layout doesn't settle
      * within the given timeout.
      * @param timeoutMs - How long to wait, in milliseconds.
      * @returns Promise that resolves when layout has settled
@@ -530,12 +531,7 @@ export class ScreenshotCapture {
                 if (!completed) {
                     completed = true;
                     cleanup();
-                    reject(
-                        new ScreenshotError(
-                            "Layout did not settle within timeout",
-                            ScreenshotErrorCode.LAYOUT_SETTLE_TIMEOUT,
-                        ),
-                    );
+                    reject(captureError("E_NOT_SETTLED", "Layout did not settle within timeout", { timeoutMs }));
                 }
             }, timeoutMs);
 
@@ -607,7 +603,7 @@ export class ScreenshotCapture {
 
             // Use Babylon.js CreateScreenshotAsync
             if (!this.scene.activeCamera) {
-                throw new ScreenshotError("No active camera in scene", ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED);
+                throw captureError("E_CAPTURE_FAILED", "No active camera in scene", { media: "image" });
             }
 
             // A copy of the canvas is only as sharp as the canvas: one of any other size is the
@@ -655,11 +651,7 @@ export class ScreenshotCapture {
 
             return blob;
         } catch (error) {
-            throw new ScreenshotError(
-                "Screenshot capture failed",
-                ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                error,
-            );
+            throw captureError("E_CAPTURE_FAILED", "Screenshot capture failed", { media: "image" }, error);
         }
     }
 
@@ -702,10 +694,7 @@ export class ScreenshotCapture {
         const ctx = canvas.getContext("2d");
 
         if (!ctx) {
-            throw new ScreenshotError(
-                "Failed to get 2D context for format conversion",
-                ScreenshotErrorCode.CANVAS_ALLOCATION_FAILED,
-            );
+            throw captureError("E_OUT_OF_MEMORY", "Failed to get 2D context for format conversion", { of: "canvas" });
         }
 
         const imgUrl = URL.createObjectURL(blob);
@@ -723,10 +712,9 @@ export class ScreenshotCapture {
                             resolve(convertedBlob);
                         } else {
                             reject(
-                                new ScreenshotError(
-                                    "Failed to convert image format",
-                                    ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                                ),
+                                captureError("E_CAPTURE_FAILED", "Failed to convert image format", {
+                                    media: "image",
+                                }),
                             );
                         }
                     },
@@ -738,10 +726,7 @@ export class ScreenshotCapture {
             img.onerror = () => {
                 URL.revokeObjectURL(imgUrl);
                 reject(
-                    new ScreenshotError(
-                        "Failed to load image for format conversion",
-                        ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                    ),
+                    captureError("E_CAPTURE_FAILED", "Failed to load image for format conversion", { media: "image" }),
                 );
             };
 
@@ -772,10 +757,7 @@ export class ScreenshotCapture {
         const ctx = canvas.getContext("2d");
 
         if (!ctx) {
-            throw new ScreenshotError(
-                "Failed to get 2D context for downscaling",
-                ScreenshotErrorCode.CANVAS_ALLOCATION_FAILED,
-            );
+            throw captureError("E_OUT_OF_MEMORY", "Failed to get 2D context for downscaling", { of: "canvas" });
         }
 
         const imgUrl = URL.createObjectURL(blob);
@@ -798,12 +780,7 @@ export class ScreenshotCapture {
                         if (downscaledBlob) {
                             resolve(downscaledBlob);
                         } else {
-                            reject(
-                                new ScreenshotError(
-                                    "Failed to downscale image",
-                                    ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                                ),
-                            );
+                            reject(captureError("E_CAPTURE_FAILED", "Failed to downscale image", { media: "image" }));
                         }
                     },
                     mimeType,
@@ -813,12 +790,7 @@ export class ScreenshotCapture {
 
             img.onerror = () => {
                 URL.revokeObjectURL(imgUrl);
-                reject(
-                    new ScreenshotError(
-                        "Failed to load image for downscaling",
-                        ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                    ),
-                );
+                reject(captureError("E_CAPTURE_FAILED", "Failed to load image for downscaling", { media: "image" }));
             };
 
             img.src = imgUrl;
@@ -840,10 +812,7 @@ export class ScreenshotCapture {
     ): EnhancementState {
         const camera = this.scene.activeCamera;
         if (!camera) {
-            throw new ScreenshotError(
-                "No active camera for quality enhancement",
-                ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-            );
+            throw captureError("E_CAPTURE_FAILED", "No active camera for quality enhancement", { media: "image" });
         }
 
         // Default values

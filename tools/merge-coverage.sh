@@ -23,7 +23,7 @@ COVERAGE_DIR="$ROOT_DIR/.coverage-packages"
 OUTPUT_FILE="$ROOT_DIR/coverage/lcov.info"
 
 # Packages to process
-PACKAGES=("graph-format" "graph-io" "webgpu-graph-algorithms" "graph-samples" "babylonjs-map" "cytoscape-extensions" "algorithms" "layout" "graphty" "graphty-element" "githerd" "compact-mantine" "remote-logger" "visual-review")
+PACKAGES=("graph-format" "graph-io" "webgpu-graph-algorithms" "graph-samples" "babylonjs-map" "cytoscape-extensions" "algorithms" "layout" "graphty" "graphty-element" "compact-mantine" "remote-logger" "visual-review")
 
 # Colors for output
 RED='\033[0;31m'

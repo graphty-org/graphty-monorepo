@@ -1,5 +1,5 @@
 import { GraphtyLogger, type Logger } from "../logging/index.js";
-import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
+import { captureError } from "./captureError.js";
 import type { ScreenshotOptions } from "./types.js";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "screenshot"]);
@@ -45,10 +45,7 @@ export function calculateDimensions(canvas: HTMLCanvasElement, options: Screensh
             width = Math.round(height * canvasAspect);
         } else {
             // This should never happen due to the outer if condition
-            throw new ScreenshotError(
-                "Internal error: no dimensions specified",
-                ScreenshotErrorCode.INVALID_DIMENSIONS,
-            );
+            throw captureError("E_OPTION_RANGE", "Internal error: no dimensions specified", { option: "size" });
         }
 
         // Validate aspect ratio if strictAspectRatio is enabled
@@ -57,12 +54,13 @@ export function calculateDimensions(canvas: HTMLCanvasElement, options: Screensh
             const tolerance = 0.01; // 1% tolerance
 
             if (Math.abs(canvasAspect - requestedAspect) > tolerance) {
-                throw new ScreenshotError(
+                throw captureError(
+                    "E_OPTION_RANGE",
                     `Aspect ratio mismatch: canvas is ${canvasWidth}x${canvasHeight} (${canvasAspect.toFixed(
                         2,
                     )}), requested ${width}x${height} (${requestedAspect.toFixed(2)})`,
-                    ScreenshotErrorCode.ASPECT_RATIO_MISMATCH,
                     {
+                        option: "strictAspectRatio",
                         canvasWidth,
                         canvasHeight,
                         requestedWidth: width,
@@ -88,45 +86,36 @@ export function calculateDimensions(canvas: HTMLCanvasElement, options: Screensh
 /**
  * Validates screenshot dimensions against browser limits.
  * Checks for positive finite numbers, maximum dimension size, and total pixel count.
- * Throws ScreenshotError if validation fails.
+ * Throws a GraphtyError (`E_OPTION_RANGE` or `E_TOO_LARGE`) if validation fails.
  * @param width - The width in pixels to validate
  * @param height - The height in pixels to validate
  */
 function validateDimensions(width: number, height: number): void {
     // Check for valid positive dimensions
     if (width <= 0 || height <= 0 || !Number.isFinite(width) || !Number.isFinite(height)) {
-        throw new ScreenshotError(
+        throw captureError(
+            "E_OPTION_RANGE",
             `Invalid dimensions: ${width}x${height}. Dimensions must be positive finite numbers.`,
-            ScreenshotErrorCode.INVALID_DIMENSIONS,
-            { width, height },
+            { option: "size", width, height },
         );
     }
 
     // Check individual dimension limits
     if (width > BROWSER_LIMITS.MAX_DIMENSION || height > BROWSER_LIMITS.MAX_DIMENSION) {
-        throw new ScreenshotError(
+        throw captureError(
+            "E_TOO_LARGE",
             `Dimension ${width}x${height} exceeds browser limit of ${BROWSER_LIMITS.MAX_DIMENSION}px.`,
-            ScreenshotErrorCode.DIMENSION_TOO_LARGE,
-            {
-                width,
-                height,
-                maxDimension: BROWSER_LIMITS.MAX_DIMENSION,
-            },
+            { of: "dimension", width, height, limit: BROWSER_LIMITS.MAX_DIMENSION },
         );
     }
 
     // Check total pixel count
     const totalPixels = width * height;
     if (totalPixels > BROWSER_LIMITS.MAX_PIXELS) {
-        throw new ScreenshotError(
+        throw captureError(
+            "E_TOO_LARGE",
             `Total pixels too large: ${width}x${height} = ${totalPixels} pixels. Maximum is ${BROWSER_LIMITS.MAX_PIXELS} pixels.`,
-            ScreenshotErrorCode.RESOLUTION_TOO_HIGH,
-            {
-                width,
-                height,
-                totalPixels,
-                maxPixels: BROWSER_LIMITS.MAX_PIXELS,
-            },
+            { of: "pixels", width, height, count: totalPixels, limit: BROWSER_LIMITS.MAX_PIXELS },
         );
     }
 

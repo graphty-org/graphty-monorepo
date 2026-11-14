@@ -111,11 +111,11 @@ describe("AiManager", () => {
     });
 
     describe("dispose", () => {
-        it("disposes cleanly", () => {
+        it("returns to the initial status after dispose", async () => {
+            await manager.execute("How many nodes?");
             manager.dispose();
-            // Attempting to get status after dispose should still work (returns disposed state)
-            const status = manager.getStatus();
-            assert.ok(status);
+            // There is no disposed state: dispose resets the status to the one a new manager starts with.
+            assert.deepStrictEqual(manager.getStatus(), new AiManager().getStatus());
         });
 
         it("can be disposed multiple times without error", () => {
@@ -146,12 +146,12 @@ describe("AiManager", () => {
     });
 
     describe("cancel", () => {
-        it("can cancel in-progress commands", () => {
-            // Start a command (don't await)
-            void manager.execute("test");
-
-            // Cancel should not throw
+        it("ends an in-progress command as cancelled", async () => {
+            const running = manager.execute("test");
             manager.cancel();
+            const result = await running;
+            assert.strictEqual(result.success, false);
+            assert.strictEqual(result.code, "AI_CANCELLED");
         });
     });
 });

@@ -75,11 +75,10 @@ attribute: the node label, the edge weight, a position. See
 - <a id="E_GRAPHML_DATA_MISSING_KEY"></a>`E_GRAPHML_DATA_MISSING_KEY`: A `<data>` without a key attribute. Import: [graphml](./formats/graphml.md).
 - <a id="E_GRAPHML_DATA_NESTED"></a>`E_GRAPHML_DATA_NESTED`: Nested elements in the `<data>` of a typed (non-yfiles) key. Import: [graphml](./formats/graphml.md).
 - <a id="E_GRAPHML_HYPEREDGE_ENDPOINT"></a>`E_GRAPHML_HYPEREDGE_ENDPOINT`: An endpoint of a hyperedge without a node, or with an unknown type. Import: [graphml](./formats/graphml.md).
-- <a id="E_GRAPHML_INVALID_DIRECTED"></a>`E_GRAPHML_INVALID_DIRECTED`: A `directed` attribute that is neither true nor false. Import: [graphml](./formats/graphml.md).
+- <a id="E_GRAPHML_INVALID_DIRECTED"></a>`E_GRAPHML_INVALID_DIRECTED`: A `directed` attribute that is neither true nor false; the edge takes its graph's direction. Import: [graphml](./formats/graphml.md).
 - <a id="E_GRAPHML_INVALID_EDGEDEFAULT"></a>`E_GRAPHML_INVALID_EDGEDEFAULT`: An `edgedefault` that is neither directed nor undirected. Import: [graphml](./formats/graphml.md).
 - <a id="E_GRAPHML_KEY_FOR_INVALID"></a>`E_GRAPHML_KEY_FOR_INVALID`: A `<key>` whose `for` is not a GraphML domain. Import: [graphml](./formats/graphml.md).
 - <a id="E_GRAPHML_KEY_MISSING_ID"></a>`E_GRAPHML_KEY_MISSING_ID`: A `<key>` without an id. Import: [graphml](./formats/graphml.md).
-- <a id="E_GRAPHML_UNKNOWN_KEY"></a>`E_GRAPHML_UNKNOWN_KEY`: A `<data>` whose key was never declared. Import: [graphml](./formats/graphml.md).
 - <a id="E_GRAPHML_YFILES_TREE"></a>`E_GRAPHML_YFILES_TREE`: A yEd graphics value that is not valid XML; the save fails with `E_COLUMN_TYPE`. Save: [graphml](./formats/graphml.md).
 - <a id="E_GRAPH_NOT_FOUND"></a>`E_GRAPH_NOT_FOUND`: `graphIndex` is past the last graph in the file, or `graphName` matches none of them. The import stops, and the message lists the index and name of each graph the file holds. Import: [json](./formats/json.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
 - <a id="E_HYPEREDGE"></a>`E_HYPEREDGE`: A hyperedge (an edge with more than two ends) while `hyperedges` is "error". The import stops. Import: [json](./formats/json.md), [graphml](./formats/graphml.md).
@@ -268,6 +267,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GML_UNKNOWN_ENTITY"></a>`W_GML_UNKNOWN_ENTITY`: A named entity no table decodes, or a numeric reference beyond U+10FFFF; kept as written. Import: [gml](./formats/gml.md).
 - <a id="W_GRAPHML_DATA_STRUCTURED"></a>`W_GRAPHML_DATA_STRUCTURED`: Nested elements in the `<data>` of an untyped key; they are kept as their XML text. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_DESC_DROPPED"></a>`W_GRAPHML_DESC_DROPPED`: A `<desc>` of a node, an edge or a hyperedge. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_DIRECTED_SPELLING"></a>`W_GRAPHML_DIRECTED_SPELLING`: A `directed` attribute written `True`, `FALSE` or with spaces, not an xs:boolean spelling; read as the boolean. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_EDGEDEFAULT_MISSING"></a>`W_GRAPHML_EDGEDEFAULT_MISSING`: A `<graph>` without edgedefault; the `defaultDirected` option applies. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_EDGE_GRAPH_DROPPED"></a>`W_GRAPHML_EDGE_GRAPH_DROPPED`: A `<graph>` inside an `<edge>` (legal GraphML): it and the nodes and edges it holds are dropped. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_EDGE_ID_TEXT"></a>`W_GRAPHML_EDGE_ID_TEXT`: A numeric edge id column reads back as string. Save: [graphml](./formats/graphml.md).
@@ -276,9 +276,10 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GRAPHML_HUB_ID_CLASH"></a>`W_GRAPHML_HUB_ID_CLASH`: A `<node>` whose id is that of a hub `hyperedges: "star"` created; the node is merged into the hub. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_HYPEREDGE_DATA_DROPPED"></a>`W_GRAPHML_HYPEREDGE_DATA_DROPPED`: Data of a hyperedge expanded to a star or clique. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_HYPEREDGE_SKIPPED"></a>`W_GRAPHML_HYPEREDGE_SKIPPED`: Hyperedges skipped under `hyperedges: "skip"`. Import: [graphml](./formats/graphml.md).
-- <a id="W_GRAPHML_KEY_DECLARED_LATE"></a>`W_GRAPHML_KEY_DECLARED_LATE`: A `<key>` declared after `<data>` that used it; those values were already reported and dropped. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_KEY_DECLARED_LATE"></a>`W_GRAPHML_KEY_DECLARED_LATE`: A `<key>` declared after `<data>` that used it; that data was already read as text and the key is ignored. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_KEY_DOMAIN"></a>`W_GRAPHML_KEY_DOMAIN`: A `<data>` whose key is declared for another domain. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_KEY_DOMAIN_UNSUPPORTED"></a>`W_GRAPHML_KEY_DOMAIN_UNSUPPORTED`: A key declared for hyperedges, ports or endpoints (never used), other than a yFiles port key. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_KEY_IN_GRAPH"></a>`W_GRAPHML_KEY_IN_GRAPH`: A `<key>` declared inside `<graph>` instead of `<graphml>`; it is read as if declared in `<graphml>`. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_LOCATOR_DROPPED"></a>`W_GRAPHML_LOCATOR_DROPPED`: A `<locator>` element. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_NAMESPACE"></a>`W_GRAPHML_NAMESPACE`: The `<graphml>` root is in a namespace other than GraphML's; it is read as GraphML. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_NESTED_GRAPH_DATA"></a>`W_GRAPHML_NESTED_GRAPH_DATA`: Data of a nested `<graph>`; only the top-level graph has attributes. Import: [graphml](./formats/graphml.md).
@@ -287,6 +288,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GRAPHML_PARSE_HINT_IGNORED"></a>`W_GRAPHML_PARSE_HINT_IGNORED`: A GraphML `parse.*` attribute (`parse.nodeids`, `parse.order`, ...) that graph-io does not act on; the file is read normally. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_PORTS_DROPPED"></a>`W_GRAPHML_PORTS_DROPPED`: Port values of a node's `ports` column a save cannot write back as `<port>` data: a value under a name with no yFiles key type in the column's `extra.portKeys`, a value that is not an XML tree, or an entry with no name. Save: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_PORT_DECLARATION"></a>`W_GRAPHML_PORT_DECLARATION`: `<port>` declarations are not kept as ports; sourceport / targetport edge attributes are, and a port's yFiles data is kept in its node's `ports` column. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_UNKNOWN_KEY"></a>`W_GRAPHML_UNKNOWN_KEY`: A `<data>` whose key was never declared; the key is read as an untyped (string) key named by its id. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_YFILES_GRAPHICS_STALE"></a>`W_GRAPHML_YFILES_GRAPHICS_STALE`: A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. Save: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_YFILES_JSON"></a>`W_GRAPHML_YFILES_JSON`: YFiles nested XML kept as a JSON tree: structure preserved, not byte-exact. Save: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_YFILES_SKIPPED"></a>`W_GRAPHML_YFILES_SKIPPED`: A yFiles key under `yfiles: "skip"`. Import: [graphml](./formats/graphml.md).

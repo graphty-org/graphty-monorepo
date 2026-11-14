@@ -35,6 +35,7 @@ import { formatTemporal, formatTimeValue, type TimeFormat } from "../../common/t
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
+import { respelledPositions } from "../../positions/convert.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -235,6 +236,8 @@ interface ExportPlan {
     readonly options: ResolvedExportOptions;
     readonly notes: LossNote[];
     readonly nodeRoles: RoleColumns;
+    /** The node position column's rows in GEXF's spelling (center, y up), or null to write them as stored. */
+    readonly nodePositions: Float64Array | null;
     readonly edgeRoles: RoleColumns;
     readonly nodeAttrs: readonly AttributeSpec[];
     readonly edgeAttrs: readonly AttributeSpec[];
@@ -319,6 +322,8 @@ function planExport(
         options: resolved,
         notes,
         nodeRoles,
+        // a column read from a y-down or top-left file (Pajek, yEd, GML) is written the way up Gephi draws it
+        nodePositions: nodeRoles.position === null ? null : respelledPositions(snapshot, nodeRoles.position, {}),
         edgeRoles,
         nodeAttrs,
         edgeAttrs,
@@ -1760,11 +1765,18 @@ function listItems(column: Column, row: number): readonly unknown[] {
  * @param row - the element's row
  * @param indent - the indentation
  * @param writeZ - whether viz:position gets its z attribute
+ * @param spelled - the position column's rows in GEXF's spelling, or null to write them as stored
  * @returns the lines, or an empty string
  */
-function vizElements(roles: RoleColumns, row: number, indent: string, writeZ: boolean): string {
+function vizElements(
+    roles: RoleColumns,
+    row: number,
+    indent: string,
+    writeZ: boolean,
+    spelled: Float64Array | null,
+): string {
     let out = vizColor(roles.color, row, indent);
-    out += vizPosition(roles.position, row, indent, writeZ);
+    out += vizPosition(roles.position, row, indent, writeZ, spelled);
     for (const [name, column] of [
         ["size", roles.size],
         ["thickness", roles.thickness],
@@ -1816,13 +1828,21 @@ function vizColor(color: Column | null, row: number, indent: string): string {
  * @param row - the element's row
  * @param indent - the indentation
  * @param writeZ - whether the z attribute is written
+ * @param spelled - the column's rows in GEXF's spelling, or null to write them as stored
  * @returns the line, or an empty string
  */
-function vizPosition(position: Column | null, row: number, indent: string, writeZ: boolean): string {
+function vizPosition(
+    position: Column | null,
+    row: number,
+    indent: string,
+    writeZ: boolean,
+    spelled: Float64Array | null,
+): string {
     if (!position?.isSet(row)) {
         return "";
     }
-    const lanes = Array.from(position.value(row) as ArrayLike<number>);
+    const stored = Array.from(position.value(row) as ArrayLike<number>);
+    const lanes = spelled === null ? stored : Array.from(spelled.subarray(3 * row, 3 * row + stored.length));
     const fmt = position.dtype === "f32" ? formatF32 : formatF64;
     let attrs = ` x="${fmt(lanes[0])}" y="${fmt(lanes[1])}"`;
     if (lanes.length > 2 && writeZ) {
@@ -1989,7 +2009,7 @@ function nodeElement(
     let body = attvaluesElement(plan.nodeAttrs, i, plan, "        ");
     body += parentsElement(nodeRoles.parents, i, idText);
     body += spellsElement(nodeRoles, i, plan, "        ");
-    body += vizElements(nodeRoles, i, "        ", writeZ);
+    body += vizElements(nodeRoles, i, "        ", writeZ, plan.nodePositions);
     body += styled?.node(i, "        ") ?? "";
     return body.length === 0 ? `      <node${attrs}/>\n` : `      <node${attrs}>\n${body}      </node>\n`;
 }
@@ -2049,7 +2069,7 @@ function edgeElement(e: number, type: GexfEdgeType, ctx: EdgeWriteContext): stri
     attrs += lifetimeAttrs(edgeRoles, e, plan);
     let body = attvaluesElement(plan.edgeAttrs, e, plan, "        ");
     body += spellsElement(edgeRoles, e, plan, "        ");
-    body += vizElements(edgeRoles, e, "        ", false);
+    body += vizElements(edgeRoles, e, "        ", false, null);
     body += ctx.styled?.edge(e, "        ") ?? "";
     return body.length === 0 ? `      <edge${attrs}/>\n` : `      <edge${attrs}>\n${body}      </edge>\n`;
 }

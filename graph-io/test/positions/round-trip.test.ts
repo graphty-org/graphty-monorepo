@@ -122,19 +122,28 @@ describe("positions survive import, export, import", () => {
     });
 });
 
-/** The Cytoscape family's writers, each writing y down from the neutral form. */
-const CYTOSCAPE_WRITERS = [
+/** Every writer that writes node positions, each converting the column's spelling to its own. */
+const WRITERS = [
     { name: "CX", format: "cx", options: { sanitizeIds: "mangle" } },
     { name: "CX2", format: "cx2", options: { sanitizeIds: "mangle" } },
     { name: "Cytoscape session", format: "cys", options: { sanitizeIds: "mangle" } },
     { name: "Cytoscape.js JSON", format: "json", options: { dialect: "cytoscape" } },
     { name: "XGMML", format: "xgmml", options: {} },
+    { name: "Pajek", format: "pajek", options: {} },
+    { name: "GML", format: "gml", options: { sanitizeKeys: "mangle" } },
+    { name: "GEXF", format: "gexf", options: {} },
+    { name: "DOT", format: "dot", options: {} },
 ] as const;
 
-describe("a y-down drawing written to a Cytoscape format reads back the same way up", () => {
-    // the sources whose position column declares its spelling (a GML column does not: its importer's hook does)
-    const cases = FILES.filter((f) => f.format !== "gml").flatMap((source) =>
-        CYTOSCAPE_WRITERS.map((writer) => ({
+/** Drawings whose y grows upward, beside the y-down ones in FILES. */
+const Y_UP_FILES = [
+    { name: "GML from Gephi", file: join(HERE, "fixtures", "gephi.gml"), format: "gml" },
+    { name: "DOT laid out by Graphviz", file: join(HERE, "fixtures", "cluster-laid-out.gv"), format: "dot" },
+] as const;
+
+describe("a drawing written to another format reads back the same way up", () => {
+    const cases = [...FILES, ...Y_UP_FILES].flatMap((source) =>
+        WRITERS.map((writer) => ({
             ...source,
             writer: writer.name,
             to: writer.format,
@@ -148,9 +157,11 @@ describe("a y-down drawing written to a Cytoscape format reads back the same way
         const back = await registry.importGraph(new Uint8Array(await blob.arrayBuffer()), { format: to });
         const again = (extractPositions(registry.importer(to), back.snapshot, back.report) as FilePositions).coords;
         expect(back.snapshot.nodeCount).toBe(snapshot.nodeCount);
+        const stored = snapshot.nodes.byRole("position");
         let compared = 0;
         for (let i = 0; i < snapshot.nodeCount; i++) {
-            if (Number.isNaN(first[3 * i]) || Number.isNaN(again[3 * i])) {
+            // a group drawn round its members (a Graphviz cluster) has no stored position to write
+            if (stored?.isSet(i) !== true || Number.isNaN(first[3 * i]) || Number.isNaN(again[3 * i])) {
                 continue;
             }
             compared++;

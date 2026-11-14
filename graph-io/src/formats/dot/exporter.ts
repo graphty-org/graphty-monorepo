@@ -26,6 +26,7 @@ import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
+import { respelledPositions } from "../../positions/convert.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -518,6 +519,8 @@ class ExportPlan {
     private readonly position: Column | null;
 
     private readonly positionDims: 2 | 3;
+    /** The position column's rows in Graphviz's spelling (center, y up), or null to write them as stored. */
+    private readonly spelled: Float64Array | null;
 
     private readonly parent: Column | null;
 
@@ -572,6 +575,8 @@ class ExportPlan {
         const { nodes, edges, graph } = snapshot;
         this.position = nodes.byRole("position");
         this.positionDims = positionDims(this.position);
+        // a column read from a y-down or top-left file (Pajek, yEd, GML) is written the way up Graphviz draws it
+        this.spelled = this.position === null ? null : respelledPositions(snapshot, this.position, {});
         this.parent = nodes.byRole("parent");
         const cluster = nodes.get(CLUSTER_COLUMN);
         this.cluster = cluster !== null && cluster.dtype === "bool" ? cluster : null;
@@ -1068,8 +1073,9 @@ class ExportPlan {
             return null;
         }
         const format = column.dtype === "f32" ? formatF32 : formatF64;
-        const base = i * components;
-        const { data } = column;
+        const { spelled } = this;
+        const [data, stride] = spelled === null ? [column.data, components] : [spelled, 3];
+        const base = i * stride;
         const parts = [format(data[base]), format(data[base + 1])];
         if (this.positionDims === 3) {
             parts.push(format(components === 3 ? data[base + 2] : 0));

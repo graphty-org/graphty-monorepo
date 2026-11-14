@@ -17,9 +17,9 @@ the expectation today; the reference points into
 | cys | 53 | 53 | 0 | 40 | 0 |
 | dot | 196 | 196 | 0 | 178 | 0 |
 | gexf | 110 | 110 | 0 | 107 | 0 |
-| gml | 109 | 109 | 0 | 98 | 4 |
+| gml | 109 | 109 | 0 | 98 | 0 |
 | graphml | 148 | 148 | 0 | 134 | 0 |
-| json | 427 | 420 | 7 | 102 | 0 |
+| json | 427 | 427 | 0 | 109 | 0 |
 | neo4j | 45 | 30 | 15 | 29 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
@@ -193,13 +193,7 @@ No known failures.
 
 ## gml
 
-### round trip: the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds "mangle" (sources.md 4.4) (#7744) (4)
-
-- `ogdf/invalid_invalid-integer.gml`: threw: GraphFormatError: 1 node id is not integers (first: "fooBar" at index 3); pass sanitizeIds: "mangle" to rewrite them
-- `gephi/label.gml`: threw: GraphFormatError: 3 node ids are not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `gephi/emojis.gml`: threw: GraphFormatError: 1 node id is not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `authored/bareword-ids.gml`: threw: GraphFormatError: 2 node ids are not integers (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
-
+No known failures.
 
 ## graphml
 
@@ -207,31 +201,7 @@ No known failures.
 
 ## json
 
-### top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape) (#7652) (2)
-
-- `cytoscape/abcde.json`: edges: expected 7, got 0; node "a" missing
-- `cytoscape/gal.json`: failed: E_MISSING_ENDPOINT: error limit of 100 exceeded: edges[100] has no source
-
-### a NaN weight is E_INVALID_WEIGHT under the shared weight rule and its edge is skipped; a tuple node id (a JSON array) is not a node id (sources.md 8.4 JSON layer) (#7651) (1)
-
-- `networkx/nan-inf-bigint-tuple.node_link.json`: nodes: expected 5, got 4; edges: expected 3, got 1
-
-### Gephi / sigma JSON misread as graphology, x / y not mapped to position (sources.md 8.4 other dialects) (#7652) (1)
-
-- `sigma/clique3.json`: node "6" role:position: no such column; node "9" role:position: no such column
-
-### links is not read when edges is also present; it is reported (W_JSON_UNREAD_KEY), not imported (sources.md 8.4 node-link) (#7652) (1)
-
-- `authored/links-and-edges.json`: edges: expected 2, got 1; edge "a"->"b" missing
-
-### networkx cytoscape_data misread: numeric endpoints do not match string data.id, directed flag ignored (sources.md 0.2, 8.4 Cytoscape) (#7652) (1)
-
-- `networkx/karate.cytoscape.json`: directed: expected false, got true
-
-### vis x / y not mapped to position (sources.md 8.4 other dialects) (#7652) (1)
-
-- `vis/network.json`: node 1 role:position: no such column; node 2 role:position: no such column
-
+No known failures.
 
 ## neo4j
 

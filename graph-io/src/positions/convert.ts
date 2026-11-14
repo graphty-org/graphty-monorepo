@@ -93,6 +93,31 @@ export function neutralPositions(snapshot: GraphSnapshot, column: Column): Float
 }
 
 /**
+ * A role-`position` column's rows spelled as a writer writes them, so a writer never writes a
+ * coordinate the wrong way up whatever file the column came from. Null when the column is already
+ * spelled that way (the same y axis, anchor and z origin): the writer then writes the stored
+ * values, so a file loaded and saved in its own format keeps its numbers exactly. Otherwise the
+ * rows are read into the neutral form (`neutralPositions`) and written in `target`'s spelling.
+ * A column that declares no spelling is neutral (center, y up).
+ * @param snapshot - the graph, for the width and height columns a top-left anchor names
+ * @param column - the position column
+ * @param target - the spelling the writer writes
+ * @returns x, y, z per node in `target`'s spelling (NaN for an unset row), or null to write the column as stored
+ */
+export function respelledPositions(
+    snapshot: GraphSnapshot,
+    column: Column,
+    target: PositionColumnExtra,
+): Float64Array | null {
+    const extra = column.meta.extra as PositionColumnExtra;
+    const same =
+        (extra.yAxis ?? "up") === (target.yAxis ?? "up") &&
+        extra.anchor === target.anchor &&
+        (extra.zOrigin ?? 0) === (target.zOrigin ?? 0);
+    return same ? null : toFilePositions(neutralPositions(snapshot, column), target);
+}
+
+/**
  * Neutral coordinates (center, y up, as `extractPositions()` returns them) back into a column
  * spelled as `extra` declares, for a writer: the y flip, Pajek's z origin and yEd's top-left corner
  * are undone. Rows that are NaN stay NaN.
@@ -186,30 +211,19 @@ export function median(values: number[]): number | null {
 }
 
 /**
- * How each built-in writer that writes the position column as it stands spells a coordinate:
- * GML (y down, as yEd draws it) and Pajek (y down, z centered on 0.5). Every other built-in writer
- * either converts the neutral form itself, reading the column through `neutralPositions()` (JSON,
- * XGMML, CX, CX2, Cytoscape sessions, yEd graphics in a styled GraphML), or writes a y-up format
- * (GEXF, DOT).
- */
-const WRITTEN_SPELLING: Readonly<Partial<Record<string, PositionColumnExtra>>> = {
-    gml: { yAxis: "down" },
-    pajek: { yAxis: "down", zOrigin: 0.5 },
-};
-
-/**
- * Neutral coordinates (center, y up) as a built-in format's writer expects its position column, so
- * a graph whose positions are in the neutral form is written the way up its program draws it.
+ * Neutral coordinates (center, y up) as a built-in format's writer expects its position column.
+ * Every built-in writer now reads the column through the spelling its `meta.extra` declares
+ * (`respelledPositions`), and a column that declares none is neutral, so the coordinates are
+ * returned unchanged for every format; it is kept so callers written for the old writers still work.
  * @example
  * ```ts
- * const column = writtenPositions("gml", coords); // y flipped for GML
+ * const column = writtenPositions("gml", coords); // the same array
  * ```
- * @param format - the format being written
+ * @param _format - the format being written
  * @param coords - x, y, z per node; NaN for a node with no position
- * @returns the coordinates to write (the same array when the format needs no conversion)
+ * @returns the same array
  * @category Positions
  */
-export function writtenPositions(format: string, coords: Float64Array): Float64Array {
-    const spelling = WRITTEN_SPELLING[format];
-    return spelling === undefined ? coords : toFilePositions(coords, spelling);
+export function writtenPositions(_format: string, coords: Float64Array): Float64Array {
+    return coords;
 }

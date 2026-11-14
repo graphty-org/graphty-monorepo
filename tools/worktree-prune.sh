@@ -8,9 +8,12 @@
 # line; a new branch with no commits of its own sits on that line and is therefore not "merged".
 #
 # For each candidate it prints the branch, why it qualifies, its size, its uncommitted changes and
-# every process whose working directory is inside it (a dev server left running, for example).
-# It then asks before removing each one with `git worktree remove`, without --force: git refuses
-# a worktree with uncommitted or untracked changes, and this script skips one with a live process.
+# every process whose working directory is inside it (a dev server left running, for example), and
+# the online servherd servers whose working directory is inside it. It then asks before removing each
+# one with `git worktree remove`, without --force: git refuses a worktree with uncommitted or
+# untracked changes. On a yes it first stops and removes those servherd servers (the servherd CLI;
+# without it, it prints the servherd_stop/servherd_remove calls and skips), and it skips a worktree
+# that still has a live process. A live tool's worktree (tools/live-tools.json) is never a candidate.
 # The branch itself is kept. It never stashes, checks out or resets anything, and never touches
 # the main checkout or the worktree it runs from.
 #
@@ -46,9 +49,32 @@ procs_in() {
     done
 }
 
+# names of the online servherd servers (a live pid in servherd's pm2 pid files) whose cwd is the directory or below it
+servers_in() {
+    node -e '
+        const fs = require("fs"), path = require("path"), home = require("os").homedir();
+        const dir = process.argv[1], pids = path.join(home, ".servherd/pm2/pids");
+        const alive = (f) => { try { process.kill(Number(fs.readFileSync(path.join(pids, f), "utf8")), 0); return true; } catch (e) { return e.code === "EPERM"; } };
+        let running = [], reg = [];
+        try { running = fs.readdirSync(pids).filter(alive); } catch {}
+        try { reg = JSON.parse(fs.readFileSync(path.join(home, ".servherd/registry.json"), "utf8")).servers ?? []; } catch {}
+        for (const s of reg) {
+            const online = running.some((f) => f.startsWith(s.pm2Name + "-") && /^\d+\.pid$/.test(f.slice(s.pm2Name.length + 1)));
+            if (online && (s.cwd + "/").startsWith(dir + "/")) console.log(s.name);
+        }' "$1"
+}
+
+# worktrees of the live tools, which run from them on purpose
+live_tool_dirs() {
+    node -e 'for (const t of Object.values(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")))) if (t?.worktree) console.log(require("path").resolve(process.argv[2], t.worktree))' \
+        "$MAIN/tools/live-tools.json" "$MAIN" 2>/dev/null || true
+}
+LIVE_TOOLS="$(live_tool_dirs)"
+
 consider() {
-    local path="$1" branch="$2" reason="" tip dirty live
+    local path="$1" branch="$2" reason="" tip dirty live servers s
     [ "$path" = "$MAIN" ] || [ "$path" = "$HERE" ] && return 0
+    grep -qxF "$path" <<<"$LIVE_TOOLS" && return 0
     [ -n "$branch" ] || return 0 # detached HEAD: nothing to judge it by
     tip="$(git -C "$MAIN" rev-parse "refs/heads/$branch")"
     if [ "$(git -C "$MAIN" for-each-ref --format='%(upstream:track)' "refs/heads/$branch")" = "[gone]" ]; then
@@ -60,25 +86,39 @@ consider() {
 
     dirty="$(git -C "$path" status --porcelain 2>/dev/null | wc -l)"
     live="$(procs_in "$path")"
+    servers="$(servers_in "$path")"
     echo "$branch ($reason)"
     echo "    path:   $path"
     echo "    size:   $(du -sh "$path" 2>/dev/null | cut -f1)"
     echo "    dirty:  $dirty uncommitted or untracked file(s)"
+    if [ -n "$servers" ]; then
+        echo "    servherd servers: $(tr '\n' ' ' <<<"$servers")"
+    fi
     if [ -n "$live" ]; then
         echo "    processes:"
         echo "$live"
     fi
 
     [ "$DRY" = 1 ] && return 0
+    local answer=""
+    read -r -p "    remove this worktree${servers:+ and stop its servers}? [y/N] " answer </dev/tty || answer=""
+    [ "$answer" = y ] || [ "$answer" = Y ] || return 0
+    if [ -n "$servers" ]; then
+        if ! command -v servherd >/dev/null 2>&1; then
+            while IFS= read -r s; do echo "    no servherd CLI here: servherd_stop({ name: \"$s\" }) then servherd_remove({ name: \"$s\" })"; done <<<"$servers"
+            echo "    skipped: stop its servers first"
+            return 0
+        fi
+        while IFS= read -r s; do
+            servherd stop "$s" >/dev/null && servherd remove "$s" --force >/dev/null && echo "    stopped server $s" || echo "    could not stop server $s"
+        done <<<"$servers"
+        live="$(procs_in "$path")"
+    fi
     if [ -n "$live" ]; then
         echo "    skipped: stop the processes above first"
         return 0
     fi
-    local answer=""
-    read -r -p "    remove this worktree? [y/N] " answer </dev/tty || answer=""
-    if [ "$answer" = y ] || [ "$answer" = Y ]; then
-        git -C "$MAIN" worktree remove "$path" && echo "    removed" || echo "    not removed (see git's message)"
-    fi
+    git -C "$MAIN" worktree remove "$path" && echo "    removed" || echo "    not removed (see git's message)"
 }
 
 path="" branch=""

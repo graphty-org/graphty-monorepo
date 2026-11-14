@@ -82,12 +82,16 @@ names back as the ids. Saving the graph to GML again needs the same option, and 
 - OGDF's clusters (the `rootcluster` record after the graph) are read the same way: each cluster
   becomes a group node with the id `cluster<id>`, the parent of its `vertex` nodes and of the
   clusters inside it, with its label, its box and its graphics. OGDF draws a cluster's outline
-  solid whatever its `stipple`, so that is kept as `clusterStipple` and not drawn.
-- The GML specification makes node ids integers. NetworkX and Gephi also write text ids; graph-io
-  reads them under the `ids` option with one `W_GML_STRING_ID` warning per file.
+  solid whatever its `stipple`, so that is kept as `clusterStipple` and not drawn. A GML save
+  writes these group nodes back as the `rootcluster` record.
+- The GML specification makes node ids integers. NetworkX and Gephi also write text ids, quoted
+  or as bare words (`id A`); graph-io reads them under the `ids` option with one
+  `W_GML_STRING_ID` warning per file.
+- A node without an `id` is given the next integer above every id, `source` and `target` in the
+  graph, as igraph does, with one `W_GML_GENERATED_ID` warning per file.
 - `nodeIdFrom: "label"` or `"index"` takes node ids from the labels or from the node order, for
-  files whose `id` keys are meaningless numbers. Every node still needs its `id` key, because edges
-  name their ends by it: a node without one is skipped with `E_MISSING_ID`.
+  files whose `id` keys are meaningless numbers.
+- Records nested more than 1024 levels deep stop the import with `E_SYNTAX`.
 - `#` comments, `+INF`, `-INF` and `NAN` are read. A file can hold several `graph [ ]` blocks; see
   [Files that hold several graphs](../loading.md#files-that-hold-several-graphs).
 - Under `nodeIdFrom: "label"` or `"index"` the integer `id` keys are not kept, and
@@ -102,12 +106,14 @@ What does not survive:
 - One direction per file. A graph with both kinds of edges needs `onMixedDirection`.
 - Node ids must be integers. Other ids need `sanitizeIds: "mangle"`, which numbers the nodes and
   keeps each original id in a `graphty_originalId` key that graph-io restores.
-- Column names must be GML keys: a letter followed by letters, digits or underscores, and not one
+- Column names must be GML keys: a letter or `_` followed by letters, digits or underscores (NetworkX
+  reads only keys that start with a letter; graph-tool writes `_pos`), and not one
   of GML's own keys. Other names make the export throw (`E_GML_INVALID_KEY`,
   `E_GML_RESERVED_KEY`) unless you pass `sanitizeKeys: "mangle"`, which rewrites them.
 - Inside a JSON record, GML cannot tell integers from reals, writes booleans as 1 and 0, and has no
   null (`W_GML_RECORD_NUMBER_TYPE` and related notes).
-- Edge ids are kept; time columns, visual columns other than the position, and nesting are not.
+- Edge ids are kept; time columns and visual columns other than the position are not. Nesting is
+  kept only for OGDF's clusters (written back as `rootcluster`).
 - The graph's name is written only from a `name` graph attribute, which a GML import has. A name
   from another format (for example, `snapshot.meta.name` of a DOT graph) is not written.
 
@@ -192,13 +198,13 @@ These come on top of the [options every exporter takes](../options.md#every-expo
 | [`sanitizeKeys`](#export-sanitizekeys) | `"error" \| "mangle"` | `"error"`             |
 
 - <a id="export-weightkey"></a>`weightKey`: The edge key the weights are written under. The default is the key a GML import read them from, else `value`.
-- <a id="export-sanitizekeys"></a>`sanitizeKeys`: What to do with an attribute name or record key that GML cannot write: one that is not a GML key (letters, digits and `_`, starting with a letter, so `Edge Label` is not one), or one that GML uses itself in that record: `id` for a node attribute; `source`, `target` and `directed` for an edge attribute; `node`, `edge`, `directed` and `multigraph` for a graph attribute. A node attribute named `source` is fine. "error" makes the save fail, "mangle" rewrites the name (`.` and other characters become `_`, a clash gets a `_2` suffix) and checkExport() lists each rename. An options object shared by saves to several formats that include GML should set it.
+- <a id="export-sanitizekeys"></a>`sanitizeKeys`: What to do with an attribute name or record key that GML cannot write: one that is not a GML key (letters, digits and `_`, starting with a letter or `_`, so `Edge Label` is not one), or one that GML uses itself in that record: `id` for a node attribute; `source`, `target` and `directed` for an edge attribute; `node`, `edge`, `directed` and `multigraph` for a graph attribute. A node attribute named `source` is fine. "error" makes the save fail, "mangle" rewrites the name (`.` and other characters become `_`, a clash gets a `_2` suffix) and checkExport() lists each rename. An options object shared by saves to several formats that include GML should set it.
 
 ## Import issue codes
 
 The codes this format's import report can hold. They are also exported as `GML_ISSUE` from `@graphty/graph-io/gml`, keyed by the code without its `E_` / `W_` and `GML_` prefixes.
 
-- `E_SYNTAX` (error): The text breaks GML's syntax: a word that is not a key or a value, an unclosed string or `[`, a stray `]`, or a key without a value. The import stops.
+- `E_SYNTAX` (error): The text breaks GML's syntax: a word that is not a key or a value, an unclosed string or `[`, a stray `]`, a key without a value, or records nested more than 1024 levels deep. The import stops.
 - `E_INVALID_UTF8` (error): The input is not valid UTF-8. The import stops.
 - `E_INVALID_ENCODING` (error): Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the `encoding` option). The import stops.
 - `W_ENCODING_FALLBACK` (warning): Bytes that are not UTF-8 and declare no encoding were read as windows-1252.
@@ -207,7 +213,7 @@ The codes this format's import report can hold. They are also exported as `GML_I
 - `W_MULTIPLE_GRAPHS` (warning): The file holds more than one `graph` block and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph.
 - `E_GRAPH_NOT_FOUND` (error): `graphIndex` or `graphName` names no graph of the file; the message lists the graphs it holds. The import stops.
 - `E_AMBIGUOUS_GRAPH_NAME` (error): `graphName` matches more than one graph; pass `graphIndex`. The import stops.
-- `E_MISSING_ID` (error): A node without an `id`.
+- `W_GML_GENERATED_ID` (warning): A node without an `id` was given the next integer above every integer id, source and target of the graph, as igraph does. Reported once per file.
 - `E_GML_MISSING_LABEL` (error): A node without a `label` under nodeIdFrom "label".
 - `E_MISSING_ENDPOINT` (error): An edge without `source` or `target`.
 - `E_GML_ID_TYPE` (error): A node id, source or target that is neither an integer nor a string.
@@ -244,7 +250,7 @@ The codes `checkExport(snapshot, "gml", options)` can return before a save, also
 - `W_GML_RECORD_NULL` (warning): A json column holds nulls, omitted.
 - `E_GML_NESTED_ARRAY` (error, the save throws): An attribute holds an array inside an array, which GML cannot write; the save fails.
 - `W_GML_JSON_ARRAY` (warning): A json row that is an array, written as repeated keys.
-- `E_GML_INVALID_KEY` (error, the save throws): An attribute name GML cannot use as a key (keys are letters and digits, starting with a letter). The save fails unless `sanitizeKeys` is "mangle".
+- `E_GML_INVALID_KEY` (error, the save throws): An attribute name GML cannot use as a key (keys are letters, digits and `_`, starting with a letter or `_`). The save fails unless `sanitizeKeys` is "mangle".
 - `E_GML_RESERVED_KEY` (error, the save throws): A column named like a structural key.
 - `W_GML_KEY_MANGLED` (warning): A key rewritten under sanitizeKeys "mangle", or a column renamed because its key would read back as a style value.
 - `W_GML_POSITION_COMPONENTS` (warning): A position column with more than three components.

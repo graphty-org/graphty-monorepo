@@ -4062,6 +4062,15 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Stop the camera's animated moves: the one under way stops where the camera is now, and
+     * moves still waiting their turn are dropped. Every caller awaiting one of them resolves.
+     * @returns True if a camera move was cancelled, false if none was under way or waiting
+     */
+    cancelCameraAnimation(): boolean {
+        return this.#graph.cancelCameraAnimation();
+    }
+
+    /**
      * Phase 7: Check if animation capture is in progress
      * Available from Phase 7 onwards.
      * @returns true if a capture is currently running

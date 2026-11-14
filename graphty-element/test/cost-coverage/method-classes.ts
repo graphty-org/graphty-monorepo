@@ -1241,6 +1241,7 @@ export const READ_ONLY: readonly string[] = [
     "StylesApi.agreement",
     "StylesApi.categories",
     "StylesApi.colors",
+    "StylesApi.grayCollisions",
     "StylesApi.counts",
     "StylesApi.drawnCount",
     "StylesApi.defaultValue",

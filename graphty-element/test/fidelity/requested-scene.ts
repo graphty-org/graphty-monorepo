@@ -13,6 +13,7 @@
  */
 import { canCarry } from "../../../graph-io/test/fidelity/routes";
 import {
+    type ArrowClass,
     PROPERTIES,
     type Property,
     type Scene,
@@ -57,6 +58,20 @@ export const REQUESTED_PROPERTIES: readonly Property[] = [
  */
 function channel(merged: Readonly<Record<string, unknown>>, name: string): unknown {
     return merged[name] ?? channelDescriptor(name)?.default;
+}
+
+/**
+ * The arrow class an edge end asks for: an open triangle with an inside color (`edge.arrowHeadFillColor`) is drawn
+ * filled, so it reads as the reference's filled triangle, as the browser tier reads it (oracle/drawn-primitives.ts)
+ * @param merged - the edge's merged style
+ * @param end - which end
+ * @returns the class
+ */
+function requestedArrowClass(merged: Readonly<Record<string, unknown>>, end: "Head" | "Tail"): ArrowClass | "none" {
+    const named = arrowClassOf(channel(merged, `edge.arrow${end}`));
+    return named === "open-triangle" && colorOf(merged[`edge.arrow${end}FillColor`]) !== null
+        ? "filled-triangle"
+        : named;
 }
 
 const num = (value: unknown, fallback: number): number =>
@@ -206,8 +221,8 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
             width: num(channel(merged, "edge.width"), 1) * SCENE_PER_UNIT.edge,
             style: lineStyleOf(channel(merged, "edge.style")),
             arrow: {
-                source: arrowClassOf(channel(merged, "edge.arrowTail")),
-                target: arrowClassOf(channel(merged, "edge.arrowHead")),
+                source: requestedArrowClass(merged, "Tail"),
+                target: requestedArrowClass(merged, "Head"),
             },
             label: typeof label === "string" && label !== "" ? label : null,
         };

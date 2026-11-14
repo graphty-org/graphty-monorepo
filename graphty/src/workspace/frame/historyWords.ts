@@ -217,6 +217,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "visibility.condition-remove": (p) => `deleting ${conditionName(p)}`,
     "visibility.steps": () => "changing the filter steps",
     "visibility.playback": () => "changing how time plays",
+    "visibility.hide-nodes": (p) => `hiding ${counted(p, "node")}`,
+    "visibility.show-nodes": (p) => `showing ${counted(p, "node")}`,
     "time.field": () => "setting the time field",
     "time.clear-field": () => "clearing the time field",
     "set.create": (p) => `creating ${text(p, "name", "a set")}`,

@@ -211,6 +211,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
         { root, members: ["nodeThumbnail", "modelThumbnail"], reason: "raw-data", kind: BY_DESIGN },
         { root, members: ["cancelCameraAnimation"], reason: "in-flight", kind: BY_DESIGN },
+        // A tour is a run of camera moves; the assistant makes each with view.camera.
+        { root, members: ["playTour"], reason: "covered-by", by: "view.camera", kind: BY_DESIGN },
     ]),
     {
         root: "Graph",
@@ -482,6 +484,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "views",
             "layout",
             "positions",
+            "hidden",
             "config",
             "capabilities",
             "history",
@@ -517,6 +520,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "views",
             "layout",
             "positions",
+            "hidden",
             "config",
             "capabilities",
             "history",

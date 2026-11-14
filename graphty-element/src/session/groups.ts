@@ -25,14 +25,12 @@ export type GroupValue = string | number | boolean;
 /**
  * One group: a run's group (its primary field, such as a community's `group`), or the nodes
  * holding one value at any node path (`data.team`, `results.<run>.<field>`).
- * @experimental groups
  */
 export type GroupRef =
     { readonly run: RunRef; readonly group: GroupValue } | { readonly groupBy: Path; readonly group: GroupValue };
 
 /**
  * A group that is collapsed now.
- * @experimental groups
  */
 export interface CollapsedGroup {
     /** The path its members were grouped by. */
@@ -47,7 +45,7 @@ export interface CollapsedGroup {
 
 /**
  * Collapsing groups of nodes to one node each, and expanding them again. Each call is one
- * undoable step; a collapsed group is saved with the project.
+ * undoable step; a collapsed group is saved with the project. Experimental.
  *
  * The collapsed node's record carries `_group.by`, `_group.value` and `_group.size` (how many
  * members), and each edge standing in for its members' edges carries `_group.count` (how many
@@ -59,7 +57,6 @@ export interface CollapsedGroup {
  * const node = await session.groups.collapse({ run, group: 0 });
  * await session.groups.expand({ run, group: 0 });
  * ```
- * @experimental groups
  */
 export interface GroupsApi {
     /**

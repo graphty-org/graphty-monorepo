@@ -343,6 +343,8 @@ const ROWS: Record<string, Row> = {
     "view.camera": { args: { action: "camera", preset: "topView" }, code: "E_UNSUPPORTED" },
     "view.zoom_to": { args: { action: "zoom_to", where: "data.type == 'server'" } },
     "view.fit": { args: { action: "fit" } },
+    "hidden.hide": { args: { action: "hide", ids: ["a"] } },
+    "hidden.show": { args: { action: "show", ids: ["a"] }, setup: (s) => s.hidden.add(["a"]) },
     "view.save": { args: { action: "save", name: "overview" } },
     "view.restore": {
         args: { action: "restore", name: "kept" },
@@ -934,6 +936,7 @@ const MORE: Record<string, Row[]> = {
         },
     ],
     "layout.unpin": [{ args: { action: "unpin", where: "all" }, setup: (s) => s.positions.pin(["a"]) }],
+    "hidden.show": [{ args: { action: "show", where: "all" }, setup: (s) => s.hidden.add(["a"]) }],
     // The layout the session already has, so it is run again; a session with no renderer has no
     // layout to run.
     "layout.set": [{ args: { action: "set", name: "force" }, code: "E_UNSUPPORTED" }],

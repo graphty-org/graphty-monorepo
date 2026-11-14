@@ -58,6 +58,25 @@ function walk(dir: string): string[] {
 /** A listener as the stand-in elements keep it, so the test can await what it returns. */
 type Listener = (event: Event) => unknown;
 
+/**
+ * What api.github.com answers the GitHub example: a repository whose default branch's tree holds the
+ * sample files under graph-io/docs/samples/.
+ * @param path - the request's path
+ * @returns the answer, or null for a contents request (answered from the files by name)
+ */
+function githubAnswer(path: string): Response | null {
+    if (/^\/repos\/[^/]+\/[^/]+$/.test(path)) {
+        return Response.json({ default_branch: "master" });
+    }
+    if (path.includes("/git/trees/")) {
+        const tree = readdirSync(SAMPLES)
+            .sort()
+            .map((f) => ({ path: `graph-io/docs/samples/${f}`, type: "blob" }));
+        return Response.json({ truncated: false, tree });
+    }
+    return null;
+}
+
 /** The stand-in for an element an example looks up or creates. */
 class FakeElement {
     readonly listeners = new Map<string, Listener[]>();
@@ -151,6 +170,13 @@ function installGlobals(dir: string, run: Run): Map<string, FakeElement> {
         }
         if (host === "query.wikidata.org") {
             return wikidata(input, init);
+        }
+        if (host === "api.github.com") {
+            const github = githubAnswer(new URL(url).pathname);
+            if (github !== null) {
+                return Promise.resolve(github);
+            }
+            // a contents request falls through: it is answered from the sample files by its file name
         }
         const method = init?.method ?? (input instanceof Request ? input.method : "GET");
         const last = basename(new URL(url, "https://example.com/").pathname);

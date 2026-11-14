@@ -30,6 +30,7 @@ import {
     type StyleDocument,
 } from "../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
+import { otherIdSpelling } from "../data/nodeIdSpelling";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import type { AssetsApiInternal } from "./assets/AssetsApi";
@@ -898,6 +899,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
             ...(dispatcher.state.visibility.playback === undefined || dispatcher.state.visibility.playback === null
                 ? {}
                 : { playback: dispatcher.state.visibility.playback }),
+            // Written only when a node is hidden from the drawing, so a project without saves as before.
+            ...((dispatcher.state.visibility.hidden ?? []).length === 0
+                ? {}
+                : { hidden: dispatcher.state.visibility.hidden }),
         },
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
         views: [...session.views].map(([name, camera]) => ({ name, camera })),
@@ -1523,6 +1528,27 @@ async function clearStyleRows(tx: TransactionScope): Promise<void> {
 }
 
 /**
+ * Hide again the nodes a saved `visibility` hid that the graph holds.
+ * @param opening - The open.
+ * @param visibility - The member's `visibility`.
+ * @param nodeIds - The node ids the graph holds.
+ */
+async function restoreHidden(opening: Opening, visibility: unknown, nodeIds: ReadonlySet<NodeId>): Promise<void> {
+    const hidden = (visibility as { hidden?: unknown } | undefined)?.hidden;
+    if (Array.isArray(hidden)) {
+        await attempt(opening, "visibility", () =>
+            // An integer id may be saved in either spelling, as `hidden.add` takes it.
+            opening.tx.hidden.add(
+                (hidden as NodeId[]).filter((id) => {
+                    const other = otherIdSpelling(id);
+                    return nodeIds.has(id) || (other !== undefined && nodeIds.has(other));
+                }),
+            ),
+        );
+    }
+}
+
+/**
  * Empty the session, through the transaction.
  * @param tx - The transaction.
  * @param playback - The timeline settings the session held, which go too.
@@ -1561,6 +1587,10 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
 
     if (playback !== undefined && playback !== null) {
         await (tx.visibility as SessionVisibilityApi).restorePlayback(null);
+    }
+
+    if (tx.hidden.ids.size > 0) {
+        await tx.hidden.remove([...tx.hidden.ids]);
     }
 
     await tx.data.clear();
@@ -1999,6 +2029,8 @@ async function readProject(
             opening.restored.add("pins");
         });
     }
+
+    await restoreHidden(opening, state.visibility, nodeIds);
 
     // Before the runs: a run over the selection reads it. The selection is not project state.
     const view = doc.members.get("graphty-view-state")?.[0]?.selection as

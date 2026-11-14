@@ -1,7 +1,7 @@
 import "./start.css";
 
 import { useFileDrop } from "@graphty/compact-mantine";
-import { type DatasetMeta, GENERATOR_DESCRIPTORS, type GeneratorDescriptor } from "@graphty/graphty-element/catalog";
+import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -261,6 +261,7 @@ function SampleLibrary(): React.JSX.Element {
     ];
     const fields = [...new Set(offered.map((tile) => tile.field))];
     const datasetCount = library.filter((tile) => tile.field !== GENERATED).length;
+    const generatorCount = library.length - datasetCount;
     const shown = <T extends LibraryTile | NetworkTile>(each: readonly T[]): T[] =>
         each.filter((tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)));
     const tiles = shown(library);
@@ -276,7 +277,7 @@ function SampleLibrary(): React.JSX.Element {
             </h2>
             <p className="ws-land-intro">
                 {datasetCount} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
-                routes, and {GENERATOR_DESCRIPTORS.length} ways to generate one.
+                routes, and {generatorCount} ways to generate one.
             </p>
             <div className="ws-land-libhead">
                 <TextInput

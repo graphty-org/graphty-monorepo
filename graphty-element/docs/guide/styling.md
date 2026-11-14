@@ -708,6 +708,12 @@ no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"s
 `"pattern"` or `"extend"`) says what a categorical colour does with more groups than its palette has colours;
 `encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
 
+When every value in the column is the same (a regular graph where every node has degree 3), a
+numeric scale has no spread to place anything in, so it paints the **middle** of its range or
+palette rather than either end, and the binding's legend block carries the fact
+`{ code: "legend.no-spread", params: { value } }` so a legend can say there is no spread. The
+legend's swatch shows the same middle colour the canvas paints.
+
 ### A table of values, and what it leaves alone
 
 `map` gives a value per key. With `scale: "passthrough"`, a key the table does not hold goes on

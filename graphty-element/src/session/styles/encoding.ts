@@ -745,6 +745,11 @@ function settleAutomaticDomain(
     }
 
     if (placesDomain(map, base, [low, high])) {
+        // Every value the same: the scale paints the middle, and the reader is told why.
+        if (low === high) {
+            facts.push({ code: "legend.no-spread", params: { value: low } });
+        }
+
         return { domain: [low, high], notPlottable: 0, clamped, facts };
     }
 

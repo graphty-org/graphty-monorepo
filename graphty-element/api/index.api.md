@@ -7644,6 +7644,15 @@ export interface SavedProject {
 }
 
 // @public
+export interface ScreenshotLegendOptions {
+    position?: ScreenshotLegendPosition;
+    title?: string;
+}
+
+// @public
+export type ScreenshotLegendPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+// @public
 export interface ScreenshotLegendSection {
     note?: string;
     ramp?: {
@@ -7678,7 +7687,7 @@ export interface ScreenshotOptions {
     format?: "png" | "jpeg" | "webp";
     // (undocumented)
     height?: number;
-    legend?: readonly ScreenshotLegendSection[];
+    legend?: boolean | "auto" | ScreenshotLegendOptions | readonly ScreenshotLegendSection[];
     // (undocumented)
     multiplier?: number;
     // (undocumented)

@@ -116,25 +116,21 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
     };
     let body: React.ReactNode = <FindSettingResults ctx={ctx} query={query} parts={parts} />;
     if (query.trim() === "") {
-        body = parts.map((part) =>
-            part.id === "text" ? (
-                <LabelSection
-                    key={part.id}
-                    ctx={ctx}
-                    configured={part.items.some((item) => itemChannels(item).some(written))}
-                    actions={page(part)}
-                    loose={partChannels(part)}
-                />
-            ) : (
-                <Section
-                    key={part.id}
-                    ctx={ctx}
-                    spec={sectionOf(part, written)}
-                    actions={page(part)}
-                    {...(part.list === true ? { itemActions: (id: string) => itemPage(part, id) } : {})}
-                />
-            ),
-        );
+        body = parts.map((part) => {
+            if (part.id === "text") {
+                return (
+                    <LabelSection
+                        key={part.id}
+                        ctx={ctx}
+                        configured={part.items.some((item) => itemChannels(item).some(written))}
+                        actions={page(part)}
+                        loose={partChannels(part)}
+                    />
+                );
+            }
+            const listed = part.list === true ? { itemActions: (id: string) => itemPage(part, id) } : {};
+            return <Section key={part.id} ctx={ctx} spec={sectionOf(part, written)} actions={page(part)} {...listed} />;
+        });
     }
     return (
         <div // NOSONAR(S6848): only catches the "/" key bubbling from the panel's own controls

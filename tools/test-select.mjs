@@ -3345,7 +3345,8 @@ async function main(argv) {
     const base = arg("--base") ?? "origin/master";
     const head = arg("--head") ?? "HEAD";
     const changed = changedFiles(root, base, head);
-    // a pull request's selection: the full-run-only On shards are never in it, nor in its import graphs
+    // a pull request's selection: the full-run-only shards are never in it; the On shards are (their selected
+    // files run on a pull request, tools/ci-test-matrix.mjs plan()), with their -features-on import graphs
     const shards = SHARDS.filter((s) => !s["full-run-only"]);
     const selection = await selectChange(root, changed, shards, undefined, argv.includes("--defer-downstream"), {
         base,

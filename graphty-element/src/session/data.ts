@@ -87,6 +87,7 @@ import {
     importCommand,
     importFact,
     type ImportSource,
+    mergeNodesCommand,
     NO_COLUMN_SETTINGS,
     SOURCE_VALUE,
     SOURCES_VALUE,
@@ -116,6 +117,7 @@ import {
 import { frozen, type JoinGraph, type JoinPlan, joinReport, type JoinTable, planJoin } from "./join";
 import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
+import { overRepresentedValues } from "./overRepresented";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -182,6 +184,7 @@ import type {
     DatasetLoadOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    EdgeName,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
@@ -200,11 +203,14 @@ import type {
     LoadedSourceKind,
     LoadedWeight,
     LoadMapping,
+    MergeNodesOptions,
     Neighbor,
     NeighborOptions,
     NeighborPage,
+    NodeName,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedValues,
     PageColumn,
     RecordPage,
     RecordPageOptions,
@@ -978,6 +984,83 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Merge nodes into one, as one undoable step: every edge of a merged node moves to the kept
+     * node, the kept node takes `options.values`, and the other nodes are removed.
+     * @param ids - the nodes to merge; an integer id may be written either way
+     * @param options - which node is kept, and the values it takes
+     * @returns settles once the merge is drawn
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when an id is not a node the graph holds.
+     */
+    async mergeNodes(ids: readonly NodeId[], options: MergeNodesOptions = {}): Promise<void> {
+        this.requireLive("mergeNodes");
+        if (!Array.isArray(ids)) {
+            throw mergeRefusal("ids is not an array");
+        }
+
+        const send = this.writes.importer();
+        await this.loadLine.edit(() => {
+            const command = this.mergeCommand(ids, options);
+            return command === null ? Promise.resolve() : send(command);
+        }, undefined);
+    }
+
+    /**
+     * The step `mergeNodes` dispatches, read from the graph as it is when its turn comes.
+     * @param ids - the nodes to merge
+     * @param options - which node is kept, and the values it takes
+     * @returns the command, or null when fewer than two nodes are named
+     */
+    private mergeCommand(ids: readonly NodeId[], options: MergeNodesOptions): BatchCommand | null {
+        const snapshot = this.current();
+        const rowOf = (id: NodeId): number => {
+            const row = rowOfEitherSpelling(snapshot.ids, id);
+            if (row === INVALID_INDEX) {
+                throw mergeRefusal(`${JSON.stringify(id)} is not a node the graph holds`);
+            }
+
+            return row;
+        };
+        const rows = new Set(ids.map(rowOf));
+        const keptRow = rowOf(options.into ?? ids[0]);
+        rows.delete(keptRow);
+        if (rows.size === 0) {
+            return null;
+        }
+
+        const kept = snapshot.ids.idOf(keptRow);
+        const endOf = (row: number): NodeId => (rows.has(row) ? kept : snapshot.ids.idOf(row));
+        const touching: { attributes: Readonly<Record<string, unknown>>; source: NodeId; target: NodeId }[] = [];
+        for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+            const from = snapshot.edgeSource(edge);
+            const to = snapshot.edgeTarget(edge);
+            if (rows.has(from) || rows.has(to)) {
+                touching.push({
+                    attributes: this.records?.edgeAttributes(edge) ?? {},
+                    source: endOf(from),
+                    target: endOf(to),
+                });
+            }
+        }
+
+        // A record is read without the keys naming its ends, so the moved one is written back with
+        // them under the keys the last load read ends from: that load's report keeps reading every
+        // other edge's record the same way. Ends read through a nested path are written as
+        // `source` and `target`.
+        const spelling = this.lastImport()?.endpoints ?? { source: "source", target: "target" };
+        const endpoints = {
+            source: BARE_KEY.test(spelling.source) ? spelling.source : "source",
+            target: BARE_KEY.test(spelling.target) ? spelling.target : "target",
+        };
+        const moved = touching.map((each) => ({
+            ...each.attributes,
+            [endpoints.source]: each.source,
+            [endpoints.target]: each.target,
+        }));
+        const merged = [...rows].map((row) => snapshot.ids.idOf(row));
+        return mergeNodesCommand(kept, options.values, merged, moved, endpoints);
+    }
+
+    /**
      * Remove every node, edge, record and graph-level value, as one undoable step.
      * @returns settles once the graph and the picture are empty
      */
@@ -1132,13 +1215,18 @@ export class SessionData implements SessionDataApi {
         this.requireLive("loadDataset");
         const send = this.writes.importer();
         const { baseUrl, signal, ...load } = options;
-        // A mirror may serve any name; only graphty.app's own list is checked.
-        if (baseUrl === undefined && !DATASET_NAMES.includes(name)) {
+        // The element names no host of its own: the caller says where the files are published
+        // (graph-samples exports its own default as `DEFAULT_DATASET_BASE_URL`).
+        if (baseUrl === undefined || baseUrl === "") {
             throw new GraphtyError({
-                code: "E_UNKNOWN_DATASET",
-                message: `There is no dataset named "${name}".`,
+                code: "E_OPTION_RANGE",
+                message: "loadDataset needs a baseUrl.",
                 source: "data",
-                details: { name, available: DATASET_NAMES },
+                details: {
+                    option: "baseUrl",
+                    name,
+                    suggestion: { package: "@graphty/graph-samples", export: "DEFAULT_DATASET_BASE_URL" },
+                },
             });
         }
         // Its place in line is taken now, so a load asked for later waits for this download; an
@@ -1161,7 +1249,7 @@ export class SessionData implements SessionDataApi {
             const sample = this.sampleLoad(snapshot, name, load);
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
-                facts: { dataset: name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+                facts: { dataset: name, baseUrl },
             });
         } finally {
             turn.leave();
@@ -1935,6 +2023,50 @@ export class SessionData implements SessionDataApi {
         const { ids } = this.current();
         const index = rowOfEitherSpelling(ids, id);
         return index === INVALID_INDEX ? undefined : this.nameOf(index, ids.idOf(index));
+    }
+
+    /**
+     * What a node is called, never undefined: `SessionDataApi.nodeName`, which documents it.
+     * @param id - the node id; an integer id may be written either way, `34` or `"34"`
+     * @returns the name and the id; for a node the graph does not hold, the id as the name
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    nodeName(id: NodeId): NodeName {
+        const { ids } = this.current();
+        const index = rowOfEitherSpelling(ids, id);
+        if (index === INVALID_INDEX) {
+            return { id, name: String(id), labeled: false };
+        }
+        const held = ids.idOf(index);
+        const name = this.nameOf(index, held);
+        return { id: held, name, labeled: name !== String(held) };
+    }
+
+    /**
+     * What an edge is called, by its two ends.
+     * @param edge - the two ends' node ids
+     * @param edge.source - the end the edge leaves
+     * @param edge.target - the end the edge enters
+     * @returns the two ends' names
+     */
+    edgeName(edge: { readonly source: NodeId; readonly target: NodeId }): EdgeName;
+    /**
+     * What an edge is called, by its id.
+     * @param edge - the edge id
+     * @returns the two ends' names, or undefined when the graph has no such edge
+     */
+    edgeName(edge: EdgeId): EdgeName | undefined;
+    /**
+     * What an edge is called: `SessionDataApi.edgeName`, which documents it.
+     * @param edge - the edge id, or the two ends' node ids
+     * @returns the two ends' names, or undefined for an edge id the graph has no edge for
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    edgeName(edge: EdgeId | { readonly source: NodeId; readonly target: NodeId }): EdgeName | undefined {
+        const ends = typeof edge === "string" ? this.edge(edge) : edge;
+        return ends === undefined
+            ? undefined
+            : { source: this.nodeName(ends.source), target: this.nodeName(ends.target) };
     }
 
     /**
@@ -5050,6 +5182,35 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Per group, the node values that occur in the group more often than chance.
+     * @param groupBy - the path holding each node's group
+     * @param options - which columns to test
+     * @param options.columns - the node column paths; by default every categorical one
+     * @returns every group, largest first, with its over-represented values
+     */
+    overRepresented(groupBy: Path, options: { readonly columns?: readonly Path[] } = {}): OverRepresentedValues {
+        const snapshot = this.current();
+        const paths =
+            options.columns ??
+            this.attributes()
+                .filter(
+                    (each) =>
+                        each.kind === "node" &&
+                        each.path !== groupBy &&
+                        each.holdsNodeIds !== true &&
+                        (each.measurement === "categorical" || each.measurement === "ordinal"),
+                )
+                .map((each) => each.path);
+        // ponytail: walked on every call; cache by data revision when a profile is read per frame.
+        return overRepresentedValues(
+            groupBy,
+            (index) => this.pages.valueAt("node", index, groupBy),
+            snapshot.nodeCount,
+            paths.map((path) => ({ path, valueAt: (index: number) => this.pages.valueAt("node", index, path) })),
+        );
+    }
+
+    /**
      * The graph's shape.
      * @param options - What to measure.
      * @param options.scope - `"visible"` for only what is showing; default the whole graph.
@@ -6468,5 +6629,22 @@ function datasetError(
         recoverable: !clientError,
         details: { name, ...mirror, ...(status === undefined ? {} : { status }) },
         cause: error,
+    });
+}
+
+/** An endpoint expression that is one top-level key, which a moved edge's record is rewritten under. */
+const BARE_KEY = /^[A-Za-z_]\w*$/;
+
+/**
+ * The refusal of a malformed `mergeNodes` call.
+ * @param field - What is wrong.
+ * @returns An `E_BAD_COMMAND` error.
+ */
+function mergeRefusal(field: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        source: "data",
+        message: `The mergeNodes argument is malformed: ${field}.`,
+        details: { door: "mergeNodes", field },
     });
 }

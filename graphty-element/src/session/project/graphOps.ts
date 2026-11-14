@@ -1151,12 +1151,14 @@ class GraphEntry implements OpLogEntry {
             }
 
             case "record":
-                bumpFields(store, op.target, op.next, op.prior, seen, true);
                 restore(
                     op.target === "node" ? maps.nodes : maps.edges,
                     op.target === "node" ? op.id : String(op.id),
                     op.prior,
                 );
+                // After the restore: the announcement resolves the watching sets at once, and they
+                // must read the record put back, not the one being undone.
+                bumpFields(store, op.target, op.next, op.prior, seen, true);
                 if (op.target === "edge") {
                     writeCapacity(store, edgeCounterOf(String(op.id)), op.prior);
                 }
@@ -1426,7 +1428,7 @@ class GraphEntry implements OpLogEntry {
         const row = store.builder.addEdge(op.source, op.target, op.weight);
         store.stampEdgeId(row, op.edgeId);
         if (identity === undefined) {
-            store.recordIngestedEdge(row, op.edgeId, op.fileId);
+            store.recordIngestedEdge(row, op.edgeId, op.fileId, this.graph.touchesRanges);
         } else {
             store.restoreEdgeIdentity(row, identity);
         }
@@ -1453,8 +1455,9 @@ class GraphEntry implements OpLogEntry {
         seen: Bumped,
     ): void {
         const { store } = this;
-        bumpFields(store, op.target, op.prior, op.next, seen, true);
         restore(op.target === "node" ? nodes : edges, op.target === "node" ? op.id : String(op.id), op.next);
+        // After the restore, as in undo: the watching sets resolve against the record put back.
+        bumpFields(store, op.target, op.prior, op.next, seen, true);
         if (op.target === "edge") {
             writeCapacity(store, edgeCounterOf(String(op.id)), op.next);
         }
@@ -1683,7 +1686,7 @@ class Writer implements GraphWriter {
         const index = builder.addEdge(source, target, weight);
         const edgeId = this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);
-        this.store.recordIngestedEdge(index, edgeId, fileId);
+        this.store.recordIngestedEdge(index, edgeId, fileId, this.graph.touchesRanges);
         this.store.recordsChanged();
         (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
         // A new row already reads the column default, 1: only another capacity costs a write.

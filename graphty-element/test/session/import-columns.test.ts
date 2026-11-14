@@ -8,6 +8,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { identityColumnsOf, identityCounters } from "../../src/data/edgeIdentity";
 import type { GraphStore } from "../../src/data/GraphStore";
 import type { GraphSession } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
@@ -275,6 +276,60 @@ describe("session.data.importColumns", () => {
             assert.strictEqual(digest(session), after);
         });
     }
+
+    it("hashes no minted edge id while a batched typed load freezes, and reads the objects path's identity", async () => {
+        const columns = { sources: SOURCES, targets: TARGETS, nodeCount: IDS.length, ids: IDS };
+        const identities = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            identityCounters.sessionEdgeHashes = 0;
+            await session.data.importColumns(columns);
+            const snapshot = session.data.snapshot();
+            assert.strictEqual(identityCounters.sessionEdgeHashes, batched ? 0 : SOURCES.length, String(batched));
+            // Read on demand: what a saved set or a digest needs, equal on both paths.
+            identities.push(identityColumnsOf(snapshot));
+            // Undo and redo complete the same edges again.
+            const loaded = digest(session);
+            await session.undo();
+            await session.redo();
+            assert.strictEqual(digest(session), loaded);
+            assert.deepStrictEqual(identityColumnsOf(session.data.snapshot()), identities.at(-1));
+            // An edge removed and put back by undo keeps its identity.
+            await session.data.removeEdges([session.data.edges()[2].id]);
+            await session.undo();
+            assert.strictEqual(digest(session), loaded);
+        }
+
+        assert.deepStrictEqual(identities[1], identities[0]);
+    });
+
+    it("gives an edge added after a file import the objects path's identity on the batched path", async () => {
+        const data = JSON.stringify({
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+            edges: [
+                { source: "a", target: "b" },
+                { source: "b", target: "c" },
+            ],
+        });
+        const results = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            await session.data.import({ type: "json", config: { data } });
+            await session.data.addEdges([
+                { source: "c", target: "a" },
+                { source: "a", target: "c" },
+            ]);
+            // A removal undone rebuilds the store; an edge deferred after it is marked in the rebuilt one.
+            await session.data.removeEdges([session.data.edges()[3].id]);
+            await session.undo();
+            await session.data.addEdges([{ source: "b", target: "a" }]);
+            results.push({ hash: [...identityColumnsOf(session.data.snapshot()).edgeHash], digest: digest(session) });
+        }
+
+        assert.notDeepEqual(results[1].hash.slice(4, 8), [0, 0, 0, 0]);
+        assert.notDeepEqual(results[1].hash.slice(8), [0, 0]);
+        assert.deepStrictEqual(results[1], results[0]);
+    });
 
     it("retains history in proportion to the edges it loads", async () => {
         await assertScalesLinearly(

@@ -1429,16 +1429,10 @@ async function restoreAssetsOf(session: GraphSession, doc: ReadDocument, problem
 const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} } };
 
 /**
- * Empty the session, through the transaction.
+ * Delete every row of the style tree, folders with their layers; the element's own layers stay.
  * @param tx - The transaction.
- * @param playback - The timeline settings the session held, which go too.
  */
-async function clearInto(tx: TransactionScope, playback: unknown): Promise<void> {
-    for (const note of tx.notes.list()) {
-        tx.notes.remove(note.id);
-    }
-
-    // Every row of the style tree, folders with their layers; the element's own layers stay.
+async function clearStyleRows(tx: TransactionScope): Promise<void> {
     for (const row of tx.styles.tree()) {
         await tx.styles.deleteRow(row.id);
     }
@@ -1450,6 +1444,19 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
     for (const row of new Set(ghosts.map((layer) => layer.row ?? layer.id))) {
         await tx.styles.deleteRow(row);
     }
+}
+
+/**
+ * Empty the session, through the transaction.
+ * @param tx - The transaction.
+ * @param playback - The timeline settings the session held, which go too.
+ */
+async function clearInto(tx: TransactionScope, playback: unknown): Promise<void> {
+    for (const note of tx.notes.list()) {
+        tx.notes.remove(note.id);
+    }
+
+    await clearStyleRows(tx);
 
     for (const set of tx.sets.list()) {
         tx.sets.remove(set.id);
@@ -1808,6 +1815,42 @@ async function addStylesAndNotes(
 }
 
 /**
+ * Read a project's settings: the style member's shaders first, so the background never names one
+ * the project lacks, then the settings themselves.
+ * @param opening - The open.
+ * @param doc - The read document.
+ * @param config - The session member's saved settings.
+ * @param name - The project's name.
+ */
+async function readSettings(opening: Opening, doc: ReadDocument, config: unknown, name: string | null): Promise<void> {
+    const { tx } = opening;
+    await addLegacyShaders(opening, doc.members.get("graphty-style") ?? [], config);
+    // The style member's shaders first, so the background never names one the project lacks.
+    for (const style of doc.members.get("graphty-style") ?? []) {
+        if (Array.isArray(style.shaders)) {
+            await attempt(opening, "styles", async () => {
+                await tx.styles.applyTemplate({
+                    version: 1,
+                    layers: [],
+                    shaders: style.shaders as StyleDocument["shaders"],
+                });
+            });
+        }
+    }
+
+    await attempt(opening, "config", () =>
+        tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(config)), name }),
+    );
+    // The settings just read add starting rows by themselves when they change what is in effect (a
+    // time field adds Ghost, the pinned look adds Pinned, `startingRows` the rest). A file that
+    // holds a style tree comes back with exactly that tree, so those rows go again: otherwise the
+    // tree's own copies land beside them and every starting row is there twice (issue #7843).
+    if (doc.members.has("graphty-style")) {
+        await clearStyleRows(tx);
+    }
+}
+
+/**
  * Read a project into the session, in place of what it holds.
  * @param opening - The open.
  * @param doc - The document.
@@ -1831,23 +1874,7 @@ async function readProject(
     const state = first("graphty-session");
 
     await clearInto(tx, opening.playback);
-    await addLegacyShaders(opening, doc.members.get("graphty-style") ?? [], state.config);
-    // The style member's shaders first, so the background never names one the project lacks.
-    for (const style of doc.members.get("graphty-style") ?? []) {
-        if (Array.isArray(style.shaders)) {
-            await attempt(opening, "styles", async () => {
-                await tx.styles.applyTemplate({
-                    version: 1,
-                    layers: [],
-                    shaders: style.shaders as StyleDocument["shaders"],
-                });
-            });
-        }
-    }
-
-    await attempt(opening, "config", () =>
-        tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(state.config)), name }),
-    );
+    await readSettings(opening, doc, state.config, name);
     const records =
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
     const edgeIds = await importInto(tx, records, source, sources, provenance);

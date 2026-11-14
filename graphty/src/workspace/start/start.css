@@ -1186,21 +1186,6 @@ html.ws-land-page #root {
     color: var(--ws-land-text);
 }
 
-/* The usage data question, under the first view until it is answered. */
-.ws-land-usage {
-    max-width: 560px;
-    padding: 20px clamp(24px, 4vw, 72px) 0;
-}
-
-.ws-land-usage:empty {
-    display: none;
-}
-
-.ws-land-usage a,
-.ws-land-usage .mantine-Anchor-root {
-    color: var(--ws-land-accent);
-}
-
 /* Settings opened from the start page: the page's backdrop, corners and lime Done. */
 .ws-land-settings {
     border-radius: 16px;
@@ -1314,10 +1299,6 @@ html.ws-land-page #root {
         flex-wrap: wrap;
         gap: 10px 18px;
         white-space: normal;
-    }
-
-    .ws-land-usage {
-        padding: 16px;
     }
 }
 

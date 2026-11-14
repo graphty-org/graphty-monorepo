@@ -55,9 +55,6 @@ import { readInstant } from "../time/parse";
 /** How far a neighbourhood target reaches when it does not say. */
 const DEFAULT_NEIGHBOR_DEPTH = 1;
 
-/** The deepest a neighbourhood target may reach. */
-const MAX_NEIGHBOR_DEPTH = 3;
-
 /** Which way a neighbourhood target walks when it does not say. */
 const DEFAULT_DIRECTION = "all";
 
@@ -108,8 +105,11 @@ export interface ElementIdTarget {
 export interface NeighborhoodTarget {
     /** The nodes to walk out from; the current node selection when absent. */
     readonly neighborsOf?: readonly NodeId[];
-    /** How many steps to walk, counting the seeds as step zero. One when absent. */
-    readonly depth?: 1 | 2 | 3;
+    /**
+     * How many steps to walk, counting the seeds as step zero: any whole number from 1. One when
+     * absent. A depth past the farthest node reached simply selects everything connected.
+     */
+    readonly depth?: number;
     /** Which way to follow an edge. Both ways when absent. */
     readonly direction?: SelectionDirection;
     /** Follow only the edges whose time falls inside this window. Every edge when absent. */
@@ -556,18 +556,18 @@ function addPastedId(raw: NodeId, nodes: ElementMask<NodeId>, edges: ElementMask
 }
 
 /**
- * Check a neighbourhood target's depth, which the type says is one, two or three.
+ * Check a neighbourhood target's depth: a whole number of steps from 1.
  * @param depth - What was passed.
  * @returns The depth to walk.
- * @throws A `GraphtyError` coded `E_OPTION_RANGE` when it is not 1, 2 or 3.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when it is not a whole number from 1.
  */
 function neighborDepth(depth: number | undefined): number {
     if (depth === undefined) {
         return DEFAULT_NEIGHBOR_DEPTH;
     }
 
-    if (!Number.isInteger(depth) || depth < 1 || depth > MAX_NEIGHBOR_DEPTH) {
-        throw badOption("depth", depth, `a whole number of steps from 1 to ${String(MAX_NEIGHBOR_DEPTH)}`);
+    if (!Number.isInteger(depth) || depth < 1) {
+        throw badOption("depth", depth, "a whole number of steps from 1");
     }
 
     return depth;
@@ -664,7 +664,7 @@ function edgeFilter(window: NeighborhoodWindow | undefined, context: TargetConte
  * @param target - The target.
  * @param context - What the resolution reads.
  * @returns The two masks.
- * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the depth is outside 1 to 3 or a window
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the depth is not a whole number from 1 or a window
  *   bound names no instant.
  */
 function resolveNeighborhood(target: NeighborhoodTarget, context: TargetContext): TargetMembers {

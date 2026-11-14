@@ -115,8 +115,8 @@ export function Sections({ sections }: Readonly<{ sections: readonly (readonly s
 }
 
 /**
- * The main menu, the app's one menu: Back to start | New project, Open, Open recent
- * | the File list | Custom model..., Add Shader..., Rename | Settings, Keyboard shortcuts, Help. The start screen's copy leaves
+ * The main menu, the app's one menu: Back to start | New project, Rename, Open, Open recent
+ * | the File list | Custom model..., Add Shader... | Settings, Keyboard shortcuts, Help. The start screen's copy leaves
  * out the rows that need a project (Back to start, the File list, Rename) rather than
  * drawing them disabled.
  * @param props - Component props
@@ -141,6 +141,7 @@ export function MainMenu({ start = false }: Readonly<{ start?: boolean }>): Reac
                     </>
                 )}
                 <CommandItem id="project.new" />
+                {start ? null : <CommandItem id="project.rename" />}
                 <CommandItem id="file.open" />
                 <RecentMenu />
                 <Menu.Divider />
@@ -148,11 +149,7 @@ export function MainMenu({ start = false }: Readonly<{ start?: boolean }>): Reac
                     sections={
                         start
                             ? [["settings.open", "help.shortcuts"]]
-                            : [
-                                  FILE_LIST,
-                                  ["model.custom", "shader.add", "project.rename"],
-                                  ["settings.open", "help.shortcuts"],
-                              ]
+                            : [FILE_LIST, ["model.custom", "shader.add"], ["settings.open", "help.shortcuts"]]
                     }
                 />
                 <Menu.Sub>

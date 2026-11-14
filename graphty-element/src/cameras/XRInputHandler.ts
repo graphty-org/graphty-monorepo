@@ -1,13 +1,10 @@
-import {
-    type Mesh,
-    MeshBuilder,
-    Quaternion,
-    Ray,
-    type Scene,
-    Vector3,
-    type WebXRDefaultExperience,
-    type WebXRInputSource,
-} from "@babylonjs/core";
+import type { WebXRInputSource } from "@babylonjs/core";
+import { Ray } from "@babylonjs/core/Culling/ray.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import type { Scene } from "@babylonjs/core/scene.js";
+import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 
 import type { NodeId } from "../catalog/types";
 import type { XRControllerButton } from "../config/XRConfig";

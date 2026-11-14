@@ -73,14 +73,19 @@ export function urlTail(url: string): string {
 /**
  * Read a URL's bytes, once.
  * @param url - The URL.
+ * @param signal - Cancels the fetch; an abort rejects with the signal's reason, uncoded.
  * @returns The bytes.
  * @throws A `GraphtyError` with `E_FETCH_FAILED` when it cannot be read.
  */
-export async function fetchBytes(url: string): Promise<Uint8Array> {
+export async function fetchBytes(url: string, signal?: AbortSignal): Promise<Uint8Array> {
     let response: Response;
     try {
-        response = await fetch(url);
+        response = await fetch(url, signal === undefined ? undefined : { signal });
     } catch (error) {
+        if (signal?.aborted === true) {
+            throw error;
+        }
+
         throw new GraphtyError({
             code: "E_FETCH_FAILED",
             message: `Could not fetch "${url}".`,

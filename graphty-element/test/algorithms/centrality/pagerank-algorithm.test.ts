@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
-import { createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
+import { asNumber, createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
 
 describe("PageRankAlgorithm", () => {
     it("exists", async () => {
@@ -16,24 +16,23 @@ describe("PageRankAlgorithm", () => {
 
         // Check that all nodes have pagerank results
 
-        const dm = graph.getDataManager() as any;
-        for (const [nodeId] of dm.nodes) {
+        for (const nodeId of graph.nodes.keys()) {
             const rank = getNodeResult(pr, nodeId, "graphty", "pagerank", "rank");
             const rankPct = getNodeResult(pr, nodeId, "graphty", "pagerank", "rankPct");
 
             // Verify rank is a number and in valid range
             assert.isNumber(rank);
-            assert.isAtLeast(rank, 0);
+            assert.isAtLeast(asNumber(rank), 0);
 
             // Verify rankPct is normalized [0,1]
             assert.isNumber(rankPct);
-            assert.isAtLeast(rankPct, 0);
-            assert.isAtMost(rankPct, 1);
+            assert.isAtLeast(asNumber(rankPct), 0);
+            assert.isAtMost(asNumber(rankPct), 1);
         }
 
         // Sum of all ranks should be approximately 1.0
         let totalRank = 0;
-        for (const [nodeId] of dm.nodes) {
+        for (const nodeId of graph.nodes.keys()) {
             const rank = getNodeResult(pr, nodeId, "graphty", "pagerank", "rank");
             totalRank += rank as number;
         }
@@ -56,10 +55,10 @@ describe("PageRankAlgorithm", () => {
         assert.isDefined(maxRank);
 
         assert.isNumber(iterations);
-        assert.isAtLeast(iterations, 1, "Should have at least 1 iteration");
+        assert.isAtLeast(asNumber(iterations), 1, "Should have at least 1 iteration");
 
         assert.isNumber(maxRank);
-        assert.isAtLeast(maxRank, 0, "Max rank should be non-negative");
+        assert.isAtLeast(asNumber(maxRank), 0, "Max rank should be non-negative");
 
         // The damping factor the run used is in the caveats' notes, which is where a reader is
         // told what the numbers mean rather than handed a parameter back as a result.

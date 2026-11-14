@@ -1312,6 +1312,40 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   `test/managers/DataManager.test.ts` ("reads each row's end rows from the store's edge, looking up no end id": 4
   id lookups before, 0 after) and `test/data/RowMap.test.ts`. Profiled, one 100k + 1M typed load each, load average
   21-25: `unbuiltEdgeEnds` 228-255 ms and `storeUnbuiltEdge` 233-293 ms self before, neither in the top 25 after.
+- **The first frame's `readPixels` (stage 120): the harness's, not the element's.** Correction to the notes above
+  that list "the first frame's `readPixels` 0.4-0.5 s" as left in the element's load: graphty-element makes no
+  synchronous readback in a load (its only `readPixels` calls are the shader guard's fenced pixel-buffer read, the
+  shader runtime's test frame, the group outline pass and screenshots, none on the load path). Every profiled
+  `readPixels` sample sat under the comparison page's `finish` (`benchmarks/compare/main.js`), a blocking 1-pixel
+  read the page made after every frame the element drew, because its still-frame flag was on during the load too. A
+  batched load spans several frames, so each one waited for the GPU on the main thread, which the element's own fence
+  pacing (`RenderManager.gpuBehind`) would have overlapped with ingest. The page now turns that flag off for the
+  load and reads one pixel after the first complete frame only, as its cosmos.gl load does, so `firstFrameMs` still
+  includes that frame's GPU work. Profiled, 100k + 1M typed, two loads each, load average 20-39: `readPixels` self
+  378 and 491 ms, all under `finish`, before; after, 270 and 311 ms under the one first-frame read (the GPU drawing
+  and uploading the first complete frame: 1M pulled lines) and 75-78 ms under `finish` for still frames drawn after
+  the load returned, inside the profile window.
+- **The first freeze and layout start (stage 121).** Under `"batched"` an edge added in the session with no file id
+  is no longer completed at the freeze: its ordinal and among already read -1 by default, and its row is marked in an
+  internal u8 edge column, `graphty.edgeHashDeferred` (`GraphStore.recordIngestedEdge`, `deferMinted`), declared only
+  when the first such edge is recorded, so an objects-path store never carries it. `identityColumnsOf` fills the hash
+  of every marked row from the `graphty.edgeId` counter the first time a snapshot's identity is read (a saved set
+  binding, a membership digest), undo completes a marked edge again as a new one, and the data digest reads the
+  filled hashes and leaves the marker out, so both paths give the same hashes and digests. The marker, not an unset
+  hash cell, says a hash is deferred: a hash column written whole (a file import) has no unset cells, and a snapshot
+  frozen while a load is open has unset cells that are not deferred
+  (`test/session/import-columns.test.ts`, minted ids hashed while a batched load freezes: 0). The objects path
+  hashes at the freeze as before. Profiled, 100k + 1M, interleaved, load average 17-22: `getSnapshot` 946 to 247 ms
+  (identity completion 782 to 11 ms); what is left is graph-format's own freeze (143-222 ms). Correction to the stage
+  note "starting a layout at 1M + 1M rebuilds the snapshot in about 1.2 s": the layout reads the snapshot the load
+  froze and freezes nothing (`test/browser/batched-layout-start.test.ts`). Its cost was the rows drawn with no
+  `Node` gathered into a set three times (`LayoutManager.columnRows`, about 0.25 s at 1M) and the undirected view a
+  simulation loads (`GraphStore.undirected`, graph-format `toUndirected`, 0.26-0.46 s profiled), derived once per
+  snapshot and already reused by the next layout. The rows are now a mask, gathered once, and not at all for the
+  `Node` filter when a batched load built none. `setLayout` to first frame at 1M + 1M, unprofiled, interleaved: master
+  1.21 and 1.23 s, branch 0.96 and 0.95 s; the 0.5 s target is missed by the undirected derive, which only a
+  derive ahead of the layout (more heap held for every batched load, against stage 111's target) or a cheaper
+  symmetrization in graph-format would remove.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.
@@ -1527,6 +1561,12 @@ object per element. Stages 26 to 28 remove that reason.
   1,153-1,154 MB after a forced collection, against 1,296-1,308 MB at G9. The 800 MB target is not met yet; the
   largest per-row holders left are the lazy-row maps (`unbuilt`, `unbuiltIds`, `unbuiltEdges`, `unbuiltEdgeIds`),
   the `ColumnRow` per node, the graph builder's `idToIndex` Map and the ingest duplicate-pair index.
+- **G11, fourth pull request.** The ingest duplicate-pair index (`storedPairs`, one Set per source node) is only
+  reused by the next chunk of the same load, but a batch outside a load (`addEdges`, `importColumns`, `edgeData`)
+  kept it until the next batch. Such a batch now drops it when it ends. Measured (1M + 1M typed, `batched`,
+  ceilings at 2,000,000, 2 runs, load average 2.2 before, 1.0 after): 1,098 MB after a forced collection, against
+  1,153-1,154 MB after the third pull request. Still above 800 MB; next are the lazy-row maps and the `ColumnRow`
+  per node.
 - **G11, fifth pull request** (from a heap snapshot of 1M + 1M typed after a forced collection, before it: 1,162 MB).
   Five per-row holders go, all under `"batched"` only:
     - `importColumns` freezes the records it builds, so the graph slice keeps them as they are instead of a frozen copy
@@ -2024,6 +2064,17 @@ unoptimized and boxed a number per coordinate (about 16 MB over 60 layout frames
 one loop per function. The framing walk at a layout's start and settle still allocates a few vectors per row; it is
 not per frame. `test/browser/batched-still-frame-allocates-nothing-per-row.test.ts` counts the bytes a still frame
 allocates at two sizes.
+
+Stage 122 (still-frame collection at 1M) found the same at 1M + 1M, on master f6a0dc7ebc (WebGL drawing, `lean`,
+batched, `renderCeiling` and `edgesDrawn` 2,000,000), so it changes no code. Counted with the sampling heap profiler
+(64-byte interval, collected objects kept) over 120 still frames after a 300-frame warm-up, a still frame allocates
+about 13.9 KB at 1M + 1M and the same at 100k + 1M (1.62 MB and 1.63 MB over the stage): nothing per row, the same
+fixed work stage 116 named. Correction to the 2026-11-12 comparison: its 2.4 ms of collection per still frame at
+1M + 1M was again the memory reducer, one major collection of the loaded heap (a single `MajorGC` of 52 ms in a
+trace, `GCFinalizeMCReduceMemory`, 653 MB to 618 MB; 39-199 ms over the stage across three profiles, each time one
+burst) that lands in the first still frames after a load. After the warm-up the still frames spent 0.6-1.3 ms
+collecting over 120 frames, 0.005-0.011 ms a frame, under the 0.5 ms target. What that one collection costs scales
+with the live heap, which is stage 111's target, not a still frame's.
 
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

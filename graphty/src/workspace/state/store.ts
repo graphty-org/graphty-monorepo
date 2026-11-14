@@ -297,8 +297,6 @@ export interface WorkspaceState {
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
-    /** Graph settings, Outline width: every outline's width, or null for the element's own. */
-    readonly outlineWidth: number | null;
     /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
      * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
@@ -420,7 +418,6 @@ const INITIAL: WorkspaceState = {
     sameSizeAtAnyDepth: null,
     lighting: "studio",
     autoRotate: false,
-    outlineWidth: null,
     exportOn: "image",
     exportSource: null,
     serverKind: null,

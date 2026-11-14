@@ -243,6 +243,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // the renderer can express, and it is exactly the one `NodeEffects.resolveRenderedMesh`
     // describes: one source mesh is precisely the set of nodes sharing one effect configuration.
     "node.outline": "mesh",
+    // The ring's width picks its cached ring source, keyed by colour and width (NodeEffects).
+    "node.outlineWidth": "mesh",
     "node.glow": "mesh",
     // A glow's STRENGTH is keyed the same way. `NodeEffects.syncGlowStrengths` gives each SOURCE
     // mesh its own intensity (Babylon's per-mesh `setEffectIntensity`, keyed by uniqueId), so two

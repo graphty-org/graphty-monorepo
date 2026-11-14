@@ -4,9 +4,6 @@ import {
     ControlSection,
     FieldRow,
     FileSource,
-    PanelField,
-    PanelLabelsProvider,
-    ResetButton,
     TargetTooltip,
 } from "@graphty/compact-mantine";
 import {
@@ -19,7 +16,6 @@ import type { GraphSession, GraphSettingKey, TransactionScope } from "@graphty/g
 import { ActionIcon, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { useSizeBound } from "../frame/useSizeBound";
 import { GLYPHS } from "../glyphs";
 import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
@@ -107,7 +103,7 @@ function useFocusPastHidden(
 
 /**
  * Graph settings, the right panel with no row selected (tier 3 design section 2.5): Background
- * (a color, an image and a shader, stacked), Lighting, Same size at any depth, Outline width, the
+ * (a color, an image and a shader, stacked), Lighting, Same size at any depth, the
  * Map while the layout draws one, and the label rules. The view (2D or 3D) and the layout live only
  * in the toolbar. A setting is shown only while the element
  * says it changes the drawing in this view. The background is the project's and goes through the
@@ -123,7 +119,6 @@ export function GraphSettings(): React.JSX.Element | null {
     const sameSizeChosen = useWorkspaceState((state) => state.sameSizeAtAnyDepth);
     const sameSize = sameSizeChosen ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
-    const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
     const hidden = useNotInEffect(session);
     const { ref, onFocus } = useFocusPastHidden(hidden, store);
     if (session === null) {
@@ -134,101 +129,76 @@ export function GraphSettings(): React.JSX.Element | null {
     return (
         <>
             <BackgroundSection session={session} />
-            <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
-                <Stack gap={6} ref={ref} onFocus={onFocus}>
-                    {shows("lighting") && (
-                        <div data-setting="lighting">
-                            <Select
-                                label="Lighting"
-                                size="xs"
-                                allowDeselect={false}
-                                value={lighting}
-                                data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
-                                onChange={(picked) => {
-                                    const next = LIGHTING_VALUES.find((value) => value === picked);
-                                    if (next !== undefined) {
-                                        store.set({ lighting: next });
-                                    }
-                                }}
-                            />
-                        </div>
-                    )}
-                    {shows("node.depthIndependentSize") && (
-                        <div data-setting="node.depthIndependentSize">
-                            <Switch
-                                size="xs"
-                                label="Same size at any depth"
-                                // Until the reader sets it, it follows the size binding: say why it
-                                // turned on, so the change is never a surprise.
-                                description={
-                                    sameSizeChosen === null && sizeBound ? "On while node size follows data" : undefined
-                                }
-                                checked={sameSize}
-                                onChange={(event) => {
-                                    store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });
-                                }}
-                            />
-                        </div>
-                    )}
-                    {shows("node.outlineWidth") && (
-                        <div data-setting="node.outlineWidth">
-                            <PanelLabelsProvider showLabels>
-                                <FieldRow
-                                    trailing={
-                                        outlineWidth !== null &&
-                                        outlineWidth !== undefined && (
-                                            <ResetButton
-                                                label="Outline width"
-                                                onClick={() => {
-                                                    store.set({ outlineWidth: null });
-                                                }}
-                                            />
-                                        )
-                                    }
-                                >
-                                    <PanelField
-                                        label="Outline width"
-                                        kind="number"
-                                        value={outlineWidth ?? 1}
-                                        min={0.1}
-                                        max={10}
-                                        step={0.1}
-                                        decimalScale={1}
-                                        onChange={(next) => {
-                                            store.set({ outlineWidth: Number(next) });
+            {/* One container for both sections' rows, so focus on a row hidden in this view moves
+                on to the next row shown, in Labels when Canvas has none left (2D). */}
+            <div ref={ref} onFocus={onFocus} style={{ display: "contents" }}>
+                {(shows("lighting") || shows("node.depthIndependentSize")) && (
+                    <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
+                        <Stack gap={6}>
+                            {shows("lighting") && (
+                                <div data-setting="lighting">
+                                    <Select
+                                        label="Lighting"
+                                        size="xs"
+                                        allowDeselect={false}
+                                        value={lighting}
+                                        data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
+                                        onChange={(picked) => {
+                                            const next = LIGHTING_VALUES.find((value) => value === picked);
+                                            if (next !== undefined) {
+                                                store.set({ lighting: next });
+                                            }
                                         }}
                                     />
-                                </FieldRow>
-                            </PanelLabelsProvider>
-                            {!selectionWorkspaceOn(session) && (
-                                <Text size="xs" c="dimmed">
-                                    Every outline is drawn at this width. For a ring whose width a layer sets, use Halo.
-                                </Text>
+                                </div>
                             )}
+                            {shows("node.depthIndependentSize") && (
+                                <div data-setting="node.depthIndependentSize">
+                                    <Switch
+                                        size="xs"
+                                        label="Same size at any depth"
+                                        // Until the reader sets it, it follows the size binding: say why it
+                                        // turned on, so the change is never a surprise.
+                                        description={
+                                            sameSizeChosen === null && sizeBound
+                                                ? "On while node size follows data"
+                                                : undefined
+                                        }
+                                        checked={sameSize}
+                                        onChange={(event) => {
+                                            store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </Stack>
+                    </ControlSection>
+                )}
+                <ControlSection label="Labels" collapsible={false} headingLevel={3}>
+                    <Stack gap={6}>
+                        <div data-setting="labels.declutter">
+                            <Switch
+                                size="xs"
+                                label="Hide overlapping labels"
+                                checked={!allLabelsShown}
+                                onChange={(event) => {
+                                    store.set({ allLabelsShown: !event.currentTarget.checked });
+                                }}
+                            />
                         </div>
-                    )}
-                </Stack>
-            </ControlSection>
-            <ControlSection label="Labels" collapsible={false} headingLevel={3}>
-                <Stack gap={6}>
-                    <Switch
-                        size="xs"
-                        label="Hide overlapping labels"
-                        checked={!allLabelsShown}
-                        onChange={(event) => {
-                            store.set({ allLabelsShown: !event.currentTarget.checked });
-                        }}
-                    />
-                    <Switch
-                        size="xs"
-                        label="Move labels off nodes and edges"
-                        checked={labelsAvoid}
-                        onChange={(event) => {
-                            store.set({ labelsAvoid: event.currentTarget.checked });
-                        }}
-                    />
-                </Stack>
-            </ControlSection>
+                        <div data-setting="labels.avoidNodesAndEdges">
+                            <Switch
+                                size="xs"
+                                label="Move labels off nodes and edges"
+                                checked={labelsAvoid}
+                                onChange={(event) => {
+                                    store.set({ labelsAvoid: event.currentTarget.checked });
+                                }}
+                            />
+                        </div>
+                    </Stack>
+                </ControlSection>
+            </div>
             <ShaderSection />
         </>
     );

@@ -783,8 +783,8 @@ export const RouteValues: Story = sceneStory(async ({ runs }) => {
 /** Graph settings: lighting, label rules and the highlight color. */
 export const GraphSettings: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Graph settings" }));
-    // Lighting shows only in 3D; Outline width shows in every view.
-    await page().findByRole("spinbutton", { name: /^Outline width/ });
+    // Lighting shows only in 3D, the scene's view.
+    await page().findByRole("combobox", { name: "Lighting" });
 });
 
 // College football: a number column that names groups, painted one color per value.

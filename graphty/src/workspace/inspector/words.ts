@@ -97,6 +97,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.tooltipStyle": "Tooltip",
     "node.opacity": "Opacity",
     "node.outline": "Outline",
+    "node.outlineWidth": "Outline",
     "node.glow": "Glow",
     "node.glowStrength": "Glow",
     "node.halo": "Halo",

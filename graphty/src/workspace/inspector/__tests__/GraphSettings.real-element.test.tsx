@@ -11,7 +11,6 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -136,20 +135,11 @@ describe("Graph settings", () => {
         });
     });
 
-    it("writes Outline width to the element's layout behavior", async () => {
-        const element = await openGraphSettings();
-        const width = screen.getByRole("spinbutton", { name: /^Outline width/ });
-        await userEvent.clear(width);
-        await userEvent.type(width, "3{Enter}");
-        await waitFor(() => {
-            assert.strictEqual(element.layoutBehavior?.node?.outlineWidth, 3);
-        });
-        // The Halo hint names the old outline-and-pane editor, so the selection workspace drops it.
-        if (selectionWorkspaceOn(element.session)) {
-            assert.isNull(screen.queryByText(/use Halo/));
-        } else {
-            assert.isNotNull(screen.getByText(/use Halo/));
-        }
+    it("offers no Outline width: each style layer sets its own", async () => {
+        await openGraphSettings();
+        assert.isNotNull(screen.getByRole("combobox", { name: "Lighting" }), "the panel is open");
+        assert.isNull(screen.queryByText(/Outline width/));
+        assert.isNull(document.querySelector('[data-setting="node.outlineWidth"]'));
     });
 
     it("hides Lighting and Same size at any depth in 2D, moves focus on, and the Values tab counts them", async () => {
@@ -164,9 +154,9 @@ describe("Graph settings", () => {
             assert.isNull(screen.queryByRole("switch", { name: "Same size at any depth" }));
         });
         assert.isFalse(element.session.config.inEffect("lighting").inEffect);
-        // The hidden row held focus: it moves to the next row still shown.
+        // The hidden row held focus: it moves to the next row still shown, in Labels (Canvas has none left).
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, screen.getByRole("spinbutton", { name: /^Outline width/ }));
+            assert.strictEqual(document.activeElement, screen.getByRole("switch", { name: "Hide overlapping labels" }));
         });
         await userEvent.click(screen.getByRole("tab", { name: "Values" }));
         const note = await screen.findByTestId("settings-other-view");

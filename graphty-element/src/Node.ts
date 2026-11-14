@@ -2382,7 +2382,13 @@ export class Node implements ModelUser {
                 halo === null || haloColor === null || halo.opacity === 0
                     ? null
                     : { color: haloColor.hex, scale: halo.scale, opacity: halo.opacity * haloColor.alpha },
-            ring: batch && outline ? hexOf(NodeEffects.extractColorValue(outline.color), "#000000").hex : null,
+            ring:
+                batch && outline && NodeEffects.outlineDrawn(style.effect)
+                    ? {
+                          color: hexOf(NodeEffects.extractColorValue(outline.color), "#000000").hex,
+                          width: NodeEffects.outlineWidthOf(this.context.getScene(), outline.width),
+                      }
+                    : null,
             glow:
                 batch && glow && glowColor !== undefined && (glow.strength ?? 1) > 0
                     ? {

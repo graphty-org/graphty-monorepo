@@ -291,6 +291,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                                                            |
 | `node.opacity`                | 0 to 1                                                                                                                                           |
 | `node.outline`                | a colour                                                                                                                                         |
+| `node.outlineWidth`           | 0 to 10: the outline's width, a multiple of its own (1); unset, `layoutBehavior.node.outlineWidth`; alone it draws none                          |
 | `node.glow`                   | a colour                                                                                                                                         |
 | `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
 | `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
@@ -491,7 +492,7 @@ await element.session.styles.add({
 });
 ```
 
-A border is not `node.outline`: an outline is a screen-space glow of one fixed width, drawn for
+A border is not `node.outline`: an outline is a ring around the node, drawn for
 emphasis, while a border is part of the node's shape. Each distinct border is one more mesh,
 shared by every node drawn with it.
 

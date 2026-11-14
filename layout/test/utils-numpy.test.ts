@@ -2,39 +2,39 @@
  * Tests for NumPy-like utility functions
  */
 
-import { describe, expect, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { np } from "../src/utils/numpy";
 
 describe("NumPy Utils", () => {
     describe("zeros", () => {
         it("should create 1D array of zeros", () => {
-            expect(np.zeros(3)).toEqual([0, 0, 0]);
-            expect(np.zeros(0)).toEqual([]);
-            expect(np.zeros(1)).toEqual([0]);
+            assert.deepEqual(np.zeros(3), [0, 0, 0]);
+            assert.deepEqual(np.zeros(0), []);
+            assert.deepEqual(np.zeros(1), [0]);
         });
 
         it("should create 1D array from single-element array shape", () => {
-            expect(np.zeros([3])).toEqual([0, 0, 0]);
-            expect(np.zeros([0])).toEqual([]);
+            assert.deepEqual(np.zeros([3]), [0, 0, 0]);
+            assert.deepEqual(np.zeros([0]), []);
         });
 
         it("should create 2D array of zeros", () => {
-            expect(np.zeros([2, 3])).toEqual([
+            assert.deepEqual(np.zeros([2, 3]), [
                 [0, 0, 0],
                 [0, 0, 0],
             ]);
-            expect(np.zeros([3, 2])).toEqual([
+            assert.deepEqual(np.zeros([3, 2]), [
                 [0, 0],
                 [0, 0],
                 [0, 0],
             ]);
-            expect(np.zeros([1, 1])).toEqual([[0]]);
+            assert.deepEqual(np.zeros([1, 1]), [[0]]);
         });
 
         it("should create 3D array of zeros", () => {
             const result = np.zeros([2, 2, 2]) as number[][][];
-            expect(result).toEqual([
+            assert.deepEqual(result, [
                 [
                     [0, 0],
                     [0, 0],
@@ -49,22 +49,22 @@ describe("NumPy Utils", () => {
 
     describe("ones", () => {
         it("should create 1D array of ones", () => {
-            expect(np.ones(3)).toEqual([1, 1, 1]);
-            expect(np.ones(0)).toEqual([]);
-            expect(np.ones(1)).toEqual([1]);
+            assert.deepEqual(np.ones(3), [1, 1, 1]);
+            assert.deepEqual(np.ones(0), []);
+            assert.deepEqual(np.ones(1), [1]);
         });
 
         it("should create 1D array from single-element array shape", () => {
-            expect(np.ones([3])).toEqual([1, 1, 1]);
-            expect(np.ones([0])).toEqual([]);
+            assert.deepEqual(np.ones([3]), [1, 1, 1]);
+            assert.deepEqual(np.ones([0]), []);
         });
 
         it("should create 2D array of ones", () => {
-            expect(np.ones([2, 3])).toEqual([
+            assert.deepEqual(np.ones([2, 3]), [
                 [1, 1, 1],
                 [1, 1, 1],
             ]);
-            expect(np.ones([3, 2])).toEqual([
+            assert.deepEqual(np.ones([3, 2]), [
                 [1, 1],
                 [1, 1],
                 [1, 1],
@@ -73,31 +73,31 @@ describe("NumPy Utils", () => {
 
         it("should create 3D array of ones", () => {
             const result = np.ones([2, 1, 2]) as number[][][];
-            expect(result).toEqual([[[1, 1]], [[1, 1]]]);
+            assert.deepEqual(result, [[[1, 1]], [[1, 1]]]);
         });
     });
 
     describe("linspace", () => {
         it("should create linearly spaced array", () => {
             const result = np.linspace(0, 1, 5);
-            expect(result).toHaveLength(5);
-            expect(result[0]).toBe(0);
-            expect(result[4]).toBe(1);
-            expect(result[2]).toBeCloseTo(0.5);
+            assert.lengthOf(result, 5);
+            assert.strictEqual(result[0], 0);
+            assert.strictEqual(result[4], 1);
+            assert.approximately(result[2], 0.5, 0.005);
         });
 
         it("should handle single point", () => {
-            expect(np.linspace(5, 5, 1)).toEqual([5]);
+            assert.deepEqual(np.linspace(5, 5, 1), [5]);
         });
 
         it("should handle reverse range", () => {
             const result = np.linspace(10, 0, 3);
-            expect(result).toEqual([10, 5, 0]);
+            assert.deepEqual(result, [10, 5, 0]);
         });
 
         it("should handle negative numbers", () => {
             const result = np.linspace(-1, 1, 3);
-            expect(result).toEqual([-1, 0, 1]);
+            assert.deepEqual(result, [-1, 0, 1]);
         });
     });
 
@@ -105,14 +105,14 @@ describe("NumPy Utils", () => {
         it("should copy arrays", () => {
             const input = [1, 2, 3];
             const result = np.array(input);
-            expect(result).toEqual(input);
-            expect(result).not.toBe(input); // different reference
+            assert.deepEqual(result, input);
+            assert.notStrictEqual(result, input); // different reference
         });
 
         it("should wrap non-arrays", () => {
-            expect(np.array(5)).toEqual([5]);
-            expect(np.array("hello")).toEqual(["hello"]);
-            expect(np.array(null)).toEqual([null]);
+            assert.deepEqual(np.array(5), [5]);
+            assert.deepEqual(np.array("hello"), ["hello"]);
+            assert.deepEqual(np.array(null), [null]);
         });
 
         it("should handle nested arrays", () => {
@@ -121,52 +121,54 @@ describe("NumPy Utils", () => {
                 [3, 4],
             ];
             const result = np.array(input);
-            expect(result).toEqual(input);
-            expect(result).not.toBe(input);
+            assert.deepEqual(result, input);
+            assert.notStrictEqual(result, input);
         });
     });
 
     describe("repeat", () => {
         it("should repeat single values", () => {
-            expect(np.repeat(5, 3)).toEqual([5, 5, 5]);
-            expect(np.repeat("a", 2)).toEqual(["a", "a"]);
+            assert.deepEqual(np.repeat(5, 3), [5, 5, 5]);
+            assert.deepEqual(np.repeat("a", 2), ["a", "a"]);
         });
 
         it("should repeat arrays", () => {
-            expect(np.repeat([1, 2], 2)).toEqual([1, 2, 1, 2]);
-            expect(np.repeat([1, 2, 3], 3)).toEqual([1, 2, 3, 1, 2, 3, 1, 2, 3]);
+            assert.deepEqual(np.repeat([1, 2], 2), [1, 2, 1, 2]);
+            assert.deepEqual(np.repeat([1, 2, 3], 3), [1, 2, 3, 1, 2, 3, 1, 2, 3]);
         });
 
         it("should handle zero repeats", () => {
-            expect(np.repeat(5, 0)).toEqual([]);
-            expect(np.repeat([1, 2], 0)).toEqual([]);
+            assert.deepEqual(np.repeat(5, 0), []);
+            assert.deepEqual(np.repeat([1, 2], 0), []);
         });
 
         it("should handle single repeat", () => {
-            expect(np.repeat([1, 2, 3], 1)).toEqual([1, 2, 3]);
+            assert.deepEqual(np.repeat([1, 2, 3], 1), [1, 2, 3]);
         });
     });
 
     describe("mean", () => {
         it("should calculate mean of 1D array", () => {
-            expect(np.mean([1, 2, 3, 4, 5])).toBe(3);
-            expect(np.mean([2, 4, 6])).toBe(4);
-            expect(np.mean([10])).toBe(10);
+            assert.strictEqual(np.mean([1, 2, 3, 4, 5]), 3);
+            assert.strictEqual(np.mean([2, 4, 6]), 4);
+            assert.strictEqual(np.mean([10]), 10);
         });
 
         it("should calculate mean of 2D array (flatten)", () => {
-            expect(
+            assert.strictEqual(
                 np.mean([
                     [1, 2],
                     [3, 4],
                 ]),
-            ).toBe(2.5);
-            expect(
+                2.5,
+            );
+            assert.strictEqual(
                 np.mean([
                     [1, 1],
                     [1, 1],
                 ]),
-            ).toBe(1);
+                1,
+            );
         });
 
         it("should calculate mean along axis 0 (columns)", () => {
@@ -177,7 +179,7 @@ describe("NumPy Utils", () => {
                 ],
                 0,
             ) as number[];
-            expect(result).toEqual([2.5, 3.5, 4.5]);
+            assert.deepEqual(result, [2.5, 3.5, 4.5]);
         });
 
         it("should calculate mean along axis 1 (rows)", () => {
@@ -188,150 +190,154 @@ describe("NumPy Utils", () => {
                 ],
                 1,
             ) as number[];
-            expect(result).toEqual([2, 5]);
+            assert.deepEqual(result, [2, 5]);
         });
 
         it("should handle empty arrays", () => {
-            expect(np.mean([])).toBeNaN();
+            assert.isNaN(np.mean([]));
         });
 
         it("should handle nested empty arrays", () => {
-            expect(np.mean([[], []])).toBeNaN();
+            assert.isNaN(np.mean([[], []]));
         });
     });
 
     describe("add", () => {
         it("should add two numbers", () => {
-            expect(np.add(5, 3)).toBe(8);
-            expect(np.add(-2, 7)).toBe(5);
+            assert.strictEqual(np.add(5, 3), 8);
+            assert.strictEqual(np.add(-2, 7), 5);
         });
 
         it("should add number to array", () => {
-            expect(np.add(2, [1, 2, 3])).toEqual([3, 4, 5]);
-            expect(np.add([1, 2, 3], 10)).toEqual([11, 12, 13]);
+            assert.deepEqual(np.add(2, [1, 2, 3]), [3, 4, 5]);
+            assert.deepEqual(np.add([1, 2, 3], 10), [11, 12, 13]);
         });
 
         it("should add two arrays element-wise", () => {
-            expect(np.add([1, 2, 3], [4, 5, 6])).toEqual([5, 7, 9]);
-            expect(np.add([10, 20], [1, 2])).toEqual([11, 22]);
+            assert.deepEqual(np.add([1, 2, 3], [4, 5, 6]), [5, 7, 9]);
+            assert.deepEqual(np.add([10, 20], [1, 2]), [11, 22]);
         });
 
         it("should handle negative numbers", () => {
-            expect(np.add([-1, -2], [1, 2])).toEqual([0, 0]);
-            expect(np.add(5, [-3, -7])).toEqual([2, -2]);
+            assert.deepEqual(np.add([-1, -2], [1, 2]), [0, 0]);
+            assert.deepEqual(np.add(5, [-3, -7]), [2, -2]);
         });
     });
 
     describe("subtract", () => {
         it("should subtract two numbers", () => {
-            expect(np.subtract(8, 3)).toBe(5);
-            expect(np.subtract(-2, 7)).toBe(-9);
+            assert.strictEqual(np.subtract(8, 3), 5);
+            assert.strictEqual(np.subtract(-2, 7), -9);
         });
 
         it("should subtract number from array", () => {
-            expect(np.subtract(10, [1, 2, 3])).toEqual([9, 8, 7]);
-            expect(np.subtract([5, 6, 7], 2)).toEqual([3, 4, 5]);
+            assert.deepEqual(np.subtract(10, [1, 2, 3]), [9, 8, 7]);
+            assert.deepEqual(np.subtract([5, 6, 7], 2), [3, 4, 5]);
         });
 
         it("should subtract two arrays element-wise", () => {
-            expect(np.subtract([5, 7, 9], [1, 2, 3])).toEqual([4, 5, 6]);
-            expect(np.subtract([10, 20], [3, 5])).toEqual([7, 15]);
+            assert.deepEqual(np.subtract([5, 7, 9], [1, 2, 3]), [4, 5, 6]);
+            assert.deepEqual(np.subtract([10, 20], [3, 5]), [7, 15]);
         });
 
         it("should handle negative results", () => {
-            expect(np.subtract([1, 2], [5, 7])).toEqual([-4, -5]);
+            assert.deepEqual(np.subtract([1, 2], [5, 7]), [-4, -5]);
         });
     });
 
     describe("max", () => {
         it("should return single number as-is", () => {
-            expect(np.max(42)).toBe(42);
-            expect(np.max(-5)).toBe(-5);
+            assert.strictEqual(np.max(42), 42);
+            assert.strictEqual(np.max(-5), -5);
         });
 
         it("should find max in 1D array", () => {
-            expect(np.max([1, 5, 3, 9, 2])).toBe(9);
-            expect(np.max([-10, -5, -20])).toBe(-5);
-            expect(np.max([7])).toBe(7);
+            assert.strictEqual(np.max([1, 5, 3, 9, 2]), 9);
+            assert.strictEqual(np.max([-10, -5, -20]), -5);
+            assert.strictEqual(np.max([7]), 7);
         });
 
         it("should find max in nested arrays", () => {
-            expect(
+            assert.strictEqual(
                 np.max([
                     [1, 2],
                     [3, 4],
                 ]),
-            ).toBe(4);
-            expect(
+                4,
+            );
+            assert.strictEqual(
                 np.max([
                     [10, 5],
                     [2, 8],
                     [1, 12],
                 ]),
-            ).toBe(12);
+                12,
+            );
         });
 
         it("should handle deeply nested arrays", () => {
-            expect(np.max([[[1, 2]], [[3, 4]]])).toBe(4);
+            assert.strictEqual(np.max([[[1, 2]], [[3, 4]]]), 4);
         });
     });
 
     describe("min", () => {
         it("should return single number as-is", () => {
-            expect(np.min(42)).toBe(42);
-            expect(np.min(-5)).toBe(-5);
+            assert.strictEqual(np.min(42), 42);
+            assert.strictEqual(np.min(-5), -5);
         });
 
         it("should find min in 1D array", () => {
-            expect(np.min([1, 5, 3, 9, 2])).toBe(1);
-            expect(np.min([-10, -5, -20])).toBe(-20);
-            expect(np.min([7])).toBe(7);
+            assert.strictEqual(np.min([1, 5, 3, 9, 2]), 1);
+            assert.strictEqual(np.min([-10, -5, -20]), -20);
+            assert.strictEqual(np.min([7]), 7);
         });
 
         it("should find min in nested arrays", () => {
-            expect(
+            assert.strictEqual(
                 np.min([
                     [1, 2],
                     [3, 4],
                 ]),
-            ).toBe(1);
-            expect(
+                1,
+            );
+            assert.strictEqual(
                 np.min([
                     [10, 5],
                     [2, 8],
                     [1, 12],
                 ]),
-            ).toBe(1);
+                1,
+            );
         });
 
         it("should handle deeply nested arrays", () => {
-            expect(np.min([[[1, 2]], [[3, 4]]])).toBe(1);
+            assert.strictEqual(np.min([[[1, 2]], [[3, 4]]]), 1);
         });
     });
 
     describe("norm", () => {
         it("should calculate Euclidean norm", () => {
-            expect(np.norm([3, 4])).toBe(5); // 3-4-5 triangle
-            expect(np.norm([1, 0])).toBe(1);
-            expect(np.norm([0, 0])).toBe(0);
+            assert.strictEqual(np.norm([3, 4]), 5); // 3-4-5 triangle
+            assert.strictEqual(np.norm([1, 0]), 1);
+            assert.strictEqual(np.norm([0, 0]), 0);
         });
 
         it("should handle negative values", () => {
-            expect(np.norm([-3, 4])).toBe(5);
-            expect(np.norm([-3, -4])).toBe(5);
+            assert.strictEqual(np.norm([-3, 4]), 5);
+            assert.strictEqual(np.norm([-3, -4]), 5);
         });
 
         it("should handle single element", () => {
-            expect(np.norm([5])).toBe(5);
-            expect(np.norm([-7])).toBe(7);
+            assert.strictEqual(np.norm([5]), 5);
+            assert.strictEqual(np.norm([-7]), 7);
         });
 
         it("should handle higher dimensions", () => {
-            expect(np.norm([1, 2, 2])).toBeCloseTo(3); // sqrt(1 + 4 + 4) = 3
+            assert.approximately(np.norm([1, 2, 2]), 3, 0.005); // sqrt(1 + 4 + 4) = 3
         });
 
         it("should handle empty array", () => {
-            expect(np.norm([])).toBe(0);
+            assert.strictEqual(np.norm([]), 0);
         });
     });
 });

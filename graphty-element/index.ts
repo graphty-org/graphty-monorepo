@@ -378,7 +378,6 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // Screenshot exports
 // =============================================================================
 export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
-export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
 export type {
     CameraAnimationOptions,
     CameraState,
@@ -393,7 +392,7 @@ export type {
 export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
-export type { CapabilityCheck } from "./src/screenshot/capability-check";
+export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/capability-check";
 
 // =============================================================================
 // Video capture exports

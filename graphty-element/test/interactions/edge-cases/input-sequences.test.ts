@@ -1,176 +1,112 @@
 /**
- * Input Sequence Tests
- *
- * Tests verify correct behavior for complex input sequences
- * and transitions between different input methods.
+ * @file Pointer sequences around a node drag that a reader can make and the simple drag does not
+ * cover: presses with no move, a drag let go away from the node, a view switch or new nodes while
+ * the button is down. Real mouse input (test/helpers/real-input.ts), the outcome read through the
+ * element's public API: where a node is drawn and placed, and whether it is pinned.
  */
 
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 
-import { Graph, operationQueueOf } from "../../../src/Graph";
-import { drag, moveHeld, type Point, press, release } from "../../helpers/real-input";
-import { configureGraph } from "../../helpers/testSetup";
+import type { Graphty } from "../../../index.js";
+import { click, drag, hover, moveHeld, type Point, press, release } from "../../helpers/real-input";
+import { applied, at, EMPTY, mounted } from "../helpers/mounted-element";
 
-const TEST_NODES = [
-    { id: "node1", x: 0, y: 0, z: 0 },
-    { id: "node2", x: 5, y: 0, z: 0 },
-];
-const TEST_EDGES = [{ src: "node1", dst: "node2" }];
+/**
+ * Where a node is placed, in scene units, from the session's positions.
+ * @param element - The element.
+ * @param id - The node.
+ * @returns Its position, as a string for comparing before and after.
+ */
+function placed(element: Graphty, id: string): string {
+    const out = { x: 0, y: 0, z: 0 };
+    element.session.positions.read(element.session.snapshot().ids.requireIndex(id), out);
+    return JSON.stringify(out);
+}
 
-describe("Input Sequences", () => {
-    let graph: Graph;
-    let container: HTMLDivElement;
+/**
+ * Assert a node is drawn at a point, within 3 CSS pixels.
+ * @param element - The element.
+ * @param id - The node.
+ * @param point - The point.
+ * @param message - What it means.
+ */
+function assertDrawnAt(element: Graphty, id: string, point: Point, message: string): void {
+    const now = at(element, id);
+    assert.isBelow(Math.hypot(now.x - point.x, now.y - point.y), 3, message);
+}
 
-    beforeEach(async () => {
-        container = document.createElement("div");
-        // Inside the test frame's 414-pixel-wide viewport, so the real pointer reaches every point.
-        container.style.width = "400px";
-        container.style.height = "300px";
-        document.body.appendChild(container);
+describe.each(["2d", "3d"] as const)("in %s", (viewMode) => {
+    it("presses and releases on a node with no move leave it where it is, not pinned", async () => {
+        const element = await mounted(viewMode);
+        const before = placed(element, "b");
 
-        graph = new Graph(container);
-        await graph.init();
-        await configureGraph(graph, { viewMode: "3d", layout: "fixed", layoutOptions: { dim: 3 }, pinOnDrag: true });
-        await graph.addNodes(TEST_NODES);
-        await graph.addEdges(TEST_EDGES);
-        await operationQueueOf(graph).waitForCompletion();
-        await graph.waitForStableFrame();
+        for (let i = 0; i < 3; i++) {
+            await click(element, at(element, "b"));
+            await applied(element);
+        }
+
+        assert.strictEqual(placed(element, "b"), before, "node b did not move");
+        assert.isFalse(element.isPinned("b"), "a click does not pin");
     });
 
-    /**
-     * Where node1 is drawn, in CSS pixels on the canvas.
-     * @returns Its centre.
-     */
-    function node1At(): Point {
-        const at = graph.nodeScreenPosition("node1");
-        assert.isDefined(at, "node1 should be on screen");
-        return at;
-    }
+    it("a drag let go far from where it started leaves the node under the pointer", async () => {
+        const element = await mounted(viewMode);
+        const from = at(element, "b");
+        const to = { x: 40, y: 40 };
 
-    afterEach(() => {
-        vi.restoreAllMocks();
-        graph.dispose();
-        document.body.removeChild(container);
+        await press(element, from);
+        await moveHeld(element, { x: from.x + 50, y: from.y + 50 });
+        await moveHeld(element, to);
+        await release(element, to);
+        await applied(element);
+
+        assertDrawnAt(element, "b", to, "node b was dropped where the pointer let go");
+        assert.isTrue(element.isPinned("b"), "the dropped node is pinned");
     });
 
-    describe("Pointer Event Sequences", () => {
-        test("down-move-up sequence maintains state", async () => {
-            const { canvas } = graph;
-            const at = node1At();
-            const to = { x: at.x + 50, y: at.y + 50 };
+    it("nodes added while the button is down do not stop the drag", async () => {
+        const element = await mounted(viewMode);
+        const from = at(element, "b");
+        const to = { x: from.x - 40, y: from.y + 40 };
 
-            // Pointer down on node1, move, up
-            await press(canvas, at);
-            await moveHeld(canvas, to);
-            await release(canvas, to);
-            await graph.waitForSettled();
+        await press(element, from);
+        await moveHeld(element, { x: from.x - 20, y: from.y + 20 });
+        await element.session.data.addNodes([{ id: "d", position: { x: 0, y: -3, z: 0 } }]);
+        await moveHeld(element, to);
+        await release(element, to);
+        await applied(element);
 
-            // Node should still be valid
-            assert.isDefined(graph.getNode("node1"), "Node should exist after sequence");
-        });
-
-        test("interrupted sequence cleans up state", async () => {
-            const { canvas } = graph;
-            const at = node1At();
-
-            // Start drag on node1 and move without completing
-            await press(canvas, at);
-            await moveHeld(canvas, { x: at.x + 50, y: at.y + 50 });
-
-            // Let go somewhere else entirely, at the canvas's corner
-            await release(canvas, { x: 0, y: 0 });
-            await graph.waitForSettled();
-
-            // Graph should remain in valid state
-            assert.isDefined(graph.scene, "Scene should exist");
-            assert.isDefined(graph.getNode("node1"), "Node should exist");
-        });
-
-        test("multiple sequential drags work correctly", async () => {
-            const { canvas } = graph;
-
-            // Three press-and-release sequences on node1
-            for (let i = 0; i < 3; i++) {
-                const at = node1At();
-                await press(canvas, at);
-                await release(canvas, at);
-                await graph.waitForSettled();
-            }
-
-            assert.isDefined(graph.getNode("node1"), "Node should exist after multiple sequences");
-        });
+        // The new node refits the camera, so the drop is checked in the scene: left and down
+        const dropped = JSON.parse(placed(element, "b")) as { x: number; y: number };
+        assert.isBelow(dropped.x, 4 - 0.5, "node b moved left with the pointer");
+        assert.isBelow(dropped.y, -0.5, "node b moved down with the pointer");
+        assert.isTrue(element.isPinned("b"), "the drop pinned it");
+        assert.isDefined(element.nodeScreenPosition("d"), "the new node is drawn");
     });
+});
 
-    describe("State Transitions", () => {
-        test("view mode change interrupts drag cleanly", async () => {
-            const at = node1At();
+it("a switch to 2D while a node is held leaves no drag behind: the pointer moves nothing after the release", async () => {
+    const element = await mounted("3d");
+    const from = at(element, "b");
 
-            // Start drag
-            await press(graph.canvas, at);
+    await press(element, from);
+    await element.setViewMode("2d");
+    await element.waitForStableFrame();
+    await release(element, from);
+    await applied(element);
+    const after = placed(element, "b");
 
-            // Change view mode mid-drag
-            await graph.setViewMode("2d");
-            await operationQueueOf(graph).waitForCompletion();
-            await graph.waitForSettled();
+    // With no button down, moving the pointer must not carry the node
+    await hover(element, { x: from.x + 60, y: from.y + 40 });
+    await hover(element, EMPTY);
+    await applied(element);
+    assert.strictEqual(placed(element, "b"), after, "the pointer moving afterwards did not move node b");
 
-            // Graph should be in valid 2D state
-            assert.equal(graph.getViewMode(), "2d", "Should be in 2D mode");
-            assert.equal(graph.getNodes().length, 2, "Nodes should still exist");
-
-            // Let go, so the held button does not carry into the next test
-            await release(graph.canvas, at);
-        });
-
-        test("adding nodes during drag does not corrupt state", async () => {
-            const at = node1At();
-
-            // Start drag
-            await press(graph.canvas, at);
-
-            // Add new node mid-drag
-            await graph.addNodes([{ id: "node3", x: 10, y: 10, z: 0 }]);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // End drag
-            await release(graph.canvas, at);
-            await graph.waitForSettled();
-
-            assert.equal(graph.getNodes().length, 3, "Should have 3 nodes");
-            assert.isDefined(graph.getNode("node3"), "New node should exist");
-        });
-
-        test("graph state remains valid during interaction", async () => {
-            const node1 = graph.getNode("node1");
-            if (!node1) {
-                return;
-            }
-
-            // Verify initial state
-            assert.equal(graph.getNodes().length, 2, "Should have 2 nodes");
-
-            // Manipulate node position
-            node1.mesh.position.x = 100;
-            await operationQueueOf(graph).waitForCompletion();
-
-            assert.isDefined(graph.getNode("node1"), "Node1 should still exist");
-            assert.isDefined(graph.getNode("node2"), "Node2 should still exist");
-        });
-    });
-
-    describe("Camera Interaction Sequences", () => {
-        test("camera position remains valid after interactions", async () => {
-            // A drag across empty space (camera interaction)
-            await drag(graph.canvas, { x: 20, y: 20 }, { x: 120, y: 120 });
-            await graph.waitForSettled();
-
-            const controller = graph.camera.getActiveController();
-            if (controller) {
-                const pos = controller.camera.position;
-                assert.isTrue(isFinite(pos.x), "Camera X should be finite");
-                assert.isTrue(isFinite(pos.y), "Camera Y should be finite");
-                assert.isTrue(isFinite(pos.z), "Camera Z should be finite");
-            }
-        });
-    });
+    // And a drag across empty canvas pans the 2D view, as it should
+    const start = at(element, "a");
+    await drag(element, EMPTY, { x: EMPTY.x + 60, y: EMPTY.y - 30 });
+    await applied(element);
+    const end = at(element, "a");
+    assert.closeTo(end.x - start.x, 60, 2, "the drawing moved right with the pointer");
+    assert.closeTo(end.y - start.y, -30, 2, "the drawing moved up with the pointer");
 });

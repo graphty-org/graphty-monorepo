@@ -157,7 +157,7 @@ describe("loadFromUrl", () => {
         const importError = err as ImportError;
         expect(importError.issue?.code).toBe(FETCH_CODE);
         expect(importError.details.status).toBeNull();
-        expect(importError.details.cause).toBe(cause);
+        expect(importError.details.cause).toMatchObject({ name: "TypeError", message: "fetch failed" });
         expect(importError.report.format).toBe("gml");
         expect(importError.message).toContain("POST https://example.com/g.gml failed: the server could not be reached");
     });

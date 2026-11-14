@@ -138,8 +138,9 @@ export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
  * its row and no edge byte. The draw is one indexed, non-instanced draw: index `piece * 14 + k`,
  * so `gl_VertexID` names both the piece and its template vertex. A straight piece between node
  * centres is all this reads, written as `EdgeLineBatch.place` writes it: its neighbours are its
- * own ends and its run is zero. A free piece (rows below 0) and a piece with a row of w = 0
- * (hidden or not placed) get every point at the origin, as a hidden slot does, and draw nothing.
+ * own ends and its run is zero. A free piece (rows below 0), a piece flagged in `edgeHidden` (a byte a
+ * piece, four to a texel) and a piece with a row of w = 0 (hidden or not placed) get every point at
+ * the origin, as a hidden slot does, and draw nothing.
  * Every line after this is the plain line's, so the two draw the same pixels.
  *
  * A piece takes two texels: (source row, target row, width, opacity), then (red, green, blue). So
@@ -164,6 +165,7 @@ const PULLED_EDGE_GLSL = `
 #ifdef EDGE_PULLED
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D edgeRows;
+uniform highp sampler2D edgeHidden;
 float pieceWidth;
 flat varying vec4 vLook;
 const vec3 JOIN_TEMPLATE[${String(JOIN_TEMPLATE_VERTICES)}] = vec3[${String(JOIN_TEMPLATE_VERTICES)}](${Array.from(
@@ -203,7 +205,9 @@ void pullEdge() {
     int texel = piece * PIECE_TEXELS;
     vec4 head = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
     vec4 tint = texelFetch(edgeRows, ivec2((texel + 1) & 1023, (texel + 1) >> 10), 0);
-    vec2 rows = head.xy;
+    vec4 hiddenFlags = texelFetch(edgeHidden, ivec2((piece >> 2) & 1023, piece >> 12), 0);
+    // a hidden piece reads as a free one: its flag is the byte (piece & 3) of its texel
+    vec2 rows = dot(hiddenFlags, vec4(equal(ivec4(0, 1, 2, 3), ivec4(piece & 3)))) > 0.5 ? vec2(-1.0) : head.xy;
     pieceWidth = head.z;
     vLook = vec4(tint.rgb, head.w);
     pA = vec3(0.0);

@@ -1,5 +1,9 @@
 # Comprehensive Semantic Release Strategy for Graphty Monorepo
 
+> **Superseded.** This is research from before the release tool was chosen. Releases use Nx Release (`nx release`,
+> configured in `nx.json`); neither Changesets nor semantic-release is used. How releases work today:
+> `.github/workflows/README.md`.
+
 ## Executive Summary
 
 After exhaustive research of **9 major release management tools**, I've identified three distinct approaches to monorepo versioning:

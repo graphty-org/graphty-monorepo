@@ -7,7 +7,7 @@
  * - Can be distributed as a standalone file
  *
  * Run "npm run build" (tsc -p tsconfig.build.json) first so that dist/src/
- * exists; scripts/bundle-types.js then writes dist/graph-format.d.ts, which
+ * exists; tools/build-bundle.mjs then writes dist/graph-format.d.ts, which
  * re-exports the per-module declarations under dist/src/.
  */
 
@@ -15,6 +15,8 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "vite";
+
+import { writeDeclarationShims } from "../../tools/build-bundle.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,17 +75,10 @@ async function buildBundle() {
 
         console.log("Successfully built dist/graph-format.js");
 
-        const result = spawnSync(process.execPath, [path.resolve(__dirname, "bundle-types.js")], {
-            stdio: "inherit",
+        writeDeclarationShims({
+            packageRoot: path.resolve(__dirname, ".."),
+            entries: { "graph-format": "src/index.ts" },
         });
-
-        if (result.error) {
-            throw result.error;
-        }
-
-        if (result.status !== 0) {
-            throw new Error(`bundle-types.js exited with status ${String(result.status)}`);
-        }
     } catch (error) {
         console.error("Error building bundle:", error);
         process.exit(1);

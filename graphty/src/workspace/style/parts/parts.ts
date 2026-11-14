@@ -200,7 +200,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     name: "Raised edge",
                     tail: ["node.raisedBorderWidth", "node.raisedBorderLightColor", "node.raisedBorderDarkColor"],
                 },
-                { id: "outline", name: "Outline", tail: ["node.outline"] },
+                { id: "outline", name: "Outline", tail: ["node.outline", "node.outlineWidth"] },
                 {
                     id: "innerLines",
                     name: "Inner lines",

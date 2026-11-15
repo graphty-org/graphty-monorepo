@@ -327,7 +327,7 @@ describe("the camera on a location map", () => {
         assert.isBelow(viewDirection(element).y, -0.8);
     });
 
-    it("opens a globe as the whole sphere, and an undo frames the flat map again", async () => {
+    it("opens a globe framed on its data, every city in view, and an undo frames the flat map again", async () => {
         const element = await mounted("3d", { mapDimension: "2d" });
         // How far apart Seattle and Miami are drawn: the share of the view the data fills.
         const spread = (): number => {
@@ -335,12 +335,19 @@ describe("the camera on a location map", () => {
             const b = at(element, "MIA");
             return Math.hypot(a.x - b.x, a.y - b.y);
         };
+        const inView = (): boolean =>
+            CITIES.every(({ id }) => {
+                const { x, y } = at(element, id);
+                return x >= 0 && x <= WIDTH && y >= 0 && y <= HEIGHT;
+            });
         const flat = spread();
         await element.session.layout.set("location-map", { options: { mapDimension: "3d" } });
         await applied(element);
         await vi.waitFor(async () => {
             await applied(element);
-            assert.isBelow(spread() / flat, 0.8, "the globe frames the whole sphere, not only the data");
+            assert.strictEqual(element.mapFrame?.mapDimension, "3d");
+            assert.isTrue(inView(), "every city is in view on the globe");
+            assert.isAbove(spread() / flat, 0.8, "the globe frames the data, not the whole sphere");
         });
         await element.session.undo();
         await applied(element);
@@ -349,6 +356,30 @@ describe("the camera on a location map", () => {
             assert.strictEqual(element.mapFrame?.mapDimension, "2d");
             assert.closeTo(spread() / flat, 1, 0.25, "the flat map is framed again");
         });
+    });
+
+    it("opens a globe as the whole sphere for data that spans the earth, and for extent: world", async () => {
+        // Twelve places around the equator, one every 30 degrees of longitude.
+        const world = Array.from({ length: 12 }, (_, k) => ({
+            id: `p${String(k)}`,
+            latitude: 0,
+            longitude: k * 30 - 165,
+        }));
+        for (const [options, places] of [
+            [{ mapDimension: "3d" }, world],
+            [{ mapDimension: "3d", extent: "world" }, CITY],
+        ] as const) {
+            const element = await mounted("3d", options, places);
+            const frame = element.mapFrame;
+            const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+            const camera = element.graph.getScene().activeCamera;
+            assert.isNotNull(camera);
+            // The whole sphere, with its tenth to spare, fills the shorter side of the view.
+            const tan = Math.tan((camera?.fov ?? 0.8) / 2) * Math.min(1, WIDTH / HEIGHT);
+            const whole = (radius * 1.1 * Math.sqrt(1 + tan * tan)) / tan;
+            assert.closeTo(eyeRadius(element) / whole, 1, 0.02, `${JSON.stringify(options)}: the whole globe fits`);
+            element.remove();
+        }
     });
 
     it("holds node sizes on screen over a tilted 2D map, its arcs above it, and comes down to the map", async () => {
@@ -393,6 +424,154 @@ describe("the camera on a location map", () => {
             await wheel(element, CENTER, -200);
             await applied(element);
             assert.closeTo(size() / first, 1, 0.1, `step ${String(step)}`);
+        }
+    });
+});
+
+/** Stops spread over a city, 15 km across: data far smaller than the earth. */
+const CITY = Array.from({ length: 16 }, (_, k) => ({
+    id: `stop-${String(k)}`,
+    latitude: 45.38 + Math.floor(k / 4) * 0.04,
+    longitude: 12.24 + (k % 4) * 0.05,
+}));
+
+/**
+ * The camera's distance from the globe's center.
+ * @param element - The element.
+ * @returns The distance.
+ */
+function eyeRadius(element: Graphty): number {
+    const camera = element.graph.getScene().activeCamera;
+    assert.isNotNull(camera);
+    camera.computeWorldMatrix();
+    return camera.globalPosition.length();
+}
+
+/**
+ * Wheel a globe's camera down to the closest it comes.
+ * @param element - The element.
+ */
+async function wheelToFloor(element: Graphty): Promise<void> {
+    for (let notch = 0; notch < 160; notch++) {
+        await wheel(element, CENTER, -400);
+        await drawnFrames(element.graph.getScene(), 1);
+    }
+    await applied(element);
+}
+
+describe("a city on the globe", () => {
+    it("opens framed on the city, not as a speck on the whole earth", async () => {
+        const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" }, CITY);
+        const xs = CITY.map(({ id }) => at(element, id).x);
+        const ys = CITY.map(({ id }) => at(element, id).y);
+        const across = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+        assert.isAbove(across, HEIGHT * 0.5, "the city fills much of the view");
+        for (const { id } of CITY) {
+            const { x, y } = at(element, id);
+            assert.isTrue(x >= 0 && x <= WIDTH && y >= 0 && y <= HEIGHT, `${id} is in view`);
+        }
+        const frame = element.mapFrame;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+        await wheelToFloor(element);
+        assert.isBelow(eyeRadius(element), radius * 1.001, "the camera still comes down to street level");
+    });
+
+    // The graphty app's path: a sample opens on another layout, and the reader picks Map, which the
+    // app applies with mapScale 6 and flatNodeScale 2 (graphty/src/workspace/layout/methods.ts).
+    it("frames the city when the map replaces another layout, on the globe and on the flat map", async () => {
+        for (const mapDimension of ["3d", "2d"] as const) {
+            const element = document.createElement("graphty-element");
+            element.style.display = "block";
+            element.style.width = `${String(WIDTH)}px`;
+            element.style.height = `${String(HEIGHT)}px`;
+            document.body.appendChild(element);
+            cleanups.push(() => {
+                element.remove();
+            });
+            await element.updateComplete;
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.session.data.addNodes(CITY);
+            await element.setViewMode("3d");
+            await element.session.layout.set("circular", { options: { seed: 1 } });
+            await applied(element);
+            await element.session.layout.set("location-map", {
+                options: { mapDimension, mapScale: 6, flatNodeScale: 2, nodeScale: "screen" },
+            });
+            await applied(element);
+            await vi.waitFor(async () => {
+                await applied(element);
+                assert.strictEqual(element.mapFrame?.mapDimension, mapDimension);
+                const xs = CITY.map(({ id }) => at(element, id).x);
+                const ys = CITY.map(({ id }) => at(element, id).y);
+                for (const [i, { id }] of CITY.entries()) {
+                    assert.isTrue(xs[i] >= 0 && xs[i] <= WIDTH && ys[i] >= 0 && ys[i] <= HEIGHT, `${id} is in view`);
+                }
+                const across = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+                assert.isAbove(across, HEIGHT * 0.5, `${mapDimension}: the city fills much of the view`);
+            });
+            element.remove();
+        }
+    });
+
+    // At the closest zoom (1.0001 radii) a finger's move turns the globe by millionths of a radian,
+    // and the pivot's dead zone of 1e-4 radians (the floor's own height) dropped every one of them.
+    it("turns under a finger at the closest zoom, the place grabbed staying under it", async () => {
+        const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" }, CITY);
+        const frame = element.mapFrame;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+        await wheelToFloor(element);
+        const height = eyeRadius(element) - radius;
+        assert.isBelow(height, radius * 0.001, "at street level");
+        const from = { x: WIDTH - 40, y: 40 };
+        const to = { x: WIDTH - 160, y: 100 };
+        const grabbed = onSphere(element, from, radius);
+        assert.isNotNull(grabbed);
+        await touchDrag(element, from, to, 12);
+        await applied(element);
+        const under = onSphere(element, to, radius);
+        assert.isNotNull(under);
+        if (grabbed !== null && under !== null) {
+            const apart = Math.hypot(grabbed.x - under.x, grabbed.y - under.y, grabbed.z - under.z);
+            const moved = onSphere(element, from, radius);
+            assert.isNotNull(moved);
+            const turned =
+                moved === null ? 0 : Math.hypot(grabbed.x - moved.x, grabbed.y - moved.y, grabbed.z - moved.z);
+            assert.isAbove(turned, height * 0.2, "the globe turned");
+            assert.isBelow(apart, turned * 0.2, "the grabbed place is under the finger");
+        }
+        assert.closeTo(eyeRadius(element) - radius, height, height * 0.01, "at the same height");
+    });
+
+    // An arrow turned the camera about the globe's center by a fixed angle: at street level that
+    // swept it hundreds of kilometres a frame and down inside the globe.
+    it("turns by a step the view can follow with the arrow keys at the closest zoom, never inside", async () => {
+        const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" }, CITY);
+        const frame = element.mapFrame;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+        await wheelToFloor(element);
+        const height = eyeRadius(element) - radius;
+        await click(element, { x: 6, y: 6 });
+        await applied(element);
+        for (const key of ["{ArrowLeft}", "{ArrowUp}"]) {
+            const before = onSphere(element, CENTER, radius);
+            await userEvent.keyboard(key);
+            await applied(element);
+            for (;;) {
+                const last = element.graph.getScene().activeCamera?.globalPosition.clone();
+                await drawnFrames(element.graph.getScene(), 1);
+                if (last?.equals(element.graph.getScene().activeCamera?.globalPosition ?? Vector3.Zero())) {
+                    break;
+                }
+            }
+            const after = onSphere(element, CENTER, radius);
+            assert.isNotNull(before);
+            assert.isNotNull(after);
+            if (before !== null && after !== null) {
+                const moved = Math.hypot(before.x - after.x, before.y - after.y, before.z - after.z);
+                assert.isAbove(moved, 0, `${key} turned the view`);
+                assert.isBelow(moved, height * 2, `${key} moved the ground by less than the view is wide`);
+            }
+            assert.isAtLeast(eyeRadius(element), radius, `${key} kept the camera outside the globe`);
         }
     });
 });
@@ -692,14 +871,15 @@ describe("W and S on the globe", () => {
         const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
         await click(element, { x: 6, y: 6 });
         await applied(element);
-        const start = element.getCameraState().cameraDistance ?? Number.NaN;
         const runs: Record<string, number[]> = {};
         for (const [name, distance] of [
-            ["far", start],
+            ["far", radius * 3],
             ["near", radius * 1.1],
         ] as const) {
             for (const key of ["w", "s"]) {
-                await element.setCameraState({ cameraDistance: distance });
+                // About the globe's center, as the comparison assumes: framed on data, the pivot sits
+                // a little off it.
+                await element.setCameraState({ target: { x: 0, y: 0, z: 0 }, cameraDistance: distance });
                 await applied(element);
                 runs[`${key} ${name}`] = await heightsWhileHeld(element, key, 12);
             }
@@ -849,6 +1029,13 @@ describe("zooming a map whose nodes keep their size on screen", () => {
         const counter = "edges.retrimmedForNodeScale";
         const edges = element.graph.getDataManager().edges.size;
         const scale = (): number => element.graph.getNode("CHI")?.mesh.scaling.x ?? Number.NaN;
+        // Back out first, so the zoom in below ends at the fitted view with every city on screen: an
+        // edge whose ends are both off screen is cut only once one comes back.
+        for (let notch = 0; notch < 12; notch++) {
+            await wheel(element, CENTER, 100);
+            await drawnFrames(scene, 1);
+        }
+        await applied(element);
         const reachAtRest = edgeReaches(element);
         stats.resetCounter(counter);
         const steps = 12;

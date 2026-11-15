@@ -21,7 +21,6 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { findTreeRow, rowLayers as treeRowLayers, rowName } from "../graph-place/rows";
-import { DEFAULT_NAME_KEY } from "./cards";
 import type { BeneathValue, RowContext } from "./PropertyRow";
 import { channelPhrase, hexOf, logUnexpected, OPACITY_OF, readableName } from "./words";
 
@@ -257,23 +256,6 @@ export function selectionRow(session: GraphSession): LayerId[] {
         })
         .map((layer) => layer.id);
 }
-
-/**
- * The layer the selection's first edit adds: the selection's own selector, named after it.
- * @param session - the element's session.
- * @param name - the selection's name (its rule, a node's label, "3 nodes").
- * @returns the layer to add.
- */
-export function selectionLayer(session: GraphSession, name: string): NewLayer {
-    // The name is a default: it follows the layer's cards until the reader renames it.
-    return { name, selector: session.selection.layerSelector, userData: { [DEFAULT_NAME_KEY]: name } };
-}
-
-/**
- * The sessions whose next selection layer is being made by a section's "+" with a starting value
- * rather than a value the reader chose, so Escape before any change may take it back.
- */
-export const startingAdds = new WeakSet<GraphSession>();
 
 /**
  * The selector a binding needs on a row that paints everything, when graphty-element refuses it
@@ -975,6 +957,19 @@ export function wholeGraphRow(session: GraphSession): string | undefined {
         .filter((layer) => layer.selector.match === "everything")
         .map((layer) => layer.row ?? layer.id)
         .find((id) => findTreeRow(tree, id) !== undefined);
+}
+
+/**
+ * The layer the reader has selected: the style tree row last opened while the tree still holds it,
+ * else the row that paints every element (`wholeGraphRow`).
+ * @param session - the element's session.
+ * @param styleRow - the row last opened, if any.
+ * @returns its id, or undefined when neither exists.
+ */
+export function selectedLayerRow(session: GraphSession, styleRow: string | null): string | undefined {
+    return styleRow !== null && findTreeRow(session.styles.tree(), styleRow) !== undefined
+        ? styleRow
+        : wholeGraphRow(session);
 }
 
 /**

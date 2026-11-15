@@ -5433,6 +5433,7 @@ export interface MarkSuggestion {
 // @public
 export interface ModelThumbnailOptions {
     readonly size?: number;
+    readonly standInMissing?: boolean;
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 

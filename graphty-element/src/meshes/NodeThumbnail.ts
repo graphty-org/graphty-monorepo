@@ -46,6 +46,14 @@ export interface ModelThumbnailOptions {
      * the rest are ignored.
      */
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
+    /**
+     * Draw a model still waiting for parts (`session.assets.waiting()`) with its missing pictures
+     * and materials stood in for, as `assets.supply`'s skip would draw it: a plain material, no
+     * texture. A model waiting for its geometry (a glTF's `.bin`) or for an answer (which file is
+     * the model, an ambiguous part) still throws its first problem. Default: false, and a waiting
+     * model throws.
+     */
+    readonly standInMissing?: boolean;
 }
 
 /**

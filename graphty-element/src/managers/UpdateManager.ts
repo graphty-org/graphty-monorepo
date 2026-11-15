@@ -4628,15 +4628,16 @@ export class UpdateManager implements Manager {
             return;
         }
 
+        let framed = box;
         if (sphere !== null && active instanceof OrbitCameraController) {
             this.frameGlobe(active, box, sphere, frame?.surface === "globe" && frame.world);
         } else {
-            this.frameBox(box, frame);
+            framed = this.frameBox(box, frame);
         }
 
         this.hasZoomedToFit = true;
         this.fitRead = this.fitInputs();
-        this.fittedBox = box;
+        this.fittedBox = framed;
         this.fitLabelPasses = this.labelPasses();
         this.fitExtentMoved = false;
         this.repaintedSinceFit = false;
@@ -4689,26 +4690,44 @@ export class UpdateManager implements Manager {
      * round sizes those labels for the camera just framed and measures again; the room a label takes
      * is a small share of the view, so the rounds close in on the one framing whose labels are sized
      * for its own camera, wherever they started.
+     *
+     * Labels moved off their nodes (`labels.avoidNodesAndEdges`) are placed the same way, for the
+     * camera each round framed, before the box is measured again. Left to the pass before the next
+     * frame, the fit measured the labels wherever the last pass had put them -- over their nodes, or
+     * placed for a camera since replaced -- and only a refit after that pass framed them where they
+     * went. Whether that refit landed before the picture was called final depended on timing: with
+     * every node on one point, the same graph was framed with its labels over the nodes in one
+     * capture and around them in the next, about 60 CSS pixels apart (issue #8250). The fit now ends
+     * on labels placed for the camera it framed, so its answer depends on the graph alone.
      * @param box - The box measured this frame.
      * @param frame - The map the layout draws on, or null.
+     * @returns The box the camera was last framed on.
      */
-    private frameBox(box: FramingBox, frame: LocationMapFrame | null): void {
-        const fits = screenFitFrames.callbacksOf(this.graphContext.getScene());
+    private frameBox(box: FramingBox, frame: LocationMapFrame | null): FramingBox {
+        const scene = this.graphContext.getScene();
+        const fits = screenFitFrames.callbacksOf(scene);
+        const declutter: unknown = scene.metadata?.labelDeclutter;
         let current = box;
+        // ponytail: a placement that flips with the camera runs a label pass per round, up to the cap;
+        // a lower cap for placement alone if a large graph ever oscillates.
         for (let round = 0; ; round++) {
             const { min, max } = frame === null ? current : this.frameMap(current, frame);
             this.camera.zoomToBoundingBox(min, max, current.spots);
-            if (fits.size === 0 || round === MAX_LABEL_FIT_ROUNDS) {
-                return;
-            }
-
             for (const fit of fits) {
                 fit();
             }
 
+            const placed =
+                declutter instanceof LabelDeclutter && scene.activeCamera !== null
+                    ? declutter.placeForFraming(scene.activeCamera)
+                    : false;
+            if ((fits.size === 0 && !placed) || round === MAX_LABEL_FIT_ROUNDS) {
+                return current;
+            }
+
             const next = this.measure();
             if (next === undefined || sameBox(next, current)) {
-                return;
+                return current;
             }
 
             current = next;

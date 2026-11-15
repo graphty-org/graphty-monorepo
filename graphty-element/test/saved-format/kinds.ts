@@ -7,6 +7,8 @@
  *
  * A fix for another kind makes the file carry what it uses, adds its row here and deletes its
  * entry from `exceptions` in `saved-format-lists.json`, in one commit.
+ * Code-backed built-ins (node shapes, arrowheads, line patterns) are named, not carried, so they stay
+ * exceptions with no row here (design/owner-standing-rules.md, rule 6).
  */
 
 import type { ShaderDescriptor } from "../../src/catalog/shaders";

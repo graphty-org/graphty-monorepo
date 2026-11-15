@@ -34,7 +34,7 @@
             "paths": [],
             "catalogs": ["edgeArrows", "edgeLines"],
             "issue": 6504,
-            "finding": "Arrowheads, edge.style and edge.outlineStyle name built-in arrowheads and line patterns by id."
+            "finding": "Arrowheads, edge.style and edge.outlineStyle name built-in arrowheads and line patterns by id. Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "overflow-lists",

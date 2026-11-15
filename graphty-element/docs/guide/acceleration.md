@@ -292,6 +292,7 @@ them stops your graph from being drawn; they say why it is being drawn by the CP
 | `E_SOFTWARE_ONLY`             | The only adapter is a software rasteriser, which `auto` turns down as slower than the CPU path.                   |
 | `E_DEVICE_INCORRECT`          | The adapter answers, and its answers are wrong. See below.                                                        |
 | `E_DEVICE_LOST`               | The device was lost mid-session -- a driver reset, a suspended tab.                                               |
+| `E_GPU_TIMEOUT`               | A run got no answer from the device within its time limit, and the device never said it was lost. See below.      |
 | `E_TOO_LARGE`                 | The accelerator cannot compute exactly over as many nodes as it was asked for.                                    |
 | `E_NO_ACCELERATOR_REGISTERED` | No accelerator is registered: `@graphty/graphty-element/webgpu` was never imported, or its module failed to load. |
 | `E_ACCELERATOR_FAILED`        | A registered accelerator threw while setting up, with no code of its own; `reason` says what it threw.            |
@@ -299,6 +300,19 @@ them stops your graph from being drawn; they say why it is being drawn by the CP
 A lost device is not the end of it. The element drops to the CPU path and then tries up to
 three times to attach a fresh accelerator, so a state that goes `error` and comes back to `idle`
 is a recovery that worked; after the third failure it stays down.
+
+A device can also stop answering without saying it is lost, and WebGPU has no event for that. So
+every algorithm run on the accelerator has a time limit: ten seconds, plus a millisecond per
+thousand nodes times edges (sources times edges for a sampled run, nodes cubed for
+`floyd-warshall`). A run past it fails with `E_GPU_TIMEOUT`, whose `details` carry the
+`capability`, `nodeCount`, `edgeCount`, `elapsedMs` and `limitMs`, and the element treats the
+device the way it treats a lost one: it lets go of it and attaches a fresh one for the next run.
+The stuck run is never finished on the CPU. To set your own limit, or none:
+
+```javascript
+element.getAcceleration().setRunTimeout(60_000); // milliseconds; Infinity waits forever
+element.getAcceleration().setRunTimeout(undefined); // back to the scaled limit
+```
 
 `E_DEVICE_INCORRECT` is the one that surprises people, because the hardware is there and it
 works. Before the element gives an accelerator any of your graph, it asks the accelerator to

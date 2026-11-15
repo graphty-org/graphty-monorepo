@@ -927,6 +927,118 @@ describe("AccelerationController: acceleration=required", () => {
     });
 });
 
+describe("AccelerationController: a run that gets no answer (issue #8283)", () => {
+    /** The Venice transit sample's size: the first sample the app sends to the GPU. */
+    const VENICE: AcceleratedWork = { capability: "betweennessCentrality", nodeCount: 1_874, edgeCount: 2_702 };
+
+    /** Starts a controller whose factory builds "first", then "second" for every later build. */
+    async function twoDevices(onFirstDispose: () => void): Promise<AccelerationController> {
+        const hang = (): Promise<string> =>
+            new Promise<string>(() => {
+                // A readback whose map never settles and whose device never reports itself lost.
+            });
+        const first = fakeAccelerator({
+            name: "first",
+            members: { betweennessCentrality: hang },
+            onDispose: onFirstDispose,
+        });
+        const second = fakeAccelerator({ name: "second", members: { betweennessCentrality: (): string => "second" } });
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return Promise.resolve(built === 1 ? first : second);
+            },
+        });
+        const controller = new AccelerationController({ registry });
+        await controller.start();
+        assert.isTrue(controller.plan(VENICE).accelerated);
+        return controller;
+    }
+
+    it("fails with E_GPU_TIMEOUT, releases the device, and the next run works", async () => {
+        const disposed = vi.fn();
+        const controller = await twoDevices(disposed);
+        controller.setRunTimeout(5_000);
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+        let failure: unknown;
+        try {
+            const running = controller
+                .run(VENICE, (accelerator) =>
+                    (
+                        accelerator as unknown as { betweennessCentrality: () => Promise<string> }
+                    ).betweennessCentrality(),
+                )
+                .catch((error: unknown) => error);
+            await vi.advanceTimersByTimeAsync(5_000);
+            failure = await running;
+        } finally {
+            vi.useRealTimers();
+        }
+
+        assert.isTrue(isGraphtyError(failure));
+        const error = failure as GraphtyError;
+        assert.strictEqual(error.code, "E_GPU_TIMEOUT");
+        assert.strictEqual(error.details?.capability, "betweennessCentrality");
+        assert.strictEqual(error.details?.nodeCount, 1_874);
+        assert.strictEqual(error.details?.edgeCount, 2_702);
+        assert.strictEqual(error.details?.limitMs, 5_000);
+        assert.strictEqual(error.details?.elapsedMs, 5_000);
+        assert.strictEqual(disposed.mock.calls.length, 1);
+
+        // The suspect device is replaced; the next run lands on the fresh one.
+        await vi.waitUntil(() => controller.accelerator?.name === "second");
+        const outcome = await controller.run(VENICE, (accelerator) => accelerator.name);
+        assert.deepInclude(outcome, { accelerated: true, value: "second" });
+        controller.dispose();
+    });
+
+    it("scales the limit it sets itself from the size of the run", async () => {
+        const controller = await twoDevices(() => undefined);
+        assert.isUndefined(controller.runTimeoutMs);
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+        let settled = false;
+        let failure: unknown;
+        try {
+            const running = controller
+                .run(VENICE, (accelerator) =>
+                    (
+                        accelerator as unknown as { betweennessCentrality: () => Promise<string> }
+                    ).betweennessCentrality(),
+                )
+                .catch((error: unknown) => error)
+                .then((error) => {
+                    settled = true;
+                    return error;
+                });
+            // Ten seconds for any run, plus a millisecond per thousand nodes times edges.
+            await vi.advanceTimersByTimeAsync(10_000);
+            assert.isFalse(settled);
+            await vi.advanceTimersByTimeAsync(Math.ceil((1_874 * 2_702) / 1_000));
+            failure = await running;
+        } finally {
+            vi.useRealTimers();
+        }
+
+        assert.strictEqual(isGraphtyError(failure) ? failure.code : "", "E_GPU_TIMEOUT");
+        controller.dispose();
+    });
+
+    it("refuses a limit that is not a positive number", () => {
+        const controller = new AccelerationController({ registry: new AcceleratorRegistry() });
+        for (const bad of [0, -1, Number.NaN]) {
+            assert.throws(() => {
+                controller.setRunTimeout(bad);
+            }, /positive number/);
+        }
+        controller.setRunTimeout(Number.POSITIVE_INFINITY);
+        assert.strictEqual(controller.runTimeoutMs, Number.POSITIVE_INFINITY);
+        controller.dispose();
+    });
+});
+
 describe("AccelerationController: device loss", () => {
     it("reports a lost device as an error with a code, then comes back", async () => {
         const lost = deferred<{ reason: string }>();

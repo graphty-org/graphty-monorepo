@@ -800,6 +800,7 @@ const RUN_FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
     E_SOFTWARE_ONLY: "the graphics card could not run it",
     E_DEVICE_INCORRECT: "the graphics card gave a wrong answer",
     E_DEVICE_LOST: "the graphics card stopped during the run",
+    E_GPU_TIMEOUT: "the graphics card stopped answering",
     E_UNSUPPORTED: "this analysis cannot run here",
 };
 

@@ -196,6 +196,44 @@ interface Attachment {
 
 const logger = GraphtyLogger.getLogger(["graphty", "acceleration"]);
 
+/**
+ * The part of every run's time limit that does not depend on its size: a first run compiles its
+ * pipelines, which takes seconds on some browsers.
+ */
+const RUN_TIMEOUT_FLOOR_MS = 10_000;
+
+/**
+ * Milliseconds the time limit allows per unit of work (see {@link defaultRunTimeoutMs}). GPU
+ * betweenness over every source of the Venice transit sample -- 1,874 nodes times 2,702 edges,
+ * about 5 million units -- takes about 45 ms on a desktop card; this allows a device a hundred
+ * times slower before it calls the run stuck.
+ */
+const RUN_TIMEOUT_MS_PER_UNIT = 1e-3;
+
+/** The longest delay setTimeout honours; a longer one fires at once. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+/**
+ * The time limit for an accelerated run nobody set one for, scaled from the work it was asked to do.
+ *
+ * The unit is an upper bound on what the run touches: the sources times the edges for a sourced
+ * run, the nodes cubed for all-pairs shortest paths (a Floyd-Warshall sweep), and the nodes times
+ * the edges for everything else (every node visiting every edge). Generous on purpose: a false
+ * timeout fails a run that would have finished, and a lax one only waits longer before failing.
+ * ponytail: one bound per run shape, not per kernel; a measured per-capability cost model is the
+ * upgrade if large iterative runs need a tighter limit.
+ * @param work - The run.
+ * @returns The limit in milliseconds.
+ */
+function defaultRunTimeoutMs(work: AcceleratedWork): number {
+    const nodes = work.nodeCount;
+    const units =
+        work.capability === "allPairsShortestPath"
+            ? nodes * nodes * nodes
+            : (work.sourceEdges ?? nodes * Math.max(1, work.edgeCount ?? 0));
+    return RUN_TIMEOUT_FLOOR_MS + units * RUN_TIMEOUT_MS_PER_UNIT;
+}
+
 /** The mutable form of the published status, used while assembling it. */
 type MutableStatus = {
     -readonly [K in keyof AccelerationStatus]: AccelerationStatus[K];
@@ -313,6 +351,8 @@ export class AccelerationController {
      */
     #generation = 0;
     #recoveryAttempts = 0;
+    /** The consumer's run time limit, or undefined for one scaled from each run's size. */
+    #runTimeoutMs: number | undefined;
     #disposed = false;
     #status: AccelerationStatus;
     #capabilities: AccelerationCapabilities;
@@ -389,6 +429,15 @@ export class AccelerationController {
      */
     get minNodes(): number {
         return this.#minNodes;
+    }
+
+    /**
+     * The time limit for one accelerated run that the consumer set, or undefined while each run's
+     * limit is scaled from its size.
+     * @returns The limit in milliseconds, or undefined.
+     */
+    get runTimeoutMs(): number | undefined {
+        return this.#runTimeoutMs;
     }
 
     /**
@@ -477,6 +526,30 @@ export class AccelerationController {
 
         this.#minNodes = minNodes;
         this.#explicitMinNodes = true;
+    }
+
+    /**
+     * Changes how long one accelerated run may go without an answer before it fails with
+     * `E_GPU_TIMEOUT`.
+     *
+     * A browser's GPU can stop answering without reporting the device lost, and WebGPU has no
+     * event for that, so every call-shaped run (an algorithm, not a layout's frame-by-frame
+     * simulation) has a limit. Left unset, the limit is scaled from the run's size: at least ten
+     * seconds, more for a large graph. `Infinity` waits forever.
+     * @param ms - The limit in milliseconds, or undefined to go back to the scaled limit.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when the value is not a positive number.
+     */
+    setRunTimeout(ms: number | undefined): void {
+        if (ms !== undefined && (Number.isNaN(ms) || ms <= 0)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `the accelerated run time limit must be a positive number of milliseconds, not ${String(ms)}`,
+                source: "config",
+                details: { key: "acceleration.runTimeoutMs", min: 0, value: ms },
+            });
+        }
+
+        this.#runTimeoutMs = ms;
     }
 
     /**
@@ -750,7 +823,7 @@ export class AccelerationController {
         const endSpan = this.#whileRunning?.();
 
         try {
-            const value = await fn(decision.accelerator);
+            const value = await this.#withDeadline(work, decision.accelerator, fn);
             return { accelerated: true, value, precision: decision.precision };
         } catch (error) {
             // The one exit. Nothing below this line may produce a CPU result: the accelerator
@@ -1077,12 +1150,26 @@ export class AccelerationController {
      * @param reason - What the backend said about the loss.
      */
     #onDeviceLost(attachment: Attachment, reason: string): void {
+        this.#onDeviceFailed(attachment, `the accelerator's device was lost: ${reason}`, "E_DEVICE_LOST");
+    }
+
+    /**
+     * Lets go of a device that failed while attached, says so, then tries a fresh one.
+     *
+     * A lost device and one that stopped answering end the same way: releasing the accelerator
+     * frees the buffers and pipelines the failed work holds, and the next run gets a new device
+     * rather than the suspect one.
+     * @param attachment - The attachment whose device failed.
+     * @param sentence - What happened, for `status.reason`.
+     * @param code - `E_DEVICE_LOST` or `E_GPU_TIMEOUT`.
+     */
+    #onDeviceFailed(attachment: Attachment, sentence: string, code: "E_DEVICE_LOST" | "E_GPU_TIMEOUT"): void {
         if (this.#disposed || attachment.released || this.#attachment !== attachment) {
             return;
         }
 
         this.#detach();
-        this.#transition("error", `the accelerator's device was lost: ${reason}`, "E_DEVICE_LOST");
+        this.#transition("error", sentence, code);
 
         if (
             !this.#recoverOnDeviceLoss ||
@@ -1093,18 +1180,19 @@ export class AccelerationController {
         }
 
         this.#recoveryAttempts += 1;
-        void this.#recover(reason);
+        void this.#recover(sentence, code);
     }
 
     /**
-     * Tries to attach a fresh accelerator after a device loss.
+     * Tries to attach a fresh accelerator after a device loss or a run that got no answer.
      *
      * The state stays `"error"` while this runs and when it fails: an accelerator that worked
      * and then died is a different thing from one that was never there, and flattening the two
      * would hide a real hardware failure behind "unavailable".
-     * @param lossReason - What the backend said about the loss, kept for the failure message.
+     * @param failure - What happened to the device, kept for the failure message.
+     * @param code - The code the failure was published with.
      */
-    async #recover(lossReason: string): Promise<void> {
+    async #recover(failure: string, code: "E_DEVICE_LOST" | "E_GPU_TIMEOUT"): Promise<void> {
         const generation = this.#generation;
         const recovered = await this.#tryFactories();
 
@@ -1113,11 +1201,7 @@ export class AccelerationController {
         }
 
         const why = this.#reason ?? "no accelerator available";
-        this.#transition(
-            "error",
-            `the accelerator's device was lost: ${lossReason}; reattaching failed: ${why}`,
-            "E_DEVICE_LOST",
-        );
+        this.#transition("error", `${failure}; reattaching failed: ${why}`, code);
     }
 
     /**
@@ -1158,6 +1242,62 @@ export class AccelerationController {
     }
 
     /**
+     * Runs the accelerated function, rejecting with `E_GPU_TIMEOUT` when it has no answer by the
+     * run's time limit.
+     *
+     * The device's own signals -- a lost device, a rejected map -- already end a run as
+     * `E_DEVICE_LOST`. This is for the case WebGPU has no signal for: a GPU that stops answering
+     * without being lost, which leaves a readback pending forever. The stuck promise is abandoned,
+     * and the failure path releases the accelerator, which destroys what the run holds.
+     * @param work - The run, which sizes the limit and names the failure.
+     * @param accelerator - The accelerator it runs on.
+     * @param fn - The accelerated function.
+     * @returns What the function returned.
+     */
+    async #withDeadline<T>(
+        work: AcceleratedWork,
+        accelerator: GraphAccelerator,
+        fn: (accelerator: GraphAccelerator) => T | Promise<T>,
+    ): Promise<T> {
+        const limitMs = this.#runTimeoutMs ?? defaultRunTimeoutMs(work);
+        const started = performance.now();
+        const running = Promise.resolve(fn(accelerator));
+        // setTimeout fires at once past 2^31 - 1 ms, so a limit beyond that (about 25 days) is none.
+        if (limitMs > MAX_TIMER_MS) {
+            return running;
+        }
+
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const deadline = new Promise<never>((_resolve, reject) => {
+            timer = setTimeout(() => {
+                const elapsedMs = Math.round(performance.now() - started);
+                reject(
+                    new GraphtyError({
+                        code: "E_GPU_TIMEOUT",
+                        message: `the accelerator gave no answer to "${work.capability}" within ${String(Math.round(limitMs))} ms`,
+                        source: "acceleration",
+                        details: {
+                            capability: work.capability,
+                            nodeCount: work.nodeCount,
+                            edgeCount: work.edgeCount ?? 0,
+                            elapsedMs,
+                            limitMs: Math.round(limitMs),
+                            accelerator: accelerator.name,
+                            backend: accelerator.backend,
+                        },
+                    }),
+                );
+            }, limitMs);
+        });
+
+        try {
+            return await Promise.race([running, deadline]);
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    /**
      * Turns a failure from a running accelerator into the error to throw.
      *
      * Never into a CPU result. A device loss noticed this way also moves the state, because the
@@ -1192,6 +1332,10 @@ export class AccelerationController {
 
         if (failure.code === "E_DEVICE_LOST" && attachment !== null) {
             this.#onDeviceLost(attachment, failure.message);
+        }
+
+        if (failure.code === "E_GPU_TIMEOUT" && attachment !== null) {
+            this.#onDeviceFailed(attachment, failure.message, "E_GPU_TIMEOUT");
         }
 
         if (failure.code === "E_DEVICE_INCORRECT" && attachment !== null) {

@@ -194,7 +194,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         ),
     ].map((option): Exclusion => ({ option: `layouts/${option}`, reason: "unoffered-type", kind: BY_DESIGN })),
     ...(["GraphSession", "ElementSession"] as const).flatMap((root): Exclusion[] => [
-        { root, members: ["assets", "network", "time", "shaders", "features"], reason: "namespace", kind: BY_DESIGN },
+        {
+            root,
+            members: ["assets", "network", "time", "shaders", "features", "groups"],
+            reason: "namespace",
+            kind: BY_DESIGN,
+        },
         { root, members: ["recipe"], reason: "whole-document", kind: BY_DESIGN },
         { root, members: ["recommendLayout"], reason: "raw-data", kind: BY_DESIGN },
     ]),

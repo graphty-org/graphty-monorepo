@@ -846,6 +846,66 @@ const DOOR_NOTES_DOCUMENT = {
     notes: [{ id: "note_door", time: "2026-10-01T09:00:00.000Z", targets: [{ node: "d1" }], text: "door note" }],
 };
 
+/** The group the groups doors collapse and expand. */
+const DOOR_GROUP = { groupBy: "data.team", group: "door" };
+
+/** The node standing in for {@link DOOR_GROUP}. */
+const DOOR_GROUP_NODE = "group:data.team=door";
+
+/** What the doors test's collapse keeps for its expand. */
+const DOOR_GROUP_RESTORE = {
+    nodes: [
+        { id: "g1", team: "door" },
+        { id: "g2", team: "door" },
+    ],
+    edges: [
+        { source: "g1", target: "g2" },
+        { source: "g2", target: "g3" },
+    ],
+    positions: [],
+    pinned: [],
+};
+
+/** The commands collapsing {@link DOOR_GROUP}, in order. */
+const GROUP_COLLAPSE_STEPS: readonly SessionCommand[] = [
+    { op: "data.apply", mutation: { kind: "remove-nodes", ids: ["g1", "g2"] } },
+    {
+        op: "data.apply",
+        mutation: {
+            kind: "add-nodes",
+            idPath: "id",
+            records: [
+                {
+                    id: DOOR_GROUP_NODE,
+                    "_group.by": "data.team",
+                    "_group.value": "door",
+                    "_group.size": 2,
+                    "_group.restore": DOOR_GROUP_RESTORE,
+                },
+            ],
+        },
+    },
+    {
+        op: "data.apply",
+        mutation: {
+            kind: "add-edges",
+            records: [{ source: DOOR_GROUP_NODE, target: "g3", "_group.count": 1, "_group.weight": 1 }],
+            source: "source",
+            target: "target",
+        },
+    },
+];
+
+/** The commands expanding {@link DOOR_GROUP}, in order. */
+const GROUP_EXPAND_STEPS: readonly SessionCommand[] = [
+    { op: "data.apply", mutation: { kind: "remove-nodes", ids: [DOOR_GROUP_NODE] } },
+    { op: "data.apply", mutation: { kind: "add-nodes", idPath: "id", records: DOOR_GROUP_RESTORE.nodes } },
+    {
+        op: "data.apply",
+        mutation: { kind: "add-edges", records: DOOR_GROUP_RESTORE.edges, source: "source", target: "target" },
+    },
+];
+
 /** The id of the note a notes door edits: minted, so known only once `around` has added it. */
 const DOOR_NOTE = { id: "" };
 
@@ -879,6 +939,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     scope: READ,
     sets: READ,
     notes: READ,
+    groups: READ,
     assets: READ,
     network: READ,
     journal: READ,
@@ -3561,6 +3622,29 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        // The doors test gives the session g1 and g2 of team "door" and g3, with g1-g2 and g2-g3.
+        name: "GroupsApi",
+        file: "src/session/groups.ts",
+        half: "session",
+        doors: {
+            list: READ,
+            collapse: calls([DOOR_GROUP], GROUP_COLLAPSE_STEPS),
+            expand: {
+                kind: "dispatches",
+                op: "data.apply",
+                call: {
+                    kind: "call",
+                    args: [DOOR_GROUP],
+                    around: async (target) => {
+                        await (target as { collapse(ref: unknown): Promise<unknown> }).collapse(DOOR_GROUP);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: GROUP_EXPAND_STEPS,
+            },
+        },
+    },
+    {
         name: "AssetsApi",
         file: "src/session/assets/AssetsApi.ts",
         half: "session",
@@ -4219,6 +4303,8 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.removeNodes": "edit",
     "SessionDataApi.removeEdges": "edit",
     "SessionDataApi.mergeNodes": "edit",
+    "GroupsApi.collapse": "edit",
+    "GroupsApi.expand": "edit",
     "SessionDataApi.collapse": "edit",
     "SessionDataApi.clear": "clear",
     // Doors that work out their change from the graph read it once the loads ahead have landed.

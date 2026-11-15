@@ -90,6 +90,7 @@ export default defineConfig({
                         { text: "Rectangle and Lasso Selection", link: "/guide/region-select" },
                         { text: "Bringing Back a Cleared Selection", link: "/guide/restore-selection" },
                         { text: "Sets", link: "/guide/sets" },
+                        { text: "Collapsing Groups", link: "/guide/collapse-groups" },
                         { text: "Notes", link: "/guide/notes" },
                         { text: "Finding", link: "/guide/find" },
                         { text: "Neighbors", link: "/guide/neighbors" },

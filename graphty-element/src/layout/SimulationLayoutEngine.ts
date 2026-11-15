@@ -466,7 +466,9 @@ function sameTransform(a: DrawnTransform, b: DrawnTransform): boolean {
 interface DrawnSimulation {
     readonly landedDrawn?: GPUBuffer | null;
     readonly landedDrawnTransform?: DrawnTransform | null;
-    setDrawn(output: { slots: number; rows: Float32Array } | null): void;
+    /** The landed slot's rows read back to the host, when the ring was set with `readBack`. */
+    readonly landedDrawnRows?: Float32Array | null;
+    setDrawn(output: { slots: number; rows: Float32Array; readBack?: boolean } | null): void;
     setDrawnTransform(transform: DrawnTransform): void;
     setDrawnSkip(mask: Uint32Array): void;
     writeDrawn(index: number, x: number, y: number, z: number, w: number): void;
@@ -1379,7 +1381,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     /**
      * {@link SimulationLayoutEngine.publishPositions}, which a landing copied on the card may owe.
      *
-     * OWED ON THE CARD. When the landing goes up by copy (renderPath "batched" on a shared device),
+     * OWED ON THE CARD. When the landing goes up by copy (renderPath "batched" on a shared device), or as
+     * read back (renderPath "batched" on any other renderer, `RowTable.uploadLanded`),
      * the card already draws it, so no row is written, repacked or walked on the CPU for it: the
      * lane is owed the publish (`ElementPositions.owe`), and the first read or write of a row --
      * a pick, a node's position, a drag, a freeze -- writes it, from the latest landing with the
@@ -1404,7 +1407,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // ON THE CARD, A LANDING IS PUBLISHED WITH THE TRANSFORM ITS BATCH DREW WITH, so the lane and the
         // texture the ring is copied into hold the same rows; the envelope measured now is the next batches'.
         const drawn = this.#drawnRun();
-        const landed = drawn?.simulation.landedDrawn ?? null;
+        const landed = drawn === null ? null : this.#landedOf(drawn);
         const viaCard = drawn === null || landed === null ? null : this.#cardTransform(drawn);
         this.#fitEnvelope(snapshot, simPositions);
         if (mayOwe && drawn !== null && viaCard !== null) {
@@ -1480,6 +1483,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.publishColumn(first, rows, coords, count, true);
         // A pinned or dragged row was left out of the publish above; it is still drawn, where it is kept.
         this.keepInPublishedBox(first, this.#fixedRows);
+    }
+
+    /**
+     * The newest landed slot as the run's target takes it: the buffer on a shared device, else its rows
+     * read back to the host (a GPU package that cannot read them back offers none).
+     * @param run - The run.
+     * @returns The slot, its rows, or null.
+     */
+    #landedOf(run: DrawnRun): GPUBuffer | Float32Array | null {
+        const { simulation } = run;
+        return run.target.device === null ? (simulation.landedDrawnRows ?? null) : (simulation.landedDrawn ?? null);
     }
 
     /**
@@ -1564,7 +1578,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         try {
-            drawn.setDrawn({ slots: DRAWN_SLOTS, rows: target.table.rowPosition.subarray(0, 4 * nodeCount) });
+            drawn.setDrawn({
+                slots: DRAWN_SLOTS,
+                rows: target.table.rowPosition.subarray(0, 4 * nodeCount),
+                // On another device than the texture's, each landed slot comes back in the batch's readback.
+                readBack: target.device === null,
+            });
         } catch (error) {
             this.#onError(error, simulation);
             return;
@@ -1641,10 +1660,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * commands recorded across awaits make unknowable here): the rows the ring must leave as the element wrote them, the copy of
      * the landed slot, and the transform the next batches draw with.
      * @param run - The run.
-     * @param landed - The landed slot to copy, or null when this publish goes up by upload.
+     * @param landed - The landed slot to copy (its rows when read back from another device), or null when
+     * this publish goes up by upload.
      * @returns True when the landed slot was copied.
      */
-    #publishDrawn(run: DrawnRun, landed: GPUBuffer | null): boolean {
+    #publishDrawn(run: DrawnRun, landed: GPUBuffer | Float32Array | null): boolean {
         const simulation = this.#simulation;
         let copied = false;
         try {
@@ -1652,7 +1672,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
             if (landed === null) {
                 run.target.table.dropCopy();
             } else {
-                copied = run.target.table.copyLanded(run.target.device, landed, run.n);
+                const { table, device } = run.target;
+                copied =
+                    landed instanceof Float32Array
+                        ? table.uploadLanded(landed, run.n)
+                        : device !== null && table.copyLanded(device, landed, run.n);
                 this.#resendTold(run);
             }
 

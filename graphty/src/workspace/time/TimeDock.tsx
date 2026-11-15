@@ -32,9 +32,11 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
 
+import { TimeCard } from "../data-place/TimeCard";
 import { GLYPHS } from "../glyphs";
 import { runFailureWords } from "../inspector/words";
 import { formatKey } from "../keys/keys";
+import { SettingsPopout } from "../options/SettingsPopout";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useBoxSize } from "../useBoxSize";
@@ -582,6 +584,21 @@ function AllTimeButton({
 }
 
 /**
+ * The dock's settings button: the timeline's settings (field, step, mode, zone and the rest) in the
+ * settings popover every panel uses.
+ * @returns the button and its popover.
+ */
+function SettingsButton(): React.JSX.Element {
+    return (
+        <PopoutManager>
+            <SettingsPopout label="Timeline settings" width={280}>
+                <TimeCard />
+            </SettingsPopout>
+        </PopoutManager>
+    );
+}
+
+/**
  * The dock, or nothing while no time field is designated.
  * @returns the dock.
  */
@@ -662,6 +679,7 @@ export function TimeDock(): React.JSX.Element | null {
     );
     const viewButtons = <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />;
     const allTime = <AllTimeButton session={session} store={store} />;
+    const settingsButton = <SettingsButton />;
     const chart = (
         <div className="tl-chart" data-panel-start="" ref={chartRef}>
             <HistogramRow
@@ -744,6 +762,7 @@ export function TimeDock(): React.JSX.Element | null {
                             {counts}
                             {viewButtons}
                             {allTime}
+                            {settingsButton}
                         </>
                     }
                     chart={chart}
@@ -757,6 +776,7 @@ export function TimeDock(): React.JSX.Element | null {
                         <ReadoutEntry readout={readout} form={form} />
                         {counts}
                         {viewButtons}
+                        {settingsButton}
                     </Group>
                     {chart}
                     {allTime}

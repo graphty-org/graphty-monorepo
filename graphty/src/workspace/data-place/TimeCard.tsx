@@ -1,6 +1,6 @@
 /**
- * The Time window's settings, opened in the inspector from the Filters section's Time window
- * card: the time field, its unit, and the step, mode, zone,
+ * The timeline's settings, in a popover from the timeline dock's settings button: the time
+ * field, its unit, and the step, mode, zone,
  * untimed rule and algorithm-results setting. Every value is graphty-element's (`session.time`),
  * which keeps the settings with the field (`time.settings`), so turning the window off leaves
  * them as they are. The window itself moves in the timeline dock under the canvas.

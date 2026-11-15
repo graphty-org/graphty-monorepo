@@ -106,30 +106,13 @@ async function pickField(column: string, row: "Edge time" | "Node time" = "Edge 
 }
 
 /**
- * Opens the time window's card: from its Filters card, or, with none, by adding "Time window" from
- * the Filters "+", then turning the window back off when it was off, so the window is as it was.
- * @returns queries inside the card.
+ * Opens the timeline's settings from the dock's settings button, opening the dock first.
+ * @returns queries inside the settings.
  */
 async function timeCard(): Promise<ReturnType<typeof within>> {
     if (screen.queryByTestId("time-card") === null) {
-        const item = dataPlace().queryByRole("group", { name: /^Time window/ });
-        if (item === null) {
-            const wasOff = document.querySelector("graphty-element")?.session?.time.current === null;
-            await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
-            await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
-            const box = await dataPlace().findByRole("checkbox", { name: "Apply Time window" });
-            await waitFor(() => {
-                assert.isTrue((box as HTMLInputElement).checked);
-            });
-            if (wasOff) {
-                await userEvent.click(box);
-                await waitFor(() => {
-                    assert.isFalse((box as HTMLInputElement).checked);
-                });
-            }
-        } else {
-            await userEvent.click(within(item).getByRole("button", { name: "Time window" }));
-        }
+        const dock = await openDock();
+        await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
     }
     return within(await screen.findByTestId("time-card"));
 }
@@ -394,17 +377,15 @@ describe("the timeline on the real element", () => {
         await pickIn("Step", "Week");
         await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
 
-        // Filters lists the window as a card.
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
-        await dataPlace().findByRole("group", { name: /^Time window / });
         const chip = await screen.findByRole("button", { name: /^Time: / });
         await userEvent.click(chip);
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Window start");
-        // The window's two icon controls say their names on hover, whatever the window's state.
-        const apply = dataPlace().getByRole("checkbox", { name: "Apply Time window" });
-        assert.equal(await tooltipOf(apply), "Apply Time window");
+        // The dock's icon controls say their names on hover, whatever the window's state.
+        const settings = within(dock).getByRole("button", { name: "Timeline settings" });
+        assert.equal(await tooltipOf(settings), "Timeline settings");
         const clear = screen.getByRole("button", { name: "Clear the time window" });
         assert.equal(await tooltipOf(clear), "Clear the time window");
         await userEvent.click(clear);
@@ -697,6 +678,7 @@ describe("the Overview and the import of time", () => {
         // How what lies outside draws is the row's style, edited like any other row: the Time card
         // has no control of its own for it.
         assert.isNull((await timeCard()).queryByRole("radiogroup", { name: "Outside" }));
+        await userEvent.click(screen.getByRole("button", { name: "Close Timeline settings" }));
         const graph = session.data.snapshot();
         const ghostLayer = session.styles
             .list()
@@ -784,57 +766,33 @@ describe("the Overview and the import of time", () => {
             config: { data: "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,\n" },
         });
         await pickField("sent");
-        const untimed = await (await timeCard()).findByRole("radiogroup", { name: "Untimed" });
         await userEvent.click((await openDock()).querySelector("[aria-label='Step forward']") as Element);
         const shown = live.time.inside?.edges ?? 0;
+        const untimed = await (await timeCard()).findByRole("radiogroup", { name: "Untimed" });
         await userEvent.click(within(untimed).getByText("Hide"));
         await waitFor(() => {
             assert.equal(live.time.inside?.edges, shown - 1);
         });
     });
 
-    it("adds a Time window card from the Filters +: count, an on box and remove, no Select / Hide", async () => {
+    it("opens the timeline's settings from the dock, and Filters offers no Time window", async () => {
         const { session } = await open();
         await pickField("sent");
         await waitFor(() => {
             assert.isNotNull(session.time.field);
         });
-        assert.isNull(dataPlace().queryByRole("group", { name: /^Time window/ }), "no card until asked");
-        await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
+        const card = await timeCard();
+        card.getByRole("radiogroup", { name: "Zone" });
+        await userEvent.click(within(card.getByRole("radiogroup", { name: "Mode" })).getByText("Cumulative"));
+        await waitFor(() => {
+            assert.equal(session.time.settings.mode, "cumulative");
+        });
 
-        await waitFor(() => {
-            assert.isNotNull(session.visibility.window, "the window is on");
-        });
-        assert.isBelow(session.time.inside?.edges ?? Infinity, 2102);
-        assert.isNull(screen.queryByRole("region", { name: "Timeline" }), "adding the card leaves the dock shut");
-        // The Filters list holds it as a card, and its settings open in the inspector, by one name.
-        const card = within(await dataPlace().findByRole("group", { name: /^Time window/ }));
-        await screen.findByTestId("time-card");
-        assert.isNull(screen.queryByText("Filter step"));
-        await waitFor(() => {
-            card.getByText(/ of 2,102$/);
-        });
-        assert.isNull(card.queryByRole("radiogroup"), "no Select / Hide");
-        const box = card.getByRole("checkbox", { name: "Apply Time window" });
-        await userEvent.click(box);
-        await waitFor(() => {
-            assert.isNull(session.time.current);
-        });
-        // Off, the card stays, and "+" does not offer a second one.
-        await dataPlace().findByRole("group", { name: /^Time window/ });
+        assert.isNull(dataPlace().queryByRole("group", { name: /^Time window/ }), "no Filters card");
         await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
         await screen.findByRole("option", { name: "Largest component" });
         assert.isNull(screen.queryByRole("option", { name: "Time window" }));
         await userEvent.keyboard("{Escape}");
-
-        // Remove takes the card away, the window off, and focus goes to "+".
-        await userEvent.click(card.getByRole("button", { name: "Remove Time window" }));
-        await waitFor(() => {
-            assert.isNull(dataPlace().queryByRole("group", { name: /^Time window/ }));
-        });
-        assert.isNull(session.time.current);
-        assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
     });
 
     it("drags the whole window from between its two handles, the graph following, as one step", async () => {

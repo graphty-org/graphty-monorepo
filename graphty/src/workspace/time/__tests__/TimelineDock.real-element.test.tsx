@@ -496,12 +496,8 @@ describe("the timeline dock on the real element", () => {
 
     it("reads in the reader's zone: day bars, typed dates and the zone's name", async () => {
         await inBrowserZone(NEW_YORK, async () => {
-            const { session, store, dock } = await openDock();
-            act(() => {
-                store.set({ place: "data" });
-            });
-            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-            await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
+            const { session, dock } = await openDock();
+            await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
             const zone = await screen.findByRole("radiogroup", { name: "Zone" });
             assert.equal(session.time.settings.timeZone, "UTC");
 
@@ -510,6 +506,7 @@ describe("the timeline dock on the real element", () => {
             await waitFor(() => {
                 assert.equal(session.time.settings.timeZone, NEW_YORK);
             });
+            await userEvent.click(screen.getByRole("button", { name: "Close Timeline settings" }));
             // A day bar starts at midnight in New York, and the brush starts on a bar.
             await session.time.window(null);
             await waitFor(() => {

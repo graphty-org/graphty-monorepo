@@ -241,8 +241,6 @@ export function showNotices(
  */
 export function designate(session: GraphSession, store: WorkspaceStore, field: TimeField | null): void {
     session.time.pause();
-    // A Time window card added for the last field does not come back on its own for this one.
-    store.set({ timeWindowCard: false });
     // A text column of dates becomes a date column in the same undo step (tier 4 round 1: a time
     // drawn as dates over a column still marked text was a false done).
     session.time.setField(field, { asDates: true }).then(

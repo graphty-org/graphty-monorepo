@@ -512,7 +512,7 @@ function keptBody(fresh: JsonObject, memory: ViewMemory): JsonObject {
     for (const name of MEMBERS) {
         const now = name === "runs" ? withNotRun(fresh.runs, memory) : fresh[name];
         const kept = memory.kept.get(name);
-        const unchanged = kept !== undefined && kept.applied === canonical(now);
+        const unchanged = kept?.applied === canonical(now);
         let value = unchanged ? kept.original : now;
         if (HELD_ONLY.has(name)) {
             value = memory.heldOnly.get(name);

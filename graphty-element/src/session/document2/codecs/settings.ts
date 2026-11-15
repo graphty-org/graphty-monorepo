@@ -110,7 +110,7 @@ function columnOf(key: string, value: unknown): JsonObject | undefined {
         return { name: value, schema: { measurement: "time" } };
     }
 
-    return { name: value, schema: /WeightPath$/.test(key) ? { measurement: "quantitative" } : {} };
+    return { name: value, schema: key.endsWith("WeightPath") ? { measurement: "quantitative" } : {} };
 }
 
 /**
@@ -132,7 +132,8 @@ function playbackOf(context: WriteContext, kept: Kept | undefined): JsonObject |
         }
     }
 
-    return JSON.parse(JSON.stringify({ ...written, ...kept?.playback })) as JsonObject;
+    // A JSON copy, not structuredClone: it drops undefined members, as the file will.
+    return JSON.parse(JSON.stringify({ ...written, ...kept?.playback })) as JsonObject; // NOSONAR(S7784): the JSON form is the point
 }
 
 /**
@@ -262,49 +263,77 @@ function splitPlayback(
  */
 async function read(section: ReadSection, context: ReadContext): Promise<void> {
     const { body, pointer } = section;
-    const kept: { settings: JsonObject; playback: JsonObject; heldPlayback?: JsonObject } = {
+    const kept: KeptSettings = {
         settings: {},
         playback: {},
     };
     KEPT.set(context.session, kept);
 
-    if (isObject(body.settings)) {
-        const { patch, unknown, count } = patchOf(body.settings, `${pointer}/settings`, context);
-        kept.settings = unknown;
-        if (count > 0) {
-            try {
-                await context.tx.config.set(patch);
-                context.restored.add("config");
-            } catch (error) {
-                // Each key passed its own schema; one the settings refuse together is the file's fault.
-                if (!(error instanceof GraphtyError)) {
-                    throw error;
-                }
-                bad(context, `${pointer}/settings`);
-            }
-        }
-    } else {
-        bad(context, `${pointer}/settings`);
+    await readSettings(body.settings, `${pointer}/settings`, context, kept);
+    if (body.playback !== undefined) {
+        await readPlayback(body.playback, `${pointer}/playback`, context, kept);
     }
+}
 
-    if (body.playback === undefined) {
+/** What the settings codec keeps from an open to write back. */
+interface KeptSettings {
+    settings: JsonObject;
+    playback: JsonObject;
+    heldPlayback?: JsonObject;
+}
+
+/**
+ * Apply the `settings` member.
+ * @param settings - The member as read.
+ * @param at - Its pointer.
+ * @param context - The open.
+ * @param kept - Where the unknown keys are kept.
+ */
+async function readSettings(settings: unknown, at: string, context: ReadContext, kept: KeptSettings): Promise<void> {
+    if (!isObject(settings)) {
+        bad(context, at);
         return;
     }
 
-    const at = `${pointer}/playback`;
-    if (!isObject(body.playback)) {
+    const { patch, unknown, count } = patchOf(settings, at, context);
+    kept.settings = unknown;
+    if (count === 0) {
+        return;
+    }
+
+    try {
+        await context.tx.config.set(patch);
+        context.restored.add("config");
+    } catch (error) {
+        // Each key passed its own schema; one the settings refuse together is the file's fault.
+        if (!(error instanceof GraphtyError)) {
+            throw error;
+        }
+        bad(context, at);
+    }
+}
+
+/**
+ * Apply the `playback` member.
+ * @param playback - The member as read.
+ * @param at - Its pointer.
+ * @param context - The open.
+ * @param kept - Where the unknown members, or the whole member with the timeline off, are kept.
+ */
+async function readPlayback(playback: unknown, at: string, context: ReadContext, kept: KeptSettings): Promise<void> {
+    if (!isObject(playback)) {
         bad(context, at);
         return;
     }
 
     if (!context.session.features.has("timeline")) {
         // Kept as read and written back, as version 1 keeps it; it does nothing with the timeline off.
-        kept.heldPlayback = body.playback;
+        kept.heldPlayback = playback;
         context.problems.push(featureOff("playback"));
         return;
     }
 
-    const { known, unknown } = splitPlayback(body.playback, at, context);
+    const { known, unknown } = splitPlayback(playback, at, context);
     kept.playback = unknown;
     try {
         await (context.tx.visibility as SessionVisibilityApi).restorePlayback(known);
@@ -323,9 +352,7 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
  * @returns The problem.
  */
 function featureOff(key: string): DocumentProblem {
-    // TEMPORARY: `E_FEATURE_OFF` is not yet in DocumentProblem's code union (types.ts); remove
-    // the cast once it is added there.
-    return { code: "E_FEATURE_OFF", params: { feature: "timeline", key } } as unknown as DocumentProblem;
+    return { code: "E_FEATURE_OFF", params: { feature: "timeline", key } };
 }
 
 /** The `graphty-settings` section, version 1. */

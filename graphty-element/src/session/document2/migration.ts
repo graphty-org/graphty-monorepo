@@ -42,6 +42,7 @@
  */
 
 import { ENGINE_VERSIONS } from "../runs/engine";
+import { asName } from "./codecs/recipeCommands";
 import { cameraJson } from "./codecs/viewParts";
 import {
     decodeColumn,
@@ -158,16 +159,9 @@ function identityOf(value: JsonObject, versionKey: string): JsonObject {
 function runKey(id: string, derived: boolean): { namespace: string; as: string } {
     const at = id.indexOf("__");
     const [namespace, as] = at < 0 ? [derived ? "session" : "reader", id] : [id.slice(0, at), id.slice(at + 2)];
-    const valid = (name: string): string => {
-        const spelled = name
-            .toLowerCase()
-            .replaceAll(/[^a-z0-9]+/g, "_")
-            .replaceAll(/^_+|_+$/g, "");
-        return (/^[a-z]/.test(spelled) ? spelled : `r_${spelled}`).slice(0, 60);
-    };
     const nsFits = namespace.length <= 32 && NAMESPACE.test(namespace) && !namespace.endsWith("_");
     const asFits = as.length <= 64 && RUN_NAME.test(as) && !as.includes("__");
-    return { namespace: nsFits ? namespace : "reader", as: asFits ? as : valid(as) };
+    return { namespace: nsFits ? namespace : "reader", as: asFits ? as : asName(as) };
 }
 
 /**
@@ -667,6 +661,21 @@ function outputOf(columns: unknown, refs: readonly (NodeRef | EdgeRef | undefine
 }
 
 /**
+ * A version 1 run's fields as version 2 writes them.
+ * @param fields - The version 1 fields.
+ * @returns The fields with a name, a type and a node, edge or graph domain.
+ */
+function fieldsOf(fields: unknown): JsonObject[] {
+    return objectsOf(fields).flatMap((field) =>
+        typeof field.name === "string" &&
+        typeof field.type === "string" &&
+        ["node", "edge", "graph"].includes(String(field.kind))
+            ? [{ name: field.name, domain: field.kind, type: field.type }]
+            : [],
+    );
+}
+
+/**
  * The results section: each version 1 run's record and outputs, keyed by run id.
  * @param runs - The version 1 runs.
  * @param context - The file.
@@ -692,13 +701,7 @@ function migrateResults(runs: readonly JsonObject[], context: Context, data: Mig
             engine: { name: String(context.generator.name), version: String(context.generator.version) },
             seed,
             ...(typeof run.durationMs === "number" && run.durationMs >= 0 ? { durationMs: run.durationMs } : {}),
-            fields: objectsOf(run.fields).flatMap((field) =>
-                typeof field.name === "string" &&
-                typeof field.type === "string" &&
-                ["node", "edge", "graph"].includes(String(field.kind))
-                    ? [{ name: field.name, domain: field.kind, type: field.type }]
-                    : [],
-            ),
+            fields: fieldsOf(run.fields),
             caveats,
             ...(isObject(run.graph) ? { graph: run.graph } : {}),
             nodes: outputOf(nodes.columns, nodeRefs(nodes.ids, data)),

@@ -26,6 +26,7 @@ import type {
     WriteContext,
 } from "../types";
 import { layerNamesElements } from "./elementNaming";
+import { asName } from "./recipeCommands";
 
 /** What a session remembers of the style sections it opened, to write them back as read. */
 interface StyleMemory {
@@ -168,12 +169,7 @@ function escape(token: string): string {
  * @returns The name.
  */
 export function runName(id: string): string {
-    const tail = id.includes("__") ? id.slice(id.lastIndexOf("__") + 2) : id;
-    const name = tail
-        .toLowerCase()
-        .replaceAll(/[^a-z0-9]+/g, "_")
-        .replaceAll(/^_+|_+$/g, "");
-    return (/^[a-z]/.test(name) ? name : `r_${name}`).slice(0, 60);
+    return asName(id.includes("__") ? id.slice(id.lastIndexOf("__") + 2) : id);
 }
 
 /**
@@ -316,6 +312,29 @@ function namedPalettes(layers: readonly JsonObject[]): Set<string> {
 }
 
 /**
+ * Each column a style reads, as `dependencies.columns` writes it: its name and the JSON Schema type
+ * and measurement the session knows.
+ * @param session - The session.
+ * @param columns - The column names.
+ * @returns The entries.
+ */
+function columnDependencies(session: GraphSession, columns: ReadonlySet<string>): JsonObject[] {
+    const attributes = session.data.attributes();
+    return [...columns].map((name) => {
+        const column = attributes.find((each) => each.name === name);
+        const type = column?.type;
+        const typed = type === "string" || type === "number" || type === "integer" || type === "boolean";
+        return {
+            name,
+            schema: {
+                ...(typed ? { type } : {}),
+                ...(column?.measurement === undefined ? {} : { measurement: column.measurement }),
+            },
+        };
+    });
+}
+
+/**
  * What the layers need from the data: the columns and runs they read (spec 3.6).
  * @param session - The session, for the columns' types.
  * @param layers - The written layers.
@@ -339,18 +358,7 @@ function dependenciesOf(session: GraphSession, layers: readonly JsonObject[]): J
         }
     }
 
-    const attributes = session.data.attributes();
-    const written = [...columns].map((name) => {
-        const column = attributes.find((each) => each.name === name);
-        const type = column?.type;
-        return {
-            name,
-            schema: {
-                ...(type === "string" || type === "number" || type === "integer" || type === "boolean" ? { type } : {}),
-                ...(column?.measurement === undefined ? {} : { measurement: column.measurement }),
-            },
-        };
-    });
+    const written = columnDependencies(session, columns);
     if (written.length === 0 && runs.size === 0) {
         return undefined;
     }
@@ -396,7 +404,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
         placeIds.push(own);
         const layer = writeLayer(spec, own, spec.row === undefined ? undefined : writtenId(spec.row));
         const opened = memory.layers.get(id);
-        layers.push(opened !== undefined && opened.baseline === baselineOf(layer) ? opened.original : layer);
+        layers.push(opened?.baseline === baselineOf(layer) ? opened.original : layer);
     });
 
     // A layer this release could not apply goes back after the layer it followed in its file.
@@ -435,7 +443,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
         ...(assets === undefined ? {} : { assets }),
     };
 
-    if (memory.body !== undefined && memory.body.baseline === JSON.stringify(body)) {
+    if (memory.body?.baseline === JSON.stringify(body)) {
         return { header: memory.header, body: memory.body.original };
     }
 

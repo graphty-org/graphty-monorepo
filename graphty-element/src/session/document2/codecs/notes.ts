@@ -86,6 +86,34 @@ function edgeIdsOf(snapshot: GraphSnapshot, members: readonly EdgeMember[]): (Ed
 }
 
 /**
+ * A target the session kept as read (a version 2 reference that did not bind then, or a kind this
+ * release does not know): rebound if the data now holds it, else as read.
+ * @param target - The target.
+ * @param refs - The element references.
+ * @returns The target to write.
+ */
+function rebound(target: NoteTarget, refs: ElementRefs): unknown {
+    const raw = target as Record<string, unknown>;
+    if (Object.keys(raw).length !== 1) {
+        return target;
+    }
+
+    if (isObject(raw.node)) {
+        const id = refs.node(raw.node);
+        const ref = id === undefined ? undefined : refs.nodeRef(id);
+        return ref === undefined ? target : { node: ref };
+    }
+
+    if (isObject(raw.edge) && Object.hasOwn(raw.edge, "from")) {
+        const id = refs.edge(raw.edge);
+        const ref = id === undefined ? undefined : refs.edgeRef(id);
+        return ref === undefined ? target : { edge: ref };
+    }
+
+    return target;
+}
+
+/**
  * One session target as a version 2 target.
  * @param target - The session target.
  * @param refs - The element references.
@@ -93,23 +121,8 @@ function edgeIdsOf(snapshot: GraphSnapshot, members: readonly EdgeMember[]): (Ed
  * @returns The target, or undefined when it names an element the graph does not hold.
  */
 function targetOut(target: NoteTarget, refs: ElementRefs, edgeId: EdgeId | undefined): unknown {
-    const raw = target as Record<string, unknown>;
     if (!supportedTarget(target)) {
-        // Read from a version 2 file and unbound then, or a kind this release does not know:
-        // rebind it if the data now holds it, else keep it as read.
-        if (isObject(raw.node) && Object.keys(raw).length === 1) {
-            const id = refs.node(raw.node);
-            const ref = id === undefined ? undefined : refs.nodeRef(id);
-            return ref === undefined ? target : { node: ref };
-        }
-
-        if (isObject(raw.edge) && Object.hasOwn(raw.edge, "from") && Object.keys(raw).length === 1) {
-            const id = refs.edge(raw.edge);
-            const ref = id === undefined ? undefined : refs.edgeRef(id);
-            return ref === undefined ? target : { edge: ref };
-        }
-
-        return target;
+        return rebound(target, refs);
     }
 
     if ("node" in target) {

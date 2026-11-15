@@ -70,7 +70,8 @@ export function canonicalJson(value: unknown): string {
     const record = safe as JsonObject;
     // The default sort compares UTF-16 code units, as RFC 8785 asks.
     const names = Object.keys(record).sort(); // NOSONAR(S2871): code-unit order is the rule
-    return `{${names.map((name) => `${JSON.stringify(name)}:${canonicalJson(record[name])}`).join(",")}}`;
+    const members = names.map((name) => `${JSON.stringify(name)}:${canonicalJson(record[name])}`);
+    return `{${members.join(",")}}`;
 }
 
 /**
@@ -280,8 +281,10 @@ function edgeIdColumnOf(session: GraphSession): string | undefined {
 function sourceIdOf(key: string, taken: Set<string>): string {
     const base = key.replaceAll(":", "_") || "source";
     let id = base === READER ? `${base}_1` : base;
-    for (let at = 2; taken.has(id); at++) {
+    let at = 2;
+    while (taken.has(id)) {
         id = `${base}_${String(at)}`;
+        at++;
     }
 
     taken.add(id);
@@ -860,11 +863,23 @@ export function bindingOfBody(body: Readonly<JsonObject>): { sources: Record<str
     const types = (Array.isArray(body.types) ? body.types : [])
         .filter(isPlainObject)
         .map(({ plainName: _plainName, ...rest }) => rest);
+    const fingerprint = hashOf({ sources, settings, types, kept: keptPairsOf(body), joins: body.joins ?? [] });
+    return { sources, fingerprint };
+}
+
+/**
+ * A data body's kept pairs as the fingerprint reads them: each undirected pair's ends in canonical
+ * order, the pairs sorted.
+ * @param body - A data section's body.
+ * @returns The pairs.
+ */
+function keptPairsOf(body: Readonly<JsonObject>): JsonObject[] {
     const issues = isPlainObject(body.issues) ? body.issues : {};
-    const kept = (Array.isArray(issues.kept) ? issues.kept : [])
+    const directed = isPlainObject(body.graph) && body.graph.directed === true;
+    return (Array.isArray(issues.kept) ? issues.kept : [])
         .filter(isPlainObject)
         .map((pair) => {
-            if (body.graph !== undefined && isPlainObject(body.graph) && body.graph.directed === true) {
+            if (directed) {
                 return pair;
             }
 
@@ -872,8 +887,6 @@ export function bindingOfBody(body: Readonly<JsonObject>): { sources: Record<str
             return { from: a, to: b };
         })
         .sort(byCanonical);
-    const fingerprint = hashOf({ sources, settings, types, kept, joins: body.joins ?? [] });
-    return { sources, fingerprint };
 }
 
 // ---------------------------------------------------------------------------------------------

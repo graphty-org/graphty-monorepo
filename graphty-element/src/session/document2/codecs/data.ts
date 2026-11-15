@@ -595,6 +595,38 @@ function graphDirected(body: Readonly<JsonObject>): boolean | undefined {
 }
 
 /**
+ * The elements the reader source added: each node row merged into its node, each edge row a new
+ * edge.
+ * @param rows - The `added` rows.
+ * @param into - The build so far.
+ * @param into.edges - The edges.
+ * @param into.nodeAt - Makes or finds a node by record key.
+ */
+function addReaderRows(
+    rows: readonly JsonObject[],
+    into: { edges: BuiltEdge[]; nodeAt: (ref: NodeRef, cell: unknown) => BuiltNode },
+): void {
+    for (const row of rows) {
+        const columns = isPlainObject(row.columns) ? row.columns : {};
+        const node = nodeRefOf(row.node);
+        const edge = edgeRefOf(row.edge);
+        if (node !== undefined) {
+            Object.assign(into.nodeAt(node, node.key).columns, columns);
+        } else if (edge !== undefined) {
+            into.edges.push({
+                from: into.nodeAt(edge.from, edge.from.key),
+                to: into.nodeAt(edge.to, edge.to.key),
+                columns: { ...columns },
+                source: READER,
+                row: { ...columns },
+                skip: new Set(),
+                ...("key" in edge ? { key: edge.key } : {}),
+            });
+        }
+    }
+}
+
+/**
  * Apply the reader source's rows (spec 4.1.1 rule 7): added elements, edits and removals.
  * @param record - The reader source.
  * @param into - The build so far.
@@ -616,25 +648,7 @@ function applyReader(
 ): void {
     const copy = record.copy as JsonObject;
     const rows = (name: string): JsonObject[] => (Array.isArray(copy[name]) ? copy[name] : []).filter(isPlainObject);
-    for (const row of rows("added")) {
-        const columns = isPlainObject(row.columns) ? row.columns : {};
-        const node = nodeRefOf(row.node);
-        const edge = edgeRefOf(row.edge);
-        if (node !== undefined) {
-            const built = into.nodeAt(node, node.key);
-            Object.assign(built.columns, columns);
-        } else if (edge !== undefined) {
-            into.edges.push({
-                from: into.nodeAt(edge.from, edge.from.key),
-                to: into.nodeAt(edge.to, edge.to.key),
-                columns: { ...columns },
-                source: READER,
-                row: { ...columns },
-                skip: new Set(),
-                ...("key" in edge ? { key: edge.key } : {}),
-            });
-        }
-    }
+    addReaderRows(rows("added"), into);
 
     const directed = into.directed ?? true;
     const edgeBinding = (): Map<string, BuiltEdge> => {
@@ -791,8 +805,10 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
     const renamed = new Map<string, string>();
     for (const load of built.loads) {
         let { key } = load;
-        for (let at = 2; keys.has(key); at++) {
+        let at = 2;
+        while (keys.has(key)) {
             key = `${load.key}_${String(at)}`;
+            at++;
         }
 
         keys.add(key);

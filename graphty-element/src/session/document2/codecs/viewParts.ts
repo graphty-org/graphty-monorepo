@@ -13,6 +13,7 @@ import { edgeRowsOf } from "../../notes/status";
 import { edgeSpaceOf } from "../../scope/spaces";
 import type { TransactionScope } from "../../types";
 import type { ElementRefs, JsonObject } from "../types";
+import { canonicalJson } from "./dataRefs";
 import { READER_NAMESPACE, runIdOf, runNameOf, SESSION_NAMESPACE } from "./results";
 
 // ---------------------------------------------------------------------------------------------
@@ -91,25 +92,12 @@ export function isObject(value: unknown): value is JsonObject {
 }
 
 /**
- * A value as canonical JSON text: object keys sorted, no whitespace. The references and member
- * values a view section holds are strings, finite numbers, booleans, null, arrays and objects, for
- * which this is RFC 8785's form.
+ * A value as canonical JSON text (RFC 8785): the one rule every section uses.
  * @param value - The value.
  * @returns The text.
  */
 export function canonical(value: unknown): string {
-    if (Array.isArray(value)) {
-        return `[${value.map((entry) => canonical(entry)).join(",")}]`;
-    }
-
-    if (isObject(value)) {
-        const keys = Object.keys(value)
-            .filter((key) => value[key] !== undefined)
-            .sort();
-        return `{${keys.map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
-    }
-
-    return JSON.stringify(value) ?? "null";
+    return canonicalJson(value);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -159,6 +147,7 @@ export function cameraJson(state: CameraState): JsonObject | undefined {
     const own = (controller: string): JsonObject => (Object.keys(extra).length === 0 ? {} : { [controller]: extra });
     if (state.zoom !== undefined || state.pan !== undefined) {
         if (state.zoom === undefined || !(state.zoom > 0)) {
+            // NOSONAR(S1940): !(x > 0) also refuses NaN
             return undefined;
         }
 
@@ -405,8 +394,8 @@ function mapPaths(text: string, mapper: RefMapper): string {
  */
 function mapMember(holder: JsonObject, key: string, value: unknown, mapper: RefMapper, pointer: string): unknown {
     const { kind } = holder;
-    const plain = kind === undefined || (typeof kind === "string" && MEMBER_KINDS.has(kind));
     if (Array.isArray(value)) {
+        const plain = kind === undefined || (typeof kind === "string" && MEMBER_KINDS.has(kind));
         if ((key === "nodes" && plain) || key === "hidden" || (key === "seeds" && kind === "neighborhood")) {
             return mapList(value, (node, at) => mapper.node(node, at), pointer);
         }
@@ -416,19 +405,27 @@ function mapMember(holder: JsonObject, key: string, value: unknown, mapper: RefM
         }
     }
 
-    if (typeof value === "string") {
-        if (key === "set" && kind === undefined) {
-            return mapper.set(value);
-        }
+    return typeof value === "string" ? mapString(kind, key, value, mapper) : mapRefs(value, mapper, pointer);
+}
 
-        if (RUN_KEYS.has(key)) {
-            return mapper.run(value);
-        }
-
-        return PATH_KEYS.has(key) ? mapPaths(value, mapper) : value;
+/**
+ * A string member the walk maps: a set id, a run id, or a value path naming runs.
+ * @param kind - The holder's `kind`.
+ * @param key - The key.
+ * @param value - The string.
+ * @param mapper - The mapper.
+ * @returns The mapped string.
+ */
+function mapString(kind: unknown, key: string, value: string, mapper: RefMapper): string {
+    if (key === "set" && kind === undefined) {
+        return mapper.set(value);
     }
 
-    return mapRefs(value, mapper, pointer);
+    if (RUN_KEYS.has(key)) {
+        return mapper.run(value);
+    }
+
+    return PATH_KEYS.has(key) ? mapPaths(value, mapper) : value;
 }
 
 /**

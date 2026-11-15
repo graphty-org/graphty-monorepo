@@ -96,15 +96,31 @@ export function isNamespace(name: unknown): name is string {
  * @returns The name.
  */
 export function asName(text: string): string {
-    let name = text
-        .toLowerCase()
-        .replaceAll(/[^a-z0-9]+/g, "_")
-        .replaceAll(/^_+|_+$/g, "");
+    let name = trimUnderscores(text.toLowerCase().replaceAll(/[^a-z0-9]+/g, "_"));
     if (!/^[a-z]/.test(name)) {
         name = `r_${name}`;
     }
 
-    return name.slice(0, 60).replace(/_+$/, "");
+    return trimUnderscores(name.slice(0, 60));
+}
+
+/**
+ * A text without the underscores it starts and ends with.
+ * @param text - The text.
+ * @returns The text trimmed.
+ */
+function trimUnderscores(text: string): string {
+    let start = 0;
+    let end = text.length;
+    while (start < end && text[start] === "_") {
+        start++;
+    }
+
+    while (end > start && text[end - 1] === "_") {
+        end--;
+    }
+
+    return text.slice(start, end);
 }
 
 /**
@@ -119,14 +135,15 @@ export function namespaceFromId(id: unknown): string {
             ? (id
                   .split(/[./:]/)
                   .filter((part) => part !== "")
-                  .at(-1) ?? "")
+                  .at(-1) ?? "") // NOSONAR(S7750): findLast needs ES2023, the package's lib is ES2022
             : "";
-    const name = last
-        .toLowerCase()
-        .replaceAll(/[^a-z0-9]+/g, "_")
-        .replace(/^[^a-z]+/, "")
-        .slice(0, 30)
-        .replace(/_+$/, "");
+    const name = trimUnderscores(
+        last
+            .toLowerCase()
+            .replaceAll(/[^a-z0-9]+/g, "_")
+            .replace(/^[^a-z]+/, "")
+            .slice(0, 30),
+    );
     return name === "" ? "recipe" : name;
 }
 
@@ -200,7 +217,7 @@ export function runsRead(value: unknown): string[] {
 }
 
 /** A column a predicate reads: `data.<name>` or `data."<name>"`. */
-const COLUMN_PATH = /\bdata\.(?:([A-Za-z_][A-Za-z0-9_]*)|"((?:[^"\\]|\\.)*)")/g;
+const COLUMN_PATH = /\bdata\.(?:([A-Za-z_]\w*)|"((?:[^"\\]|\\.)*)")/g;
 
 /**
  * The columns a value's predicates read.

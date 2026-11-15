@@ -82,7 +82,7 @@ export type DocumentCode =
  * or another object goes in a param as its canonical JSON text, since a param holds plain values.
  */
 export type DocumentProblem = CodedFact<
-    DocumentCode | "E_BAD_DOCUMENT" | "E_UNKNOWN_OPTION" | "W_UNKNOWN_KIND" | "W_UNKNOWN_MEMBER"
+    DocumentCode | "E_BAD_DOCUMENT" | "E_FEATURE_OFF" | "E_UNKNOWN_OPTION" | "W_UNKNOWN_KIND" | "W_UNKNOWN_MEMBER"
 >;
 
 /** `generator`: the software that wrote a section or a file (spec 3.1). */

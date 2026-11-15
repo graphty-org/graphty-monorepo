@@ -530,7 +530,11 @@ function paramsIn(
         if (type === "node-id") {
             const id = reading.refs.node(value);
             bound &&= id !== undefined;
-            params[option] = id === undefined ? (unbound(reading, at, value), value) : id;
+            if (id === undefined) {
+                unbound(reading, at, value);
+            }
+
+            params[option] = id ?? value;
         } else if (type === "node-set" && Array.isArray(value)) {
             params[option] = value.flatMap((ref: unknown, row) => {
                 const id = reading.refs.node(ref);

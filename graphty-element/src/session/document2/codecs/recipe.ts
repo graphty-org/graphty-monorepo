@@ -229,10 +229,12 @@ function writeRecipe(context: WriteContext): SectionWrite {
         }
 
         const split = splitRunId(run.id);
-        let as = split !== undefined && split.namespace === namespace ? split.as : asName(record.name ?? run.id);
+        let as = split !== undefined && split.namespace === namespace ? split.as : asName(record.name ?? run.id); // NOSONAR(S6582): namespace may be undefined, so an optional chain would match a missing split
         const taken = new Set(asOf.values());
-        for (let n = 2; taken.has(as); n++) {
+        let n = 2;
+        while (taken.has(as)) {
             as = `${as.replace(/_\d+$/, "")}_${n}`;
+            n++;
         }
 
         asOf.set(run.id, as);
@@ -402,6 +404,27 @@ class Replay {
     }
 
     /**
+     * Report a command whose op this release does not know (recipe.md, rule 7).
+     * @param at - Its position.
+     * @param command - The command.
+     * @param as - Its `as`, if any.
+     * @returns False when the replay stops here: unless its author says it narrows nothing.
+     */
+    private unknownCommand(at: number, command: Readonly<Record<string, unknown>>, as: string | undefined): boolean {
+        this.report("E_UNKNOWN_COMMAND", `${at}/op`);
+        if (command.narrows !== false) {
+            return false;
+        }
+
+        // Its author says it changes nothing later commands see: only its readers go.
+        if (as !== undefined) {
+            this.skipped.add(as);
+        }
+
+        return true;
+    }
+
+    /**
      * Replay one command.
      * @param at - Its position.
      * @param command - The command.
@@ -422,17 +445,7 @@ class Replay {
 
         const members = COMMAND_MEMBERS[op] as readonly string[] | undefined;
         if (members === undefined) {
-            this.report("E_UNKNOWN_COMMAND", `${at}/op`);
-            if (command.narrows === false) {
-                // Its author says it changes nothing later commands see: only its readers go.
-                if (as !== undefined) {
-                    this.skipped.add(as);
-                }
-
-                return true;
-            }
-
-            return false;
+            return this.unknownCommand(at, command, as);
         }
 
         const unknown = unknownMember(command, members);
@@ -485,8 +498,10 @@ class Replay {
         const { tx } = this.context;
         const ids = new Set(tx.visibility.steps.map((step) => step.id));
         let id = `${this.namespace}__filter_${at}`;
-        for (let n = 2; ids.has(id); n++) {
+        let n = 2;
+        while (ids.has(id)) {
             id = `${this.namespace}__filter_${at}_${n}`;
+            n++;
         }
 
         try {

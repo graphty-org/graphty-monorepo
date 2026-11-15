@@ -6,6 +6,7 @@
  */
 
 import { sha256Hex } from "../../utils/sha256";
+import { canonicalJson as sharedCanonicalJson } from "./codecs/dataRefs";
 import type { EdgeRef, JsonObject, NodeRef } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -53,24 +54,13 @@ export function documentValue(value: unknown): unknown {
 }
 
 /**
- * RFC 8785 canonical JSON: members sorted by UTF-16 code units, numbers as ECMAScript writes them,
- * non-finite numbers as their strings (spec 11).
+ * RFC 8785 canonical JSON, non-finite numbers as their strings (spec 11): the one rule every
+ * section uses.
  * @param value - The value.
  * @returns The canonical text.
  */
 export function canonicalJson(value: unknown): string {
-    if (Array.isArray(value)) {
-        return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
-    }
-
-    if (isObject(value)) {
-        const keys = Object.keys(value)
-            .filter((key) => value[key] !== undefined)
-            .sort((left, right) => (left < right ? -1 : 1));
-        return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
-    }
-
-    return JSON.stringify(documentValue(value)) ?? "null";
+    return sharedCanonicalJson(value);
 }
 
 /**

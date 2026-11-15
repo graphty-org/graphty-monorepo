@@ -859,8 +859,8 @@ const DOOR_GROUP_RESTORE = {
         { id: "g2", team: "door" },
     ],
     edges: [
-        { source: "g1", target: "g2" },
-        { source: "g2", target: "g3" },
+        { id: "0", source: "g1", target: "g2" },
+        { id: "1", source: "g2", target: "g3" },
     ],
     positions: [],
     pinned: [],
@@ -902,7 +902,14 @@ const GROUP_EXPAND_STEPS: readonly SessionCommand[] = [
     { op: "data.apply", mutation: { kind: "add-nodes", idPath: "id", records: DOOR_GROUP_RESTORE.nodes } },
     {
         op: "data.apply",
-        mutation: { kind: "add-edges", records: DOOR_GROUP_RESTORE.edges, source: "source", target: "target" },
+        // Each kept edge comes back with its own id.
+        mutation: {
+            kind: "add-edges",
+            records: DOOR_GROUP_RESTORE.edges.map(({ id: _id, ...edge }) => edge),
+            source: "source",
+            target: "target",
+            ids: DOOR_GROUP_RESTORE.edges.map((edge) => edge.id),
+        },
     },
 ];
 

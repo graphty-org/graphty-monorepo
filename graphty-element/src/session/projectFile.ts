@@ -46,7 +46,7 @@ import {
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
 import type { SessionData } from "./data";
-import { expandedGraph } from "./groups";
+import { expandedGraph, type SavedCollapse } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
 import { projectBoundary } from "./project/boundary";
@@ -2166,8 +2166,9 @@ async function readProject(
 }
 
 /**
- * Collapse again the groups a `graphty-session` member's `groups` names, and add back the edges
- * that were added to a collapsed node. A file without the field, or of a later version, collapses
+ * Collapse again the groups a `graphty-session` member's `groups` names, in order, putting each
+ * node standing in for one where it stood, and add back the edges that were added to a collapsed
+ * node. A file without the field, or of a later version, collapses
  * nothing.
  * @param opening - The open.
  * @param saved - The member's `groups`.
@@ -2178,8 +2179,18 @@ async function readGroups(opening: Opening, saved: unknown): Promise<void> {
     }
 
     const { tx } = opening;
-    for (const decision of saved.collapsed as { groupBy: string; group: string | number | boolean }[]) {
-        await attempt(opening, "graph", () => tx.groups.collapse({ groupBy: decision.groupBy, group: decision.group }));
+    for (const decision of saved.collapsed as SavedCollapse[]) {
+        await attempt(opening, "graph", async () => {
+            const node = await tx.groups.collapse({ groupBy: decision.groupBy, group: decision.group });
+            // Where the node standing in was left, when it was moved by hand, and its pin.
+            if (decision.position !== undefined) {
+                await tx.positions.set([{ id: node, ...decision.position }]);
+            }
+
+            if (decision.pinned === true) {
+                await tx.positions.pin([node]);
+            }
+        });
     }
 
     if (Array.isArray(saved.added) && saved.added.length > 0) {

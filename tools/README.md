@@ -153,6 +153,19 @@ function you edit that scores 16 to 20 comes down to 15 or below in the same cha
 The existing backlog is burned down in separate small pull requests, one rule or one package at a time, never as
 part of feature work.
 
+**SonarQube MCP.** The machine runs one shared SonarQube MCP server (SonarSource's jar in
+`~/.local/share/sonarqube-mcp/`, in its HTTP transport on 127.0.0.1) instead of one Java process of about
+0.3-0.5 GB per Claude session. `.mcp.json`'s `sonarqube` entry runs `tools/sonarqube-mcp/shim.mjs`, a small stdio
+proxy that sends each request to it with `SONAR_TOKEN`. The shared server runs under servherd from the main checkout
+and writes its URL to `tmp/sonarqube-mcp/url`; if the shim reports it is not running, start it:
+
+```jsonc
+servherd_start({ name: "sonarqube-mcp", cwd: "<main checkout>",
+  command: "node tools/sonarqube-mcp/server.mjs", env: { PORT: "{{port}}" } })
+```
+
+`sonar-gate.mjs` does not use the MCP server.
+
 ### Starting Servers
 
 No server has a fixed port. Every dev server, Storybook, docs server and coverage preview reads
@@ -223,8 +236,8 @@ section). The two packages without a CLAUDE.md:
 ### Coverage Thresholds
 
 At least 80% lines, functions and statements and 75% branches in every package; graph-format, graph-io,
-graph-samples, babylonjs-map, cytoscape-extensions, algorithms and layout require 90% in all four. Every package is
-moving to 90 (issue #3043); a package's thresholds rise to 90 in the pull request that brings it there.
+graph-samples, babylonjs-map, cytoscape-extensions, algorithms, layout and remote-logger require 90% in all four. Every
+package is moving to 90 (issue #3043); a package's thresholds rise to 90 in the pull request that brings it there.
 
 ## Testing
 

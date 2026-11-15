@@ -155,10 +155,10 @@ When making breaking changes, check these packages for compatibility.
 
 ## Coverage Thresholds
 
-- Lines: 80%
-- Functions: 80%
-- Branches: 75%
-- Statements: 80%
+- Lines: 90%
+- Functions: 90%
+- Branches: 90%
+- Statements: 90%
 
 ## Important Notes
 

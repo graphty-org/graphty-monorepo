@@ -7,6 +7,7 @@
  * record would undo the saving. A `Node`, once built, keeps its own record as `Node.data`.
  */
 
+import { frozenRecord } from "./draft";
 import type { GraphRecord } from "./state";
 
 /** Where a run of rows' records come from: one `importColumns` call's columns. */
@@ -271,4 +272,69 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
             fn.call(self, value, key, this);
         }
     }
+}
+
+/**
+ * Whether an array is a `rowsView`, so a load can say its rows came through columns.
+ * @param records - The records a load was handed.
+ * @returns True for a view over a row source.
+ */
+export function isRowsView(records: object): boolean {
+    return viewSources.has(records);
+}
+
+/**
+ * Whether two key lists are the same, in order.
+ * @param a - One list.
+ * @param b - The other.
+ * @returns True when they match.
+ */
+function sameKeys(a: readonly string[], b: readonly string[]): boolean {
+    return a.length === b.length && a.every((key, at) => key === b[at]);
+}
+
+/**
+ * Read plain records once into columns (row-renderer.md 4.6, stage 29, second pull request): one
+ * array per key, and per row which keys it has, in its own order. A row's record is built from them
+ * on each read, equal to the copy the records path keeps (`frozenRecord`), so the caller's records
+ * and their copies are not held. Each value is frozen as the records path freezes it.
+ * @param records - Plain records, as `columnsEligible` admits them.
+ * @returns The row source.
+ */
+export function recordsSource(records: readonly object[]): RowSource {
+    const shapes: string[][] = [];
+    const shapeIds = new Map<string, number>();
+    const shapeOf = new Uint32Array(records.length);
+    const columns = new Map<string, unknown[]>();
+    let shape = -1;
+    records.forEach((record, row) => {
+        const keys = Object.keys(record);
+        if (shape < 0 || !sameKeys(shapes[shape], keys)) {
+            const name = JSON.stringify(keys);
+            shape = shapeIds.get(name) ?? shapes.push(keys) - 1;
+            shapeIds.set(name, shape);
+        }
+
+        shapeOf[row] = shape;
+        for (const key of keys) {
+            let column = columns.get(key);
+            if (column === undefined) {
+                column = new Array<unknown>(records.length);
+                columns.set(key, column);
+            }
+
+            column[row] = frozenRecord((record as Record<string, unknown>)[key]);
+        }
+    });
+    return {
+        size: records.length,
+        build(row: number): GraphRecord {
+            const record: Record<string, unknown> = {};
+            for (const key of shapes[shapeOf[row]]) {
+                record[key] = (columns.get(key) as unknown[])[row];
+            }
+
+            return Object.freeze(record);
+        },
+    };
 }

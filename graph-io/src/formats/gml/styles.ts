@@ -1481,21 +1481,34 @@ function readLineRoute(
     if (bends !== null) {
         put("bends", bends);
     }
-    if (bendsOnly) {
-        return;
+    if (!bendsOnly) {
+        putLinePort(snapshot, "sourcePort", s, all[0], put);
+        putLinePort(snapshot, "targetPort", t, all.at(-1) ?? all[0], put);
     }
-    for (const [property, k, end] of [
-        ["sourcePort", s, all[0]],
-        ["targetPort", t, all.at(-1) ?? all[0]],
-    ] as const) {
-        const center = centerOf(snapshot, k);
-        const port =
-            end[0] === center[0] && end[1] === center[1]
-                ? null
-                : canonNodeOffsets(center, sizeOf(snapshot, k), [end], true);
-        if (port !== null) {
-            put(property, port);
-        }
+}
+
+/**
+ * Puts where a `Line` attaches to one of its nodes, off the node's center relative to its size; nothing at the center.
+ * @param snapshot - the graph
+ * @param property - `sourcePort` or `targetPort`
+ * @param k - the node
+ * @param end - the Line's point at that end
+ * @param put - receives the values
+ */
+function putLinePort(
+    snapshot: GraphSnapshot,
+    property: "sourcePort" | "targetPort",
+    k: number,
+    end: BendPoint,
+    put: (property: string, value: string) => void,
+): void {
+    const center = centerOf(snapshot, k);
+    const port =
+        end[0] === center[0] && end[1] === center[1]
+            ? null
+            : canonNodeOffsets(center, sizeOf(snapshot, k), [end], true);
+    if (port !== null) {
+        put(property, port);
     }
 }
 

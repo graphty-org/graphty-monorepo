@@ -163,14 +163,20 @@ const DASHED_PATTERNS: ReadonlySet<string> = new Set(["dash", "dot", "box", "das
  * @param pattern - the pattern graphty drew, or null
  * @param dashPx - the drawn elements and gaps, or null where none were read
  * @param width - the line's width in pixels
- * @returns the class
+ * @param taper - its width at the target over its width at the source, where it tapers
+ * @returns the class; a line narrowing to a point at one end is tapered, by the rule the oracle's tapered outlines are
+ * read by (`taperedOutline`)
  */
 function drawnLineClass(
     style: string,
     pattern: string | null,
     dashPx: readonly number[] | null,
     width: number,
+    taper: number | undefined,
 ): DashClass {
+    if (taper !== undefined && Math.min(taper, 1) <= TAPER_POINT * Math.max(taper, 1)) {
+        return "tapered";
+    }
     const name = pattern ?? style;
     if (dashPx !== null && dashPx.length >= 2 && DASHED_PATTERNS.has(name)) {
         return dashClassOf(dashPx, width);
@@ -909,11 +915,13 @@ export function drawnPrimitives(
         const gradient = edgeGradientOf(d.gradient, d.points);
         // by the pattern graphty drew (the scene folds a dash-dot, a zigzag and a sine wave into "other"), a dashed or
         // dotted one measured off its drawn elements
-        // a line narrowing to a point at one end is read as the oracle reads one: tapered (`taperPaintedAsFill`)
-        const dashClass =
-            d.taper !== undefined && d.taper <= TAPER_POINT
-                ? "tapered"
-                : drawnLineClass(e.style, d.pattern, d.dashPx ?? null, d.thicknessPx > 0 ? d.thicknessPx : e.width);
+        const dashClass = drawnLineClass(
+            e.style,
+            d.pattern,
+            d.dashPx ?? null,
+            d.thicknessPx > 0 ? d.thicknessPx : e.width,
+            d.taper,
+        );
         return [
             {
                 id: e.id,

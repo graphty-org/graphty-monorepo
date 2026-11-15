@@ -9503,11 +9503,28 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Get all nodes
+     * Get all nodes.
+     *
+     * On the `"batched"` render path most nodes are drawn from row tables with no `Node` object.
+     * The array this returns builds a node's `Node` only when that element is first read, so the
+     * call itself, `length` and reading a few elements stay cheap at a million nodes. Walking the
+     * whole array (a `for...of`, `map`, spread) builds every `Node`, which a graph of that size may
+     * not have the memory for: to enumerate nodes there, walk {@link Graph.getNodeIds} and read
+     * {@link Graph.getNode} only for the ones you need.
      * @returns Array of all node instances
      */
     getNodes(): Node[] {
-        return Array.from(this.dataManager.nodes.values());
+        return dataManagerInternals.nodeList(this.dataManager);
+    }
+
+    /**
+     * Get the id of every node, building no `Node` object, in the order {@link Graph.getNodes}
+     * returns the nodes.
+     * @returns The ids.
+     * @since 3.40.0
+     */
+    getNodeIds(): (string | number)[] {
+        return [...this.dataManager.nodes.keys()];
     }
 
     /**

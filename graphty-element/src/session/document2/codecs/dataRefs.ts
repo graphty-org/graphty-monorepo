@@ -582,13 +582,32 @@ function readerKeyOf(memory: DataMemory, slot: string): string {
 }
 
 /**
- * The record key an open read for a node only an edge named.
- * @param memory - The memory.
+ * A node's source ids and record key: the sources that supplied it; else, for a node only an edge
+ * named, none and the key an open read (spec 4.1.9); else the reader's, its key minted once.
  * @param id - The node.
- * @returns The key, or undefined when the open read the node otherwise.
+ * @param supplied - The sources that supplied it, in join order.
+ * @param memory - The memory.
+ * @param shared - The space today's loads share.
+ * @returns Its source ids, its key, and whether the reader added it.
  */
-function namedOnlyRef(memory: DataMemory, id: NodeId): NodeRef | undefined {
-    return memory.namedOnly.has(id) ? memory.nodeRefs.get(id) : undefined;
+function nameNode(
+    id: NodeId,
+    supplied: readonly ModelSource[],
+    memory: DataMemory,
+    shared: string,
+): { readonly loads: string[]; readonly ref: NodeRef; readonly reader: boolean } {
+    const known = memory.nodeRefs.get(id);
+    if (supplied.length > 0) {
+        const ref = known ?? { space: shared, key: keyText(id) ?? String(id) };
+        return { loads: supplied.map((source) => source.id), ref, reader: false };
+    }
+
+    if (known !== undefined && memory.namedOnly.has(id)) {
+        return { loads: [], ref: known, reader: false };
+    }
+
+    const key = known !== undefined && ULID.test(known.key) ? known.key : readerKeyOf(memory, `n:${id}`);
+    return { loads: [READER], ref: { space: known?.space ?? `source:${READER}`, key }, reader: true };
 }
 
 /**
@@ -623,32 +642,16 @@ function dataModelOf(session: GraphSession): DataModel {
     const readerNodes: NodeRecord[] = [];
     for (const node of nodes) {
         const supplied = loadsOf(session.data.sourcesOf(node.id));
-        const known = memory.nodeRefs.get(node.id);
-        const namedOnly = supplied.length === 0 ? namedOnlyRef(memory, node.id) : undefined;
-        if (namedOnly !== undefined) {
-            // Only an edge names it: no source's row and no reader add, its key kept as read.
-            nodeLoads.set(node.id, []);
-            nodeRefs.set(node.id, namedOnly);
-            continue;
-        }
-
-        if (supplied.length === 0) {
-            readerNodes.push(node);
-            nodeLoads.set(node.id, [READER]);
-            const key = known !== undefined && ULID.test(known.key) ? known.key : readerKeyOf(memory, `n:${node.id}`);
-            nodeRefs.set(node.id, { space: known?.space ?? `source:${READER}`, key });
-            continue;
-        }
-
         for (const source of supplied) {
             source.nodes.push(node);
         }
 
-        nodeLoads.set(
-            node.id,
-            supplied.map((source) => source.id),
-        );
-        nodeRefs.set(node.id, known ?? { space: shared, key: keyText(node.id) ?? String(node.id) });
+        const named = nameNode(node.id, supplied, memory, shared);
+        nodeLoads.set(node.id, named.loads);
+        nodeRefs.set(node.id, named.ref);
+        if (named.reader) {
+            readerNodes.push(node);
+        }
     }
 
     const edgeLoads = new Map<EdgeId, string[]>();

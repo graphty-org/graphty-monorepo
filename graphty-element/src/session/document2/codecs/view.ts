@@ -222,35 +222,46 @@ function runsJson(w: Writer): JsonObject[] {
             continue;
         }
 
-        const { name, seed } = run.record;
-        const { params, bound } = mapParams(w.session, run.algorithm, run.params, w.mapper, "");
-        if (!bound) {
-            w.problems.push({
-                code: "W_ELEMENT_NAMING_LEFT_OUT",
-                params: { section: SECTION, pointer: `${pointer}/params` },
-            });
-        }
-
-        const narrowed = narrowedRun(w, run);
-        if (narrowed) {
-            // No scope form holds a run's own scope and the narrowing together (spec 4.7 rule 5).
-            w.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: SECTION, pointer: `${pointer}/scope` } });
-        }
-
-        out.push({
-            id: run.id,
-            ...runNameOf(run.id),
-            ...(name === null ? {} : { name }),
-            algorithm: run.algorithm,
-            ...(Object.keys(params).length === 0 ? {} : { params }),
-            ...(Number.isInteger(seed) && (seed ?? -1) >= 0 ? { seed } : {}),
-            scope: scopeJson(w, run),
-            ...(w.isDerived(run.id) ? { derived: true } : {}),
-            ...(narrowed ? { replayable: false } : {}),
-        });
+        out.push(runJson(w, run, pointer));
     }
 
     return out;
+}
+
+/**
+ * One finished run's record (spec 4.7 rule 5), reporting what it leaves out.
+ * @param w - The writer.
+ * @param run - The run.
+ * @param pointer - Where it is written.
+ * @returns The record.
+ */
+function runJson(w: Writer, run: Run, pointer: string): JsonObject {
+    const { name, seed } = run.record;
+    const { params, bound } = mapParams(w.session, run.algorithm, run.params, w.mapper, "");
+    if (!bound) {
+        w.problems.push({
+            code: "W_ELEMENT_NAMING_LEFT_OUT",
+            params: { section: SECTION, pointer: `${pointer}/params` },
+        });
+    }
+
+    const narrowed = narrowedRun(w, run);
+    if (narrowed) {
+        // No scope form holds a run's own scope and the narrowing together (spec 4.7 rule 5).
+        w.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: SECTION, pointer: `${pointer}/scope` } });
+    }
+
+    return {
+        id: run.id,
+        ...runNameOf(run.id),
+        ...(name === null ? {} : { name }),
+        algorithm: run.algorithm,
+        ...(Object.keys(params).length === 0 ? {} : { params }),
+        ...(Number.isInteger(seed) && (seed ?? -1) >= 0 ? { seed } : {}),
+        scope: scopeJson(w, run),
+        ...(w.isDerived(run.id) ? { derived: true } : {}),
+        ...(narrowed ? { replayable: false } : {}),
+    };
 }
 
 /**

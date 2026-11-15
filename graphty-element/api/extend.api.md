@@ -71,6 +71,7 @@ import { LossNote } from '@graphty/graph-io';
 import { maskTest } from '@graphty/graph-format';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
+import { ModelFormat } from 'babylonjs-models/detect';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -1805,11 +1806,11 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_TOO_LARGE"
 /**
-* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
 */
 | "E_MODEL_STRUCTURE"
 /**
-* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+* A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
 * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -1851,7 +1852,7 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_EXTERNAL_URL"
 /**
-* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+* A model's compressed data could not be decoded. `params.reason`: `missing` when this build of graphty-element leaves the decoder out (the single-file `./bundle` carries no Draco or KTX2 decoder), `load` when the decoder's files could not be loaded, `decode` when the data is damaged. `params.extension` names the glTF extension when known. Every other build ships the Draco, meshopt and KTX2 decoders; nothing is fetched from a CDN.
 */
 | "E_MODEL_DECODER_UNAVAILABLE"
 /**
@@ -2400,6 +2401,7 @@ class Node_2 implements ModelUser {
         readonly template: ModelTemplate | null;
         readonly tinted: boolean;
         readonly colored: boolean;
+        readonly clip: string | null;
     };
     // (undocumented)
     opts: NodeOpts;

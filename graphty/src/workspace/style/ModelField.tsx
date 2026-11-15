@@ -118,7 +118,7 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
     const { ref: model } = modelOf(ctx, channel, on);
     const [modelsOpen, setModelsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
-    // The Load custom model dialog, opened by the Models pop-over's Custom model....
+    // The Load custom model dialog, opened by the Models pop-over's Add custom model....
     const [customOpen, setCustomOpen] = useState(false);
     // Fill's Picture line, added with "+": its pop-over opens at once.
     const [pictureOpen, setPictureOpen] = useState(() => on && channel === "node.texture" && pending);

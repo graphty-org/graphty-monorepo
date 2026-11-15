@@ -217,7 +217,7 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
-import { loadChunk, loadModel } from "./models/loadModel";
+import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { optionsOf } from "./models/ModelCache";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
@@ -7343,7 +7343,9 @@ export class Graph implements GraphContext {
      * @param options - The size and the node's style values.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected or waiting model, its first problem's code and params.
+     *     rejected or waiting model, its first problem's code and params; for an accepted model that
+     *     could not be drawn, the load failure's code (`E_MODEL_STRUCTURE`, `E_MODEL_PARSE`,
+     *     `E_MODEL_DECODER_UNAVAILABLE`, `E_MODEL_EXTERNAL_URL`) and its params as `details`.
      */
     async modelThumbnail(ref: string, options: ModelThumbnailOptions = {}): Promise<string> {
         const { assets } = this.getSession();
@@ -7383,6 +7385,8 @@ export class Graph implements GraphContext {
             modelCenter: style["node.modelCenter"],
             modelFit: style["node.modelFit"],
             modelTint: style["node.modelTint"],
+            modelDoubleSided: style["node.modelDoubleSided"],
+            modelAnimation: style["node.modelAnimation"],
         } as NonNullable<NodeStyleConfig["shape"]>;
         const is2D = this.getViewMode() === "2d";
         const key = JSON.stringify([
@@ -7395,6 +7399,11 @@ export class Graph implements GraphContext {
             shape.modelCenter,
             shape.modelFit,
             shape.modelTint,
+            shape.modelDoubleSided,
+            shape.modelAnimation,
+            style["node.modelAnimationOffset"],
+            style["node.unlit"],
+            style["node.wireframe"],
             is2D,
             this.#lighting,
         ]);
@@ -7402,13 +7411,33 @@ export class Graph implements GraphContext {
         if (shot === undefined) {
             shot = this.#thumbnailQueue.then(async () => {
                 const files = assets.files(record.id);
-                const container = await loadModel(this.scene, files, record.path ?? "", record.format, record.skipped);
+                const container = await loadModel(
+                    this.scene,
+                    files,
+                    record.path ?? "",
+                    record.format,
+                    record.skipped,
+                ).catch((error: unknown) => {
+                    if (!(error instanceof ModelLoadFailure)) {
+                        throw error;
+                    }
+
+                    throw new GraphtyError({
+                        code: error.fact.code as GraphtyError["code"],
+                        source: "data",
+                        message: `The model ${ref} could not be drawn.`,
+                        details: error.fact.params,
+                    });
+                });
                 const chunk = await loadChunk();
                 const template = await chunk.prepareTemplate(
                     this.scene,
                     container,
                     `graphty-model-thumbnail-${record.digest.slice(0, 8)}`,
-                    optionsOf(shape, record.format),
+                    optionsOf(shape, assets.inspect(record.id).upAxis, {
+                        unlit: style["node.unlit"] === true,
+                        wireframe: style["node.wireframe"] === true,
+                    }),
                     () => chunk.neutralEnvironment(this.scene),
                 );
                 try {
@@ -9524,11 +9553,28 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Get all nodes
+     * Get all nodes.
+     *
+     * On the `"batched"` render path most nodes are drawn from row tables with no `Node` object.
+     * The array this returns builds a node's `Node` only when that element is first read, so the
+     * call itself, `length` and reading a few elements stay cheap at a million nodes. Walking the
+     * whole array (a `for...of`, `map`, spread) builds every `Node`, which a graph of that size may
+     * not have the memory for: to enumerate nodes there, walk {@link Graph.getNodeIds} and read
+     * {@link Graph.getNode} only for the ones you need.
      * @returns Array of all node instances
      */
     getNodes(): Node[] {
-        return Array.from(this.dataManager.nodes.values());
+        return dataManagerInternals.nodeList(this.dataManager);
+    }
+
+    /**
+     * Get the id of every node, building no `Node` object, in the order {@link Graph.getNodes}
+     * returns the nodes.
+     * @returns The ids.
+     * @since 3.40.0
+     */
+    getNodeIds(): (string | number)[] {
+        return [...this.dataManager.nodes.keys()];
     }
 
     /**

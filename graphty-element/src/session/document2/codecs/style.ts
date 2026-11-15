@@ -804,7 +804,7 @@ function prepareLayer(raw: unknown, index: number, reading: Reading): Prepared {
  */
 export function heldTypeSelector(session: GraphSession, id: LayerId, selector: unknown): JsonObject | undefined {
     const typed = memoryOf(session).layers.get(id)?.typed;
-    return typed !== undefined && typed.applied === JSON.stringify(selector) ? typed.selector : undefined;
+    return typed?.applied === JSON.stringify(selector) ? typed.selector : undefined;
 }
 
 /**
@@ -1153,14 +1153,30 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
 
     // What the session now writes for each opened layer and, when it held no layer of its own
     // before, for the whole section: a save that still writes these writes the file's own form.
-    const document2 = session.styles.toDocument();
+    rememberBaselines(session, memory, added);
+    if (ownBefore.length === 0) {
+        memory.body = { original: body, baseline: JSON.stringify(compose(session, []).body) };
+    }
+
+    context.restored.add("styles");
+}
+
+/**
+ * Remember what the session writes for each layer an open just added, and the type selector a
+ * layer was read from with the ids it was applied as.
+ * @param session - The session.
+ * @param memory - Its style memory.
+ * @param added - The layers the open added.
+ */
+function rememberBaselines(session: GraphSession, memory: StyleMemory, added: readonly LayerId[]): void {
+    const document = session.styles.toDocument();
     const ids = session.styles
         .list()
         .filter((layer) => !layer.locked)
         .map((layer) => layer.id);
     for (const [place, id] of ids.entries()) {
         const opened = memory.layers.get(id);
-        const spec = document2.layers[place];
+        const spec = document.layers[place];
         if (opened !== undefined && added.includes(id)) {
             const rowId =
                 spec.row === undefined ? undefined : (memory.layers.get(spec.row)?.original.id as string | undefined);
@@ -1171,12 +1187,6 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
             }
         }
     }
-
-    if (ownBefore.length === 0) {
-        memory.body = { original: body, baseline: JSON.stringify(compose(session, []).body) };
-    }
-
-    context.restored.add("styles");
 }
 
 /** The `graphty-style` section, version 2. */

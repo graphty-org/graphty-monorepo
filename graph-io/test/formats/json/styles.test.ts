@@ -502,7 +502,7 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "glyphFont")).toEqual(["DejaVu Sans", "FontAwesome", null]);
         expect(values(r, "node", "glyphSize")).toEqual([30, 50, null]);
         expect(values(r, "node", "glyphColor")).toEqual(["#d62728", "#2b7ce9", null]);
-        expect(values(r, "node", "glyphWeight")).toEqual(["bold", "normal", null]);
+        expect(values(r, "node", "glyphWeight")).toEqual(["900", "normal", null]);
     });
 
     it("centers a vis.js icon node's label half its icon and margins plus 5 below its center", async () => {

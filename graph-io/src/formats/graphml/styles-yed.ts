@@ -21,7 +21,7 @@ import {
     nodeOffsetsToPoints,
 } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity, hexChannels } from "../../styles/canon/color.js";
-import { canonEnum } from "../../styles/canon/enums.js";
+import { canonEnum, isBoldWeight } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
@@ -3351,7 +3351,7 @@ function labelFontTree(get: GetValue): Tree {
     const weight = get("labelWeight");
     const italic = get("labelItalic");
     if (weight !== null || italic !== null) {
-        const style = (weight === "bold" ? "bold" : "") + (italic === true ? "italic" : "");
+        const style = (isBoldWeight(weight) ? "bold" : "") + (italic === true ? "italic" : "");
         label["@_fontStyle"] = style.length === 0 ? "plain" : style;
     }
     return label;

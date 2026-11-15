@@ -149,9 +149,17 @@ const ARROWS: Aliases = {
     inverted: ["inverted", "inv", "inverted-triangle", "inv-triangle"],
 };
 
+// CSS's relative weights are read against the normal weight a label inherits: lighter than 400 is 100, bolder is 700
 const WEIGHTS: Aliases = {
-    normal: ["normal", "regular", "plain", "lighter", "100", "200", "300", "400", "500"],
-    bold: ["bold", "bolder", "600", "700", "800", "900"],
+    normal: ["normal", "regular", "plain", "400"],
+    bold: ["bold", "bolder", "700"],
+    "100": ["100", "lighter"],
+    "200": ["200"],
+    "300": ["300"],
+    "500": ["500"],
+    "600": ["600"],
+    "800": ["800"],
+    "900": ["900"],
 };
 
 const POSITIONS: Aliases = {
@@ -339,4 +347,14 @@ export function canonEnum(kind: StyleEnumKind, raw: unknown, dialect: StyleDiale
     }
     noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, trimmed);
     return OPEN.has(kind) ? `other:${trimmed}` : null;
+}
+
+/**
+ * Whether a neutral label weight draws bold in a format that has only plain and bold faces: `bold` and every numeric
+ * weight from 600 up, as CSS's font matching picks the bold face for them.
+ * @param weight - the neutral weight
+ * @returns whether bold
+ */
+export function isBoldWeight(weight: unknown): boolean {
+    return weight === "bold" || weight === "600" || weight === "800" || weight === "900";
 }

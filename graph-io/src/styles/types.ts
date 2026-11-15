@@ -92,10 +92,12 @@ export type StyleArrowShape =
 export type StyleArrowSide = "left" | "right";
 
 /**
- * Label font weights.
+ * Label font weights: `normal` (CSS 400), `bold` (CSS 700), or another CSS numeric weight from 100 (thin) to 900
+ * (black). A relative weight in a file (`lighter`, `bolder`) is read against the normal weight its label inherits:
+ * `lighter` is `100` and `bolder` is `bold`.
  * @category Styles
  */
-export type StyleLabelWeight = "normal" | "bold";
+export type StyleLabelWeight = "normal" | "bold" | "100" | "200" | "300" | "500" | "600" | "800" | "900";
 
 /**
  * Where a node's label sits relative to the node: `center` in its middle, a side or corner (`top`, `bottom-left`, ...)

@@ -391,7 +391,7 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
         ],
     ],
     ["arrowSide", ["left", "right"]],
-    ["weight", ["normal", "bold"]],
+    ["weight", ["normal", "bold", "100", "200", "300", "500", "600", "800", "900"]],
     ["textAlign", ["left", "center", "right"]],
     ["labelFit", ["inside", "bounds"]],
     ["labelBox", ["words", "words-at-side", "target-width"]],

@@ -32,7 +32,7 @@ import { isWritableDotText } from "../../common/escape.js";
 import { inferTextDtype, itemAt } from "../../common/text.js";
 import { type BendPoint, canonBends, canonNodeOffsets, flattenCubic } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
-import { canonEnum } from "../../styles/canon/enums.js";
+import { canonEnum, isBoldWeight } from "../../styles/canon/enums.js";
 import { canonNumber, DOT_POINTS_PER_INCH, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import {
@@ -3085,20 +3085,22 @@ function writeCommon(get: Get, approximate: Approximate, out: Map<string, Writte
         out.set("fontsize", size);
     }
     const font = get("labelFont");
-    const bold = get("labelWeight") === "bold";
+    const weight = get("labelWeight");
+    const bold = isBoldWeight(weight);
     const italic = get("labelItalic") === true;
     if (typeof font === "string") {
         const name = graphvizFontName(font, bold, italic);
         out.set("fontname", name);
         const drawn = graphvizFont(name);
-        if (drawn.bold !== bold) {
+        // Graphviz's PostScript faces are plain or bold: a numeric weight is drawn as the nearer of the two
+        if (drawn.bold !== bold || (weight !== null && weight !== "normal" && weight !== "bold")) {
             approximate("labelWeight", get("labelWeight") ?? "normal");
         }
         if (drawn.italic !== italic) {
             approximate("labelItalic", italic);
         }
     } else if (bold || italic) {
-        approximate(bold ? "labelWeight" : "labelItalic", bold ? "bold" : true);
+        approximate(bold ? "labelWeight" : "labelItalic", bold ? (weight ?? "bold") : true);
     }
     const tip = get("tooltip");
     if (typeof tip === "string") {

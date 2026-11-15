@@ -339,6 +339,13 @@ describe("canonEnum", () => {
         ["weight", "normal", "css", "normal"],
         ["weight", 400, "css", "normal"],
         ["weight", "heavy", "css", null],
+        // a numeric weight is kept; a relative one is read against the normal weight a label inherits
+        ["weight", "900", "cytoscape-js", "900"],
+        ["weight", "100", "cytoscape-js", "100"],
+        ["weight", "lighter", "cytoscape-js", "100"],
+        ["weight", "bolder", "cytoscape-js", "bold"],
+        ["weight", "LIGHTER", "yfiles3", "100"],
+        ["weight", 600, "vis", "600"],
         ["position", "top left", "yed", "top-left"],
         ["position", "Center", "cytoscape", "center"],
         ["position", "nowhere", "css", null],

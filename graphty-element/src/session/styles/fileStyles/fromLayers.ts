@@ -30,6 +30,7 @@ import {
     type Mapping,
     type Predicate,
     resolveStyles,
+    STYLE_ENUMS,
     type StyleColumn,
     styleFingerprint,
     type StyleProperty,
@@ -210,7 +211,8 @@ const scaled = (value: unknown, by: number): number | null =>
 const flag: PropertyPlan["toNeutral"] = (value) => (typeof value === "boolean" ? value : null);
 const opacity: PropertyPlan["toNeutral"] = (value) =>
     typeof value === "number" && value >= 0 && value <= 1 ? value : null;
-const weight: PropertyPlan["toNeutral"] = (value) => (value === "normal" || value === "bold" ? value : null);
+const weight: PropertyPlan["toNeutral"] = (value) =>
+    typeof value === "string" && STYLE_ENUMS.get("weight")?.includes(value) === true ? value : null;
 const table =
     (entries: ReadonlyMap<string, string>): PropertyPlan["toNeutral"] =>
     (value) =>

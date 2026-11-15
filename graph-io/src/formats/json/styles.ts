@@ -1039,14 +1039,16 @@ function visIcon(layer: VisLayer, site: CanonSite): Row {
     }
     const size = typeof layer.iconSize === "number" && layer.iconSize >= 0 ? layer.iconSize : 50;
     const color = typeof layer.iconColor === "string" ? canonColor(layer.iconColor, "vis", site) : null;
-    const weight = layer.iconWeight;
-    const bold = weight === "bold" || weight === "bolder" || (typeof weight === "number" && weight >= 600);
+    // a CSS weight: a keyword, or a number drawn at the nearest of the nine weights a face has
+    const raw = layer.iconWeight;
+    const weight = typeof raw === "number" ? Math.min(900, Math.max(100, Math.round(raw / 100) * 100)) : raw;
+    const glyphWeight = weight === undefined || weight === null ? null : canonEnum("weight", weight, "vis", site);
     return {
         glyph: code,
         glyphFont: typeof layer.iconFace === "string" && layer.iconFace !== "" ? layer.iconFace : "FontAwesome",
         glyphSize: size,
         glyphColor: color?.color ?? "#2b7ce9",
-        glyphWeight: bold ? "bold" : "normal",
+        glyphWeight: glyphWeight ?? "normal",
     };
 }
 

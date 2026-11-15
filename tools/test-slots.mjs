@@ -166,7 +166,7 @@ function recount(dir = slotDir()) {
     const held = granted.length;
     const kb = Number(/MemAvailable:\s+(\d+)/.exec(readFileSync("/proc/meminfo", "utf8"))[1]);
     const some = readFileSync("/proc/pressure/memory", "utf8").split("\n")[0]; // "some avg10=.. avg60=.. avg300=.."
-    const avg = (n) => Number(new RegExp(`avg${n}=([\\d.]+)`).exec(some)[1]);
+    const avg = (n) => Number(new RegExp(String.raw`avg${n}=([\d.]+)`).exec(some)[1]);
     const m = {
         count,
         min,

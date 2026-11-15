@@ -294,3 +294,53 @@ export function kindGlyphWords(session: GraphSession, row: StyleRow): string {
         ? "Layer"
         : { node: "Paints nodes", edge: "Paints edges", both: "Paints nodes and edges" }[target];
 }
+
+/** What one layer row paints, read from the element's counts. */
+export interface Paints {
+    readonly nodes: number | undefined;
+    readonly edges: number | undefined;
+    /** Every property it writes is painted over by rows above (and it is shown). */
+    readonly paintedOver: boolean;
+    /** The names of the layers the picture shows instead, the most elements first. */
+    readonly paintedBy: readonly string[];
+}
+
+/**
+ * What a layer row paints: how many of the nodes and edges drawn its parts match, and whether
+ * every property it writes is painted over above it (`styles.counts`).
+ * @param session - the element's session.
+ * @param row - the layer row.
+ * @returns the facts.
+ */
+export function paintsOf(session: GraphSession, row: StyleRow): Paints {
+    // Only the halves the reader is building count: those that write, else those with a condition.
+    const parts = builtParts(session, row.id);
+    const read = (layer: string | undefined): ReturnType<GraphSession["styles"]["counts"]> | undefined =>
+        layer === undefined ? undefined : session.styles.counts(layer);
+    const node = read(parts?.node);
+    const edge = read(parts?.edge);
+    const painted = [node, edge].flatMap((c) => (c === undefined ? [] : Object.values(c.painted)));
+    // A row that matches nothing paints nothing, so nothing of it is painted over.
+    const matched = (node?.matched ?? 0) + (edge?.matched ?? 0);
+    const by = [node, edge].flatMap((c) => c?.paintedBy ?? []).map((id) => session.styles.get(id)?.name ?? id);
+    // Counted over the graph the filter leaves drawn, the base Which nodes and the key count over.
+    return {
+        nodes: node === undefined ? undefined : (node.visible?.matched ?? node.matched),
+        edges: edge === undefined ? undefined : (edge.visible?.matched ?? edge.matched),
+        paintedOver: matched > 0 && painted.length > 0 && painted.every((n) => n === 0),
+        paintedBy: [...new Set(by)],
+    };
+}
+
+/**
+ * The words for what a layer paints: "5 nodes, 4 edges".
+ * @param paints - the facts.
+ * @returns the words.
+ */
+export function paintsWords(paints: Paints): string {
+    const words = [
+        ...(paints.nodes === undefined ? [] : [count(paints.nodes, "node")]),
+        ...(paints.edges === undefined ? [] : [count(paints.edges, "edge")]),
+    ];
+    return words.length === 0 ? "paints nothing" : words.join(", ");
+}

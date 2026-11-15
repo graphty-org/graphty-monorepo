@@ -653,7 +653,8 @@ describe("Workspace autosave with the real graphty-element", () => {
         const { element, session } = openedElement();
         const inspector = (): ReturnType<typeof within> =>
             within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
+        // A project opens on its Everything row's Style tab (#3409): the reader picks Values.
+        await userEvent.click(inspector().getByRole("tab", { name: "Values" }));
         await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
         const layers = JSON.stringify(session.styles.list());
         await fromAnotherTab(await leave(element, first.view));
@@ -663,7 +664,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
         assert.strictEqual(JSON.stringify(openedElement().session.styles.list()), layers);
         await waitFor(() => {
-            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Style");
+            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Values");
         });
         second.view.unmount();
     });

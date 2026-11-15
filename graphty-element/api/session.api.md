@@ -1245,10 +1245,16 @@ export type ExplainTarget = {
 };
 
 // @public
+export const EXPORT_FLATTEN_REASONS: readonly ["SCALE", "RESULT_PATH"];
+
+// @public
 export const EXPORT_LOSS_CODES: readonly ExportLossCode[];
 
 // @public
 export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_APPROXIMATED", "W_STYLE_RULES_NOT_KEPT", "W_STYLE_LAYER_FLATTENED", "W_STYLES_NOT_EXPORTED", "E_STYLES_MISMATCH"];
+
+// @public
+export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
 
 // @public
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];

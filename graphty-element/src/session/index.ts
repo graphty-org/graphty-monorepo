@@ -52,12 +52,14 @@ export { isAlgorithmRunCommand } from "./planning";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type { LoadStyleReport } from "./styles/fileStyles/apply";
 export type {
+    ExportFlattenReason,
     ExportStyleLossCode,
     FileStyleCode,
     FileStyleNoteCode,
     FileStyleTranslationCode,
 } from "./styles/fileStyles/codes";
 export {
+    EXPORT_FLATTEN_REASONS,
     EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,

@@ -45,6 +45,7 @@ import { parseArrowStack } from "../../../meshes/arrowStack";
 import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
+import type { ExportFlattenReason } from "./codes";
 import { computedOf, parseFileStylePath } from "./path";
 import {
     ARROW_RUNS,
@@ -90,7 +91,7 @@ interface FlattenedLayer {
     /** The property written as values. */
     readonly property: string;
     /** Why. */
-    readonly reason: StyleRuleReason;
+    readonly reason: ExportFlattenReason;
     /** How many elements carry a value. */
     readonly count: number;
 }
@@ -783,7 +784,7 @@ class KindExport {
                 continue;
             }
 
-            const why: StyleRuleReason =
+            const why: ExportFlattenReason =
                 binding !== undefined && "by" in binding && this.#refOf(binding.by) === null ? "RESULT_PATH" : "SCALE";
             body.reason ??= why;
             flat ??= this.#keep(`layer.${String(at.at)}.${property}`, written.values);

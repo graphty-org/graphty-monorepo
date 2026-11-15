@@ -113,6 +113,7 @@ export default defineConfig({
                         { text: "Experiments", link: "/guide/experiments" },
                         { text: "Timeline", link: "/guide/timeline" },
                         { text: "Camera", link: "/guide/camera" },
+                        { text: "Reduced Motion", link: "/guide/reduced-motion" },
                         { text: "Where a Node Is on Screen", link: "/guide/screen-position" },
                         { text: "Screenshots & Video", link: "/guide/screenshots" },
                         { text: "VR/AR", link: "/guide/vr-ar" },

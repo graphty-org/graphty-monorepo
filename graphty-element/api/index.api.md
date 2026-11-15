@@ -2901,6 +2901,7 @@ export class Graph implements GraphContext {
     getOverview(options?: OverviewOptions): GraphOverview;
     getPendingAiApprovals(): readonly AiApprovalRequest[];
     getPendingAiQuestions(): readonly AiQuestionRequest[];
+    getReducedMotion(): boolean | "auto";
     // @internal
     getRowTable(): RowTable | null;
     getScene(): Scene;
@@ -3081,6 +3082,7 @@ export class Graph implements GraphContext {
     setLimits(value: LimitsOption): void;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setPixelRatio(ratio: PixelRatio): void;
+    setReducedMotion(value: boolean | "auto"): void;
     setRenderer(request: RendererRequest): void;
     setRenderPath(path: RenderPath): void;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
@@ -3615,6 +3617,8 @@ export class Graphty extends LitElement {
     }): Promise<void>;
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
+    get reducedMotion(): boolean | "auto";
+    set reducedMotion(value: boolean | "auto");
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
@@ -5190,6 +5194,7 @@ export class LayoutManager implements Manager {
     get dimension(): 2 | 3 | undefined;
     dispose(): void;
     drawArrivedPaint: (() => void) | null;
+    get drawingHeld(): boolean;
     get edges(): Iterable<Edge>;
     getNodePosition(node: Node_2): [number, number, number] | undefined;
     getStats(): {
@@ -5217,6 +5222,7 @@ export class LayoutManager implements Manager {
     placeGroups(): void;
     // @internal
     get preStepsInFlight(): boolean;
+    reducedMotion: boolean;
     // @internal
     relayoutForVisibility(): void;
     // @internal
@@ -8426,6 +8432,7 @@ export class UpdateManager implements Manager {
     }[];
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
+    reducedMotion: boolean;
     renderFrames(count: number): void;
     // @internal
     repaintNodes(nodes: readonly Node_2[]): void;

@@ -215,6 +215,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         members: [
             "setAttributionOffset",
             "setCameraTransitionDuration",
+            "setReducedMotion",
             "setPixelRatio",
             "setZoomToPointer",
             "setLighting",
@@ -234,6 +235,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "attributionOffset",
             "globeLook",
             "cameraTransitionDuration",
+            "reducedMotion",
             "zoomToPointer",
             "viewInsets",
             "autosave",
@@ -259,6 +261,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "Graphty", members: ["downloadGraph"], reason: "needs-host", kind: BY_DESIGN },
     { root: "Graphty", members: ["loadFromSource"], reason: "network", kind: BY_DESIGN },
     { root: "LayoutManager", members: ["placeGroups"], reason: "in-flight", kind: BY_DESIGN },
+    { root: "LayoutManager", members: ["reducedMotion"], reason: "internal-handle", kind: BY_DESIGN },
     { root: "CredentialStore", reason: "assistant-config", kind: BY_DESIGN },
     { root: "AssetsApi", reason: "needs-host", kind: BY_DESIGN },
     { root: "NetworkApi", reason: "reader-trust", kind: BY_DESIGN },

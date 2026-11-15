@@ -539,6 +539,8 @@ export class UpdateManager implements Manager {
      * are, however the camera moves, so `graph-frame-stable` is not held back by it.
      */
     autoTurning = false;
+    /** Whether motion is reduced, which keeps `camera.autoRotate` from turning; set by the graph. */
+    reducedMotion = false;
     /** The longest frame the auto-rotation turns for, so a tab coming back does not jump. */
     private static readonly MAX_TURN_MS = 100;
     /** `camera.autoRotate` and `camera.autoRotateResume` as the last pass read them; a change ends the reader's pause. */
@@ -2962,8 +2964,10 @@ export class UpdateManager implements Manager {
             this.camera.resumeAutoTurn();
         }
 
+        // Reduced motion keeps the camera still.
+        const turnSpeed = this.reducedMotion ? 0 : camera.autoRotate;
         this.autoTurning = this.camera.autoTurn(
-            (camera.autoRotate * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
+            (turnSpeed * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
             frameMs,
             camera.autoRotateResume,
         );
@@ -3009,6 +3013,11 @@ export class UpdateManager implements Manager {
         const publishes = this.layoutManager.steppedPublishes;
         this.updateLayout(frameMs);
         const published = this.layoutManager.steppedPublishes !== publishes;
+        // Reduced motion: the layout runs unseen until it settles, and is drawn then.
+        if (this.layoutManager.drawingHeld) {
+            this.updateStatistics();
+            return;
+        }
 
         // ASKED BEFORE THE GRAPH IS MEASURED, because the answer decides how the measurement is
         // taken: reading a node's world position as of THIS instant costs a forced matrix per node

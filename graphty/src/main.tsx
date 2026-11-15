@@ -60,7 +60,7 @@ if (import.meta.env.VITE_REMOTE_LOG_URL) {
     const remoteLogging = GraphtyLogger.configure({
         enabled: true,
         level: LogLevel.INFO,
-        modules: ["autosave", "workspace"],
+        modules: ["autosave", "workspace", "view"],
     });
     void remoteLogging.then(logPageStart); // NOSONAR(S7785): a top-level await would hold the first paint for the logger
 }

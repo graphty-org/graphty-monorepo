@@ -619,6 +619,22 @@ describe("GET /v1/plan", () => {
         ]);
     });
 
+    it("#8208: no plan statement re-runs a subquery per row", async () => {
+        // a correlated subquery in failingOnBase ran once per failed master invocation: on 100,000 invocations the read
+        // took 18 s instead of 0.4 s, and D1 answered half of pull request plan reads with HTTP 500
+        const { call, env } = service();
+        const seen = new Set();
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.add(sql), prepare(sql));
+        await plan(call, { base: "base1", variants: BROWSER, inputs: "k1" });
+        assert.ok(seen.size > 0);
+        for (const sql of seen) {
+            const steps = env.DB.sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all();
+            const correlated = steps.filter((s) => /CORRELATED/.test(s.detail));
+            assert.deepEqual(correlated, [], sql);
+        }
+    });
+
     it("answers reuse, recent failures first and per-file durations per variant", async () => {
         const { call, env } = service();
         const s = seed(env);

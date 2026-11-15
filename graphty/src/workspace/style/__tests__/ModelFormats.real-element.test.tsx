@@ -21,7 +21,17 @@ import { commands, userEvent } from "vitest/browser";
 import { screen, within } from "../../../test/test-utils";
 import { modelChip } from "../modelWords";
 import { CUSTOM_MODEL } from "../words";
-import { addModel, choose as chooseIn, openCustom, openShapes, previewOf, reaches, written } from "./modelHarness";
+import {
+    addModel,
+    choose as chooseIn,
+    dropOn,
+    filesAt,
+    openCustom,
+    openShapes,
+    previewOf,
+    reaches,
+    written,
+} from "./modelHarness";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -106,19 +116,21 @@ async function assertPreview(dialog: HTMLElement, variant: Variant): Promise<voi
 }
 
 /**
- * Chooses a variant's files, or its folder, in the dialog.
+ * Gives the dialog a variant's files: its folder by Choose folder, one file by Choose file, and
+ * several files by a drop, as the file chooser takes a model's own file only.
  * @param dialog - the dialog.
  * @param variant - the variant.
  */
 async function choose(dialog: HTMLElement, variant: Variant): Promise<void> {
     const folder = `${VARIANTS}/${variant.id}`;
-    await (variant.upload === "folder"
-        ? chooseIn(dialog, "Choose folder", [folder])
-        : chooseIn(
-              dialog,
-              "Choose files",
-              variant.files.map((f) => `${folder}/${f}`),
-          ));
+    const paths = variant.files.map((f) => `${folder}/${f}`);
+    if (variant.upload === "folder") {
+        await chooseIn(dialog, "Choose folder", [folder]);
+    } else if (paths.length === 1) {
+        await chooseIn(dialog, "Choose file", paths);
+    } else {
+        dropOn(within(dialog).getByTestId("custom-model"), await filesAt(paths));
+    }
 }
 
 /**
@@ -359,10 +371,10 @@ describe("every model format and variant, through the Load custom model dialog",
     it("lists a missing texture, takes it from its row's Choose, and draws the model with it", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await chooseIn(dialog, "Choose files", [
-            `${VARIANTS}/obj-mtl-missing-png/cube.obj`,
-            `${VARIANTS}/obj-mtl-missing-png/cube.mtl`,
-        ]);
+        dropOn(
+            within(dialog).getByTestId("custom-model"),
+            await filesAt([`${VARIANTS}/obj-mtl-missing-png/cube.obj`, `${VARIANTS}/obj-mtl-missing-png/cube.mtl`]),
+        );
         const files = await within(dialog).findByTestId("model-files");
         const row = await within(files).findByRole("group", { name: "cube.png" });
         assert.isNotNull(within(row).getByText("Texture"));

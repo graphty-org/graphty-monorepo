@@ -185,7 +185,8 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
     private held = 0;
 
     /**
-     * @param keys - How keys turn into counters, for a dense run; without it the map never starts one.
+     * An empty map.
+     * @param denseKeys - How keys turn into counters, for a dense run; without it the map never starts one.
      */
     constructor(private readonly denseKeys?: DenseKeys<K>) {
         super();
@@ -303,7 +304,7 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
      */
     private raw(key: K): GraphRecord | number | undefined {
         if (this.dense === null) {
-            return super.get(key) as GraphRecord | number | undefined;
+            return super.get(key);
         }
 
         const at = (this.denseKeys as DenseKeys<K>).counterOf(key) - this.first;

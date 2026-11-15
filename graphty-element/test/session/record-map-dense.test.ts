@@ -68,7 +68,7 @@ describe("record arrays keep no Map entry per row", () => {
         const plain = new Map<number, unknown>();
         const record = (n: number): { n: number } => ({ n });
         const both = (fn: (m: Map<number, unknown>) => void): void => {
-            fn(map as Map<number, unknown>);
+            fn(map);
             fn(plain);
         };
         for (let id = 3; id < 9; id++) {

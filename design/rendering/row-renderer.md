@@ -1270,6 +1270,16 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   is returned by `columnsEligible` but never written. `importColumns` resolves to that report, deep-equal to the
   one `addNodes` and `addEdges` give for the same rows on either path. The headless session's ingest host now
   reports `batched`, as the element's always did.
+  Record maps hold rows by counter (stage 127, built): under `"batched"` the graph slice's `RecordMap`s hold a
+  forward add's rows in an array by counter (the edge counter, or a node id that is a non-negative integer number)
+  instead of one `Map.set` each; a write a `Map` would place anywhere but last moves the run into the `Map` first, in
+  order, so every read answers as a `Map` does, insertion order included (`test/session/record-map-dense.test.ts`).
+  The objects path never starts a run. Correction to profile-6's cost 2 (`tmp/cosmos-profile-6/comparison.md`):
+  the harness's record arrays reach the element as `nodeData`/`edgeData`, which are not routed through columns
+  (above), so they are held as frozen copies, not row numbers; the per-row `Map.set` (`put`, 0.8 s self at
+  100k + 1M) was the part shared with the column path and is the part removed. What is left of record-array ingest
+  is the per-row `frozenRecord` copy (about 1.0 s self at 1M + 1M), the four endpoint reads per edge and the lazy-row
+  bookkeeping.
 - **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
   one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
   whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the

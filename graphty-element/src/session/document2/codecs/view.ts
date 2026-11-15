@@ -83,8 +83,6 @@ interface Writer {
     readonly refs: ElementRefs;
     readonly memory: ViewMemory;
     readonly mapper: RefMapper;
-    /** Whether this save writes a style section, which then carries the layers a view run's style would paint. */
-    readonly styleSaved: boolean;
     /** Whether the element minted a run's id. */
     readonly isDerived: (id: string) => boolean;
 }
@@ -239,14 +237,19 @@ function liveFilter(session: TransactionScope): { readonly filter: RuleTree | nu
 }
 
 /**
- * A time window as a view section writes it.
+ * A time window as a view section writes it: `raw: true` for one whose bounds are values, not
+ * instants (one set with the timeline off), as version 1's `windowRaw`.
+ * @param session - The session.
  * @param window - The window.
  * @returns Its members.
  */
-function windowJson(window: TimeWindow): JsonObject {
+function windowJson(session: GraphSession, window: TimeWindow): JsonObject {
     const { attribute, end, spells, from, to, step, nodes } = window;
+    const raw = (session.visibility as SessionVisibilityApi).holdsInstants(window) ? undefined : true;
     return Object.fromEntries(
-        Object.entries({ attribute, end, spells, from, to, step, nodes }).filter(([, value]) => value !== undefined),
+        Object.entries({ attribute, end, spells, from, to, step, nodes, raw }).filter(
+            ([, value]) => value !== undefined,
+        ),
     );
 }
 
@@ -268,7 +271,7 @@ function scopeJson(w: Writer, run: Run): unknown {
         const { filter } = liveFilter(w.session);
         const { hidden } = mapRefs({ hidden: [...w.session.hidden.ids] }, w.mapper, "") as { hidden: unknown[] };
         return {
-            ...(visibility.window === null ? {} : { window: windowJson(visibility.window) }),
+            ...(visibility.window === null ? {} : { window: windowJson(w.session, visibility.window) }),
             ...(filter === null ? {} : { filter: mapRefs(filter, w.mapper, "") }),
             ...(hidden.length === 0 ? {} : { hidden }),
         };
@@ -284,11 +287,10 @@ function scopeJson(w: Writer, run: Run): unknown {
 /**
  * The `runs` member: the runs a recipe cannot hold, keyed by run id.
  * @param w - The writer.
- * @param viewLayers - The ids of the layers this section writes.
  * @param namesSet - Whether a kept set names elements.
  * @returns The runs.
  */
-function runsJson(w: Writer, viewLayers: ReadonlySet<string>, namesSet: (id: string) => boolean): JsonObject {
+function runsJson(w: Writer, namesSet: (id: string) => boolean): JsonObject {
     const out: JsonObject = {};
     for (const run of w.session.runs.list()) {
         if (run.status !== "succeeded" || !recipeCannotHold(w.session, run, namesSet)) {
@@ -298,8 +300,13 @@ function runsJson(w: Writer, viewLayers: ReadonlySet<string>, namesSet: (id: str
         const { namespace, as } = runKeyOf(run.id, w.isDerived(run.id));
         const { name, seed } = run.record;
         const params = mapParams(w.session, run.algorithm, run.params, w.mapper, "") ?? {};
-        // `false` unless a layer reading the run is not saved by this save (spec 4.3 rule 3).
-        const unsaved = w.session.runs.bindings(run.id).some((layer) => !viewLayers.has(layer) && !w.styleSaved);
+        // `false` when any layer reads the run, saved in this file or not (spec 4.3 rule 3), as the
+        // recipe writes it: what the run is written as never depends on the sections chosen.
+        const { runs } = w.session;
+        const painted =
+            runs.bindings(run.id).length === 0 &&
+            !runs.readers(run.id).some((reader) => reader.kind === "layer") &&
+            runs.painting(run.id)?.state !== "opted-out";
         const scope = scopeJson(w, run);
         out[`${namespace}__${as}`] = {
             namespace,
@@ -308,7 +315,7 @@ function runsJson(w: Writer, viewLayers: ReadonlySet<string>, namesSet: (id: str
             algorithm: run.algorithm,
             ...(Object.keys(params).length === 0 ? {} : { params }),
             ...(Number.isInteger(seed) && (seed ?? -1) >= 0 ? { seed } : {}),
-            style: unsaved,
+            style: painted,
             scope: (scope as Record<string, unknown> | string) ?? "graph",
         };
     }
@@ -409,7 +416,7 @@ function visibilityJson(w: Writer): JsonObject | undefined {
 
     return {
         filter: filter === null ? null : mapRefs(filter, w.mapper, ""),
-        ...(visibility.window === null ? {} : { window: windowJson(visibility.window) }),
+        ...(visibility.window === null ? {} : { window: windowJson(w.session, visibility.window) }),
         showContext: visibility.showContext,
         ...(select.length === 0 ? {} : { select: mapRefs(select, w.mapper, "") }),
         ...(hidden.hidden.length === 0 ? {} : hidden),
@@ -455,12 +462,6 @@ function freshBody(w: Writer): JsonObject {
     const sets = session.sets.list();
     const namesSet = setNamer(sets);
     const layers = layersJson(w);
-    const viewLayers = new Set(
-        session.styles
-            .list()
-            .filter((layer) => layer.source.by !== "element" && layerNamesElements(layer, session))
-            .map((layer) => layer.id),
-    );
     const selection = mapRefs({ nodes: [...session.selection.nodes], edges: [...session.selection.edges] }, mapper, "");
     const { viewRotation, framing } = session.config;
     return compact({
@@ -482,7 +483,7 @@ function freshBody(w: Writer): JsonObject {
         framing,
         hiddenColumns: session.data.hiddenColumns().map(({ kind, name }) => ({ kind, name })),
         layers,
-        runs: runsJson(w, viewLayers, namesSet),
+        runs: runsJson(w, namesSet),
     });
 }
 
@@ -531,19 +532,13 @@ function keptBody(fresh: JsonObject, memory: ViewMemory): JsonObject {
  * The writer over a session.
  * @param session - The session.
  * @param refs - The element references.
- * @param styleSaved - Whether the save writes a style section.
  * @param isDerived - Whether the element minted a run's id; default every run (an open, which
  *     cannot tell).
  * @returns The writer.
  */
-function writerOf(
-    session: GraphSession,
-    refs: ElementRefs,
-    styleSaved: boolean,
-    isDerived: (id: string) => boolean = () => true,
-): Writer {
+function writerOf(session: GraphSession, refs: ElementRefs, isDerived: (id: string) => boolean = () => true): Writer {
     const memory = memoryOf(session);
-    return { session, refs, memory, mapper: writeMapper(session, refs, memory, isDerived), styleSaved, isDerived };
+    return { session, refs, memory, mapper: writeMapper(session, refs, memory, isDerived), isDerived };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -722,7 +717,8 @@ async function readVisibility(r: Reader, visibility: JsonObject): Promise<void> 
         }
 
         if (isObject(read.window)) {
-            await (tx.visibility as SessionVisibilityApi).restoreWindow(read.window as unknown as TimeWindow, false);
+            const { raw, ...window } = read.window;
+            await (tx.visibility as SessionVisibilityApi).restoreWindow(window as unknown as TimeWindow, raw === true);
         }
 
         if (Array.isArray(read.select)) {
@@ -1006,7 +1002,7 @@ async function readLayers(r: Reader, layers: readonly unknown[]): Promise<void> 
  */
 function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
     const { context, memory } = r;
-    const fresh = freshBody(writerOf(context.session, context.refs(), context.sections.has("style")));
+    const fresh = freshBody(writerOf(context.session, context.refs()));
     for (const name of MEMBERS) {
         if (body[name] === undefined) {
             continue;
@@ -1068,9 +1064,7 @@ export const viewCodec: SectionCodec = {
     members: [...MEMBERS],
     write(context: WriteContext) {
         const memory = memoryOf(context.session);
-        const fresh = freshBody(
-            writerOf(context.session, context.refs(), context.sections.has("style"), (id) => context.isDerived(id)),
-        );
+        const fresh = freshBody(writerOf(context.session, context.refs(), (id) => context.isDerived(id)));
         return Promise.resolve({ body: keptBody(fresh, memory) });
     },
     read: readView,

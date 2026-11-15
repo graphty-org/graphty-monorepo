@@ -50,7 +50,13 @@ import { openDocument2, saveDocument2 } from "./document2/document";
 import { isJsonObject, isVersion2, parseDocument } from "./document2/framing";
 import { migrateDocument1 } from "./document2/migration";
 import { SECTION_CODECS } from "./document2/registry";
-import type { DocumentCode, DocumentProblem, DocumentSection, SourceStorage } from "./document2/types";
+import {
+    DOCUMENT_SECTIONS,
+    type DocumentCode,
+    type DocumentProblem,
+    type DocumentSection,
+    type SourceStorage,
+} from "./document2/types";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
 import { projectBoundary } from "./project/boundary";
@@ -192,28 +198,40 @@ export interface ProjectSaveOptions {
      * package. `2` needs the `save-files-v2` experiment, and is refused with `E_FEATURE_OFF`
      * without it. EXPERIMENTAL: version 2 may change until it is released.
      * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
      */
     readonly format?: 1 | 2;
     /**
      * Version 2 only: the sections to write. Default every section but `results`.
      * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
      */
     readonly sections?: readonly DocumentSection[];
     /**
      * Version 2 only: `"full"` (the default) writes a full file holding the sections;
      * `"section"` writes the one section in `sections` as a section file.
      * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
      */
     readonly form?: "full" | "section";
     /**
      * Version 2 only: also write the results section. Default false: opening reruns the runs.
      * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
      */
     readonly results?: boolean;
     /**
      * Version 2 only: per source id, whether its rows are written into the file (`"embedded"`,
-     * the default) or fetched again on open (`"referenced"`).
+     * the default) or only referenced (`"referenced"`). A referenced source cannot be fetched
+     * again on open yet, so `"referenced"` is refused with `E_UNSUPPORTED` (`params.option`
+     * `"embed"`, `params.source` the source id) until it can.
      * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
      */
     readonly embed?: Readonly<Record<string, SourceStorage>>;
 }
@@ -322,18 +340,24 @@ export interface ProjectOpenOptions {
      * Version 2 only (`save-files-v2` experiment): the sections of a full file to load. Default
      * all. EXPERIMENTAL.
      * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
      */
     readonly sections?: readonly DocumentSection[];
     /**
      * Version 2 only: whether layouts and algorithms run again on open. Default true; false
      * restores the saved results instead. EXPERIMENTAL.
      * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
      */
     readonly rerun?: boolean;
     /**
      * Version 2 only: whether a data section replaces the open data (`"replace"`, the default,
      * opening a project) or is added as another source (`"add"`). EXPERIMENTAL.
      * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
      */
     readonly dataMode?: "replace" | "add";
     /**
@@ -341,12 +365,16 @@ export interface ProjectOpenOptions {
      * references by key. Default false: it is reported as `W_DATA_MISMATCH` and not loaded.
      * EXPERIMENTAL.
      * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
      */
     readonly bindOtherData?: boolean;
     /**
      * With the `save-files-v2` experiment on: open a version 1 file through its migration to
      * version 2. Default false: a version 1 file is read as before. EXPERIMENTAL.
      * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
      */
     readonly migrate?: boolean;
 }
@@ -1305,7 +1333,14 @@ function documentOf(value: Record<string, unknown>): Record<string, unknown> {
             code: "E_UNSUPPORTED_VERSION",
             message: `This graphty document is version ${String(version)}; this graphty-element reads version ${String(VERSION)}.`,
             source: "data",
-            details: { kind: DOCUMENT_KIND, found: version, reads: [VERSION] },
+            // A version 2 file is read with the `save-files-v2` experiment on: said, so an
+            // application can offer it.
+            details: {
+                kind: DOCUMENT_KIND,
+                found: version,
+                reads: [VERSION],
+                ...(version === 2 ? { feature: "save-files-v2" } : {}),
+            },
         });
     }
 
@@ -1349,6 +1384,15 @@ function readDocument(text: string): ReadDocument {
     }
 
     checkTree(value, 1);
+    return readParsed(value);
+}
+
+/**
+ * Sort the members of a file already parsed and within the depth limit.
+ * @param value - The parsed file.
+ * @returns The document.
+ */
+function readParsed(value: unknown): ReadDocument {
     if (!isObject(value)) {
         throw unknownFormat();
     }
@@ -1409,11 +1453,13 @@ function readDocument(text: string): ReadDocument {
 /**
  * Parse a file as a graphty document, or tell that it is not one.
  * @param text - The file's text.
+ * @param parsed - The file already parsed and checked, when it was (`version2Of`).
+ * @param parsed.value - The parsed value.
  * @returns The document, or undefined when the file is not a graphty document (a data file).
  */
-function graphtyDocumentOf(text: string): ReadDocument | undefined {
+function graphtyDocumentOf(text: string, parsed?: { readonly value: unknown }): ReadDocument | undefined {
     try {
-        return readDocument(text);
+        return parsed === undefined ? readDocument(text) : readParsed(parsed.value);
     } catch (error) {
         if (!isGraphtyError(error) || (error.code !== "E_UNKNOWN_FORMAT" && error.code !== "E_PARSE_FAILED")) {
             throw error;
@@ -1424,16 +1470,47 @@ function graphtyDocumentOf(text: string): ReadDocument | undefined {
 }
 
 /**
+ * What version 1 keeps of a session that the version 2 codecs do not write yet, each reported as
+ * `W_MEMBER_LEFT_OUT` with the version 1 member and field, so a caller can say so before the file
+ * replaces one that held it.
+ * @param session - The session.
+ * @param dispatcher - Its dispatcher.
+ * @returns One problem per field left out.
+ */
+function leftOutOfVersion2(session: GraphSession, dispatcher: Dispatcher): ProjectProblem[] {
+    const { values } = dispatcher.state.graph;
+    const issues = values.get(ISSUES_VALUE) as IssueState | undefined;
+    const fields: [string, boolean][] = [
+        ["declarations", dispatcher.state.attributes.size > 0],
+        ["columns", values.get(COLUMNS_VALUE) !== undefined],
+        [
+            "issues",
+            issues !== undefined &&
+                (issues.ignored.length > 0 || issues.kept.length > 0 || (issues.fixed ?? []).length > 0),
+        ],
+        ["fileStyles", fileStyleValuesOf(asFileStyleStore(values.get(FILE_STYLES_VALUE))).length > 0],
+        ["visibility.steps", session.visibility.steps.length > 0],
+    ];
+    return fields
+        .filter(([, held]) => held)
+        .map(([field]) => ({ code: "W_MEMBER_LEFT_OUT", params: { kind: "graphty-session", field } }));
+}
+
+/**
  * A file as a version 2 document, when it is one (the `save-files-v2` experiment): within the
  * depth limit, and either version 2 already or, when asked, a version 1 file its migration reads.
  * @param text - The file's text.
  * @param migrate - Whether to migrate a version 1 file (`ProjectOpenOptions.migrate`).
- * @returns The document and what its migration reported, or undefined to read the file as before.
+ * @returns The document and what its migration reported; or, to read the file as before, the
+ *     file parsed (so it is not parsed twice), or undefined when it is not JSON.
  */
 function version2Of(
     text: string,
     migrate: boolean,
-): { readonly value: Record<string, unknown>; readonly problems: DocumentProblem[] } | undefined {
+):
+    | { readonly value: Record<string, unknown>; readonly problems: DocumentProblem[] }
+    | { readonly parsed: { readonly value: unknown } }
+    | undefined {
     let value: unknown;
     try {
         value = JSON.parse(text);
@@ -1446,13 +1523,14 @@ function version2Of(
         return { value, problems: [] };
     }
 
+    const before = { parsed: { value } };
     if (!migrate || !isJsonObject(value)) {
-        return undefined;
+        return before;
     }
 
     const problems: DocumentProblem[] = [];
     const migrated = migrateDocument1(value, problems);
-    return migrated === undefined ? undefined : { value: migrated, problems };
+    return migrated === undefined ? before : { value: migrated, problems };
 }
 
 /**
@@ -2816,6 +2894,8 @@ export function projectOf(
      * @param written - The member kinds or section keys written, in file order.
      * @param leftOut - What the save could not write.
      * @param options - The save's options.
+     * @param copy - Whether the file is a copy (a section file or a subset of sections), which never
+     *     moves the save point.
      * @returns The file and its report.
      */
     const finishSave = (
@@ -2823,6 +2903,7 @@ export function projectOf(
         written: readonly string[],
         leftOut: readonly ProjectProblem[],
         options: ProjectSaveOptions,
+        copy = false,
     ): SavedProject => {
         // What this save was told is how the next save without a choice keeps the same URL,
         // once its file is written: now, or at `markSaved` for a save that waits on its write.
@@ -2838,6 +2919,12 @@ export function projectOf(
             text,
             report: Object.freeze({ bytes: new TextEncoder().encode(text).length, written, leftOut }),
         });
+        if (copy) {
+            // A section file or a subset of sections is a copy: it is not the project, so it never
+            // moves the save point, now or at `markSaved`.
+            return saved;
+        }
+
         fresh = false;
         if (options.markSaved === false) {
             const waited = pointNow();
@@ -2858,6 +2945,18 @@ export function projectOf(
      * @returns The file and its report.
      */
     const saveVersion2 = async (options: ProjectSaveOptions): Promise<SavedProject> => {
+        const referenced = Object.entries(options.embed ?? {}).find(([, storage]) => storage === "referenced");
+        if (referenced !== undefined) {
+            // No open fetches a referenced source again yet, so a file holding one would reopen
+            // without its rows.
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `The source ${referenced[0]} cannot be referenced yet; embed it.`,
+                source: "data",
+                details: { option: "embed", source: referenced[0] },
+            });
+        }
+
         const extensions = checkedExtensions(options.extensions ?? {});
         const { document, written, problems } = await saveDocument2(
             session,
@@ -2871,7 +2970,17 @@ export function projectOf(
             },
             isDerived,
         );
-        return finishSave(document, written, problems, options);
+        // Only a full file of every default section, the data included, is the project.
+        const whole =
+            options.form !== "section" &&
+            DOCUMENT_SECTIONS.every((name) => name === "results" || written.includes(name));
+        return finishSave(
+            document,
+            written,
+            [...problems, ...(written.includes("data") ? leftOutOfVersion2(session, dispatcher) : [])],
+            options,
+            !whole,
+        );
     };
 
     /**
@@ -2949,6 +3058,21 @@ export function projectOf(
             return assetChoices(session);
         },
         save(options = {}) {
+            const versionTwoOnly = (["sections", "form", "results", "embed"] as const).find(
+                (key) => options[key] !== undefined,
+            );
+            if (options.format !== 2 && versionTwoOnly !== undefined) {
+                // Never ignored: a version 1 file cannot hold what the option asks for.
+                return Promise.reject(
+                    new GraphtyError({
+                        code: "E_BAD_COMMAND",
+                        message: `The save option ${versionTwoOnly} needs format: 2.`,
+                        source: "data",
+                        details: { key: versionTwoOnly, format: options.format ?? 1 },
+                    }),
+                );
+            }
+
             if (options.format === 2) {
                 if (!session.features.has("save-files-v2")) {
                     return Promise.reject(featureOff("save-files-v2", "project.save"));
@@ -2983,15 +3107,19 @@ export function projectOf(
             const turn = line.join();
             let doc: ReturnType<typeof graphtyDocumentOf>;
             let text: string;
-            let version2: ReturnType<typeof version2Of>;
+            let version2: { readonly value: Record<string, unknown>; readonly problems: DocumentProblem[] } | undefined;
             try {
                 text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
                 // With the experiment on, a version 2 file (or, asked to, a migrated version 1
                 // file) opens through the version 2 codecs; every other file reads as before.
-                version2 = session.features.has("save-files-v2")
+                const read = session.features.has("save-files-v2")
                     ? version2Of(text, options.migrate === true)
                     : undefined;
-                doc = version2 === undefined ? graphtyDocumentOf(text) : undefined;
+                version2 = read !== undefined && "value" in read ? read : undefined;
+                doc =
+                    version2 === undefined
+                        ? graphtyDocumentOf(text, read !== undefined && "parsed" in read ? read.parsed : undefined)
+                        : undefined;
             } catch (error) {
                 // An unreadable or refused file gives its place up, so nothing waits behind it.
                 turn.leave();

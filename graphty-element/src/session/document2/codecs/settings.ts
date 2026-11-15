@@ -20,6 +20,7 @@ import { CONFIG_KEYS } from "../../configKeys";
 import { dispatcherOf } from "../../dispatchers";
 import { redactedParams } from "../../sources/member";
 import type { SessionVisibilityApi } from "../../visibility/VisibilityApi";
+import { projectMemory } from "../memory";
 import type {
     DocumentProblem,
     JsonObject,
@@ -56,7 +57,7 @@ interface Kept {
     readonly heldPlayback?: JsonObject;
 }
 
-const KEPT = new WeakMap<object, Kept>();
+const KEPT = projectMemory<Kept>();
 
 /**
  * Whether a value is a plain JSON object.

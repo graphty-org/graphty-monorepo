@@ -11,7 +11,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
-import type { GraphSession } from "../../../session";
+import { createGraphSession, type GraphSession } from "../../../session";
 import type { RunId } from "../../../src/catalog/types";
 import { migrateDocument1, migrateSection } from "../../../src/session/document2/migration";
 import type { DocumentProblem, JsonObject } from "../../../src/session/document2/types";
@@ -335,5 +335,66 @@ describe("a version 1 document of one kind, migrated", () => {
         assert.isUndefined(migrateDocument1({ kind: "graphty-notes", version: 1, notes: [] }, []));
         assert.isUndefined(migrateSection("notes", { kind: "graphty-notes", version: 1, notes: [] }, []));
         assert.isUndefined(migrateSection("style", { kind: "graphty-style", version: 2, layers: [] }, []));
+    });
+
+    it("carries what version 1 kept and reports each member it cannot carry", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", label: null },
+            { id: "b", label: "B" },
+        ]);
+        await session.data.addEdges([{ source: "a", target: "b" }]);
+        const v1 = JSON.parse((await session.project.save()).text) as JsonObject;
+        const members = v1.members as JsonObject[];
+        const member = (kind: string): JsonObject => members.find((each) => each.kind === kind) as JsonObject;
+        const state = member("graphty-session");
+        ((state.config as JsonObject).data as JsonObject).knownFields = { timePath: "year", edgeWeightPath: "w" };
+        state.visibility = {
+            filter: null,
+            window: { attribute: "year", from: 1990, to: 2000 },
+            windowRaw: true,
+            showContext: false,
+            conditions: {
+                version: 1,
+                list: [
+                    { id: "x", effect: "exclude", on: true, rule: { kind: "everything" } },
+                    { id: "y", effect: "keep", on: false, rule: { kind: "everything" } },
+                ],
+            },
+        };
+        state.valueLabels = [{ path: "selected", value: true, label: "Picked" }];
+        // A second data member (the version 1 reader takes the first) and an extension's member.
+        members.push({ ...member("graphty-data"), graph: { nodes: [{ id: "z" }], links: [] } });
+        members.push({ kind: "org.example.lab", version: 1 });
+
+        const problems: DocumentProblem[] = [];
+        const migrated = migrateDocument1(v1, problems);
+        assert.isDefined(migrated);
+        const sections = migrated.sections as Record<string, JsonObject>;
+
+        // The data group of the config is a settings group, not dropped.
+        const settings = sections.settings.settings as JsonObject;
+        assert.strictEqual(settings["data.knownFields.timePath"], "year");
+        assert.strictEqual(settings["data.knownFields.edgeWeightPath"], "w");
+        // The first data member, and an explicit null kept as a json null rather than unset.
+        const copy = ((sections.data.sources as JsonObject[])[0].copy as JsonObject).nodes as JsonObject;
+        assert.deepEqual(copy.label, [null, "B"]);
+        const declared = (((sections.data.sources as JsonObject[])[0].columns as JsonObject).nodes as JsonObject)
+            .label as JsonObject;
+        assert.strictEqual(declared.dtype, "json");
+        // The exclude condition that is on is folded into the filter, and the raw window kept.
+        const visibility = sections.view.visibility as JsonObject;
+        assert.deepEqual(visibility.filter, { kind: "not", of: { kind: "everything" } });
+        assert.strictEqual((visibility.window as JsonObject).raw, true);
+
+        const leftOut = problems
+            .filter((problem) => problem.code === "W_MEMBER_LEFT_OUT")
+            .map((problem) => `${String(problem.params.kind)}${String(problem.params.pointer)}`);
+        assert.includeMembers(leftOut, [
+            "graphty-session/visibility/conditions/list/1",
+            "graphty-session/valueLabels/0",
+            `graphty-data/members/${String(members.length - 2)}`,
+            `org.example.lab/members/${String(members.length - 1)}`,
+        ]);
     });
 });

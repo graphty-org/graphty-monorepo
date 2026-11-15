@@ -5,6 +5,7 @@
  * (`save-files-v2`). Pure: no session.
  */
 
+import { GraphtyError } from "../../errors/GraphtyError";
 import { sha256Hex } from "../../utils/sha256";
 import { canonicalJson as sharedCanonicalJson } from "./codecs/dataRefs";
 import type { EdgeRef, JsonObject, NodeRef } from "./types";
@@ -250,10 +251,16 @@ function rowOf(record: JsonObject, extra: Record<string, unknown> | undefined): 
 
 /**
  * The graph-format dtype of a column's values (graph-format `InferredDtype`, widened in its order).
+ * An explicit null makes it json, whose null is literal, as the version 2 writer does.
  * @param values - The values; null for an unset cell.
+ * @param explicitNull - Whether a row holds null itself, not merely no value.
  * @returns The dtype.
  */
-function dtypeOf(values: readonly unknown[]): string {
+function dtypeOf(values: readonly unknown[], explicitNull: boolean): string {
+    if (explicitNull) {
+        return "json";
+    }
+
     const present = values.filter((value) => value !== null && value !== undefined);
     if (present.every((value) => typeof value === "boolean") && present.length > 0) {
         return "bool";
@@ -266,18 +273,30 @@ function dtypeOf(values: readonly unknown[]): string {
     return present.every((value) => typeof value === "string") ? "string" : "json";
 }
 
+/** The most distinct columns, and cells, a migrated table allocates (data.ts holds the same caps). */
+const MAX_COLUMNS = 4096;
+const MAX_CELLS = 64 * 1024 * 1024;
+
 /**
  * One table of the copy: its values by column, and its column declarations.
  * @param rows - The rows, in copy order.
  * @returns The table and its declarations.
  */
 function tableOf(rows: readonly Row[]): { table: Record<string, unknown[]>; columns: Record<string, JsonObject> } {
-    const names: string[] = [];
+    const names = new Set<string>();
     for (const row of rows) {
         for (const name of Object.keys(row.values)) {
-            if (!names.includes(name)) {
-                names.push(name);
-            }
+            names.add(name);
+        }
+
+        if (names.size > MAX_COLUMNS || names.size * rows.length > MAX_CELLS) {
+            // A wide, sparse graph would allocate names x rows cells.
+            throw new GraphtyError({
+                code: "E_TOO_LARGE",
+                message: "The graph has too many distinct columns to migrate.",
+                source: "data",
+                details: { columns: names.size, rows: rows.length },
+            });
         }
     }
 
@@ -285,7 +304,10 @@ function tableOf(rows: readonly Row[]): { table: Record<string, unknown[]>; colu
     const columns: Record<string, JsonObject> = {};
     for (const name of names) {
         const values = rows.map((row) => (name in row.values ? documentValue(row.values[name]) : null));
-        const dtype = dtypeOf(values);
+        const dtype = dtypeOf(
+            values,
+            rows.some((row) => name in row.values && row.values[name] === null),
+        );
         const unset = dtype === "json" ? rows.flatMap((row, at) => (name in row.values ? [] : [at])) : [];
         table[name] = values;
         columns[name] = { name, dtype, ...(unset.length === 0 ? {} : { unset }) };

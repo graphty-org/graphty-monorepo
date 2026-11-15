@@ -185,6 +185,8 @@ describe("telling what a file is", () => {
         const parsed = parseDocument(fullFile({ notes: minimalStyle(), style: minimalStyle() }), SECTION_CODECS);
         assert.deepEqual([...parsed.sections.keys()], ["style"]);
         assert.deepEqual(parsed.problems, [{ code: "E_BAD_DOCUMENT", params: { section: "notes" } }]);
+        // Refused, and kept as read so a save writes it back rather than dropping it.
+        assert.deepEqual(parsed.held.get("notes"), { value: minimalStyle(), reason: "malformed" });
     });
 
     it("keeps an unknown section key verbatim", () => {
@@ -277,12 +279,15 @@ describe("saving version 2", () => {
 });
 
 describe("opening version 2", () => {
-    it("writes back held and unknown sections, and reports the held one on save", async () => {
+    it("writes back the held and unknown sections of a project it opened, and reports the held one on save", async () => {
         const session = createGraphSession(ON);
         const newer = { ...minimalStyle(), version: 9, future: true };
         const unknown = { kind: "org.example.lab", version: 1, cells: [1, 2] };
-        const report = await session.project.open(JSON.stringify(fullFile({ style: newer, "lab-notebook": unknown })));
-        assert.strictEqual(report.opened, "document");
+        const data = readJson("examples/minimal/minimal.graphty-data.json");
+        const report = await session.project.open(
+            JSON.stringify(fullFile({ data, style: newer, "lab-notebook": unknown })),
+        );
+        assert.strictEqual(report.opened, "project");
         assert.deepEqual(codes(report.problems), ["W_SECTION_KEPT", "W_UNKNOWN_KIND"]);
 
         const saved = await session.project.save({ format: 2, sections: ["style"] });
@@ -292,6 +297,23 @@ describe("opening version 2", () => {
         assert.deepEqual(saved.report.leftOut, [
             { code: "W_SECTION_KEPT", params: { section: "style", version: 9, reason: "version" } },
         ]);
+    });
+
+    it("reports what an additive open holds and never puts it in place of the project's own section", async () => {
+        const session = createGraphSession(ON);
+        const newer = { ...minimalStyle(), version: 9, future: true };
+        // A kit (a full file with no data) and a section file, each holding a newer style.
+        for (const file of [fullFile({ style: newer }), newer]) {
+            const report = await session.project.open(JSON.stringify(file));
+            assert.strictEqual(report.opened, "document");
+            assert.deepEqual(codes(report.problems), ["W_SECTION_KEPT"]);
+        }
+
+        const saved = await session.project.save({ format: 2, sections: ["style"] });
+        const style = ((JSON.parse(saved.text) as JsonObject).sections as JsonObject).style as JsonObject;
+        assert.strictEqual(style.version, 2);
+        assert.notProperty(style, "future");
+        assert.deepEqual(saved.report.leftOut, []);
     });
 
     it("applies through the codecs, writes unknown members back, and skips a section bound to other data", async () => {

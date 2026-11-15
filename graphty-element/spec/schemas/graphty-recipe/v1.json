@@ -1,0 +1,375 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-recipe/v1.json",
+    "title": "graphty recipe member, version 1",
+    "description": "A journal of analysis commands -- filters, algorithm runs and a layout -- replayed on any graph whose import has the columns it names (recipe.md). Normative for what a writer produces. The members of each known command, and of its scope, are closed: a reader skips a command with a member it does not know, and every command after it (recipe.md, 'Replaying'). The parts of a run's style are open: a reader drops a part it does not know. op is an open list: a command of a later op is valid, and a reader stops the replay there. Two-segment ops in the graph, algo, layout, column, style and data families are graphty-element's; others have three or more segments and start with a reverse-domain name. A commands entry that is not an object or has no op stops the replay as an unknown op does.",
+    "type": "object",
+    "required": ["kind", "version", "id", "commands"],
+    "properties": {
+        "kind": {
+            "const": "graphty-recipe"
+        },
+        "version": {
+            "const": 1
+        },
+        "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
+            "description": "The recipe's identity across all its versions. A reverse-domain name (org.example.hub-genes) or an https: URL is recommended, so two authors do not collide. Ids starting graphty. or graphty:, and ids holding graphty.app followed by /, :, . or the end, in any case, are reserved for the recipes graphty-element ships, so no spelling of a graphty.app URL gets through.",
+            "not": {
+                "pattern": "^[Gg][Rr][Aa][Pp][Hh][Tt][Yy][.:]|[Gg][Rr][Aa][Pp][Hh][Tt][Yy][.][Aa][Pp][Pp]([/:.]|$)"
+            }
+        },
+        "recipeVersion": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$",
+            "description": "One version of the recipe, as a SemVer 2.0.0 version."
+        },
+        "name": {
+            "type": "string",
+            "maxLength": 1024
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 65536
+        },
+        "namespace": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,31}$",
+            "not": {
+                "pattern": "__|_$"
+            },
+            "description": "The namespace this recipe's run ids prefer when it is applied (recipe.md, 'Run ids and namespaces'). Letters, digits and single underscores, so a namespaced run id needs no quoting in a path."
+        },
+        "directed": {
+            "type": "boolean",
+            "description": "The direction of the graph the recipe was recorded on. A replay on a graph of the other direction is reported (recipe.md, 'Binding to a new graph' rule 2)."
+        },
+        "parallelEdges": {
+            "type": "boolean",
+            "description": "Whether the graph the recipe was recorded on held more than one edge between a pair of nodes. false makes a replay on a graph that does hold them report it before anything runs (recipe.md, 'Binding to a new graph' rule 2)."
+        },
+        "table": {
+            "$ref": "#/$defs/tableReading",
+            "description": "For data read from a table (CSV): how it is read, as defaults for a table imported through this recipe's application import(). The caller's options win, and the endpoint columns, delimiter and variant are used only when the file's first line holds the endpoint columns (recipe.md, 'Table data'). Ignored for formats that mark endpoints themselves."
+        },
+        "generator": {
+            "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/generator",
+            "description": "The release that recorded the recipe. recipes.record() writes it; a replay on another release is reported (recipe.md, 'Same data, same results')."
+        },
+        "commands": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+                "$ref": "#/$defs/command"
+            }
+        },
+        "extensions": {
+            "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/extensions"
+        }
+    },
+    "$defs": {
+        "command": {
+            "type": "object",
+            "required": ["op"],
+            "properties": {
+                "op": {
+                    "type": "string"
+                }
+            },
+            "if": {
+                "properties": {
+                    "op": {
+                        "const": "graph.filter"
+                    }
+                }
+            },
+            "then": {
+                "$ref": "#/$defs/graphFilter"
+            },
+            "else": {
+                "if": {
+                    "properties": {
+                        "op": {
+                            "const": "algo.run"
+                        }
+                    }
+                },
+                "then": {
+                    "$ref": "#/$defs/algoRun"
+                },
+                "else": {
+                    "if": {
+                        "properties": {
+                            "op": {
+                                "const": "layout.set"
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "#/$defs/layoutSet"
+                    },
+                    "else": {
+                        "$ref": "#/$defs/laterCommand"
+                    }
+                }
+            },
+            "description": "Dispatched on op, so a validator reports only the errors of the command kind named."
+        },
+        "tableColumn": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "A column name, looked up as a plain name, never evaluated."
+        },
+        "tableReading": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "properties": {
+                "edgeSource": {
+                    "$ref": "#/$defs/tableColumn"
+                },
+                "edgeTarget": {
+                    "$ref": "#/$defs/tableColumn"
+                },
+                "idColumn": {
+                    "$ref": "#/$defs/tableColumn"
+                },
+                "delimiter": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1,
+                    "description": "The character that separates columns; the importer's own detection when absent."
+                },
+                "variant": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[a-z][a-z0-9-]*$",
+                    "description": "The CSV shape, as graphty-element's catalogue names it (edge-list, node-list, ...). A reading whose variant is neo4j passes its header test when the first line holds :START_ID and :END_ID, or :ID, and then reads the file as that variant, whose header types its own structure (recipe.md, 'Table data' rule 3)."
+                },
+                "repeatedEdges": {
+                    "enum": ["keep", "first", "last", "sum", "min", "max", "error"],
+                    "description": "What a second edge between the same two nodes becomes. sum, min and max combine the edge weight; every other column of a merged edge is its first row's (its last row's for last)."
+                }
+            },
+            "description": "How a table is read: the import options of recipe.md, 'Table data' rule 1 -- the columns holding an edge's two ends and a node's id, the delimiter, the CSV shape and what repeated rows become. Its members follow the import options, which grow within version 1; an import through a recipe whose table holds a member the reader does not know is refused (recipe.md, 'Table data' rule 5)."
+        },
+        "predicate": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "A predicate in graphty-element's expression language (style.md, 'Expressions') over the table 'on' names: columns as data.<column> or by their bare name (confidence >= 0.4), earlier results as results.<as>.<field>; numbers, true, false and null may be written bare. Reads columns only: the structural paths of style.md, 'Paths' rule 3 are refused."
+        },
+        "on": {
+            "enum": ["nodes", "edges"]
+        },
+        "graphFilter": {
+            "type": "object",
+            "required": ["op", "where"],
+            "additionalProperties": false,
+            "properties": {
+                "op": {
+                    "const": "graph.filter"
+                },
+                "where": {
+                    "$ref": "#/$defs/predicate"
+                },
+                "on": {
+                    "$ref": "#/$defs/on",
+                    "description": "nodes (the default): keep the matched nodes and the edges between them. edges: keep the matched edges; every node stays unless dropIsolated."
+                },
+                "dropIsolated": {
+                    "type": "boolean",
+                    "description": "Also drop every node left with no edge once this filter's rule has applied, including one that had none before. Default false."
+                },
+                "description": {
+                    "$ref": "#/$defs/description"
+                }
+            },
+            "description": "Narrows the graph every later command of the recipe sees, and shows it as the session's filter (recipe.md, 'Commands' rule 13)."
+        },
+        "as": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "not": {
+                "pattern": "__"
+            },
+            "description": "The run's name in this recipe. Unique within the recipe; letters, digits and single underscores, never two underscores in a row, which separate a namespace from a name, so a path naming the run needs no quoting. Its meaning never changes between recipe versions."
+        },
+        "params": {
+            "type": "object",
+            "propertyNames": {
+                "not": {
+                    "const": "__proto__"
+                }
+            },
+            "description": "Option values by the option names graphty-element's catalogue publishes for the algorithm or layout. An option of type attribute or partition may instead name an earlier run's result as {\"result\": \"<as>.<field>\"} (recipe.md, 'Commands' rule 4). The algorithm's own seed option is not given here: seed is (a command that gives it is skipped)."
+        },
+        "scope": {
+            "oneOf": [
+                {
+                    "enum": ["graph", "largest-component"]
+                },
+                {
+                    "type": "object",
+                    "required": ["where"],
+                    "additionalProperties": false,
+                    "properties": {
+                        "where": {
+                            "$ref": "#/$defs/predicate"
+                        },
+                        "on": {
+                            "$ref": "#/$defs/on",
+                            "description": "Which table the predicate is evaluated on. nodes (the default): the run sees the matched nodes and the edges between them. edges: the run sees every node and only the matched edges."
+                        }
+                    }
+                }
+            ]
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Why this command is in the recipe. Shown to people; never sent to the algorithm."
+        },
+        "algoRun": {
+            "type": "object",
+            "required": ["op", "algorithm", "as"],
+            "additionalProperties": false,
+            "properties": {
+                "op": {
+                    "const": "algo.run"
+                },
+                "algorithm": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "description": "An algorithm key from graphty-element's catalogue, or one a plugin registered."
+                },
+                "as": {
+                    "$ref": "#/$defs/as"
+                },
+                "params": {
+                    "$ref": "#/$defs/params"
+                },
+                "scope": {
+                    "$ref": "#/$defs/scope"
+                },
+                "seed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647,
+                    "description": "The run's seed. Its maximum is the smallest seed range among graphty-element's algorithms. Absent: the algorithm's published default seed, or one drawn at run time when it has none (recipe.md, 'Commands' rule 7)."
+                },
+                "sample": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "exact": {
+                    "type": "boolean"
+                },
+                "recordedCapSeconds": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 3600,
+                    "description": "Advisory: the per-command cost cap the run was recorded under, when it was above the default. A replay never raises its cap from it; the report quotes it beside E_CAP_EXCEEDED so the person replaying knows what to pass (recipe.md, 'Running' rule 2)."
+                },
+                "recordedPrecision": {
+                    "enum": ["f32", "f64"],
+                    "description": "Advisory: the precision the run was recorded in, from its caveats and spelled as they spell it (f32 on a WebGPU accelerator, f64 on the CPU). A replay in the other precision is reported (W_PRECISION_DIFFERS); it never asks for a precision."
+                },
+                "style": {
+                    "oneOf": [
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                                "size": {
+                                    "oneOf": [
+                                        {
+                                            "type": "boolean"
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number",
+                                                "minimum": 0
+                                            },
+                                            "minItems": 2,
+                                            "maxItems": 2
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    "description": "What the run paints when it completes: the run's RunStyle, as graphty-element's run option of the same name. true, the colouring its result suggests; false, nothing; the object form, only the parts it names. Absent, it paints unless a style member of the same file reads this run's results. The parts of the object form grow within version 1: a reader drops a part it does not know and paints the rest (recipe.md, 'Replaying' rule 3)."
+                },
+                "description": {
+                    "$ref": "#/$defs/description"
+                }
+            }
+        },
+        "layoutSet": {
+            "type": "object",
+            "required": ["op", "id"],
+            "additionalProperties": false,
+            "properties": {
+                "op": {
+                    "const": "layout.set"
+                },
+                "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "description": "A layout id from graphty-element's catalogue, or one a plugin registered."
+                },
+                "engine": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "description": "The engine that draws the layout; the catalogue's default engine for id when absent."
+                },
+                "options": {
+                    "$ref": "#/$defs/params",
+                    "description": "The engine's options, by the names the catalogue publishes, the seed among them."
+                },
+                "description": {
+                    "$ref": "#/$defs/description"
+                }
+            }
+        },
+        "laterCommand": {
+            "type": "object",
+            "required": ["op"],
+            "properties": {
+                "op": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 128,
+                    "pattern": "^(graph|algo|layout|column|style|data)[.][a-z][a-z0-9-]*$|^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*){2,}$",
+                    "not": {
+                        "enum": ["graph.filter", "algo.run", "layout.set"]
+                    }
+                },
+                "as": {
+                    "$ref": "#/$defs/as"
+                },
+                "narrows": {
+                    "const": false,
+                    "description": "The author's statement that this command changes nothing a later command sees. A reader that does not know the op then skips only it and the commands that read its as, instead of every later command (recipe.md, 'Replaying' rule 4). Every op a release adds admits this member, and a reader that knows the op ignores it."
+                }
+            },
+            "description": "A command a later release adds. An op of two segments whose first is graph, algo, layout, column, style or data is graphty-element's; anyone else's op has three or more segments and starts with a reverse-domain name (org.example.motif-census). Lower case, so algo.Run, algorun and acme.census are refused here; a misspelling in the right form (algo.rnu) is caught only by a reader. A version 1 reader skips it and every later command (E_UNKNOWN_COMMAND, then E_DEPENDENCY_SKIPPED), unless it says narrows: false. A later command that names its result does so in as, as algo.run does."
+        }
+    }
+}

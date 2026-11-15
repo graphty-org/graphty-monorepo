@@ -302,13 +302,23 @@ describe("the style codec reads", () => {
         assert.deepEqual((await saveStyle(session)).section.layers, written.layers);
     });
 
-    it("reports unknown members of a selector, a binding and a palette, applies the layer and keeps them", async () => {
+    it("fails the layer or channel entry an unknown selector, binding or palette member is in, and keeps them", async () => {
         const session = createGraphSession(ON);
         const written = file(
             [
+                // A selector is closed: an unknown member could narrow it, so the layer fails.
+                layer({ id: "picked", selector: { match: "everything", later: 1 }, set: { "node.size": 4 } }),
+                // A binding is closed: its channel entry fails, the rest of the layer applies.
                 layer({
-                    selector: { match: "everything", later: 1 },
-                    encode: { "node.color": { by: "data.x", palette: "lab-reds", later: 2 } },
+                    id: "bound",
+                    encode: { "node.color": { by: "data.x", later: 2 } },
+                    set: { "node.size": 2 },
+                }),
+                // A carried palette is closed: a binding to it fails the same way.
+                layer({
+                    id: "painted",
+                    encode: { "node.color": { by: "data.x", palette: "lab-reds" } },
+                    set: { "node.size": 3 },
                 }),
             ],
             {
@@ -326,14 +336,18 @@ describe("the style codec reads", () => {
             },
         );
         const problems = await open(session, written);
-        assert.deepEqual(pointerParams(problems, "W_UNKNOWN_MEMBER"), [
-            "/palettes/0/later",
-            "/layers/0/selector/later",
-            "/layers/0/encode/node.color/later",
-        ]);
-        assert.lengthOf(
-            session.styles.list().filter((each) => !each.locked),
-            1,
+        const pointers = pointerParams(problems, "W_UNKNOWN_MEMBER");
+        for (const pointer of ["/palettes/0/later", "/layers/0/selector/later", "/layers/1/encode/node.color/later"]) {
+            assert.include(pointers, pointer);
+        }
+
+        const applied = session.styles.list().filter((each) => !each.locked);
+        assert.deepEqual(
+            applied.map((each) => [each.set, each.encode ?? {}]),
+            [
+                [{ "node.size": 2 }, {}],
+                [{ "node.size": 3 }, {}],
+            ],
         );
         const saved = (await saveStyle(session)).section;
         assert.deepEqual(saved.layers, written.layers);

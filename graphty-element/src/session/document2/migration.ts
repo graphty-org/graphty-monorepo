@@ -29,8 +29,13 @@
  * - Runs. Whether a run's options name a node is not checked (that needs the catalog), so such a
  *   run lands in the recipe. A run over an inline rule set is left out. Every run writes `style:
  *   false`: the saved layers are the file's look.
- * - Visibility. The filter steps and the keep and exclude conditions have no view member and are
- *   left out; `windowRaw` is dropped. Pins with no placed position are left out.
+ * - Visibility. The keep and exclude conditions that are on are folded into the view's filter,
+ *   as a version 2 save writes them; a condition that is off, and filter steps with no condition
+ *   beside them, are left out and reported `W_MEMBER_LEFT_OUT`. `windowRaw` is the window's
+ *   `raw`. Pins with no placed position are left out.
+ * - Members. A member of a kind this migration does not read, a second member of one kind, an
+ *   assets member with no style, and a value label on a path that is neither `data.` nor
+ *   `results.` are left out and reported `W_MEMBER_LEFT_OUT`.
  * - Style. Edges a version 1 `ids` selector named (session edge ids) are dropped; built-in palettes
  *   are not carried (that needs the catalog); the style tree is not carried. A set id the schema
  *   rejects is written as read.
@@ -434,11 +439,22 @@ function migrateStyle(style: JsonObject, context: Context): { section: JsonObjec
     });
 
     const session = context.members.get("graphty-session");
-    const valueLabels = objectsOf(session?.valueLabels).flatMap((label) =>
-        typeof label.path === "string" && label.path.startsWith("data.") && typeof label.label === "string"
-            ? [{ column: label.path.slice("data.".length), value: label.value, label: label.label }]
-            : [],
-    );
+    const valueLabels = objectsOf(session?.valueLabels).flatMap((label, at) => {
+        if (typeof label.path !== "string" || typeof label.label !== "string") {
+            return [];
+        }
+
+        if (label.path.startsWith("data.")) {
+            return [{ column: label.path.slice("data.".length), value: label.value, label: label.label }];
+        }
+
+        if (label.path.startsWith("results.")) {
+            return [{ column: renameRuns(label.path, asName), value: label.value, label: label.label }];
+        }
+
+        problems.push(leftOut("graphty-session", `/valueLabels/${String(at)}`));
+        return [];
+    });
     const palettes = objectsOf(style.palettes).map((palette) => pick(palette, PALETTE_MEMBERS));
     const shaders = objectsOf(style.shaders).flatMap((shader) =>
         typeof shader.id === "string" && typeof shader.text === "string" ? [{ id: shader.id, text: shader.text }] : [],
@@ -800,7 +816,18 @@ function migrateNotes(notes: JsonObject, context: Context, data: MigratedData): 
 // ---------------------------------------------------------------------------------------------
 
 /** Config keys a settings section never holds (spec 4.4 rule 1), or that the data section holds. */
-const NOT_SETTINGS = new Set(["data", "author", "name", "startingRows", "editableBase", "viewRotation", "framing"]);
+const NOT_SETTINGS = new Set(["author", "name", "startingRows", "editableBase", "viewRotation", "framing"]);
+
+/**
+ * What a migration could not carry over, for a caller to tell the reader before the version 2
+ * file replaces the version 1 one.
+ * @param kind - The version 1 member.
+ * @param pointer - Where in it.
+ * @returns The problem.
+ */
+function leftOut(kind: string, pointer: string): DocumentProblem {
+    return { code: "W_MEMBER_LEFT_OUT", params: { kind, pointer } };
+}
 
 /** Config keys whose value is one object, written whole. */
 const OBJECT_SETTINGS = new Set(["background", "selectionStyle", "pinnedStyle", "layoutTransition"]);
@@ -905,20 +932,48 @@ function placedOf(arrangement: JsonObject | undefined, data: MigratedData): Json
 }
 
 /**
- * The view's visibility: the live filter, the time window, `showContext`, the select conditions
- * and the hidden nodes, with element references.
+ * The view's visibility: the live filter with the keep and exclude conditions that are on folded
+ * in (as a version 2 save writes them), the time window (`windowRaw` as its `raw`),
+ * `showContext`, the select conditions and the hidden nodes, with element references. A condition
+ * that is off, and filter steps with no condition beside them, are reported left out.
  * @param visibility - The session member's visibility.
  * @param data - The data.
+ * @param problems - Collects what is left out.
  * @returns The visibility.
  */
-function visibilityOf(visibility: JsonObject, data: MigratedData): JsonObject {
+function visibilityOf(visibility: JsonObject, data: MigratedData, problems: DocumentProblem[]): JsonObject {
     const conditions = isObject(visibility.conditions) ? objectsOf(visibility.conditions.list) : [];
     const select = conditions.filter((each) => each.effect === "select").map((each) => boundRule(each.rule, data));
+    const folded: unknown[] = isObject(visibility.filter) ? [visibility.filter] : [];
+    conditions.forEach((condition, at) => {
+        if (condition.effect === "select") {
+            return;
+        }
+
+        if (condition.on === true && (condition.effect === "keep" || condition.effect === "exclude")) {
+            folded.push(condition.effect === "keep" ? condition.rule : { kind: "not", of: condition.rule });
+        } else {
+            problems.push(leftOut("graphty-session", `/visibility/conditions/list/${String(at)}`));
+        }
+    });
+    if (Array.isArray(visibility.steps) && visibility.steps.length > 0 && conditions.length === 0) {
+        problems.push(leftOut("graphty-session", "/visibility/steps"));
+    }
+
+    let filter: unknown = null;
+    if (folded.length === 1) {
+        [filter] = folded;
+    } else if (folded.length > 1) {
+        filter = { kind: "all", of: folded };
+    }
+
     const window =
-        isObject(visibility.window) && typeof visibility.window.attribute === "string" ? visibility.window : undefined;
+        isObject(visibility.window) && typeof visibility.window.attribute === "string"
+            ? { ...visibility.window, ...(visibility.windowRaw === true ? { raw: true } : {}) }
+            : undefined;
     const hidden = nodeRefs(visibility.hidden, data);
     return {
-        filter: isObject(visibility.filter) ? boundRule(visibility.filter, data) : null,
+        filter: filter === null ? null : boundRule(filter, data),
         ...(window === undefined ? {} : { window }),
         ...(typeof visibility.showContext === "boolean" ? { showContext: visibility.showContext } : {}),
         ...(select.length === 0 ? {} : { select }),
@@ -943,6 +998,7 @@ function migrateView(
     parts: { layers: JsonObject[]; sets: JsonObject[]; runs: JsonObject },
 ): JsonObject {
     const session = context.members.get("graphty-session");
+    const config = isObject(session?.config) ? session.config : undefined;
     const viewState = context.members.get("graphty-view-state");
     const selection = isObject(viewState?.selection) ? viewState.selection : undefined;
     const views = objectsOf(session?.views).flatMap((view) => {
@@ -976,7 +1032,11 @@ function migrateView(
               }),
         ...(placed.length === 0 ? {} : { placed }),
         ...(parts.sets.length === 0 ? {} : { sets: parts.sets }),
-        ...(isObject(session?.visibility) ? { visibility: visibilityOf(session.visibility, data) } : {}),
+        ...(isObject(session?.visibility)
+            ? { visibility: visibilityOf(session.visibility, data, context.problems) }
+            : {}),
+        ...(config?.viewRotation === undefined ? {} : { viewRotation: config.viewRotation }),
+        ...(config?.framing === undefined ? {} : { framing: config.framing }),
         ...(hiddenColumns.length === 0 ? {} : { hiddenColumns }),
         ...(parts.layers.length === 0 ? {} : { layers: parts.layers }),
         ...(Object.keys(parts.runs).length === 0 ? {} : { runs: parts.runs }),
@@ -1027,11 +1087,15 @@ function migrateRecipe1(recipe: JsonObject, context: Context): JsonObject | unde
  */
 function membersOf(value: JsonObject): Map<string, JsonObject> | undefined {
     if (value.kind === "graphty-document" && value.version === 1 && Array.isArray(value.members)) {
-        return new Map(
-            objectsOf(value.members).flatMap((member) =>
-                typeof member.kind === "string" ? [[member.kind, member]] : [],
-            ),
-        );
+        // The first member of each kind, as the version 1 reader takes it.
+        const members = new Map<string, JsonObject>();
+        for (const member of objectsOf(value.members)) {
+            if (typeof member.kind === "string" && !members.has(member.kind)) {
+                members.set(member.kind, member);
+            }
+        }
+
+        return members;
     }
 
     if (
@@ -1045,6 +1109,31 @@ function membersOf(value: JsonObject): Map<string, JsonObject> | undefined {
     return value.kind === undefined && value.version === 1 && Array.isArray(value.layers)
         ? new Map([["graphty-style", value]])
         : undefined;
+}
+
+/**
+ * The members of a version 1 document no section carries: one of a kind this migration does not
+ * read (an extension's), a second member of a kind, and an assets member with no style beside it.
+ * @param value - The parsed file.
+ * @param members - The members migrated, by kind.
+ * @returns One problem per member left out.
+ */
+function membersLeftOut(value: JsonObject, members: ReadonlyMap<string, JsonObject>): DocumentProblem[] {
+    const out: DocumentProblem[] = [];
+    if (Array.isArray(value.members)) {
+        (value.members as unknown[]).forEach((member, at) => {
+            const kind = isObject(member) && typeof member.kind === "string" ? member.kind : "";
+            if (!MEMBER_KINDS.has(kind) || members.get(kind) !== member) {
+                out.push(leftOut(kind, `/members/${String(at)}`));
+            }
+        });
+    }
+
+    if (members.has("graphty-assets") && !members.has("graphty-style")) {
+        out.push(leftOut("graphty-assets", ""));
+    }
+
+    return out;
 }
 
 /**
@@ -1137,7 +1226,7 @@ export function migrateDocument1(value: JsonObject, problems: DocumentProblem[])
         return undefined;
     }
 
-    const found: DocumentProblem[] = [];
+    const found: DocumentProblem[] = [...membersLeftOut(value, members)];
     const sections = sectionsOf(members, generatorOf(value), found);
     const written = ORDER.filter((section) => sections[section] !== undefined);
     if (written.length === 0) {

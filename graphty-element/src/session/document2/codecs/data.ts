@@ -22,13 +22,18 @@
  * - `joins` is `join.add` or `join.merge` per source; a joined table's join shape and choices
  *   (`JoinRecord`) are not written, and its source kind is written `file`.
  * - The reader source holds only the elements no load supplied (`added`); reader `edits`,
- *   `removed` and `merges` are always empty: today's edits are in the records themselves.
+ *   `removed` and `merges` are always empty: today's edits are in the records themselves. So an
+ *   unkeyed edge's `h` hashes its row as it is now, reader edits included: editing a cell of such
+ *   an edge changes its `h`, and a notes or view section file saved before the edit no longer
+ *   binds to it (`W_REFERENCE_UNBOUND`), against spec 6.2 rule 3, until the reader source carries
+ *   `edits` with `was`.
  * - `issues` (ignored, kept, fixed) and `rekeys` are left out; source `settings` carry no
  *   `weight`, `time` or location roles; `annotations`, `metadata`, `license`, `citation` are
  *   never written.
  * - On read: only `join.add` and `join.merge` build; any other join shape, a `link:` space or a
  *   reader `merges` row holds the section. A referenced source is reported `W_SOURCE_UNAVAILABLE`
- *   and supplies nothing (no refetch through the network consent path yet). Types are read only
+ *   and holds the whole section (no refetch through the network consent path yet), so its record
+ *   is written back; `project.save` refuses to write one. Types are read only
  *   to place node rows in their space; today's `kind` column is not written from them.
  */
 
@@ -153,12 +158,21 @@ function checkSpace(space: unknown, pointer: string): void {
 // Building the graph from the sources
 // ---------------------------------------------------------------------------------------------
 
-/** One table of a copy, read: its columns by name and the column declarations. */
+/** One table of a copy, read: its columns by name, the column declarations and their unset rows. */
 interface Table {
     readonly cells: Readonly<Record<string, readonly unknown[]>>;
     readonly decls: Readonly<JsonObject>;
     readonly length: number;
+    /** Each json column's `unset` rows, as a set. */
+    readonly unset: ReadonlyMap<string, ReadonlySet<number>>;
 }
+
+/**
+ * The most distinct columns, and cells, a `copy: "graph"` rebuild allocates; a wider or larger graph
+ * holds the section. ponytail: fixed caps; derive them from the file-size limit if one ever binds.
+ */
+const MAX_COLUMNS = 4096;
+const MAX_CELLS = 64 * 1024 * 1024;
 
 /** A node being built. */
 interface BuiltNode {
@@ -208,11 +222,26 @@ function tableOf(value: unknown, decls: unknown, pointer: string): Table | undef
     }
 
     need(lengths.size <= 1, pointer);
-    return {
-        cells: value as Record<string, unknown[]>,
-        decls: isPlainObject(decls) ? decls : {},
-        length: [...lengths][0] ?? 0,
-    };
+    const length = [...lengths][0] ?? 0;
+    const declared = isPlainObject(decls) ? decls : {};
+    const unset = new Map<string, Set<number>>();
+    for (const [name, decl] of Object.entries(declared)) {
+        if (isPlainObject(decl) && decl.dtype === "json" && decl.unset !== undefined) {
+            need(Array.isArray(decl.unset), `${pointer}/${name}/unset`);
+            const rows = new Set<number>();
+            for (const row of decl.unset as unknown[]) {
+                need(
+                    Number.isInteger(row) && (row as number) >= 0 && (row as number) < length,
+                    `${pointer}/${name}/unset`,
+                );
+                rows.add(row as number);
+            }
+
+            unset.set(name, rows);
+        }
+    }
+
+    return { cells: value as Record<string, unknown[]>, decls: declared, length, unset };
 }
 
 /**
@@ -228,8 +257,7 @@ function cellOf(table: Table, name: string, row: number): unknown {
     const decl = table.decls[name];
     const dtype = isPlainObject(decl) ? decl.dtype : undefined;
     if (dtype === "json") {
-        const unset = isPlainObject(decl) && Array.isArray(decl.unset) ? decl.unset : [];
-        return unset.includes(row) ? undefined : value;
+        return table.unset.get(name)?.has(row) === true ? undefined : value;
     }
 
     if (value === null) {
@@ -270,7 +298,17 @@ function copyFromGraph(graph: unknown): { copy: JsonObject; columns: JsonObject 
         return out;
     });
     const columnar = (rows: JsonObject[]): JsonObject => {
-        const names = new Set(rows.flatMap((row) => Object.keys(row)));
+        const names = new Set<string>();
+        for (const row of rows) {
+            for (const name of Object.keys(row)) {
+                names.add(name);
+            }
+
+            // A wide, sparse graph would allocate names x rows cells: held instead.
+            need(names.size <= MAX_COLUMNS, "/graph");
+        }
+
+        need(names.size * rows.length <= MAX_CELLS, "/graph");
         return Object.fromEntries([...names].map((name) => [name, rows.map((row) => row[name] ?? null)]));
     };
     return { copy: { nodes: columnar(nodes), edges: columnar(edges) }, columns: {} };
@@ -345,6 +383,8 @@ function checked(body: Readonly<JsonObject>): {
     need(Array.isArray(body.types), "/types");
     need(Array.isArray(body.joins), "/joins");
     const sources = new Map<string, ReadSource>();
+    // Rebuilt once, however many sources say `copy: "graph"`.
+    let fromGraph: { copy: JsonObject; columns: unknown; hash: string } | undefined;
     body.sources.forEach((record: unknown, at: number) => {
         const pointer = `/sources/${String(at)}`;
         need(isPlainObject(record), pointer);
@@ -361,9 +401,14 @@ function checked(body: Readonly<JsonObject>): {
 
         closed(record.settings ?? {}, SETTINGS, `${pointer}/settings`);
         const { copy } = record;
-        let form: { copy: JsonObject; columns: unknown } | undefined;
+        let form: { copy: JsonObject; columns: unknown; hash?: string } | undefined;
         if (copy === "graph") {
-            form = copyFromGraph(body.graph);
+            if (fromGraph === undefined) {
+                const graph = copyFromGraph(body.graph);
+                fromGraph = { ...graph, hash: hashOf(graph.copy) };
+            }
+
+            form = fromGraph;
         } else if (copy !== undefined) {
             closed(copy, new Set(["nodes", "edges"]), `${pointer}/copy`);
             form = { copy, columns: record.columns };
@@ -376,7 +421,7 @@ function checked(body: Readonly<JsonObject>): {
             ...(form === undefined
                 ? {}
                 : {
-                      copyHash: hashOf(form.copy),
+                      copyHash: form.hash ?? hashOf(form.copy),
                       nodes: tableOf(form.copy.nodes, decls.nodes, `${pointer}/copy/nodes`),
                       edges: tableOf(form.copy.edges, decls.edges, `${pointer}/copy/edges`),
                   }),
@@ -484,8 +529,10 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
         }
 
         if (source.copyHash === undefined) {
+            // A referenced source cannot be fetched again yet: built whole or not at all, so the
+            // section is held and written back with the reference, never half applied.
             problems.push({ code: "W_SOURCE_UNAVAILABLE", params: { source: id } });
-            continue;
+            throw new Unbuildable(`/sources/${id}`);
         }
 
         const merge = step.op === "join.merge";
@@ -918,6 +965,9 @@ function compareRecipe(joins: unknown, context: ReadContext): void {
 // The codec
 // ---------------------------------------------------------------------------------------------
 
+/** Each body `holds` built, so the open that follows does not build it again. */
+const BUILT = new WeakMap<object, { readonly built: Built; readonly problems: DocumentProblem[] }>();
+
 /** The `graphty-data` section, version 2. */
 export const dataCodec: SectionCodec = {
     section: "data",
@@ -928,18 +978,39 @@ export const dataCodec: SectionCodec = {
     write(context: WriteContext) {
         return Promise.resolve({ body: dataBodyOf(context.session, context.embed, context.problems).body });
     },
-    async read(section: ReadSection, context: ReadContext) {
-        let built: Built;
-        const problems: DocumentProblem[] = [];
+    holds(section: ReadSection, problems: DocumentProblem[]) {
+        const found: DocumentProblem[] = [];
         try {
-            built = build(section.body, problems);
+            BUILT.set(section.body, { built: build(section.body, found), problems: found });
+            return false;
         } catch (error) {
             if (!(error instanceof Unbuildable)) {
                 throw error;
             }
 
-            // Built whole or not at all (spec 4.1.7): nothing is applied. The framing holds it.
-            context.problems.push({
+            problems.push(...found);
+            return true;
+        }
+    },
+    async read(section: ReadSection, context: ReadContext) {
+        let built: Built;
+        let problems: DocumentProblem[] = [];
+        try {
+            const cached = BUILT.get(section.body);
+            BUILT.delete(section.body);
+            if (cached === undefined) {
+                built = build(section.body, problems);
+            } else {
+                ({ built, problems } = cached);
+            }
+        } catch (error) {
+            if (!(error instanceof Unbuildable)) {
+                throw error;
+            }
+
+            // Built whole or not at all (spec 4.1.7): nothing is applied. An open holds it before
+            // anything is applied (`holds`); this is a codec read on its own.
+            context.problems.push(...problems, {
                 code: "W_SECTION_KEPT",
                 params: { section: "data", version: section.header.version, reason: "data" },
             });

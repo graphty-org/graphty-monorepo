@@ -12,6 +12,7 @@ import type { EdgeId, EdgeMember } from "../../../catalog/types";
 import { edgeRowsOf } from "../../notes/status";
 import { edgeSpaceOf } from "../../scope/spaces";
 import type { TransactionScope } from "../../types";
+import { projectMemory } from "../memory";
 import type { ElementRefs, JsonObject } from "../types";
 import { canonicalJson } from "./dataRefs";
 import { READER_NAMESPACE, runIdOf, runNameOf, SESSION_NAMESPACE } from "./results";
@@ -45,7 +46,7 @@ export interface ViewMemory {
     readonly notRun: Map<string, unknown>;
 }
 
-const MEMORIES = new WeakMap<object, ViewMemory>();
+const MEMORIES = projectMemory<ViewMemory>();
 
 /**
  * The view memory of a session, made empty on first use.

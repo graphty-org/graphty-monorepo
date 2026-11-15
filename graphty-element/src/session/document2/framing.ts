@@ -10,6 +10,7 @@
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { GraphSession } from "../types";
 import { canonicalJson } from "./codecs/dataRefs";
+import { projectMemory, watchBoundaries } from "./memory";
 import { migrateSection } from "./migration";
 import {
     type BindsTo,
@@ -40,8 +41,11 @@ const FIRST_VERSION: Readonly<Record<DocumentSection, number>> = {
     view: 1,
 };
 
-/** Why a section is held (spec 8.5); `unknown` is an unknown `sections` key, kept the same way. */
-export type HeldReason = "version" | "extension" | "data" | "unknown";
+/**
+ * Why a section is held (spec 8.5); `unknown` is an unknown `sections` key and `malformed` a
+ * section whose kind or version disagrees with its key, kept the same way (versions rule 3).
+ */
+export type HeldReason = "version" | "extension" | "data" | "unknown" | "malformed";
 
 /** A section kept verbatim and written back on save. */
 export interface HeldSection {
@@ -137,8 +141,8 @@ function badDocument(details: Readonly<Record<string, unknown>>): GraphtyError {
     });
 }
 
-/** What reading one section gave: a section to load, a section to hold, or neither. */
-type SectionOutcome = { readonly load: ReadSection } | { readonly hold: HeldSection } | null;
+/** What reading one section gave: a section to load or a section to hold. */
+type SectionOutcome = { readonly load: ReadSection } | { readonly hold: HeldSection };
 
 /**
  * The extension names a section's `dependencies.extensions` lists (spec 3.6 rule 4).
@@ -176,8 +180,9 @@ function readSection(
         !Number.isInteger(value.version) ||
         (value.version as number) < 1
     ) {
+        // Refused, and kept as it is: the next save writes it back rather than dropping it.
         problems.push({ code: "E_BAD_DOCUMENT", params: { section: name } });
-        return null;
+        return { hold: { value, reason: "malformed" } };
     }
 
     if ((value.version as number) < Math.min(...codec.reads)) {
@@ -277,10 +282,18 @@ export function parseDocument(value: JsonObject, codecs: CodecRegistry): ParsedD
         }
 
         const outcome = readSection(name, each, pointer, codec, problems);
-        if (outcome !== null && "load" in outcome) {
-            sections.set(name, outcome.load);
-        } else if (outcome !== null) {
+        if ("hold" in outcome) {
             held.set(key, outcome.hold);
+        } else if (codec.holds?.(outcome.load, problems) === true) {
+            // Known, but it cannot be applied whole (a data section this reader cannot build):
+            // held before anything is applied, so an open never half-replaces the project.
+            problems.push({
+                code: "W_SECTION_KEPT",
+                params: { section: name, version: outcome.load.header.version, reason: "data" },
+            });
+            held.set(key, { value: each, reason: "data" });
+        } else {
+            sections.set(name, outcome.load);
         }
     };
 
@@ -335,8 +348,11 @@ export interface DocumentState {
     readonly extensions: Map<DocumentSection, JsonObject>;
     /** Each section's `created` and `modified`. */
     readonly stamps: Map<DocumentSection, Stamp>;
-    /** The last full file's wrapper members this writer does not write itself, and its `created`. */
-    wrapper: { readonly created?: string; readonly kept: JsonObject };
+    /**
+     * The opened project's wrapper members this writer does not write itself, its `created`, and
+     * its `extensions`, written back under the caller's.
+     */
+    wrapper: { readonly created?: string; readonly kept: JsonObject; readonly extensions?: JsonObject };
     /**
      * Each section an open loaded: what its codec wrote right after the open (canonical JSON),
      * and the section as read. A save whose codec writes the same again writes the section as
@@ -348,7 +364,8 @@ export interface DocumentState {
     >;
 }
 
-const STATES = new WeakMap<GraphSession, DocumentState>();
+/** Forgotten at every project boundary (`memory.ts`), so one project's state never reaches the next. */
+const STATES = projectMemory<DocumentState>();
 
 /**
  * A session's version 2 document state.
@@ -356,6 +373,7 @@ const STATES = new WeakMap<GraphSession, DocumentState>();
  * @returns Its state, created empty on first use.
  */
 export function documentStateOf(session: GraphSession): DocumentState {
+    watchBoundaries(session);
     let state = STATES.get(session);
     if (state === undefined) {
         state = {
@@ -423,27 +441,38 @@ const WRAPPER_OWN = new Set([
 ]);
 
 /**
- * Remember what an open read, so the next save writes it back: the held and unknown sections, each
- * loaded section's unknown members, extensions and times, and the wrapper's unknown members.
- * @param state - The session's document state.
+ * Remember what an open read, so the next save writes it back: each loaded section's unknown
+ * members, extensions and times and, when the open replaced the project, the held and unknown
+ * sections and the wrapper's own members. An additive open (a kit, a section file) reports what it
+ * held and records none of it: a held section is never the project's own section of its kind.
+ * @param state - The session's document state, fresh when the open replaced the project.
  * @param parsed - What was read.
  * @param loaded - The sections that loaded.
+ * @param held - The sections the open holds as the project's, when it replaced the project.
  */
 export async function rememberOpened(
     state: DocumentState,
     parsed: ParsedDocument,
     loaded: ReadonlySet<DocumentSection>,
+    held?: ReadonlyMap<string, HeldSection>,
 ): Promise<void> {
-    if (parsed.form === "full") {
-        // A full file stands for the whole project: what an earlier file held goes.
+    if (held !== undefined) {
         state.held.clear();
-        const kept = Object.fromEntries(Object.entries(parsed.wrapper).filter(([member]) => !WRAPPER_OWN.has(member)));
-        const { created } = parsed.wrapper;
-        state.wrapper = { ...(typeof created === "string" ? { created } : {}), kept };
-    }
+        for (const [key, each] of held) {
+            state.held.set(key, each);
+        }
 
-    for (const [key, held] of parsed.held) {
-        state.held.set(key, held);
+        if (parsed.form === "full") {
+            const kept = Object.fromEntries(
+                Object.entries(parsed.wrapper).filter(([member]) => !WRAPPER_OWN.has(member)),
+            );
+            const { created, extensions } = parsed.wrapper;
+            state.wrapper = {
+                ...(typeof created === "string" ? { created } : {}),
+                kept,
+                ...(isJsonObject(extensions) ? { extensions } : {}),
+            };
+        }
     }
 
     for (const name of loaded) {
@@ -576,6 +605,15 @@ function framedSection(content: Readonly<JsonObject>, own: Readonly<JsonObject>)
 }
 
 /**
+ * The wrapper's `extensions` member, absent when empty.
+ * @param extensions - The opened file's extensions under the caller's.
+ * @returns The member, or nothing.
+ */
+function extensionsOf(extensions: Readonly<JsonObject>): JsonObject {
+    return Object.keys(extensions).length === 0 ? {} : { extensions };
+}
+
+/**
  * The full file around its sections (spec 2.2).
  * @param state - The session's document state, for the wrapper members an earlier file held.
  * @param members - The wrapper members this writer writes.
@@ -611,6 +649,6 @@ export function assembleWrapper(
         generator: members.generator,
         ...state.wrapper.kept,
         sections,
-        ...(Object.keys(members.extensions).length === 0 ? {} : { extensions: members.extensions }),
+        ...extensionsOf({ ...state.wrapper.extensions, ...members.extensions }),
     };
 }

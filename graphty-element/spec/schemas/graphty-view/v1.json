@@ -428,6 +428,9 @@
                         "nodes": {
                             "type": "string",
                             "minLength": 1
+                        },
+                        "raw": {
+                            "type": "boolean"
                         }
                     }
                 },

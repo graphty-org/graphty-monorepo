@@ -15,6 +15,7 @@ import { isGraphtyError } from "../../../errors";
 import type { Run, RunStyle } from "../../runs/types";
 import type { ElementSet } from "../../sets/types";
 import type { GraphSession } from "../../types";
+import { projectMemory } from "../memory";
 import type {
     DocumentProblem,
     JsonObject,
@@ -46,10 +47,11 @@ import {
     unknownMember,
     unknownScopeMember,
 } from "./recipeCommands";
+import { restoredPositions } from "./results";
 
 /** The header members of an opened recipe that the session has no home for, kept for its re-save. */
 const IDENTITY = ["id", "revision", "name", "description", "authors", "license", "keywords", "language", "origin"];
-const openedHeaders = new WeakMap<GraphSession, SectionHeaderInput>();
+const openedHeaders = projectMemory<SectionHeaderInput>();
 
 /** The option types whose values name elements (recipe.md, "Commands" rule 4). */
 const ELEMENT_OPTIONS = new Set(["node-id", "node-set", "ordering"]);
@@ -734,6 +736,12 @@ class Replay {
                 ...(options === undefined ? {} : { options: this.bind(options) }),
             });
             this.context.restored.add("layout");
+            // With rerun off, the results section's positions are restored as they are (spec
+            // 8.4): put back after the layout is chosen, as version 1 restores its arrangement.
+            const placed = this.context.rerun ? undefined : restoredPositions(this.context.session);
+            if (placed !== undefined) {
+                await tx.positions.set(placed);
+            }
         } catch (error) {
             this.report("E_BAD_DOCUMENT", `${at}`, { reason: isGraphtyError(error) ? error.code : "E_INTERNAL" });
         }

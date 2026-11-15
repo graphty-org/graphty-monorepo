@@ -13,7 +13,11 @@ import type { CannedOutcomes } from "../projectFile";
 import type { CodedFact } from "../shared";
 import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
 
-/** A section's name: its key in a full file's `sections`, and `graphty-<name>` is its kind. */
+/**
+ * A section's name: its key in a full file's `sections`, and `graphty-<name>` is its kind.
+ * @experimental save-files-v2
+ * @beta
+ */
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
 
 /** The sections in the order a full file writes them (spec 1). */
@@ -42,7 +46,11 @@ export const APPLY_ORDER: readonly DocumentSection[] = Object.freeze([
     "notes",
 ]);
 
-/** How a source's rows are kept by a save (spec 4.1.2). */
+/**
+ * How a source's rows are kept by a save (spec 4.1.2).
+ * @experimental save-files-v2
+ * @beta
+ */
 export type SourceStorage = "embedded" | "referenced";
 
 /** A JSON object as read from or written to a document. */
@@ -52,7 +60,10 @@ export type JsonObject = Record<string, unknown>;
  * The codes the version 2 reader and writer report (spec 13) that graphty-element's error and
  * warning codes do not already hold. `E_BAD_DOCUMENT`, `E_UNKNOWN_OPTION`, `W_UNKNOWN_KIND` and
  * `W_UNKNOWN_MEMBER` are already element codes. OPEN UNION while the experiment is on.
+ * @experimental save-files-v2
+ * @beta
  */
+
 export type DocumentCode =
     | "E_UNKNOWN_COMMAND"
     | "W_SCHEMA_MISMATCH"
@@ -75,7 +86,8 @@ export type DocumentCode =
     | "W_SOURCE_UNKEYED"
     | "W_NODE_NAMED_ONLY"
     | "W_EDGE_END_MISSING"
-    | "W_COLUMN_WIDENED";
+    | "W_COLUMN_WIDENED"
+    | "W_MEMBER_LEFT_OUT";
 
 /**
  * One report entry of a version 2 save or open: a code and plain values (spec 13). A reference
@@ -304,6 +316,15 @@ export interface SectionCodec {
      * @param context - The session, the transaction and what the open chose.
      */
     read(section: ReadSection, context: ReadContext): Promise<void>;
+    /**
+     * Whether a section this codec reads cannot be applied whole, checked when the file is read,
+     * before anything is applied: the framing then holds it (reason `data`) instead of loading it.
+     * Optional; a codec without it applies every section it reads.
+     * @param section - The section as read.
+     * @param problems - Collects what the check reports.
+     * @returns True to hold the section.
+     */
+    holds?(section: ReadSection, problems: DocumentProblem[]): boolean;
 }
 
 /** The codecs an open or a save uses, by section. */

@@ -215,11 +215,13 @@ describe("data section version 2", () => {
         assert.notProperty(s1, "columns");
         assert.deepStrictEqual(referenced.problems, [{ code: "W_SOURCE_NO_PATH", params: { source: "s1" } }]);
 
-        // A referenced source cannot be fetched again yet: it supplies nothing and says so.
+        // A referenced source cannot be fetched again yet: the section is not built whole, so it is
+        // held and nothing of it is applied.
         const reopened = createGraphSession(ON);
         const read = await readBody(reopened, referenced.document);
         assert.deepInclude(read, { code: "W_SOURCE_UNAVAILABLE", params: { source: "s1" } });
-        assert.isFalse(reopened.data.nodes().some((node) => node.id === "Cara"));
+        assert.deepInclude(read, { code: "W_SECTION_KEPT", params: { section: "data", version: 2, reason: "data" } });
+        assert.lengthOf(reopened.data.nodes(), 0);
         session.dispose();
         reopened.dispose();
     });

@@ -15,6 +15,7 @@ import { dispatcherOf } from "../../dispatchers";
 import { channelDescriptor, isEnumCount } from "../../styles/channels";
 import type { GraphSession } from "../../types";
 import { valueLabelOf } from "../../valueLabels";
+import { projectMemory } from "../memory";
 import type {
     DocumentProblem,
     JsonObject,
@@ -42,7 +43,7 @@ interface StyleMemory {
     body?: { readonly original: JsonObject; readonly baseline: string };
 }
 
-const MEMORY = new WeakMap<GraphSession, StyleMemory>();
+const MEMORY = projectMemory<StyleMemory>();
 
 /**
  * A session's style memory, created empty on first use.
@@ -493,6 +494,8 @@ interface Reading {
     readonly problems: DocumentProblem[];
     /** The section's palettes by id. */
     readonly palettes: ReadonlyMap<string, JsonObject>;
+    /** The section's palettes with a member this release does not know: a binding to one fails. */
+    readonly failedPalettes: ReadonlySet<string>;
     readonly catalog: readonly PaletteDescriptor[];
     /** From a run's `as` to the run id the recipe loaded alongside gives it. */
     readonly rename: (run: string) => string;
@@ -537,7 +540,29 @@ function closed(value: JsonObject, known: ReadonlySet<string>, reading: Reading,
 }
 
 /**
- * A binding as the session applies it: unknown members out, and a carried palette whose colors the
+ * Whether a closed object has a member outside its list, each reported. A closed object is never
+ * read by ignoring a member (spec 10): the caller fails the entry that holds it.
+ * @param value - The object.
+ * @param known - The members it may have.
+ * @param reading - The read.
+ * @param at - Its pointer below the section.
+ * @returns True when any member is unknown.
+ */
+function hasUnknown(value: JsonObject, known: ReadonlySet<string>, reading: Reading, at: string): boolean {
+    let found = false;
+    for (const member of Object.keys(value)) {
+        if (!known.has(member)) {
+            unknown(reading, `${at}/${escape(member)}`);
+            found = true;
+        }
+    }
+
+    return found;
+}
+
+/**
+ * A binding as the session applies it, or undefined when it fails: a member this release does not
+ * know, or a carried palette with one (spec 10). A carried palette whose colors the
  * session's palette of that id does not have written as the binding's own colors, so the section's
  * palette is the one drawn (spec 4.2 rule 6).
  * @param binding - The binding.
@@ -545,9 +570,17 @@ function closed(value: JsonObject, known: ReadonlySet<string>, reading: Reading,
  * @param at - Its pointer.
  * @returns The binding.
  */
-function readBinding(binding: JsonObject, reading: Reading, at: string): JsonObject {
-    const out = closed(binding, BINDING_MEMBERS, reading, at);
+function readBinding(binding: JsonObject, reading: Reading, at: string): JsonObject | undefined {
+    if (hasUnknown(binding, BINDING_MEMBERS, reading, at)) {
+        return undefined;
+    }
+
+    const out = binding;
     const id = out.palette;
+    if (typeof id === "string" && reading.failedPalettes.has(id)) {
+        return undefined;
+    }
+
     const carried = typeof id === "string" ? reading.palettes.get(id) : undefined;
     if (carried === undefined || typeof id !== "string") {
         return out;
@@ -584,7 +617,12 @@ function readChannels(part: JsonObject, encode: boolean, reading: Reading, at: s
         }
 
         if (encode) {
-            out[channel] = isObject(value) ? readBinding(value, reading, here) : value;
+            const binding = isObject(value) ? readBinding(value, reading, here) : value;
+            // A failed binding fails its channel entry alone; the rest of the layer applies.
+            if (binding !== undefined) {
+                out[channel] = binding;
+            }
+
             continue;
         }
 
@@ -629,7 +667,12 @@ function prepareLayer(raw: unknown, index: number, reading: Reading): Prepared {
     }
 
     const layer = closed(raw, LAYER_MEMBERS, reading, at);
-    const selector = closed(raw.selector, new Set(["match", ...members]), reading, `${at}/selector`);
+    // A selector with a member this release does not know could match too much: the layer fails.
+    if (hasUnknown(raw.selector, new Set(["match", ...members]), reading, `${at}/selector`)) {
+        return { kept: "E_BAD_SELECTOR" };
+    }
+
+    const { selector } = raw;
     const set = isObject(layer.set) ? readChannels(layer.set, false, reading, `${at}/set`) : undefined;
     const encode = isObject(layer.encode) ? readChannels(layer.encode, true, reading, `${at}/encode`) : undefined;
     const written =
@@ -800,16 +843,22 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
     }
 
     const sectionPalettes = new Map<string, JsonObject>();
+    const failedPalettes = new Set<string>();
     const reading: Reading = {
         pointer,
         problems,
         palettes: sectionPalettes,
+        failedPalettes,
         catalog: session.catalog.palettes(),
         rename: runIdsOf(context),
     };
     for (const [index, palette] of (Array.isArray(body.palettes) ? body.palettes : []).entries()) {
         if (isObject(palette) && typeof palette.id === "string") {
-            sectionPalettes.set(palette.id, closed(palette, PALETTE_MEMBERS, reading, `/palettes/${index}`));
+            if (hasUnknown(palette, PALETTE_MEMBERS, reading, `/palettes/${index}`)) {
+                failedPalettes.add(palette.id);
+            } else {
+                sectionPalettes.set(palette.id, palette);
+            }
         }
     }
 

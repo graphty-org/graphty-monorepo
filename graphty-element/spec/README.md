@@ -2,7 +2,27 @@
 
 Status: draft. Version 2 is written and read only with graphty-element's `save-files-v2`
 experiment switched on, and may change until it is released; version 1 stays the format
-graphty-element writes until then.
+graphty-element writes until then, browser storage (`browserProjects`) included.
+
+**Provisional members.** The data store design these sections build on has since dropped or
+reshaped several members. Until it is reconciled, these are provisional and may be removed or
+changed before version 2 is released, without a migration: the edge reference's `h` and `n`
+(6.2), the RFC 8785 fingerprint (6.4), `copy: "graph"` (4.1.2), `join.link`, `rekeys`, a source's
+`replaced` time, `issues.fixed`, and the reader source's four keyed sets (`edits`, `added`,
+`removed`, `merges`).
+
+**What graphty-element's implementation does not do yet** (each a gap against this text):
+
+- No load plan (8.2 rule 3, 8.3, 8.5 rule 4): an open applies its sections at once and reports
+  afterwards.
+- No refetch of a referenced source (8.3): `project.save` refuses `embed: "referenced"`
+  (`E_UNSUPPORTED`), and a data section holding a referenced source is held whole (8.5).
+- No stale mark (6.4): results restored on data whose fingerprint differs are restored as
+  current, and only `W_DATA_CHANGED` says otherwise.
+- Reader edits count in `h` (6.2 rule 3): today's edits live in the records, so editing a cell of
+  an edge without a key changes its `h`, and a section saved before the edit no longer binds it.
+- Not written yet, reported `W_MEMBER_LEFT_OUT` on save: column declarations, column settings,
+  data issue decisions, file styles and visibility steps.
 
 This is the normative specification of the files graphty-element saves and opens: what each holds,
 how a writer writes it and how a reader reads it. It is written for implementers who have only this
@@ -448,21 +468,21 @@ does not know reads as unsupported and is kept. A cite is `{ "result": <run id> 
 
 A view section holds `bindsTo` (REQUIRED) and any of:
 
-| Member          | Holds                                                                                                                                                       |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `camera`        | the camera: `dimension` (2 or 3), `controller`, and the pose: 3D `position`, `target`, `fov` (radians); 2D `pan`, `zoom`, `rotation`                        |
-| `xr`            | the graph's placement in an XR room: pivot `center`, `scale`, `rotation`; never the headset pose                                                            |
-| `views`         | saved views: `{ "name", "camera", "xr" }`                                                                                                                   |
-| `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                                                     |
-| `placed`        | hand-placed positions and pins: `{ "node", "position", "pinned" }`                                                                                          |
-| `sets`          | fixed sets (`nodes`, `edges`, `reading`), path sets (`nodes`, `edges`, `directed`) and rule sets whose rule names an element, each with its `id` and `name` |
-| `visibility`    | `filter` (a rule tree or `null`), `window` (`attribute`, `end`, `spells`, `from`, `to`, `step`, `nodes`), `showContext`, `select`, `hidden`                 |
-| `timeline`      | the timeline position, `at`                                                                                                                                 |
-| `viewRotation`  | degrees, -360 to 360                                                                                                                                        |
-| `framing`       | `{ "extent", "padding" }`, `extent` being `drawn` or `centers`                                                                                              |
-| `hiddenColumns` | `{ "kind", "name" }` working columns hidden from the table view                                                                                             |
-| `layers`        | style layers that pick elements, each with `after` (7)                                                                                                      |
-| `runs`          | keyed by run id: the replayable record of each run a recipe cannot hold                                                                                     |
+| Member          | Holds                                                                                                                                                                                                       |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `camera`        | the camera: `dimension` (2 or 3), `controller`, and the pose: 3D `position`, `target`, `fov` (radians); 2D `pan`, `zoom`, `rotation`                                                                        |
+| `xr`            | the graph's placement in an XR room: pivot `center`, `scale`, `rotation`; never the headset pose                                                                                                            |
+| `views`         | saved views: `{ "name", "camera", "xr" }`                                                                                                                                                                   |
+| `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                                                                                                     |
+| `placed`        | hand-placed positions and pins: `{ "node", "position", "pinned" }`                                                                                                                                          |
+| `sets`          | fixed sets (`nodes`, `edges`, `reading`), path sets (`nodes`, `edges`, `directed`) and rule sets whose rule names an element, each with its `id` and `name`                                                 |
+| `visibility`    | `filter` (a rule tree or `null`), `window` (`attribute`, `end`, `spells`, `from`, `to`, `step`, `nodes`, and `raw: true` when its bounds are plain values, not instants), `showContext`, `select`, `hidden` |
+| `timeline`      | the timeline position, `at`                                                                                                                                                                                 |
+| `viewRotation`  | degrees, -360 to 360                                                                                                                                                                                        |
+| `framing`       | `{ "extent", "padding" }`, `extent` being `drawn` or `centers`                                                                                                                                              |
+| `hiddenColumns` | `{ "kind", "name" }` working columns hidden from the table view                                                                                                                                             |
+| `layers`        | style layers that pick elements, each with `after` (7)                                                                                                                                                      |
+| `runs`          | keyed by run id: the replayable record of each run a recipe cannot hold                                                                                                                                     |
 
 1. Positions and cameras are in the frame of section 7.
 2. A camera controller is an open vocabulary (`orbit`, `2d` today). A reader that does not know the
@@ -535,7 +555,8 @@ source's rows take the key `"<hex SHA-256 of the copy>#<row from 0>"` in its `so
    name, leaving out the mapping's `edgeId`, `source` and `target` columns, unset cells and every
    column whose name begins with `graphty.` or `_source.`; non-finite values take their string
    forms. An edge a `join.link` step made has as its row
-   `{ "link": <source column>, "value": <value as key text> }`. Reader edits never count.
+   `{ "link": <source column>, "value": <value as key text> }`. Reader edits never count
+   (graphty-element does not meet this yet; see the status above).
 4. `n` is the position, from 0, among the minting source's edges with the same ends and the same
    `h`, in build order (join step order, then row order), counting rows before any is dropped.
 5. `from` and `to` are the record keys the edge's row names. On an undirected graph ends match as
@@ -640,9 +661,16 @@ view section holds a layer reading that run.
 A reader MUST skip a section whole, and **hold** it, when its `version` is newer than the reader
 knows (`W_SECTION_KEPT`, params `{ section, version, reason: "version" }`), when it lists an
 extension the reader lacks (`W_EXTENSION_REQUIRED`, and `W_SECTION_KEPT` with
-`reason: "extension"`), or when a data section cannot be built whole (4.1.7, `reason: "data"`).
-The rest of the file loads. Skipping a data section leaves the sections bound to it unbound, which
-is reported.
+`reason: "extension"`), or when a data section cannot be built whole (4.1.7, `reason: "data"`),
+which a reader decides before it applies anything. A section whose `kind` disagrees with its key,
+or whose `version` is not a positive integer, is refused (`E_BAD_DOCUMENT`) and held the same way
+(`reason: "malformed"`). The rest of the file loads.
+
+A full file whose data section is held still opens a project: the open data is cleared, and every
+section whose `bindsTo.data` names the held data section's `id` is held with it (`reason: "data"`)
+and written back unchanged. Held sections are the project's only when the open replaces the
+project (a data section in replace mode, loaded or held); a section file or a kit opened as an
+addition reports what it holds and never puts it in place of the project's own section.
 
 While a section is held:
 
@@ -714,8 +742,9 @@ Closed objects:
   not read. An unknown member holds the whole data section (4.1.7).
 - A recipe command and its `scope`: an unknown member skips the command and every later one
   (`E_UNKNOWN_OPTION`).
-- A style's selectors, bindings and carried palettes: an unknown member is reported
-  (`W_UNKNOWN_MEMBER`), the layer is applied, the member is written back.
+- A style's selectors, bindings and carried palettes: an unknown member fails that channel entry
+  (a binding, or a binding to that palette) or layer (a selector) alone, which is not applied; it
+  is reported (`W_UNKNOWN_MEMBER`) and written back.
 - The parts of a run's `style`: an unknown part is dropped (`W_UNKNOWN_MEMBER`); the run runs.
 - Element references, note targets and cites: one with an unknown member is kept, unbound or
   unsupported.
@@ -747,44 +776,46 @@ a string in it is read back as the number.
 graphty-element reports what happened while reading or writing as `{ code, params }`. An
 application words them.
 
-| Code                          | When                                                                                    | Params                          |
-| ----------------------------- | --------------------------------------------------------------------------------------- | ------------------------------- |
-| `E_BAD_DOCUMENT`              | the file is not JSON, has no known `kind`, or a section's `kind` disagrees with its key | `section`                       |
-| `E_UNKNOWN_OPTION`            | a recipe command or scope has a member the reader does not know                         | `section`, `pointer`            |
-| `E_UNKNOWN_COMMAND`           | a recipe command's `op` the reader does not know                                        | `section`, `pointer`            |
-| `W_UNKNOWN_KIND`              | an unknown `sections` key                                                               | `section`                       |
-| `W_UNKNOWN_MEMBER`            | an unknown member of an open object, selector, binding, palette or run style            | `section`, `pointer`            |
-| `W_SCHEMA_MISMATCH`           | `$schema` disagrees with `kind` and `version`                                           | `section`, `schema`             |
-| `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved                       | `section`, `version`, `reason`  |
-| `W_EXTENSION_REQUIRED`        | a section lists an extension the reader lacks                                           | `section`, `extension`          |
-| `W_SECTION_UPGRADED`          | an older version was migrated on read                                                   | `section`, `from`, `to`         |
-| `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section                          | `section`, `pointer`            |
-| `W_SOURCE_NO_PATH`            | a referenced file source was saved without `path`                                       | `source`                        |
-| `W_SOURCE_UNAVAILABLE`        | a referenced source could not be fetched or picked                                      | `source`                        |
-| `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                                      | `section`, `pointer`, `ref`     |
-| `W_DATA_CHANGED`              | same data id, different fingerprint                                                     | `section`, `sources`            |
-| `W_DATA_MISMATCH`             | a bound section was written on other data, or no data is open                           | `section`, `data`               |
-| `W_REPLACED_SINCE`            | a source was replaced after the bound section was written                               | `section`, `source`             |
-| `W_JOIN_HISTORY_DIFFERS`      | a loaded recipe's combine steps differ from the data's join history                     | `section`                       |
-| `W_CAMERA_CONTROLLER_UNKNOWN` | a camera names a controller the reader does not know                                    | `section`, `controller`         |
-| `W_RUN_NOT_RUN`               | a run was neither rerun nor restored                                                    | `run`                           |
-| `W_RESULTS_DIFFER`            | a rerun disagrees with the saved results                                                | `run`                           |
-| `W_EDGE_MATCH_AMBIGUOUS`      | a refresh could not match unnamed parallel edges one to one                             | `source`, `from`, `to`, `count` |
-| `W_SOURCE_IDS_SEQUENTIAL`     | a source's ids are exactly a 0..n-1 or n0.. sequence                                    | `source`                        |
-| `W_SOURCE_UNKEYED`            | a source has no key column and no ids of its own                                        | `source`                        |
-| `W_NODE_NAMED_ONLY`           | edges named nodes no source supplies, kept as named-only nodes                          | `source`, `count`               |
-| `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                                | `source`, `count`               |
-| `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                                      | `column`                        |
+| Code                          | When                                                                                    | Params                                    |
+| ----------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `E_BAD_DOCUMENT`              | the file is not JSON, has no known `kind`, or a section's `kind` disagrees with its key | `section`                                 |
+| `E_UNKNOWN_OPTION`            | a recipe command or scope has a member the reader does not know                         | `section`, `pointer`                      |
+| `E_UNKNOWN_COMMAND`           | a recipe command's `op` the reader does not know                                        | `section`, `pointer`                      |
+| `W_UNKNOWN_KIND`              | an unknown `sections` key                                                               | `section`                                 |
+| `W_UNKNOWN_MEMBER`            | an unknown member of an open object, selector, binding, palette or run style            | `section`, `pointer`                      |
+| `W_SCHEMA_MISMATCH`           | `$schema` disagrees with `kind` and `version`                                           | `section`, `schema`                       |
+| `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved                       | `section`, `version`, `reason`            |
+| `W_EXTENSION_REQUIRED`        | a section lists an extension the reader lacks                                           | `section`, `extension`                    |
+| `W_SECTION_UPGRADED`          | an older version was migrated on read                                                   | `section`, `from`, `to`                   |
+| `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section                          | `section`, `pointer`                      |
+| `W_SOURCE_NO_PATH`            | a referenced file source was saved without `path`                                       | `source`                                  |
+| `W_SOURCE_UNAVAILABLE`        | a referenced source could not be fetched or picked                                      | `source`                                  |
+| `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                                      | `section`, `pointer`, `ref`               |
+| `W_DATA_CHANGED`              | same data id, different fingerprint                                                     | `section`, `sources`                      |
+| `W_DATA_MISMATCH`             | a bound section was written on other data, or no data is open                           | `section`, `data`                         |
+| `W_REPLACED_SINCE`            | a source was replaced after the bound section was written                               | `section`, `source`                       |
+| `W_JOIN_HISTORY_DIFFERS`      | a loaded recipe's combine steps differ from the data's join history                     | `section`                                 |
+| `W_CAMERA_CONTROLLER_UNKNOWN` | a camera names a controller the reader does not know                                    | `section`, `controller`                   |
+| `W_RUN_NOT_RUN`               | a run was neither rerun nor restored                                                    | `run`                                     |
+| `W_RESULTS_DIFFER`            | a rerun disagrees with the saved results                                                | `run`                                     |
+| `W_EDGE_MATCH_AMBIGUOUS`      | a refresh could not match unnamed parallel edges one to one                             | `source`, `from`, `to`, `count`           |
+| `W_SOURCE_IDS_SEQUENTIAL`     | a source's ids are exactly a 0..n-1 or n0.. sequence                                    | `source`                                  |
+| `W_SOURCE_UNKEYED`            | a source has no key column and no ids of its own                                        | `source`                                  |
+| `W_NODE_NAMED_ONLY`           | edges named nodes no source supplies, kept as named-only nodes                          | `source`, `count`                         |
+| `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                                | `source`, `count`                         |
+| `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                                      | `column`                                  |
+| `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over                        | `kind` or `section`, `field` or `pointer` |
 
 ## 14. Files in this directory
 
-| Path                                 | What                                                                  |
-| ------------------------------------ | --------------------------------------------------------------------- |
-| `README.md`                          | this specification                                                    |
-| `builtins.md`                        | the built-ins registry                                                |
-| `schemas/graphty-document/v2.json`   | the full file                                                         |
-| `schemas/<kind>/v<version>.json`     | each section kind at its version                                      |
-| `schemas/common/v2.json`             | definitions the others share (header, element references, rule trees) |
-| `examples/card-fraud.graphty.json`   | a worked example holding all seven sections                           |
-| `examples/card-fraud.graphty-*.json` | each of its sections as a section file                                |
-| `examples/minimal/`                  | the smallest valid file of each form                                  |
+| Path                                                                                                                                                                             | What                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `README.md`                                                                                                                                                                      | this specification                                                    |
+| `builtins.md`                                                                                                                                                                    | the built-ins registry                                                |
+| `schemas/graphty-document/v2.json`                                                                                                                                               | the full file                                                         |
+| `schemas/<kind>/v<version>.json`                                                                                                                                                 | each section kind at its version                                      |
+| `schemas/common/v2.json`                                                                                                                                                         | definitions the others share (header, element references, rule trees) |
+| `schemas/graphty-document/v1.json` and the version 1 kinds (`graphty-data`, `graphty-style`, `graphty-recipe`, `graphty-notes`, `graphty-assets` at v1, `graphty-sources` at v2) | the version 1 files the migration in 9.1 reads                        |
+| `examples/card-fraud.graphty.json`                                                                                                                                               | a worked example holding all seven sections                           |
+| `examples/card-fraud.graphty-*.json`                                                                                                                                             | each of its sections as a section file                                |
+| `examples/minimal/`                                                                                                                                                              | the smallest valid file of each form                                  |

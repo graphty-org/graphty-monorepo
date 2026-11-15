@@ -13,6 +13,7 @@ import type { EdgeId, NodeId } from "../../../catalog/types";
 import { sha256Hex } from "../../../utils/sha256";
 import { redactedParams } from "../../sources/member";
 import type { EdgeRecord, GraphSession, LoadedSource, NodeRecord } from "../../types";
+import { projectMemory } from "../memory";
 import type { DocumentProblem, EdgeRef, ElementRefs, JsonObject, NodeRef, SourceStorage } from "../types";
 
 // ---------------------------------------------------------------------------------------------
@@ -241,7 +242,7 @@ export interface DataModel {
 }
 
 /** The edge-id column the last data section read named, per session, until settings say one. */
-const READ_EDGE_ID = new WeakMap<GraphSession, string>();
+const READ_EDGE_ID = projectMemory<string>();
 
 /**
  * Remember the edge-id column a data section read named, so references keep binding by key
@@ -342,7 +343,7 @@ export function edgeRefsOf(
 }
 
 /** Each node's record key as the data section that loaded it named it, per session. */
-const READ_NODE_REFS = new WeakMap<GraphSession, Map<NodeId, NodeRef>>();
+const READ_NODE_REFS = projectMemory<Map<NodeId, NodeRef>>();
 
 /**
  * Remember the record keys a data section gave the nodes it loaded, so references to them bind and
@@ -575,7 +576,39 @@ export interface DataBody {
 }
 
 /**
- * A source's `mapping`: its node key in its own `source:<id>` space, and its edge columns.
+ * A node's key cell as a source's copy writes it: the session's id in a `source:` space (so `34`
+ * stays a number), its record key in any other space (a type's), so the node reads back with the
+ * key every reference names (`account:acct-1001` is written `acct-1001`).
+ * @param id - The node's id.
+ * @param model - The model.
+ * @returns The cell.
+ */
+function keyCellOf(id: unknown, model: DataModel): unknown {
+    const ref = model.nodeRefs.get(id as NodeId);
+    return ref === undefined || ref.space.startsWith("source:") ? id : ref.key;
+}
+
+/**
+ * The space a source's mapping names for its nodes: its own `source:<id>` while every node it holds
+ * is in a `source:` space (a node another source supplied first merges by key); the one space every
+ * node is in when a data section placed them in a type's; otherwise none, and the type rules that
+ * placed them place each row again on read.
+ * @param source - The source.
+ * @param model - The model.
+ * @returns The space, or undefined.
+ */
+function spaceOf(source: ModelSource, model: DataModel): string | undefined {
+    const spaces = new Set(source.nodes.map((node) => model.nodeRefs.get(node.id)?.space ?? `source:${source.id}`));
+    if ([...spaces].every((space) => space.startsWith("source:"))) {
+        return `source:${source.id}`;
+    }
+
+    const [space] = spaces;
+    return spaces.size === 1 ? space : undefined;
+}
+
+/**
+ * A source's `mapping`: its node key in the space its nodes are in, and its edge columns.
  * @param source - The source.
  * @param model - The model.
  * @param hasNodes - Whether its copy holds nodes.
@@ -586,7 +619,7 @@ function mappingOf(source: ModelSource, model: DataModel, hasNodes: boolean, has
     const { edgeIdColumn } = model;
     const hasEdgeId = edgeIdColumn !== undefined && source.edges.some((edge) => edge[edgeIdColumn] !== undefined);
     return {
-        ...(hasNodes ? { nodes: { key: "id", space: `source:${source.id}`, renamed: {} } } : {}),
+        ...(hasNodes ? { nodes: nodeMappingOf(spaceOf(source, model)) } : {}),
         ...(hasEdges
             ? {
                   edges: {
@@ -598,6 +631,15 @@ function mappingOf(source: ModelSource, model: DataModel, hasNodes: boolean, has
               }
             : {}),
     };
+}
+
+/**
+ * A source's node mapping.
+ * @param space - The space its nodes are in, or undefined to leave them to the type rules.
+ * @returns The mapping.
+ */
+function nodeMappingOf(space: string | undefined): JsonObject {
+    return { key: "id", ...(space === undefined ? {} : { space }), renamed: {} };
 }
 
 /**
@@ -615,10 +657,25 @@ function sourceRecordOf(
     problems: DocumentProblem[],
 ): { record: JsonObject; hash: string } {
     const load = source.load as LoadedSource;
-    const nodes = source.nodes.length > 0 ? tableOf(source.nodes, ["id"], new Set()) : undefined;
+    const nodes =
+        source.nodes.length > 0
+            ? tableOf(
+                  source.nodes.map((node) => ({ ...node, id: keyCellOf(node.id, model) })),
+                  ["id"],
+                  new Set(),
+              )
+            : undefined;
     const edges =
         source.edges.length > 0
-            ? tableOf(source.edges.map(edgeRowOf), ["source", "target"], new Set(["id"]))
+            ? tableOf(
+                  source.edges.map((edge) => ({
+                      ...edgeRowOf(edge),
+                      source: keyCellOf(edge.source, model),
+                      target: keyCellOf(edge.target, model),
+                  })),
+                  ["source", "target"],
+                  new Set(["id"]),
+              )
             : undefined;
     const copy: JsonObject = {
         ...(nodes === undefined ? {} : { nodes: nodes.table }),

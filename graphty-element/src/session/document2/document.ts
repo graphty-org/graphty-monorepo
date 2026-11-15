@@ -18,11 +18,14 @@ import {
     assembleWrapper,
     type DocumentState,
     documentStateOf,
+    type HeldSection,
+    isJsonObject,
     newDocumentId,
     type ParsedDocument,
     rememberOpened,
     rememberUnknownMembers,
 } from "./framing";
+import { forgetDocument, whileOpening } from "./memory";
 import {
     APPLY_ORDER,
     type BindsTo,
@@ -396,8 +399,54 @@ function dropOtherData(
 }
 
 /**
+ * When a full file's data section is held, its bound sections written on that data are held with
+ * it, verbatim, so the next save writes them back beside it (spec 8.5).
+ * @param chosen - The sections to load; the ones held are deleted.
+ * @param codecs - The codecs.
+ * @param dataId - The held data section's id.
+ * @param problems - Where `W_SECTION_KEPT` is reported.
+ * @returns The held sections, by key.
+ */
+function holdBoundTo(
+    chosen: Map<DocumentSection, ReadSection>,
+    codecs: CodecRegistry,
+    dataId: string | undefined,
+    problems: DocumentProblem[],
+): Map<string, HeldSection> {
+    const held = new Map<string, HeldSection>();
+    for (const [name, section] of [...chosen]) {
+        if (codecs[name]?.bound === true && dataId !== undefined && section.header.bindsTo?.data === dataId) {
+            held.set(name, { value: section.header, reason: "data" });
+            problems.push({
+                code: "W_SECTION_KEPT",
+                params: { section: name, version: section.header.version, reason: "data" },
+            });
+            chosen.delete(name);
+        }
+    }
+
+    return held;
+}
+
+/**
+ * The id of a data section, loaded or held.
+ * @param data - The section to load, if any.
+ * @param held - The section held, if any.
+ * @returns Its `id`, when it has one.
+ */
+function dataSectionId(data: ReadSection | undefined, held: HeldSection | undefined): string | undefined {
+    if (data !== undefined) {
+        return data.header.id;
+    }
+
+    const id = isJsonObject(held?.value) ? held.value.id : undefined;
+    return typeof id === "string" ? id : undefined;
+}
+
+/**
  * Apply a parsed version 2 document to the session: every chosen section through its codec, in
- * apply order, as one transaction. A data section in replace mode starts the history.
+ * apply order, as one transaction. A data section in replace mode, loaded or held, opens a project
+ * and starts the history; a held one clears the old data and holds the sections bound to it.
  * @param session - The session.
  * @param codecs - The codecs.
  * @param parsed - The document.
@@ -405,14 +454,32 @@ function dropOtherData(
  * @param hooks - What the project lends.
  * @returns Whether the data was replaced, the parts restored and the problems.
  */
-export async function openDocument2(
+export function openDocument2(
     session: GraphSession,
     codecs: CodecRegistry,
     parsed: ParsedDocument,
     choices: OpenChoices,
     hooks: OpenHooks,
 ): Promise<{ replaced: boolean; restored: ProjectSlice[]; problems: DocumentProblem[] }> {
-    const state = documentStateOf(session);
+    return whileOpening(session, () => applyDocument(session, codecs, parsed, choices, hooks));
+}
+
+/**
+ * `openDocument2`, inside `whileOpening`.
+ * @param session - The session.
+ * @param codecs - The codecs.
+ * @param parsed - The document.
+ * @param choices - What to load.
+ * @param hooks - What the project lends.
+ * @returns Whether the data was replaced, the parts restored and the problems.
+ */
+async function applyDocument(
+    session: GraphSession,
+    codecs: CodecRegistry,
+    parsed: ParsedDocument,
+    choices: OpenChoices,
+    hooks: OpenHooks,
+): Promise<{ replaced: boolean; restored: ProjectSlice[]; problems: DocumentProblem[] }> {
     const problems: DocumentProblem[] = [...parsed.problems];
     const asked = choices.sections === undefined ? undefined : new Set(choices.sections);
     const chosen = new Map<DocumentSection, ReadSection>(
@@ -420,9 +487,12 @@ export async function openDocument2(
     );
     const dataMode = choices.dataMode ?? "replace";
     const data = chosen.get("data");
-    const replaced = data !== undefined && dataMode === "replace";
+    const heldData = asked === undefined || asked.has("data") ? parsed.held.get("data") : undefined;
+    // A file carrying a data section opens a project, whether its data loads or is held.
+    const replaced = dataMode === "replace" && (data !== undefined || heldData !== undefined);
     // A bound section binds to the data this open brings, or to the data already open.
-    const openDataId = replaced && typeof data.header.id === "string" ? data.header.id : state.dataId;
+    const openDataId = replaced ? dataSectionId(data, heldData) : documentStateOf(session).dataId;
+    const heldBound = replaced && data === undefined ? holdBoundTo(chosen, codecs, openDataId, problems) : new Map();
 
     if (choices.bindOtherData !== true) {
         dropOtherData(chosen, codecs, openDataId, problems);
@@ -430,8 +500,11 @@ export async function openDocument2(
 
     if (replaced) {
         hooks.beforeReplace();
+        // Nothing the open project held, kept or stamped reaches the new one.
+        forgetDocument(session);
     }
 
+    const state = documentStateOf(session);
     const restored = new Set<ProjectSlice>();
     const loaded = new Set<DocumentSection>(chosen.keys());
     const options: TransactionOptions = {
@@ -443,6 +516,11 @@ export async function openDocument2(
         async (tx) => {
             if (replaced) {
                 await tx.config.set({ name: hooks.name });
+            }
+
+            if (replaced && data === undefined) {
+                // The held data is the project's: the old project's data does not stay under it.
+                await tx.data.clear();
             }
 
             for (const name of APPLY_ORDER) {
@@ -479,6 +557,6 @@ export async function openDocument2(
         await rememberBaselines(session, codecs, chosen, choices.rerun ?? true, hooks.isDerived ?? (() => false));
     }
 
-    await rememberOpened(state, parsed, loaded);
+    await rememberOpened(state, parsed, loaded, replaced ? new Map([...parsed.held, ...heldBound]) : undefined);
     return { replaced, restored: [...restored], problems };
 }

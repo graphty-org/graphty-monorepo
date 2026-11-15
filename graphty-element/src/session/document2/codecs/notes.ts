@@ -22,7 +22,7 @@ import { edgeRowsOf, savedForms } from "../../notes/status";
 import type { Note, NoteTarget } from "../../notes/types";
 import { unknownFields } from "../../notes/validate";
 import { canonicalize } from "../../runs/runId";
-import type { GraphSession } from "../../types";
+import { projectMemory } from "../memory";
 import type {
     DocumentProblem,
     ElementRefs,
@@ -49,7 +49,7 @@ const OWN_HEADER = [
 ] as const;
 
 /** Each session's notes header as last read. */
-const headers = new WeakMap<GraphSession, SectionHeaderInput>();
+const headers = projectMemory<SectionHeaderInput>();
 
 /** A note opened from a version 2 file, by its session record: its targets as the file held them. */
 const originals = new WeakMap<Note, readonly unknown[]>();

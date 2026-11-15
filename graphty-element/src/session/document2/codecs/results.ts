@@ -15,6 +15,7 @@ import type { RunResult } from "../../results/types";
 import { type Caveats, ENGINE_VERSIONS, type Run, type RunOutcome } from "../../runs";
 import type { GraphSession } from "../../types";
 import { isJsonObject } from "../framing";
+import { projectMemory } from "../memory";
 import type {
     DocumentProblem,
     ElementRefs,
@@ -24,7 +25,7 @@ import type {
     SectionCodec,
     WriteContext,
 } from "../types";
-import { canonicalJson, dataBindingOf, jsonSafe } from "./dataRefs";
+import { bindingOfBody, canonicalJson, dataBindingOf, jsonSafe } from "./dataRefs";
 
 /**
  * A value as a document holds it (spec 11), undefined as null so a column keeps its length.
@@ -116,7 +117,25 @@ interface Kept {
     layout?: { readonly entry: JsonObject } & Positions;
 }
 
-const KEPT = new WeakMap<GraphSession, Kept>();
+const KEPT = projectMemory<Kept>();
+
+/** The positions the last open restored with rerun off, so a layout the recipe sets after them keeps them. */
+const RESTORED = projectMemory<readonly { id: NodeId; x: number; y: number; z: number }[]>();
+
+/**
+ * The positions an open's results section restored with rerun off (spec 8.4: restored as they
+ * are), for the recipe to put back after it sets the layout, as version 1 does.
+ * @param session - The session.
+ * @returns The positions, or undefined when none were restored.
+ */
+export function restoredPositions(
+    session: object,
+): readonly { id: NodeId; x: number; y: number; z: number }[] | undefined {
+    // Taken once: a later open never puts them back.
+    const placed = RESTORED.get(session);
+    RESTORED.delete(session);
+    return placed;
+}
 
 /** The graph's node and edge ids, in order. */
 type GraphIds = ReturnType<typeof graphIdsOf>;
@@ -844,10 +863,12 @@ async function readLayout(reading: Reading, entry: JsonObject): Promise<void> {
         }
     });
     if (context.rerun || placed.length === 0) {
+        RESTORED.delete(context.session);
         return;
     }
 
     await context.tx.positions.set(placed);
+    RESTORED.set(context.session, placed);
     context.restored.add("arrangement");
     keptOf(context.session).layout = { entry, ...context.session.positions.snapshot() };
 }
@@ -859,7 +880,10 @@ async function readLayout(reading: Reading, entry: JsonObject): Promise<void> {
  */
 async function checkFingerprint(section: ReadSection, context: ReadContext): Promise<void> {
     const saved = section.header.bindsTo;
-    const now = await dataBindingOf(context.session);
+    // Compared with the data section as read when this open loaded one, not the session rebuilt
+    // from it: a section written on exactly that data matches, whatever this writer would derive.
+    const data = context.other("data");
+    const now = data === undefined ? await dataBindingOf(context.session) : bindingOfBody(data.body);
     if (saved?.fingerprint === now.fingerprint) {
         return;
     }

@@ -49,13 +49,12 @@ const app = path.join(work, "app");
 const PEER = "@graphty/webgpu-graph-algorithms";
 
 /** The packages packed from this checkout: graphty-element, its @graphty dependencies and the peer. */
+const elementManifest = JSON.parse(readFileSync(path.join(elementDir, "package.json"), "utf8"));
 const PACKED = [
-    "graph-format",
-    "graph-io",
-    "algorithms",
-    "layout",
-    "graph-samples",
-    "webgpu-graph-algorithms",
+    ...Object.entries({ ...elementManifest.dependencies, ...elementManifest.peerDependencies })
+        .filter(([, range]) => String(range).startsWith("workspace:"))
+        // every workspace package lives in the directory named after it, without the scope
+        .map(([name]) => name.replace(/^@graphty\//, "")),
     "graphty-element",
 ];
 

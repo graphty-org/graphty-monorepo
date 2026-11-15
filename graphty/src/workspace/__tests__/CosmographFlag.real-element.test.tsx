@@ -12,6 +12,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../test/features";
 import { siteFeatures } from "../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../test/test-utils";
 import { createWorkspaceStore } from "../state/store";
@@ -83,6 +84,9 @@ function element(): HTMLElementTagNameMap["graphty-element"] {
     }
     return found;
 }
+
+// The file-styles experiment draws the edge tab by part, where blending is on Line's settings page.
+withoutFeatures(["file-styles"]);
 
 describe("the cosmograph experiment's switch in the app", () => {
     it("draws with objects and offers no fade or blending with the experiment off", async () => {

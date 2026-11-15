@@ -126,6 +126,35 @@ describe("label checks", () => {
         assert.deepEqual(failures(scene("oracle"), small(edge, a))["label.present"], undefined);
     });
 
+    it("does not count a label missing that a program avoiding overlap hid on its own unrelated layout", () => {
+        // gexf-hsk-chars (#8013): Gephi hides labels that overlap on its own random placement, different ones each
+        // run; graphty lays the file out itself and draws every label
+        const shuffled = (label: Partial<Record<string, PText>>): PScene => {
+            const at = new Map(GRID.map(([id], i) => [id, GRID[(i * 5 + 2) % GRID.length]]));
+            const g = scene("graphty", {}, label);
+            return {
+                ...g,
+                nodes: g.nodes.map((n) => ({ ...n, cx: at.get(n.id)?.[1] ?? 0, cy: at.get(n.id)?.[2] ?? 0 })),
+            };
+        };
+        const hidden = scene("oracle", {}, { b: text("B", 300, 100) });
+        const drawn = shuffled({ a: text("A", 500, 300), b: text("B", 300, 300) });
+        const avoid = { ownLayouts: true, labelsAvoidOverlap: true };
+        const r = compareOracle("t", hidden, drawn, null, avoid);
+        assert.isTrue(r.transform?.unrelatedLayout);
+        assert.deepEqual(r.failures["label.present"], undefined);
+        assert.strictEqual(r.properties["label.present"].passRate, 1);
+        // a label the oracle shows and graphty does not draw still fails
+        const missing = compareOracle("t", hidden, shuffled({ a: text("A", 500, 300) }), null, avoid);
+        assert.deepEqual(missing.failures["label.present"], ["b"]);
+        // without overlap avoidance, or between related layouts, a hidden label is judged label for label
+        assert.deepEqual(compareOracle("t", hidden, drawn, null, { ownLayouts: true }).failures["label.present"], [
+            "a",
+        ]);
+        const related = scene("graphty", {}, { a: text("A", 100, 100), b: text("B", 300, 100) });
+        assert.deepEqual(compareOracle("t", hidden, related, null, avoid).failures["label.present"], ["a"]);
+    });
+
     it("fails a label drawn at half the program's opacity", () => {
         assert.deepEqual(labelPair({ opacity: 0.5 }), { "label.opacity": ["a"] });
     });

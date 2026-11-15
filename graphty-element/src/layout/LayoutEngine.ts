@@ -2098,8 +2098,33 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             // run keeps are kept still, and the nodes it would have placed are placed with this one's.
             this.#keep = carryRows(this.#keep, change);
         } else {
-            this.#keep = null;
+            this.#keep = loading ? null : this.#keptWhilePaused(change, grown);
         }
+    }
+
+    /**
+     * PAUSED, A CHANGE THAT WOULD MOVE EXISTING NODES WAITS FOR THE RESUME. A removal (or any
+     * change that is not only an add) re-runs the whole arrangement; while the consumer has paused
+     * the layout every node that was already there keeps its row instead, and a node the change
+     * brought is placed among them, as after an add. The re-run is applied on resume.
+     * @param change - the freeze
+     * @param grown - the existing rows when the freeze only added, else null
+     * @returns the rows the next run keeps, or null when it re-runs everything
+     */
+    #keptWhilePaused(change: SnapshotReplacement, grown: NodeMask | null): NodeMask | null {
+        const { previous } = change;
+        if (this.#paused?.() !== true || previous === null || this.#laidOut === null) {
+            return null;
+        }
+
+        // A run not yet read keeps what the last freeze kept; otherwise every row of the arrangement.
+        const base = this.#laidOut === previous ? makeMask(previous.nodeCount, true) : this.#keep;
+        if (base === null) {
+            return null;
+        }
+
+        this.#deferred ||= grown === null;
+        return carryRows(base, change);
     }
 
     /**
@@ -2338,10 +2363,6 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             return;
         }
 
-        if (this.#holdWhilePaused()) {
-            return;
-        }
-
         this.#loaded = null;
         this.result = null;
         // An empty graph has nothing to arrange, and an option that names a node -- a bfs start, a
@@ -2388,27 +2409,6 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
 
         this.#dropKept(loaded);
         this.publishComputed();
-    }
-
-    /**
-     * PAUSED, A CHANGE THAT WOULD MOVE EXISTING NODES WAITS FOR THE RESUME. A removal (or any
-     * change that is not an add) re-runs the whole arrangement; while the consumer has paused the
-     * layout every remaining node keeps its row in the array instead, and that array is what both
-     * render paths draw. The graph as it stands becomes the one laid out, so an add made while
-     * still paused places only its new nodes.
-     * @returns true when the re-run was held back
-     */
-    #holdWhilePaused(): boolean {
-        if (this.#keep !== null || this.#laidOut === null || this.#paused?.() !== true) {
-            return false;
-        }
-
-        this.stale = false;
-        this.#deferred = true;
-        this.#column = new Float32Array(0);
-        this.#loaded = null;
-        this.#laidOut = this.#load().source;
-        return true;
     }
 
     /**

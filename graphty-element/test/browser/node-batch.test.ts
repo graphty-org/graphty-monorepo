@@ -702,8 +702,8 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
     });
 
     it("hold a paused circle still through a removal, and lay it out again on resume", async () => {
-        // A paused static layout keeps every remaining node where it is on a removal; the re-run
-        // waits for the consumer to resume. The position table and the drawn nodes agree on both
+        // A paused static layout keeps every remaining node where it is on a removal, and still
+        // places a node added meanwhile; the re-run waits for the consumer to resume. The position table and the drawn nodes agree on both
         // paths throughout (#8039).
         const ring = Array.from({ length: 12 }, (_, i) => ({ id: `r${String(i)}` }));
         const links = ring.map((_, i) => ({ src: `r${String(i)}`, dst: `r${String((i + 1) % 12)}` }));
@@ -738,7 +738,20 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             element.graph.setRunning(false);
             await element.session.data.removeNodes(["r11"]);
             await operationQueueOf(element.graph).waitForCompletion();
+            // A node added while still paused is placed, among the nodes that stayed.
+            // Two, so the circle the resume lays out (thirteen nodes) is not the one paused (twelve).
+            await element.session.data.addNodes([{ id: "late" }, { id: "later" }]);
+            await element.session.data.addEdges([{ src: "late", dst: "r0" }]);
+            await operationQueueOf(element.graph).waitForCompletion();
             await element.waitForStableFrame();
+            const late = element.session.positions.get("late");
+            assert.isDefined(late, "the node added while paused has a row");
+            if (path === "objects") {
+                const mesh = element.graph.getNode("late")?.mesh.position;
+                assert.isDefined(mesh);
+                assert.isBelow(Vector3.Distance(mesh, new Vector3(late.x, late.y, late.z)), 1e-3);
+            }
+
             return { element, before, paused: await readFrame(element.graph) };
         };
         const resumed = async (element: Graphty): Promise<Frame> => {

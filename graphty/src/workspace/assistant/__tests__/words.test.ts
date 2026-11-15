@@ -363,6 +363,16 @@ describe("approvalWords", () => {
             calls: [{ tool: "project", arguments: { action: "generate_background", prompt: "stars" } }],
             preview: { provider: "google", model: "gemini-2.5-flash-image", costUsd: 0.039 },
         });
-        assert.strictEqual(words.line, "Google bills about $0.04.");
+        assert.strictEqual(words.line, "About $0.04 (Google).");
+    });
+
+    it("states only the cost when the provider has no plain name", () => {
+        const words = approvalWords({
+            id: "r2",
+            gate: "paid",
+            calls: [{ tool: "project", arguments: { action: "generate_background", prompt: "stars" } }],
+            preview: { provider: "unknown-provider", costUsd: 0.039 },
+        });
+        assert.strictEqual(words.line, "About $0.04.");
     });
 });

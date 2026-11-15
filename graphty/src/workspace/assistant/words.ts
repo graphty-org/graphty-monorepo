@@ -645,13 +645,9 @@ export function approvalWords(request: AiApprovalRequest): ApprovalWords {
             };
         case "paid": {
             const provider = AI_PROVIDER_DESCRIPTORS.find((one) => one.id === preview.provider)?.plainName;
-            return {
-                ...otherwise,
-                line:
-                    typeof preview.costUsd === "number"
-                        ? `${provider ?? "The provider"} bills about $${preview.costUsd.toFixed(2)}.`
-                        : null,
-            };
+            const cost = typeof preview.costUsd === "number" ? `About $${preview.costUsd.toFixed(2)}` : null;
+            const by = provider === undefined ? "" : ` (${provider})`;
+            return { ...otherwise, line: cost === null ? null : `${cost}${by}.` };
         }
         case "network":
             return preview.url === undefined

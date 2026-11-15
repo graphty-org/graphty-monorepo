@@ -3226,6 +3226,8 @@ export interface GraphContext {
     leansLines?(): boolean;
     // @deprecated
     needsRayUpdate(): boolean;
+    // @internal
+    nodeScreenPosition?(nodeId: string | number): NodeScreenPosition | undefined;
     readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;
     setRunning(running: boolean): void;
 }
@@ -7939,7 +7941,7 @@ export class SelectionManager implements Manager {
     getSelectedNodes(): Node_2[];
     // @internal
     highlightedNodes(): IterableIterator<Node_2>;
-    hover(id: NodeIdType | null): void;
+    hover(id: NodeIdType | null, drawn?: HoverDrawn): void;
     init(): Promise<void>;
     isHovered(id: NodeIdType): boolean;
     isSelected(node: Node_2): boolean;

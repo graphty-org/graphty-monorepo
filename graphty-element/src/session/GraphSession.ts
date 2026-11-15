@@ -3934,7 +3934,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 onHandSelection?.();
             }
         },
-        onHover: (before, after) => {
+        onHover: (before, after, drawn) => {
             const nodes = [before, after].flatMap((id) => {
                 const at = id === null ? undefined : nodeIndex(id);
                 return at === undefined ? [] : [at];
@@ -3946,7 +3946,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             repaintStates({ node: nodes, edge: [] });
             // The pointer moved to another node, or off every node: repaint what a hover layer paints.
             repaintHover();
-            publish(watchers, "selection:hover-changed", { before, after });
+            publish(
+                watchers,
+                "selection:hover-changed",
+                drawn === undefined ? { before, after } : { before, after, drawn },
+            );
         },
         onHoverPreview: (ids) => {
             advanceTick();

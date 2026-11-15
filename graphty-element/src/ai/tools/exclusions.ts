@@ -363,7 +363,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ]),
     {
         root: "SelectionOwner",
-        members: ["edgeRemovalChangesNothing", "endPeek"],
+        members: ["edgeRemovalChangesNothing", "endPeek", "hoverAt"],
         reason: "panel-state",
         kind: BY_DESIGN,
     },

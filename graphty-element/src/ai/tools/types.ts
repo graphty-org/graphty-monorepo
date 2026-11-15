@@ -7,7 +7,7 @@
 
 import type { z } from "zod";
 
-import type { AiEffect, AiTarget } from "../../catalog/ai";
+import type { AiEffect, AiImageModelDescriptor, AiTarget } from "../../catalog/ai";
 import type {
     AlgorithmDescriptor,
     CameraDescriptor,
@@ -22,6 +22,7 @@ import type { AiEvent } from "../../events";
 import type { ChannelDescriptor } from "../../session/styles/channels";
 import type { GraphSession, TransactionScope } from "../../session/types";
 import type { CommandContext } from "../commands/types";
+import type { GeneratedImage } from "../engine/types";
 
 /** A value that survives `JSON.stringify` unchanged. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -141,15 +142,23 @@ export interface ToolHost {
     readonly allowImportUrl?: (url: URL) => boolean;
     /** Where `load_dataset` downloads datasets from: the host's `datasetBaseUrl`. */
     readonly datasetBaseUrl?: string;
+    /** The provider's name, for a refusal's params. */
+    readonly provider?: string;
+    /** The provider's image model, with the reader's key; absent when the provider makes no pictures. */
+    readonly image?: {
+        readonly model: AiImageModelDescriptor;
+        generate(prompt: string, signal: AbortSignal): Promise<GeneratedImage>;
+    };
 }
 
 /**
  * Why a batch is held for the reader's approval: a measured limit, `"policy"` when the host's
  * approval policy asked about one of its calls, `"plan"` for a hand-off to helpers while
- * `confirmPlans` is set, or `"web-content"` for a call that does not only read while the message
- * holds text read on the web.
+ * `confirmPlans` is set, `"web-content"` for a call that does not only read while the message
+ * holds text read on the web, or `"paid"` for a call the provider bills (a generated picture).
  */
-export type GateKind = "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content";
+export type GateKind =
+    "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | "paid";
 
 /** One call the model made, as an approval policy judges it before anything runs. */
 export interface AiToolCallFacts {

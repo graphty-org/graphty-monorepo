@@ -81,6 +81,7 @@ export default defineConfig({
                         { text: "Graphviz Layouts", link: "/guide/graphviz-layouts" },
                         { text: "Acceleration", link: "/guide/acceleration" },
                         { text: "Renderer", link: "/guide/renderer" },
+                        { text: "Large Graphs", link: "/guide/large-graphs" },
                         { text: "Algorithms", link: "/guide/algorithms" },
                         { text: "Result Columns", link: "/guide/result-columns" },
                         { text: "What a Run Painted", link: "/guide/run-painting" },

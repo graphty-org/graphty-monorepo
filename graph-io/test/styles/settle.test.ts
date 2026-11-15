@@ -46,7 +46,7 @@ async function load(
     const values = (target: StyleTarget, property: string): readonly unknown[] =>
         resolveStyles(ex, target, property as StyleProperty, result.snapshot);
     const ids = Array.from({ length: result.snapshot.edgeCount }, (_, e) =>
-        result.snapshot.edges.byRole("id")?.value(e),
+        String(result.snapshot.edges.byRole("id")?.value(e)),
     );
     return { styles: ex, values, edge: (property, id) => values("edge", property)[ids.indexOf(id)] };
 }
@@ -91,6 +91,12 @@ describe("settled arrows", () => {
         expect(edge("targetArrowParts", "target-crows-foot-many-optional")).toBe("circle-open*10x10");
     });
 
+    it("gives Cytoscape's half arrows as graphty's half barbs", async () => {
+        const { edge } = await load(new Uint8Array(readFileSync(resolve(SPECIMENS, "cx2/specimen-arrows.cx2"))), "cx2");
+        expect(edge("targetArrow", "77552")).toBe("half-barb");
+        expect(edge("targetArrow", "77546")).toBe("half-barb-flipped");
+    });
+
     it("strokes Graphviz's open arrowhead as thick as its line, at Graphviz's size", async () => {
         const { values } = await load(DOT, "dot");
         expect(values("edge", "targetArrow")).toEqual(["triangle-open"]);
@@ -109,6 +115,16 @@ describe("settled shapes, corners and dashes", () => {
         const { values } = await load(DOT, "dot");
         expect(values("node", "cornerRadiusCap")).toEqual([12, 12, 12]);
         expect(values("node", "cornerFraction")).toEqual([1 / 3, 1 / 3, 1 / 3]);
+    });
+
+    it("gives Cytoscape desktop's corner rounding: an eighth of the shorter side, with no cap", async () => {
+        const xgmml =
+            '<?xml version="1.0"?>\n<graph label="g" directed="1" xmlns:cy="http://www.cytoscape.org" ' +
+            'xmlns="http://www.cs.rpi.edu/XGMML">\n' +
+            '<node id="a" label="a"><graphics type="ROUND_RECTANGLE" w="120" h="60"/></node>\n</graph>\n';
+        const { values } = await load(xgmml, "xgmml");
+        expect(values("node", "cornerFraction")).toEqual([1 / 8]);
+        expect(values("node", "cornerRadiusCap")).toEqual([null]);
     });
 
     it("gives Graphviz's dashes in widths of the line", async () => {

@@ -11,10 +11,15 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** Five people, three with "bob" in their name, spread out on a line so each is easy to click. */
 const NODES = [

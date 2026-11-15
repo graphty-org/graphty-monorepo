@@ -1554,9 +1554,22 @@ export class UpdateManager implements Manager {
      * whether it landed before or after the fit depended on the machine's speed: the same story
      * framed at two zooms (issue #7970). Asked on a drawn frame, once the repainted meshes are
      * built, and measured once per repaint, not per frame.
+     *
+     * A label pass counts as a repaint: with `labels.avoidNodesAndEdges` on, the pass before each
+     * frame moves labels around their nodes for the camera it is drawn from, so a fit measures the
+     * labels where the last pass put them -- over their nodes before the first pass, then wherever
+     * the camera before the fit placed them. Whether the last framing (the first settlement's)
+     * came before or after that pass decided whether the labels above the top row were framed: the
+     * same story drew the graph two pixels apart. Each refit is measured again after the pass it
+     * causes, so the framing settles on the labels placed for the camera it framed.
      */
     private noteRepaintedExtent(): void {
-        if (!this.repaintedSinceFit || this.fitRead === null || this.fittedBox === undefined) {
+        const passes = this.labelPasses();
+        if (
+            (!this.repaintedSinceFit && passes === this.fitLabelPasses) ||
+            this.fitRead === null ||
+            this.fittedBox === undefined
+        ) {
             return;
         }
 
@@ -1565,11 +1578,26 @@ export class UpdateManager implements Manager {
         }
 
         this.repaintedSinceFit = false;
+        this.fitLabelPasses = passes;
         const box = this.measure();
+        // ponytail: a label pass that keeps flipping its placement with the camera would refit for
+        // ever; cap the refits per framing request if one ever does.
         if (box === undefined || !sameBox(box, this.fittedBox)) {
             this.fitExtentMoved = true;
         }
     }
+
+    /**
+     * How many placing passes the scene's label declutter has run; see {@link UpdateManager.noteRepaintedExtent}.
+     * @returns The count, or 0 while no label is decluttered.
+     */
+    private labelPasses(): number {
+        const declutter: unknown = this.graphContext.getScene().metadata?.labelDeclutter;
+        return declutter instanceof LabelDeclutter ? declutter.passes : 0;
+    }
+
+    /** {@link UpdateManager.labelPasses} as the last fit measured them. */
+    private fitLabelPasses = 0;
 
     /** The box the last fit framed, before any map grew it; see {@link UpdateManager.noteRepaintedExtent}. */
     private fittedBox: FramingBox | undefined;
@@ -4557,6 +4585,7 @@ export class UpdateManager implements Manager {
         this.hasZoomedToFit = true;
         this.fitRead = this.fitInputs();
         this.fittedBox = box;
+        this.fitLabelPasses = this.labelPasses();
         this.fitExtentMoved = false;
         this.repaintedSinceFit = false;
         this.forceZoomToFit = false;

@@ -1,6 +1,6 @@
 /**
- * @file Small facts a style panel reads off the element: the Selected starting row's gold ring, alone,
- * stands off the dark backgrounds and dark colors, a legend block says how many
+ * @file Small facts a style panel reads off the element: the Selected starting row's blue ring, alone,
+ * stands off the light default background and the dark backgrounds, a legend block says how many
  * elements it paints, a rank binding's block names the rank, the node size descriptor refuses a
  * 0 that hides every node, a label size states its unit, and the layout catalog's descriptions
  * hold no code.
@@ -9,7 +9,6 @@
 import { assert, describe, it } from "vitest";
 
 import { LAYOUT_CATALOG } from "../../src/catalog/layouts";
-import { OKABE_ITO_COLORS } from "../../src/config/palettes/categorical";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
@@ -105,31 +104,28 @@ function selectedPart(session: GraphSession, target: "node" | "edge"): ReturnTyp
 }
 
 describe("the Selected starting row's ring", () => {
-    it("is the selection settings' gold alone, with no glow, standing off the dark backgrounds and dark colors", async () => {
+    it("is the selection settings' blue alone, with no glow, standing off the light and the dark backgrounds", async () => {
         const session = await lesMis();
         await session.config.set({ startingRows: true });
         const set = selectedPart(session, "node")?.set ?? {};
         const ring = set["node.haloColor"] as string;
 
-        assert.strictEqual(ring, session.config.selectionStyle.color, "the yellow highlight readers expect");
-        assert.strictEqual(ring, "#FFD700");
+        assert.strictEqual(ring, session.config.selectionStyle.color);
+        assert.strictEqual(ring, "#0077BB", "the selected edge's blue: one color marks nodes and edges");
         assert.notProperty(set, "node.glow", "the owner's choice (#7448): no dark glow under the ring");
         assert.strictEqual(set["node.haloOpacity"], 1, "solid, so the ring is the color measured");
         const band = selectedPart(session, "edge")?.set?.["edge.bandColor"] as string;
         assert.strictEqual(band, session.config.selectionStyle.edgeColor);
+        // Measured, with no second tone (#811): ring and band read 3:1 or better on the light
+        // default background and both dark backgrounds the element offers.
         for (const background of [DEFAULT_BACKGROUND, ...DARK_BACKGROUNDS]) {
             assert.isAtLeast(contrast(band, background), 3, `band on ${background}`);
+            assert.isAtLeast(contrast(ring, background), 3, `ring on ${background}`);
         }
-        // Measured, with no second tone: the gold reads on the dark backgrounds, a black node, the
-        // default node color and the palette's blue (3:1 or better) ...
-        for (const color of [...DARK_BACKGROUNDS, "#000000", DEFAULT_NODE_COLOR, OKABE_ITO_COLORS[3]]) {
-            assert.isAtLeast(contrast(ring, color), 3, `the gold on ${color}`);
-        }
-        // ... and is faint (under 3:1) on the light background and the palette's lighter colors.
-        // A consumer that needs more contrast there sets a darker selectionStyle color or a glow.
-        for (const color of [DEFAULT_BACKGROUND, ...OKABE_ITO_COLORS.filter((_, at) => at !== 3 && at !== 6)]) {
-            assert.isBelow(contrast(ring, color), 3, `the gold on ${color}`);
-        }
+        // One tone cannot also stand 3:1 off the default node color, whose lightness is the ring's:
+        // the ring reads by its hue and its outline there. A consumer that wants a second tone
+        // adds a glow or a border to the Selected row.
+        assert.isBelow(contrast(ring, DEFAULT_NODE_COLOR), 3, `the ring on ${DEFAULT_NODE_COLOR}`);
         session.dispose();
     });
 });

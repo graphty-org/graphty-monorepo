@@ -1,6 +1,6 @@
 /**
  * An export with styles writes the label graphty draws where the format keeps a node's label (Pajek's vertex label,
- * GEXF's label attribute). A data column of that name holding other labels is then not
+ * GEXF's label attribute, DOT's label attribute). A data column of that name holding other labels is then not
  * written, and the export says so, rather than dropping it silently (#7494: a Pajek label with a double quote gave
  * the E_PAJEK_TEXT refusal with styles off and nothing at all with styles on).
  */
@@ -48,7 +48,7 @@ function styles(snapshot: GraphSnapshot, label?: string[]): ExtractedStyles {
 }
 
 describe("a data label column replaced by the drawn labels", () => {
-    for (const format of ["pajek", "gexf"] as const) {
+    for (const format of ["pajek", "gexf", "dot"] as const) {
         it(`${format}: drawing no label reports the label column as not written`, () => {
             const snapshot = graph();
             const notes = registry.checkExport(snapshot, format, { styles: styles(snapshot) });

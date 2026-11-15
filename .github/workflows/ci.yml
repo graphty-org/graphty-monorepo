@@ -1218,7 +1218,7 @@ jobs:
 
     # The repository checks that read source or the built packages: the CI workflow tests, knip,
     # formatting, the bundle sizes, the public API report and the rest. The same checks run in
-    # tools/check-quick.sh. On a pull request, a step that reads one package's files runs only when that package
+    # tools/check-quick.sh, except the whole-repository formatting check (issue #8052). On a pull request, a step that reads one package's files runs only when that package
     # is affected (the packages job's affected list); every other run (push, workflow_call, the full run) runs all.
     checks:
         name: Checks

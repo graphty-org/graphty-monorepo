@@ -537,7 +537,7 @@ describe("the project file", () => {
         harness.session.dispose();
     });
 
-    it("reports what did not come back: an unknown member kind, edited data, an algorithm this session lacks", async () => {
+    it("reports an unknown member kind, edited data (its runs computed again) and an algorithm this session lacks", async () => {
         const source = await busySession();
         const file = JSON.parse((await source.session.project.save()).text) as {
             members: { kind: string; version: number; graph?: { links: unknown[] }; runs?: { algorithm: string }[] }[];
@@ -546,15 +546,17 @@ describe("the project file", () => {
         // A hand edit: one more link, so edges are no longer where the results say.
         file.members[0].graph?.links.push({ source: "a", target: "d" });
 
-        const { harness } = withDegree();
+        const { harness, calls } = withDegree();
         const report = await harness.session.project.open(JSON.stringify(file));
         assert.deepStrictEqual(report.problems, [
             { code: "W_UNKNOWN_KIND", params: { index: 7, kind: "org.example.bookmarks" } },
             { code: "W_DATA_DIFFERS", params: { slice: "runs", id: "links" } },
         ]);
+        // The run is computed again over the edited data, so it comes back whole.
+        assert.strictEqual(calls(), 1, "the run is computed again");
         const result = harness.session.results.get("links");
-        assert.strictEqual(result?.node("b")?.value, 2, "node values are keyed by id and survive");
-        assert.isUndefined(result?.edge(harness.session.data.edges()[0].id), "edge values are left out");
+        assert.strictEqual(result?.node("b")?.value, 2, "node values come back");
+        assert.isDefined(result?.edge(harness.session.data.edges()[0].id), "edge values come back");
 
         const results = file.members.find((member) => member.kind === "graphty-results");
         results!.runs![0].algorithm = "not-installed";

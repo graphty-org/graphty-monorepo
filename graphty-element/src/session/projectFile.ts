@@ -29,7 +29,6 @@ import {
     type SetDefinitionInput,
     type StyleDocument,
 } from "../catalog/types";
-import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
@@ -569,30 +568,20 @@ function configOf(session: GraphSession): ProjectConfigPatch {
         pinnedStyle,
         layoutBehavior,
     });
-    const config = JSON.parse(text) as Record<string, unknown>;
-    for (const [group, leaf, fallback] of ADDED_SETTINGS) {
-        const parent = parentOf(config, group);
-        if (parent !== undefined && JSON.stringify(parent[leaf]) === JSON.stringify(fallback)) {
-            Reflect.deleteProperty(parent, leaf);
-        }
-    }
-
-    return config;
+    return JSON.parse(text) as ProjectConfigPatch;
 }
 
 /**
- * The settings added after the first project files, with their defaults. Each is written only when
- * it is not its default, so a project that does not use it saves as before and an older
- * graphty-element, which refuses every setting of a file when one is unknown to it, still opens it
- * (test/lifecycle/production-compat.test.ts opens the candidate's file with production's build).
- * One left out reads back as its default.
- * A new setting goes here.
+ * The settings that files saved from 2026-10-25 until 2026-11-15 left out when they held their
+ * default, with the value that default had. Every save now writes every setting, so a later
+ * build that changes a default never changes an older file; one of these files reads its left-out
+ * settings back as these frozen values, never as the reading build's defaults.
  */
 const ADDED_SETTINGS: readonly (readonly [group: readonly string[], leaf: string, fallback: unknown])[] = [
     [["data", "knownFields"], "edgeWeightMeaning", null],
-    [["selectionStyle"], "edgeColor", DEFAULT_SELECTION_STYLE.edgeColor],
-    [["selectionStyle"], "edgeScale", DEFAULT_SELECTION_STYLE.edgeScale],
-    [["selectionStyle"], "edgeOpacity", DEFAULT_SELECTION_STYLE.edgeOpacity],
+    [["selectionStyle"], "edgeColor", "#0077BB"],
+    [["selectionStyle"], "edgeScale", 2.5],
+    [["selectionStyle"], "edgeOpacity", 1],
 ];
 
 /**
@@ -2437,7 +2426,8 @@ interface RunReading {
 }
 
 /**
- * Restart one saved run with its saved result waiting, then give it back its reader's name.
+ * Restart one saved run with its saved result waiting (or, over data that differs, computed
+ * again), then give it back its reader's name.
  * @param opening - The open.
  * @param run - The saved run.
  * @param reading - The data it opens over.
@@ -2446,33 +2436,35 @@ interface RunReading {
 async function readRun(opening: Opening, run: SavedRun, reading: RunReading, canned: CannedOutcomes): Promise<void> {
     const { tx, problems } = opening;
     const { sameData, nodeIds, edgeIds, remap } = reading;
-    if (!sameData) {
+    if (sameData) {
+        // A file written before caveats carried facts has none to read back.
+        const caveats: Caveats = { facts: [], ...run.caveats };
+        const result = createRunResult({
+            runId: run.id,
+            shape: run.shape,
+            fields: run.fields,
+            measured: run.measured,
+            graph: run.graph,
+            nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
+            // Edges are keyed by position in the data.
+            edges: rowsOf(
+                edgeIds.map((_, at) => at),
+                run.edges.columns,
+                (at) => edgeIds[at],
+            ),
+            caveats,
+            durationMs: run.durationMs,
+        });
+        // The summary too, as a fresh execution hands it over: the run's record (its count,
+        // its groups) is read from it.
+        canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
+    } else {
+        // Data that differs from what the run was saved over (a hand edit, or a build whose
+        // fingerprint hash changed) gets no saved result: the run is computed again over it, so
+        // it comes back whole and a change to the hash never loses a result.
         problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
     }
 
-    // A file written before caveats carried facts has none to read back.
-    const caveats: Caveats = { facts: [], ...run.caveats };
-    const result = createRunResult({
-        runId: run.id,
-        shape: run.shape,
-        fields: run.fields,
-        measured: run.measured,
-        graph: run.graph,
-        nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
-        // Edges are keyed by position in the data; data that differs leaves them out.
-        edges: sameData
-            ? rowsOf(
-                  edgeIds.map((_, at) => at),
-                  run.edges.columns,
-                  (at) => edgeIds[at],
-              )
-            : [],
-        caveats,
-        durationMs: run.durationMs,
-    });
-    // The summary too, as a fresh execution hands it over: the run's record (its count,
-    // its groups) is read from it.
-    canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
     const { algorithm, params, scope, seed, sample, exact } = remap(run);
     try {
         const restoring = tx.runs.start(algorithm, params, {

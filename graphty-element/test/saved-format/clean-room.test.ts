@@ -259,6 +259,7 @@ describe("save files are self-contained", () => {
             assert.isAbove(listed, 0);
             const project = (await a.project.save()).text;
             const styleFile = a.styles.toFile();
+            const state = row.state?.(a);
             a.dispose();
 
             vi.resetModules();
@@ -272,6 +273,9 @@ describe("save files are self-contained", () => {
                     const b = clean.createGraphSession();
                     const opened = await b.project.open(text);
                     assert.deepEqual(opened.problems, [], "B opens with no problems");
+                    if (row.state !== undefined && text === project) {
+                        assert.deepEqual(row.state(b), state, `B holds A's ${row.kind}`);
+                    }
                     assert.isEmpty(
                         b.shaders.list().filter((each) => each.state === "held"),
                         "every carried shader is trusted by its content",

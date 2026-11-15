@@ -4445,7 +4445,8 @@ export class Graphty extends LitElement {
      *     (`node.color` and the `node.model*` settings) as a layer's `set` holds them.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected model or one waiting for parts, its first problem's code and params.
+     *     rejected model or one waiting for parts, its first problem's code and params (with
+     *     `standInMissing`, a model waiting only for pictures or materials is drawn without them).
      * @example
      * ```typescript
      * const asset = await element.session.assets.add(input.files);
@@ -5389,6 +5390,10 @@ export class Graphty extends LitElement {
 
     /**
      * Get all nodes in the graph.
+     *
+     * On the `"batched"` render path a node's `Node` is built when its element of the array is
+     * first read: the call and `length` stay cheap at a million nodes, but walking the whole array
+     * builds every `Node`. Walk {@link getNodeIds} instead to enumerate a large graph.
      * @returns Array of all nodes
      * @since 1.5.0
      * @example
@@ -5399,6 +5404,23 @@ export class Graphty extends LitElement {
      */
     getNodes(): import("./Node").Node[] {
         return this.#graph.getNodes();
+    }
+
+    /**
+     * Get the id of every node, building no `Node` object: the way to enumerate the nodes of a
+     * large graph on the `"batched"` render path, where walking all of {@link getNodes} builds a
+     * `Node` for every row.
+     * @returns The ids, in the order `getNodes()` returns the nodes.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * for (const id of element.getNodeIds()) {
+     *     console.log(id);
+     * }
+     * ```
+     */
+    getNodeIds(): (string | number)[] {
+        return this.#graph.getNodeIds();
     }
 
     /**
@@ -7026,6 +7048,41 @@ export class Graphty extends LitElement {
         // attribute, `session.acceleration` and the hardware cannot disagree about the policy.
         this.#graph.getSession().acceleration = value;
         this.requestUpdate("acceleration", oldValue);
+    }
+
+    /**
+     * Whether the graph's readers read only what is shown: the part of the graph the filters leave
+     * visible. The time window is not part of it: a window step hides elements by drawing and never
+     * moves the layout.
+     * @remarks
+     * On by default, since a filter means the subset you work with: a reader that names no scope
+     * reads the working graph. Off, every reader reads
+     * the whole graph, as before this option existed. The graph itself is not copied or
+     * changed -- edits, undo and the project file act on all of it, hidden nodes keep their
+     * positions, styles and results, and a reader that names the whole graph still reads all of it.
+     * A session setting, the same one as `session.workingGraph`: it records no undo step and is not
+     * saved in a project file.
+     * @returns True when on.
+     * @since 3.40.0
+     * @example HTML attribute
+     * ```html
+     * <graphty-element working-graph="false"></graphty-element>
+     * ```
+     */
+    @property({
+        attribute: "working-graph",
+        converter: { fromAttribute: (value: string | null): boolean => value !== "false" },
+    })
+    get workingGraph(): boolean {
+        return this.#graph.getSession().workingGraph;
+    }
+    /**
+     * Switches the working graph on or off.
+     */
+    set workingGraph(value: boolean) {
+        const oldValue = this.workingGraph;
+        this.#graph.getSession().workingGraph = value;
+        this.requestUpdate("workingGraph", oldValue);
     }
 
     /**

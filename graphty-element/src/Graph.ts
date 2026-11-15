@@ -244,6 +244,7 @@ import { type DrawnTarget, RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import type { AssetsApiInternal } from "./session/assets/AssetsApi";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
 import {
@@ -268,6 +269,7 @@ import {
     scopeResolverOfSession,
     sessionRunsOf,
     setsNotifierOfSession,
+    workingGraphOfSession,
 } from "./session/GraphSession";
 import { ISSUES_VALUE } from "./session/issues";
 import { DEFAULT_LIMITS, type LimitsOption, RenderLimits } from "./session/limits";
@@ -294,6 +296,7 @@ import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { CompiledLayer } from "./session/styles/Layer";
 import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import type { WorkingGraph } from "./session/working/view";
 import {
     attachTransitions,
     LayoutTransitionRunner,
@@ -1440,6 +1443,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = action === "play";
             },
             immersive: (mode) => this.setImmersive(mode),
+            followsFilters: () => this.followsShown(workingGraphOfSession(this.session)),
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;
@@ -1705,7 +1709,8 @@ export class Graph implements GraphContext {
                 edges: () => this.session.selection.edgeMembers(),
                 nodes: () => this.session.selection.nodeMembers(),
             },
-            showContext: () => this.session.visibility.showContext,
+            // Off while the working graph is on: nothing outside the view is drawn.
+            showContext: () => this.session.visibility.drawsContext,
             // What is drawn: the visible elements, plus the ghosts outside the time window when
             // the timeline draws them. Visible stays the data scope everything else reads.
             visibility: this.session.visibility.drawnMasks,
@@ -1747,12 +1752,17 @@ export class Graph implements GraphContext {
         const resolver = scopeResolverOfSession(this.session);
         // A layout's grouping option names an attribute or a run's field the way an algorithm's does.
         const columns = sessionColumns(this.session, [], {}, "layout");
+        const working = workingGraphOfSession(this.session);
         this.layoutManager.setScopeSource({
+            // What layouts run over while the session reads the working graph, or while
+            // `layout.visibleOnly` asks for it: the one way a layout runs over only what is shown.
+            working: () => (this.followsShown(working) ? working.filtered() : null),
+            // What a layout definition reads: the same, or else the whole graph chosen by name, the
+            // only way one reads it. Read only when a definition places, so it freezes nothing else.
+            input: () => (this.followsShown(working) ? working.filtered() : working.view("graph")),
             nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
-            visibleEdges: () => this.session.visibility.edges,
-            playing: () => this.session.time.playing,
             detached: (scope) => {
                 try {
                     const { freshness } = this.session.sets.status(scope);
@@ -1772,20 +1782,15 @@ export class Graph implements GraphContext {
                 this.layoutManager.releaseDetachedScope();
             }
         });
-
-        // Under `layout.visibleOnly` the layout runs over what the filter shows, so it runs again
-        // when that changes. A restore or a rollback brings back an arrangement of its own.
+        // WHAT IS SHOWN CHANGED: a filter, a time-window commit, or an undo or redo of one. While
+        // layouts run over what is shown, the running layout follows it once
+        // (design/working-graph/design.md, section 7); queued, so `waitForSettled` waits for it. A
+        // restore or a rollback brings back an arrangement of its own.
         this.session.on("visibility:changed", ({ cause }) => {
-            if (cause !== "restore" && cause !== "rollback") {
-                this.layoutManager.relayoutForVisibility();
+            if (cause !== "restore" && cause !== "rollback" && this.followsShown(working)) {
+                this.followShown(cause === "undo" || cause === "redo");
             }
         });
-        // Under `layout.visibleOnlyWhilePlaying: "hold"` a play's window moves lay nothing out:
-        // the pause lays out what it stopped on.
-        this.session.on("time:pause", () => {
-            this.layoutManager.relayoutForVisibility();
-        });
-
         // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.
         this.session.on("run:changed", ({ phase }) => {
             if (phase === "end" || phase === "removed" || phase === "restored") {
@@ -3200,7 +3205,7 @@ export class Graph implements GraphContext {
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();
         // `layout.visibleOnly` switched lays the graph out again over what it now covers.
-        this.layoutManager.relayoutForVisibility();
+        this.followShown();
 
         // New fit insets frame the graph again inside what they leave.
         if (JSON.stringify(this.styles.config.behavior.camera.fitInsets) !== insetsBefore) {
@@ -4008,7 +4013,8 @@ export class Graph implements GraphContext {
      * refuses a scope that cannot be laid out -- one naming a removed set, or a running layout
      * that is not scoped -- because it is not an explicit `setLayout`: such a scope is inactive,
      * and the layout runs over the whole graph.
-     * @param scope - The scope; undefined or `"graph"` for the whole graph.
+     * @param scope - The scope; undefined or `"graph"` for the whole graph, which while
+     *     `workingGraph` is on is what is shown: a layout never moves a hidden node.
      * @returns A promise that resolves once the running layout has restarted.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` when the value is not a scope.
      * @since 2.5.0
@@ -5261,6 +5267,11 @@ export class Graph implements GraphContext {
                 },
                 this.scene,
             );
+            // A node whose mesh was read on the objects path shares its look's source, which the batch hides.
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+                node.holdOffBatch();
+            }
+
             this.#edgeRowLines = new EdgeRowLines({
                 scene: this.scene,
                 cache: this.dataManager.meshCache,
@@ -7429,7 +7440,8 @@ export class Graph implements GraphContext {
      * @param options - The size and the node's style values.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected or waiting model, its first problem's code and params; for an accepted model that
+     *     rejected or waiting model, its first problem's code and params (a waiting model with
+     *     `standInMissing` is drawn unless it waits for its geometry or an answer); for an accepted model that
      *     could not be drawn, the load failure's code (`E_MODEL_STRUCTURE`, `E_MODEL_PARSE`,
      *     `E_MODEL_DECODER_UNAVAILABLE`, `E_MODEL_EXTERNAL_URL`) and its params as `details`.
      */
@@ -7453,7 +7465,11 @@ export class Graph implements GraphContext {
                       params: { format: record.format, fileName: record.path ?? "", assetKind: "image" },
                   }
                 : record.problems[0];
-        if (record.state !== "accepted" || record.kind === "image") {
+        const standIn =
+            options.standInMissing === true && record.state !== "accepted"
+                ? (assets as AssetsApiInternal).standIn(record.id)
+                : undefined;
+        if ((record.state !== "accepted" && standIn === undefined) || record.kind === "image") {
             throw new GraphtyError({
                 code: (problem?.code ?? "E_MODEL_UNKNOWN_ASSET") as GraphtyError["code"],
                 source: "data",
@@ -7476,7 +7492,7 @@ export class Graph implements GraphContext {
         } as NonNullable<NodeStyleConfig["shape"]>;
         const is2D = this.getViewMode() === "2d";
         const key = JSON.stringify([
-            "model",
+            standIn === undefined ? "model" : "model-stand-in",
             record.digest,
             options.size,
             style["node.color"],
@@ -7496,13 +7512,12 @@ export class Graph implements GraphContext {
         let shot = this.#thumbnails.get(key);
         if (shot === undefined) {
             shot = this.#thumbnailQueue.then(async () => {
-                const files = assets.files(record.id);
                 const container = await loadModel(
                     this.scene,
-                    files,
-                    record.path ?? "",
-                    record.format,
-                    record.skipped,
+                    standIn?.files ?? assets.files(record.id),
+                    standIn?.main ?? record.path ?? "",
+                    standIn?.format ?? record.format,
+                    standIn?.skipped ?? record.skipped,
                 ).catch((error: unknown) => {
                     if (!(error instanceof ModelLoadFailure)) {
                         throw error;
@@ -7520,7 +7535,7 @@ export class Graph implements GraphContext {
                     this.scene,
                     container,
                     `graphty-model-thumbnail-${record.digest.slice(0, 8)}`,
-                    optionsOf(shape, assets.inspect(record.id).upAxis, {
+                    optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
                         unlit: style["node.unlit"] === true,
                         wireframe: style["node.wireframe"] === true,
                     }),
@@ -9180,7 +9195,52 @@ export class Graph implements GraphContext {
             }
         }
 
+        // While the session reads the working graph, Frame selection frames the selected nodes
+        // that are shown: one the time window hides stays selected but is not framed.
+        const working = workingGraphOfSession(this.session);
+        const view = working.enabled ? working.view() : null;
+        if (view !== null && !view.whole) {
+            const { ids } = view.snapshot;
+            for (const id of nodes) {
+                if (!ids.has(id)) {
+                    nodes.delete(id);
+                }
+            }
+        }
+
         return nodes;
+    }
+
+    /**
+     * Whether layouts run over only what is shown, the working graph's view: as
+     * `layout.visibleOnly` says, and while it is unset, as the session's `workingGraph` option says.
+     * @param working - The session's working graph.
+     * @returns True when they do.
+     */
+    private followsShown(working: WorkingGraph): boolean {
+        return this.styles.config.behavior.layout.visibleOnly ?? working.enabled;
+    }
+
+    /**
+     * Have the running layout follow what is shown, queued so that `waitForSettled` waits for it.
+     * Nothing is queued when what is shown is what it was built over: a change that moves no node
+     * (a time field, a playback setting) draws no frame for it.
+     * @param atRest - Whether an undo or a redo changed what is shown: see `LayoutManager.followView`.
+     */
+    private followShown(atRest = false): void {
+        if (!this.layoutManager.viewChanged()) {
+            return;
+        }
+
+        void this.operationQueue
+            .queueOperationAsync(
+                "layout-update",
+                async () => {
+                    await this.layoutManager.followView(atRest);
+                },
+                { description: "Laying out what is shown" },
+            )
+            .catch(() => undefined);
     }
 
     private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {
@@ -9594,11 +9654,28 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Get all nodes
+     * Get all nodes.
+     *
+     * On the `"batched"` render path most nodes are drawn from row tables with no `Node` object.
+     * The array this returns builds a node's `Node` only when that element is first read, so the
+     * call itself, `length` and reading a few elements stay cheap at a million nodes. Walking the
+     * whole array (a `for...of`, `map`, spread) builds every `Node`, which a graph of that size may
+     * not have the memory for: to enumerate nodes there, walk {@link Graph.getNodeIds} and read
+     * {@link Graph.getNode} only for the ones you need.
      * @returns Array of all node instances
      */
     getNodes(): Node[] {
-        return Array.from(this.dataManager.nodes.values());
+        return dataManagerInternals.nodeList(this.dataManager);
+    }
+
+    /**
+     * Get the id of every node, building no `Node` object, in the order {@link Graph.getNodes}
+     * returns the nodes.
+     * @returns The ids.
+     * @since 3.40.0
+     */
+    getNodeIds(): (string | number)[] {
+        return [...this.dataManager.nodes.keys()];
     }
 
     /**

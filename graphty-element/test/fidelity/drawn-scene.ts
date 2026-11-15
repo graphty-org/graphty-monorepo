@@ -39,6 +39,7 @@ import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { projectedVertices } from "../../src/meshes/NodeShapeGeometry";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
+import type { PulledLineBatch } from "../../src/meshes/PulledLineBatch";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
 import { type LineOptions, measureLine } from "../../src/meshes/RichTextParser";
 import { pixelsPerUnit } from "../../src/meshes/screenSize";
@@ -215,13 +216,14 @@ export function cssColor(css: string): { hex: string; alpha: number } {
 /** The renderer's own internals this reader takes, typed for test code. */
 interface EdgeInternals {
     lineBatch: EdgeLineBatch | null;
+    pulled: { batch: PulledLineBatch; piece: number; run: number[] | null } | null;
     lineSlots: number[];
     outlineBatch: EdgeLineBatch | null;
     outlineSlots: number[];
     haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[];
     lineIsCurve: boolean;
     drawnStyle: {
-        line?: { bezier?: boolean; gradient?: { kind?: string } };
+        line?: { bezier?: boolean; gradient?: { kind?: string }; taper?: number };
         arrowHead?: { gap?: number; position?: number };
         arrowTail?: { gap?: number; position?: number };
     } | null;
@@ -1578,6 +1580,12 @@ export interface DrawnEdge {
      */
     dashPx: number[] | null;
     /**
+     * A line drawn whole that narrows or widens along its length (`line.taper`): its width at the target over its
+     * width at the source. Absent for a line one width all along, or one drawn as separate pattern elements, which
+     * does not taper.
+     */
+    taper?: number;
+    /**
      * The band drawn under the line (`line.outline`): its color, opacity, whole width in pixels and the pattern it is
      * drawn in (a joined line's "dash" or "dot"; absent, solid); null for none.
      */
@@ -1615,9 +1623,10 @@ export interface DrawnEdge {
  * @param mesh - the batch mesh
  * @param at - a world point on the line
  * @param p - the projector
+ * @param own - the width a pulled piece carries in place of the material's (`PulledLineBatch.setLook`), in its units
  * @returns pixels
  */
-function lineThickness(mesh: Mesh, at: Vector3, p: Projector): number {
+function lineThickness(mesh: Mesh, at: Vector3, p: Projector, own?: number): number {
     const flat = (mesh.metadata as { lineWidth?: number } | null)?.lineWidth;
     mesh.computeWorldMatrix(true);
     const material = mesh.material as unknown as {
@@ -1628,7 +1637,7 @@ function lineThickness(mesh: Mesh, at: Vector3, p: Projector): number {
     if (typeof flat === "number") {
         return Math.max(flat * Math.abs(mesh.absoluteScaling.y) * p.pxPerWorld(at), min);
     }
-    const width = material?._floats?.width;
+    const width = own ?? material?._floats?.width;
     if (typeof width !== "number") {
         return 0;
     }
@@ -1808,6 +1817,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     let opacity = 1;
     let pattern: string | null = null;
     let dashPx: number[] | null = null;
+    let taper: number | undefined;
     if (batch !== null) {
         const slots = internal.lineSlots;
         const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
@@ -1839,6 +1849,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         // a dashed or dotted line through bends or round a loop is a joined line that draws its own pattern
         pattern = meta?.pattern?.kind ?? null;
         dashPx = joinedDashes(batch, slots, meta?.pattern, mid, p);
+        const asked = internal.drawnStyle?.line?.taper;
+        taper = asked !== undefined && asked !== 1 && batch.widened ? asked : undefined;
         const styled = own?.alpha ?? meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
@@ -1866,9 +1878,18 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color = cssColor(fields.color).hex;
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
-    } else if ((edge as unknown as { pulled: { run: unknown[] | null } | null }).pulled?.run === null) {
-        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres
+    } else if (internal.pulled?.run === null) {
+        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres, in the
+        // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
         world = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
+        const { batch, piece } = internal.pulled;
+        const look = batch as unknown as { rows: Float32Array; pieceFloats: number };
+        const at = piece * look.pieceFloats;
+        const meta = batch.mesh.metadata as { joinedLine?: boolean } | null;
+        thicknessPx = lineThickness(batch.mesh, Vector3.Center(world[0], world[1]), p, look.rows[at + 2]);
+        screenFloored = thicknessPx > 0 && thicknessPx <= screenFloorOf(batch.mesh);
+        color = hex({ r: look.rows[at + 4], g: look.rows[at + 5], b: look.rows[at + 6] });
+        opacity = look.rows[at + 3] * (meta?.joinedLine === true ? 1 : batch.mesh.visibility);
     }
     // An arrow is part of the edge as drawn: its tip, not the line it caps, is where the edge ends.
     // The line stops short of a tip by the arrow's length, which on a short edge between two ports
@@ -1943,6 +1964,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         opacity,
         pattern,
         dashPx,
+        ...(taper === undefined ? {} : { taper }),
         outline: readOutline(internal, p),
         overlay: readOverlay(internal, p),
         caps,

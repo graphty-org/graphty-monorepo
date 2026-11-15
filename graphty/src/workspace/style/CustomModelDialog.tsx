@@ -43,11 +43,15 @@ import { PartRow, RoleGlyph } from "./PartsPopover";
 import { useStillOpen } from "./useStillOpen";
 import { CUSTOM_MODEL, logUnexpected } from "./words";
 
-/** What the choosers and the drop target take, as graphty-element lists it. */
-const MODEL_EXTENSIONS = assetFileExtensions("model");
+/**
+ * What the file chooser takes, as graphty-element lists it: a model's own file or a .zip, never
+ * its parts, which the Files list asks for once the model is in (Safari greys out a part's
+ * extension, such as .mtl, that it has no file type for).
+ */
+const MODEL_MAIN_EXTENSIONS = assetFileExtensions("model", { parts: false });
 
 /** The model formats graphty-element draws, as graphty-element tells them: for the drop hint. */
-const MODEL_FORMATS = MODEL_EXTENSIONS.filter(
+const MODEL_FORMATS = MODEL_MAIN_EXTENSIONS.filter(
     (ext) => ext !== ".zip" && detectModelFormat({ filename: `model${ext}` })?.supported === true,
 );
 
@@ -228,9 +232,10 @@ function PartLine({ part }: Readonly<{ part: ModelPart }>): React.JSX.Element {
 }
 
 /**
- * The preview: a spinner while loading, the model drawn by graphty-element once it is accepted, the
- * cube and the "N missing" chip while it waits for parts, or the cube and the chip saying why
- * graphty-element could not draw it.
+ * The preview: a spinner while loading, the model drawn by graphty-element once it is accepted or,
+ * while it waits for parts, with them stood in for; the cube and the "N missing" chip while it waits
+ * for a part it cannot be drawn without, or the cube and the chip saying why graphty-element could
+ * not draw it.
  * @param props - Component props
  * @param props.held - the model, if any
  * @param props.name - its name
@@ -334,7 +339,7 @@ function AddressActions({
 }
 
 /**
- * The source line: what was loaded or is loading, its name cut in the middle, and one action.
+ * The source line: what was loaded, its name cut in the middle, and the x that takes it out.
  * @param props - Component props
  * @param props.name - the file's name or the address
  * @param props.byAddress - an address, drawn with the address glyph
@@ -446,13 +451,14 @@ function quietCounts(parts: readonly ModelPart[]): { substituted: number; skippe
 
 /**
  * The Load custom model dialog (node-models design 14): one file loader for a model's address, its
- * files, its folder, a .zip or a drop anywhere on the dialog; while it loads, graphty-element's
+ * own file (its parts are asked for after, in Files), its folder, a .zip or a drop of any files
+ * anywhere on the dialog; while it loads, graphty-element's
  * progress with Cancel load; once loaded, two columns: the name and the settings on the left (Color,
  * Animation for a model with clips, More options, and Files when a part needs an answer), and the
  * model drawn by graphty-element on the right with its rotate buttons and its Details table.
  * Settings are a draft until Add. One model per dialog: files that are not a model, arriving while
- * it waits, go to it; a model, a folder holding one or a .zip replaces it. Cancel lets go of what it
- * loaded that no layer uses. Mounted only while open.
+ * it waits, go to it; a model, a folder holding one or a .zip replaces it, and the x beside its
+ * name takes it out. Cancel lets go of what it loaded that no layer uses. Mounted only while open.
  * @param props - Component props
  * @param props.forLayer - whether a layer takes the model
  * @param props.baseStyle - the target layer's own values
@@ -480,7 +486,6 @@ export function CustomModelDialog({
     const [filesOpen, setFilesOpen] = useState(false);
     const [moreOpen, setMoreOpen] = useState(false);
     const [detailsOpen, setDetailsOpen] = useState(false);
-    const [replacing, setReplacing] = useState(false);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
     const added = useRef(new Set<string>());
     const nameField = useRef<HTMLInputElement | null>(null);
@@ -493,11 +498,15 @@ export function CustomModelDialog({
     const heldKey = held === null ? "" : `${held.record.id} ${held.record.state}`;
     const waits = waitingFor.length > 0;
     const values: ModelDraft = { ...baseStyle, ...draft };
-    const draw = useModelDraw(
-        held?.record.state === "accepted" ? (held.url ?? held.record.id) : undefined,
+    // A model waiting for parts is drawn with them stood in for, while Files still asks for them.
+    const drawn = useModelDraw(
+        held?.record.state === "accepted" ? (held.url ?? held.record.id) : held?.record.id,
         PREVIEW_PX,
         values,
+        true,
     );
+    // Only an accepted model's failure is said: a waiting one keeps the cube and its "N missing".
+    const draw: ModelDraw = held?.record.state === "accepted" ? drawn : { ...drawn, failure: undefined };
     useEffect(() => {
         // The name and the parts are drawn once the load is over, so focus waits for that too.
         if (heldKey === "" || busy) {
@@ -555,7 +564,6 @@ export function CustomModelDialog({
         setName(next.record.plainName ?? modelName(session, next.url ?? next.record.id));
         // Files opens by itself only when a part needs an answer before Add can work.
         setFilesOpen(next.record.problems.some((p) => PART_CODES.has(p.code)));
-        setReplacing(false);
     };
     // Waiting for parts: files that are not a model go to it, matched by graphty-element.
     const offer = async (waiting: Held, files: readonly File[], live: () => boolean): Promise<void> => {
@@ -566,7 +574,6 @@ export function CustomModelDialog({
         const after = session.assets.find(waiting.url ?? waiting.record.id) ?? waiting.record;
         moved(waiting.record, after);
         setHeld({ ...waiting, record: after });
-        setReplacing(false);
         const left = new Set(rest.map((f) => f.name));
         say(files.map((f) => `${f.name} ${left.has(f.name) ? "not needed" : "added"}`).join(", "));
     };
@@ -735,9 +742,28 @@ export function CustomModelDialog({
     const addressProblem = problem !== null && ADDRESS_CODES.has(problem.code) ? problem : null;
     const fileProblem = problem !== null && addressProblem === null ? problem : null;
     const empty = held === null && !busy;
-    const sourcesOpen = busy || held === null || replacing;
+    const sourcesOpen = busy || held === null;
     const shownLoad = loading === null ? undefined : loadStatus(loading);
     const heldFile = held === null ? "" : (held.url ?? held.record.path ?? name);
+    // The x beside the file: back to the empty dialog, after letting go of what nothing uses.
+    const clear = (): void => {
+        loading?.controller.abort();
+        for (const each of added.current) {
+            letGo(each);
+        }
+        setLoading(null);
+        setHeld(null);
+        setName("");
+        setDraft({});
+        setProblem(null);
+        setTried(null);
+        setPicture(null);
+        setAddress("");
+        setFilesOpen(false);
+        setMoreOpen(false);
+        setDetailsOpen(false);
+        say(CUSTOM_MODEL.removed(heldFile));
+    };
 
     const fileSource = (
         <FileSource
@@ -748,11 +774,10 @@ export function CustomModelDialog({
             status={shownLoad?.status}
             onCancel={busy ? cancelLoad : undefined}
             cancelLabel={CUSTOM_MODEL.cancelLoad}
-            multiple
             folder
             url
-            accept={MODEL_EXTENSIONS.join(",")}
-            label={CUSTOM_MODEL.chooseFiles}
+            accept={MODEL_MAIN_EXTENSIONS.join(",")}
+            label={CUSTOM_MODEL.chooseFile}
             folderLabel={CUSTOM_MODEL.chooseFolder}
             placeholder={CUSTOM_MODEL.address}
             defaultValue={address}
@@ -777,15 +802,16 @@ export function CustomModelDialog({
                     name={heldFile}
                     byAddress={held.url !== undefined}
                     action={
-                        <Button
-                            size="compact-xs"
-                            variant="default"
-                            onClick={() => {
-                                setReplacing(!replacing);
-                            }}
-                        >
-                            {CUSTOM_MODEL.replace}
-                        </Button>
+                        <Tooltip label={CUSTOM_MODEL.remove(heldFile)}>
+                            <ActionIcon
+                                variant="subtle"
+                                size="sm"
+                                aria-label={CUSTOM_MODEL.remove(heldFile)}
+                                onClick={clear}
+                            >
+                                <GLYPHS.close size={14} aria-hidden />
+                            </ActionIcon>
+                        </Tooltip>
                     }
                 />
             )}

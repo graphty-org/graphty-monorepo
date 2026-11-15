@@ -229,6 +229,17 @@ describe("DOT styles: Graphviz's rules", () => {
         expect(drawn(styles, snapshot, "edge", "lineStyle")).toEqual(["dashed", "solid"]);
     });
 
+    it("narrows a forward tapered line to a point at its head, as Graphviz's taperfun does by direction", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            a -> b [style=tapered, penwidth=7]; c -> d [style=tapered, dir=back];
+            e -> f [style=tapered, dir=both]; g -> h [style=tapered, dir=none]; i -> j;
+        }`);
+        expect(drawn(styles, snapshot, "edge", "taper")).toEqual([0, null, null, null, null]);
+        expect(drawn(styles, snapshot, "edge", "width")[0]).toBe(7);
+        const undirected = await load("graph { a -- b [style=tapered] }");
+        expect(drawn(undirected.styles, undirected.snapshot, "edge", "taper")).toEqual([null]);
+    });
+
     it("reads sizes exact with fixedsize, an empty label or a point, and as minimums otherwise", async () => {
         const { snapshot, styles } = await load(`digraph {
             fx [width=2, height=1, fixedsize=true]; e [width=2, height=1, label=""];

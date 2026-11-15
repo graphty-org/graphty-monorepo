@@ -267,32 +267,6 @@ describe("focus after a style line is written or removed", () => {
         assert.notStrictEqual(active?.getAttribute("role"), "tab", `focus is not on a tab (${focusName()})`);
     });
 
-    it("Tab out of a selection's first color moves on, not to the Style tab", async () => {
-        const session = await openScene();
-        const valjean = String(session.data.nodes().find((n) => n.name === "Valjean")?.id);
-        await act(async () => {
-            await session.selection.apply({ nodes: [valjean] });
-        });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        await screen.findByTestId("style-tab");
-        await showKind("node");
-        const before = session.styles.list().length;
-        await addLine("node", "fill", "Color", "node.color");
-        await userEvent.keyboard("purple{Tab}");
-
-        await waitFor(() => {
-            assert.isAbove(session.styles.list().length, before, "the selection's layer is made");
-        });
-        await drawn(session);
-        const box = within(await lineOf("node.color")).getByRole("textbox", { name: /^Node color(,|$)/ });
-        const active = document.activeElement;
-        assert.notStrictEqual(active?.getAttribute("role"), "tab", `focus is not on a tab (${focusName()})`);
-        assert.isTrue(
-            active !== null && (box.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-            `focus is after the color box, not on ${focusName()}`,
-        );
-    });
-
     it.each(["Paint", "Everything"])(
         "Remove a line with Enter on %s lands on its section's +, so a second Enter removes nothing",
         async (row) => {

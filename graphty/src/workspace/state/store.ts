@@ -100,6 +100,12 @@ export interface WorkspaceState {
     /** The paint-tree row whose name is being edited in place, or null. */
     readonly renamingRow: string | null;
     readonly inspected: Inspected | null;
+    /**
+     * The style tree row the reader last opened, kept while a node or edge is inspected: the layer
+     * a selection's Style tab edits. Null until one is opened (the row that paints every element
+     * stands in).
+     */
+    readonly styleRow: string | null;
     /** The tab last chosen per inspected kind. */
     readonly tabs: Readonly<Record<string, InspectorTab>>;
     /**
@@ -381,6 +387,7 @@ const INITIAL: WorkspaceState = {
     renaming: false,
     renamingRow: null,
     inspected: null,
+    styleRow: null,
     tabs: {},
     styleSide: "node",
     leftWidth: PANEL_MIN,
@@ -546,9 +553,12 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
                 !("announcement" in given)
                     ? { ...given, announcement: given.notice.message }
                     : given;
+            // Opening a layer row selects that layer: a selection's Style tab goes on editing it.
+            const opened = fields.inspected?.kind === "layer-row" ? fields.inspected.id : undefined;
             state = {
                 ...state,
                 ...fields,
+                ...(opened === undefined ? {} : { styleRow: opened }),
                 ...("announcement" in fields ? { announced: state.announced + 1 } : {}),
             };
             listeners.forEach((listener) => {

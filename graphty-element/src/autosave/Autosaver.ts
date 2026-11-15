@@ -30,6 +30,7 @@ import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
 import type { CodedFact } from "../session/shared";
 import type { GraphSession, ProjectSlice } from "../session/types";
+import { wholeGraph } from "../session/working/graphs";
 import { buildParts, EVERY_PART, type PartTag, PartTooLarge, reassemble, stashOf } from "./parts";
 import {
     canRead,
@@ -1361,7 +1362,7 @@ export class Autosaver {
      */
     #graphTaken(): boolean {
         try {
-            const snapshot = this.#session.data.snapshot();
+            const snapshot = wholeGraph(this.#session.data.store);
             return snapshot.nodeCount > 0 || snapshot.edgeCount > 0 || loadLineOf(dispatcherOf(this.#session)).size > 0;
         } catch {
             // A session disposed meanwhile (the element left): the open reports that, releases the
@@ -1825,7 +1826,7 @@ export class Autosaver {
      */
     #metaOf(entry: EntryState, sizes: ReadonlyMap<string, number>): AutosaveEntryMeta {
         const session = this.#session;
-        const snapshot = session.data.snapshot();
+        const snapshot = wholeGraph(session.data.store);
         return {
             id: entry.id,
             key: this.#key,

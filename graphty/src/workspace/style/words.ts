@@ -1446,16 +1446,6 @@ export function firstValueWords(property: string): string {
     return `Not set yet: the first ${property.toLowerCase()} you pick makes the layer`;
 }
 
-/**
- * What a selection's Style tab says before its layer exists: the first style set makes it.
- * @param nodes - how many nodes are selected.
- * @param edges - how many edges are selected.
- * @returns the words.
- */
-export function firstStyleWords(nodes: number, edges: number): string {
-    return `The first style you set makes a layer for ${selectedWords(nodes, edges)}.`;
-}
-
 /** Which list a shader gallery opens for: a tab's Shaders, or the graph's Background. */
 export type ShaderTab = "node" | "edge" | "background";
 
@@ -2051,7 +2041,7 @@ export const CUSTOM_MODEL = {
     button: "Add custom model...",
     description: "Load a 3D model file or address into this project",
     address: "Model address",
-    chooseFiles: "Choose files",
+    chooseFile: "Choose file",
     chooseFolder: "Choose folder",
     cancelLoad: "Cancel load",
     /**
@@ -2103,7 +2093,18 @@ export const CUSTOM_MODEL = {
      */
     notModel: (name: string, formats: readonly string[]): string =>
         `${name} is a picture, not a 3D model: ${readsWords(formats)}`,
-    replace: "Replace...",
+    /**
+     * The x beside the loaded file's name.
+     * @param name - the file's name or the address.
+     * @returns the words.
+     */
+    remove: (name: string): string => `Remove ${name}`,
+    /**
+     * Said once the loaded model is taken out of the dialog.
+     * @param name - the file's name or the address.
+     * @returns the words.
+     */
+    removed: (name: string): string => `${name} removed`,
     name: "Name",
     color: "Color",
     files: "Files",

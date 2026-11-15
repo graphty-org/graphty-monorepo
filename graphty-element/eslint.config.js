@@ -18,6 +18,8 @@ import nodeMeshFunnel from "./eslint-rules/node-mesh-funnel.mjs";
 import noPrivateManagerCast from "./eslint-rules/no-private-manager-cast.mjs";
 import { savedFormatLint } from "./test/saved-format/eslint-saved-format.js";
 import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
+import wholeGraphByName from "./eslint-rules/whole-graph-by-name.mjs";
+import wholeReaders from "./working-graph-whole-readers.json" with { type: "json" };
 
 /** Prevent architectural violations - don't mutate layers directly. */
 const LAYERS_MUTATION = {
@@ -26,7 +28,13 @@ const LAYERS_MUTATION = {
     message: "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
 };
 
-const local = { rules: { "node-mesh-funnel": nodeMeshFunnel, "node-position-funnel": nodePositionFunnel } };
+const local = {
+    rules: {
+        "node-mesh-funnel": nodeMeshFunnel,
+        "node-position-funnel": nodePositionFunnel,
+        "whole-graph-by-name": wholeGraphByName,
+    },
+};
 
 export default tseslint.config(
     // Inherit all rules from root config (includes JSDoc). All but one block: this package's
@@ -95,6 +103,27 @@ export default tseslint.config(
         files: ["src/**/*.ts"],
         plugins: { local },
         rules: { "local/node-position-funnel": "error" },
+    },
+
+    // ============================================
+    // THE WHOLE GRAPH IS READ ONLY BY NAME
+    // ============================================
+    // Every reader reads the working graph (what the filters show). The whole graph, hidden nodes
+    // included, is read only through wholeGraph(), in a function working-graph-whole-readers.json
+    // lists under `accessors` with its agreed case. The rule: eslint-rules/whole-graph-by-name.mjs.
+    {
+        files: ["src/**/*.ts"],
+        plugins: { local },
+        rules: {
+            "local/whole-graph-by-name": [
+                "error",
+                {
+                    accessors: wholeReaders.accessors.map(({ file, function: name }) => ({ file, function: name })),
+                    owners: wholeReaders.accessorOwners,
+                    mints: wholeReaders.workingMints,
+                },
+            ],
+        },
     },
 
     // ============================================

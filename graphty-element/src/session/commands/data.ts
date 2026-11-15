@@ -29,7 +29,7 @@
  */
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
-import type { FileLayout } from "@graphty/graph-io";
+import type { RequestedLayout } from "@graphty/graph-io";
 
 import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
@@ -597,19 +597,15 @@ export const SOURCE_VALUE = "source";
 export const SOURCES_VALUE = "sources";
 
 /**
- * The graph value holding what the last loaded file said about the whole graph: its format and
- * its graph-level attributes (`{ format: "dot", attributes: { layout: "neato" } }`). Written only
- * for a reader that declares graph values.
+ * The graph value holding the layout the graph asks to be drawn with: a graphty layout id and its
+ * options (`{ layout: "graphviz-neato", options: { ... } }`), as graph-io's `requestedLayout()`
+ * gives it. A load writes the request its reader declared; any caller may write one. A load that
+ * asks for the recommended layout reads it.
  */
-export const FILE_GRAPH_VALUE = "fileGraph";
+export const REQUESTED_LAYOUT_VALUE = "requestedLayout";
 
-/** What {@link FILE_GRAPH_VALUE} holds. */
-export interface FileGraphValue {
-    readonly format: string;
-    readonly attributes: Readonly<Record<string, unknown>>;
-    /** The layout the file asks to be drawn with, as graph-io read it; absent when it names none. */
-    readonly layout?: FileLayout;
-}
+/** What {@link REQUESTED_LAYOUT_VALUE} holds. */
+export type RequestedLayoutValue = RequestedLayout;
 
 /**
  * A source as the graph keeps it: without the inline text or the file, which the loaded rows

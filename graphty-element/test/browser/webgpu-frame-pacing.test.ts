@@ -306,7 +306,7 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
             "two layout batches landed within the frames allowed",
         );
         assert.notDeepEqual(sample(), first, "the layout's positions moved between two samples");
-        await hoverAndAnswer(graph);
+        await hoverAndAnswer(graph, true);
         assert.isFalse(engine.isSettled, "the layout was still running when hover answered");
     });
 });
@@ -317,8 +317,8 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
  * Hover answers the node drawn in front at the pointer, so a node a nearer one covers is never the
  * answer at its own center: in a 4000-node cloud a dozen nodes stand within 6 px of any one, some
  * nearer the camera, and pointing at a fixed node (n0) hovered the node covering it (issue #6548).
- * The node with the most room around it is covered by none, and keeps that room while a layout
- * moves the scene for the few frames the hover takes.
+ * The node with the most room around it is covered by none on a still scene. A running layout
+ * takes that room away within a landing ({@link hoverAndAnswer}).
  * @param graph - The graph.
  * @param container - The graph's container.
  * @returns The node.
@@ -352,12 +352,27 @@ function clearestNode(graph: Graph, container: HTMLElement): Node {
 }
 
 /**
- * Points a real mouse at the node with the most room around it ({@link clearestNode}), following
- * it while a layout moves it, and waits for the graph to name it hovered within
- * {@link HOVER_FRAMES} frames drawn.
- * @param graph - The graph.
+ * How far from the pointer, in CSS pixels, the node hover names may stand once it answers while a
+ * layout runs. The node was drawn under the pointer in the frame hover read; by the time the answer
+ * is checked a landing or two may have moved it, each up to about 8 px in this scene. A wrong answer
+ * (a stale or misread row) names a node anywhere in the 480 x 360 canvas.
  */
-async function hoverAndAnswer(graph: Graph): Promise<void> {
+const MOVING_HOVER_PX = 24;
+
+/**
+ * Points a real mouse at the node with the most room around it ({@link clearestNode}), following
+ * it while a layout moves it, and waits for the graph to name a node hovered within
+ * {@link HOVER_FRAMES} frames drawn.
+ *
+ * On a still scene the answer must be that node. While a layout runs it may be another: each
+ * landing moves every node a few pixels and reshuffles which ones stand nearest, so the node with
+ * the most room when chosen has another within 2 px of it a landing later, and hover rightly names
+ * whichever is drawn in front at the pointer in the frame it reads (issue #6548). There the answer
+ * must be a node at the pointer, within {@link MOVING_HOVER_PX}.
+ * @param graph - The graph.
+ * @param moving - Whether a layout is moving the nodes.
+ */
+async function hoverAndAnswer(graph: Graph, moving = false): Promise<void> {
     const { container } = mounted.find((entry) => entry.graph === graph) ?? {};
     assert.isDefined(container);
     const node = clearestNode(graph, container);
@@ -365,12 +380,25 @@ async function hoverAndAnswer(graph: Graph): Promise<void> {
     const { ticks } = renderManagerOf(graph);
     const before = ticks.drawn;
     const { selection } = graph.getSession();
+    let pointer = graph.worldToScreen(node.drawnWorldPosition);
     // Bounded by frames drawn, so an unpaced loop fails here rather than hanging.
-    while (selection.hovered !== node.id && ticks.drawn - before <= HOVER_FRAMES) {
-        const screen = graph.worldToScreen(node.drawnWorldPosition);
-        await hover(container, { x: screen.x * scaling, y: screen.y * scaling });
+    while (selection.hovered === null && ticks.drawn - before <= HOVER_FRAMES) {
+        pointer = graph.worldToScreen(node.drawnWorldPosition);
+        await hover(container, { x: pointer.x * scaling, y: pointer.y * scaling });
         await nextFrame();
     }
 
-    assert.strictEqual(selection.hovered, node.id, "hover answered within a few frames drawn");
+    if (!moving) {
+        assert.strictEqual(selection.hovered, node.id, "hover answered within a few frames drawn");
+        return;
+    }
+
+    const hovered = graph.getNodes().find((candidate) => candidate.id === selection.hovered);
+    assert.isDefined(hovered, "hover answered within a few frames drawn");
+    const at = graph.worldToScreen(hovered.drawnWorldPosition);
+    assert.isAtMost(
+        Math.hypot(at.x - pointer.x, at.y - pointer.y),
+        MOVING_HOVER_PX,
+        `hover named ${String(hovered.id)}, a node at the pointer`,
+    );
 }

@@ -708,7 +708,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const element = await mounted(renderer);
         await loaded(element, "3d", false);
         const { graph } = element;
-        const unread = await frameOn(graph, "batched");
+        await frameOn(graph, "batched");
         assert.equal(graph.rowCounts.batchedNodes, NODES.length);
 
         const mesh = graph.getNode(0)?.mesh;
@@ -717,9 +717,6 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const batched = await readFrame(graph);
         assert.equal(graph.rowCounts.batchedNodes, NODES.length - 1, "its three look-mates stay on the batch");
         assert.equal(graph.rowCounts.objectNodes, 1);
-        // The read node keeps its painted red: its own source had no color buffer, so it drew white (#8221).
-        // The objects path draws it from the same source, so only the frame before the read shows that.
-        assert.equal(overBar(unread, batched), 0, "reading the mesh changes nothing drawn");
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 

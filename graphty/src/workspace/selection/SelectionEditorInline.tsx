@@ -78,6 +78,7 @@ import {
 } from "./model";
 import { type SelectionMenuItem, SelectionMenuItems } from "./SelectionMenu";
 import { CaptionedRow, StepPane } from "./StepPane";
+import { StyleOpenLine } from "./StyleOpenLine";
 import { useSteps } from "./useSteps";
 import {
     type Host,
@@ -97,6 +98,7 @@ import {
     rowTest,
     rowWords,
     shortCount,
+    shownWords,
     stepWords,
     VERB_WORDS,
 } from "./words";
@@ -127,8 +129,6 @@ interface SelectionEditorProps {
     readonly ownerName?: string;
     /** Selects the first step on arrival (a filter card opened on a value). */
     readonly openFirst?: boolean;
-    /** A filter condition being edited: what it would remove stays drawn, faint, while picking (spec 9). */
-    readonly hold?: string;
     /** The title row's name: a filter card's name; "Which nodes" when absent. */
     readonly title?: string;
     /** Opens the value picker on the first group at once (a new filter card). */
@@ -206,7 +206,6 @@ function afterPaint(work: () => void): void {
  * @param props.onChange - takes the next rule, which the host writes
  * @param props.onDone - Escape on the sidebar outline: the host may fold it
  * @param props.openFirst - opens the workspace on the first step on arrival
- * @param props.hold - the filter condition being edited
  * @param props.title - the title row's name
  * @param props.ownerName - what the selection belongs to, after its name in the workspace's title
  * @param props.openPicker - opens the workspace with the value picker on the first group at once
@@ -229,7 +228,6 @@ export function SelectionEditorInline({
     onChange: handOn,
     onDone,
     openFirst = false,
-    hold,
     title,
     ownerName,
     openPicker = false,
@@ -342,6 +340,9 @@ export function SelectionEditorInline({
     const focusAfter = useRef<string | readonly string[] | number | null>(arrival);
     const multi = rule.branches.length > 1 || (keepShape && rule.branches.length === 1);
     const { of } = reading.total;
+    // A filter's count reads the full graph; beside other filters it can count nodes that are not
+    // drawn, so the header says which graph it counts and how many are shown.
+    const wsCountWhere = host === "filter" && reading.total.shown < reading.total.count ? " in full graph" : "";
     const say = (words: string): void => {
         store.set({ announcement: words });
     };
@@ -476,6 +477,8 @@ export function SelectionEditorInline({
                 ? []
                 : [`[data-row="${CSS.escape(from)}"]`, `[data-selects="${CSS.escape(from)}"]`]),
             `[data-row="${TITLE}"]`,
+            // A style layer's sidebar has no rows, only its Style Nodes... line (issue #6810).
+            "[data-edit]",
         ];
     };
     closeRef.current = close;
@@ -607,17 +610,14 @@ export function SelectionEditorInline({
             view.current = session.styles.showBranches({
                 rule: JSON.parse(viewKey) as UnionLeaf,
                 rest: "faint",
-                // A filter card counts on the full graph, so it is drawn there: the other cards'
-                // removals are lifted, and drawn faint, while it is edited.
-                ...(host === "filter" ? { base: "full" as const } : {}),
-                ...(hold === undefined ? {} : { hold }),
+                // Only what is shown is drawn: the working graph draws no node outside it.
                 ...(markedNow === null ? {} : { mark: markedNow }),
             });
         } else {
             view.current?.end();
             view.current = null;
         }
-    }, [previewing, viewKey, session, hold, markedNow, host]);
+    }, [previewing, viewKey, session, markedNow]);
     useEffect(
         () => () => {
             view.current?.end();
@@ -1158,6 +1158,17 @@ export function SelectionEditorInline({
      */
     const outline = (where: "rest" | "ws"): React.JSX.Element => {
         const ws = where === "ws";
+        if (!ws && host === "selector") {
+            // A style layer's selection at rest is one line that opens the workspace (issue #6810).
+            return (
+                <StyleOpenLine
+                    side={side}
+                    onOpen={() => {
+                        openAt(TITLE, EDIT);
+                    }}
+                />
+            );
+        }
         // While the workspace is open the sidebar keeps only the title row, marked as being edited,
         // with no outline and no count: the workspace's header is the one place the count is drawn
         // (spec 3.0, the owner's review, ws-polish 2).
@@ -1252,7 +1263,7 @@ export function SelectionEditorInline({
                             }
                         >
                             <Text size="sm" className="sel-count" ml="auto">
-                                {`${shortCount(reading.total.count)} of ${shortCount(of)}`}
+                                {`${shortCount(reading.total.count)} of ${shortCount(of)}${shownWords(reading.total)}`}
                             </Text>
                         </Tooltip>
                     )}
@@ -1939,7 +1950,7 @@ export function SelectionEditorInline({
                               {wsTitle}
                           </Text>
                           <Text size="sm" className="sel-count">
-                              {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
+                              {`${formatNumber(reading.total.count)} of ${formatNumber(of)}${wsCountWhere}${shownWords(reading.total)}`}
                           </Text>
                           {(drawing || starting || closing || !warm) && (
                               <Text size="sm" c="dimmed" className="sel-state" data-drawing="">

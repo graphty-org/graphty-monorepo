@@ -1,37 +1,36 @@
 // Keeps master green (design/ci/ci-cd-plan.md section 12). Run by .github/workflows/master-guard.yml when
 // CI or the canary deploy finishes on master, with the finished run in GITHUB_EVENT_PATH.
 //
-// - CI red on a master commit: freeze the Mergify queue (pull requests labelled priority:critical still
-//   merge, so the fix can land), open a revert of the commit when its parent was green (a batch merge's
-//   revert takes out the whole batch, and its title lists the pull requests), and open a
+// - CI red on a master commit: open a revert of the commit when its parent was green, and open a
 //   priority:critical issue -- or, when a red-master issue is already open (one cause, such as an audit
 //   advisory, turns several commits red), add the commit to that issue instead.
 //   When the failure looks external (outsideCause: an outside service's error, a lost runner, or the same
-//   job failing on an earlier commit), it neither freezes nor reverts: it re-runs the failed jobs once and
+//   job failing on an earlier commit), it does not revert: it re-runs the failed jobs once and
 //   files the issue with the evidence.
 // - CI cancelled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
-//   timeout-minutes ends the run `cancelled`): the same red-master issue, with no freeze and no revert, since no
+//   timeout-minutes ends the run `cancelled`): the same red-master issue, with no revert, since no
 //   failed step names a culprit. Not when a newer master push replaced it (superseded): ci.yml lets a newer push
 //   replace a waiting master build (a running one finishes, #3938), which is expected and never a red master.
-// - CI green on a commit at or after a frozen red commit: lift that freeze.
+// - Merges are never stopped: pull requests keep auto-merging, and the "red master first" rule (CLAUDE.md
+//   "Shipping a change") makes the fix or the revert the only pull request to open until master is green.
 // - Either way, close the guard's own open revert pull requests that are no longer needed (staleReverts).
 // - The T4 GPU lane (gpu.yml) and Hosts (hosts.yml) run only in the release train, which files its own
 //   "Release held" issue, so neither is this script's business.
 // - Deploy to GitHub Pages red: open (or add to) one priority:critical issue, so a green master whose build never
-//   reached canary.graphty.app is not mistaken for a shipped one. No freeze and no revert: the commit passed CI.
+//   reached canary.graphty.app is not mistaken for a shipped one. No revert: the commit passed CI.
 //
 // Every step is attempted even when an earlier one fails; the run then exits 1 so the failure is seen.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-export const FREEZE_PREFIX = "Red master: CI failed on ";
+export const RED_PREFIX = "Red master: CI failed on ";
 export const DEPLOY = "Deploy to GitHub Pages";
 export const DEPLOY_PREFIX = "canary deploy failed on ";
 const FAILED = new Set(["failure", "timed_out"]);
 // A run that ended without a verdict: master has no green build, but nothing failed to point at.
 const STOPPED = new Set(["cancelled", "startup_failure"]);
 // Jobs that only report on the others: they fail whenever another job fails.
-const SUMMARY_JOBS = new Set(["All Checks Pass", "Queue Checks Pass"]);
+const SUMMARY_JOBS = new Set(["All Checks Pass"]);
 // A log line naming an outside service's failure: an HTTP 5xx (lychee prints "[502] <url> | ..."), a network
 // error, or a runner GitHub lost or abandoned.
 const OUTSIDE = [
@@ -54,7 +53,6 @@ const OWN = [
 ];
 // How long before a red run an earlier red run of the same job still counts as the same cause.
 const WINDOW_MS = 3 * 60 * 60 * 1000;
-const MERGIFY = "https://api.mergify.com/v1";
 const json = (method, body) => ({ method, body: JSON.stringify(body) });
 
 /**
@@ -153,66 +151,39 @@ export async function superseded(gh, run) {
 }
 
 /**
- * The red commit a freeze was made for.
- * @param reason - The freeze's reason.
- * @returns The commit, or null for a freeze this script did not make.
- */
-export function frozenSha(reason) {
-    const m = new RegExp(`^${FREEZE_PREFIX}([0-9a-f]{40})`).exec(reason ?? "");
-    return m ? m[1] : null;
-}
-
-/**
- * The pull requests a merge commit landed: one for GitHub's "Merge pull request #12 from ...", every one for a
- * Mergify merge-batch commit ("Merged #42, #43, #44"; .mergify.yml).
+ * The pull request a merge commit landed ("Merge pull request #12 from ...").
  * @param message - The commit message.
- * @returns The pull request numbers; empty for another commit.
+ * @returns The pull request number in a list; empty for another commit.
  */
 export function mergedPrs(message) {
     const single = /^Merge pull request #(\d+) /.exec(message);
-    if (single) {
-        return [Number(single[1])];
-    }
-    const title = message.split("\n")[0];
-    return title.startsWith("Merged #") ? [...title.matchAll(/#(\d+)/g)].map((m) => Number(m[1])) : [];
+    return single ? [Number(single[1])] : [];
 }
 
 /**
  * The title of a revert pull request; conventional, so Lint PR Title passes it.
  * @param sha - The reverted commit.
- * @param prs - The pull requests it landed (a batch merge lands several).
+ * @param prs - The pull request it landed, if any (mergedPrs).
  * @returns The title.
  */
 export function revertTitle(sha, prs) {
     const at = sha.slice(0, 7);
-    if (!prs.length) {
-        return `revert: ${at}, master CI red`;
-    }
-    const list = prs.map((n) => `#${n}`).join(", ");
-    return prs.length === 1
-        ? `revert: pull request ${list}, master CI red at ${at}`
-        : `revert: batch ${list}, master CI red at ${at}`;
+    return prs.length ? `revert: pull request #${prs[0]}, master CI red at ${at}` : `revert: ${at}, master CI red`;
 }
 
 /**
  * The body of a revert pull request: what the revert takes out, and how the reverted work comes back.
  * @param sha - The reverted commit.
  * @param url - The red CI run.
- * @param prs - The pull requests it landed (a batch merge lands several).
+ * @param prs - The pull request it landed, if any (mergedPrs).
  * @returns The body.
  */
 export function revertBody(sha, url, prs) {
-    const list = prs.map((n) => `#${n}`).join(", ");
-    // A merged pull request cannot re-enter the queue: its commits are already in master's history, so merging
-    // them again changes nothing. The way back is a revert of this revert (or a new pull request).
+    // A merged pull request cannot merge again: its commits are already in master's history, so merging them
+    // again changes nothing. The way back is a revert of this revert (or a new pull request).
     const back =
         "To bring the reverted work back, open a pull request that reverts this revert (git revert <the revert commit of this pull request>) together with the fix, or that reverts it minus the culprit's changes.";
-    if (prs.length > 1) {
-        // A batch merge is one commit whose tree is exactly the tree "Queue Checks Pass" passed, so a red master
-        // run on it more likely means a job that runs only on master, or a flake, than one culprit among them.
-        return `${sha} turned master's CI red: ${url}\n\nIts parent was green, so this reverts it. It landed a batch of ${prs.length} pull requests (${list}), and the revert takes out all of them. The merge queue had already passed this exact tree, so look first at the jobs that run only on master and at flakes; if the cause is one pull request of the batch, the others are innocent.\n\n${back}`;
-    }
-    const landed = prs.length ? ` (${list})` : "";
+    const landed = prs.length ? ` (#${prs[0]})` : "";
     return `${sha} turned master's CI red: ${url}\n\nIts parent was green, so this reverts it, together with the pull request it landed${landed}.\n\n${back}`;
 }
 
@@ -410,10 +381,10 @@ async function reportStopped(gh, run, { attempt, alreadyReported, title, labels 
     } else if (await alreadyReported()) {
         console.log("already reported");
     } else {
-        const note = `The run ended \`${run.conclusion}\` with no verdict (a job that runs into its time limit ends this way), so master has no green build at this commit. No freeze and no revert: no failed step names a culprit. Read the run (\`gh run view ${run.id}\`), fix what stopped it, then re-run it (\`gh run rerun ${run.id}\`).`;
+        const note = `The run ended \`${run.conclusion}\` with no verdict (a job that runs into its time limit ends this way), so master has no green build at this commit. No revert: no failed step names a culprit. Read the run (\`gh run view ${run.id}\`), fix what stopped it, then re-run it (\`gh run rerun ${run.id}\`).`;
         await attempt("open or update the issue", () =>
             fileIssue(gh, {
-                prefix: FREEZE_PREFIX,
+                prefix: RED_PREFIX,
                 title,
                 labels,
                 body: `CI did not finish on master at ${sha}: ${run.html_url}\n\n${note}`,
@@ -456,20 +427,17 @@ async function main() {
     };
     const gh = (path, init, token = process.env.GITHUB_TOKEN) =>
         call("https://api.github.com", token, `/repos/${repo}${path}`, init);
-    const mergify = (path, init) => call(MERGIFY, process.env.MERGIFY_API_KEY, `/repos/${repo}${path}`, init);
-    const ourFreezes = async () =>
-        (await mergify("/scheduled_freeze")).scheduled_freezes.filter((f) => frozenSha(f.reason));
     const labels = (effort) => ["bug", "priority:critical", `effort:${effort}`];
 
     const action = decide(run);
     const sha = run.head_sha;
     const short = sha.slice(0, 7);
-    const title = `${FREEZE_PREFIX}${short}`;
+    const title = `${RED_PREFIX}${short}`;
     console.log(`${run.name} ${run.conclusion} on ${sha} (${run.event}): ${action}`);
     // A re-run of a commit already reported (as the issue or a comment on it) neither reverts nor reports again.
     const alreadyReported = () =>
         attempt("look for an existing issue", async () => {
-            const [open] = await openIssues(gh, FREEZE_PREFIX);
+            const [open] = await openIssues(gh, RED_PREFIX);
             if (!open) {
                 return false;
             }
@@ -492,30 +460,11 @@ async function main() {
             );
         }
         if (outside && (run.run_attempt ?? 1) === 1) {
-            // the freeze is skipped, so nothing waits on this re-run; it brings master (and the deploy) back
+            // no revert is made, so this re-run is what brings master (and the deploy) back
             await attempt("re-run the failed jobs", () =>
                 gh(`/actions/runs/${run.id}/rerun-failed-jobs`, json("POST", {})),
             );
         }
-        await attempt("freeze the merge queue", async () => {
-            if (outside) {
-                return console.log("the failure looks external: no freeze");
-            }
-            if ((await ourFreezes()).some((f) => frozenSha(f.reason) === sha)) {
-                return console.log("already frozen for this commit");
-            }
-            await mergify(
-                "/scheduled_freeze",
-                json("POST", {
-                    reason: `${FREEZE_PREFIX}${sha} (${run.html_url}). Lifted by the next green CI run on master.`,
-                    start: null,
-                    timezone: "UTC",
-                    exclude_conditions: ["label=priority:critical"],
-                }),
-            );
-            console.log("merge queue frozen; priority:critical pull requests still merge");
-        });
-
         const reported = await alreadyReported();
         if (reported) {
             console.log("already reported");
@@ -524,7 +473,7 @@ async function main() {
                 if (outside) {
                     return {
                         note: [
-                            "The failure looks external, not caused by the commit, so the merge queue is not frozen and no revert was made. The evidence:",
+                            "The failure looks external, not caused by the commit, so no revert was made. The evidence:",
                             "",
                             ...outside.map((e) => `- ${e}`),
                             "",
@@ -590,18 +539,14 @@ async function main() {
             const note = revert?.note ?? "No revert was attempted (see the master-guard run).";
             await attempt("open or update the issue", () =>
                 fileIssue(gh, {
-                    prefix: FREEZE_PREFIX,
+                    prefix: RED_PREFIX,
                     title,
                     labels: labels("low"),
                     body: [
                         `CI failed on master at ${sha}: ${run.html_url}`,
                         "",
-                        ...(outside
-                            ? []
-                            : [
-                                  "The Mergify queue is frozen: nothing merges except pull requests labelled `priority:critical`. The freeze lifts by itself on the next green CI run on master at or after this commit, including a re-run of the failed run.",
-                                  "",
-                              ]),
+                        'Merges are not stopped: pull requests keep auto-merging. Until master is green, the only pull request to open is this failure\'s fix or its revert (CLAUDE.md, "Red master first").',
+                        "",
                         note,
                         "",
                         "If the failure does not reproduce, follow the flaky-test policy (design/ci/ci-cd-plan.md section 9).",
@@ -617,21 +562,6 @@ async function main() {
     }
 
     if (action === "green") {
-        await attempt("lift the freeze", async () => {
-            for (const f of await ourFreezes()) {
-                const red = frozenSha(f.reason);
-                const { status } = await gh(`/compare/${red}...${sha}`);
-                if (status !== "ahead" && status !== "identical") {
-                    console.log(`${sha} does not contain ${red}: freeze ${f.id} stays`);
-                    continue;
-                }
-                await mergify(
-                    `/scheduled_freeze/${f.id}`,
-                    json("DELETE", { delete_reason: `CI green on ${sha}: ${run.html_url}` }),
-                );
-                console.log(`freeze ${f.id} for ${red} lifted`);
-            }
-        });
         await attempt("close reverts no longer needed", () =>
             closeStaleReverts(gh, { sha, url: run.html_url, green: true }),
         );
@@ -644,7 +574,7 @@ async function main() {
                 prefix: DEPLOY_PREFIX,
                 title: `${DEPLOY_PREFIX}${short}`,
                 labels: labels("low"),
-                body: `${report}\n\ncanary.graphty.app still serves an older build. No freeze and no revert: the commit passed CI, and the deploy only publishes CI's artifacts. Read the failed step (\`gh run view ${run.id} --log-failed\`); an outside cause needs \`gh run rerun ${run.id} --failed\`, anything else a fix. Close this issue once a deploy of master succeeds.`,
+                body: `${report}\n\ncanary.graphty.app still serves an older build. No revert: the commit passed CI, and the deploy only publishes CI's artifacts. Read the failed step (\`gh run view ${run.id} --log-failed\`); an outside cause needs \`gh run rerun ${run.id} --failed\`, anything else a fix. Close this issue once a deploy of master succeeds.`,
                 comment: report,
             });
         });

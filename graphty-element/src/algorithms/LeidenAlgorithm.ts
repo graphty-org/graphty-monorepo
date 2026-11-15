@@ -4,6 +4,7 @@ import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config
 import type { ResultElementValues } from "../session/results";
 import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
+import { drawSeed } from "./drawSeed";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
@@ -14,6 +15,8 @@ import {
     forEachChunked,
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
+
+const SEED_DESCRIPTION = "Seed for reproducible results; empty draws a new one every run";
 
 /**
  * Zod-based options schema for Leiden algorithm
@@ -28,10 +31,10 @@ const leidenOptionsSchema = defineOptions({
         },
     },
     randomSeed: {
-        schema: z.number().int().min(0).max(2147483647).default(42),
+        schema: z.number().int().min(0).max(2147483647).nullable().default(null),
         meta: {
             label: "Random Seed",
-            description: "Seed for reproducible results",
+            description: SEED_DESCRIPTION,
             advanced: true,
         },
     },
@@ -59,8 +62,8 @@ const leidenOptionsSchema = defineOptions({
 interface LeidenOptions extends Record<string, unknown> {
     /** Controls community granularity */
     resolution: number;
-    /** Seed for reproducible results */
-    randomSeed: number;
+    /** Seed for reproducible results, or null for a new one every run */
+    randomSeed: number | null;
     /** Maximum refinement iterations */
     maxIterations: number;
     /** Convergence threshold */
@@ -92,11 +95,12 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
         },
         randomSeed: {
             type: "integer",
-            default: 42,
+            default: null,
             label: "Random Seed",
-            description: "Seed for reproducible results",
+            description: SEED_DESCRIPTION,
             min: 0,
             max: 2147483647,
+            required: false,
             advanced: true,
         },
         maxIterations: {
@@ -141,12 +145,13 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
             return null;
         }
 
-        const { resolution, randomSeed, maxIterations, threshold } = this.schemaOptions;
+        const { resolution, maxIterations, threshold } = this.schemaOptions;
+        const randomSeed = this.schemaOptions.randomSeed ?? drawSeed();
 
         // Undirected: modularity is defined over unordered pairs.
         const { snapshot, run } = this.accelerated("leiden", "undirected");
 
-        context.report({ phase: "Refining communities", total: null });
+        context.report({ phase: "refining-communities", total: null });
 
         const { value: result, precision } = await run((dispatch, s) =>
             dispatch.leiden(s, {
@@ -158,7 +163,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
         );
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             nodes.push({ id: nodeId, values: { group: result.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
         });
 
@@ -173,6 +178,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
                 ...this.weightCaveats(),
                 precision,
                 iterations: result.iterations,
+                seed: randomSeed,
                 facts: [caveat("community.resolution", { resolution })],
             }),
         };

@@ -49,8 +49,16 @@ function addedLayers(session: GraphSession): string[] {
     ];
 }
 
-/** What the app starts every project it opens with: the four starting rows, and nothing else. */
-const STARTING_ROWS = ["Everything", "Selected", "Pinned", "Hovered"];
+/**
+ * What the app starts every project it opens with: the four starting rows, the Ghost row too when the
+ * timeline experiment is on, and nothing else.
+ * @param session - The session the project opened in.
+ * @returns The starting rows' names.
+ */
+function startingRows(session: GraphSession): string[] {
+    const rows = ["Everything", "Selected", "Pinned", "Hovered"];
+    return session.features.has("timeline") ? [...rows, "Ghost"] : rows;
+}
 
 afterEach(() => {
     forgetUsageAnswer();
@@ -62,7 +70,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
 
-        // T1: the card is at the foot of the start screen until it is answered.
+        // T1: the question is pinned over the start screen until it is answered.
         assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
         assert.isNotNull(
@@ -76,7 +84,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         assert.equal(session.data.statistics().edgeCount, 254);
         assert.equal(session.data.source()?.name, "Les Miserables");
         assert.deepEqual(session.runs.list(), []);
-        assert.sameMembers(addedLayers(session), STARTING_ROWS);
+        assert.sameMembers(addedLayers(session), startingRows(session));
         assert.isNull(store.get().opening);
         // The privacy chip in the project's header still shows the answer.
         assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
@@ -97,7 +105,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
             assert.equal(session.data.statistics().edgeCount, sample.edges);
             assert.equal(store.get().project?.name, sample.name);
             assert.deepEqual(session.runs.list(), []);
-            assert.sameMembers(addedLayers(session), STARTING_ROWS);
+            assert.sameMembers(addedLayers(session), startingRows(session));
             assert.isNull(store.get().notice);
             unmount();
         });

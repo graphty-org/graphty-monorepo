@@ -287,6 +287,7 @@ function planExport(
     const caps = version === "1.2" ? CAPABILITIES_1_2 : CAPABILITIES_1_3;
     const notes = [
         ...checkCapabilities(snapshot, caps, resolved, {
+            idsAsText: true,
             openIntervals: version === "1.2",
             temporalText: true,
             positionDtype: "f64",
@@ -1397,6 +1398,15 @@ function declaredOptionsText(
 }
 
 /**
+ * The text of a list item as the 1.2 writer spells it: a record or a list as JSON (a record read
+ * from JSON has no prototype, so String() of it throws), anything else as String() does.
+ * @param item - the item
+ * @returns the text
+ */
+const itemText = (item: unknown): string =>
+    typeof item === "object" && item !== null ? JSON.stringify(item) : String(item);
+
+/**
  * Note the rows of a 1.2 list column holding an item that contains the `|` separator.
  * @param column - the list column
  * @param domain - node or edge
@@ -1406,7 +1416,8 @@ function noteListSeparator(column: Column, domain: "node" | "edge", note: NoteFn
     const { name } = column.meta;
     let count = 0;
     for (let r = 0; r < column.length; r++) {
-        if (column.isSet(r) && listItems(column, r).some((item) => String(item).includes("|"))) {
+        // an item is written as its text, or a record or list as its JSON (scalarFormatter)
+        if (column.isSet(r) && listItems(column, r).some((item) => itemText(item).includes("|"))) {
             count++;
         }
     }

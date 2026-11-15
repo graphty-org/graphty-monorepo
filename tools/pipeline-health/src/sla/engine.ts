@@ -5,8 +5,9 @@
 // windowValue() reads as twenty-four 15-minute buckets for the page), so the state now and the state at each
 // 5-minute step of the last 24 h come from one path. Slow members and costs read daily buckets.
 
+import { groupTimes } from "../model/groups.js";
 import { quantile } from "../model/histogram.js";
-import { type Bucket, DAY, floorTo, HOUR, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
+import { type Agg, type Bucket, DAY, floorTo, HOUR, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
 import { quotaUsed } from "../model/raw.js";
 import { aggQuantile, emptyAgg, loadSeries, mergeAgg, mergeBucket } from "../model/rollup.js";
 import type { Store } from "../model/store.js";
@@ -275,23 +276,62 @@ function coveredDays(ctx: Ctx, c: MemberConfig, today: number): number {
     return Number.isFinite(first) ? Math.max(0, Math.min(days, (today - floorTo(first, "1d")) / DAY + 1)) : 0;
 }
 
+/**
+ * A metric's dimensions merged over the daily buckets from `from` to `today`.
+ * @param ctx - what evaluate loaded
+ * @param metric - the metric
+ * @param from - the first day's start
+ * @param today - the last day's start
+ * @returns each dimension's merged aggregate
+ */
+function dimsBetween(ctx: Ctx, metric: string, from: number, today: number): Map<string, Agg> {
+    const dims = new Map<string, Agg>();
+    for (const [s, b] of ctx.daily.get(metric) ?? new Map<number, Bucket>()) {
+        if (s >= from && s <= today) {
+            for (const [d, a] of Object.entries(b.dims ?? {})) {
+                const into = dims.get(d) ?? emptyAgg();
+                dims.set(d, into);
+                mergeAgg(into, a);
+            }
+        }
+    }
+    return dims;
+}
+
+/**
+ * The slowest group's newest full run against its test step's deadline: the share as the value, with its total,
+ * the deadline and how many members ran slower than their GROUP_MEMBER_SECONDS entry as facts.
+ * @param dims - ci.full_group_member_time's dimensions over the window
+ * @returns the computed value, n = the groups with a run
+ */
+function groupDeadline(dims: Map<string, Agg>): Computed {
+    const groups = groupTimes(dims);
+    const worst = groups[0];
+    if (!worst) {
+        return { n: 0 };
+    }
+    return {
+        value: worst.newest.share,
+        n: groups.length,
+        facts: {
+            group_total_ms: worst.newest.totalMs,
+            limit_ms: worst.limitMs,
+            stale_members: groups.reduce((k, g) => k + g.members.filter((x) => x.stale).length, 0),
+        },
+    };
+}
+
 function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
     const days = slowDays(c);
     const today = floorTo(end, "1d");
     const from = today - (days - 1) * DAY;
     const covered = coveredDays(ctx, c, today);
     const m = c.measure;
+    if (m.type === "group_deadline") {
+        return { ...groupDeadline(dimsBetween(ctx, m.metric, from, today)), covered };
+    }
     if (m.type === "dims_median_over") {
-        const dims = new Map<string, Bucket>();
-        for (const [s, b] of ctx.daily.get(m.metric) ?? new Map<number, Bucket>()) {
-            if (s >= from && s <= today) {
-                for (const [d, a] of Object.entries(b.dims ?? {})) {
-                    const into = dims.get(d) ?? emptyAgg();
-                    dims.set(d, into);
-                    mergeAgg(into, a);
-                }
-            }
-        }
+        const dims = dimsBetween(ctx, m.metric, from, today);
         const judged = [...dims.values()].filter((a) => a.n >= m.minPerDim);
         return {
             value: judged.filter((a) => (aggQuantile(a, 0.5) ?? 0) > (m.over ?? a.sum / a.n)).length,
@@ -470,7 +510,7 @@ function monthComputed(ctx: Ctx, m: Extract<Measure, { type: "month" }>, p: Poin
 function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
     const m = c.measure;
     if (c.window === "slow") {
-        return slowValue(ctx, c, p.end);
+        return withAlso(ctx, c, p, slowValue(ctx, c, p.end));
     }
     if (m.type === "engine") {
         return p.end === ctx.now ? engineValue(ctx, m.name) : null;
@@ -478,7 +518,7 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
     if (m.type === "month") {
         return monthComputed(ctx, m, p);
     }
-    if (m.type === "dims_median_over") {
+    if (m.type === "dims_median_over" || m.type === "group_deadline") {
         return null;
     }
     const series = ctx.five.get(m.metric);
@@ -490,6 +530,19 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
         out.value6h = measureValue(m, b6, p.end - (p.t - SIX_SPAN + STEP));
         out.n6h = b6.n;
     }
+    return withAlso(ctx, c, p, out);
+}
+
+/**
+ * Adds a member's `also` metrics, read over the last hour: each as a fact at the newest point, and failExtra when one
+ * is past its own fail threshold.
+ * @param ctx - what evaluate loaded
+ * @param c - the member
+ * @param p - the point judged
+ * @param out - the member's computed values
+ * @returns `out`, with the facts and failExtra added
+ */
+function withAlso(ctx: Ctx, c: MemberConfig, p: Point, out: Computed): Computed {
     for (const a of c.also ?? []) {
         const v = measureValue(
             { type: "last", metric: a.metric },

@@ -64,6 +64,7 @@ import type {
     ValueType,
 } from "../types";
 import { valueLabelKey } from "../valueLabels";
+import { refreshDerivedAfter } from "./derive";
 import type { BatchCommand } from "./index";
 import type { DataImportSourceCommand } from "./source-load";
 
@@ -87,6 +88,15 @@ export type DataMutation =
           readonly target?: string;
           /** The repeated-edge policy for this call. */
           readonly repeated?: DuplicatePolicy;
+          /**
+           * The element-assigned ids to give the edges back, by position in `records`: for edges
+           * removed earlier and added again, so what is keyed by their ids (a run's edge values)
+           * still finds them. An id the graph holds, or one the element never assigned, gets a
+           * fresh one. Default: every edge gets a fresh id.
+           */
+          readonly ids?: readonly (EdgeId | undefined)[];
+          /** The record key weights are read from for this call, overriding `data.knownFields.edgeWeightPath`. */
+          readonly weight?: string;
           /**
            * The graph's direction, declared the way a node-link JSON file's `"directed"` key
            * declares it, and taken on the same terms: only while the graph holds no edges, and
@@ -338,6 +348,8 @@ export interface HeldRows {
     readonly edges: readonly Record<string, unknown>[];
     /** Each edge record's line, as `DraftRow.line` numbers it; its position from 1 when absent. */
     readonly edgeLines?: readonly number[] | null;
+    /** Each node record's line, as `DraftRow.line` numbers it; its position from 1 when absent. */
+    readonly nodeLines?: readonly number[] | null;
     /** The direction the file declared, read when the rows were. */
     readonly declaredDirection: DeclaredDirection | null;
     /** The rows reading the source refused. */
@@ -716,6 +728,55 @@ export function replaceNodesCommand(
     };
 }
 
+/** The keys a moved edge record names its endpoints by, as `add-edges` reads them. */
+export interface MovedEndpoints {
+    readonly source: string;
+    readonly target: string;
+}
+
+/**
+ * The step merging nodes into one: the kept node takes the chosen values, every edge of a merged
+ * node is added again with that end on the kept node, and the merged nodes are removed with
+ * their own edges. Undo takes back all three as one step.
+ * @param kept - The node the others merge into.
+ * @param values - The values the kept node takes; none when it keeps its record as it is.
+ * @param merged - The nodes merged away.
+ * @param moved - Their edges' records, with each end already on the kept node.
+ * @param endpoints - The keys `moved` names its ends by.
+ * @returns The command.
+ */
+export function mergeNodesCommand(
+    kept: NodeId,
+    values: Readonly<Record<string, unknown>> | undefined,
+    merged: readonly NodeId[],
+    moved: readonly RecordInput[],
+    endpoints: MovedEndpoints,
+): BatchCommand {
+    const steps: DataApplyCommand[] = [];
+    if (values !== undefined && Object.keys(values).length > 0) {
+        steps.push({
+            op: "data.apply",
+            mutation: { kind: "update-rows", target: "node", rows: [{ id: kept, values }] },
+        });
+    }
+
+    steps.push({ op: "data.apply", mutation: { kind: "remove-nodes", ids: [...merged] } });
+    if (moved.length > 0) {
+        steps.push({
+            op: "data.apply",
+            mutation: { kind: "add-edges", records: moved, source: endpoints.source, target: endpoints.target },
+        });
+    }
+
+    const count = merged.length + 1;
+    return {
+        op: "batch",
+        label: `Merged ${String(count)} nodes`,
+        fact: { code: "data.merge-nodes", params: { count } },
+        steps,
+    };
+}
+
 /** Above this many rows a command holds the whole `graph` slice instead of each id. */
 const MAX_HELD_IDS = 1024;
 
@@ -827,6 +888,7 @@ const dataApply: UndoableDefinition<DataApplyCommand> = {
     byReference: ["records"],
     execute: (command, ctx) => {
         serviceOf(ctx.services.data).apply(command.mutation, ctx.draft, ctx.after);
+        refreshDerivedAfter(ctx);
     },
 };
 
@@ -947,6 +1009,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         const replacing = command.mode !== "merge" && command.measure === undefined;
         const picked = replacing ? pickedEdges(ctx) : [];
         const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        refreshDerivedAfter(ctx);
         if (outcome !== null && outcome !== undefined) {
             await repickEdges(picked, ctx);
         }
@@ -1105,6 +1168,7 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
     byReference: ["nodes", "edges"],
     execute: (command, ctx) => {
         const service = serviceOf(ctx.services.data);
+        refreshDerivedAfter(ctx);
         service.apply({ kind: "add-nodes", records: command.nodes }, ctx.draft, ctx.after);
         // `first`, because a neighbourhood legitimately names edges the graph already holds: the
         // edge the reader followed to get here is in both of its endpoints' neighbourhoods.

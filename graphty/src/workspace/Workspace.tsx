@@ -3,6 +3,7 @@ import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { VisuallyHidden } from "@mantine/core";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { bootSignal } from "../bootSignal";
 import { findKept, reopenOwn } from "./autosave/autosave";
@@ -15,6 +16,7 @@ import { NoticeSlot } from "./frame/NoticeSlot";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
+import { UsageDataCard } from "./privacy/UsageDataCard";
 import { openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { notReadWords } from "./project/words";
@@ -40,6 +42,7 @@ import {
 } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
 import { CustomModelHost } from "./style/CustomModelHost";
+import { wholeGraphRow } from "./style/row";
 import { ShaderEditorHost } from "./style/ShaderEditorHost";
 
 /** The workspace's facts about opening and reopening projects: ids and booleans, never data. */
@@ -145,7 +148,13 @@ export function Workspace({
                       pinnedStyle: PINNED_LOOK,
                   });
         if (opening === null) {
-            void defaults.catch(() => undefined);
+            // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
+            void defaults.catch((error: unknown) => {
+                logger.error(
+                    "the app's starting project settings were refused",
+                    error instanceof Error ? error : undefined,
+                );
+            });
             return;
         }
         store.set({ opening: null });
@@ -159,6 +168,15 @@ export function Workspace({
             // `history: "start"`; a project file or kept work does so on opening).
             .then(() => {
                 bootSignal({ line: "project opened" });
+                // A project opens with the row that paints every element selected (owner,
+                // 2026-10-21), so its first Style tab holds the node color and size. A reopened
+                // tab keeps the place it left. Drawn at once, so focus below finds the row.
+                const whole = wholeGraphRow(session);
+                if (opening.focus === undefined && store.get().inspected === null && whole !== undefined) {
+                    flushSync(() => {
+                        store.set({ inspected: { kind: "layer-row", id: whole } });
+                    });
+                }
                 focusLater(store.get().page === "panels");
                 opening.settle();
             })
@@ -236,6 +254,10 @@ export function Workspace({
                 }
             })
             .catch((error: unknown) => {
+                // Nothing is known about the kept work (graphty-element could not list it while
+                // another tab held the database): the start screen, never opening work again that
+                // another tab may be writing.
+                logger.info("decision", { decision: "landing", entry: null, reason: "kept-work-not-listed" });
                 bootSignal({ line: `kept work check failed: ${String(error)}`, error: true });
             })
             .finally(() => {
@@ -392,6 +414,8 @@ export function Workspace({
             <CustomModelHost />
             <SettingsDialog />
             <ReportDialog />
+            {/* The usage data question, on whatever page a first visit lands, until it is answered. */}
+            <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
             <ProjectDialogs />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a

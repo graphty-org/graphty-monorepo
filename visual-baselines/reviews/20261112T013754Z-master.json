@@ -1,0 +1,2321 @@
+{
+  "version": 2,
+  "pr": null,
+  "subject": {
+    "builtMerge": "11cca52a0e8a38a0d761c7fb905e6b7134d5e8d0",
+    "head": null,
+    "runId": 43060834099,
+    "runAttempt": 1,
+    "environment": {
+      "harness": "story-test",
+      "mode": "production",
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "11cca52a0e8a38a0d761c7fb905e6b7134d5e8d0",
+      "chromium": "143.0.7499.4"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--close-from-inside-interactions.dark.png",
+      "from": null,
+      "to": "0ac2baa314fa873efe1f4b908a2376e0c7924cda20e1cd4a607baf37c7c71fb8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--close-from-inside-interactions.light.png",
+      "from": null,
+      "to": "67283c88f6a931d7b2701987c856c71080d000007a03764bef79f972cefda246",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--close-from-inside.dark.png",
+      "from": null,
+      "to": "ce2099ed30f176ecefef60f4b94b3709db57552824bbe18b99b921a3bc4f4131",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--close-from-inside.light.png",
+      "from": null,
+      "to": "25d24087736dc550f4e2d8b2b697292577d7a1f8c8a22564615ef0ad1ba7d9b7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-gml-samples--synthetic-coverage.png",
+      "from": "f6d189d8e99757bea1d20201f1f51ea173e517b74c2e3dd66ba330980f653382",
+      "to": "f8f907095cb02e215f9a4078140ac18c79ad49e5f1a138b3de30527883b43e6c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-gml-specimens--node-shapes-p-6.png",
+      "from": "d512b2d8f86fea6c7dec1c9f4861a0db043827d0bc3bdd04edbd4d161fe5102d",
+      "to": "4acf5860597bf3742fbb3b7762b56b3bef04367154bad2766eca213b82e29c77",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-samples--real-crazy.png",
+      "from": "3b406039da8502caaf12c0bfcc4a4c0b5c505316506d3a587a227bfb3b1f599d",
+      "to": "434602fa656570b06f9d088bb55e9a16105c63d81cd947c662f98f8328441fdc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-samples--real-happiness.png",
+      "from": "74eda8ee787d73694c6e6c35c15cd19cc2d419fd98a3b24bdb10e89370ffee41",
+      "to": "d7f6dae333e48ce0632e2f9051f3deb71ffe055db882bfb1687e3510985922a8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-samples--real-linux-kernel.png",
+      "from": "9d053f525168a5a492f19702c95fde92a8ab15ba4576422437638df017554a91",
+      "to": "04b7391bdadb6717d97414c0e8793796d5d2599d93a744b064389ed772b2bd2f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-samples--real-siblings.png",
+      "from": "28385fdc815fe3a23e19e4bc3743f0afaef176bba271ba144f1152660ef83be6",
+      "to": "48e61c0ca85d8d31f27b2a2ecd90e97126f94bce6e8ac38713f0a98512097ea7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-samples--synth-edges-clusters.png",
+      "from": "0bfdef8fd7ab3a60585467f4176b87d5c5cb20bb8d8a38b7eebc82785267e9d4",
+      "to": "11de5b5e2126da3cfdb9b78a22a219acef85df4595e68965460a93b0ae5e3521",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-samples--synth-nodes.png",
+      "from": "8b9ade78ea75ccd03317de6173338301449c59bba1ce5edbcecec682843827e3",
+      "to": "5efe4ddfe84797c741f5179ab805cd49095708e6cc730f83871bfde7157218b8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-specimens--edges-lines.png",
+      "from": "545944798ccc4ac64b017a6747d3735f5cf3ff9145dd3e069c3dad1c493e331a",
+      "to": "4268eb12aaa5e88c0d06c17edb3e87819db066a54ff52e8272ba2ae600451711",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-specimens--groups.png",
+      "from": "de170fe5fb10c057146d62145240a847b59709720547ecd95915f63d0065cc75",
+      "to": "2056884fd86954628768a4c444363aa28c75b8a369ec4a9ce922ff1231aa7e1e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-specimens--node-shapes-p-2.png",
+      "from": "90977511a64415495762858f6259057152350f5b460a8858d4bf77dfae3aaa48",
+      "to": "220932bb18b7c88804baf4be6d52fc8e710f16d1bdb1f2b33bfc1d284c3f9564",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-specimens--node-shapes.png",
+      "from": "625746ab26f2cae67e42dfeff82df0775ecb4847d460a24ddf7d4e458b859831",
+      "to": "30c198cfb079f8466d377f0662b682694ba94fc5f2a768f1aae26f26365abb2c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-samples--galaxy-lcms-workflow.png",
+      "from": "cf29969d573f597b2880f30664162ce97fbb87a2f4e605b14f9da0c770c706ae",
+      "to": "6c47c8d131b41c9aa25f7b268ff1ad0e42512db3fd61a32ca0b0216e4d61b94b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-samples--libcitygml-mapping.png",
+      "from": "843e970201db34d0949113d975fc007d408674a756bd367035ed750a0eed4726",
+      "to": "e3278b07ef22f1fbd1d5e000152da64ca5af6f63ad7ff09c8ee07e7f0320d001",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-samples--magiclantern-architecture.png",
+      "from": "f96ede3c207bd2eb527ef7b89bef970256359277b10db9aa96d6e73ef33c3bc7",
+      "to": "dad2034e737a8a9ed66ffe34a7206d1ebafa186e64c25916e886ed58fe96f98b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-samples--open-archaeo.png",
+      "from": "fdb4990acfec4978736b2b755df28acb81a6072840f4304378c1f2a41fd82f04",
+      "to": "e971e3c94ab96d94220612b3fdd188911783a1751937b7f47129690741b7f5b4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-samples--scala-collection-mutable.png",
+      "from": "d407e3acef2557fc92e5877b8cfecc46ae76589285050d262f519dfb85bcfebe",
+      "to": "645011ca80a507fd691329358066f18742c03ce0d5e3a0bc73a6099e5ba86059",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-samples--stm-32-func.png",
+      "from": "47243e4c8abb552017ac1647e51661ae15a8d067a71ed06e5be760e93e1defeb",
+      "to": "63935626aada08a6b186c263b333b83d03f41a36ec5a2849ada0512460944cd3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-samples--synthetic-edges.png",
+      "from": "f68add83c1d9b1687c17ceb15e6b60184eb2cee8415a8403210da313328e46da",
+      "to": "e303ca630eb3b8a6df9fc66c91131b6818e3167ee32d95422a1e2bbb8046abe7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-samples--synthetic-nodes.png",
+      "from": "e9e588f4fd0f9637ad6c374dca3c232b70d225a2ff16a0b69ad6919427435fcb",
+      "to": "2c8996c6741bd351f188e6ce940d84f5c53fb1bb84467bee1f33618885f6a046",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-specimens--edges-lines.png",
+      "from": "397547e57169656f4dfa3233d9497d71f328f9cc39c9a0f9442bfcc98ce0a125",
+      "to": "4dbe87f05a827b18b7245b882bb74b0d17208af05ac17b2478abcc4999013181",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-specimens--groups.png",
+      "from": "42c8c3e94940e0d7cc7d9d1f3af1cddd09e8622465d46426664e1b3721d626fc",
+      "to": "cf4918bda6a9b73927be226bfe903bc3d672cf740ef7a65132b28d76f82ee77f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-specimens--images-charts.png",
+      "from": "909979c6850751ed7a9a52faa70ca5dfcacf98da6d69d8a919d5445f1e4735a2",
+      "to": "8ec6442732c9554f7165be6f1c411e444f474374b54f87a5f94cf3acad8a2699",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-graphml-specimens--node-sizes-opacity.png",
+      "from": "e444da1ec4a18f4524397c2c68c2858d8138871f6bd49c7ddb3a55c2af9d4170",
+      "to": "2cac0ed6bed5b43addfcd62d72e49c1839abbd599f70dc6da8d88bfb3e64d2f7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-samples--yfiles-html-ss-13-tree.png",
+      "from": "ba974fb786618dfe3497834f604f10d05d9765444ac298faa2e552d884aeff60",
+      "to": "d8eb5a0fa67a4014f878e0a2467291a4741a73d13ed21a9b11a5a3af2f781446",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-specimens--edges-lines.png",
+      "from": "877f4a02e92ae66630f9073ed401a394e7832f1065b747c9a83b9b9ff566205d",
+      "to": "ca8bff3d8c9cc2f468a9e7558f8a6c45af15522f9dfc2b2e0929e4f31f97d9bd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-specimens--groups-p-2.png",
+      "from": "20ecce1956e9918a428b737f6b46426b2c4c9d75e2ffa70635821e1827a0fc8d",
+      "to": "71b51b9c5030bb32e0fdcbc1d6585eed9672ccbe74ad0944606cdbec9429afce",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-specimens--groups-p-3.png",
+      "from": "2a204270b4df5e22be8a4660741d0f128467fa387e5259d3d4efb804173593e3",
+      "to": "cc9f589b3d6a539b3cb3e1d401414a09fd2a4057149c2811624f9fa862f53bea",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-specimens--groups-p-4.png",
+      "from": "15a2d5952c659b60d82c06c2f6c644538afb0c7faf1f0e0dc927b433a2e02e5d",
+      "to": "bcf1fc65cfb525507f6c6594dc9ac589802dd613435bb578935193e66acf8c22",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-specimens--groups.png",
+      "from": "9591580bc14298d1ee81e3aa6d3b98fef915802cde483899bfa1206a8ee656bf",
+      "to": "fdde12a9a8ac7c0447aef20decdb0fb5349c10fda35950c07fcfeaf96c5af767",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-specimens--images-charts.png",
+      "from": "adc51939c5727f2d9c3c3877827f63258697a31b5ef4894947558a2b75d7fd63",
+      "to": "74d77bacb1708770ee879616a9bf52c52a342dc7b82b9283505b2e40140cf4a4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-specimens--labels-p-3.png",
+      "from": "23dfb0ede32bba12d2f7908021c88b95330a9ebf621819fd7380d9fa8ab43b9c",
+      "to": "3578ff50d4b81146d159880567b0c05bc1a6498ca83385b6123f3b908c3da52e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-specimens--node-fills-borders.png",
+      "from": "f3fa8712416da4bbe5584168f378da2461f90ee00f3a09645562a8eda6d2dca2",
+      "to": "d10567a5305f2e62fa5a62f625a9700837bcceb84b72d66781536613ca48068f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-specimens--node-shapes-p-3.png",
+      "from": "9482c1b1677c9bfb1f1c8ab7e31545ffdf3d5729f43bb070faea215248d74fff",
+      "to": "aa1dfcb39037d1d23b40cb5bca3945d69ce90339e5dd3b1c3d117c7cf50c4a9b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-yed-live-graphml-specimens--node-shapes-p-7.png",
+      "from": "164954217aca5c0834ca85e96f3b0793d736d903ecaad507b42f96003492d847",
+      "to": "ac84593d2c9ff48b676ea984d50aa63fb883a10405ab6b5752f5da012aab6a8f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--approvals.png",
+      "from": null,
+      "to": "4a6797928bc5e6e5cfdfd14b9774de00d9a14b0166a884e24091ad692c45e4ec",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--helpers.png",
+      "from": null,
+      "to": "2ed36a61232bab766d8f8b119c7785e07f4bd9b2b74f9f0b26520e1a49ef38de",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--live-voice.png",
+      "from": null,
+      "to": "aa4fdcd82f99d843801623283eda7718b8013a3d10869b3f03f6f9b0572ff789",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--question.png",
+      "from": null,
+      "to": "4557cd0c0313064e690dec57b9f78337aa3e0c7f75cfe42fd96b486bce531f3f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--remembered-conversation.png",
+      "from": null,
+      "to": "bbf78a23ed9c32b17a14b6b9c6667d75926f8df7ab4c6f5e37a649cadba2998a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--run-code.png",
+      "from": null,
+      "to": "f4ec16c0ce689ec3fd97c4264e7d8f891fced5cac6b5aeb3353b3aa37aa170af",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--voice.png",
+      "from": null,
+      "to": "4f9439ad94f78811b19b61b8b366f0e1be7b3451810a4c2f975b2cc8d6c837f7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/shaders-node-drawing--three-paths.png",
+      "from": "7840ed317ec0ace1d189d5aa58b5f085ae0b4bd3bf7cd758abc85810a30ef74a",
+      "to": "9c1ca3cc1bca3741f9a971ac5361276eb420a73b5996598964e0b9d95bedb854",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/shaders-patterns-and-sprites--mandala.png",
+      "from": "def2f3b0a33998731b5fae67b0289aaa82bb1ddfddb9214e6ae770e0782d17d7",
+      "to": "314d7e74913858eb9f40b7310cce52bc43b42e5be310fc4552262a7f95da1c1f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/shaders-patterns-and-sprites--sticker.png",
+      "from": "abdf4012877c589c56a8f2c588aa408d682205b25e7635170c38988d423bf4d1",
+      "to": "94b73fb479dbdc8b185027b7b3c4f971a923b60760f9b891288332de3ef66213",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-label--wrapped-labels.png",
+      "from": null,
+      "to": "6041165a0f93f4fe2c58b10dd3b5d653eb870997baaf448d0a20c108c34ae786",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-app--default.dark.png",
+      "from": "e8806ab333ded0229f17218e3cbc00246df8e6f155d2c50d7c8628fa0cd60564",
+      "to": "993a4c1b667c0117f0ffffebe28bb818f4867577a0df3b98714acaa8cd63dab8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-app--default.light.png",
+      "from": "ff0d6a8f824711616504ebc7ba236eebd71dfbda575e5b9b4a13fd988a3ab770",
+      "to": "c2682668c6f525b6fc36c6577b1f7dbb498a12abfa63b4f750370c8e9156b389",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--empty.dark.png",
+      "from": "a62ba8efcd29dd4c4c760d752f0a0df676805e720762a9798ec2782f617dbd1b",
+      "to": "8ba88a42bd05415a779d494bf3b3cf17fda53fe8ede8dc15cfbe0ba71e33b00c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--empty.light.png",
+      "from": "cae6eb8f5631df11cf554f139374fe1fce2ed053cc906b177e2b70f30bb95b01",
+      "to": "7850a6297615baadd437c42919d00d3bcc250a109cbc44a14b1ae499c7e2a74d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--finished.dark.png",
+      "from": "0c44e07251b488c9fd9c1f889314378c92f51d8e7433df6254140e2c430e3f23",
+      "to": "9f4201a816f2250654d69cfef60286e79f86ac31a002ee774f4b0ed7dbb24060",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--finished.light.png",
+      "from": "ca11941cce786bb31e6c8190395a31c43453b04baa3dfb912cbcbaa5847cf5da",
+      "to": "b9044dc9e680f51bdbf3faea9589e3a0be43c573c8121bea0637984a6aa73b47",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--hidden-by-your-layer.dark.png",
+      "from": "6884ba55616e7ab478ea304847e234c0ff9b9138b66e2047188eaea59c084d0c",
+      "to": "285fcdb1e8cad98f22e995b6d72cb5ba0b1f552d1670aa3bde9781e39b202ae2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--hidden-by-your-layer.light.png",
+      "from": "31761d59c365a361d7be1e5591fe12a943dc0f850a67bfe09eabd3db1a6f0d65",
+      "to": "29cc85b73110b0f94e703d1fa5387e581c354aa8269687af382258dd34ff832e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--karate.dark.png",
+      "from": "3d5da8a3dd1fc24e1c75b4f64d19d4a781df3d575c53021205c31078b425c777",
+      "to": "3669add5ed3153b28d9ab3143aed72fa8e9c693bd93efe8695a7a04188f3c093",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--karate.light.png",
+      "from": "9aba9f278dc07e40cb68ee145ad694f745db07ad4d00453122f37658caea1464",
+      "to": "242af59f924b0997dd6bbdd2e5c0e99dccd933c0afea07c8211d6c1b5015e88c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--legend-off.dark.png",
+      "from": "f9ca6be0b31201fd8e9da3ec859ba3ba0515ca5b9cec7dacf11bbd6c3d36072e",
+      "to": "8a89d463ee73f0a526ed3016d9eb0bf373e0c9a8c8b79a61d5d47bdff4f1ec14",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--legend-off.light.png",
+      "from": "a7283e6dd119256a7e7da22517b2464b6eecb980c19a8d01c2fd7091bade5e1f",
+      "to": "5a9a3dfa1b514e1e89bf95dc4a12949fab1874f9129fa0685a0a9cfacb4fb366",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--louvain-open.dark.png",
+      "from": "9c725746b4b74c969de3705a1d914b7649e65c32c8ab3ebe2e5463bf3376436e",
+      "to": "0383ab7ad422774f82169fab2e15c71aa9cae9aa9092bb16e13445d261b51067",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--louvain-open.light.png",
+      "from": "ff4d37a6c895471f0836df086c9caf3c022c6b9643bd717e3bb16d83ac1c30b1",
+      "to": "14f6bf43447aa75baed099fffcda4a2623306bd19123c0cfe36b4b1a4380dca9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--painted-size.dark.png",
+      "from": "fe39bc59e7e47c21cf45abf554d7f897a51b83705205ce1b30e8165d122f45d7",
+      "to": "1d1d8bdb659707ad063dab44ce20dfd3a8dff78afef2cec39c02a2d2b8b207db",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--painted-size.light.png",
+      "from": "d06758882cc7e5821787f128e2590aa2469b9cc89e507d21a8ea9f138345ca84",
+      "to": "a19c599a6f9a82df2453d7fa3ab04ac59f592c0b61eb601d540b67b043a62962",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--path-over-ranking.dark.png",
+      "from": "2a54fad3b703cb1479d26ba314f4c10c1a486520d2f6ee66c30788bc6555eae6",
+      "to": "9b6ff3ea1621b7c5e5e1cfd5a289f87ae27ec75317ea4d9a0970f51e7a460040",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--path-over-ranking.light.png",
+      "from": "4e00d45dd3146cb41da83acd145d2555efc913dec3cfe5a714846163efa0a0c2",
+      "to": "6fe04b683013f34fb2d13b3e41133d47704b485070570d5dfe5777a15f778114",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--add-field-menu.dark.png",
+      "from": "2c705b3ad0f4f648fec77a08fd23c5243de6b103532d26790d5f8a168fe369f5",
+      "to": "8f76878732e3a03dd5da25a740aab6452778e98d30f1a1f1e943bd78559b2a83",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--add-field-menu.light.png",
+      "from": "ee571a40e4afa51f45ffe5ed2ddd4badd8f952ce0c3a7753ea1f55ea365eaeb2",
+      "to": "928642cb41e3f16ad45866a30d3d31d9f0c226c89622651c11951f67f9d74cd7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--event-table.dark.png",
+      "from": "c3fc727a1e8d36330a83011ec6d5522dd888b116d339247abf6844bb2edf0aed",
+      "to": "575678165623e7d1b41f01cb7764e3597eda8b7cce3c5c11c635fe7aed6ab11c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--event-table.light.png",
+      "from": "398c8dc8f5f41f4ca85cbbca8d7e75f00dd6fb5014d09f4104d2a48ee4142c0e",
+      "to": "ba5eaaec2944d70f161282325203de297573d225dcff1cb6511a52c80ae237e8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--field-entries.dark.png",
+      "from": "e1dc864aa50e4248bfbd1df84099bec0e3280704ac438bb00db84f3d5eb09f13",
+      "to": "a2627e3d48163a1271bcd02605823243621019e1e07891835a62ae89f7937ca3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--field-entries.light.png",
+      "from": "218998b8ed732950d7707a2b3c82547dbe95c7752a7c2a62175b04c326bea6dd",
+      "to": "bf4c4c574617829f669d732efa312230927e0747891731ccce17bd6c1c4997b5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--filter-cards.dark.png",
+      "from": "8518ec17977b475f455f748adfa7d0fcad01940429317dfac2205886b22dc7a2",
+      "to": "58cf276ebc992a049fbb72f13b936a366d1dc6b47819590c8742d1ec9fa4f771",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--filter-cards.light.png",
+      "from": "239e7ed150118760c4551357224a9a0479f38bb2b3ec68a4141f3169a8d3e7b6",
+      "to": "ed6d4379b64bd5994332723b7cbf0386916cf725e9280c354ceb087ca93e5a7a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--graph-file.dark.png",
+      "from": "43a134609dd82faf9065142d471b4005228bf9737e18492fd31f4c37ef215965",
+      "to": "8061f9bf374abe4600479583450f7a8f2f6d7c8837f2530e1f64f5288ceae24c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--graph-file.light.png",
+      "from": "7e4c67fd5c9374faa4fd0a43bd55ab64b4a6a27e69c3ac82657b171917232803",
+      "to": "66cb195ce8fa7eee1208e484b39c11534050c2d3b56ceb403e20e979adc14dd9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--nothing-loaded.dark.png",
+      "from": "5a7d1b0d1016e06b2a3676ad22d7d2a87a187aefde5d211cf206a818c1627a05",
+      "to": "a812131fbac3dbe5ed88f9a02ddc9a3ae3d7b5a0991d37862d43f920c2c2c8a7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--nothing-loaded.light.png",
+      "from": "894247bbf5b6bb65f9da4526a91512c37854866eff253f377a3bf9c05b543ea6",
+      "to": "1fec3a5bd325815bb1fa0c28fdb9a4b8c4566079ddf59f39734ccf462c71ab6c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--plain-json.dark.png",
+      "from": "132b847e7e202e09399b34cbd4e7f0c4f862da43f54025bc66e3a94a88673b03",
+      "to": "52ea2ffb493f18e2228621c6470c9d9963a71eb185dda92cac3b810d9e46007a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--plain-json.light.png",
+      "from": "2f57016d6a065e4625c0b33b99f402c0cf4fd7dc5ffb742b70c5b7aa22f46f01",
+      "to": "697799b161039efb4d10f8ba814214d4ac7a59c0bb6408379877b5084b24159e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--source-details.dark.png",
+      "from": null,
+      "to": "b6ece3d9631b82009e27f1d67a834c4a58b3505ae791ffbb1b785fc72bb11f71",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--source-details.light.png",
+      "from": null,
+      "to": "8bc0658ce89aa06eae72987bf319b23dc18243c6d2fbf23f11e2c75bc30a5a78",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--source-menu.dark.png",
+      "from": "d816b4cc69120d949c3f29e9eff2af8833d67cb0a9e92e8de69f56afaf8076ca",
+      "to": "006e6b8631dc3736a3d3fd05c5c2069558698542a004e40faa513b187da86a5c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--source-menu.light.png",
+      "from": "0f00cea52a4985095a2ec7675bc19a17e3a5577386ab6e3d9617d6e7546929c4",
+      "to": "9ea98afda7194d64e98fbe0628bad9392f1c0ccdd5c817d166a155194b5cb5ef",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.dark.png",
+      "from": "c2688918723cb5d4c0a1e0707143936a90704fb3294041d1d19ea6184de9e972",
+      "to": "9f02b9db7fd70ac849bde891f237b93af9f182f024b225bbc8648f9f00a7b7be",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.light.png",
+      "from": "c3f9f2e7d2e4e275701c2a81d874b5554c7487f402fe9318f38837fc6c3c67ce",
+      "to": "201e5449e4f44695738e79e7a5ef41bb5a5b42308af7da1eb4e37dbf48cfc772",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--image.dark.png",
+      "from": "c0d80bf422e0b9300e4e9dc1a46fae98db6701317820c72f30c2dc679476a78e",
+      "to": "6a66ef6e6dba2b49cdf0d18328312e36c7d79d44e02f07a0666f1d53b5eb240b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--image.light.png",
+      "from": "b6e9c9e92d9b3c68e6d127c3752b58e954bc59bc189bc14566216e6ef3f128b7",
+      "to": "a3f89a46d173e1e1c0551910ef2b2bbb4c0e7a63ade10a59e6ba5bad0c50f494",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--about.dark.png",
+      "from": "912901602ae0707b2991cfbd5582727f4cd01ad4952ede61f24534e7e6ee0bef",
+      "to": "236948458746e308adb1cd160eceddb8ffa23cf2e0384292517b6fa87357530e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--about.light.png",
+      "from": "31f95248cb0a648eebbf4f01b9603a04723bb6575f4e3377dd62bc5921b205fd",
+      "to": "e75e9694cb6a6b69077d78e5e2649b852ab725733c7c5a8bffb7314373654b17",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--at-rest.dark.png",
+      "from": "c69f507f26eec4a4f4020e6bee61dbea6fc5633c84181ae5e3f0a2ef08ec29ac",
+      "to": "d04678296298fbe6901236d94de393c296f57bf0aa147b8a724d6e86097dad86",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--at-rest.light.png",
+      "from": "56937e2eec6c9559abaca25fac379f8805fd2478e4499c5f17653226892bc3f7",
+      "to": "7dbdf34e7663f712a5f5ad4e4f874701c90fef7c1eab42d9772e4f8bf4e035c4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--data-place.dark.png",
+      "from": "72cfb3b10fe537a68eb7915ce051d9715702843241d26ea475dae834b6ff824e",
+      "to": "875307deb28e809ecbc4a374141901058e13dcc02a0113df84d881e437a92d24",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--data-place.light.png",
+      "from": "76801c470506e52418b34c2be5997d15ba80e4a6a046d2d2eb1bed3dfe2e42b4",
+      "to": "748187ddd0cdbc58f4c907a73898d9df2e44a2646d7db946b8da9a69e0268288",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--empty-project.dark.png",
+      "from": "3583b7e3be913f9283558f6d0333ede2726ed7868160fe500eaa10e96d6cc779",
+      "to": "0acac9631519ffe8a382b0e22ee2359202528be602ec825378ecedbdaf1b7f51",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--empty-project.light.png",
+      "from": "4c1c22bd340e171aae3fe36c8392eb904d3cfde9b56ea3e46de0170019bf19b5",
+      "to": "e7ffb11896ef6d57768e70e4b57a481f44198ff6bde73a56209691bf3139c3f0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--keyboard-shortcuts.dark.png",
+      "from": "2c08296e8d5ec350198c055a9e8c6482ebcc7ccfc7dab5e9084d1ce034b855bb",
+      "to": "6b5d2718dc93bb031a742fbdc065084a0ca84298c9a5784ecc8e5ae5aaef2395",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--keyboard-shortcuts.light.png",
+      "from": "ab3377c61cd7ee842c8e55ab771a71aaf7f67b0de9ce82de1a7a1305d2f0a267",
+      "to": "683263e0502808ce0f0c07e11a02c993b8bb778c8239a7022c7a6f9db366c23a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--main-menu-open.dark.png",
+      "from": "86fd462f81da2ea578cd66758b97b0856edb53f5110e56129999646e8c63cbee",
+      "to": "a5079f35c9eb12a9e42a71a063dc26550243e33c8effc02ede7ccc058de7dbe1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--main-menu-open.light.png",
+      "from": "bdab17ba0d04dd1cd9befc3639b06ee4bce824a84acd9407e905f51bd63525dc",
+      "to": "5bc7799ddb73903ba32494e50352cb116180e0f4c31d61c878d99dca2455a7d1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--open-sample-menu.dark.png",
+      "from": "ee8d0448c3187767434f6ce9478db39f7484933834f123b9d4dd60d2de84138a",
+      "to": "74dba74b20501053ecc52cbdd98c40f6ef8bd30fb1099961632e4e3a2544990b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--open-sample-menu.light.png",
+      "from": "0d79bd5cbfa493465b132e9abdb328812e7e7be524bdc0ce669fff0da6c58863",
+      "to": "222609cc4b0794411f0c7cfe59241af8422fc5bfe9aa6edb4ec0792a02c6b2f9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--renaming.dark.png",
+      "from": "5d4a42b5952b93da6461874ecbdd0436b882c4ca6f219a2da82750e217b6ae2a",
+      "to": "89613b686c97f189fd5e6ee70270a7bb154b2e15e877175425012c93e494498d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--renaming.light.png",
+      "from": "2620390a304681158354f7f0dc24d11a56efd4ae829556a1cddc63b181172e09",
+      "to": "38ae5d0c23817ddc2bf2c5f9cf8b124beb202d1352402541166df186434a49f4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--start-screen.dark.png",
+      "from": "92f1f6eb5ad829d763d83d45eecca2dd3182f04ce83fd3fe7c873861417e2bc8",
+      "to": "08f984b0ddd97f1fd85c34cd13cfa1be30f38291b3359c76baefe8d767cb9d88",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--start-screen.light.png",
+      "from": "ff0d6a8f824711616504ebc7ba236eebd71dfbda575e5b9b4a13fd988a3ab770",
+      "to": "c2682668c6f525b6fc36c6577b1f7dbb498a12abfa63b4f750370c8e9156b389",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--table-open.dark.png",
+      "from": "ee39b587d29a9adf4f11356de5938daf3c00b10fa5d4138b08cf513a8b7ef021",
+      "to": "86110ac4e8720f1d4fe1c7e2217df3f3fbd297e10155ed5ca9145d2af5add89c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--table-open.light.png",
+      "from": "c1fbb059587df28916f4a78c4636dffe0dad2d43b90f0ddf15b28a7f3ff2b7ac",
+      "to": "47bb39b7af88ebf5b8762a3906b2cb76eec416297e6579371fe23863a73d4cb7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--at-rest.dark.png",
+      "from": "8d6990bfed0dd48960a259ce909905726eba62b89fcc68c393814d6e0040d80c",
+      "to": "b5d78a4c3d2faf67a9a312e398c7df86114336d64c96f22ea61a780b58a48c02",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--at-rest.light.png",
+      "from": "dce2d384485cd37b30dcd81070c9f89fdf09a5d23b05b1497a9aaf78b3b1b411",
+      "to": "26c1a2c26e7a6c038d9598b8ebece549733b674dd3f15445ec53bf149de294b8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--empty.dark.png",
+      "from": "f4293be11ea31842ac8dfa38127a4ea430e0c2a9698ee19eaac78dca3514d3ab",
+      "to": "36e205bb097eb85e9e9607ad9345c3d06b2e7bba42da93622e6e18a3141fb9e9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--empty.light.png",
+      "from": "9f30f317fc1210585965d708be3853f9d4ed31db91aac44c1bf7f19c8e489d6a",
+      "to": "5de6263ef8b063735bb8508115cc39e51a3e5047d81ba5dd263db249c7894a1a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--file-loaded.dark.png",
+      "from": "57fe90bad19c8002596189c4a0884215b77a558019f66eb8e69c1a81a180f67d",
+      "to": "828546ba5014b253d2068be3c70840a5d228ad095112d5e9ec6537110f52cec0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--file-loaded.light.png",
+      "from": "1de9c8104858dd300999b5513bc9916e57a7f396ce9216d035859aa199c6c1ad",
+      "to": "2db751c23607363bf2d962ce6136333c5ee3bfc49313070000f0a2076d6dfa9b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--find-no-match.dark.png",
+      "from": "a41c4b4e903ea27cb868f9bea4a74aac9dc50e952ae91a3acf12a0b8c2cdba3e",
+      "to": "bcee0380a9330318cb12825264b283470998729734699614c215ae8dc314961c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--find-no-match.light.png",
+      "from": "4f1f73b9344a409f9b513f209c2b31eb29bef8a85bf829a50e79664a0b754e60",
+      "to": "1ebce1915cd44cc4175360f932590e1dd9e5d3373b36f2c4ab88e03dcb12dcbe",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--find.dark.png",
+      "from": "c306df6533388c333b8703439cafbbe70a07530891690f6e9d9c5fe5d7cf2d43",
+      "to": "8912d3b8fd9398febdee973d90e867c3b8493fd796c53fcf027726823d3422e6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--find.light.png",
+      "from": "fa38001f22476efacb452ac50cc6430d01f380e874923823a319bb0eeffdd660",
+      "to": "7dde77a0db18db3607cd2b9f52f32c5e19fc8245b743af9183d3e562d6fe60cd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--finished.dark.png",
+      "from": "ba315ebcb25481a47bf91c8415cd833953f664bf32bca7b27d07e723d72cd86d",
+      "to": "670f7a08b4da1a51107b94185268a6b9b1e73b8bee49b319bc57533b2aa63a9d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--finished.light.png",
+      "from": "00d9230d5e949eed11e3f2813d2662dd0bfdbca8292a9498067b7668e2db870d",
+      "to": "83cee3fef38620bf5761ac9efdc11c8e148a20ab3b29e7446a7673d4601286bc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--hidden.dark.png",
+      "from": "8a2f570427064d0fb9b4ddc7b2a23b5c8fe922ff25cb0fd8d48a9827d26dee54",
+      "to": "ad4ef7a237ef0a847993e036becf414713d3184394dc6bbe50cc20cd73853c19",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--hidden.light.png",
+      "from": "9a0a8c4903d0ed308d349f6c508afe5ea19cb50764906186bb45e80d3959f247",
+      "to": "efaf86605b5ccfaa43f57fd5ad0d3ab10cf24699fb3dcef687385b544bae86ca",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--louvain-open.dark.png",
+      "from": "f39a2791c2b870f68d474bc188bafde37916664c892ec9219cb596c28f2becd5",
+      "to": "e061a4c7fcd32be8ef5f90d047235eb43e00d74a5c8d9b0a48f133ccc0f1d295",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--louvain-open.light.png",
+      "from": "1a2a767b1f2ce7a5ae2c40afacb5bec6932615a2e3ca544e0f8976f6157ee84b",
+      "to": "15e54c7b4545a6e78b36d6435ccef9590d1871e16361b20ab34c035c9bcd6728",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--attribute-and-filter-step-field.dark.png",
+      "from": "3af85a28395c3d01bd7b626c8055f9f8d02e4e19cbf5d93e8ef42884cc486dd5",
+      "to": "9639a4dfb93bb6fc0ec53d964708190ae4776ffefb2a880ed2e4783444a0fa50",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--attribute-and-filter-step-field.light.png",
+      "from": "65909bcfa882ba36cfb10a7f8b9c81494c253009655d056f349d008f2f0fcd30",
+      "to": "1fac4e9e4418a7cb208303408a460dc30dbbb3cf2b73808b21d653fcdebfacf4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--edge-data.dark.png",
+      "from": "3068abdbfeca8a7b8625d43b283808f2f751ef202a07eb20d25eceaf98c7c6b7",
+      "to": "0e4382945b947a49baff67f1648e6c998b738998d4973a9ccc614f078d71676d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--edge-data.light.png",
+      "from": "fcd240921be166a3121bded116550a5a802638517ab2f20d367582c93778b8c8",
+      "to": "e87e4ba2fae9336e0252b2cd2eafa2f36090d029f5bc753f2a1dcdfc80cd782b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--group-set-path-row-community.dark.png",
+      "from": "19d6ffcae16538f5d4db4aa50c4cb8a4ed4b73603bab338b9b9913102c84d2ec",
+      "to": "d0e93d2e7ac357bd9e124d29106f843c01e351c2e4484c3aeb757f01e96ebebf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--group-set-path-row-community.light.png",
+      "from": "aa6d09badbab2726a44282d1c4412943ef9f669f4f724305cd65f83a4446723c",
+      "to": "e1c275dd0fe5b1dfaf8309c20acb2a671d40a601ff388e97ed2cf6eb620e65f1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--measure-row-data.dark.png",
+      "from": "4a3298a3ceb6ad34b93cb8f99a13c427fc256e1cb20b520665c723db0e132d0e",
+      "to": "fec042acf1915dbda1de6b624afe62ca77e81023dfd6955a42a36e9a1cf78307",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--measure-row-data.light.png",
+      "from": "808a0c9272e5154db95f3f4f685114f0d903744c6757e66de658ce9de783d35a",
+      "to": "68b7f0fdd6ace28047e1c300f67a10fe0752bc68408e3340980fb46213c6834c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-data.dark.png",
+      "from": "053b0970dae8cf24dbf24e25c7090fa4d3ea21112a2e32303752f8212aef61d6",
+      "to": "58a1ab56e0789abb2ecdaab825b8f8fd9c76b6296dd3f86a304e03d76feacf1d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-data.light.png",
+      "from": "015165f0d539cfefeaafef966462ea453c871592c9e1b570b5caf1b5f829d415",
+      "to": "60e328fd17601d881dde9934b7004deba81f3128957c669678d68e506c9e5c94",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-why-this-look.dark.png",
+      "from": "e47576166249443adcb7792c5bd2cc1d7ef06a49db48c6e073164e4a751b5f6a",
+      "to": "b74cbd86cbcdd480c8d6ac8fbb2526db89cd982e8a69d5751bd9b39c089247f6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-why-this-look.light.png",
+      "from": "19c4f934321ae3d1394504075ec343e08c0c3ded37bf2116dc2ffd5c77f818c5",
+      "to": "e11a0b1bf480fe06bef91707cdd0451b4e354a395a70085830dff177279b07bb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-canvas.dark.png",
+      "from": "82c77865d0939f32a4db7bdcbddcb929f7b5b7db768f69f49af08912d77b6ec9",
+      "to": "34bb57a5b6c634ab68fe9de0db3715b3a88bb7d2609a87933aacb2452c1f496d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-canvas.light.png",
+      "from": "9de051dc84d630de94498154827d4dc4a778d0d0587244aa45253ff3bd8ae37f",
+      "to": "833da56fb9114e71c6637c0e6655c4915c996327cf1198b6dadeb73022ce7f00",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-empty-graph.dark.png",
+      "from": "f4293be11ea31842ac8dfa38127a4ea430e0c2a9698ee19eaac78dca3514d3ab",
+      "to": "36e205bb097eb85e9e9607ad9345c3d06b2e7bba42da93622e6e18a3141fb9e9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-empty-graph.light.png",
+      "from": "9f30f317fc1210585965d708be3853f9d4ed31db91aac44c1bf7f19c8e489d6a",
+      "to": "5de6263ef8b063735bb8508115cc39e51a3e5047d81ba5dd263db249c7894a1a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-overview.dark.png",
+      "from": "3ce0be38a0fa43480882ecb49d0d32bf072a18d1ff472bb7846a3f99bb164794",
+      "to": "6cde0f555aec20d56de21f5a006dd3c875cb9f7f81dd5cad0e91bfe67731b4f5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-overview.light.png",
+      "from": "384ccb426886e89712f6a488eb99453a5a8efa4dc8af0fa99f521002feeb5b21",
+      "to": "2b5a2382eb3a86bf77bc8207c6166043510beb84ebf963a514256afd850241b8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-data.dark.png",
+      "from": "1e1632ffa05af500a11f30a643b869f0f7e1818dd5ed0545cde62c726e8eafd1",
+      "to": "077c426e194aa435b9ed0e82ec11fb617cf9e1715ea98be4a6dbc42e506bb727",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-data.light.png",
+      "from": "c205f0d1bb3d8ab9868ff6c7f8d1e515507d3cf3a95615bacc2449515d27ffb0",
+      "to": "1623b1ed8c7acbe54936cabf2e7b42649b0f923c2f6d1b38ac4e6f0f210ae486",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-failed.dark.png",
+      "from": "ac5dc67afa2b27d47bd97251ce50fb0fa45b63d2a6b030a7eadfdf43730f9e8f",
+      "to": "0af9128283701cdb454710ce2cf7f0f4c2f3984d10b7da3dae3e3aab3b41343e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-failed.light.png",
+      "from": "98332ade730bd4ca2c55f13ac15ab58f6f97c4929ae837948b88c54813ebd107",
+      "to": "0b6ed6671ae8b67b983c7f21b4974f28c985ade3488d3f302ba76e40381c5587",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-settings-changed.dark.png",
+      "from": "5e02b23f6263aa22173238a5578a492727cdd786955c5108dae2323a2bd3ca4a",
+      "to": "a3a55eaa574c5d6066945cca276776c24f2b896e3f34134d69cf800ef8433e6a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-settings-changed.light.png",
+      "from": "b7f394f953499d83b64c3e3baf50bdeab995eb9a5541908debc0b4917bf6e0c9",
+      "to": "f7719c3104d91497d3149932508140390ea0718b50c1f4a6dd6e11e7eb2e3a4f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--selection-and-everything-everything.dark.png",
+      "from": "ed73c3218a1004e02c612225859f3c01e41b1c535e39d54c329e1cca5f2ae572",
+      "to": "c2c520d49e61cfaaea2d3e21c1dbeacd67f076100649d721a7677b2d211d001c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--selection-and-everything-everything.light.png",
+      "from": "78af168e5f61f882b61c50867b99746a62ad1b57cfa298088857a94d97fedc99",
+      "to": "88260dc75f7cfe69d28a11ef5b9b2f58502eec0962ad54d3f742cafa811f96dc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--selection-and-everything-selection.dark.png",
+      "from": "561d0c8a92d612e0521d0562c83a617b3910c6fe24519e004daf512b18d540db",
+      "to": "517d2d3180c52bed4e5eaaec9c6096d1d6510d4f736f06386246a0ab5b4317fb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--selection-and-everything-selection.light.png",
+      "from": "c9f06e65b1b20eb8edaae7a06601a0363d1748c4e0988d5729c12ef2d8d775da",
+      "to": "d529db576584e64e321371eb69a9aebb5ce0537da95b5192657ed7ed534cb780",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-neighborhood.dark.png",
+      "from": "23b0b91909b0bfb7367fff96486b8a671bc9b5b2881184bee3be9c3826ee3c53",
+      "to": "5f929090a6c092bb5c3ff21c4348fb33233a74555d3c508e455dab843c6559aa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-neighborhood.light.png",
+      "from": "6a4acd1e03ce2c7da8229b1c4663dbc1d56316e426ec3189a3a66c72c297de79",
+      "to": "e55dc788dcc77db7e2f90bd80d21d35da2342454861f79835d894996fe998051",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-summary.dark.png",
+      "from": "914be3ca505b76d1b6cfbff528ec127e8e4cfeba3263cb320808d57378276fd1",
+      "to": "7835112e5dd9207c183dc5af254f6cda4429c57a75e6f7adb29067c1342b3a67",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-summary.light.png",
+      "from": "8fc946be35bd25ebbd06129318270cbfa23c5bbd98a001f71a8eecff82921e8c",
+      "to": "06e95f6ef7ccb4f7cb4b71ba20e2e4e0bfc42c77e13eb0ced6be6e12f9740afd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--discard-changes.dark.png",
+      "from": "36e414d7f425a48673e497f6b1abab8ec7601116d15457e64ab0bfd1c1c9f14f",
+      "to": "b2ad326928c0238141e9e9fcf23ab794b41871dee931fc5837cf0cd456be11c4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--discard-changes.light.png",
+      "from": "15d8d52970f86ad0afa737ec5798524789e8faa4d25c22c431e2c2cc0f1dc65f",
+      "to": "df50c76e0cff174de07569e9660c4fe3fa273ceb4cf664bb2e70c74e35ff00c6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--recent-missing.dark.png",
+      "from": "6a85f1202e6071b64122639581d841d0ef176f53d08cd9bd673014eef6e4b227",
+      "to": "3ad85ab3c695eea4cb705e4b27d82fa363d7aca1a4c1c129efcdf9ce7a7958ad",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--recent-missing.light.png",
+      "from": "05cd25b98534b9de48eb06bfe114ce795fed7178229698cf768f47d84b681e9e",
+      "to": "230810a4137372a1231c6eb6f01d30eed9fb1406e8b5e7b32aae771e19ced4cd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--recent-projects.dark.png",
+      "from": "c48a0b3bd21a2dfd85647e6f27c30348ba55ac90f1aa0cd009586372baacd60e",
+      "to": "78b96c3d0dd494c29b08607b3190e8a2fb449e9160ab45d3d10a209489051dd4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--recent-projects.light.png",
+      "from": "dae1b71b95efad0ba79544f5926ff9583e2bcc7f8f9b46b6949214f49b0cb169",
+      "to": "fa7e4f583e0af2735aa29f482f33c65904125f2eb0f417688093a8e91f5f4379",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--save-as.dark.png",
+      "from": "1b825ec7f3c9e22c67d46726dba53b42a409194c2568eca346019b4f6d804b12",
+      "to": "3d64855d056a99967c8514d18ce4e6d8b26041a27814b7e2c95dbad15de89278",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--save-as.light.png",
+      "from": "173b6abbbcfb8367f857b6e4692dc025ade6a5c05d04e920f93171ccc071c84c",
+      "to": "c1ff393b8d47a8e8b7fe69d7d5471f29f70ec2a2f86dfb76ee5c0fb63a66db99",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--around-the-group.dark.png",
+      "from": null,
+      "to": "de59289666585da253ebf069fc8b9c3ac2d0f4f9a2f398841c0657e210e82965",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--around-the-group.light.png",
+      "from": null,
+      "to": "016d04bab5767475bcdd5738273259796fbba2b48f032acdbfde1f16b4467603",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--background.dark.png",
+      "from": null,
+      "to": "8f16157ced29dc874783b9d3525a720bc39f4d3c58ae0518910de1ff88848556",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--background.light.png",
+      "from": null,
+      "to": "688936172271b0fe1c23b816f6496273ec00c7cdf6de254fea43254886c4241a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--edge.dark.png",
+      "from": null,
+      "to": "2ec80cf51ad426d0d1dd8aa62689ff8342db19f8e0fef92ef7a3fa136ecd97cc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--edge.light.png",
+      "from": null,
+      "to": "84b6f94c4e8ded21e762af7218d5c5e3074092aed47149ca4f945cc143299369",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--every-parameter-type.dark.png",
+      "from": null,
+      "to": "8ef91f65c07ac4f5609ec3fbfc7973b505ee74cada6d9777cc3e7dd5505b9744",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--every-parameter-type.light.png",
+      "from": null,
+      "to": "f47a3ca0a84bf599d57740d0dbb3d3399de7e269b20574f91f9cd15acaa73b32",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--full-text.dark.png",
+      "from": null,
+      "to": "9311cd698cc7f5ebe3033ed03f2d161a04d60609b80afb0b7d33e08d2177ba44",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--full-text.light.png",
+      "from": null,
+      "to": "02103c498bcf92db38f586fabfee709ece923616462984e7a6f7e3428a75beaf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--node.dark.png",
+      "from": null,
+      "to": "ed9871a35023240a7de55cadddf6c385b38ecdaa3e256d29f0e57f02e6219539",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--node.light.png",
+      "from": null,
+      "to": "fb870330d0117b3007bb85dd9adb375324968f447b2668437f29e49b7b91ea22",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--problems.dark.png",
+      "from": null,
+      "to": "7d71fca81ee9d726963fda0bde8c0ba3fb3185fb0890ad34f0f67337e1e62065",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-shader-editor--problems.light.png",
+      "from": null,
+      "to": "6bf0b040aa3f3cd1e86b0f780623a2384f97c22018a595e5546a73282125260d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--answered.dark.png",
+      "from": "bd9b31a2a0b21843ecc5c42428399fcfcb7bacda32491d476d863d1e45eb225c",
+      "to": "2ade11cdb7ab7c025ed5ba059fa3dbd07a9bdceec7db474345cd11c7af0f2e6a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--answered.light.png",
+      "from": "e55bac31090a902583661234c51ba3ce442480723c4982aaade8540f0c0b83a8",
+      "to": "b8fbecbf3a40b840f31568c72ccec1ca3143c8200d94a9ea0b9dc9365446092f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--declined.dark.png",
+      "from": "536a6108f48998cdf4369b8df8088194a259e754cce77de9eeabee2b81bd3d41",
+      "to": "e2f59ab01c1180a18834cbf7f0e9bf41a6f126cea863ba0eac0c8de9f6cd0f1c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--declined.light.png",
+      "from": "49a3d44360399e5853365dc0ae6c31fae8b44c93d9a25eb818f1275965ba24d5",
+      "to": "2d523e865859c974dacf4c5b182614b21a8de586bb968c71168542d5008cc2a9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--disclosure.dark.png",
+      "from": "4b162efca7be214a74c8f033d25f7d31d0e6a494290ebe8e840b6938cbddc0a9",
+      "to": "fdba2988a273897ce9bd2680c23cf072ecdef5d7b8cf0ab50a3a28d931a7fe55",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--disclosure.light.png",
+      "from": "3b76070dd635bc4f744011a5b1d280734a30bc42ee2c241e06913c1143d6dda3",
+      "to": "5f73cc147573cfd05769556e3f43a24eb9532f4ed1f8c3a2fee64f4b6743e0df",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--drop-target.dark.png",
+      "from": "e12acb242bcc212d6946e68dd2e1fac06341e3c7577bdc6c998714810ffc9c03",
+      "to": "f0cd7fe191c9fe22a1eba2c5efecf6fb1f528a5e82af4e4da5cde904a48ce771",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--drop-target.light.png",
+      "from": "cc307b804bf5159b24babceab5c54a1310973420db5d9ecbce06dcb8d2ece2ca",
+      "to": "81bd4a0c9050ca53912967e27e29cf097ac0adaa948b96aae4e8f676230a7463",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--first-run.dark.png",
+      "from": "92f1f6eb5ad829d763d83d45eecca2dd3182f04ce83fd3fe7c873861417e2bc8",
+      "to": "d69e8e5bbaf292d6e13205ff3d017784791733bd593e86bff45508cb37197f4f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--first-run.light.png",
+      "from": "bcde69b16dcba49ad30a19be9c8eaca3258737b702cf8e31d2b89090b7b4a027",
+      "to": "ff150089f61be660e59ae918c5f443232ac2abeaa2b62a0fbeb439d823206982",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--network-data.dark.png",
+      "from": "d4c84208cdaf77e7184b126a3339b81ac4500be94147819089b25a3411b93459",
+      "to": "edd16250928e6d0d509e6b962b0d02c1116b19e1129d4796d4a2e9badb9b4130",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--network-data.light.png",
+      "from": "d62eee815a0e03a9e6d009acc2f3fdf1008bab9c089807b44dd9d71f6552cc33",
+      "to": "b958ce1206002943b71898fbd31fede0b8001902bfa8663990069b869720d449",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--network-samples.dark.png",
+      "from": null,
+      "to": "20b87fe59851cf16cc923dc117b865b16fa5ce5a3428bb58a6f3e01df9170645",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--network-samples.light.png",
+      "from": null,
+      "to": "477fdd8b7be8741d09a426ffc9a63c9bce838b54fe156a7400c0a04e8ffc2a56",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--returning-reader.dark.png",
+      "from": "971f9648aac5b02de127201c678f2289aaeca772e969aeb6be60be5dcf923765",
+      "to": "54a6602f0ca7e09d12f0299d46e9cb255f583abde17639943a7cd6effe9a5395",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--returning-reader.light.png",
+      "from": "481d03ad9a2a697b24fdef1648125a6c57c6ed0b764050b2590e163f874c17df",
+      "to": "813551b0088e0528a60fd921815b8af94f0c954d8534c3ef00a1f589c0cddb3c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--returning.dark.png",
+      "from": "4ba4be6812d7bada3f7aff01269326286369c05fef4c61486f81ad5084972109",
+      "to": "d25a6bf399cb19fe0e813dbcdbec730d65fe60c4ce278ddb43f5da0a2d928927",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--returning.light.png",
+      "from": "db3dc9f47190d8255d7bef6e38bf53828082bd455a0b6248103a1116de4d0760",
+      "to": "f554e01494495d3d1db9d2710d96e9b51fdc807172498b59e5255dca77771a9b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-accessibility.dark.png",
+      "from": "39c894881867b52057e49f77c42c709ce6371bc819410cfce3838fed060941db",
+      "to": "d42fbccaa0794aaf73261587e61f098fed93e2f87738e1b0a81deb3606602c6b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-accessibility.light.png",
+      "from": "4ac4830cae9aec4b083edc65d51ee7328f37a5397616d8429b2de6e229c50f64",
+      "to": "def97c6c848942450ee8b86e7659620117e828d00e65856dff6e1f182fca7bcc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-general.dark.png",
+      "from": "07ae129c6b42a1cdd8ac42457582f8fd28260ef55a26b9db486cb148969f0032",
+      "to": "e1b24ab213f139a234d7c950658927f144bcf2260e638ce786cd9b44049c58cb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-general.light.png",
+      "from": "7f822c678098ba4fd4cbfc4e19ec8232d39e6c9c76adb5953e42fdcd2674e2e2",
+      "to": "c472a37ac33e33739c07b6a91abe58a98a2a7205b5de7c9324d2b95213f51d2e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-privacy-on.dark.png",
+      "from": "d389e44c85f0c9e855905b5c8ddd52f18221ce93612a597fd8cbe271fe57478d",
+      "to": "c8b3575d1308d64ea100fde6d9acdad1e4a2214d384828f064ed2271bf932e77",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-privacy-on.light.png",
+      "from": "a6b3f767c9908d618d4edce445c1937f1e2509bcffc77183cf857a991d6f1034",
+      "to": "fcd736686384e5225594c74b0556dd99273405fc8ae5c3049c24020a88a765b2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-privacy.dark.png",
+      "from": "23514c8ac03ec1a9abb30320058cd9e40fa4eaece9ecf3aad56ac2d913afb9bd",
+      "to": "370a59584a1c00b81af9313f46080ce7a29ce7f349a96655abf5126888238099",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-privacy.light.png",
+      "from": "7d5c3d506683a48d84b72783bb87e2e0ca30880b57adb450975a95cb450338f4",
+      "to": "de74d8438dbd84720453374dc35f3b83752ec560275a865e041f75f5058e7698",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--add-to-shape.dark.png",
+      "from": "e659cb371c9edd24802201d082e06479b4031b06ef3c112486e08c83bdaf672e",
+      "to": "bb19c1f2ef0dfded8aa3617ec8bebfd29db20c8a7221e47ae4bf94203770fa46",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--add-to-shape.light.png",
+      "from": "9d3c0e8e34a276ec732a4bab62451d7d38bafec1189cc016216af9253e793b55",
+      "to": "9b21364008c3ef00e2960179864b4ed88492ee717e04f4c082c57330c1293463",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-folder.dark.png",
+      "from": "549f4debd721b110a2dc2be1a00a86841763194b240c1783bc337994aa9c0597",
+      "to": "db9e334c37c67dadd7df0a28e2361b8a3ae81ce756c96f9e8603b40c166a857e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-folder.light.png",
+      "from": "decd086a3fac88c0798f6d03116010f6eb60ac215e1f9ed2af5e0ba3589a2a93",
+      "to": "dcf0950fb826c865ce1184b9f9393ef7c21a56363557ecb07d9964e2233c544c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-receipt.dark.png",
+      "from": "6923e4dc32ba3873fa6e1829aec2abcb9bf80547e91296d8e568ed73c8f3707e",
+      "to": "01581d3c8e360c79c7098b395c8b84e8645fd12588992a2bf034e70e8fa48dbe",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-receipt.light.png",
+      "from": "3367883b66f4ec8e4ef8d019a098f3b66b77d5c2ae35bdc4566590609cda1514",
+      "to": "024026464b283a7f5fb58f1b0c45f6a83e445b966eb09e89f69a0295a1ca0dbe",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-vary-by-layer.dark.png",
+      "from": "d7e85d186985b415176fcb4c4c70caa529194c7ac28734feb46689e6fc0158f6",
+      "to": "ee49a984a0fb65dc11ec106f6ad6acf8e8614a75f0d5dce8361db7c7326b1813",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-vary-by-layer.light.png",
+      "from": "931f7589e8843a9b018800ae818597d4ef9ee4978c533b049cff3731300cd3d4",
+      "to": "5920bcca62c42c9faec6f995141ac5e1e2644c9b3097a3a92667aeb20c79e6af",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-advanced.dark.png",
+      "from": null,
+      "to": "dfcff4673e93062411e9c2648c63a2161e011ac21fca114483323ba2e8a5aaf0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-advanced.light.png",
+      "from": null,
+      "to": "bc45b8945b6d1947e05d426530779c78d34cbab29a577c0cd7b6165316397265",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-empty.dark.png",
+      "from": null,
+      "to": "44e4cef6f39f56261afcc99ba611a845e1d8e918e44c1883e7bf09bff00d22e7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-empty.light.png",
+      "from": null,
+      "to": "cfcffc7624908a1d18715a5623f0ff449c39fb63795f9dfa40abd191e7d699bb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-loaded.dark.png",
+      "from": null,
+      "to": "b1764b8cfa3aeeeb1a796ed692e3d144ee5b9c9836ab4a8f9a11d5ece165c9c2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-loaded.light.png",
+      "from": null,
+      "to": "8059c1f91bbb68a5f42f1409eaafd0a30538748261f4f841577bfd9ee4c21b26",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-main-menu.dark.png",
+      "from": null,
+      "to": "8ae22ffd1321f029b5adde5111aa79a3dbd6bdd747181e6eaec001cf56f185db",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-main-menu.light.png",
+      "from": null,
+      "to": "9b64f658172591a2969239b8bd9c03c8bc6f8291fee48ca8a1caf60ea0d91583",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-missing-parts.dark.png",
+      "from": null,
+      "to": "68e23aacf8b8fff530c8c3a2e9e9ad35fdb636a6edddb24a9d1ba9b429768ba3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-missing-parts.light.png",
+      "from": null,
+      "to": "d37340fc7927c5681335aeac5f76d14f6d49eb80918eb23bc00b5c878cd412d4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-project-tile.dark.png",
+      "from": null,
+      "to": "25f8d6839d95a93039c25aaa3f86c0c47d8e69017781af9c033479bd86c1e468",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-project-tile.light.png",
+      "from": null,
+      "to": "b9c7288ebc522097b5ebd5009f30963e177c7016d64a8b63055176d357399c5e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-url-error.json",
+      "from": "6652165d91f9edcbdda24a5c1507e2f730a26602e6099378422242e4d5d74c1a",
+      "to": "6652165d91f9edcbdda24a5c1507e2f730a26602e6099378422242e4d5d74c1a",
+      "reason": "exclude: unstable, excluding now and agent should open issues to fix"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--degree-ramp.dark.png",
+      "from": "1c362fb4181c05773c6d4e454ddbd7b9b149cab9203b13243b4ea8af5361aa77",
+      "to": "33ec2b334d4f5ac3ca65d2a76ec13b3e9ff5281b7519ecf2a434c4e3c8144314",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--degree-ramp.light.png",
+      "from": "cd6eb254db19d4d2b762745c5c8541eef2b9cd5f75d2ddce11831a52e6764f5f",
+      "to": "e524eb4fe881ac122a03ec91a09ded0d9a5534da9f9b0563e6f6a954e0e3431f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--degree-values.dark.png",
+      "from": "8a16fb3772c263d470a9013a17839d74ac67caa1fcb6e16c03cd5c5a3f951436",
+      "to": "f439a0b53fa72fbf0b8e4f3aa4bbb3d0c10ba96fdc57ffab34ae84998132491a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--degree-values.light.png",
+      "from": "43a85890be002b4f7766b95cb8d9f594a045b5f3f3910cd79a744ce96af33d84",
+      "to": "eca0f9241c7a7c5da51f238a7cb15a227284234203dca49d19501cfbb0c26393",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--edge-betweenness.dark.png",
+      "from": "dd53c625ecdda93240012dbee96725e5fc077337a09e3e8c9292025966bebe49",
+      "to": "e62e999eb7159b9f5b8516737938bdf76f2a0cd257c81541839af8bf12947560",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--edge-betweenness.light.png",
+      "from": "03cf8b381dbb1de40239af836ffe8714657fc84b18be5744a5bdfaf2768cc657",
+      "to": "f2cec79fb02160c66d34135e8a5d60b8496c70899bb8dc6163cbcf81dfee65fa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--everything-hidden.dark.png",
+      "from": "465235d0b7c2f0517c4a24857973cea396a5e80e6bf4e9671dcef65780212afa",
+      "to": "e1587aefc55af73699b15f9e62f9713d2934d6372eb04617134b413c179a9aa0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--everything-hidden.light.png",
+      "from": "b519e66773041f00fde984743ea5f18ee0da02cb91c43b5bcbd3a71425aafdd7",
+      "to": "c86cd3bb6d89defed736af620e2f42165a8b558305c55b0ca2dfa4524bf5702e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--folder-panel.dark.png",
+      "from": "909e459e10d7ff25cfe69a861cf85669b68c0b5f020152636456a563d1a53bae",
+      "to": "2be09cf0027f442722e9c44e614f9496283ea3f2c946d6ff6fb0da06eb7d33b1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--folder-panel.light.png",
+      "from": "6083d05a25f14c28dd1b632667622aacaf1b0f98c3ad63d36f6e8c110d54c995",
+      "to": "a97e9669d5112ee988123b34177a60318f931409482cc75c989a81ac886304af",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--football-conference.dark.png",
+      "from": "417815041cab39b22ba3e0ced338f3e2151cbac7c324ad823b52584b7e249679",
+      "to": "c53b3ac643332e5a9433a35271eb04d480071fea69c245d6f23862853b6f5ce8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--football-conference.light.png",
+      "from": "2105357cff456d5e81c868fabc3083c96afb6672040523dc6025e5651b64e74e",
+      "to": "2f62cda761ba36d6af9c720009c4b80d2867b940377f17308ec08fa58b5eb541",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--graph-settings.dark.png",
+      "from": "5b4529f24cf2b0902064eed8435e3058d00718ca68b0b6bf685d1e21b00cccf9",
+      "to": "a19ce0ca748df69d71f96dab1d1a94859ee7bb6c1fe0a6e98a206ac8ed4bc8f5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--graph-settings.light.png",
+      "from": "c32ecb67867bdd8877e4e6d2c1aed0054f09e9ad35b68cc902deb94930e24e90",
+      "to": "53bedcef614157c1c416594f31015f2d3e83609aa0114f0bef63649e183be37c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--hovered-at-rest.dark.png",
+      "from": "31785d329f7c6064d8d3e53edaf7738b18a96607be95d10c58cf76ae4f92e7e4",
+      "to": "7d730b0357bc8fba9a52411ed8129666859c50292a129ae0bde20d5b77b90216",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--hovered-at-rest.light.png",
+      "from": "24bbfeac04e774973cacb8647524c1bd919ad1c5b6e6bb33086c242964f00ebb",
+      "to": "37ee07628365f6ab9d9b25054729797181fe512cc2b1af8ce78467dd863be39b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--key-people-at-rest.dark.png",
+      "from": "03a3e322cbc1bca3fa4992e201f83e03f1a032c30fff6975372a6d7c4c178598",
+      "to": "bc802f3d1233e5727ea0df1571e03b5e4b3e10db76c0aa30ce05a5f4e7fdcfb1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--key-people-at-rest.light.png",
+      "from": "488418d02fdf2c62660b8a058543fbbe26acc1c7e6849065ebe20af5403a0bf8",
+      "to": "7150c3389651184bcbd2b0582e9a0a6b7f475295d3ab5e85cb797f799eb32caa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--label-entry.dark.png",
+      "from": "26ae14512d369674bf520614fc021f6ad8de7f678a8c3e51a94da9c810c39685",
+      "to": "5d54579df4979c8e7428917c84f94c44ad09f63e56af7bb346b20e63bc20dc31",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--label-entry.light.png",
+      "from": "5e96c1c539f146ef30777ae45838efe7b077325c807390b4a605baab86d85849",
+      "to": "ef1403ba6e13a2f5e521caa4f83c04bbf09b369aea6ed003f01cea087416e084",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--label-settings.dark.png",
+      "from": "193eca5c7356d242ad6486e8be07ea5c97fbb2ddd5c53ff82f741087b67797d8",
+      "to": "ba32b60f93cf6a65a12694b181f9c73b2876da5e38e990798f0f0600072d0ef7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--label-settings.light.png",
+      "from": "265a3376098215c42e73852068da0db415b9f60a5c57302768c1a9d2e487ed05",
+      "to": "9b46fe08379188ab3cf0e98335c87accaab5858d18055d320b693add9c9b7462",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--labels-menu.dark.png",
+      "from": "8c50fb787b08206271819baabc2414b1a4573fed91ac6e597ebd8cf1b2a81e5d",
+      "to": "8a0f6e08986a90ce1aec3d1b961e861c1f25af2744baeb3942bd73a4c884a058",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--labels-menu.light.png",
+      "from": "3b314434dab5e5a0ef325468368f77ab45c5b18e73339f48d6e92023c7a5982f",
+      "to": "535116e1ee438e809435ffbd9dad2f457c9b3ddada4e484c647cba6b733feb76",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-categories.dark.png",
+      "from": "5a621df9f8b85c3cfa3c906f3412c02aa49b8d72c4a39f4bfee4292a77bec9ba",
+      "to": "36e9ac2b921b6189776b95dcc60c2721ac0050f8b19b49637792e0da6151ee1b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-categories.light.png",
+      "from": "fda807c9e7517ec05c394d50e66800ee50907d7f063127de6dfa245a35ab05af",
+      "to": "8371b92390e913855b2da5df637a51ba25f2632b7e6032b54dc9a2a52c822ccd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-group-detail.dark.png",
+      "from": "1bd37905fb8e156988d0f441853282fb7994c111462b0ac3dd8fe70b9bde8d05",
+      "to": "02a3817940674fb1de7788ea74d59cdb30f1d63047bc5d05e58ee8d3d28aba3e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-group-detail.light.png",
+      "from": "3dc91c19f8c6a6ecad46db62833f319e2347b55f8a499d558baa9d756cd2f1ed",
+      "to": "653d25c41274156e7a9eb9803ff72a25a32c8fb68556dd3c7512b1c3ff33a3a3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-shape-for-one-group.dark.png",
+      "from": "b5c6f7a59a78b020c81a656d294dea48b107c81ed00d7c06b4ee727936be7a1e",
+      "to": "bfb3554ffca1fbb78a43c132002e309355c9ce27305e94613a32035fe5d161d3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-shape-for-one-group.light.png",
+      "from": "a8eeb91b1972c567244e4e67a0a27c76b52dba2b218d5cb3d06b6b94ca255f3b",
+      "to": "7a7834c1c3c4c1b0dba6267fc643a58b67ad2c17d7af6499ec92d5c8be182224",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-values.dark.png",
+      "from": "5fda5fd124d6024b712e0741536a4f1ed321f92760e17f1e1edd9215ec51a9fd",
+      "to": "72f848b2d71478282e96159f30789607b54124379217aef18a279318f8c4cab0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-values.light.png",
+      "from": "1d78ba2faa88980e864235f316569a6ab70afc807acf1052a49e73f574fecee4",
+      "to": "0e2e7656e3da21de48578d5add1859328045516f665f17aa4c1120abce818504",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--model-on-a-layer.dark.png",
+      "from": null,
+      "to": "5192e5f1d22a60cd2e8db01504462780bb5da49648c105f6693aa1655c98a9a1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--model-on-a-layer.light.png",
+      "from": null,
+      "to": "d568d405fd16d7026384bed3573a7d6f24c8c0ef4bef5c5c312d38b660fe611c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--model-settings-open.dark.png",
+      "from": null,
+      "to": "efcc1b55c4e0d5da6566cc8d0df8b37dc7c3a80152bdcca2220fcd78e51d1b09",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--model-settings-open.light.png",
+      "from": null,
+      "to": "913f4de4ac3f4a9ba96f9b35c3af64acb402edadcaa8f4d26e0d7ed5c55f4733",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--new-layer.dark.png",
+      "from": "f69f7612d96c4522c3abbb532f27a435c24e5ffe4c7024760fed5db9b4179642",
+      "to": "5463a6b6af068784e87e5b786b79cab3078b408f7b781eb368e2b12056528fd7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--new-layer.light.png",
+      "from": "6c17ac382510652712c61c0882c070ab1bbdd2cb3d011ace572053c6cb6d61e0",
+      "to": "41603ca756f745f85d80564c6fdfde55493b14c4d28ac5e817ff689662015a2e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--parts.dark.png",
+      "from": null,
+      "to": "498aa18aba7579dc586f9f1c480c79c8021b2071c785461001d5d5fec2739cd9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--parts.light.png",
+      "from": null,
+      "to": "091b560762f78f7fca235ac5e06cd758f5d8bcd7749fb0d9463cb09c3d141828",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--picture.dark.png",
+      "from": null,
+      "to": "215df5cc6fe69622d7e030d7a6c655acb30b5616c54b45e9c782032bec2ef509",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--picture.light.png",
+      "from": null,
+      "to": "934d6cfc2c2b11060615b6c8bbcb2b9b8e763544e8bc36274639d934e26fa523",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--route-at-rest.dark.png",
+      "from": "410c847af96b3e04efbadb4e42a5b5a165f292c145877de8ca662ed21940d410",
+      "to": "6bbfe9d848fb48233d9e2dde3af854da8685dc222ac696cc339f5e726b46a762",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--route-at-rest.light.png",
+      "from": "23cca5a8f234b8b7bd11ccd34d33691ce8a7a28c217e26eea15e965d65ce86e2",
+      "to": "ad1960842af3b06be03d87786c7bb32b093f389d2860f5a7abee5fc85c440b66",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--route-values.dark.png",
+      "from": "ea0b90d337bd83d939f2ea4f3c528f2de0315c5317f3d3623b75e3c633c52abc",
+      "to": "f1d803d642957e34424d497c19010382d487088dd1a0bf8e76cdee7cbf62fcd7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--route-values.light.png",
+      "from": "208881a4249c7145bce042fa7a77540eeb50a7414dbc4cd4a6f87dc3672930f9",
+      "to": "070220b379371672a4a40ccdeb6e57f27cae15077a12508ad56c2c02d69a4d79",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--selected-at-rest.dark.png",
+      "from": "d658d55ce5ab2af635cc9a9efc34266fd466c441b11afac9f89975ff22db0e14",
+      "to": "b91b419cb4e4a24abd15870bf20a3fa3ea0d2a5ff42d38e09f83e9193dd679e8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--selected-at-rest.light.png",
+      "from": "c947726f9d6f48095708c2aaad9e1f288c3b083dd64252f9c5e9e65f86d02bc6",
+      "to": "c4b0927cc2e7c5f9602c9f5bece17c26528a62ccdc5fc8d98572312fc5132c90",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--shaders-gallery.dark.png",
+      "from": "a3b8817d7a8aed9ff592039262dd0fad9e2e4647be8c05db7e13652d1e14b0aa",
+      "to": "e73f84ec3b8094521953b19bd19e6903c55c91fe540a4ad203f4a7b64e6aba23",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--shaders-gallery.light.png",
+      "from": "9a4adb668e05318a482a8ac52c893539f44c0c6966560165bb96bbf5cbdc1a0f",
+      "to": "e824a931ccaf2119bf90676ca73a263417e8d67d9a7fa4a4a983dec0639f6c60",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--shape-menu.dark.png",
+      "from": "b03dc9b2a3534d15068e617a00770e38ac9c9cff76ae6febc768499ffafe340d",
+      "to": "0f516fb609dd51ecb886c0a24cd2f978aefeb525dde3e3f7bf40943edc4ff1e8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--shape-menu.light.png",
+      "from": "5e775c80c5642200ba007ca6786800c7e0face1062a232f3e9e30152ddc40ec6",
+      "to": "13e05a3e3b7b6a389a4f8fcddd5433f025e46fd605fd5421961325bd132ab49d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--size-removed.dark.png",
+      "from": "9df1ea14bc50ece86207a20c7259c55d7efee7278f24689de49914e64b24e97e",
+      "to": "807a58864dabf5711243a5d05d34203c3217fda39a4181d1488fe661538ab3ed",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--size-removed.light.png",
+      "from": "6ca9384ce058ec7c6b66df123dee8e4605992783e4d2d48803a58f82b7d3d8b8",
+      "to": "7239358b669200bf2c216a88959b7d851bd9457a088e694e0f8e12454422ff7b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--tree.dark.png",
+      "from": "4e820f68dfe15745193b3471e8681b6e778ff4d1f716e771c174064c7d0cf7bc",
+      "to": "c6211228009399c4413b569bf8849e3c87e358b9f1167c4533c4bf674369b46d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--tree.light.png",
+      "from": "cb6018a5a45e4e3f90f7bb42c892ca2bae89bfe9f0f4e8acc33ca608a5cfdc5d",
+      "to": "ed56525e8c762967f94e76d5e004c04ba281891a2ed63f4664b16bec2b1c9ee0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--two-rows.dark.png",
+      "from": "bcaab2c49cdb334b2ce7c3760942cae9c90301cb3759459d4145afb99192a8eb",
+      "to": "5c56fb45214178d735f8d435fb5e1b8db20722fd563b897c4c71724894b3728e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--two-rows.light.png",
+      "from": "4d78fbc2055271e98a03760e5909f0057357ac9be01a19fdea4519f06baabeeb",
+      "to": "f454202dd4245bc18194dd343b40e324a8b11b6dee2b19d17a924fb284c36ca3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--vary-by.dark.png",
+      "from": "d1ac71b0bbebe538f18cb2626dc564c4dd32ef7b6b8453897c2695d71f6f33a6",
+      "to": "e5b462363f29750d8fe3fa6e99a9d07d611fa7427c0639e001a074e592f8e47c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--vary-by.light.png",
+      "from": "fb9d86d5ab340890b1143c91ee7aa99e7e32ba260ccd19f0ccc9d620110956aa",
+      "to": "d33f1c38785e11751529a3f04610a66bbcc216a3650d06f44f90af19ac46d6a8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--bind-size.dark.png",
+      "from": "b5519e6da5547d66986c4eea3f791fd8150048aee6f751e1cb4509043f82356d",
+      "to": "03dd7fbec0b1fc27a08850f14b050739d8bfc311399bbc357cfb48cb56e702d1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--bind-size.light.png",
+      "from": "dbf54484eb4b28e1123cec7c84339e4128a3bc90062f9b88df743cd7e7064c89",
+      "to": "43cb90fa954ab17904a78cbd2cc48751ef82cbe036a9c709bd2f732202255688",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--binding-popover.dark.png",
+      "from": "6a5db7c96769f37460c414f6af0770cb45b0184d1946d9c3bc79a4a05e0ef31b",
+      "to": "c68ed3269d26647053f022d303abf2154ec41987d8e8a7c8eab37eb28ea64946",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--binding-popover.light.png",
+      "from": "8973b8bf1221393f5c91684651bd4b03ca471a5fdd11e9ad1161100d59b6ce14",
+      "to": "8191030fbe181fd5d3df26d1d0d66197130463f79cc1bb28d492b57027051bca",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--binding-unknown-path.dark.png",
+      "from": "ad52e7b31d724d3df3be8cfb1bdbf756c2cee53876e3c5874608fc3741e3d43f",
+      "to": "4cbc8fc98c53b7e1514128cbe6f9abd8c5aacb065ccd1ddd04de65efe3aaeeb6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--binding-unknown-path.light.png",
+      "from": "4ecb1b99661a69f86b037a4cfc493c856a77df6618ded7e1850615a5bdaa16c9",
+      "to": "8c91b091dabfc7c3b874f4532a298892cea02c6ca14b1ddfad56f612d0d1a792",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--color-popover.dark.png",
+      "from": "c4d90b55f111e86b21f19056c7b4726faecc1ccfa57ede6ae1e7c64958d93b35",
+      "to": "21f1a0b5fb8fc2075a21e93926ccccd8ddb12a5e14f3643924e905d78715b959",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--color-popover.light.png",
+      "from": "a6bfa99cceef151a25b77c6013ab5742df527f82221bf5f56cbd119d4110e789",
+      "to": "b2dbb9b573db9c1244281325b0aa98f0791d15274424c42249831b59a1ddd6d9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--everything.dark.png",
+      "from": "0af77ea7298966c8e70c579666400507f0a72ad8adbef5a9781f6bbeb139bdf4",
+      "to": "46c624a2a122ae697534209605124ac1b18c9f9b727c7801df49443f15a41c9d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--everything.light.png",
+      "from": "bad70c6dde193e7f0e2048c174aa40551e461f0d636a5bce3e58418aca4c10e6",
+      "to": "b406dc1030c6860a839288ffffb934e0f7b1b3e05ff2a6eb986abb96c29297d5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-bound.dark.png",
+      "from": "2e8161a73c27660ae46c841d31a94ee78ce3ab3ac490e9b351b42d0c23caf299",
+      "to": "ada64be5d35d6c402a51b78803c4509a47b7d092f4d46cb6ce43ffd094c37c22",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-bound.light.png",
+      "from": "16dd6cfdb827a0332536f9359ae8a3d9b6d619bace9dd09ccd845e4a482413d7",
+      "to": "b321f52f0f28d45763ef17233803baeb16ed42bda4c116075ac2c53c3826ee04",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-empty.dark.png",
+      "from": "336361f3166f028cb58573153bac1d56c2c3a1eb7a0e8571848779ff6915167f",
+      "to": "628e3df8a2e29c19a9b3d51bdf34787ece604e8806584e4eab1d48ece4cc0eca",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-empty.light.png",
+      "from": "2488a14e3c20f1462c65d8860605e401b0776a0f905cdd7be0ce4424054c9896",
+      "to": "38cbc6ca83b52d157eef5bee79073956c018ab7347b1f5a820e5159dd431fd35",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-new-line.dark.png",
+      "from": "afc9ecc49acc8dd83570330831d9a54fabc40b8e64bb8ef75a3da47bb12b2aa1",
+      "to": "ff0e9af19ca0a8683ce58044edac34b49bd10074f75a6bd9728a5daba0e7c045",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-new-line.light.png",
+      "from": "c06af1071a0b2ae4b3100d58b8f0761ff89da92b832636aed45979b0d4c272cd",
+      "to": "342187f516f7b6250494faf7ea93771861b3d26a714c35a03f50369875ca140f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--measure-row.dark.png",
+      "from": "0cb0590154742dad25da294814f13a8f52ad40ce197fa095c4e48a34d71e0c7b",
+      "to": "1b7ac5b1d29ba0b5f7693bbe92dc98ec4d03e05353d6e68154f8e8e926b891bd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--measure-row.light.png",
+      "from": "4ec1fd821037486083e5e5f01fa317d08d41de681a1db2532becab49fc51d55a",
+      "to": "6ce4c604029bb859ad1758645768c1482ea543209905fd2de7d146324186b6c6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--palette.dark.png",
+      "from": "2e5dee74e1a8e1093a64b2e87a1992d42677c4332b9606ed7bfc1dab3454f382",
+      "to": "5bfe32555c785503eea0d9f0cd4d0eb7519de3af387a62aa6529a697dd547fba",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--palette.light.png",
+      "from": "f33e050abe7253affb2f5fd52da8cdfd0702d37dbd07ec5a05210ad1a0c0a0cf",
+      "to": "7736054f71d55a8440443353800bc6f1ccc6377ada0997bf04340fae4b71facd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--plus-menu.dark.png",
+      "from": "1fb3969e51d0a1fcae2f7ccba8b2dbbdc3f88e209f3ad5667abbffbdbb7b88d3",
+      "to": "c7148ce50a6edc1967dc26db303e7f4c7c5e5e521e10ba92e0fdccf588b04769",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--plus-menu.light.png",
+      "from": "31cedaff96937dfd1f9fc026012f25ad1c43085c68d2052b51ea85b108f77501",
+      "to": "300d0a4b77dfb47a48134e429d459c1bfdb1a906c035b21466c70e053d984930",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--shape-popover.dark.png",
+      "from": "75e4ae54d25a91bb4bd7562471c1d4c674b9f426ae5185845102a3f44851920b",
+      "to": "86ee5bd8e9079588eebe9c182fa6bcd43dbe593f80beb1b7e46aa5b1c2de7685",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--shape-popover.light.png",
+      "from": "6263629369f06203026c9371a237e71b520590af4fc97a35ee3c709aeca155b9",
+      "to": "631b49332b4e16f6eb3b272847fb19cc5b90c982df2d7c0272ef11e2f8cd280e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--closed.dark.png",
+      "from": "8d6990bfed0dd48960a259ce909905726eba62b89fcc68c393814d6e0040d80c",
+      "to": "b5d78a4c3d2faf67a9a312e398c7df86114336d64c96f22ea61a780b58a48c02",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--closed.light.png",
+      "from": "dce2d384485cd37b30dcd81070c9f89fdf09a5d23b05b1497a9aaf78b3b1b411",
+      "to": "26c1a2c26e7a6c038d9598b8ebece549733b674dd3f15445ec53bf149de294b8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--columns.dark.png",
+      "from": "c849c7ea2c77fefd3fc42fae90b6527e88bf66f7588e1b66fbb128b861a17599",
+      "to": "bc049cfa063104d51d98bdd14e18c66fe28a0608b549b3aea815482bb78db0e8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--columns.light.png",
+      "from": "1d81193df0be731251b62fd33a104f4f2dc0e09bfa1b7205a4778f2302c25498",
+      "to": "3d3931cc13fd6dae637a1292f31da91fb7347b13f8a58303ba3c37e3376f928a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--communities.dark.png",
+      "from": "f07741066d44daf918234bcdee26a5d3867b32f79585febd850f46ac1e0b0307",
+      "to": "d37c4b9f8d188392270a41a31905d22fe3750a821c6773390b6dec037abd80c1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--communities.light.png",
+      "from": "17e68a88d03a78d458121638e23d45aa78e71e07de98959c725cec35da608eaa",
+      "to": "b8da534b3542cd65f31000982a53350b8ef3b3daf77539bfef7552ba3ca6cc5e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--edges.dark.png",
+      "from": "da5488ec72aa593ebde1c0ce5f50bf2baaafdbde6ec0bbabf304467a68ac0a96",
+      "to": "93d74d818a34ef36550a53b08118139a0c79a2b4a5e2883948d436676873e5c1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--edges.light.png",
+      "from": "f121f6232f79642db8540e6271bbfc7c48bae0a04795273601058959c4ac9019",
+      "to": "54fada8ac2f1bd417cb87a9d2935be5273172910997aa2df2dd5eccf077bed88",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--members-of-row.dark.png",
+      "from": "55478bb588d4fd8aead70a8a381ea7510faa04535f9f21674802bed387ff21d8",
+      "to": "e0b2493dde31bc0a6a19749ddf4e73c6b816c420ee8550686d45910f73ba60e9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--members-of-row.light.png",
+      "from": "5ae1af52da937f92787d2a36c9991ad73a0540a8ee9c11392605a7d65656db3e",
+      "to": "a9a529f9f58bfc9119845294ea2a6079631dd80a124a1b13baf3957c0ee4be1d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--nodes.dark.png",
+      "from": "b1803396225afc8a4e86e7ade993ade6d7d94bc265e5d137c760e4719280484a",
+      "to": "6da8d6e27b3c236de648d7c7da505183219d5e5573f7df2f7f10656fc1dce881",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--nodes.light.png",
+      "from": "29120a5d7526c8699d4cbed9d6c23140793238df603a7b1b6554eab2e4935ec1",
+      "to": "4170511d8edc3e68c2ea462d2b1c0e0718d2d348dcbfca4d82efde104692bf41",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--sorted-by-result.dark.png",
+      "from": "1b3016b3cbdc582115a87b31e3c9003afd325abb53eddbad0e26e1605cafe1f1",
+      "to": "38f7b4b13fe346298446d5e5fdfdd068b54ef6020a9a8d6af6bf4e11faee57ab",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--sorted-by-result.light.png",
+      "from": "b843fda8258a6723e2363b055bc52f4d0913edcf3e82b0bb390eb8c04f41eb8a",
+      "to": "1fd5abd65a7ebf2942abb3260a74feaa3a1177c26fcbdec81628cb25cede48c1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--table-options.dark.png",
+      "from": "faa4ad9b0bb5495cf97f99a56b64f048ba92eac4be91ebcef3ecfc607edf2ded",
+      "to": "f816a0aa37d99cbe84a979e85972c19d7a3415997bc84367e2a14f7ab95d142c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--table-options.light.png",
+      "from": "89a81471213fe9a98ddee1f0d01b2b1c764372c1d4f76ecc4d2b887b709a21cd",
+      "to": "5b27f997e66fdd85e01666da54237685d6e99516e98bd5b20447bf2ce48ef151",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--at-end.dark.png",
+      "from": "d6c93a5613e55f052b27958fe606c432f500616e7c2eafa83690a4c84c4b703f",
+      "to": "53bd7d0a0811def81435674be77b7bf7000d821e7ffa2e4bdb855190571feb94",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--at-end.light.png",
+      "from": "14ab9368469ba170325c8bee29de85cd8887273c8d3b316fd73c6c2c04760a36",
+      "to": "62ad7b74ba4082dc49e0fc9feb69d1ab160a373e25a80e6429e54a077e6c0f87",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--at-start.dark.png",
+      "from": "d23ad13ac14aeabf2f94d39d95b4736933338be8354450aa6174c3325a3eabed",
+      "to": "ab06dfaa06765127bef1c38e19ac6eb846fd3b342bbe4bc85187e5472974f443",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--at-start.light.png",
+      "from": "2abea1d14b56630ebe65d9f5ce613a997755d3b8ab79121669c82fcb9bf1be3a",
+      "to": "2f1fb158906e6aaea1fb16aaf88f2058f152ebdad31ddef2fdb728e0dc83a523",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--filter-on.dark.png",
+      "from": "5b2e4f9451213747d32bf083812251d639381a2558c3e1402fa46170c880895e",
+      "to": "59b163d1c749a541c2ca1c209f2bfe2bbf70f370b5ef805030b8ee317a324d76",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--filter-on.light.png",
+      "from": "33a384ae53b01eb51cd3d474299ecf79ae9cb40d45e56e4bb1f492d2e6c0a034",
+      "to": "2d2753e4126f562b87ebd67110c443a5bdb867a3e236177b5ead2cbf775df991",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--no-window.dark.png",
+      "from": "69554bbedc13e441795446a776f96e91f84287e24df7c54dce15d6b10d608e58",
+      "to": "764eb3fe87347f5e3e81098b3e3c7f53826d774b52bf3c40d37a7b9e99381539",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--no-window.light.png",
+      "from": "c9e21487e18aa0906cbcc11dfe5f58d14686294ffc9220da005808b7fc45e0aa",
+      "to": "417a99ed49e51ec7ca41b8ba4c3886d710b4feeab34ca4a8d118d3e71d82fda4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--ordinal-unit.dark.png",
+      "from": "0c2018414296b07ad3a1ad3d25f37274b333224af2b7e8f4077316a22e2cf92c",
+      "to": "30a34c8154517f9b79b724730015e48f492e2c9b64ff5d241ad835f7c21cfbab",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--ordinal-unit.light.png",
+      "from": "4af917df059af4433f2feb3adf41b4cbfcd8bb9aeaadcfc3ea1b4fe4e7335406",
+      "to": "ed44b91f70a88f1a69013a521b57ebef14b3bf3e86d85aad4833c9b960385793",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--outside-ghost.dark.png",
+      "from": "d10d883edd2942ce336db206cc8b1115142fb2985fd3e4f3c32fb0180537fdad",
+      "to": "c24a6e92e0c34a3827431ffcd776da3db58d0a2b2d67a9d588cecdff4cab52e2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--outside-ghost.light.png",
+      "from": "b416aeaf2cbfb53c14dd2799d4878ac959d0b7d1305eeedad5fa8ef77f8fe22b",
+      "to": "3ac58ba39079a2cf99cc7480d9fb0bafe2f46e4d040a3218782b7a6f9862ab12",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--playing.dark.png",
+      "from": "54cc83543c4e54b862b83962feda825df90abfafa947603ebaff4aa9f041684c",
+      "to": "75fa66da99d3385086a18779200cff26c6541fef3b2c826d0ea6b857ec157e1b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--playing.light.png",
+      "from": "1afe9021c7f72c1b8f273d7898fe5607db9d16fbcf8536ab36b84f51b3a26173",
+      "to": "825597d5d1517fe7c3b82607495534f0eaf4b86069d7fe52cea35bd4537ce633",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--selection-line.dark.png",
+      "from": "9919eafb94dc5225a1edfe2b5ac9d032942275fadb293e0e635935e13a84c917",
+      "to": "cea4272c93135ae282f8429d8c544a7860e0f15706afeec6ff66f5d938a2fc30",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--selection-line.light.png",
+      "from": "1b6df2d275b8d453b629268eb52221b315ba02ea1dceae3bda3e3a4a68c241fa",
+      "to": "a983dc88a35d04efecca047c0c70e70f91194a65e6a7649ca4031eb799182acb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--untimed-control.dark.png",
+      "from": "ebfdc7bc8778c7932b8f05e2e3a5a83c5321c6d5875f963fff7e56d74787c1eb",
+      "to": "395a4d2f4a66478ec4f5a720d0f0d7227d91bf10a40aca24d7c3040a830f6a79",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--untimed-control.light.png",
+      "from": "5853696afcfd370b5eecc8d7ed7809a056651a8fde2ec0f2a475403120f4aab3",
+      "to": "7b9e982bb178659db7e995489605bbbc57798fbe207c1991cf880a586415b808",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--window.dark.png",
+      "from": "71d4217dcbea640f62b83eae96bd85646c985f071f71ae393286ab1600683002",
+      "to": "2f33485a6c2489610a2212d8485d9b9c35c644df6faf0cdbb924d38f2921804e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--window.light.png",
+      "from": "23aafa16e85bd35bdda2f0984b896bc6659c7019b8581e1fe6eacff6e8d906ac",
+      "to": "576bce3a51aee629a4de7c8c3857bacb6acb5a02f71de65e4c0365d1450d3309",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--year-unit.dark.png",
+      "from": "f4ab8e9cb38d6e35bf0cef77aeff64a7736648f75426f74c11ce2d9c8ab3e536",
+      "to": "f3af889c89dd1e3f697431912e899e7e3e24046c7f32d9d8dca07a1a60219fae",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--year-unit.light.png",
+      "from": "8bc49c5e7c295d5ef76058fa90714de13bc4c1fcb8abb905070c54c2a5e95293",
+      "to": "04ee740dab5942f1d14c8ded42ad21edff2043524e701740c06853af7dec1a75",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--zoomed.dark.png",
+      "from": "d73ffff51c3a2b3df7aa0340b830512a1f7a4021e4bb2ef8853ec4d9769f5647",
+      "to": "8eba9f1afc68029bdf347e2c63844dc7b683e5836d726edd23626cfd7ae50a2a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-time-dock--zoomed.light.png",
+      "from": "b33cd9e808877766b4b43186b4611060ec7c009038254a1f3290baa861c51d6e",
+      "to": "cacaa9834cc3bf7cd42422f4027aa1249982ac2e2369a745675499bd211cb838",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--after-louvain.dark.png",
+      "from": "23d02b49a4599c30087cb0ac569a6e02d15d31c576d3d6723ccb50620d1d96a8",
+      "to": "5bc2e62cc4519883144a68366226a404133bce09d50d393add13a1a4fd74254b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--after-louvain.light.png",
+      "from": "22ad353aee95ed92bbf625370538e7980f04ddc634a5a3e855741e24db3251fd",
+      "to": "f713e7e74999eb5ad6b0996635c29267f9bfb9a9f6d9586ac2a3f9a8652bb37f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-essentials.dark.png",
+      "from": "60408aac89516eb3ff2a65c77d685368cf0cea640880d50c9d9f73b4bf81c36e",
+      "to": "58b7552479e325cfb74d4bd920b1ddfc58fb1d988b4c54774221a07927a4a41f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-essentials.light.png",
+      "from": "4867af839db94b76c60c989b9234bc381ab1f800565308c1164d98c24388ec26",
+      "to": "1397804bd439efec708f89e1c38280fe42ef9b9c65a1ed6000ad75057da7ef6b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-filtered.dark.png",
+      "from": "65d6a503896024da801b8d5db1612260bc0b6c855af602a939b09ce291881c71",
+      "to": "f08aa9f070d82165ddeaad460d7dc1863f248bb2abd3198d9fb25c9f0abd4173",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-filtered.light.png",
+      "from": "680953b96afc1859cde5774e5f07f51dd5309ca2b74bd20654c89d72491e3bdb",
+      "to": "4aca7a00dfd1783e949beb47dba6bef9d4783545607ff412bfefbd844a3a899e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-open.dark.png",
+      "from": "d3e1ea5699d076be7fa82de1ebfc6008f85e67bb337d3d297ee1185003008c5d",
+      "to": "1f3ee82edbc431aea09970c5c2bc6de8f2251151d24ddc1e2b15cfd616917541",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-open.light.png",
+      "from": "55201fe8dfc094b10bcabb43a0e2685082e9c73d7c1b4e0c592b54c03c853163",
+      "to": "a9fd4fdcf3514e7c27e500a4b0e6edeb83769dbc07296ad8c3adaae76d485916",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-revise.dark.png",
+      "from": "dee734c6f08e5cff53a2324200c9f4a3346bb3215f130e4f8fb4b88344f037b9",
+      "to": "6768b989d8c3b70c91d76d2afcd952246a7154c8800f9bfa0e3acc9c2718eb69",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-revise.light.png",
+      "from": "38890e3a50bfd2d53ba0040df53ac1af8f00eb0191d5554642984a2ac1f3c365",
+      "to": "c818ef0300a543dbd2f46bdff7d7d022a605ffdb5148c0728f62e7061b25daf4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--at-rest.dark.png",
+      "from": "d9f9c4d4a064908066c9de40dcd0ff59c9c45d6540b05e6a77bf36ba42c471d5",
+      "to": "f5e1df4119a92e1ca4c19d2106c94dfeb64b8a41c7a59d4203a7f837e1cd013c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--at-rest.light.png",
+      "from": "ef5a2808a27b6345c5cc01fff95269b0eed7f9df2f94127497c9cc40b4a72474",
+      "to": "033a16ef6ca678fbca5af2f67a12b2bf84cc0f598766c1f4ba15a3b6a37452e5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--camera-menu-2-d.dark.png",
+      "from": null,
+      "to": "1e7d9cd5c78f3a87ca9b2aafee225b9a7c2d3bf5067b3d6cc0c9c5f51a1b2507",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--camera-menu-2-d.light.png",
+      "from": null,
+      "to": "1932223941dd2c5e4a836f75760c204b3754ffdf7625b9c7973bb1ad15ed3843",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--camera-menu-3-d.dark.png",
+      "from": null,
+      "to": "e61ac2d51fdeaaa21e05df34d03a9089c0d096fcdec870ca6a650efe2b49a0b5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--camera-menu-3-d.light.png",
+      "from": null,
+      "to": "95ec6ad65f631cac3bb3d326b03680855da6671ca0dc2c609eb165d8cb038d74",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--layout-open.dark.png",
+      "from": "d31c6264479e73c38691a5022ca141376a814e801651f097fffc456fadc43423",
+      "to": "900a56914059219eaa94415798b93bd5ac6bc6c7fff0febe9297b1adabb32c3a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--layout-open.light.png",
+      "from": "04b12c7ab018110cb63d8e4379a2f78fd2914bc8ea59711e0dcd26c535e83e9f",
+      "to": "f6fa45c91658292429cb8adc475fce34eb09ed0c727608b7b23b1dd48021b8c5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--legend-off.dark.png",
+      "from": "d9f9c4d4a064908066c9de40dcd0ff59c9c45d6540b05e6a77bf36ba42c471d5",
+      "to": "f5e1df4119a92e1ca4c19d2106c94dfeb64b8a41c7a59d4203a7f837e1cd013c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--legend-off.light.png",
+      "from": "ef5a2808a27b6345c5cc01fff95269b0eed7f9df2f94127497c9cc40b4a72474",
+      "to": "033a16ef6ca678fbca5af2f67a12b2bf84cc0f598766c1f4ba15a3b6a37452e5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--mode-menu.dark.png",
+      "from": null,
+      "to": "28f2614741a1813648468552173f9799fc5d06f9d3240dec57bb70b35130e5c8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--mode-menu.light.png",
+      "from": null,
+      "to": "90243cb45def014b049a42767c303984fd8692fe8aab82c207d8fa4ac8a462d0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--nothing-drawn.dark.png",
+      "from": "f4293be11ea31842ac8dfa38127a4ea430e0c2a9698ee19eaac78dca3514d3ab",
+      "to": "36e205bb097eb85e9e9607ad9345c3d06b2e7bba42da93622e6e18a3141fb9e9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--nothing-drawn.light.png",
+      "from": "9f30f317fc1210585965d708be3853f9d4ed31db91aac44c1bf7f19c8e489d6a",
+      "to": "5de6263ef8b063735bb8508115cc39e51a3e5047d81ba5dd263db249c7894a1a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--one-node-selected.dark.png",
+      "from": "8a3cec695be6e4237a88ce5805eab8e0e053f3a77e35fad3044c81fae9929c90",
+      "to": "1ba38b41eb925513f1fbe522d0067a240b3724f77132a3035b72856f5be0e93b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--one-node-selected.light.png",
+      "from": "9f28671a79bf95ea87a1de0d321aed2cbaa2a53cb85d6682ff11f51f5b732382",
+      "to": "fb5ac0a269745e3eef051b96efc2fcd698a38fccf394234d494672004d9a9711",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--quick-actions.dark.png",
+      "from": "0b4adcc8b7fcbdaa8c934bcd8008e7983f90b5d85efe8fdf063ca6acb866ecb6",
+      "to": "fcef52f7d85c3de2aa30ee086ff4ad4c7813f86af3474efa042cdcb6e967e344",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--quick-actions.light.png",
+      "from": "a3ca7e00af0f6a73d1fc1f1ebb41e859134bfeed5fb411592aee044871918cf2",
+      "to": "e1e751d47518e494bbaff4ba142cff5ff61f44047ad4aa077226746a65fb4f2d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--view-flyout-2-d.dark.png",
+      "from": "697d5d6195ede8e7cdf5cdd1c8954353c4b35242487f3a28f554cc69d4a502fc",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--view-flyout-2-d.light.png",
+      "from": "02c5f7d2a14ee13f2fb0346e7d607ab55ce2d00670d642343131ab270589f262",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--view-flyout-3-d.dark.png",
+      "from": "0342a3ded17e69a951edcb16c519cfab23013423857326ec83223c185992bc0a",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--view-flyout-3-d.light.png",
+      "from": "0c320dbd9f1c8ab9cf8ba286c3835b3887e22d186210a1f05b428c36235b005c",
+      "to": null,
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-11-12T01:37:54.999Z"
+}

@@ -22,7 +22,7 @@ import { englishNotes } from "../../session/english";
 import type { ResultColumns, ResultElementValues, RunResultInit } from "../../session/results/RunResult";
 import { caveat, type CaveatCode, caveatSentence } from "../../session/runs/caveatFacts";
 import type { CodedFact } from "../../session/shared";
-import { declaresScopedInput, type ResolvedInputScope, runScopeOf } from "./ScopedInput";
+import { computesOverScope, type ResolvedInputScope, runScopeOf } from "./ScopedInput";
 
 /** The note a run carries when its algorithm computed on the whole graph and was masked back. */
 export const WHOLE_GRAPH_CAVEAT = caveatSentence(caveat("scope.whole-graph"));
@@ -104,7 +104,7 @@ export function maskBack(algorithm: object, init: RunResultInit): RunResultInit 
     const keepEdge = (entry: ResultElementValues<EdgeId>): boolean =>
         has(resolution.edges, edgeRowOf(graph, entry.id), graph.edgeCount);
     const { nodes } = init;
-    const scopeFact = scopeCaveat(declaresScopedInput(algorithm), scope);
+    const scopeFact = scopeCaveat(computesOverScope(algorithm), scope);
 
     return {
         ...init,

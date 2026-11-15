@@ -42,6 +42,7 @@ async function renderFor(key: string): Promise<readonly OptionDescriptor[]> {
             options={descriptor.options}
             values={{}}
             words={(option) => optionWords(key, option)}
+            algorithm={key}
             onChange={() => undefined}
         />,
     );
@@ -68,6 +69,25 @@ describe("the options form", () => {
         const keys = new Set(options.map((o) => o.name));
         for (const text of labels()) {
             assert.isFalse(keys.has(text), text);
+        }
+    });
+
+    it("draws no control yet for the weight and direction options whose card design is still to come", async () => {
+        // graphty-element declares them (issue #313); the app draws them with the per-card design.
+        const pagerank = await renderFor("pagerank");
+        assert.isTrue(pagerank.some((o) => o.name === "directed"));
+        assert.isNull(screen.queryByText(/direction/i));
+        session?.dispose();
+
+        for (const key of ["closeness", "hits"]) {
+            document.body.innerHTML = "";
+            const options = await renderFor(key);
+            assert.isTrue(
+                options.some((o) => o.name === "weight"),
+                key,
+            );
+            assert.isEmpty(screen.queryAllByLabelText("Weight"), key);
+            session?.dispose();
         }
     });
 
@@ -118,12 +138,15 @@ describe("the options form", () => {
         await renderFor("leiden");
         // The selection workspace gives one name per idea across the forms (OptionsForm.tsx, ONE_NAME).
         const names = selectionWorkspaceOn(session)
-            ? [/^Resolution(,|$)/, /^Seed(,|$)/, /^Max iterations(,|$)/, /^Tolerance(,|$)/]
-            : [/^Resolution(,|$)/, /^Random seed(,|$)/, /^Max iterations(,|$)/, /^Threshold(,|$)/];
+            ? [/^Resolution(,|$)/, /^Max iterations(,|$)/, /^Tolerance(,|$)/]
+            : [/^Resolution(,|$)/, /^Max iterations(,|$)/, /^Threshold(,|$)/];
+        const seed = selectionWorkspaceOn(session) ? /^Seed(,|$)/ : /^Random seed(,|$)/;
 
         for (const name of names) {
             assert.isNotNull(screen.getByRole("spinbutton", { name }));
         }
+        // Leiden is unseeded by default, so its seed is an empty box (a text box until it holds a number).
+        assert.strictEqual(screen.getByRole<HTMLInputElement>("textbox", { name: seed }).value, "");
         assert.isNull(screen.queryByRole("button", { name: /Advanced/ }));
         assert.isNull(screen.queryByRole("dialog"));
     });

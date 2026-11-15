@@ -5,7 +5,7 @@
 
 import { assert, beforeAll, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../../session";
+import { createGraphSession, type GraphSession, isGraphtyError } from "../../../session";
 import type { ElementState, RuleTree, UnionLeaf } from "../../../src/catalog/types";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 import { selectorRule, selectorStates } from "../../../src/session/styles";
@@ -16,7 +16,7 @@ beforeAll(() => {
 
 /** Four nodes in a line, each at its step; nodes 1 and 2 are tagged. */
 async function line(): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     await session.data.addNodes(
         ["a", "b", "c", "d"].map((id, step) => ({ id, step, tagged: step < 2 ? "yes" : "no" })),
     );
@@ -84,7 +84,7 @@ describe("a state selector has a rule form", () => {
 
     it("refuses a state that does not exist", async () => {
         const session = await line();
-        let refused = false;
+        let refused: unknown = null;
         try {
             await session.styles.add({
                 name: "Bad",
@@ -92,10 +92,10 @@ describe("a state selector has a rule form", () => {
                 selector: { match: "rule", where: { kind: "state", state: "asleep" } as unknown as RuleTree },
                 set: { "node.color": "#123456" },
             });
-        } catch {
-            refused = true;
+        } catch (error) {
+            refused = error;
         }
-        assert.isTrue(refused);
+        assert.strictEqual(isGraphtyError(refused) ? refused.code : refused, "E_BAD_SELECTOR");
         session.dispose();
     });
 });
@@ -212,7 +212,7 @@ describe("a project on a state", () => {
         const { text } = await saved.project.save();
         saved.dispose();
 
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.project.open(text);
         const of = (name: string): string => {
             const layer = session.styles.list().find((each) => each.name === name && each.target === "node");

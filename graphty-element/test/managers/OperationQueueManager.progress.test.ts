@@ -160,62 +160,41 @@ describe("Progress Tracking", () => {
     });
 
     it("should handle progress for cancelled operations", async () => {
-        let operationStarted = false;
-
-        queueManager.queueOperation("algorithm-run", async (context) => {
-            operationStarted = true;
-
-            try {
-                context.progress.setProgress(10);
-                context.progress.setMessage("Starting algorithm");
-
-                // Check if already aborted
-                if (context.signal.aborted) {
-                    throw new Error("AbortError");
-                }
-
-                await new Promise<void>((resolve, reject) => {
-                    const timeout = setTimeout(resolve, 1000);
-
-                    // Listen for abort
-                    context.signal.addEventListener("abort", () => {
-                        clearTimeout(timeout);
-                        const error = new Error("Operation aborted");
-                        error.name = "AbortError";
-                        reject(error);
-                    });
-                });
-
-                context.progress.setProgress(100);
-            } catch (error) {
-                if ((error as Error).name === "AbortError") {
-                    context.progress.setProgress(0);
-                    context.progress.setMessage("Cancelled");
-                }
-            }
+        let started!: () => void;
+        const running = new Promise<void>((resolve) => {
+            started = resolve;
         });
 
-        // Cancel the operation after a short delay
-        setTimeout(() => {
-            // Since we have access to the operation via the queue,
-            // we need to expose cancellation or handle it differently
-            // For now, we'll clear the queue which effectively cancels pending operations
-            queueManager.clear();
-        }, 50);
+        const id = queueManager.queueOperation("algorithm-run", async (context) => {
+            context.progress.setProgress(10);
+            context.progress.setMessage("Starting algorithm");
+            started();
 
-        try {
-            await queueManager.waitForCompletion();
-        } catch {
-            // Expected for cancelled operations
-        }
+            await new Promise<void>((_resolve, reject) => {
+                context.signal.addEventListener("abort", () => {
+                    const error = new Error("Operation aborted");
+                    error.name = "AbortError";
+                    reject(error);
+                });
+            });
 
-        // Check if we got progress events before cancellation
-        const cancelledProgress = progressEvents.find((e) => e.message === "Starting algorithm");
-        assert.isDefined(cancelledProgress, "Should have progress event before cancellation");
+            context.progress.setProgress(100);
+        });
 
-        // The operation may have been cleared before starting
-        // or cancelled during execution
-        assert.isTrue(operationStarted);
+        await running;
+        queueManager.clear();
+        await queueManager.waitForCompletion();
+
+        const ours = progressEvents.filter((e) => e.id === id);
+        assert.isDefined(
+            ours.find((e) => e.message === "Starting algorithm"),
+            "progress reported before the cancel",
+        );
+        assert.notInclude(
+            ours.map((e) => e.progress),
+            100,
+            "a cancelled operation never reports itself complete",
+        );
     });
 
     it("should handle multiple concurrent operations with separate progress", async () => {

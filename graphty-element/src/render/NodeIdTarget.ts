@@ -1,17 +1,15 @@
-import {
-    type AbstractMesh,
-    Color4,
-    Constants,
-    type InstancedMesh,
-    type Mesh,
-    type RawTexture,
-    RenderTargetTexture,
-    type Scene,
-    ShaderMaterial,
-    Vector2,
-} from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector2 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
-import { isRowBatch } from "../meshes/RowPullPlugin";
+import { isRowBatch, isUnscaledRowBatch } from "../meshes/RowPullPlugin";
 
 /**
  * @file The node ID target: what hover reads instead of picking (design/rendering/row-renderer.md 4.4).
@@ -20,7 +18,11 @@ import { isRowBatch } from "../meshes/RowPullPlugin";
  * antialiasing. A node batch writes row + 1 into each pixel it covers, as RGB; every other
  * pickable mesh drawn (labels, object rows, models) writes {@link OBJECT_TEXEL}, which tells the
  * reader to ask the mesh pick. Reading one pixel names the row under the pointer with no walk
- * over nodes. The target is redrawn only when a read finds it older than the frame on screen,
+ * over nodes. On WebGPU, whose reads answer frames later, the target is a float target and each
+ * row's pixels also carry where the row was drawn -- its center and the radius it is picked within
+ * -- so an answer says where its row stood in the frame it was read from, however far a running
+ * layout has moved the row since. The target is redrawn only when a read finds it older than the
+ * frame on screen,
  * and in each frame drawn while reads keep coming, so a hover that restyles its node does not
  * make the next move redraw.
  */
@@ -35,7 +37,7 @@ export const ID_OBJECT = -2;
  * may cover no pixel center at all; drawn this large, a pointer within it finds it in the pixel it is
  * in. Larger rows are drawn as they are.
  */
-const MIN_RADIUS_PX = 1.5;
+export const MIN_RADIUS_PX = 1.5;
 
 /** The texel a non-batch mesh writes; rows go up to one less. */
 const OBJECT_TEXEL = 0xffffff;
@@ -53,8 +55,18 @@ uniform vec2 idPixels;
 uniform float shapeRadius;
 #endif
 varying float vId;
+#ifdef ID_FLOAT
+// The row's center in clip space over w, and the radius it is picked within, in device pixels.
+varying vec3 vPick;
+#endif
 void main(void) {
+#ifdef ID_FLOAT
+    vPick = vec3(0.0);
+#endif
 #include<instancesVertex>
+#ifdef ROW_UNSCALED
+    finalWorld = world;
+#endif
     vec4 worldPos = finalWorld * vec4(position, 1.0);
 #ifdef ROW_PULL
     int grRow = int(graphtyRow + 0.5);
@@ -75,6 +87,9 @@ void main(void) {
         if (grRadius > 0.0 && grRadius < MIN_RADIUS_PX) {
             grV.xy = (grNdc + (grV.xy / grV.w - grNdc) * (MIN_RADIUS_PX / grRadius)) * grV.w;
         }
+#ifdef ID_FLOAT
+        vPick = vec3(grNdc, grRadius > 0.0 ? max(grRadius, MIN_RADIUS_PX) : 0.0);
+#endif
     }
     gl_Position = grV;
 #else
@@ -86,10 +101,17 @@ void main(void) {
 
 const FRAGMENT = `precision highp float;
 varying float vId;
+#ifdef ID_FLOAT
+varying vec3 vPick;
+#endif
 void main(void) {
-#ifdef ROW_PULL
+#if defined(ROW_PULL) && defined(ID_FLOAT)
+    gl_FragColor = vec4(floor(vId + 0.5), vPick);
+#elif defined(ROW_PULL)
     float id = floor(vId + 0.5);
     gl_FragColor = vec4(mod(id, 256.0), mod(floor(id / 256.0), 256.0), floor(id / 65536.0), 255.0) / 255.0;
+#elif defined(ID_FLOAT)
+    gl_FragColor = vec4(16777215.0, 0.0, 0.0, 0.0);
 #else
     // A constant: interpolated, 16777215 can round to 16777216 and read as a row.
     gl_FragColor = vec4(1.0);
@@ -129,6 +151,25 @@ class IdTexture extends RenderTargetTexture {
     }
 }
 
+/**
+ * Where a row was drawn in the frame a read was answered from, in CSS pixels from the canvas's
+ * top-left corner: its center, and the radius the target picks it within (at least
+ * {@link MIN_RADIUS_PX} device pixels).
+ */
+export interface IdDrawn {
+    readonly x: number;
+    readonly y: number;
+    readonly radius: number;
+}
+
+/** A read's answer: the texel, and where its row was drawn when the target says so. */
+export interface IdPick {
+    /** The row, {@link ID_NONE} or {@link ID_OBJECT}. */
+    readonly texel: number;
+    /** Where the row was drawn; only a float target (WebGPU) says, and only for a row. */
+    readonly drawn?: IdDrawn;
+}
+
 /** What the target asks of its graph. */
 export interface NodeIdHost {
     /** The texture that places each row, as the batches read it. */
@@ -144,9 +185,12 @@ export class NodeIdTarget {
 
     private readonly target: IdTexture;
     private readonly rowMaterial: ShaderMaterial;
+    /** {@link rowMaterial} for a batch that sends no matrices, its rows all unscaled. */
+    private readonly unscaledRowMaterial: ShaderMaterial;
     private readonly objectMaterial: ShaderMaterial;
     private readonly list: AbstractMesh[] = [];
-    private readonly texel = new Uint8Array(4);
+    /** Whether the target is a float target whose rows also carry where they were drawn (WebGPU). */
+    private readonly float: boolean;
     private readonly pixels = new Vector2();
     private readonly stops: (() => void)[] = [];
     /** The frame the target was last drawn in. */
@@ -167,6 +211,7 @@ export class NodeIdTarget {
         private readonly host: NodeIdHost,
     ) {
         const engine = scene.getEngine();
+        this.float = engine.isWebGPU;
         this.target = new IdTexture(
             "graphty-node-ids",
             { width: engine.getRenderWidth(), height: engine.getRenderHeight() },
@@ -174,18 +219,21 @@ export class NodeIdTarget {
             {
                 generateMipMaps: false,
                 generateDepthBuffer: true,
-                type: Constants.TEXTURETYPE_UNSIGNED_BYTE,
+                type: this.float ? Constants.TEXTURETYPE_FLOAT : Constants.TEXTURETYPE_UNSIGNED_BYTE,
                 samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
                 samples: 1,
             },
         );
         this.target.clearColor = new Color4(0, 0, 0, 0);
         this.target.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
-        this.rowMaterial = this.material("graphty-node-id-rows", [
-            "#define ROW_PULL",
-            `#define MIN_RADIUS_PX ${MIN_RADIUS_PX.toFixed(1)}`,
+        const floatDefines = this.float ? ["#define ID_FLOAT"] : [];
+        const rowDefines = ["#define ROW_PULL", `#define MIN_RADIUS_PX ${MIN_RADIUS_PX.toFixed(1)}`, ...floatDefines];
+        this.rowMaterial = this.material("graphty-node-id-rows", rowDefines);
+        this.unscaledRowMaterial = this.material("graphty-node-id-unscaled-rows", [
+            ...rowDefines,
+            "#define ROW_UNSCALED",
         ]);
-        this.objectMaterial = this.material("graphty-node-id-objects", []);
+        this.objectMaterial = this.material("graphty-node-id-objects", floatDefines);
         // What the scene chose to draw at its last evaluation: the batches and every visible mesh.
         // A hidden proxy is not among them, so the list is as long as what is on screen. Kept
         // here, because between frames the scene's own list is not.
@@ -196,9 +244,11 @@ export class NodeIdTarget {
                 this.collect(drawn.data, drawn.length);
             }),
             observe(this.target.onBeforeRenderObservable, () => {
-                this.rowMaterial.setTexture("rowPosition", this.host.positionTexture());
                 const { width, height } = this.target.getSize();
-                this.rowMaterial.setVector2("idPixels", this.pixels.set(width, height));
+                for (const material of [this.rowMaterial, this.unscaledRowMaterial]) {
+                    material.setTexture("rowPosition", this.host.positionTexture());
+                    material.setVector2("idPixels", this.pixels.set(width, height));
+                }
             }),
             observe(scene.onBeforeRenderObservable, () => {
                 this.fit();
@@ -211,10 +261,12 @@ export class NodeIdTarget {
             }),
         );
         // Each batch's own size, which its source mesh was built at.
-        this.rowMaterial.onBindObservable.add((mesh) => {
-            const { extendSize } = mesh.getRawBoundingInfo().boundingBox;
-            mesh.subMeshes[0]?.effect?.setFloat("shapeRadius", Math.max(extendSize.x, extendSize.y, extendSize.z));
-        });
+        for (const material of [this.rowMaterial, this.unscaledRowMaterial]) {
+            material.onBindObservable.add((mesh) => {
+                const { extendSize } = mesh.getRawBoundingInfo().boundingBox;
+                mesh.subMeshes[0]?.effect?.setFloat("shapeRadius", Math.max(extendSize.x, extendSize.y, extendSize.z));
+            });
+        }
         this.target.onDrawn = () => {
             // Babylon skips a mesh whose material has not compiled and draws the rest: such a
             // drawing does not count, and the next read draws again.
@@ -237,6 +289,22 @@ export class NodeIdTarget {
      * target cannot answer yet, so the caller picks.
      */
     read(x: number, y: number): number | Promise<number> | null {
+        const pick = this.pick(x, y);
+        if (pick === null) {
+            return null;
+        }
+
+        return pick instanceof Promise ? pick.then(({ texel }) => texel) : pick.texel;
+    }
+
+    /**
+     * {@link NodeIdTarget.read}, with where the row was drawn in the frame the answer was read
+     * from, when the target says so (on WebGPU).
+     * @param x - X in CSS pixels.
+     * @param y - Y in CSS pixels.
+     * @returns The answer, now or once read; null when the target cannot answer yet.
+     */
+    pick(x: number, y: number): IdPick | Promise<IdPick> | null {
         if (this.disposed) {
             return null;
         }
@@ -281,6 +349,7 @@ export class NodeIdTarget {
 
         this.target.dispose();
         this.rowMaterial.dispose();
+        this.unscaledRowMaterial.dispose();
         this.objectMaterial.dispose();
         this.settle(true);
     }
@@ -292,17 +361,15 @@ export class NodeIdTarget {
      * @returns The material.
      */
     private material(name: string, defines: string[]): ShaderMaterial {
+        const rows = defines.includes("#define ROW_PULL");
         const material = new ShaderMaterial(
             name,
             this.scene,
             { vertexSource: VERTEX, fragmentSource: FRAGMENT, spectorName: name },
             {
-                attributes: defines.length > 0 ? ["position", "graphtyRow"] : ["position"],
-                uniforms:
-                    defines.length > 0
-                        ? ["world", "viewProjection", "idPixels", "shapeRadius"]
-                        : ["world", "viewProjection"],
-                samplers: defines.length > 0 ? ["rowPosition"] : [],
+                attributes: rows ? ["position", "graphtyRow"] : ["position"],
+                uniforms: rows ? ["world", "viewProjection", "idPixels", "shapeRadius"] : ["world", "viewProjection"],
+                samplers: rows ? ["rowPosition"] : [],
                 defines,
             },
         );
@@ -326,7 +393,7 @@ export class NodeIdTarget {
         for (let i = 0; i < length; i++) {
             const mesh = drawn[i];
             if (isRowBatch(mesh)) {
-                mesh.setMaterialForRenderPass(target.renderPassId, this.rowMaterial);
+                mesh.setMaterialForRenderPass(target.renderPassId, this.rowMaterialFor(mesh));
             } else if (mesh.isPickable) {
                 const owner = mesh.isAnInstance ? (mesh as InstancedMesh).sourceMesh : mesh;
                 owner.setMaterialForRenderPass(target.renderPassId, this.objectMaterial);
@@ -342,6 +409,15 @@ export class NodeIdTarget {
             list.length = kept;
             this.drawnIn = -1;
         }
+    }
+
+    /**
+     * The material a batch is drawn with in the target.
+     * @param mesh - The batch.
+     * @returns The material.
+     */
+    private rowMaterialFor(mesh: AbstractMesh): ShaderMaterial {
+        return isUnscaledRowBatch(mesh) ? this.unscaledRowMaterial : this.rowMaterial;
     }
 
     /**
@@ -363,7 +439,7 @@ export class NodeIdTarget {
         for (const mesh of this.list) {
             const batch = isRowBatch(mesh);
             const owner = mesh.isAnInstance ? (mesh as InstancedMesh).sourceMesh : (mesh as Mesh);
-            const material = batch ? this.rowMaterial : this.objectMaterial;
+            const material = batch ? this.rowMaterialFor(mesh) : this.objectMaterial;
             if (!material.isReady(mesh, batch || owner.hasInstances)) {
                 return false;
             }
@@ -417,9 +493,9 @@ export class NodeIdTarget {
      * @param now - Read synchronously (WebGL only).
      * @returns What is drawn there.
      */
-    private pixel(x: number, y: number, now: true): number;
-    private pixel(x: number, y: number, now: false): Promise<number>;
-    private pixel(x: number, y: number, now: boolean): number | Promise<number> {
+    private pixel(x: number, y: number, now: true): IdPick;
+    private pixel(x: number, y: number, now: false): Promise<IdPick>;
+    private pixel(x: number, y: number, now: boolean): IdPick | Promise<IdPick> {
         const engine = this.scene.getEngine();
         const scaling = engine.getHardwareScalingLevel();
         const { width, height } = this.target.getSize();
@@ -427,35 +503,66 @@ export class NodeIdTarget {
         const row = Math.floor(y / scaling);
         const texture = this.target.getInternalTexture();
         if (this.disposed || texture === null || px < 0 || row < 0 || px >= width || row >= height) {
-            return now ? ID_NONE : Promise.resolve(ID_NONE);
+            const none: IdPick = { texel: ID_NONE };
+            return now ? none : Promise.resolve(none);
         }
 
         // A render target's first row is the bottom of the picture on either engine: Babylon draws
         // into a target upside down on WebGPU (its invertY uniform) so that one samples as on WebGL.
         const py = height - 1 - row;
         this.counts.reads++;
+        // Each read its own buffer: two reads in flight on WebGPU must not land in one.
+        const texel = this.float ? new Float32Array(4) : new Uint8Array(4);
         if (now) {
-            engine._readTexturePixelsSync(texture, 1, 1, -1, 0, this.texel, true, false, px, py);
-            return this.decode();
+            engine._readTexturePixelsSync(texture, 1, 1, -1, 0, texel, true, false, px, py);
+            return this.decode(texel, width, height, scaling);
         }
 
         return engine
-            ._readTexturePixels(texture, 1, 1, -1, 0, this.texel, true, false, px, py)
-            .then(() => this.decode());
+            ._readTexturePixels(texture, 1, 1, -1, 0, texel, true, false, px, py)
+            .then(() => this.decode(texel, width, height, scaling));
     }
 
     /**
-     * What the pixel just read says.
-     * @returns The row, {@link ID_NONE} or {@link ID_OBJECT}.
+     * What a pixel read says.
+     * @param texel - The pixel.
+     * @param width - The target's width, in device pixels.
+     * @param height - Its height.
+     * @param scaling - Device pixels to CSS pixels.
+     * @returns The row, {@link ID_NONE} or {@link ID_OBJECT}, and where a row was drawn.
      */
-    private decode(): number {
-        const [r, g, b, a] = this.texel;
-        const id = r + g * 256 + b * 65536;
-        if (this.disposed || a === 0 || id === 0) {
-            return ID_NONE;
+    private decode(texel: Uint8Array | Float32Array, width: number, height: number, scaling: number): IdPick {
+        if (this.disposed) {
+            return { texel: ID_NONE };
         }
 
-        return id === OBJECT_TEXEL ? ID_OBJECT : id - 1;
+        if (texel instanceof Float32Array) {
+            const [id, ndcX, ndcY, radius] = texel;
+            const whole = Math.round(id);
+            if (whole <= 0) {
+                return { texel: ID_NONE };
+            }
+
+            if (whole === OBJECT_TEXEL) {
+                return { texel: ID_OBJECT };
+            }
+
+            // The center as worldToScreen places a point: x right, y down from the top-left corner.
+            const drawn = {
+                x: (ndcX + 1) * 0.5 * width * scaling,
+                y: (1 - ndcY) * 0.5 * height * scaling,
+                radius: radius * scaling,
+            };
+            return { texel: whole - 1, drawn };
+        }
+
+        const [r, g, b, a] = texel;
+        const id = r + g * 256 + b * 65536;
+        if (a === 0 || id === 0) {
+            return { texel: ID_NONE };
+        }
+
+        return { texel: id === OBJECT_TEXEL ? ID_OBJECT : id - 1 };
     }
 }
 

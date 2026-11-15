@@ -2423,10 +2423,8 @@ async function readLines(lines: LineReader, reader: OboReader): Promise<void> {
  * @returns the confidence
  */
 function sniffObo(head: Uint8Array): number {
-    let text = new TextDecoder("utf-8").decode(head.subarray(0, SNIFF_BYTES));
-    if (text.charCodeAt(0) === 0xfeff) {
-        text = text.slice(1);
-    }
+    // the decoder removes a leading byte order mark
+    const text = new TextDecoder("utf-8").decode(head.subarray(0, SNIFF_BYTES));
     const lines = text.split(/\r\n|\r|\n|\f/);
     // the last line may be cut mid-way
     if (lines.length > 1 && head.byteLength >= SNIFF_BYTES) {

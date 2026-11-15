@@ -53,7 +53,7 @@ describe("session.config", () => {
         assert.deepEqual(config.data, DataConfig.parse({}));
         assert.isFalse(config.runAlgorithmsOnLoad);
         assert.deepEqual(config.background, { backgroundType: "color", color: "#F5F5F5" });
-        assert.deepEqual(config.selectionStyle, { ...EDGE_BAND, color: "#FFD700", scale: 1.45, opacity: 0.4 });
+        assert.deepEqual(config.selectionStyle, { ...EDGE_BAND, color: "#0077BB", scale: 1.45, opacity: 1 });
         assert.deepEqual(config.layoutBehavior, { preSteps: 0, stepMultiplier: 1, minDelta: 0 });
         session.dispose();
     });
@@ -98,7 +98,7 @@ describe("session.config", () => {
         await session.config.set({ selectionStyle: { color: "#00ff00" } });
         await session.config.set({ selectionStyle: { scale: 2 } });
 
-        assert.deepEqual(session.config.selectionStyle, { ...EDGE_BAND, color: "#FFD700", scale: 2, opacity: 0.4 });
+        assert.deepEqual(session.config.selectionStyle, { ...EDGE_BAND, color: "#0077BB", scale: 2, opacity: 1 });
         session.dispose();
     });
 

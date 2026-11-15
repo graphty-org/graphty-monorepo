@@ -24,7 +24,6 @@ export default {
         "UpdateManager.stepFrames",
         "UpdateManager.syncStyles",
         "UpdateManager.syncViewMasks",
-        "UpdateManager.thawActiveMeshes",
         "UpdateManager.update",
         "UpdateManager.updateConfig",
     ],

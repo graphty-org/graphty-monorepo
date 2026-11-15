@@ -215,14 +215,7 @@ async function settled(element: Graphty): Promise<void> {
  * @param parameters - The story's parameters.
  */
 async function clickOn(scene: Drawn, id: string, parameters: Record<string, unknown>): Promise<void> {
-    const input = realInput(parameters);
-    const at = scene.element.nodeScreenPosition(id);
-    if (input === undefined || at === undefined) {
-        await clickNode(scene, id);
-    } else {
-        await input.click(scene.element, { x: at.x, y: at.y });
-    }
-
+    await clickNode(scene, id, realInput(parameters));
     await settled(scene.element);
 }
 

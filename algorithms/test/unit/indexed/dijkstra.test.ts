@@ -1,7 +1,8 @@
 import { expandEdges, GraphBuilder, INVALID_INDEX } from "@graphty/graph-format";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import { PathWalkError } from "../../../src/errors.js";
+import { accelerated, type AlgorithmAccelerator } from "../../../src/indexed/accelerator.js";
 import { dijkstra, walkPredArcs, walkPredEdges } from "../../../src/indexed/dijkstra.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
@@ -156,5 +157,72 @@ describe("predecessor walk on a corrupted predArc (an accelerator's result is no
         const pred = Uint32Array.from([INV, 0, 1, 2]);
         expect([...walkPredArcs(s, pred, 0, 3)]).toEqual([0, 1, 2, 3]);
         expect(walkPredEdges(s, pred, 0, 3)).toHaveLength(3);
+    });
+});
+
+describe("indexed.dijkstra refuses negative weights", () => {
+    // Both graphs hung forever before the weight check: a negative arc re-queued a popped node.
+    function negativeEdge(): ReturnType<typeof checksummedSnapshot> {
+        const g = new Graph({ directed: false });
+        g.addEdge("u", "v", -1);
+        return checksummedSnapshot(g);
+    }
+    function negativeCycle(): ReturnType<typeof checksummedSnapshot> {
+        const g = new Graph({ directed: true });
+        g.addEdge("a", "b", 1);
+        g.addEdge("b", "c", 1);
+        g.addEdge("c", "a", -3);
+        return checksummedSnapshot(g);
+    }
+    function codeOf(run: () => unknown): unknown {
+        try {
+            run();
+        } catch (e) {
+            return (e as { code?: unknown }).code;
+        }
+        return undefined;
+    }
+
+    it("throws E_BAD_WEIGHT on a negative undirected edge and on a negative directed cycle", () => {
+        assert.strictEqual(
+            codeOf(() => dijkstra(negativeEdge(), 0)),
+            "E_BAD_WEIGHT",
+        );
+        assert.strictEqual(
+            codeOf(() => dijkstra(negativeCycle(), 0)),
+            "E_BAD_WEIGHT",
+        );
+    });
+
+    it("throws E_BAD_WEIGHT for a NaN override and E_BAD_OPTION for an override of the wrong length", () => {
+        const s = negativeCycle();
+        const nan = new Float64Array(s.arcCount).fill(1);
+        nan[0] = Number.NaN;
+        assert.strictEqual(
+            codeOf(() => dijkstra(s, 0, { weights: nan })),
+            "E_BAD_WEIGHT",
+        );
+        assert.strictEqual(
+            codeOf(() => dijkstra(s, 0, { weights: new Float64Array(1) })),
+            "E_BAD_OPTION",
+        );
+        const ok = dijkstra(s, 0, { weights: new Float64Array(s.arcCount).fill(1) });
+        assert.strictEqual(ok.dist[2], 2);
+    });
+
+    it("rejects on both dispatcher paths, and never hands the accelerator a negative weight", async () => {
+        const calls: unknown[] = [];
+        const fake: AlgorithmAccelerator = {
+            kind: "fake",
+            sssp: (...a) => (calls.push(a), Promise.reject(new Error("unreachable"))),
+        };
+        for (const d of [accelerated(null), accelerated(fake)]) {
+            const err: unknown = await d.sssp(negativeCycle(), 0).then(
+                () => null,
+                (e: unknown) => e,
+            );
+            assert.strictEqual((err as { code?: unknown } | null)?.code, "E_BAD_WEIGHT");
+        }
+        assert.strictEqual(calls.length, 0);
     });
 });

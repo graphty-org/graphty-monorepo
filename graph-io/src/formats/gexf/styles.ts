@@ -7,9 +7,10 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { escapeXmlAttribute, escapeXmlText } from "../../common/escape.js";
 import { itemAt } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
-import { canonColor } from "../../styles/canon/color.js";
+import { canonColor, hexChannels } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
@@ -17,12 +18,13 @@ import { canonText } from "../../styles/canon/text.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { type ElementValues, takeFromBlock } from "../../styles/io/round-trip.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import { type ExporterStyleInput, replacedLabelNote } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     ImporterStyles,
     StyleColumn,
+    StyleProperty,
     StyleReadContext,
     StyleRule,
     StyleTarget,
@@ -548,9 +550,8 @@ interface GephiTargetRules {
  * @returns the channels
  */
 function nodeChannels(fill: StyleValue | null | undefined, opacity: StyleValue | null | undefined): number[] {
-    const n = Number.parseInt((typeof fill === "string" ? fill : GEPHI_NODE_FILL).slice(1), 16);
     const a = typeof opacity === "number" ? Math.round(opacity * 255) : 255;
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, a];
+    return [...hexChannels(typeof fill === "string" ? fill : GEPHI_NODE_FILL), a];
 }
 
 /**
@@ -1304,13 +1305,14 @@ function edgeLabelRules(
  * @returns the mixed color
  */
 function gephiMix(a: string, b: string): string {
-    const x = Number.parseInt(a.slice(1), 16);
-    const y = Number.parseInt(b.slice(1), 16);
-    let out = 0;
-    for (const shift of [16, 8, 0]) {
-        out |= Math.floor((((x >> shift) & 255) + ((y >> shift) & 255)) / 2) << shift;
-    }
-    return `#${out.toString(16).padStart(6, "0")}`;
+    const y = hexChannels(b);
+    return `#${hexChannels(a)
+        .map((c, i) =>
+            Math.floor((c + y[i]) / 2)
+                .toString(16)
+                .padStart(2, "0"),
+        )
+        .join("")}`;
 }
 
 /**
@@ -1549,8 +1551,7 @@ export function gexfStyledExport(
     if (input === undefined) {
         return null;
     }
-    const p = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
-        input.picture(target, property as never);
+    const p = (t: StyleTarget, property: StyleProperty): readonly (StyleValue | null)[] => input.picture(t, property);
     const fill = p("node", "fill");
     const fillOpacity = p("node", "fillOpacity");
     const image = p("node", "image");
@@ -1563,10 +1564,11 @@ export function gexfStyledExport(
     const nodeShapes = p("node", "shape").map((s, i) => gexfShapeOf(s, typeof image[i] === "string", approximated));
     const nodeSizes = p("node", "width").map((w, i) => gexfSizeOf(w, height[i], approximated));
     const edgeShapes = p("edge", "lineStyle").map((s) => gexfLineOf(s, approximated));
+    const replaced = replacedLabelNote(snapshot, LABEL_COLUMN, p("node", "label"), "the node label attribute");
     return {
         snapshot: withTagColumns(snapshot, input),
-        blockElement: `<graphty:styles xmlns:graphty="${GRAPHTY_XML_NAMESPACE}" name="${STYLE_BLOCK_NAME}">${escapeXml(input.block)}</graphty:styles>`,
-        notes: approximated.notes("GEXF"),
+        blockElement: `<graphty:styles xmlns:graphty="${GRAPHTY_XML_NAMESPACE}" name="${STYLE_BLOCK_NAME}">${escapeXmlText(input.block)}</graphty:styles>`,
+        notes: replaced === null ? approximated.notes("GEXF") : [...approximated.notes("GEXF"), replaced],
         node(i, indent) {
             const size = nodeSizes[i];
             const s = nodeShapes[i];
@@ -1690,9 +1692,9 @@ function colorElement(hex: StyleValue | null, alpha: StyleValue | null, indent: 
     if (typeof hex !== "string") {
         return "";
     }
-    const n = Number.parseInt(hex.slice(1), 16);
+    const [r, g, b] = hexChannels(hex);
     const a = typeof alpha === "number" && alpha !== 1 ? ` a="${String(alpha)}"` : "";
-    return `${indent}<viz:color r="${String((n >> 16) & 255)}" g="${String((n >> 8) & 255)}" b="${String(n & 255)}"${a}/>\n`;
+    return `${indent}<viz:color r="${String(r)}" g="${String(g)}" b="${String(b)}"${a}/>\n`;
 }
 
 /**
@@ -1708,14 +1710,5 @@ function shapeElement(shape: string | null, uri: string | null, indent: string):
     }
     return uri === null
         ? `${indent}<viz:shape value="${shape}"/>\n`
-        : `${indent}<viz:shape value="${shape}" uri="${escapeXml(uri)}"/>\n`;
-}
-
-/**
- * Text as XML character data or an attribute value.
- * @param text - the text
- * @returns the escaped text
- */
-function escapeXml(text: string): string {
-    return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+        : `${indent}<viz:shape value="${shape}" uri="${escapeXmlAttribute(uri)}"/>\n`;
 }

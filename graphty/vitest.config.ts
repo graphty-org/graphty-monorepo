@@ -1,3 +1,4 @@
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,6 +45,35 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
     });
 };
 
+/** A file a test chooses: a path from this package's folder (a folder chooses all of it), or its bytes. */
+type ChosenFile =
+    { readonly path: string } | { readonly name: string; readonly mimeType: string; readonly base64: string };
+
+/**
+ * Answers the next file picker the page opens with several files, or a folder, as the reader
+ * choosing them; call it before the click that opens the picker, as {@link chooseNextFile}. A path
+ * that names a folder chooses that folder (a picker opened for a folder).
+ * @param ctx - the browser command context.
+ * @param files - the files, by path from this package's folder or by their bytes.
+ */
+const chooseNextFiles: BrowserCommand<[files: ChosenFile[]]> = (ctx, files) => {
+    const folder = files.find((file) => "path" in file && statSync(path.resolve(dirname, file.path)).isDirectory());
+    const payloads = (): { name: string; mimeType: string; buffer: Buffer }[] =>
+        files.map((file) =>
+            "path" in file
+                ? {
+                      name: path.basename(file.path),
+                      mimeType: "",
+                      buffer: readFileSync(path.resolve(dirname, file.path)),
+                  }
+                : { name: file.name, mimeType: file.mimeType, buffer: Buffer.from(file.base64, "base64") },
+        );
+    const chosen = folder !== undefined && "path" in folder ? path.resolve(dirname, folder.path) : payloads();
+    ctx.page.once("filechooser", (chooser) => {
+        void chooser.setFiles(chosen);
+    });
+};
+
 /**
  * Lets the page read and write the clipboard, as a reader who allowed it, so a test can press
  * Control+V and Copy against the real clipboard.
@@ -67,6 +97,36 @@ const failRequests: BrowserCommand<[fragment: string, failing: boolean]> = async
         ? ctx.page.route(glob, (route) => route.fulfill({ status: 404, body: "gone" }))
         : ctx.page.unroute(glob));
 };
+
+/** Per browser context: the off-origin requests seen since the last takeOffOriginRequests. */
+const offOrigin = new WeakMap<object, string[]>();
+
+/**
+ * Starts (or restarts) listing every request the page and its workers make to a host other than
+ * the test server, so a test can prove nothing reached a third-party CDN. A listener, not a route:
+ * a route switches the browser's HTTP cache off (issue #3350).
+ * @param ctx - the browser command context.
+ */
+const watchOffOriginRequests: BrowserCommand<[]> = (ctx) => {
+    if (!offOrigin.has(ctx.context)) {
+        const seen: string[] = [];
+        offOrigin.set(ctx.context, seen);
+        ctx.context.on("request", (request) => {
+            const url = new URL(request.url());
+            if (/^https?:$/.test(url.protocol) && url.origin !== new URL(ctx.page.url()).origin) {
+                seen.push(request.url());
+            }
+        });
+    }
+    offOrigin.get(ctx.context)?.splice(0);
+};
+
+/**
+ * The off-origin requests seen since watchOffOriginRequests, emptying the list.
+ * @param ctx - the browser command context.
+ * @returns their URLs.
+ */
+const takeOffOriginRequests: BrowserCommand<[]> = (ctx) => offOrigin.get(ctx.context)?.splice(0) ?? [];
 
 /**
  * The two app modules the app's own tests replace, swapped by Vite as it serves them rather than by
@@ -134,7 +194,15 @@ const chromium = () => ({
     // The clipboard, so Paste reads what a test wrote, as a reader's browser lets it after asking.
     provider: playwright({ contextOptions: { permissions: ["clipboard-read", "clipboard-write"] } }),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile, failRequests, grantClipboard, ...mapTileCommands },
+    commands: {
+        chooseNextFile,
+        chooseNextFiles,
+        failRequests,
+        grantClipboard,
+        watchOffOriginRequests,
+        takeOffOriginRequests,
+        ...mapTileCommands,
+    },
 });
 
 /**

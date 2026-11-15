@@ -156,8 +156,9 @@ const AI_FRAMEWORKS = ["@tanstack/ai", "@tanstack/ai-openai", "@tanstack/ai-anth
 const GRAPHVIZ = ["@hpcc-js/wasm-graphviz"];
 
 /**
- * What the model chunk (src/models/chunk.ts) imports from Babylon.js, pre-bundled for the same
- * reason: the chunk is imported lazily, so Vite would otherwise discover these mid-run.
+ * What the model chunk (src/models/chunk.ts) and babylonjs-models import from Babylon.js,
+ * pre-bundled for the same reason: both are imported lazily, so Vite would otherwise discover these
+ * mid-run.
  */
 const MODEL_CHUNK = [
     "@babylonjs/loaders/glTF/2.0/glTFLoader.js",
@@ -194,7 +195,7 @@ const MODEL_CHUNK = [
     "@babylonjs/core/Materials/Textures/texture.js",
     "@babylonjs/core/Loading/sceneLoader.js",
     "@babylonjs/core/Loading/sceneLoaderFlags.js",
-    // The model template builder and the request guard (src/models/).
+    // The model template builder (src/models/) and babylonjs-models' request guard.
     "@babylonjs/core/Maths/math.color.js",
     "@babylonjs/core/Maths/math.vector.js",
     "@babylonjs/core/Meshes/Builders/boxBuilder.js",

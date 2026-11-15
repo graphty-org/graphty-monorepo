@@ -10,7 +10,7 @@ import { assertGraphLoaded, drawn, holds, renderedElement } from "./assertions";
 import columnStlPath from "./fixtures/models/column-y-up.stl?url&no-inline";
 import damagedGlbPath from "./fixtures/models/damaged.glb?url";
 import plainObjPath from "./fixtures/models/plain-cube.obj?url&no-inline";
-import spinningGlbPath from "./fixtures/models/spinning-cube.glb?url";
+import spinningGlbPath from "./fixtures/models/spinning-cube.glb?url&no-inline";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 /**

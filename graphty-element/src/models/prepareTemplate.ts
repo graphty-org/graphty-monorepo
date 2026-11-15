@@ -19,6 +19,7 @@
  * Reached only through the model chunk (src/models/chunk.ts), so it costs the main entry nothing.
  */
 
+import "@babylonjs/core/Meshes/instancedMesh.js";
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
@@ -214,7 +215,7 @@ function bakeParts(container: AssetContainer, turn: Matrix, animated: boolean): 
         const movable = animated && instances.length === 0 ? { mesh, local: ownVertices(mesh) } : {};
         for (const instance of instances.length === 0 ? [Matrix.Identity()] : instances) {
             const copy = instances.length > 1 ? data.clone() : data;
-            parts.push({ data: placeAt(copy, instance.multiply(placed)), material, key, ...movable });
+            parts.push({ vertices: placeAt(copy, instance.multiply(placed)), material, key, ...movable });
         }
     }
 
@@ -229,7 +230,7 @@ function bakeParts(container: AssetContainer, turn: Matrix, animated: boolean): 
 function boundsOf(parts: readonly Part[]): { min: Vector3; max: Vector3 } {
     const min = new Vector3(Infinity, Infinity, Infinity);
     const max = new Vector3(-Infinity, -Infinity, -Infinity);
-    for (const { data } of parts) {
+    for (const { vertices: data } of parts) {
         const positions = data.positions ?? [];
         for (let i = 0; i + 2 < positions.length; i += 3) {
             min.minimizeInPlaceFromFloats(positions[i], positions[i + 1], positions[i + 2]);
@@ -315,13 +316,13 @@ function fitAndGroup(
     let triangles = 0;
     const groups = new Map<string, Part[]>();
     for (const part of parts) {
-        part.data.transform(fit);
-        const positions = part.data.positions ?? [];
+        part.vertices.transform(fit);
+        const positions = part.vertices.positions ?? [];
         for (let i = 0; i + 2 < positions.length; i += 3) {
             radius = Math.max(radius, Math.hypot(positions[i], positions[i + 1], positions[i + 2]));
         }
 
-        triangles += (part.data.indices?.length ?? 0) / 3;
+        triangles += (part.vertices.indices?.length ?? 0) / 3;
         const list = groups.get(part.key) ?? [];
         list.push(part);
         groups.set(part.key, list);
@@ -402,12 +403,12 @@ function mergeGroups(
     const { used, meshes, follows } = made;
     for (const [key, list] of groups) {
         const [first, ...rest] = list;
-        const vertices = list.reduce((sum, part) => sum + (part.data.positions?.length ?? 0) / 3, 0);
+        const vertices = list.reduce((sum, part) => sum + (part.vertices.positions?.length ?? 0) / 3, 0);
         const merged =
             rest.length === 0
-                ? first.data
-                : first.data.merge(
-                      rest.map((p) => p.data),
+                ? first.vertices
+                : first.vertices.merge(
+                      rest.map((p) => p.vertices),
                       vertices > 65535,
                   );
         // "replace" paints one flat color: the file's vertex colors go with its materials.

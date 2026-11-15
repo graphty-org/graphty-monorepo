@@ -18,8 +18,8 @@ import { cleanups, countIn, drawModel, filesOf, type Frame, mount, readFrame, st
 const RED = (r: number, g: number, b: number): boolean => r > 120 && g < 60 && b < 60;
 const GREEN = (r: number, g: number, b: number): boolean => g > 100 && r < 70 && b < 70;
 const BLUE = (r: number, g: number, b: number): boolean => b > 100 && r < 70 && g < 70;
-/** The default Selected layer's halo. */
-const GOLD = (r: number, g: number, b: number): boolean => r > 200 && g > 170 && b < 90;
+/** The default Selected layer's halo, #0077BB (selectionStyle's default). */
+const MARK = (r: number, g: number, b: number): boolean => r < 50 && g > 90 && g < 150 && b > 160;
 const MAGENTA = (r: number, g: number, b: number): boolean => r > 170 && b > 170 && g < 110;
 
 /**
@@ -295,7 +295,7 @@ describe("marks on model nodes", () => {
         );
         element.graph.zoomToFit();
         const before = await readFrame(element);
-        assert.strictEqual(count(before, GOLD), 0, "nothing is marked before a selection");
+        assert.strictEqual(count(before, MARK), 0, "nothing is marked before a selection");
         const blue = maskOf(before, BLUE, "left");
         const green = maskOf(before, GREEN, "left");
         // The model is every pixel that is not the light background, its shaded sides included.
@@ -305,10 +305,10 @@ describe("marks on model nodes", () => {
 
         assert.isTrue(element.graph.selectNode("a"));
         const marked = await readFrame(element);
-        const gold = maskOf(marked, GOLD, "left");
-        const goldCount = gold.filter(Boolean).length;
-        assert.isAbove(goldCount, 100, "the selected node is marked");
-        assert.strictEqual(countIn(marked, GOLD).right, 0, "the other node of the same model is not");
+        const mark = maskOf(marked, MARK, "left");
+        const markCount = mark.filter(Boolean).length;
+        assert.isAbove(markCount, 100, "the selected node is marked");
+        assert.strictEqual(countIn(marked, MARK).right, 0, "the other node of the same model is not");
 
         // A band hugs the silhouette: every marked pixel is within the band's width of the model,
         // none lies over the model's inside (no "X" across it), and both parts are ringed.
@@ -317,10 +317,10 @@ describe("marks on model nodes", () => {
             marked,
             model.map((m) => !m),
         );
-        const away = gold.filter((g, i) => g && fromModel[i] > 16).length;
+        const away = mark.filter((g, i) => g && fromModel[i] > 16).length;
         assert.strictEqual(away, 0, "no mark apart from the model: no second, misaligned copy");
         // The band straddles the silhouette's edge by up to its width; nothing reaches deeper.
-        const over = gold.filter((g, i) => g && inside[i] > 12).length;
+        const over = mark.filter((g, i) => g && inside[i] > 12).length;
         assert.strictEqual(over, 0, "no mark over the model's inside");
         assert.isAbove(
             inside.filter((d) => d > 12).length,
@@ -329,8 +329,8 @@ describe("marks on model nodes", () => {
         );
         const fromBlue = distanceTo(marked, blue);
         const fromGreen = distanceTo(marked, green);
-        assert.isAbove(gold.filter((g, i) => g && fromBlue[i] < 6).length, 20, "the blue bar is ringed");
-        assert.isAbove(gold.filter((g, i) => g && fromGreen[i] < 6).length, 20, "the green post is ringed");
+        assert.isAbove(mark.filter((g, i) => g && fromBlue[i] < 6).length, 20, "the blue bar is ringed");
+        assert.isAbove(mark.filter((g, i) => g && fromGreen[i] < 6).length, 20, "the green post is ringed");
         // The L's open corner is far from both parts: a ring or box around the whole model would
         // cover it, a silhouette band does not.
         const { width } = marked;
@@ -346,7 +346,7 @@ describe("marks on model nodes", () => {
         assert.isAbove(count(marked, BLUE), blue.filter(Boolean).length * 0.8);
 
         element.graph.deselectNode();
-        assert.strictEqual(count(await readFrame(element), GOLD), 0, "the mark goes with the selection");
+        assert.strictEqual(count(await readFrame(element), MARK), 0, "the mark goes with the selection");
     });
 
     it("glows one node of a model and leaves the other node of the same model unmarked", async () => {

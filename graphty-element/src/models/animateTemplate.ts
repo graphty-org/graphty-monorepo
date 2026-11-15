@@ -49,7 +49,7 @@ const SETTINGS = "bakedVertexAnimationSettingsInstanced";
 /** A part of the template as the animation sees it. */
 export interface AnimatedPart {
     /** Its vertices: fitted and baked at rest, replaced by its stored vertices and bones here. */
-    data: VertexData;
+    vertices: VertexData;
     /** The file's mesh it came from, when it can move on its own (not a GPU-instanced copy). */
     readonly mesh?: Mesh;
     /** That mesh's vertices in its own space (bind space for a skin), with its skin weights. */
@@ -301,7 +301,7 @@ function writeFrame(
 function rebind(parts: readonly AnimatedPart[], bones: BoneMap): void {
     for (const part of parts) {
         const offset = bones.offsets.get(part);
-        const data = offset === undefined || part.local === undefined ? part.data : part.local;
+        const data = offset === undefined || part.local === undefined ? part.vertices : part.local;
         const count = (data.positions?.length ?? 0) / 3;
         const indices = new Array<number>(count * 4).fill(0);
         const weights = new Array<number>(count * 4).fill(0);
@@ -326,7 +326,7 @@ function rebind(parts: readonly AnimatedPart[], bones: BoneMap): void {
         data.matricesWeights = weights;
         data.matricesIndicesExtra = null;
         data.matricesWeightsExtra = null;
-        part.data = data;
+        part.vertices = data;
     }
 }
 

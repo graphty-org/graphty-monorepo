@@ -378,16 +378,51 @@ export function resolveEdgeCapacity(record: Readonly<Record<string | number, unk
 }
 
 /**
- * Write an edge's capacity column from the record it holds now, so the column always reads what
- * {@link resolveEdgeCapacity} reads from that record. An edge with no row writes nothing.
+ * Resolve an edge's own direction: the record's boolean `directed` (GraphML's per-edge attribute),
+ * else its GEXF `type` (`directed`, or `undirected` and `mutual`, which are undirected), else none,
+ * so the edge takes the graph's direction.
+ * @param record - the raw edge record
+ * @returns true or false when the record states a direction, undefined when it does not
+ */
+function resolveEdgeDirected(record: Readonly<Record<string | number, unknown>>): boolean | undefined {
+    if (typeof record.directed === "boolean") {
+        return record.directed;
+    }
+
+    switch (record.type) {
+        case "directed":
+            return true;
+        case "undirected":
+        case "mutual":
+            return false;
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * Whether a new edge's record needs a column write: a fresh row already reads capacity 1 and the
+ * graph's direction.
+ * @param record - The record.
+ * @returns True when {@link writeEdgeColumns} would write something.
+ */
+function needsEdgeColumns(record: GraphRecord): boolean {
+    return resolveEdgeCapacity(record) !== 1 || resolveEdgeDirected(record) !== undefined;
+}
+
+/**
+ * Write an edge's capacity and direction columns from the record it holds now, so the columns
+ * always read what {@link resolveEdgeCapacity} and {@link resolveEdgeDirected} read from that
+ * record. An edge with no row writes nothing.
  * @param store - The store.
  * @param edgeId - The edge's element-assigned id.
  * @param record - Its record, or undefined for none.
  */
-function writeCapacity(store: GraphStore, edgeId: number, record: GraphRecord | undefined): void {
+function writeEdgeColumns(store: GraphStore, edgeId: number, record: GraphRecord | undefined): void {
     const row = store.edgeIndexOf(edgeId);
     if (row !== INVALID_INDEX) {
         store.builder.setEdgeValue(store.capacityColumn, row, resolveEdgeCapacity(record ?? {}));
+        store.writeEdgeDirected(row, resolveEdgeDirected(record ?? {}));
         store.account();
     }
 }
@@ -420,6 +455,8 @@ export interface GraphWriter {
      * @param weight - The resolved weight.
      * @param record - The record.
      * @param fileId - The file's own id for the edge, read at `edgeIdPath`, when it has one.
+     * @param reuse - An id the element assigned before, to give back to an edge removed earlier;
+     *     a fresh one when the graph holds it or the element never assigned it.
      * @returns The row and the id; INVALID_INDEX for both when either endpoint cannot be stored.
      */
     addEdge(
@@ -428,6 +465,7 @@ export interface GraphWriter {
         weight: number,
         record: GraphRecord,
         fileId?: string | number,
+        reuse?: number,
     ): { index: number; edgeId: number };
     /**
      * Fold a repeated edge record into the edge it repeats: a new weight, and for the `last`
@@ -1394,7 +1432,7 @@ class GraphEntry implements OpLogEntry {
                 // must read the record put back, not the one being undone.
                 bumpFields(store, op.target, op.next, op.prior, seen, true);
                 if (op.target === "edge") {
-                    writeCapacity(store, edgeCounterOf(String(op.id)), op.prior);
+                    writeEdgeColumns(store, edgeCounterOf(String(op.id)), op.prior);
                 }
 
                 this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
@@ -1668,8 +1706,8 @@ class GraphEntry implements OpLogEntry {
         }
 
         edges.set(edgeIdOf(op.edgeId), op.record);
-        if (resolveEdgeCapacity(op.record) !== 1) {
-            writeCapacity(store, op.edgeId, op.record);
+        if (needsEdgeColumns(op.record)) {
+            writeEdgeColumns(store, op.edgeId, op.record);
         }
         bumpFields(store, "edge", undefined, op.record, seen);
         this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
@@ -1693,7 +1731,7 @@ class GraphEntry implements OpLogEntry {
         // After the restore, as in undo: the watching sets resolve against the record put back.
         bumpFields(store, op.target, op.prior, op.next, seen, true);
         if (op.target === "edge") {
-            writeCapacity(store, edgeCounterOf(String(op.id)), op.next);
+            writeEdgeColumns(store, edgeCounterOf(String(op.id)), op.next);
         }
 
         this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
@@ -1907,6 +1945,7 @@ class Writer implements GraphWriter {
         weight: number,
         given: GraphRecord,
         fileId?: string | number,
+        reuse?: number,
     ): { index: number; edgeId: number } {
         if (!isStorableId(source) || !isStorableId(target)) {
             return { index: INVALID_INDEX, edgeId: INVALID_INDEX };
@@ -1924,8 +1963,10 @@ class Writer implements GraphWriter {
             created.push(target);
         }
 
+        // Asked before the row is added, so the id is not read as the new row's own.
+        const reused = reuse !== undefined && this.store.mayReuseEdgeId(reuse);
         const index = builder.addEdge(source, target, weight);
-        const edgeId = this.store.nextEdgeId();
+        const edgeId = reused ? reuse : this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);
         this.store.recordIngestedEdge(index, edgeId, fileId, this.graph.touchesRanges);
         this.store.recordsChanged();
@@ -1935,9 +1976,9 @@ class Writer implements GraphWriter {
         } else {
             edges.put(edgeIdOf(edgeId), edges.stored(record));
         }
-        // A new row already reads the column default, 1: only another capacity costs a write.
-        if (resolveEdgeCapacity(record) !== 1) {
-            writeCapacity(this.store, edgeId, record);
+        // A new row already reads capacity 1 and the graph's direction: only another costs a write.
+        if (needsEdgeColumns(record)) {
+            writeEdgeColumns(this.store, edgeId, record);
         }
 
         bumpFields(this.store, "edge", undefined, record, this.bumped);
@@ -1968,7 +2009,7 @@ class Writer implements GraphWriter {
             const id = edgeIdOf(edgeId);
             const priorRecord = edges.get(id);
             edges.set(id, record);
-            writeCapacity(this.store, edgeId, record);
+            writeEdgeColumns(this.store, edgeId, record);
             bumpFields(this.store, "edge", priorRecord, record, this.bumped);
             this.record({ kind: "record", target: "edge", id, prior: priorRecord, next: record }, edgeKey(id), null);
         }
@@ -2008,7 +2049,7 @@ class Writer implements GraphWriter {
         const next = frozenRecord(replace ? values : { ...prior, ...values });
         map.set(key, next);
         if (target === "edge") {
-            writeCapacity(this.store, edgeCounterOf(String(key)), next);
+            writeEdgeColumns(this.store, edgeCounterOf(String(key)), next);
         }
 
         bumpFields(this.store, target, prior, next, this.bumped, true);

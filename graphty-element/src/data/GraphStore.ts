@@ -2,6 +2,7 @@ import {
     type Column,
     type ColumnHandle,
     type DerivedGraph,
+    edgeIsDirected,
     type FreezeReport,
     GraphBuilder,
     type GraphSnapshot,
@@ -116,6 +117,14 @@ const PINNED_COLUMN = "graphty.pinned";
  * through the f32 weight array. Unset rows read 1, a record's missing capacity.
  */
 export const CAPACITY_COLUMN = "graphty.capacity";
+
+/**
+ * The edge column holding an edge's own direction, read from its record at ingest by
+ * `resolveEdgeDirected`, with graph-format's role `"directed"`: a set cell overrides the graph's
+ * direction for that edge, an unset one takes it. Declared the first time an edge states one, so a
+ * graph whose edges never do carries no such column.
+ */
+export const EDGE_DIRECTED_COLUMN = "graphty.edgeDirected";
 
 /** What the tests read: how many undirected views the stores have derived (one per snapshot at most). */
 export const storeCounters = { undirectedDerivations: 0 };
@@ -561,6 +570,8 @@ export class GraphStore {
     private mintedDeferred = false;
     /** The {@link DEFERRED_HASH_COLUMN} handle and the builder it belongs to, declared on first use. */
     private deferredHash: { builder: GraphBuilder; handle: ColumnHandle } | null = null;
+    /** The {@link EDGE_DIRECTED_COLUMN} handle and the builder it belongs to, declared on first use. */
+    private edgeDirection: { builder: GraphBuilder; handle: ColumnHandle } | null = null;
     /** Rows of the open load, in ingest order, remapped by every compacting freeze. */
     private loadRows = new Uint32Array(64);
     private loadLength = 0;
@@ -948,6 +959,21 @@ export class GraphStore {
     nextEdgeId(): number {
         this.requireAlive("nextEdgeId");
         return this.counter.next++;
+    }
+
+    /**
+     * Whether an edge may be given back an id the element assigned before: one the counter has
+     * handed out, that no live edge holds now.
+     * @param edgeId - the counter
+     * @returns true when it may
+     */
+    mayReuseEdgeId(edgeId: number): boolean {
+        return (
+            Number.isSafeInteger(edgeId) &&
+            edgeId >= 0 &&
+            edgeId < this.counter.next &&
+            this.edgeIndexOf(edgeId) === INVALID_INDEX
+        );
     }
 
     /**
@@ -1874,6 +1900,10 @@ export class GraphStore {
     ): GraphBuilder {
         const builder = this.createBuilder(directed ?? base?.directed ?? this.emptyDirected());
         this.current = builder;
+        if (base?.edges.has(EDGE_DIRECTED_COLUMN) === true) {
+            // Declared before the base's cells are copied by name, so the column keeps its role.
+            this.edgeDirectedHandle();
+        }
         if (replace !== null) {
             // A graph put back keeps the latch its edge hashes were made under; an emptied one
             // latches afresh, as a new dataset does.
@@ -1971,7 +2001,9 @@ export class GraphStore {
      */
     private writeEdge(index: number, edgeId: number, values: RowValues): void {
         for (const [name, value] of values) {
-            this.current.setEdgeValue(name, index, value);
+            // By handle, so a builder that has not declared the direction column yet declares it
+            // with its role rather than inferring a plain bool from the name.
+            this.current.setEdgeValue(name === EDGE_DIRECTED_COLUMN ? this.edgeDirectedHandle() : name, index, value);
         }
 
         this.stampEdgeId(index, edgeId);
@@ -2506,6 +2538,51 @@ export class GraphStore {
      */
     get directed(): boolean {
         return this.current.directed;
+    }
+
+    /**
+     * Whether one edge is directed: its own direction when its record stated one, the graph's
+     * otherwise. Cheap while no edge has stated a direction, which is every graph but a mixed one.
+     * @param row - The edge's row in the snapshot.
+     * @returns true when the edge is directed
+     */
+    edgeDirected(row: number): boolean {
+        if (this.current.edgeColumn(EDGE_DIRECTED_COLUMN) === INVALID_INDEX) {
+            return this.current.directed;
+        }
+
+        return edgeIsDirected(this.getSnapshot(), row);
+    }
+
+    /**
+     * Write one edge's own direction, or unset it so the edge takes the graph's.
+     * @param row - The edge's builder row.
+     * @param directed - The direction its record states, or undefined for none.
+     */
+    writeEdgeDirected(row: number, directed: boolean | undefined): void {
+        if (directed === undefined && this.current.edgeColumn(EDGE_DIRECTED_COLUMN) === INVALID_INDEX) {
+            return;
+        }
+
+        this.current.setEdgeValue(this.edgeDirectedHandle(), row, directed ?? null);
+    }
+
+    /**
+     * The current builder's {@link EDGE_DIRECTED_COLUMN}, declared the first time it is needed.
+     * @returns the handle
+     */
+    private edgeDirectedHandle(): ColumnHandle {
+        const builder = this.current;
+        if (this.edgeDirection?.builder !== builder) {
+            const known = builder.edgeColumn(EDGE_DIRECTED_COLUMN);
+            const handle =
+                known === INVALID_INDEX
+                    ? builder.declareEdgeColumn({ name: EDGE_DIRECTED_COLUMN, dtype: "bool", role: "directed" })
+                    : known;
+            this.edgeDirection = { builder, handle };
+        }
+
+        return this.edgeDirection.handle;
     }
 
     /**

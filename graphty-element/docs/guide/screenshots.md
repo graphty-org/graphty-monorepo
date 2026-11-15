@@ -95,6 +95,43 @@ await graph.captureScreenshot({
 });
 ```
 
+## Vector Figures (SVG)
+
+`exportFigure()` writes the graph as it is drawn now as an SVG file, for a paper or a slide that
+needs to scale without blurring. Every visible node is a filled shape in its color, every visible
+edge a line, and every label on screen is text you can edit and search. `legend` takes the same
+values as a screenshot's and draws the same key, as text too. The figure is the canvas's size and
+lines up with a screenshot taken at the same moment.
+
+```ts
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+
+// An SVG file the reader saves: nodes as shapes, labels and the key as text
+await element.exportFigure({ legend: true, download: true, downloadFilename: "figure.svg" });
+
+// Or keep the file to upload or embed
+const figure = await element.exportFigure({ legend: { position: "top-left" }, transparentBackground: true });
+const svg = await figure.blob.text();
+console.log(svg.length, figure.width, figure.height);
+```
+
+| Option                  | Default       | What it does                                        |
+| ----------------------- | ------------- | --------------------------------------------------- |
+| `format`                | `"svg"`       | The file format; SVG is the only one today          |
+| `legend`                | no key        | The key, as `captureScreenshot`'s `legend` takes it |
+| `transparentBackground` | `false`       | Leave the canvas background out                     |
+| `download`              | `false`       | Also start a download                               |
+| `downloadFilename`      | `"graph.svg"` | The download's name                                 |
+
+The result holds the file (`blob`, type `image/svg+xml`), its `width` and `height` in CSS pixels,
+and whether it was `downloaded`. It waits for the finished picture first, as `waitForStableFrame()`
+does. A format other than `"svg"` fails with `E_BAD_COMMAND` (`details.field` is `"format"`).
+
+A figure draws each node's flat color, without the canvas's lighting, and draws edges straight,
+without arrowheads; curved edges, arrowheads, borders and label backgrounds are not in it yet.
+
 ## Checking Capabilities
 
 Before capturing, verify support:

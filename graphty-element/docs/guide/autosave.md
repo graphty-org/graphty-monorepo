@@ -220,6 +220,10 @@ await removeAutosave("acme.org-chart", latest.id);
 ```
 
 Both take `{ store }` for a store of your own. Where the browser keeps no storage, the list is empty.
+When another tab holds the browser's database for three seconds and does not let go (a tab the
+browser suspended in the middle of a write), `listAutosaves` refuses with `E_AUTOSAVE_STALLED`
+rather than answer an empty list: nothing is known about the kept work then, so offer none and
+start the page as usual.
 
 An entry listed with `own: true` is the one this tab was writing before a reload or a discarded
 tab: open it without asking. After a reload the call waits up to two seconds for the page that left

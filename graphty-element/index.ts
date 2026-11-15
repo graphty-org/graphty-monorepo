@@ -386,6 +386,7 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // Screenshot exports
 // =============================================================================
 export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
+export type { FigureOptions, FigureResult } from "./src/screenshot/figure";
 export type {
     CameraAnimationOptions,
     CameraState,

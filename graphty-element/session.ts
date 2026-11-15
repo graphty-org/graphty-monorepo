@@ -116,6 +116,7 @@ export type {
     HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    HoverDrawn,
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,

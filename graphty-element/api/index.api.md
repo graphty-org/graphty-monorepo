@@ -878,6 +878,8 @@ export class DataManager implements Manager {
     // @internal
     get drawHeld(): boolean;
     drawnBundle(edge: Edge): EdgeBundle;
+    // @internal
+    edgeDirected(row: number): boolean;
     get edges(): ReadonlyMap<string, Edge>;
     get edgesByIndex(): readonly (Edge | undefined)[];
     edgeVersion: number;

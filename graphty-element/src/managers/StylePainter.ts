@@ -1255,13 +1255,14 @@ export function bootstrapEdgePaint(directed = true): EdgePaint {
 export class StylePainter {
     /**
      * Make a painter.
-     * @param directed - Whether the graph is directed now. Asked once per edge painted, so it
-     *     must be cheap; a painter with no graph behind it draws edges as directed.
+     * @param directed - Whether the edge on a snapshot row is directed now: the graph's direction,
+     *     or the edge's own in a graph that mixes both. Asked once per edge painted, so it must be
+     *     cheap; a painter with no graph behind it draws edges as directed.
      * @param minimums - The smallest node size and edge width drawn (the project setting
      *     `minMarkSize`), asked as often; absent, every mark is drawn as painted.
      */
     constructor(
-        private readonly directed: () => boolean = () => true,
+        private readonly directed: (row: number) => boolean = () => true,
         private readonly minimums: () => MarkMinimums | undefined = () => undefined,
     ) {}
 
@@ -1631,7 +1632,7 @@ export class StylePainter {
         const floor = this.floorOf("edge");
         const resolved = floored(paint.styleOf("edge", index), "edge.width", floor, EDGE_WIDTH);
         const meshKey = paint.meshKeyOf("edge", index);
-        const directed = this.directed();
+        const directed = this.directed(index);
         const last = this.lastEdgePaint;
         if (
             last !== null &&

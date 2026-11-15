@@ -17,6 +17,14 @@ its own pull request (CLAUDE.md, "Shipping a change").
   things moving. asking for my permission to act defeats the entire purpose." Only the one-way doors and owner-only
   acts listed under "Escalation" go to him; when unsure, ask what undoing it would cost, and if the answer is an
   edit or a rerun, act.
+- **Never block on the owner.** A session running a round never calls `AskUserQuestion` or anything else that waits
+  for his answer, not even for a real owner-only item: the question holds the whole session, and no round runs until
+  he is back (on the night of 2026-11-15 one question about a line of wording stopped the issue loop for hours). Park
+  the item instead -- turn its pull request's auto-merge off, or label the issue `needs-decision` with the question
+  as a comment -- end the reply with one `ACTION NEEDED` line (see "Escalation"), and go on with the round. Each
+  round writes `tmp/<round>/last-round` (an ISO time and `$CLAUDE_CODE_SESSION_ID`) when it starts, and the
+  PreToolUse hook `tools/claude-no-questions-in-rounds.mjs` refuses the question tool in a session that wrote one in
+  the last 75 minutes.
 - **Never wait inside a turn.** No sleeps, no polling, no watching CI. Long work starts in the background --
   `run_in_background` for commands, a background subagent for fixes -- and the round ends.
 - **All state lives in GitHub and git**, never in the session: labels, issue comments, branches, pull requests. A
@@ -62,6 +70,8 @@ git fetch -q --prune --no-tags origin
   git merge -q --no-edit origin/master || echo "main checkout NOT following master: $(git symbolic-ref -q --short HEAD)"
 jq -r '"broker \(.fetchedAt) error=\(.error)", (.pullRequests[] | "#\(.number) \(.head) -> \(.base) draft=\(.draft) \(.state) \(.labels|join(","))")' tmp/pr-status/status.json
 d=tmp/${ROUND:-pipeline-round}; mkdir -p "$d"
+# marks this session as a round's: the question hook refuses AskUserQuestion here ("Never block on the owner")
+echo "$(date -u +%FT%TZ) $CLAUDE_CODE_SESSION_ID" > "$d/last-round"
 gh api graphql -f query='{
   rateLimit { cost remaining resetAt }
   repository(owner: "graphty-org", name: "graphty-monorepo") {

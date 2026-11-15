@@ -107,6 +107,16 @@
             "import": "./dist/sources-github.js",
             "default": "./dist/sources-github.js"
         },
+        "./sources/s3": {
+            "types": "./dist/sources-s3.d.ts",
+            "import": "./dist/sources-s3.js",
+            "default": "./dist/sources-s3.js"
+        },
+        "./sources/zenodo": {
+            "types": "./dist/sources-zenodo.d.ts",
+            "import": "./dist/sources-zenodo.js",
+            "default": "./dist/sources-zenodo.js"
+        },
         "./styles": {
             "types": "./dist/styles.d.ts",
             "import": "./dist/styles.js",

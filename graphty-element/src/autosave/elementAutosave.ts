@@ -1282,8 +1282,7 @@ function listWithin(store: AutosaveStore, key: string): Promise<readonly Autosav
  * The work kept under an autosave key, read without an element: for a page that offers it before
  * it shows a graph, such as a start screen. The same list as `autosaver.list()`, oldest first;
  * `live` is true for an entry an element (in any tab) is writing now. Empty where the browser
- * keeps no storage, and empty after three seconds when another tab holds the browser's database
- * and does not let go (a tab the browser suspended in the middle of a write). Open an entry with `autosaver.restore(id)` on an element with the same key.
+ * keeps no storage. Open an entry with `autosaver.restore(id)` on an element with the same key.
  *
  * `own` is true for the one entry this tab was writing (after a reload, or after the browser
  * discarded the tab and loaded it again) once this tab holds its lock: the call takes the lock and
@@ -1296,6 +1295,10 @@ function listWithin(store: AutosaveStore, key: string): Promise<readonly Autosav
  * @param key - The autosave key.
  * @param options - Where to look.
  * @returns The entries.
+ * @throws A `GraphtyError` (as a rejection): `E_AUTOSAVE_STALLED` (`details: { afterMs, step: "list" }`)
+ *     when another tab holds the browser's database for three seconds and does not let go (a tab
+ *     the browser suspended in the middle of a write). Nothing is known about the kept work then:
+ *     not that there is none.
  */
 export function listAutosaves(key: string, options: AutosaveLookupOptions = {}): Promise<readonly AutosaveEntry[]> {
     return withLookupStore(options, async (store, env) => {
@@ -1314,9 +1317,16 @@ export function listAutosaves(key: string, options: AutosaveLookupOptions = {}):
 
         const metas = await listWithin(store, key);
         if (metas === null) {
-            // Nothing to offer rather than a page that never starts; the element lists again itself.
+            // Refused rather than answered empty: an empty list says nothing is kept, and a page
+            // that read it so opened again work another tab was writing (issue #6583). The page
+            // still starts; the element lists again itself.
             logger.warn("kept work not listed: another tab holds the database", { afterMs: LIST_TIMEOUT_MS });
-            return [];
+            throw new GraphtyError({
+                code: "E_AUTOSAVE_STALLED",
+                message: `Autosave could not list key ${key} within ${String(LIST_TIMEOUT_MS)} ms.`,
+                source: "data",
+                details: { afterMs: LIST_TIMEOUT_MS, step: "list" },
+            });
         }
 
         // The entry named before, when the named one was never written or was replaced.

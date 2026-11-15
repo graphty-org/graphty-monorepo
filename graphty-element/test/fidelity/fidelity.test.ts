@@ -127,6 +127,8 @@ const FAULTS: readonly Fault[] = [
         sample: "gexf-miserables",
         plant: (graph) => {
             for (const node of graph.getDataManager().nodes.values()) {
+                // A renamed field would read undefined and plant nothing, so the self-check would test no fault.
+                assert.property(node, "border", "the node keeps its border ring in `border`");
                 const ring = (node as unknown as { border: AbstractMesh | null }).border;
                 if (ring !== null) {
                     ring.scaling = ring.scaling.multiply(new Vector3(3, 3, 1));

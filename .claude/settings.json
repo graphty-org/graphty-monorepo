@@ -45,6 +45,16 @@
                 ]
             },
             {
+                "matcher": "AskUserQuestion",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-no-questions-in-rounds.mjs\"",
+                        "timeout": 5
+                    }
+                ]
+            },
+            {
                 "matcher": "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob|mcp__servherd__servherd_start",
                 "hooks": [
                     {

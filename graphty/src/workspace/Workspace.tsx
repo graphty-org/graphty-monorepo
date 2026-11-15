@@ -243,6 +243,10 @@ export function Workspace({
                 }
             })
             .catch((error: unknown) => {
+                // Nothing is known about the kept work (graphty-element could not list it while
+                // another tab held the database): the start screen, never opening work again that
+                // another tab may be writing.
+                logger.info("decision", { decision: "landing", entry: null, reason: "kept-work-not-listed" });
                 bootSignal({ line: `kept work check failed: ${String(error)}`, error: true });
             })
             .finally(() => {

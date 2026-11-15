@@ -54,6 +54,7 @@ export type JsonObject = Record<string, unknown>;
  * `W_UNKNOWN_MEMBER` are already element codes. OPEN UNION while the experiment is on.
  */
 export type DocumentCode =
+    | "E_UNKNOWN_COMMAND"
     | "W_SCHEMA_MISMATCH"
     | "W_SECTION_KEPT"
     | "W_EXTENSION_REQUIRED"

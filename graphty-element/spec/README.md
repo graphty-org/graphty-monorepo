@@ -399,7 +399,7 @@ lower-case letters, digits and single underscores, at most 32 characters). The c
 6. A recipe never names an element. A command whose options name a node, or that ran over the
    selection, listed nodes or a picked set, is written as a view run record (4.7) instead, and the
    recipe writer reports it.
-7. An unknown `op` stops the replay at that command, unless the command says `"narrows": false`,
+7. An unknown `op` (`E_UNKNOWN_COMMAND`) stops the replay at that command, unless the command says `"narrows": false`,
    when only it and the commands reading its `as` are skipped. An op graphty-element adds has two
    segments in the `graph`, `algo`, `layout`, `column`, `style`, `data`, `set` or `join` family;
    any other op starts with a reverse-domain name.
@@ -751,6 +751,7 @@ application words them.
 | ----------------------------- | --------------------------------------------------------------------------------------- | ------------------------------- |
 | `E_BAD_DOCUMENT`              | the file is not JSON, has no known `kind`, or a section's `kind` disagrees with its key | `section`                       |
 | `E_UNKNOWN_OPTION`            | a recipe command or scope has a member the reader does not know                         | `section`, `pointer`            |
+| `E_UNKNOWN_COMMAND`           | a recipe command's `op` the reader does not know                                        | `section`, `pointer`            |
 | `W_UNKNOWN_KIND`              | an unknown `sections` key                                                               | `section`                       |
 | `W_UNKNOWN_MEMBER`            | an unknown member of an open object, selector, binding, palette or run style            | `section`, `pointer`            |
 | `W_SCHEMA_MISMATCH`           | `$schema` disagrees with `kind` and `version`                                           | `section`, `schema`             |

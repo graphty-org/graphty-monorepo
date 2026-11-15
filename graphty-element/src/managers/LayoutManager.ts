@@ -936,6 +936,13 @@ export class LayoutManager implements Manager {
      */
     setPaused(paused: boolean): void {
         this._paused = paused;
+        // A static layout held back the re-run a removal asked for while paused; it lands now, in
+        // the array both render paths draw from (a batched row has no Node whose update would read it).
+        const engine = this.layoutEngine;
+        if (!paused && engine instanceof StaticLayoutEngine && simpleLayoutInternals.resume(engine)) {
+            engine.publishPositions();
+        }
+
         this.running = !paused;
     }
 
@@ -1639,6 +1646,10 @@ export class LayoutManager implements Manager {
                 () => this.dataManager.renderLimits?.batched() ?? false,
                 () => this.graphContext,
             );
+        }
+
+        if (engine instanceof StaticLayoutEngine) {
+            simpleLayoutInternals.whilePaused(engine, () => this._paused);
         }
 
         if (engine) {

@@ -1792,6 +1792,10 @@ export const simpleLayoutInternals = {
     byRow(engine: StaticLayoutEngine): boolean;
     /** Hold an `Edge` built late for an edge the engine already laid out by row, without marking the layout stale. */
     adoptEdge(engine: StaticLayoutEngine, e: Edge): void;
+    /** Tell the engine whether the consumer has paused the layout: while it has, a re-run that would move existing rows waits. */
+    whilePaused(engine: StaticLayoutEngine, paused: () => boolean): void;
+    /** Mark the re-run a pause held back as due; true when there was one. */
+    resume(engine: StaticLayoutEngine): boolean;
 };
 
 /**
@@ -1836,6 +1840,19 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
 
             engine.#edges.push(e);
         };
+        simpleLayoutInternals.whilePaused = (engine, paused) => {
+            engine.#paused = paused;
+        };
+        simpleLayoutInternals.resume = (engine) => {
+            if (!engine.#deferred) {
+                return false;
+            }
+
+            engine.#deferred = false;
+            engine.#keep = null;
+            engine.stale = true;
+            return true;
+        };
     }
 
     static type: string;
@@ -1879,6 +1896,10 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * answer then, so an engine that reads them arranges only what takes part. Null otherwise.
      */
     #taking: { readonly nodes: Node[]; readonly edges: Edge[] } | null = null;
+    /** Whether the consumer has paused the layout; see `simpleLayoutInternals.whilePaused`. */
+    #paused: (() => boolean) | null = null;
+    /** Whether a re-run was held back while paused, to be applied on resume. */
+    #deferred = false;
 
     /**
      * Create a simple layout engine
@@ -2256,6 +2277,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     override loadArrangement(): void {
         this.stale = false;
+        this.#deferred = false;
         super.loadArrangement();
     }
 
@@ -2311,6 +2333,20 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     protected refresh(): void {
         if (!this.stale) {
+            return;
+        }
+
+        // PAUSED, A CHANGE THAT WOULD MOVE EXISTING NODES WAITS FOR THE RESUME. A removal (or any
+        // change that is not an add) re-runs the whole arrangement; while the consumer has paused
+        // the layout every remaining node keeps its row in the array instead, and that array is
+        // what both render paths draw. The graph as it stands becomes the one laid out, so an add
+        // made while still paused places only its new nodes.
+        if (this.#keep === null && this.#laidOut !== null && this.#paused?.() === true) {
+            this.stale = false;
+            this.#deferred = true;
+            this.#column = new Float32Array(0);
+            this.#loaded = null;
+            this.#laidOut = this.#load().source;
             return;
         }
 

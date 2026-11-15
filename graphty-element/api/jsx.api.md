@@ -89,6 +89,7 @@ import { z } from 'zod';
 // @public
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
+    "accessible-node-list"?: boolean;
     // (undocumented)
     "aria-label"?: string;
     "attribution-offset"?: string;
@@ -112,6 +113,7 @@ export interface GraphtyElementJSXProps {
     "layout-2d"?: boolean;
     "layout-config"?: string;
     "layout-scope"?: string;
+    "minimap-label"?: string;
     "node-data"?: string;
     "node-id-path"?: string;
     "node-label-path"?: string;
@@ -206,6 +208,10 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
     // (undocumented)
+    "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    // (undocumented)
+    "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
+    // (undocumented)
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     // (undocumented)
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
@@ -256,6 +262,7 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     // (undocumented)
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
+    "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     // (undocumented)
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
@@ -267,6 +274,8 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
     // (undocumented)
+    "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
+    // (undocumented)
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
@@ -276,6 +285,7 @@ export interface GraphtyElementJSXProps {
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
     "pixel-ratio"?: string;
     "position-scale"?: string;
+    "reduced-motion"?: string;
     "render-on-demand"?: boolean;
     "render-path"?: string;
     "repeated-edges"?: string;
@@ -285,6 +295,9 @@ export interface GraphtyElementJSXProps {
     "zoom-to-pointer"?: boolean;
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    accessibleAnnouncement?: Graphty["accessibleAnnouncement"];
+    accessibleDescription?: Graphty["accessibleDescription"];
+    accessibleNodeList?: Graphty["accessibleNodeList"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     antialias?: Graphty["antialias"];
     attributionOffset?: Graphty["attributionOffset"];
@@ -319,6 +332,8 @@ export interface GraphtyElementJSXProps {
     layoutScope?: Graphty["layoutScope"];
     lighting?: Graphty["lighting"];
     limits?: Graphty["limits"];
+    minimap?: Graphty["minimap"];
+    minimapLabel?: Graphty["minimapLabel"];
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];
@@ -329,6 +344,7 @@ export interface GraphtyElementJSXProps {
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     pixelRatio?: Graphty["pixelRatio"];
     positionScale?: Graphty["positionScale"];
+    reducedMotion?: Graphty["reducedMotion"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];
     renderPath?: Graphty["renderPath"];

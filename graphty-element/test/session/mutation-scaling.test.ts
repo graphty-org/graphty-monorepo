@@ -607,15 +607,6 @@ const CASES: readonly Case[] = [
         },
     },
     {
-        method: "StylesApi.restoreStartingRows",
-        growth: "linear",
-        prepare: (session) =>
-            Promise.resolve(async () => {
-                await session.styles.restoreStartingRows();
-                await session.styles.settled();
-            }),
-    },
-    {
         method: "StylesApi.deleteRow",
         growth: "linear",
         prepare: async (session) => {

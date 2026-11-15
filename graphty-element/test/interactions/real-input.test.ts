@@ -553,6 +553,8 @@ describe("the mouse", () => {
 
         it("a selected node's halo follows it while it is dragged, before the button is released", async () => {
             const element = await mounted(viewMode);
+            // Read by its gold, which nothing else here carries; the default ring is blue (#811).
+            element.graph.setSelectionStyle({ color: "#FFD700" });
             const from = at(element, "b");
             await click(element, from);
             await applied(element);

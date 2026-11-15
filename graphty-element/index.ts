@@ -44,8 +44,10 @@ import "./src/graphty-element";
 // =============================================================================
 // Core classes
 // =============================================================================
+export type { AccessibleAnnouncement, AccessibleGraphFacts, AccessibleSelection } from "./src/a11y/ScreenReader";
 export { Edge, type EdgeCapEnd } from "./src/Edge";
 // what `Edge.mesh` is for a line drawn as pattern elements, so a consumer can narrow it (issue #7127)
+export type { GraphOverview, OverviewOptions, OverviewRect } from "./src/camera/overview";
 export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
@@ -55,6 +57,7 @@ export type {
     GraphtyModelChangeDetail,
     GraphtyNoteChangeDetail,
     GraphtyRunChangeDetail,
+    GraphtySkyboxLoadedDetail,
 } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
 export type { PatternedLineMesh } from "./src/meshes/PatternedLineMesh";
@@ -338,6 +341,7 @@ export type {
     NodeGenericEvent,
     NodeHoverEvent,
     OperationCancelledEvent,
+    OverviewChangedEvent,
     RenderLostEvent,
     RenderRestoredEvent,
     StatsUpdateEvent,
@@ -404,7 +408,7 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // Video capture exports
 // =============================================================================
 export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
-export type { AnimationOptions, AnimationResult, CameraWaypoint } from "./src/video/VideoCapture";
+export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
 
 // Video capture estimation
 export type { CaptureEstimate } from "./src/video/estimation";

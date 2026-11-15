@@ -7,7 +7,13 @@
  * only place the answer can be right.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type NodeId, type U32 } from "@graphty/graph-format";
+import {
+    directedness as edgeDirectedness,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type NodeId,
+    type U32,
+} from "@graphty/graph-format";
 
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { arrayColumn, buildHistogram } from "./results/statistics";
@@ -340,8 +346,9 @@ function density(snapshot: GraphSnapshot, repeatedPairEdges: number): number {
 }
 
 /**
- * Whether the graph is directed, as a fact about the whole graph.
- * @param snapshot - the snapshot to read the frozen direction flag from
+ * Whether the graph is directed, as a fact about the whole graph: `"mixed"` when its edges carry
+ * graph-format's per-edge direction and some differ from the others.
+ * @param snapshot - the snapshot to read the direction from
  * @param directedConfig - the element's `data.directed` setting
  * @returns the tri-state a consumer renders
  */
@@ -353,7 +360,7 @@ function directedness(snapshot: GraphSnapshot, directedConfig: boolean | "auto")
         return "unknown";
     }
 
-    return snapshot.directed ? "directed" : "undirected";
+    return edgeDirectedness(snapshot);
 }
 
 /**

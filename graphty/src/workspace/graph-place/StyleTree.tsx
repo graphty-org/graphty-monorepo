@@ -600,7 +600,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                     void orNotice(store, `rename ${name}`, session.styles.renameRow(id, name));
                 }}
             />
-            <Footer session={session} store={store} />
+            <Footer store={store} />
         </>
     );
 }
@@ -709,29 +709,6 @@ function staleOf(session: GraphSession, row: StyleRow): StaleNote | null {
 }
 
 /**
- * Whether the tree lacks one of the starting rows (Everything, Selected, Hovered) while the
- * project draws them. TEMPORARY: it reads the element's template ids, which graphty-element does
- * not publish as a fact; owed there as a read of which starting rows are missing.
- * @param session - the element's session.
- * @returns true when Restore starting layers has something to restore.
- */
-function lacksStartingRows(session: GraphSession): boolean {
-    if (!session.config.startingRows) {
-        return false;
-    }
-    const present = new Set(
-        session.styles
-            .list()
-            .flatMap((layer) =>
-                layer.source.by === "template" && layer.source.templateId.startsWith("graphty:starting-")
-                    ? [layer.source.templateId]
-                    : [],
-            ),
-    );
-    return present.size < 3;
-}
-
-/**
  * Puts focus on a row of the style tree.
  * @param id - the row's id.
  */
@@ -762,13 +739,12 @@ function openGraphSettings(store: WorkspaceStore): void {
 }
 
 /**
- * The tree's footer: Graph settings, and Restore starting layers while a starting row is gone.
+ * The tree's footer: Graph settings.
  * @param props - Component props
- * @param props.session - the element's session
  * @param props.store - the chrome store
  * @returns The footer
  */
-function Footer({ session, store }: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element {
+function Footer({ store }: Readonly<{ store: WorkspaceStore }>): React.JSX.Element {
     return (
         <Stack gap={0} className="ws-style-tree-foot">
             <UnstyledButton
@@ -779,16 +755,6 @@ function Footer({ session, store }: Readonly<{ session: GraphSession; store: Wor
             >
                 <GLYPHS.settings size={14} aria-hidden /> Graph settings
             </UnstyledButton>
-            {lacksStartingRows(session) && (
-                <UnstyledButton
-                    className="ws-style-tree-foot-row cm-focus-inside"
-                    onClick={() => {
-                        void orNotice(store, "restore the starting layers", session.styles.restoreStartingRows());
-                    }}
-                >
-                    <GLYPHS.undo size={14} aria-hidden /> Restore starting layers
-                </UnstyledButton>
-            )}
         </Stack>
     );
 }

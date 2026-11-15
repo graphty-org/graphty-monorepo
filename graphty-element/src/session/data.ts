@@ -100,6 +100,7 @@ import {
     keyExpression,
     LABEL_COLUMNS,
     LOAD_ROLES,
+    type ReadSource,
     readSource,
 } from "./draft";
 import type { LaneStore } from "./GraphSession";
@@ -122,7 +123,8 @@ import { overRepresentedValues } from "./overRepresented";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
-import { failedEnd, HELD_KINDS, Ingest, progressSource } from "./project/ingest";
+import { columnsEligible, failedEnd, HELD_KINDS, Ingest, progressSource } from "./project/ingest";
+import { recordsSource, rowsView } from "./project/recordMap";
 import type { GraphRecord, GraphSlice, RunEntry, VisibilityState } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import { readableValues } from "./readable";
@@ -220,6 +222,7 @@ import type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemapOptions,
     RemoveSourceResult,
     ReplaceReport,
     ReplaceUnboundCode,
@@ -852,6 +855,12 @@ export class SessionData implements SessionDataApi {
      */
     private readonly kept = new Map<string, DataSourceInput>();
     private keptSerial = 0;
+    /**
+     * The rows a draft read from each source, so `remap` and `reloadSource` read a load again
+     * without opening its file or fetching its URL. ponytail: held as long as the source is,
+     * which `kept` never lets go of; drop rows of loads no longer listed if memory shows up.
+     */
+    private readonly reads = new WeakMap<DataSourceInput, ReadSource>();
     /** The loads whose rows carry each column, and what they were read from. */
     private columnSourcesMemo: {
         readonly described: readonly AttributeDescriptor[];
@@ -929,9 +938,9 @@ export class SessionData implements SessionDataApi {
     /**
      * Load a graph from column arrays, as one undoable step: the nodes, then the edges.
      * @param columns - The columns.
-     * @returns Settles once the rows are in the graph and drawn.
+     * @returns The load's report, once the rows are in the graph and drawn.
      */
-    async importColumns(columns: ImportColumnsInput): Promise<void> {
+    async importColumns(columns: ImportColumnsInput): Promise<LoadReport> {
         this.requireLive("importColumns");
         // A batched graph keeps the records it builds, so the slice keeps them as they are, not a copy.
         const [nodes, edges] = columnMutations(columns, this.pages.batched?.() === true);
@@ -949,6 +958,8 @@ export class SessionData implements SessionDataApi {
                 }),
             undefined,
         );
+        // The edge add seals a report even for no edges, so a report is always there.
+        return this.lastImport() as LoadReport;
     }
 
     /**
@@ -1094,7 +1105,33 @@ export class SessionData implements SessionDataApi {
     private edit(mutation: DataMutation): Promise<unknown> {
         checkMutation(mutation);
         const send = this.writes.applier();
-        return this.loadLine.edit(() => send(mutation), undefined);
+        const routed = this.throughColumns(mutation);
+        return this.loadLine.edit(() => send(routed), undefined);
+    }
+
+    /**
+     * Under `"batched"`, read an eligible add of records into columns, so the graph keeps no record
+     * object per row (row-renderer.md 4.6, stage 29); anything else goes as it came.
+     * @param mutation - The checked mutation.
+     * @returns The mutation to dispatch.
+     */
+    private throughColumns(mutation: DataMutation): DataMutation {
+        if ((mutation.kind !== "add-nodes" && mutation.kind !== "add-edges") || this.pages.batched?.() !== true) {
+            return mutation;
+        }
+
+        const { knownFields } = this.readConfig();
+        const edges =
+            mutation.kind === "add-edges"
+                ? {
+                      repeated: mutation.repeated ?? knownFields.repeatedEdges,
+                      weight: mutation.weight ?? knownFields.edgeWeightPath,
+                  }
+                : undefined;
+        const path = columnsEligible({ batched: true, records: mutation.records, edges });
+        return path.code === "PATH_COLUMNS"
+            ? { ...mutation, records: rowsView(recordsSource(mutation.records)) }
+            : mutation;
     }
 
     /**
@@ -1916,6 +1953,26 @@ export class SessionData implements SessionDataApi {
             (change) => this.writes.progress?.(change),
             this.pages.timeline?.() === true,
         );
+        this.reads.set(source, read);
+        return this.draftOf(source, read, options);
+    }
+
+    /**
+     * A draft over rows already read: what `prepare` hands back once it has read them.
+     * @param source - What the rows were read from.
+     * @param read - The rows.
+     * @param options - As `prepare` takes them.
+     * @param options.signal - Abandons reading the file's styles.
+     * @param options.onto - `"graph"` holds the rows as a table to join onto the graph.
+     * @param options.guess - How the roles are guessed.
+     * @returns The draft.
+     */
+    private async draftOf(
+        source: DataSourceInput,
+        read: ReadSource,
+        options: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" } = {},
+    ): Promise<Draft> {
+        this.draft?.dispose();
         // With the file styles experiment off a draft does not say what styles the file carries.
         const styles = this.pages.fileStyles?.() === false ? null : await draftStyles(read, options.signal);
         const draft = new Draft(
@@ -3290,7 +3347,9 @@ export class SessionData implements SessionDataApi {
         // The command a draft of the copy would load, held back here: its rows are the copy's rows.
         let captured: DataImportCommand | undefined;
         let config: SessionCommand | undefined;
-        const draft = await this.prepare(source);
+        // Rows a draft already read from this very source are read as they are, with no I/O.
+        const read = this.reads.get(source);
+        const draft = read === undefined ? await this.prepare(source) : await this.draftOf(source, read);
         await draft.loadVia((command) => {
             const steps = command.op === "batch" ? command.steps : [command];
             config = steps.find((step) => step.op === "config.set");
@@ -3691,6 +3750,40 @@ export class SessionData implements SessionDataApi {
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
         return this.afterLoads(() => this.reloadSourceNow(key, choices));
+    }
+
+    /**
+     * Change the column roles of a load, as one undoable step, reading its rows again from what
+     * the session already holds.
+     * @param options - The mapping, and the load (the only one when absent).
+     * @returns What was added, removed and changed.
+     */
+    async remap(options: RemapOptions): Promise<ReplaceReport> {
+        this.requireLive("remap");
+        const mapping = (options as Partial<RemapOptions> | undefined)?.mapping;
+        if (typeof mapping !== "object" || mapping === null) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "remap needs a mapping, as a load takes one.",
+                source: "data",
+                details: { reason: "no-mapping" },
+            });
+        }
+
+        return this.afterLoads(async () => {
+            const known = this.sources().map((each) => each.key);
+            const key = options.source ?? (known.length === 1 ? known[0] : undefined);
+            if (key === undefined) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: "The graph holds more than one load (or none): name the one to re-map.",
+                    source: "data",
+                    details: { reason: "which-source", known },
+                });
+            }
+
+            return await this.reloadSourceNow(key, { mapping });
+        });
     }
 
     /**
@@ -4481,8 +4574,9 @@ export class SessionData implements SessionDataApi {
      * @returns degree, and on a directed graph in-degree and out-degree
      */
     structureValues(): readonly StructureValue[] {
-        // In and out degree only on a directed graph, where they differ from degree.
-        return this.statistics().directedness === "directed"
+        // In and out degree only when some edge is directed, where they differ from degree.
+        const { directedness } = this.statistics();
+        return directedness === "directed" || directedness === "mixed"
             ? STRUCTURE_VALUES
             : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
     }
@@ -4518,7 +4612,7 @@ export class SessionData implements SessionDataApi {
 
         return readableValues({
             snapshot,
-            directed: this.statistics().directedness === "directed",
+            directed: ["directed", "mixed"].includes(this.statistics().directedness),
             attributes: this.attributes(),
             declarationOf: (column) => declarations.get(declarationKey(column)),
             runs,
@@ -6012,20 +6106,23 @@ function nodesJoinMade(load: LoadedSource, provenance: Provenance | undefined): 
 
 /**
  * The nodes a load added: for a join that adds elements, the nodes it made (its record's
- * `made`); for any other load, and a join recorded before `made`, every node it supplied.
+ * `made`); for any other load, every node it supplied but those the graph held before it that
+ * no load supplied (its provenance's `held`, issue #7708).
  * @param load - the load
  * @param provenance - what each load supplied
  * @returns the node ids, as provenance holds them
  */
 function nodesJoinAdded(load: LoadedSource, provenance: Provenance | undefined): readonly NodeId[] {
-    const supplied = provenance?.[load.key]?.nodes ?? [];
+    const entry = provenance?.[load.key];
+    const supplied = entry?.nodes ?? [];
     const made = load.join?.made;
-    if (made === undefined) {
-        return supplied;
+    if (made !== undefined) {
+        const ids = new Set(made.map(String));
+        return supplied.filter((id) => ids.has(String(id)));
     }
 
-    const ids = new Set(made.map(String));
-    return supplied.filter((id) => ids.has(String(id)));
+    const held = new Set((entry?.held ?? []).map(String));
+    return held.size === 0 ? supplied : supplied.filter((id) => !held.has(String(id)));
 }
 
 /**
@@ -6328,6 +6425,7 @@ export function headlessDataService(
         loadFailed: () => undefined,
         progress: (change) => dispatcher.services.progress?.(change),
         timeline: () => dispatcher.services.timeline?.() === true,
+        batched: () => dispatcher.services.batched?.() === true,
     });
 
     return {

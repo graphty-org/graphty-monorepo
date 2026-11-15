@@ -72,6 +72,8 @@ export function describeTasks(part: number, parts: number): void {
                     all.push(metrics);
                     recordMetrics(metrics, provider);
                     console.log(`[llm-regression] task ${JSON.stringify(metrics)}`);
+                    // A pass that used most of its turns is the next failure: its calls say why (#7412).
+                    console.log(`[llm-regression] calls ${task.id}\n${sent.join("\n") || "none"}`);
                     assert.isTrue(
                         metrics.success,
                         `${metrics.failure ?? ""}\ncalls:\n${sent.join("\n") || "none"}\nrefused: ${metrics.refusals.join(", ") || "none"}`,

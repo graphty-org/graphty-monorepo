@@ -73,6 +73,7 @@ import { PrimAlgorithm } from "../algorithms/PrimAlgorithm";
 import { SpectralClusteringAlgorithm } from "../algorithms/SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "../algorithms/StronglyConnectedComponentsAlgorithm";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config/OptionsSchema";
+import { withDescriptionIds } from "./options";
 import { optionsFromZod } from "./optionsFromZod";
 import type {
     AlgorithmDescriptor,
@@ -424,6 +425,7 @@ const WEIGHT_OPTION: OptionDescriptor = {
     type: "attribute",
     on: "edge",
     description: "The edge column read as the weight. Absent: the weight the graph was loaded with; null: none.",
+    descriptionId: "algorithm.weight",
 };
 
 /** The `weight` option of an algorithm whose weighted form is opt-in: absent, it reads none. */
@@ -431,6 +433,7 @@ const OPT_IN_WEIGHT_OPTION: OptionDescriptor = {
     ...WEIGHT_OPTION,
     default: null,
     description: "The edge column read as the weight. Absent or null: none, so every edge counts the same.",
+    descriptionId: "algorithm.weight.opt-in",
 };
 
 /** The built-in descriptors as written, before what is read from the classes is added. */
@@ -1190,7 +1193,10 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHOR
 
     return {
         ...descriptor,
-        options: weightMeaning === null ? descriptor.options : [...descriptor.options, weightOption],
+        options: withDescriptionIds(
+            `algorithm.${descriptor.key}`,
+            weightMeaning === null ? descriptor.options : [...descriptor.options, weightOption],
+        ),
         weightMeaning,
         scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph")
             ? "subgraph"

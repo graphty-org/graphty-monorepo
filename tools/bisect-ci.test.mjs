@@ -443,6 +443,41 @@ describe("runPoint", () => {
         assert.equal(calls.length, 2);
         assert.equal(await runArgs("no-such-shard-at-this-point", []), null);
     });
+
+    it("runs the files of a shard since split into parts in a part of its family", async () => {
+        // graphty-element-default became graphty-element-default-1 and -2 (#7849)
+        const [flag, shard, command] = await runArgs("graphty-element-default", ["graphty-element/test/x.test.ts"]);
+        assert.equal(flag, "--command");
+        assert.equal(shard, "graphty-element-default-1");
+        assert.match(command, /vitest run .*test\/x\.test\.ts'$/);
+        assert.doesNotMatch(command, /--shard/);
+        // a whole-shard run of a name that no longer exists is still none
+        assert.equal(await runArgs("graphty-element-default", []), null);
+    });
+
+    it("runs an LLM target under the point's own shard name at a point from before the split", () => {
+        const root = mkdtempSync(join(tmpdir(), "bisect-old-point-"));
+        try {
+            execFileSync("mkdir", ["-p", join(root, "tools")]);
+            writeFileSync(
+                join(root, "tools", "ci-test-matrix.mjs"),
+                'export const SHARDS = [{ shard: "graphty-element-default" }];\n',
+            );
+            const url = new URL("./bisect-ci.mjs", import.meta.url).href;
+            const out = execFileSync(
+                process.execPath,
+                [
+                    "--input-type=module",
+                    "-e",
+                    `const { runArgs } = await import(${JSON.stringify(url)}); console.log(JSON.stringify(await runArgs("llm-regression", ["test/ai/a.test.ts"])));`,
+                ],
+                { env: { ...process.env, BISECT_ROOT: root }, encoding: "utf8" },
+            );
+            assert.equal(JSON.parse(out)[1], "graphty-element-default");
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
 });
 
 describe("a point's time limit", () => {
@@ -464,7 +499,7 @@ describe("a point's time limit", () => {
     const threeShards = {
         lane: "ci",
         next: { confirm: true },
-        targets: ["graphty-element-default", "graphty-features-on-1", "graphty-features-on-2"].map((shard, i) => ({
+        targets: ["graphty-element-default-1", "graphty-features-on-1", "graphty-features-on-2"].map((shard, i) => ({
             id: `t${i}`,
             shard,
         })),

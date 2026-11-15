@@ -17,6 +17,9 @@ import { ok } from "./common";
 import { engineOptionsOf, enginesOf } from "./layout";
 import { SETTING_GROUPS, settingSchema } from "./project";
 
+/** The most entries one `describe` call takes. */
+const MAX_DESCRIBED = 8;
+
 /** What the catalog tool reads besides the catalog. */
 export interface CatalogSources {
     readonly catalog: CatalogView;
@@ -195,6 +198,7 @@ async function describe(
                     ...(entry.default === undefined ? {} : { default: entry.default }),
                     drawn: entry.renderable,
                     example: { action: "add", where: "all", values: { [entry.channel]: entry.default ?? null } },
+                    byData: { action: "encode", encode: { channel: entry.channel, attribute: "<attribute>" } },
                 },
             };
         }
@@ -295,17 +299,57 @@ export function catalogTool(sources: CatalogSources): ToolDefinition {
             name: "describe",
             summary: "options and an example",
             fields: {
-                kind: z.enum(CATALOG_KINDS).optional().describe("The entry's kind; needed only when a name has two."),
-                name: z.string().min(1).max(200).describe("The entry's name, as search returned it."),
+                kind: z.enum(CATALOG_KINDS).optional().describe("Needed only when a name has two kinds."),
+                name: z.string().min(1).max(500).describe("As search returned it; several: a,b,c."),
             },
             effect: "read",
             reaches: [{ door: "GraphSession.catalog" }, { door: "GraphSession.estimate" }],
             run: async ({ tx }, args) => {
-                const name = text(args.name);
-                const kind = (args.kind as CatalogKind | undefined) ?? kindOf(sources, name);
-                const { data, tool } = await describe(tx, sources, kind, name);
-                const load = sources.onDemand(tool) ? [tool] : [];
-                return { ...ok(data, load.length === 0 ? {} : { load }), load };
+                const kind = args.kind as CatalogKind | undefined;
+                const one = async (name: string): Promise<{ data: JsonObject; tool: string }> =>
+                    describe(tx, sources, kind ?? kindOf(sources, name), name);
+                // No catalog name has a comma, so "a,b,c" names several: a request naming several
+                // options costs one turn, not one per option (#7412).
+                const names = [
+                    ...new Set(
+                        text(args.name)
+                            .split(",")
+                            .map((name) => name.trim())
+                            .filter((name) => name.length > 0),
+                    ),
+                ];
+                if (names.length <= 1) {
+                    const { data, tool } = await one(names[0] ?? text(args.name));
+                    const load = sources.onDemand(tool) ? [tool] : [];
+                    return { ...ok(data, load.length === 0 ? {} : { load }), load };
+                }
+
+                if (names.length > MAX_DESCRIBED) {
+                    throw new ToolRefusal("AI_ARG_INVALID", {
+                        path: "name",
+                        expected: `at most ${String(MAX_DESCRIBED)} names`,
+                    });
+                }
+
+                // A name not found is a row with its refusal; the rest are still described.
+                const rows: JsonObject[] = [];
+                const tools = new Set<string>();
+                for (const name of names) {
+                    try {
+                        const { data, tool } = await one(name);
+                        rows.push(data);
+                        tools.add(tool);
+                    } catch (error) {
+                        if (!(error instanceof ToolRefusal)) {
+                            throw error;
+                        }
+
+                        rows.push({ name, code: error.code, params: error.params });
+                    }
+                }
+
+                const load = [...tools].filter((tool) => sources.onDemand(tool));
+                return { ...ok(rows, load.length === 0 ? {} : { load }), load };
             },
         },
     ];

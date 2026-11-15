@@ -1,6 +1,7 @@
 /**
  * A test that blocks its page is out of reach of every timer in that page: the file guard, in
- * vitest's own process, has to end the run and name the test (#5816). This is a real run in real
+ * vitest's own process, has to end the run and name the test (#5816). The fixture is a `bench*`
+ * project: a hung benchmark holds a test slot like any run, so it is ended the same way (#8032). This is a real run in real
  * Chromium, so it lives where Chromium is installed, not with the Node-only tool tests.
  */
 import { spawn } from "node:child_process";
@@ -29,7 +30,7 @@ function runBlockedPage(): Promise<{ code: number | null; output: string }> {
     });
 }
 
-it("ends a run whose page is blocked, with a failure naming the test", async () => {
+it("ends a bench run whose page is blocked, with a failure naming the test", async () => {
     const { code, output } = await runBlockedPage();
     assert.strictEqual(code, 1, output);
     assert.match(

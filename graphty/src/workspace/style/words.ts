@@ -2050,7 +2050,7 @@ export const CUSTOM_MODEL = {
     button: "Add custom model...",
     description: "Load a 3D model file or address into this project",
     address: "Model address",
-    chooseFiles: "Choose files",
+    chooseFile: "Choose file",
     chooseFolder: "Choose folder",
     cancelLoad: "Cancel load",
     /**

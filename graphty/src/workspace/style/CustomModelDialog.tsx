@@ -43,11 +43,15 @@ import { PartRow, RoleGlyph } from "./PartsPopover";
 import { useStillOpen } from "./useStillOpen";
 import { CUSTOM_MODEL, logUnexpected } from "./words";
 
-/** What the choosers and the drop target take, as graphty-element lists it. */
-const MODEL_EXTENSIONS = assetFileExtensions("model");
+/**
+ * What the file chooser takes, as graphty-element lists it: a model's own file or a .zip, never
+ * its parts, which the Files list asks for once the model is in (Safari greys out a part's
+ * extension, such as .mtl, that it has no file type for).
+ */
+const MODEL_MAIN_EXTENSIONS = assetFileExtensions("model", { parts: false });
 
 /** The model formats graphty-element draws, as graphty-element tells them: for the drop hint. */
-const MODEL_FORMATS = MODEL_EXTENSIONS.filter(
+const MODEL_FORMATS = MODEL_MAIN_EXTENSIONS.filter(
     (ext) => ext !== ".zip" && detectModelFormat({ filename: `model${ext}` })?.supported === true,
 );
 
@@ -447,7 +451,8 @@ function quietCounts(parts: readonly ModelPart[]): { substituted: number; skippe
 
 /**
  * The Load custom model dialog (node-models design 14): one file loader for a model's address, its
- * files, its folder, a .zip or a drop anywhere on the dialog; while it loads, graphty-element's
+ * own file (its parts are asked for after, in Files), its folder, a .zip or a drop of any files
+ * anywhere on the dialog; while it loads, graphty-element's
  * progress with Cancel load; once loaded, two columns: the name and the settings on the left (Color,
  * Animation for a model with clips, More options, and Files when a part needs an answer), and the
  * model drawn by graphty-element on the right with its rotate buttons and its Details table.
@@ -769,11 +774,10 @@ export function CustomModelDialog({
             status={shownLoad?.status}
             onCancel={busy ? cancelLoad : undefined}
             cancelLabel={CUSTOM_MODEL.cancelLoad}
-            multiple
             folder
             url
-            accept={MODEL_EXTENSIONS.join(",")}
-            label={CUSTOM_MODEL.chooseFiles}
+            accept={MODEL_MAIN_EXTENSIONS.join(",")}
+            label={CUSTOM_MODEL.chooseFile}
             folderLabel={CUSTOM_MODEL.chooseFolder}
             placeholder={CUSTOM_MODEL.address}
             defaultValue={address}

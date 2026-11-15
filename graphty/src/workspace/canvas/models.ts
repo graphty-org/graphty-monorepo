@@ -118,7 +118,8 @@ export function useModelDraw(
     const record = ref === undefined || sample !== undefined ? undefined : session?.assets.find(ref);
     const key =
         record !== undefined && (record.state === "accepted" || standIn)
-            ? JSON.stringify([ref, record.digest, size, style ?? null, attempt])
+            ? // The state too: a waiting model keeps its id and digest once its main file is picked.
+              JSON.stringify([ref, record.digest, record.state, size, style ?? null, attempt])
             : undefined;
     const [drawn, setDrawn] = useState<{
         readonly key: string;
@@ -130,7 +131,8 @@ export function useModelDraw(
             return undefined;
         }
         // Read back from the key, so a style object made anew on every render draws once.
-        const [asked, , side, values] = JSON.parse(key) as [
+        const [asked, , , side, values] = JSON.parse(key) as [
+            string,
             string,
             string,
             number,

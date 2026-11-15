@@ -7,6 +7,10 @@
  * record would undo the saving. A `Node`, once built, keeps its own record as `Node.data`.
  */
 
+import { INVALID_INDEX } from "@graphty/graph-format";
+
+import type { EdgeId, NodeId } from "../../catalog/types";
+import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { frozenRecord } from "./draft";
 import type { GraphRecord } from "./state";
 
@@ -149,14 +153,43 @@ export function plainRecords(records: readonly GraphRecord[]): PropertyDescripto
 }
 
 /**
+ * How a map's keys turn into counters, and back, so a run of rows can be held in an array by
+ * counter instead of one `Map` entry each (stage 127). `counterOf` answers -1 for a key with none.
+ */
+export interface DenseKeys<K> {
+    counterOf(key: K): number;
+    keyOf(counter: number): K;
+}
+
+/** A dense run may skip at most this many counters at once; a wider gap goes to the `Map`. */
+const MAX_GAP = 1024;
+
+/**
  * The graph slice's map of records by id. A record built from columns is stored as a number, its
  * place among the rows of every source this map was given, and built afresh on every `get` or
  * iteration; anything else is stored as it is, so a map no column record reaches is a plain `Map`.
+ *
+ * Under `"batched"` a writer may also start a dense run (row-renderer.md 4.6, stage 127): while
+ * every key written is a counter above every one held, values sit in an array by counter and the
+ * `Map` itself holds nothing, so a load of a million rows makes no `Map.set`. Any other write
+ * moves the run into the `Map` first, in order, so the map always answers as a `Map` does,
+ * insertion order included. A map whose writer never asks for a run is a plain `Map`.
  */
 export class RecordMap<K> extends Map<K, GraphRecord> {
     private readonly sources: RowSource[] = [];
     private readonly bases: number[] = [];
     private next = 0;
+    /** The dense run's values by counter less `first`, holes undefined; null when there is none. */
+    private dense: (GraphRecord | number | undefined)[] | null = null;
+    private first = 0;
+    private held = 0;
+
+    /**
+     * @param keys - How keys turn into counters, for a dense run; without it the map never starts one.
+     */
+    constructor(private readonly denseKeys?: DenseKeys<K>) {
+        super();
+    }
 
     /**
      * What to store for a record: its place when it was built from columns, else the record.
@@ -185,7 +218,7 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
      */
     heldRecords(): number {
         let held = 0;
-        for (const value of super.values()) {
+        for (const value of this.rawValues()) {
             if (typeof value !== "number") {
                 held++;
             }
@@ -195,13 +228,117 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
     }
 
     /**
+     * How many ids the `Map` itself holds as entries; the rest are in the dense run.
+     * @returns The count.
+     */
+    mapEntries(): number {
+        return super.size;
+    }
+
+    /**
      * Store a value `stored` gave.
      * @param key - The id.
      * @param value - The record or its place.
+     * @param dense - Whether an empty map may start a dense run with it (the `"batched"` writer).
      * @returns This map.
      */
-    put(key: K, value: GraphRecord | number): this {
+    put(key: K, value: GraphRecord | number, dense = false): this {
+        const counter = this.denseKeys === undefined ? -1 : this.denseKeys.counterOf(key);
+        if (this.dense === null) {
+            if (dense && counter >= 0 && super.size === 0) {
+                this.dense = [value];
+                this.first = counter;
+                this.held = 1;
+                return this;
+            }
+
+            return super.set(key, value as GraphRecord);
+        }
+
+        const at = counter - this.first;
+        if (counter >= 0 && at >= 0 && at < this.dense.length && this.dense[at] !== undefined) {
+            this.dense[at] = value;
+            return this;
+        }
+
+        if (counter >= 0 && at >= this.dense.length && at - this.dense.length <= MAX_GAP) {
+            while (this.dense.length < at) {
+                this.dense.push(undefined);
+            }
+
+            this.dense.push(value);
+            this.held++;
+            return this;
+        }
+
+        // A key a Map would put anywhere but last: hand the run to the Map, then write it there.
+        this.spill();
         return super.set(key, value as GraphRecord);
+    }
+
+    /** Move the dense run into the `Map`, in counter order, which is the order it was written. */
+    private spill(): void {
+        const { dense, denseKeys: keys } = this;
+        this.dense = null;
+        if (dense === null || keys === undefined) {
+            return;
+        }
+
+        dense.forEach((value, at) => {
+            if (value !== undefined) {
+                super.set(keys.keyOf(this.first + at), value as GraphRecord);
+            }
+        });
+    }
+
+    /**
+     * The value held for an id, as stored.
+     * @param key - The id.
+     * @returns The record or its place, or undefined.
+     */
+    private raw(key: K): GraphRecord | number | undefined {
+        if (this.dense === null) {
+            return super.get(key) as GraphRecord | number | undefined;
+        }
+
+        const at = (this.denseKeys as DenseKeys<K>).counterOf(key) - this.first;
+        return at >= 0 ? this.dense[at] : undefined;
+    }
+
+    /**
+     * Every id and value, as stored, in insertion order.
+     * @yields The entries.
+     */
+    private *rawEntries(): Generator<[K, GraphRecord | number]> {
+        const { dense, denseKeys: keys } = this;
+        if (dense === null) {
+            yield* super.entries() as Iterable<[K, GraphRecord | number]>;
+            return;
+        }
+
+        for (let at = 0; at < dense.length; at++) {
+            const value = dense[at];
+            if (value !== undefined) {
+                yield [(keys as DenseKeys<K>).keyOf(this.first + at), value];
+            }
+        }
+    }
+
+    /**
+     * Every value, as stored, in insertion order.
+     * @yields The values.
+     */
+    private *rawValues(): Generator<GraphRecord | number> {
+        if (this.dense === null) {
+            yield* super.values() as Iterable<GraphRecord | number>;
+            return;
+        }
+
+        for (const value of this.dense) {
+            if (value !== undefined) {
+                yield value;
+            }
+        }
     }
 
     /**
@@ -225,13 +362,79 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
     }
 
     /**
+     * How many ids it holds.
+     * @returns The count.
+     */
+    override get size(): number {
+        return this.dense === null ? super.size : this.held;
+    }
+
+    /**
+     * Store a record for an id.
+     * @param key - The id.
+     * @param value - The record.
+     * @returns This map.
+     */
+    override set(key: K, value: GraphRecord): this {
+        return this.put(key, value);
+    }
+
+    /**
+     * Whether it holds an id.
+     * @param key - The id.
+     * @returns True when it does.
+     */
+    override has(key: K): boolean {
+        return this.dense === null ? super.has(key) : this.raw(key) !== undefined;
+    }
+
+    /**
+     * Forget an id.
+     * @param key - The id.
+     * @returns True when it was held.
+     */
+    override delete(key: K): boolean {
+        if (this.dense === null) {
+            return super.delete(key);
+        }
+
+        const at = (this.denseKeys as DenseKeys<K>).counterOf(key) - this.first;
+        if (at < 0 || this.dense[at] === undefined) {
+            return false;
+        }
+
+        this.dense[at] = undefined;
+        if (--this.held === 0) {
+            this.dense = null;
+        }
+
+        return true;
+    }
+
+    /** Forget every id. */
+    override clear(): void {
+        this.dense = null;
+        super.clear();
+    }
+
+    /**
      * The record for an id, built from columns when held as its place.
      * @param key - The id.
      * @returns The record, or undefined.
      */
     override get(key: K): GraphRecord | undefined {
-        const value = super.get(key) as GraphRecord | number | undefined;
+        const value = this.raw(key);
         return value === undefined ? undefined : this.resolve(value);
+    }
+
+    /**
+     * Every id, in insertion order.
+     * @yields The ids.
+     */
+    override *keys(): MapIterator<K> {
+        for (const [key] of this.rawEntries()) {
+            yield key;
+        }
     }
 
     /**
@@ -239,7 +442,7 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
      * @yields The entries.
      */
     override *entries(): MapIterator<[K, GraphRecord]> {
-        for (const [key, value] of super.entries()) {
+        for (const [key, value] of this.rawEntries()) {
             yield [key, this.resolve(value)];
         }
     }
@@ -249,7 +452,7 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
      * @yields The records.
      */
     override *values(): MapIterator<GraphRecord> {
-        for (const value of super.values()) {
+        for (const value of this.rawValues()) {
             yield this.resolve(value);
         }
     }
@@ -337,4 +540,35 @@ export function recordsSource(records: readonly object[]): RowSource {
             return Object.freeze(record);
         },
     };
+}
+
+/** A node id is its own counter when it is a non-negative safe integer number. */
+const NODE_KEYS: DenseKeys<NodeId> = {
+    counterOf: (id) => (typeof id === "number" && Number.isSafeInteger(id) && id >= 0 ? id : -1),
+    keyOf: (counter) => counter,
+};
+
+/** An edge id is the printing of its counter (`edgeIdOf`). */
+const EDGE_KEYS: DenseKeys<EdgeId> = {
+    counterOf: (id) => {
+        const counter = edgeCounterOf(id);
+        return counter === INVALID_INDEX ? -1 : counter;
+    },
+    keyOf: edgeIdOf,
+};
+
+/**
+ * An empty node map for the graph slice, able to hold a run of numbered ids densely.
+ * @returns The map.
+ */
+export function nodeRecordMap(): RecordMap<NodeId> {
+    return new RecordMap(NODE_KEYS);
+}
+
+/**
+ * An empty edge map for the graph slice, able to hold a run of edge counters densely.
+ * @returns The map.
+ */
+export function edgeRecordMap(): RecordMap<EdgeId> {
+    return new RecordMap(EDGE_KEYS);
 }

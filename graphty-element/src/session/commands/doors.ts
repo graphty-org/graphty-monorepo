@@ -2739,6 +2739,30 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             sourcesOf: READ,
             issues: READ,
             hiddenColumns: READ,
+            derivedColumns: READ,
+            // One op: the column's definition and the values it reads, as one step.
+            derive: {
+                kind: "dispatches",
+                op: "data.derive",
+                call: {
+                    kind: "call",
+                    args: ["doorDerived", "data.doorInput"],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-derive", doorInput: 2 }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "data.derive",
+                        columns: [{ kind: "node", name: "doorDerived", expression: "data.doorInput" }],
+                        nodes: [{ id: "door-derive", values: { doorDerived: 2 } }],
+                        edges: [],
+                        column: { kind: "node", name: "doorDerived" },
+                    },
+                ],
+            },
             // The fix's rows and the issue state it settles, as one batch.
             fix: {
                 kind: "dispatches",

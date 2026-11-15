@@ -69,12 +69,13 @@ describe("CredentialStore", () => {
     it("persists source credentials with the AI keys, and a new store restores both", async () => {
         const first = createCredentialStore();
         first.ai?.setKey("anthropic", "ai-key-123");
-        first.ai?.enablePersistence();
+        await first.ai?.enablePersistence();
         await first.remember(NEO4J, credentials.basic("neo4j", SECRET));
+        await first.ai?.ready();
 
         const second = createCredentialStore();
-        assert.strictEqual(second.ai?.getKey("anthropic"), "ai-key-123");
         const found = await second.lookup("neo4j", NEO4J.endpoint);
+        assert.strictEqual(second.ai?.getKey("anthropic"), "ai-key-123");
         assert.strictEqual(found?.kind, "basic");
         assert.strictEqual(found?.username, "neo4j");
         for (let i = 0; i < localStorage.length; i++) {
@@ -83,23 +84,27 @@ describe("CredentialStore", () => {
         }
     });
 
-    it("keeps remembered AI keys readable under the old storage key", () => {
+    it("keeps remembered AI keys readable under the old storage key", async () => {
         const before = new ApiKeyManager();
         before.setKey("google", "old-key-456");
-        before.enablePersistence();
+        await before.enablePersistence();
         assert.isNotNull(localStorage.getItem("@graphty-ai-keys:keys"));
 
         const store = new CredentialStore(new ApiKeyManager());
+        await store.ai?.ready();
         assert.strictEqual(store.ai?.getKey("google"), "old-key-456");
     });
 
     it("a second key manager on the same storage never erases the source credentials", async () => {
         const store = createCredentialStore();
-        store.ai?.enablePersistence();
+        await store.ai?.enablePersistence();
         await store.remember(NEO4J, credentials.basic("neo4j", SECRET));
+        await store.ai?.ready();
         // The AI manager's own key manager writes its keys too.
         const other = new ApiKeyManager();
+        await other.ready();
         other.setKey("openai", "k-1234567");
+        await other.ready();
         const reopened = createCredentialStore();
         assert.strictEqual((await reopened.lookup("neo4j", NEO4J.endpoint))?.kind, "basic");
     });
@@ -119,12 +124,14 @@ describe("CredentialStore", () => {
     it("a credential saved without a slot fills slot default, and is saved under it on first read", async () => {
         // Saved as a store did before credentials had slots: no slot on the entry.
         const before = createCredentialStore();
-        before.ai?.enablePersistence();
+        await before.ai?.enablePersistence();
         await before.remember(NEO4J, credentials.basic("neo4j", SECRET));
+        await before.ai?.ready();
         assert.isUndefined(before.list().find((info) => info.namespace === "source" && info.slot !== undefined));
 
         const reopened = createCredentialStore();
         assert.strictEqual((await reopened.lookup("neo4j", NEO4J.endpoint, "default"))?.username, "neo4j");
+        await reopened.ai?.ready();
         const migrated = createCredentialStore();
         assert.strictEqual((await migrated.lookup("neo4j", NEO4J.endpoint, "default"))?.kind, "basic");
         assert.deepEqual(
@@ -151,7 +158,7 @@ describe("CredentialStore", () => {
     });
 
     it("works in memory when its key manager cannot load", async () => {
-        const store = new CredentialStore(Promise.reject(new Error("no encrypt-storage")));
+        const store = new CredentialStore(Promise.reject(new Error("cannot load")));
         await store.remember(NEO4J, credentials.apiKey({ header: "X-Key" }, SECRET));
         assert.isNull(store.ai);
         assert.strictEqual((await store.lookup("neo4j", NEO4J.endpoint))?.kind, "api-key");

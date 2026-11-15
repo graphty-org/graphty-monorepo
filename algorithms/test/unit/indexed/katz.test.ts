@@ -111,15 +111,16 @@ describe("indexed.katzCentrality", () => {
         }
     });
 
-    it("weighted: true scales a neighbour's contribution by the arc weight", () => {
+    it("reads the arc weights by default and scales a neighbour's contribution by them", () => {
         const g = new Graph({ directed: true });
         g.addEdge("u", "x", 3);
         g.addEdge("v", "y", 1);
         const s = checksummedSnapshot(g);
-        const weighted = katzCentrality(s, { weighted: true, normalized: false });
+        const weighted = katzCentrality(s, { normalized: false });
         // x gains 0.1 * 3 * 1, y gains 0.1 * 1 * 1, over the shared base of beta = 1.
         expect(weighted.scores[1] - 1).toBeCloseTo(3 * (weighted.scores[3] - 1), 12);
-        const unweighted = katzCentrality(s, { normalized: false });
+        expect([...katzCentrality(s, { weighted: true, normalized: false }).scores]).toEqual([...weighted.scores]);
+        const unweighted = katzCentrality(s, { weighted: false, normalized: false });
         expect(unweighted.scores[1]).toBeCloseTo(unweighted.scores[3], 12);
         s.validate({ checksum: true });
     });
@@ -127,19 +128,19 @@ describe("indexed.katzCentrality", () => {
     for (const { name, graph } of [...undirectedFixtures(), ...directedFixtures()]) {
         it(`agrees with the legacy katzCentrality on ${name}`, () => {
             const s = checksummedSnapshot(graph);
-            // Both sides run the same loop -- alpha * sum(neighbour scores) + beta, stopped by the
-            // largest single-node change -- so they differ only in the order the neighbours are summed
-            // in: the legacy side walks an insertion-ordered Map, the port walks a row sorted by node
-            // index. That is a floating-point difference, not an algorithmic one.
-            // Where the series does not converge, legacy returned the rescaled diverged vector and the
+            // Both sides run the same loop -- alpha * sum(neighbour scores) + beta, unweighted -- and differ in
+            // the order the neighbours are summed in (a floating-point difference) and in where they stop: the
+            // legacy side at the largest single-node change below the tolerance, the port at the summed change
+            // below tolerance times the summed size of the scores. Each stops within about 1e-5 of the fixed
+            // point. Where the series does not converge, legacy returned the rescaled diverged vector and the
             // port throws, so only the converged runs are compared.
             for (const options of [{}, { alpha: 0.05, beta: 0.5, normalized: false }]) {
-                const ported = katzOrError(s, options);
+                const ported = katzOrError(s, { ...options, weighted: false });
                 const legacy = legacyResult() as CentralityResult;
                 const expected = ported instanceof ConvergenceError ? [] : Object.keys(legacy);
                 for (const id of expected) {
                     const u = s.ids.indexOf(id);
-                    expect((ported as KatzResult).scores[u]).toBeCloseTo(legacy[id], 9);
+                    expect((ported as KatzResult).scores[u], `${name} ${id}`).toBeCloseTo(legacy[id], 4);
                 }
             }
             // Three passes: legacy returned whatever they reached; the port answers only a graph it

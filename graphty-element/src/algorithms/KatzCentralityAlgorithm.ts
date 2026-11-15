@@ -189,7 +189,15 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
                     tolerance,
                 },
                 run((dispatch, s) =>
-                    dispatch.katzCentrality(transposed ?? s, { alpha, beta, maxIterations, tolerance, normalized }),
+                    // Edge weights are not read (the caveat says so); @graphty/algorithms reads them by default.
+                    dispatch.katzCentrality(transposed ?? s, {
+                        alpha,
+                        beta,
+                        maxIterations,
+                        tolerance,
+                        normalized,
+                        weighted: false,
+                    }),
                 ),
             );
         } finally {

@@ -130,7 +130,8 @@ describe("engine-independent math in the seeded and iterative algorithms", () =>
             markov3: "905baa0b",
             "markov1.5": "a1695b5b",
             "markov2.5": "735e7233",
-            adamicAdar: "dda00115",
+            // each pair listed once (the 3.0 link prediction change), recorded from the branch before the det functions
+            adamicAdar: "81911519",
             spectral: "7d899f15",
             sync: "26f73179",
         });

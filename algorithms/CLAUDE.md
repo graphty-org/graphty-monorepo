@@ -13,7 +13,7 @@ frozen `@graphty/graph-format` snapshot.
 ```
 algorithms/
 |-- src/
-|   |-- index.ts           # The barrel: every algorithm at the top level, `indexed` (deprecated alias), the seam
+|   |-- index.ts           # The barrel: every algorithm at the top level, and the seam
 |   |-- indexed/           # The algorithms, one file per family, and the accelerator seam (accelerator.ts)
 |   |   `-- structures/    # Index-based heap and union-find the algorithms share
 |   |-- data-structures/   # PriorityQueue, UnionFind (general purpose, exported)
@@ -31,10 +31,9 @@ algorithms/
 `-- docs/                  # VitePress documentation (docs/guide/migrating-to-3.md maps every 2.x function)
 ```
 
-Every algorithm is a top-level export: `pageRank`, `dijkstra`, `louvain` and the rest. 2.x offered the same functions
-as the `indexed` namespace, which stays in 3.x as a deprecated alias (`indexed.pageRank === pageRank`) and goes in 4.0.
-`test/types/exports.test-d.ts` pins every exported function's signature, asserts that `indexed` holds exactly the same
-functions, and asserts that none of the 2.x id-keyed names (the `Graph` class, the Map-of-Maps functions, `CSRGraph`
+Every algorithm is a top-level export: `pageRank`, `dijkstra`, `louvain` and the rest. The `indexed` namespace 2.x
+and 3.x offered them under is gone in 4.0. `test/types/exports.test-d.ts` pins every exported function's signature,
+asserts that `indexed` is not exported, and asserts that none of the 2.x id-keyed names (the `Graph` class, the Map-of-Maps functions, `CSRGraph`
 and its helpers, `toSnapshot`) is exported.
 
 The id-keyed API of 2.x was removed in 3.0.0. What its functions returned is recorded in `test/golden/` (one gzipped

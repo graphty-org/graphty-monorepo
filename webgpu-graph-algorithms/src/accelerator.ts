@@ -302,7 +302,7 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
          * breadth-first route when every weight is one.
          * @param gs - the snapshot
          * @param source - the source node index
-         * @param o - the seam's `SsspOptions` (`cutoff`, `weights`)
+         * @param o - the seam's `SsspOptions` (`cutoff`, `weights`, `weighted`)
          * @returns dist, predArc and reachedCount (spec 3.3 line 831)
          */
         async sssp(gs: GraphSnapshot, source: number, o?: SsspOptions): Promise<GpuSsspResult> {
@@ -313,7 +313,7 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
          * Bellman-Ford on the device with negative-cycle detection (spec 8.4; P8-T13).
          * @param gs - the snapshot
          * @param source - the source node index
-         * @param o - the seam's `SsspOptions` (`cutoff`, `weights`)
+         * @param o - the seam's `SsspOptions` (`cutoff`, `weights`, `weighted`)
          * @returns dist, predArc, reachedCount and hasNegativeCycle (spec 3.3 line 832)
          */
         async bellmanFord(gs: GraphSnapshot, source: number, o?: SsspOptions): Promise<GpuBellmanFordResult> {
@@ -418,10 +418,10 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
         },
         /**
          * Boruvka's minimum spanning forest (design 8.5; P11-T4): the forest of the total edge order (weight, then
-         * edge index), which is the one `kruskalMST` accepts. The seam's per-arc `weights` override is refused when
-         * defined: the forest runs over the snapshot's own edge weights.
+         * edge index), which is the one `kruskalMST` accepts. The seam's per-arc `weights` override and `weighted:
+         * false` are refused: the forest runs over the snapshot's own edge weights.
          * @param gs - the snapshot
-         * @param o - the seam's `MstOptions`; `weights` refused when defined
+         * @param o - the seam's `MstOptions`; `weights` and `weighted: false` refused
          * @returns the forest's logical edge indices and its f64 total weight
          */
         async minimumSpanningTree(gs: GraphSnapshot, o?: MstOptions): Promise<GpuMstResult> {
@@ -430,6 +430,12 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
                 throw new WebGpuGraphError("E_UNSUPPORTED", "minimumSpanningTree: weights is not supported", {
                     option: "weights",
                     hint: "the spanning forest runs over the snapshot's own edge weights",
+                });
+            }
+            if (o?.weighted === false) {
+                throw new WebGpuGraphError("E_UNSUPPORTED", "minimumSpanningTree: weighted: false is not supported", {
+                    option: "weighted",
+                    hint: "the spanning forest runs over the snapshot's own edge weights; kruskalMST from @graphty/algorithms takes weighted: false",
                 });
             }
             return await minimumSpanningTree(ctx, gs);

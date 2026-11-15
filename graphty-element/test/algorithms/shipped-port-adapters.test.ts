@@ -151,7 +151,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
                     // authority link both ways: the reference runs over the undirected graph too.
                     const mode = fixture.directed === false ? "undirected" : "directed";
                     const s = referenceSnapshot(graph.getDataManager(), mode);
-                    const reference = hits(s, { normalized });
+                    const reference = hits(s, { weighted: false, normalized });
                     const hubs = byId(s, reference.hubs);
                     const authorities = byId(s, reference.authorities);
                     for (const [id, values] of published(graph, run)) {
@@ -176,7 +176,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
                     await run.run();
 
                     const s = referenceSnapshot(graph.getDataManager(), "undirected");
-                    const reference = byId(s, katzCentrality(s, { normalized, alpha: 0.05 }).scores);
+                    const reference = byId(s, katzCentrality(s, { weighted: false, normalized, alpha: 0.05 }).scores);
                     for (const [id, values] of published(graph, run)) {
                         assert.approximately(
                             values.value as number,
@@ -385,7 +385,7 @@ describe("the direction and endpoint options", () => {
 
         const inRun = new KatzCentralityAlgorithm(graph, { mode: "in" });
         await inRun.run();
-        const inReference = byId(directed, katzCentrality(directed).scores);
+        const inReference = byId(directed, katzCentrality(directed, { weighted: false }).scores);
         for (const [id, values] of published(graph, inRun)) {
             assert.approximately(
                 values.value as number,
@@ -399,7 +399,7 @@ describe("the direction and endpoint options", () => {
         const reversed = copyOf(directed, "reverse");
         const outRun = new KatzCentralityAlgorithm(graph, { mode: "out" });
         await outRun.run();
-        const outReference = byId(reversed, katzCentrality(reversed).scores);
+        const outReference = byId(reversed, katzCentrality(reversed, { weighted: false }).scores);
         for (const [id, values] of published(graph, outRun)) {
             assert.approximately(
                 values.value as number,

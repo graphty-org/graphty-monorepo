@@ -1,6 +1,7 @@
 import type { AdjacencyView, F32, F64, GraphSnapshot } from "@graphty/graph-format";
 
 import { checkNumber, checkWeights, ConvergenceError } from "../errors.js";
+import { readsWeights } from "./weights.js";
 
 /** Options of the index-based Katz centrality, matching the legacy `katzCentrality`. @public */
 export interface KatzOptions {
@@ -14,11 +15,15 @@ export interface KatzOptions {
     readonly beta?: number | undefined;
     /** Iteration cap; default 100. */
     readonly maxIterations?: number | undefined;
-    /** Convergence tolerance on the largest single-node change; default 1e-6. */
+    /**
+     * Convergence tolerance; default 1e-6. The run stops at the first iteration whose summed (L1) change over all
+     * nodes is below `tolerance` times the summed size of the scores (or is exactly 0), a change of `tolerance`
+     * relative to the whole vector at any node count, as webgpu-graph-algorithms' katzCentrality stops.
+     */
     readonly tolerance?: number | undefined;
     /** Rescale the scores to [0, 1] by min-max, as the legacy function does; default true. */
     readonly normalized?: boolean | undefined;
-    /** Weight a neighbour's contribution by the arc weight; default false. */
+    /** Weight a neighbour's contribution by the arc weight when the snapshot has weights; default true. */
     readonly weighted?: boolean | undefined;
 }
 
@@ -40,7 +45,7 @@ export interface KatzResult {
  * @param next - Receives the new scores
  * @param alpha - Attenuation factor
  * @param beta - Base score
- * @returns The largest single-node change
+ * @returns The summed (L1) change and the summed size of `next`
  */
 function katzStep(
     rev: AdjacencyView,
@@ -49,9 +54,10 @@ function katzStep(
     next: Float64Array,
     alpha: number,
     beta: number,
-): number {
+): { change: number; size: number } {
     const { rowPtr, colIdx } = rev;
-    let maxDiff = 0;
+    let change = 0;
+    let size = 0;
     for (let v = 0; v < next.length; v++) {
         let sum = 0;
         const end = rowPtr[v + 1];
@@ -59,12 +65,10 @@ function katzStep(
             sum += cur[colIdx[a]] * (weights === null ? 1 : weights[a]);
         }
         next[v] = alpha * sum + beta;
-        const diff = Math.abs(next[v] - cur[v]);
-        if (diff > maxDiff) {
-            maxDiff = diff;
-        }
+        change += Math.abs(next[v] - cur[v]);
+        size += Math.abs(next[v]);
     }
-    return maxDiff;
+    return { change, size };
 }
 
 /**
@@ -91,7 +95,7 @@ function minMaxNormalize(v: Float64Array): void {
 }
 
 /**
- * Refuse Katz options out of range, and NaN, infinite or negative weights when `weighted` is set.
+ * Refuse Katz options out of range, and NaN, infinite or negative weights when the run reads them.
  * @param s - The snapshot
  * @param o - Algorithm options
  * @internal
@@ -101,7 +105,7 @@ export function checkKatzOptions(s: GraphSnapshot, o: KatzOptions | undefined): 
     checkNumber("katzCentrality", "beta", o?.beta ?? 1, {});
     checkNumber("katzCentrality", "maxIterations", o?.maxIterations ?? 100, { min: 1, integer: true });
     checkNumber("katzCentrality", "tolerance", o?.tolerance ?? 1e-6, { above: 0 });
-    checkWeights("katzCentrality", o?.weighted === true ? s.weights : null);
+    checkWeights("katzCentrality", readsWeights(s, o?.weighted) ? s.weights : null);
 }
 
 /**
@@ -116,7 +120,7 @@ export function checkKatzOptions(s: GraphSnapshot, o: KatzOptions | undefined): 
  * @param o - Algorithm options
  * @returns The scores, the iteration count and the convergence flag
  * @throws RangeError (code `E_BAD_OPTION`) for an alpha, beta, maxIterations or tolerance out of range, or (code
- *   `E_BAD_WEIGHT`) for a NaN, infinite or negative weight when `weighted` is set
+ *   `E_BAD_WEIGHT`) for a NaN, infinite or negative weight when the run reads weights
  * @throws ConvergenceError when the cap is reached before the tolerance is met, as it is whenever alpha is too large
  * @public
  */
@@ -128,15 +132,15 @@ export function katzCentrality(s: GraphSnapshot, o: KatzOptions = {}): KatzResul
     const tol = o.tolerance ?? 1e-6;
     checkKatzOptions(s, o);
     const rev = s.reverse();
-    const weights = o.weighted === true ? rev.weights : null;
+    const weights = readsWeights(rev, o.weighted) ? rev.weights : null;
     let cur = new Float64Array(n).fill(beta);
     let next = new Float64Array(n);
     let it = 0;
     let converged = false;
     for (; it < maxIter && !converged; it++) {
-        const maxDiff = katzStep(rev, weights, cur, next, alpha, beta);
+        const { change, size } = katzStep(rev, weights, cur, next, alpha, beta);
         [cur, next] = [next, cur];
-        converged = maxDiff < tol;
+        converged = change < tol * size || change === 0;
     }
     if (!converged) {
         throw new ConvergenceError("katzCentrality", maxIter, tol);

@@ -15,7 +15,6 @@ import {
     type AlgorithmEntry,
     type AlgorithmInputKind,
     ALGORITHMS,
-    type WeightUse,
 } from "../../src/index.js";
 
 // A 4 x 5 grid (bipartite, so the matchings accept it). The weights change every weighted answer: the edges
@@ -52,9 +51,14 @@ function graph(directed: boolean, weighted: boolean): GraphSnapshot {
 
 const REQUIRED_OPTIONS: Readonly<Record<string, unknown>> = { k: 2, numClusters: 2 };
 
-/** Options an algorithm needs to answer on the weighted fixture: Katz diverges at its default alpha there. */
+/**
+ * Options an algorithm needs to answer on the weighted fixture: Katz diverges at its default alpha there, and
+ * eigenvector centrality's relative stop takes 128 passes on the weighted grid, whose light middle edges leave
+ * a small spectral gap.
+ */
 const FIXTURE_OPTIONS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     katzCentrality: { alpha: 0.02 },
+    eigenvectorCentrality: { maxIterations: 1000 },
 };
 
 /** One argument of each input kind, valid on the fixture; `nth` counts the node inputs before this one. */
@@ -111,12 +115,24 @@ function at(result: unknown, path: string): unknown {
     return path === "" ? result : path.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown>)[k], result);
 }
 
-const WEIGHT_RULES: Readonly<Record<WeightUse, readonly [boolean, boolean, boolean]>> = {
-    never: [true, true, true],
-    always: [false, false, false],
-    "by-default": [false, false, true],
-    "on-request": [true, true, false],
-};
+// The "never" algorithms that take no options object, so there is no `weighted` for them to refuse.
+const NO_OPTIONS = new Set([
+    "degrees",
+    "connectedComponents",
+    "weaklyConnectedComponents",
+    "kCoreDecomposition",
+    "triangleCount",
+    "hasCycle",
+]);
+
+function codeOf(fn: () => unknown): unknown {
+    try {
+        fn();
+    } catch (e) {
+        return (e as { code?: unknown }).code;
+    }
+    return undefined;
+}
 
 const entries = Object.entries(ALGORITHMS) as [string, AlgorithmEntry][];
 
@@ -206,11 +222,17 @@ describe("ALGORITHMS", () => {
                 expect(fingerprint(run(entry, weighted, extra))).toBe(fingerprint(run(entry, weighted, extra)));
                 return fingerprint(run(entry, weighted, extra)) === fingerprint(run(entry, plain, extra));
             };
-            // Whether the weighted and the unweighted graph give the same answer: with the default options, and
-            // with the `weighted` flag set the other way from the rule's default.
-            const [plainSame, flag, flaggedSame] = WEIGHT_RULES[entry.weights];
-            expect(same()).toBe(plainSame);
-            expect(same({ weighted: flag })).toBe(flaggedSame);
+            // One rule for every algorithm: weights are read when the graph has them and `weighted: false` turns
+            // them off; an algorithm that cannot use them refuses `weighted: true`.
+            if (entry.weights === "by-default") {
+                expect(same()).toBe(false);
+                expect(same({ weighted: false })).toBe(true);
+            } else {
+                expect(same()).toBe(true);
+                if (!NO_OPTIONS.has(entry.name)) {
+                    expect(codeOf(() => run(entry, weighted, { weighted: true }))).toBe("E_BAD_OPTION");
+                }
+            }
         });
 
         it(`returns ${entry.result} with per-element arrays [${entry.values.join(", ")}]`, () => {

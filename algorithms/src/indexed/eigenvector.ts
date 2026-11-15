@@ -1,6 +1,7 @@
 import type { F32, F64, GraphSnapshot, NumericVector } from "@graphty/graph-format";
 
 import { ConvergenceError, withCode } from "../errors.js";
+import { readsWeights } from "./weights.js";
 
 /** Options of the index-based eigenvector centrality, matching the legacy `eigenvectorCentrality`. @public */
 export interface EigenvectorOptions {
@@ -20,6 +21,11 @@ export interface EigenvectorOptions {
     readonly mode?: "in" | "out" | "total" | undefined;
     /** Starting value per node index; default 1 for every node. */
     readonly startVector?: F32 | F64 | undefined;
+    /**
+     * Weight each feeding arc by its weight when the snapshot has weights; default true. Weighted, parallel arcs
+     * between one pair add their weights; unweighted, a pair counts once however many arcs join it.
+     */
+    readonly weighted?: boolean | undefined;
 }
 
 /** Result of the index-based eigenvector centrality. @public */
@@ -35,6 +41,8 @@ export interface EigenvectorResult {
 interface Relation {
     readonly rowPtr: Uint32Array;
     readonly colIdx: Uint32Array;
+    /** The summed weight of each entry, or null when unweighted. */
+    readonly weights: F64 | null;
 }
 
 /**
@@ -45,8 +53,9 @@ interface Relation {
  * degree `d` puts eigenvalues near both `+sqrt(d)` and `-sqrt(d)`, and the larger shift keeps a star from
  * alternating slowly between them (a 50,000-node star stops in 14 passes, not 1,622).
  * The run stops when the change between passes is small relative to the vector, so the error left behind does
- * not grow with the node count. Each node's neighbours are
- * counted once however many parallel edges join them, as in the legacy neighbour sets. When the
+ * not grow with the node count. `A` holds the arc weights when the snapshot has them (the weights of parallel arcs
+ * added), and otherwise a 1 for each neighbour however many parallel edges join them, as in the legacy neighbour
+ * sets. When the
  * relation has no cycle (no arcs, or a directed acyclic graph) its matrix is nilpotent and every
  * score is exactly 0.
  * @param s - The snapshot
@@ -71,7 +80,7 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
         return { scores: x, iterations: 0, converged: true };
     }
     const mode = o.mode ?? "in";
-    const rel = feeders(s, mode);
+    const rel = feeders(s, mode, readsWeights(s, o.weighted));
     if (isAcyclic(rel, n)) {
         return { scores: x, iterations: 0, converged: true };
     }
@@ -82,7 +91,7 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
         }
     }
     scaleToUnitLength(x);
-    const shift = !s.directed || mode === "total" ? hubShift(rel.rowPtr, rel.colIdx) : 1;
+    const shift = !s.directed || mode === "total" ? hubShift(rel) : 1;
     const { it, converged } = powerIterate(rel, shift, x, maxIter, tol);
     if (!converged) {
         throw new ConvergenceError("eigenvectorCentrality", maxIter, tol);
@@ -140,33 +149,37 @@ function powerIterate(
  * @param raw - Overwritten with the next unscaled vector
  */
 function shiftedStep(rel: Relation, shift: number, x: F64, raw: F64): void {
-    const { rowPtr, colIdx } = rel;
+    const { rowPtr, colIdx, weights: w } = rel;
     for (let v = 0; v < x.length; v++) {
         let sum = shift * x[v];
         const end = rowPtr[v + 1];
         for (let a = rowPtr[v]; a < end; a++) {
-            sum += x[colIdx[a]];
+            sum += w === null ? x[colIdx[a]] : w[a] * x[colIdx[a]];
         }
         raw[v] = sum;
     }
 }
 
 /**
- * The identity shift of a symmetric relation: half the square root of the largest neighbour count, not counting a
- * self-loop, and at least 1 (networkx's `A + I`). A hub of `d` neighbours bounds the largest eigenvalue from below
- * by `sqrt(d)`, so the shift never outweighs it. Mirrored in webgpu-graph-algorithms' eigenvector centrality.
- * @param rowPtr - Row pointers
- * @param colIdx - Neighbour indices, each neighbour once per row
+ * The identity shift of a symmetric relation: half the square root of the largest sum of squared weights over a
+ * node's neighbours (its neighbour count when unweighted), not counting a self-loop, and at least 1 (networkx's
+ * `A + I`). Such a node bounds the largest eigenvalue from below by that square root, so the shift never outweighs
+ * it. Mirrored in webgpu-graph-algorithms' eigenvector centrality.
+ * @param rel - The relation, each neighbour once per row
  * @returns The shift
  */
-function hubShift(rowPtr: Uint32Array, colIdx: Uint32Array): number {
+function hubShift(rel: Relation): number {
+    const { rowPtr, colIdx, weights } = rel;
     let most = 0;
     for (let v = 0; v + 1 < rowPtr.length; v++) {
-        let d = rowPtr[v + 1] - rowPtr[v];
-        if (colIdx.subarray(rowPtr[v], rowPtr[v + 1]).includes(v)) {
-            d--;
+        let sum = 0;
+        for (let a = rowPtr[v]; a < rowPtr[v + 1]; a++) {
+            if (colIdx[a] !== v) {
+                const w = weights === null ? 1 : weights[a];
+                sum += w * w;
+            }
         }
-        most = Math.max(most, d);
+        most = Math.max(most, sum);
     }
     return Math.max(1, Math.sqrt(most) / 2);
 }
@@ -191,38 +204,109 @@ export function minMaxRescale(x: F64): void {
     }
 }
 
+/** The rows a feeding relation merges: `a`'s, and on a `"total"` relation `b`'s too (empty otherwise). */
+interface FeederRows {
+    readonly aRowPtr: Uint32Array;
+    readonly aColIdx: Uint32Array;
+    readonly aW: NumericVector | null;
+    readonly bRowPtr: Uint32Array;
+    readonly bColIdx: Uint32Array;
+    readonly bW: NumericVector | null;
+}
+
 /**
- * The feeding relation as a CSR with each neighbour once per row. Snapshot rows are sorted, so a
- * parallel arc is the previous entry repeated, and the `"total"` row is a merge of two sorted rows.
+ * Merge row `v` of the two sorted sources into `colIdx` from `k` on, each neighbour once, summing the weights of
+ * the arcs that join the pair.
+ * @param src - The two sources
+ * @param v - The row
+ * @param colIdx - Neighbour indices, written
+ * @param weights - Summed weights, written, or null when unweighted
+ * @param k - The first free entry
+ * @returns The first free entry after the row
+ */
+function mergeFeederRow(src: FeederRows, v: number, colIdx: Uint32Array, weights: F64 | null, k: number): number {
+    const { aRowPtr, aColIdx, aW, bRowPtr, bColIdx, bW } = src;
+    let i = aRowPtr[v];
+    const iEnd = aRowPtr[v + 1];
+    let j = bRowPtr[v];
+    const jEnd = bRowPtr[v + 1];
+    const rowStart = k;
+    while (i < iEnd || j < jEnd) {
+        if (j >= jEnd || (i < iEnd && aColIdx[i] <= bColIdx[j])) {
+            k = appendFeeder(colIdx, weights, rowStart, k, aColIdx[i], aW?.[i] ?? 1);
+            i++;
+        } else {
+            k = appendFeeder(colIdx, weights, rowStart, k, bColIdx[j], bW?.[j] ?? 1);
+            j++;
+        }
+    }
+    return k;
+}
+
+/**
+ * Append neighbour `u` to the row being merged, or add `w` to its weight when it is the previous entry repeated.
+ * @param colIdx - Neighbour indices, written
+ * @param weights - Summed weights, written, or null when unweighted
+ * @param rowStart - The row's first entry
+ * @param k - The first free entry
+ * @param u - The neighbour
+ * @param w - The arc's weight
+ * @returns The first free entry after the append
+ */
+function appendFeeder(
+    colIdx: Uint32Array,
+    weights: F64 | null,
+    rowStart: number,
+    k: number,
+    u: number,
+    w: number,
+): number {
+    if (k > rowStart && colIdx[k - 1] === u) {
+        if (weights !== null) {
+            weights[k - 1] += w;
+        }
+        return k;
+    }
+    colIdx[k] = u;
+    if (weights !== null) {
+        weights[k] = w;
+    }
+    return k + 1;
+}
+
+/**
+ * The feeding relation as a CSR with each neighbour once per row, and with `weighted` the summed weight of the arcs
+ * that join the pair. Snapshot rows are sorted, so a parallel arc is the previous entry repeated, and the `"total"`
+ * row is a merge of two sorted rows.
  * @param s - The snapshot
  * @param mode - Which arcs feed a node on a directed snapshot
- * @returns Row pointers and neighbour indices
+ * @param weighted - Whether to sum the arc weights
+ * @returns Row pointers, neighbour indices and weights
  */
-function feeders(s: GraphSnapshot, mode: "in" | "out" | "total"): Relation {
+function feeders(s: GraphSnapshot, mode: "in" | "out" | "total", weighted: boolean): Relation {
     const n = s.nodeCount;
     const a = !s.directed || mode === "out" ? s : s.reverse();
     // The second source of a "total" row; an empty row everywhere otherwise.
     const total = s.directed && mode === "total";
     const bRowPtr = total ? s.rowPtr : new Uint32Array(n + 1);
     const bColIdx = total ? s.colIdx : new Uint32Array(0);
+    const src: FeederRows = {
+        aRowPtr: a.rowPtr,
+        aColIdx: a.colIdx,
+        aW: weighted ? a.weights : null,
+        bRowPtr,
+        bColIdx,
+        bW: weighted && total ? s.weights : null,
+    };
     const rowPtr = new Uint32Array(n + 1);
     const colIdx = new Uint32Array(a.colIdx.length + bColIdx.length);
+    const weights = weighted ? new Float64Array(colIdx.length) : null;
     let k = 0;
     for (let v = 0; v < n; v++) {
-        let i = a.rowPtr[v];
-        const iEnd = a.rowPtr[v + 1];
-        let j = bRowPtr[v];
-        const jEnd = bRowPtr[v + 1];
-        const rowStart = k;
-        while (i < iEnd || j < jEnd) {
-            const u = j >= jEnd || (i < iEnd && a.colIdx[i] <= bColIdx[j]) ? a.colIdx[i++] : bColIdx[j++];
-            if (k === rowStart || colIdx[k - 1] !== u) {
-                colIdx[k++] = u;
-            }
-        }
+        k = mergeFeederRow(src, v, colIdx, weights, k);
         rowPtr[v + 1] = k;
     }
-    return { rowPtr, colIdx: colIdx.subarray(0, k) };
+    return { rowPtr, colIdx: colIdx.subarray(0, k), weights: weights?.subarray(0, k) ?? null };
 }
 
 /**

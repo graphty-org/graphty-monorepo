@@ -634,7 +634,7 @@ console.log(r.scores); // f32, index-aligned, L2-normalised
 | `alpha`         | `0.1`   | the attenuation per step. Convergence needs it below the reciprocal of the largest eigenvalue; the package checks only that it is finite |
 | `beta`          | `1`     | the constant every node is given each iteration                                                                                          |
 | `maxIterations` | `100`   | as above                                                                                                                                 |
-| `tolerance`     | `1e-6`  | as above                                                                                                                                 |
+| `tolerance`     | `1e-6`  | converged when the L1 change falls below `tolerance * nodeCount`; every score is at least `beta`                                         |
 | `weighted`      | `true`  | as above                                                                                                                                 |
 
 A run stops at the first pass whose summed (L1) change is below `tolerance` times the summed size of the pass,

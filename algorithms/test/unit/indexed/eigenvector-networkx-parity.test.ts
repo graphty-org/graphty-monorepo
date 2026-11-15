@@ -282,7 +282,7 @@ const FIXTURES: Record<string, { edges: [string, string, number?][]; expected: R
             "33": 0.37337121,
         },
     },
-    // Edge weights are not read by this package, as networkx's default `weight=None` does not read them.
+    // Edge weights are read, as networkx reads them with `weight="weight"`.
     weighted: {
         edges: [
             ["0", "1", 5],
@@ -292,7 +292,7 @@ const FIXTURES: Record<string, { edges: [string, string, number?][]; expected: R
             ["0", "2", 3],
             ["3", "4", 4],
         ],
-        expected: { "0": 0.53707676, "1": 0.40669315, "2": 0.53707676, "3": 0.47475035, "4": 0.17974951 },
+        expected: { "0": 0.62727673, "1": 0.50513432, "2": 0.42777052, "3": 0.35137859, "4": 0.2119167 },
     },
 };
 
@@ -315,6 +315,17 @@ describe("eigenvector centrality matches networkx", () => {
             }
         });
     }
+
+    it("ignores the weights under weighted: false, as networkx's default weight=None does", () => {
+        const centrality = eigenvectorCentrality(build(FIXTURES.weighted.edges), {
+            normalized: false,
+            weighted: false,
+        });
+        const expected = { "0": 0.53707676, "1": 0.40669315, "2": 0.53707676, "3": 0.47475035, "4": 0.17974951 };
+        for (const [node, value] of Object.entries(expected)) {
+            expect(Math.abs((centrality[node] ?? Number.NaN) - value)).toBeLessThan(1e-4);
+        }
+    });
 
     it("throws when the iteration cap is reached before the tolerance, as networkx does", () => {
         // networkx raises PowerIterationFailedConvergence here: a 30x30 grid needs far more than 20 passes.

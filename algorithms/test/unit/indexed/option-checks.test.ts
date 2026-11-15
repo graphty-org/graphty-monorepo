@@ -48,14 +48,16 @@ describe("checkNumber and checkWeights", () => {
 });
 
 describe("numeric options and weights are refused with a code", () => {
-    it("pageRank: a damping factor outside [0, 1] or NaN, and a NaN weight when weighted", () => {
+    it("pageRank: a damping factor outside [0, 1] or NaN, and a negative weight it reads", () => {
         const s = triangle(true);
         for (const dampingFactor of [1.5, -0.1, Number.NaN]) {
             expect(() => pageRank(s, { dampingFactor })).toThrow(badOption);
         }
         expect(() => pageRank(s, { tolerance: Number.NaN })).toThrow(badOption);
         expect(() => pageRank(triangle(true, -1), { weighted: true })).toThrow(badWeight);
-        expect(pageRank(triangle(true, -1)).converged).toBe(true);
+        // weights are read by default, so the default refuses them too; weighted: false ignores them
+        expect(() => pageRank(triangle(true, -1))).toThrow(badWeight);
+        expect(pageRank(triangle(true, -1), { weighted: false }).converged).toBe(true);
     });
 
     it("DeltaPageRank and PriorityDeltaPageRank: a NaN damping factor", () => {

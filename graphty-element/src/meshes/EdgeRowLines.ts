@@ -7,7 +7,7 @@ import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
 import type { RowTable } from "../render/RowTable";
-import { EdgeMesh } from "./EdgeMesh";
+import { EdgeMesh, lineWidthInWorldUnits } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import type { PulledLineBatch } from "./PulledLineBatch";
@@ -345,8 +345,8 @@ export class EdgeRowLines {
             () => rows.positionTexture,
             { route: "straight", lean: this.host.lean() },
         );
-        // as `Edge.pullLine` gives its piece the look: in 2D a world width
-        const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
+        // as `Edge.pullLine` gives its piece the look: a width in world units
+        const drawnWidth = lineWidthInWorldUnits(width);
         const piece = batch.acquire(drawnWidth);
         batch.setLook(piece, look.rgb, look.opacity, drawnWidth);
         batch.setRows(piece, source, target);

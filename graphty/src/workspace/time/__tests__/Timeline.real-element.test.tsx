@@ -93,16 +93,16 @@ async function pickField(column: string, row: "Edge time" | "Node time" = "Edge 
         name: `Add to ${row === "Edge time" ? "edge" : "node"} attributes`,
     });
     const entry = dataPlace().queryByRole("combobox", { name: row });
+    // A column that does not fit names how many of its values will not convert after its name.
+    const name = new RegExp(String.raw`^${column}(\s*[\d,]+ will not convert)?$`);
     if (entry === null) {
         await userEvent.click(plus);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name }));
     } else {
         await userEvent.click(entry);
+        await userEvent.click(await screen.findByRole("option", { name }));
     }
-    // A column that does not fit names how many of its values will not convert after its name.
-    await userEvent.click(
-        await screen.findByRole("option", { name: new RegExp(String.raw`^${column}(\s*[\d,]+ will not convert)?$`) }),
-    );
 }
 
 /**
@@ -316,13 +316,11 @@ describe("the timeline on the real element", () => {
         });
     });
 
-    it("keeps Results, Mode and Step through Show all time", async () => {
+    it("keeps the results rule, Mode and Step through Show all time", async () => {
         const { session } = await open();
         const dock = await designateSent(session);
-        await pickIn("Results", "Keep");
-        await userEvent.click(
-            within((await timeCard()).getByRole("radiogroup", { name: "Mode" })).getByText("Cumulative"),
-        );
+        await pickIn("When window moves", "Keep");
+        await userEvent.click(within((await timeCard()).getByRole("radiogroup", { name: "Mode" })).getByText("Grow"));
         await pickIn("Step", "Week");
         await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
         await waitFor(() => {
@@ -335,7 +333,7 @@ describe("the timeline on the real element", () => {
         });
         assert.deepInclude(session.time.settings, { results: "keep", mode: "cumulative", step: "week" });
         const card = await timeCard();
-        assert.equal(card.getByRole("combobox", { name: "Results" }).getAttribute("value"), "Keep");
+        assert.equal(card.getByRole("combobox", { name: "When window moves" }).getAttribute("value"), "Keep");
         assert.equal(card.getByRole("combobox", { name: "Step" }).getAttribute("value"), "Week");
     });
 
@@ -431,7 +429,7 @@ describe("the timeline on the real element", () => {
             place.getByRole("combobox", { name: "Time field" }),
             place.getByRole("combobox", { name: "Step" }),
             place.getByRole("radiogroup", { name: "Mode" }),
-            place.getByRole("combobox", { name: "Results" }),
+            place.getByRole("combobox", { name: "When window moves" }),
         ].map((control) => control.getBoundingClientRect().right);
         // One edge, to the subpixel a segmented track's border rounds to.
         assert.isBelow(Math.max(...rights) - Math.min(...rights), 1.5, `right edges ${rights.join(", ")}`);
@@ -784,7 +782,12 @@ describe("the Overview and the import of time", () => {
         });
         const card = await timeCard();
         card.getByRole("radiogroup", { name: "Zone" });
-        await userEvent.click(within(card.getByRole("radiogroup", { name: "Mode" })).getByText("Cumulative"));
+        // How a play moves the window has a section of its own, and says what each mode does.
+        const animation = card.getByRole("group", { name: "Animation", description: /^Slide moves .* Grow keeps/ });
+        const settings = card.getByRole("group", { name: "Time", description: /^When window moves: / });
+        assert.isNull(within(settings).queryByRole("radiogroup", { name: "Mode" }), "Mode is not a Time setting");
+        within(animation).getByRole("button", { name: "About Animation" });
+        await userEvent.click(within(within(animation).getByRole("radiogroup", { name: "Mode" })).getByText("Grow"));
         await waitFor(() => {
             assert.equal(session.time.settings.mode, "cumulative");
         });

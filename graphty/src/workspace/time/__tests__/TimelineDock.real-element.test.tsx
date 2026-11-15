@@ -15,7 +15,6 @@ import { page, userEvent } from "vitest/browser";
 import { openBy } from "../../../test/open";
 import { dragAcross, hoverOver, inBrowserZone, pinchFrom, pinchOver, tap, wheelOver } from "../../../test/real-pointer";
 import { pickSample } from "../../../test/samples-dialog";
-import { siteFeatures } from "../../../test/siteFeatures";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { formatCount } from "../../settings/numberFormat";
@@ -178,7 +177,6 @@ async function typeWindow(dock: HTMLElement, from: string, to: string): Promise<
 
 describe("the timeline dock on the real element", () => {
     beforeAll(async () => {
-        await siteFeatures(["timeline"]);
         await page.viewport(1366, 768);
     });
 
@@ -405,7 +403,7 @@ describe("the timeline dock on the real element", () => {
     });
 
     it("shows the whole timeline of a project opened after zooming another", async () => {
-        const saved = createGraphSession({ features: ["timeline"] });
+        const saved = createGraphSession();
         await saved.data.import({
             type: "csv",
             config: { data: "source,target,sent\nA,B,2031-01-01\nB,C,2031-01-09\n" },
@@ -882,9 +880,6 @@ describe("the timeline across a reload", () => {
         });
     }
 
-    beforeAll(async () => {
-        await siteFeatures(["timeline"]);
-    });
     beforeEach(forgetAutosave);
     afterEach(forgetAutosave);
 

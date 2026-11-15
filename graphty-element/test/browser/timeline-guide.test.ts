@@ -19,7 +19,7 @@ afterEach(() => {
 describe("the timeline guide's first example", () => {
     it("loads the CSV, and Play moves the window through the data", async () => {
         document.body.innerHTML = `
-            <graphty-element features="timeline" data-source="url" data-source-config='{"url": "${EMAILS}"}'
+            <graphty-element data-source="url" data-source-config='{"url": "${EMAILS}"}'
                 edge-time-path="data.sent"></graphty-element>
             <button id="play">Play</button>`;
         const steps: TimeStepEvent[] = [];

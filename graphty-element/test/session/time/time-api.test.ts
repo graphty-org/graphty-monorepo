@@ -1,19 +1,13 @@
-import { assert, beforeAll, describe, it, vi } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import { addSteps, alignTo, readInstant } from "../../../src/session/time/parse";
 import type { TimeStepEvent } from "../../../src/session/time/TimeApi";
 import { windowCount, windowNodeIds } from "../../helpers/time-window";
 import { type Harness, makeSession } from "../helpers";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const DAY = 86_400_000;
 const T0 = Date.UTC(2026, 0, 1);

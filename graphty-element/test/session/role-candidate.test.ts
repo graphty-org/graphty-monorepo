@@ -19,24 +19,15 @@ async function edges(csv: string): Promise<GraphSession> {
 }
 
 describe("data.roleCandidate", () => {
-    // The timeline is an experiment: the time tests set it, and the project's default comes back after.
     const projectDefault = pageDefaultFeatures();
     afterEach(() => {
         setDefaultFeatures(projectDefault);
     });
 
     it("names the edge column whose values read as time, most read first", async () => {
-        setDefaultFeatures(["timeline"]);
         const session = await edges("source,target,note,sent\nA,B,x,2026-01-01\nB,C,y,2026-01-02\n");
         assert.strictEqual(session.data.roleCandidate("edge", "time"), "sent");
         assert.isNull(session.data.roleCandidate("node", "time"));
-        session.dispose();
-    });
-
-    it("names no time with the timeline off", async () => {
-        setDefaultFeatures([]);
-        const session = await edges("source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\n");
-        assert.isNull(session.data.roleCandidate("edge", "time"));
         session.dispose();
     });
 

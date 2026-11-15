@@ -56,8 +56,7 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
-import type { FeatureId } from "../features/registry";
-import { type EnabledFeatures, featureOff, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
+import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { GraphtyLogger } from "../logging/GraphtyLogger";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
@@ -213,7 +212,7 @@ import { paintingOf, repaintFailure } from "./styles/StylesApi";
 import { drawsOutsideWindow } from "./styles/tree";
 import type { EdgeAgeFade } from "./time/ageFade";
 import { numericBound } from "./time/parse";
-import { createTimeApi, gatedTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
+import { createTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
 import { isTimeZone } from "./time/zone";
 import type {
     AccelerationControllerLike,
@@ -260,7 +259,7 @@ import {
     type FilterValueSource,
     type SessionVisibilityApi,
 } from "./visibility";
-import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
+import { type FilterRunResult, type TimeWindow } from "./visibility/filter";
 import type { SlideCounts } from "./visibility/slide";
 import { wholeGraph, type WholeSnapshot } from "./working/graphs";
 import { createWorkingGraph, type WorkingGraph } from "./working/view";
@@ -456,8 +455,6 @@ interface SessionParts {
     readonly visibility: SessionVisibilityApi;
     /** The timeline over the time window. */
     readonly time: TimeApi;
-    /** Whether the timeline experiment is on. */
-    readonly timelineOn: () => boolean;
     /** The working graph: the view of what is shown, which readers naming no scope read while on. */
     readonly working: WorkingGraph;
     /** Stops playback, for `dispose()`. */
@@ -549,23 +546,6 @@ function sharingIndexes(execute: RunExecutor, snapshot: () => GraphSnapshot, tok
 }
 
 /**
- * Whether a command does something only the timeline experiment applies.
- * @param command - The command.
- * @returns True for playback settings, a window that names the timeline's options, and a batch
- *   holding either.
- */
-function needsTimeline(command: SessionCommand): boolean {
-    if (command.op === "batch") {
-        return command.steps.some(needsTimeline);
-    }
-
-    return (
-        command.op === "visibility.playback" ||
-        (command.op === "visibility.window" && windowNeedsTimeline(command.window))
-    );
-}
-
-/**
  * A graph with no view attached.
  *
  * Build one with {@link createGraphSession} rather than with `new`: the factory is what settles
@@ -647,8 +627,6 @@ class Session implements ElementSession {
     private positionsView: SessionPositions | undefined;
     private hiddenView: SessionHidden | undefined;
     private readonly settledFeatures: () => EnabledFeatures;
-    /** Whether the timeline experiment is on, for a command that has no `session.time` to ask. */
-    private readonly timelineOn: () => boolean;
     /** See {@link SessionParts.working}. */
     private readonly working: WorkingGraph;
 
@@ -665,7 +643,6 @@ class Session implements ElementSession {
         this.data = parts.data;
         this.catalog = parts.catalog;
         this.settledFeatures = parts.features;
-        this.timelineOn = parts.timelineOn;
         this.working = parts.working;
         this.controller = parts.controller;
         this.ownedAcceleration = parts.ownedAcceleration;
@@ -967,10 +944,6 @@ class Session implements ElementSession {
             options?: DispatchOptions,
         ) => Promise<void>,
     ): CommandOutcome<C> {
-        if (needsTimeline(command) && !this.timelineOn()) {
-            return Promise.reject(featureOff("timeline", command.op)) as CommandOutcome<C>;
-        }
-
         if (
             command.op === "view.immersive" &&
             command.mode !== null &&
@@ -3078,24 +3051,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const requested = options.features ?? ((): undefined => undefined);
     const settleFeatures = (): EnabledFeatures => (settledFeatures ??= resolveFeatures(requested()));
     const ceilings = options.ceilings ?? new RenderLimits(true);
-    // Asked without settling, as an element's attributes may still be arriving, and on every
-    // timeline move: resolved again only when the ids asked for are a new array.
-    let askedFor: readonly string[] | null = null;
-    let askedOn: readonly FeatureId[] = [];
-    const featureOn = (id: FeatureId): boolean => {
-        if (settledFeatures !== undefined) {
-            return settledFeatures.enabled.includes(id);
-        }
-
-        const asked = requested() ?? pageDefaultFeatures();
-        if (asked !== askedFor) {
-            askedFor = asked;
-            askedOn = resolveFeatures(asked).enabled;
-        }
-
-        return askedOn.includes(id);
-    };
-    const timelineOn = (): boolean => featureOn("timeline");
     const fileStylesOn = (): boolean =>
         (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
     const runsOptions = options.runs ?? {};
@@ -3117,7 +3072,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
-    dispatcher.services.timeline = timelineOn;
     dispatcher.services.fileStyles = fileStylesOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
@@ -3279,8 +3233,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             // Read through calls: the timeline and the visibility are built below.
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
-            timeCandidates: () => (timelineOn() ? time.api.candidates() : []),
-            timeline: () => timelineOn(),
+            timeCandidates: () => time.api.candidates(),
             fileStyles: () => fileStylesOn(),
             batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
@@ -3526,7 +3479,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
     /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
     let timeInternals: TimeInternals | null = null;
-    const timeline = (): TimeInternals | null => (timelineOn() ? timeInternals : null);
+    const timeline = (): TimeInternals | null => timeInternals;
     const boundZone = (attribute: Path): string | undefined => timeline()?.boundZone(attribute);
     /** Told when the reader changes the selection by hand: the select conditions switch off. */
     let onHandSelection: (() => void) | null = null;
@@ -3542,7 +3495,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // Not behind the experiment: a saved window's bounds are instants of the parsed column.
         instants: (path: Path) => timeInternals?.instants(path) ?? null,
         boundZone,
-        timeline: timelineOn,
         components,
         dispatcher,
         dependencies,
@@ -3658,8 +3610,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             const data = dataNow();
             // A run over the visible graph records the time window it was computed in.
-            const bounds =
-                spec === "visible" && timelineOn() ? windowBoundsOf(visibility.window, boundZone) : undefined;
+            const bounds = spec === "visible" ? windowBoundsOf(visibility.window, boundZone) : undefined;
             // How much the window held: the timeline's count, never a narrowing of the scope.
             const inside = bounds === undefined || bounds === null ? null : visibility.windowCounts();
             const window =
@@ -3679,7 +3630,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         dataDigest: () => dataNow(),
         defaultWeight: () => data.weightKey(),
         acceptedDigest: (id: RunId, ranOn: string) => timeline()?.acceptedDigest(id, ranOn),
-        timeline: timelineOn,
         windowNow: () => windowBoundsOf(visibility.window, boundZone),
         acceptedWindow: (id: RunId) => timeline()?.acceptedWindow(id),
         setName: (id: SetId) => sets.get(id)?.name,
@@ -3810,11 +3760,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
     });
 
-    const readableZone = (zone: string | null | undefined): string | null =>
-        timelineOn() && isTimeZone(zone) ? zone : null;
+    const readableZone = (zone: string | null | undefined): string | null => (isTimeZone(zone) ? zone : null);
     const time = createTimeApi({
         snapshot,
-        timeline: timelineOn,
         workingGraph: () => working.enabled,
         token: () => dispatcher.state.graph.token,
         rewrites: () => dispatcher.graph.rewrites,
@@ -4906,8 +4854,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
             fileStyles: fileStylesOn,
-            // The timeline experiment gates detection, as `session.time.candidates()` is gated.
-            timeCandidates: () => (timelineOn() ? time.api.candidates() : []),
+            timeCandidates: () => time.api.candidates(),
             query: {
                 unresolvedPathsOf: (where) => engine.unresolvedPathsOf(where),
                 answerablePaths: () => [
@@ -4917,7 +4864,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
         }),
         features: settleFeatures,
-        timelineOn,
         readProject,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
@@ -4931,11 +4877,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         journal,
         selection,
         visibility,
-        time: gatedTimeApi(time.api, timelineOn),
+        time: time.api,
         stopTime: () => {
             time.internals.dispose();
         },
-        edgeAges: () => (timelineOn() ? time.internals.edgeAges() : null),
+        edgeAges: () => time.internals.edgeAges(),
         styles,
         stopStyleEdits: () => {
             teardown.abort(new DOMException("The session was disposed.", "AbortError"));

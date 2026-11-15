@@ -229,16 +229,9 @@ function isYearLike(type: AttributeType, accumulator: Accumulator): boolean {
  * @param kind - whether it was found on nodes or on edges
  * @param accumulator - what the walk saw
  * @param total - how many records of that kind there are
- * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptor
  */
-function describe(
-    name: string,
-    kind: "node" | "edge",
-    accumulator: Accumulator,
-    total: number,
-    readDates: boolean,
-): AttributeDescriptor {
+function describe(name: string, kind: "node" | "edge", accumulator: Accumulator, total: number): AttributeDescriptor {
     const settled = settleType(accumulator.types);
     const numeric = settled === "number" || settled === "integer";
     const type = settled === "string" && isCategorical(accumulator, total) ? "category" : settled;
@@ -254,7 +247,7 @@ function describe(
         ...(accumulator.present === 0
             ? {}
             : {
-                  measurement: inferMeasurement(settled, readDates ? accumulator : undefined),
+                  measurement: inferMeasurement(settled, accumulator),
                   measurementSource: "inferred" as const,
               }),
         origin: "imported",
@@ -294,18 +287,16 @@ function newAccumulator(): Accumulator {
  * @param rows - the rows
  * @param kind - whether they will be nodes or edges
  * @param order - column names to list first, in this order, even when no row carries a value
- * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptors
  */
 export function describeRows(
     rows: readonly Readonly<Record<string, unknown>>[],
     kind: "node" | "edge",
     order: readonly string[] = [],
-    readDates = true,
 ): readonly AttributeDescriptor[] {
     const found = walk(rows.length, (index) => rows[index]);
     const names = new Set([...order, ...found.keys()]);
-    return [...names].map((name) => describe(name, kind, found.get(name) ?? newAccumulator(), rows.length, readDates));
+    return [...names].map((name) => describe(name, kind, found.get(name) ?? newAccumulator(), rows.length));
 }
 
 /**
@@ -351,13 +342,11 @@ function walk(
  * @param records - where to read the attributes a record arrived with; null means the element
  *     holds none, which is what a session with no view sees until the store carries attribute
  *     columns of its own
- * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptors, node attributes first
  */
 export function describeAttributes(
     snapshot: GraphSnapshot,
     records: SessionRecordSource | null,
-    readDates = true,
 ): readonly AttributeDescriptor[] {
     if (records === null) {
         return Object.freeze([]);
@@ -372,11 +361,11 @@ export function describeAttributes(
 
     const described: AttributeDescriptor[] = [];
     for (const [name, accumulator] of nodes) {
-        described.push(describe(name, "node", accumulator, snapshot.nodeCount, readDates));
+        described.push(describe(name, "node", accumulator, snapshot.nodeCount));
     }
 
     for (const [name, accumulator] of edges) {
-        described.push(describe(name, "edge", accumulator, snapshot.edgeCount, readDates));
+        described.push(describe(name, "edge", accumulator, snapshot.edgeCount));
     }
 
     return Object.freeze(described);

@@ -120,8 +120,8 @@ async function addCondition(name: string): Promise<void> {
 }
 
 describe.each([
-    ["off", ["timeline"]],
-    ["on", ["timeline", "selection-workspace"]],
+    ["off", []],
+    ["on", ["selection-workspace"]],
 ])("the starting layers, selection workspace %s", (_state, features) => {
     beforeAll(async () => {
         await siteFeatures(features);

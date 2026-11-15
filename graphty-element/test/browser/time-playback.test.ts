@@ -5,18 +5,12 @@
  */
 import "../../src/graphty-element";
 
-import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { TimeStepEvent } from "../../session.js";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import type { ElementSession } from "../../src/session/types";
 import { windowNodeIds } from "../helpers/time-window";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const DAY = 86_400_000;
 const T0 = Date.UTC(2026, 0, 1);

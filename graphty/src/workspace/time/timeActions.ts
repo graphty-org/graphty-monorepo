@@ -20,15 +20,6 @@ import { countWords, instantWords, intervalOf, noticeOf, refusalWords, unitLabel
 export const PHONE_WIDTH = "(max-width: 720px)";
 
 /**
- * Whether the timeline experiment is on, as graphty-element reports it.
- * @param session - the element's session, or null.
- * @returns true when it is on.
- */
-export function timelineOn(session: GraphSession | null): boolean {
-    return session?.features.enabled.includes("timeline") === true;
-}
-
-/**
  * The unit the designated field reads numbers in.
  * @param session - the element's session.
  * @returns the unit.

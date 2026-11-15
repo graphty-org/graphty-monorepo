@@ -72,7 +72,6 @@ describe("the Data page's time suggestion", () => {
         ["a CSV file", DATED_CSV],
         ["a file whose format sets its roles", DATED_JSON],
     ] as const)("marks a timed column of %s, and choosing Time designates it after load", async ([, file]) => {
-        await siteFeatures(["timeline"]);
         const session = await openDatedFile(file);
         await screen.findByText(/timeline candidate/);
 

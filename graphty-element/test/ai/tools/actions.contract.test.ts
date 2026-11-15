@@ -154,8 +154,8 @@ const withTime = async (session: GraphSession): Promise<void> => {
     await session.time.ready;
     await session.time.window({ step: "year" });
 };
-/** A session with the timeline experiment on, which session.time needs. */
-const timeSession = (): Promise<GraphSession> => assistantSession(undefined, ["timeline"]);
+/** A session for the time actions. */
+const timeSession = (): Promise<GraphSession> => assistantSession();
 /** A condition to change. */
 const withCondition = (session: GraphSession): Promise<unknown> =>
     Promise.resolve(

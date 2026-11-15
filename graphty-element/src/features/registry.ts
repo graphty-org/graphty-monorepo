@@ -12,7 +12,6 @@
 export type FeatureId =
     | "assistant"
     | "data-management"
-    | "timeline"
     | "location-map"
     | "selection-workspace"
     | "cosmograph"
@@ -35,7 +34,6 @@ export interface FeatureDescriptor {
 export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // The graphty app's full-screen selection editor; graphty-element's selection API is not gated.
     { id: "selection-workspace", plainName: "Selection workspace", issue: 5805, since: "2026-11-04" },
-    { id: "timeline", plainName: "Timeline", issue: 300, since: "2026-11-04" },
     { id: "assistant", plainName: "Assistant", issue: 2000, since: "2026-11-04" },
     // The graphty app's use of batched drawing and the long-edge fade and blending options;
     // graphty-element's `renderPath`, edge styles and layout options are not gated.
@@ -50,4 +48,4 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */
-export const GRADUATED_FEATURES: readonly string[] = Object.freeze(["network-data"]);
+export const GRADUATED_FEATURES: readonly string[] = Object.freeze(["network-data", "timeline"]);

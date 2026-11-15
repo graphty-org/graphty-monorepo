@@ -38,33 +38,45 @@ function names(session: GraphSession): string[] {
     return session.styles.tree().map((row) => row.name);
 }
 
-it.each([
-    { features: [], timed: false },
-    { features: ["timeline"], timed: true },
-])("reopening kept work over the starting rows keeps each row once: %o", async ({ features, timed }) => {
-    const store = memoryAutosaveStore();
-    const first = sessionWithRuns(features);
-    const writer = new Autosaver({ key: KEY, session: first, store, clock: new FakeClock(), locks: new FakeLocks() });
-    await startingChoices(first);
-    await first.data.addNodes([
-        { id: "a", year: 2001 },
-        { id: "b", year: 2002 },
-    ]);
-    await first.data.addEdges([{ source: "a", target: "b" }]);
-    if (timed) {
-        await first.time.setField({ nodes: { start: "year" } });
-    }
-    await writer.flush();
-    const id = writer.status.entry ?? "";
-    const saved = names(first);
-    writer.stop();
-    assert.isAbove(saved.length, 0);
+it.each([{ timed: false }, { timed: true }])(
+    "reopening kept work over the starting rows keeps each row once: %o",
+    async ({ timed }) => {
+        const store = memoryAutosaveStore();
+        const first = sessionWithRuns();
+        const writer = new Autosaver({
+            key: KEY,
+            session: first,
+            store,
+            clock: new FakeClock(),
+            locks: new FakeLocks(),
+        });
+        await startingChoices(first);
+        await first.data.addNodes([
+            { id: "a", year: 2001 },
+            { id: "b", year: 2002 },
+        ]);
+        await first.data.addEdges([{ source: "a", target: "b" }]);
+        if (timed) {
+            await first.time.setField({ nodes: { start: "year" } });
+        }
+        await writer.flush();
+        const id = writer.status.entry ?? "";
+        const saved = names(first);
+        writer.stop();
+        assert.isAbove(saved.length, 0);
 
-    const second = sessionWithRuns(features);
-    const reader = new Autosaver({ key: KEY, session: second, store, clock: new FakeClock(), locks: new FakeLocks() });
-    await startingChoices(second);
-    await reader.restore(id, true);
+        const second = sessionWithRuns();
+        const reader = new Autosaver({
+            key: KEY,
+            session: second,
+            store,
+            clock: new FakeClock(),
+            locks: new FakeLocks(),
+        });
+        await startingChoices(second);
+        await reader.restore(id, true);
 
-    assert.deepStrictEqual(names(second), saved);
-    reader.stop();
-});
+        assert.deepStrictEqual(names(second), saved);
+        reader.stop();
+    },
+);

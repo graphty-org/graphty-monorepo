@@ -4424,9 +4424,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
             ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
             ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
-            ...(dispatcher.services.timeline?.() === true
-                ? { timelineHidden: config?.timelineHiddenLook ?? "hidden" }
-                : {}),
+            timelineHidden: config?.timelineHiddenLook ?? "hidden",
         });
         let stack = current();
         const added: RowParts[] = [];

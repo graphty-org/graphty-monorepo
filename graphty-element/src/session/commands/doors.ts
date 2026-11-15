@@ -3114,6 +3114,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
             },
             attributes: READ,
+            roleCandidate: READ,
             readableValues: READ,
             structureValues: READ,
             structureValue: READ,
@@ -3950,14 +3951,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
             ),
             restoreWindow: calls(
-                [{ attribute: "data.t", from: 0, to: 1 }, false],
+                [{ attribute: "data.t", from: 0, to: 1 }],
                 [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
             ),
             restorePlayback: calls(
                 [{ mode: "cumulative" }],
                 [{ op: "visibility.playback", playback: { mode: "cumulative" } }],
             ),
-            holdsInstants: READ,
             drawnMasks: READ,
             ghosting: READ,
             ghosted: READ,

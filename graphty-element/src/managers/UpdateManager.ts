@@ -364,20 +364,13 @@ export interface ViewMasks {
      */
     readonly ghost?: () => boolean;
     /**
-     * Whether the timeline experiment is on. Only with it on does a pass follow a mask by its
-     * changed rows; off, every pass is the walk it always was.
-     * @returns True while the experiment is on.
-     */
-    readonly timeline?: () => boolean;
-    /**
-     * Whether a time window is in force, read only while {@link ViewMasks.timeline} is on. While
-     * one is, the batches upload the slots a step wrote rather than whole buffers.
+     * Whether a time window is in force. While one is, the batches upload the slots a step wrote
+     * rather than whole buffers.
      * @returns True while a window is in force.
      */
     readonly timeWindow?: () => boolean;
     /**
-     * What edges fade by age with (the timeline's `ageFade`), read only while
-     * {@link ViewMasks.timeline} is on, once a frame.
+     * What edges fade by age with (the timeline's `ageFade`), read once a frame.
      * @returns The ages and the window, or null while nothing fades.
      */
     readonly ageFade?: () => EdgeAgeFade | null;
@@ -908,11 +901,11 @@ export class UpdateManager implements Manager {
 
     /**
      * Switch the scene's batches to uploading only what they wrote while a time window is in force.
-     * With the timeline off or no window, the switch was never touched and this writes nothing.
+     * With no window, the switch was never touched and this writes nothing.
      * @param masks - What the renderer reads.
      */
     private followTimeWindow(masks: ViewMasks): void {
-        const ranged = masks.timeline?.() === true && masks.timeWindow?.() === true;
+        const ranged = masks.timeWindow?.() === true;
         if (ranged !== this.rangedUploads) {
             this.rangedUploads = ranged;
             batchUploadFrames.rangedUploads(this.graphContext.getScene()).on = ranged;
@@ -921,12 +914,12 @@ export class UpdateManager implements Manager {
 
     /**
      * Hand the scene's lines the fade by age the session asks for: whether it is on, the edges'
-     * ages and the window the uniform carries. With the timeline off or the setting at 1 the
-     * state is never touched and every line keeps today's program.
+     * ages and the window the uniform carries. With the setting at 1 the state is never touched
+     * and every line keeps today's program.
      * @param masks - What the renderer reads.
      */
     private followAgeFade(masks: ViewMasks): void {
-        batchUploadFrames.edgeAges(this.graphContext.getScene()).track = masks.timeline?.() === true;
+        batchUploadFrames.edgeAges(this.graphContext.getScene()).track = true;
         if (!this.ageFadeOwed(masks)) {
             return;
         }
@@ -970,7 +963,7 @@ export class UpdateManager implements Manager {
      * @returns The fade, or null for none.
      */
     private static ageFadeOf(masks: ViewMasks): EdgeAgeFade | null {
-        return masks.timeline?.() === true ? (masks.ageFade?.() ?? null) : null;
+        return masks.ageFade?.() ?? null;
     }
 
     /**
@@ -1064,11 +1057,7 @@ export class UpdateManager implements Manager {
 
         // A time window's slide says which rows it moved, so a step costs those rows and not the
         // graph. Anything else that moved a mask answers null here and walks, as below.
-        const sameLook =
-            masks.timeline?.() === true &&
-            this.appliedAnything &&
-            showContext === this.appliedShowContext &&
-            ghost === this.appliedGhost;
+        const sameLook = this.appliedAnything && showContext === this.appliedShowContext && ghost === this.appliedGhost;
         const nodeRows = sameLook ? inRowOrder(nodeVisibility?.changedSince(this.appliedNodeVisibility) ?? null) : null;
         const edgeRows = sameLook ? inRowOrder(edgeVisibility?.changedSince(this.appliedEdgeVisibility) ?? null) : null;
 

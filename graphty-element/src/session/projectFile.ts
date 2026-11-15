@@ -86,7 +86,7 @@ import type {
 } from "./types";
 import { valueLabelOf } from "./valueLabels";
 import { CONDITIONS_VERSION, readSavedConditions } from "./visibility/conditions";
-import { assertVisibility, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
+import { assertVisibility, type TimeWindow } from "./visibility/filter";
 import type { SessionVisibilityApi } from "./visibility/VisibilityApi";
 import { wholeGraph } from "./working/graphs";
 
@@ -908,11 +908,6 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         visibility: {
             filter: visibility.filter,
             window: visibility.window,
-            // Written only for a window whose bounds are values, not instants: one set with the
-            // timeline off. A reader that ignores it reads them as instants.
-            ...(visibility.window === null || (visibility as SessionVisibilityApi).holdsInstants(visibility.window)
-                ? {}
-                : { windowRaw: true }),
             showContext: visibility.showContext,
             // Written only when there are steps, so a project without them saves as before. The
             // steps are the keep and exclude conditions, so an older reader hides the same.
@@ -925,10 +920,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
             ...(dispatcher.state.visibility.playback === undefined || dispatcher.state.visibility.playback === null
                 ? {}
                 : { playback: dispatcher.state.visibility.playback }),
-            // Written while the timeline is on: what lies outside the time window draws only as
-            // its style layers say, so an open never brings these layers "up to date" again
-            // (`outsideWindowLayers`). A file without it was saved before, or with the timeline off.
-            ...(dispatcher.services.timeline?.() === true ? { outsideByLayers: true } : {}),
+            // What lies outside the time window draws only as its style layers say, so an open
+            // never brings these layers "up to date" again (`outsideWindowLayers`). A file without
+            // it was saved before.
+            outsideByLayers: true,
             // Written only when a node is hidden from the drawing, so a project without saves as before.
             ...((dispatcher.state.visibility.hidden ?? []).length === 0
                 ? {}
@@ -1797,27 +1792,6 @@ interface Opening {
 }
 
 /**
- * What a project's session member holds that is kept as saved but does nothing with the timeline
- * off: playback settings and the options a saved window takes. A time role is not one: projects
- * had it before the timeline, and it stays and applies.
- * @param state - The `graphty-session` member.
- * @returns One `E_FEATURE_OFF` per part.
- */
-function timelineLeftOff(state: Record<string, unknown> | undefined): ProjectProblem[] {
-    const { visibility } = (state ?? {}) as {
-        visibility?: { playback?: unknown; window?: TimeWindow | null };
-    };
-    const window = visibility?.window ?? null;
-    const held: Record<string, unknown> = {
-        "visibility.playback": visibility?.playback,
-        "visibility.window": windowNeedsTimeline(window) ? window : null,
-    };
-    return Object.keys(held)
-        .filter((key) => held[key] !== undefined && held[key] !== null)
-        .map((key) => ({ code: "E_FEATURE_OFF", params: { feature: "timeline", key } }));
-}
-
-/**
  * Do one part, recording it as restored, or its failure as a problem rather than failing the open.
  * @param opening - The open.
  * @param slice - The part.
@@ -2227,10 +2201,7 @@ async function restoreVisibilityOf(
         }
 
         if (visibility.window !== null && visibility.window !== undefined) {
-            await (tx.visibility as SessionVisibilityApi).restoreWindow(
-                visibility.window as TimeWindow,
-                visibility.windowRaw === true,
-            );
+            await (tx.visibility as SessionVisibilityApi).restoreWindow(visibility.window as TimeWindow);
         }
 
         await readFilterConditions(opening, visibility, remap);
@@ -2239,10 +2210,11 @@ async function restoreVisibilityOf(
     await attempt(opening, "visibility", async () => {
         if (typeof visibility.playback === "object" && visibility.playback !== null) {
             // How what lies outside the window draws lives in the style layers now
-            // (`outsideWindowLayers`); with the timeline off the playback stays whole, as saved.
+            // (`outsideWindowLayers`).
             const { outside: _outside, ...playback } = visibility.playback as Record<string, unknown>;
-            const kept = timelineOn(tx) ? playback : visibility.playback;
-            await (tx.visibility as SessionVisibilityApi).restorePlayback(Object.keys(kept).length === 0 ? null : kept);
+            await (tx.visibility as SessionVisibilityApi).restorePlayback(
+                Object.keys(playback).length === 0 ? null : playback,
+            );
         }
 
         // Dispatched and awaited, not set through `showContext`, whose setter cannot hand back its
@@ -2253,15 +2225,6 @@ async function restoreVisibilityOf(
             await tx.execute({ op: "visibility.context", show });
         }
     });
-}
-
-/**
- * Whether the timeline experiment is on: with it off, every `session.time` member refuses.
- * @param tx - The transaction.
- * @returns True when it is on.
- */
-function timelineOn(tx: TransactionScope): boolean {
-    return tx.features.enabled.includes("timeline");
 }
 
 /**
@@ -2320,7 +2283,7 @@ function outsideSelector(selector: Selector): Selector {
 /**
  * Bring a timed project saved before what lies outside the time window had a state of its own up
  * to date: called only for a file without the session member's `outsideByLayers` mark, which every
- * save with the timeline on writes, so a layer a reader points at `"ghosted"` today is never
+ * save writes, so a layer a reader points at `"ghosted"` today is never
  * rewritten. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant
  * what lay outside the window, so they read `"outsideWindow"` now, and the saved `outside` (hidden
  * unless it says `"ghost"`; hidden when absent, as that was the default) is written to the style
@@ -2332,8 +2295,8 @@ async function outsideWindowLayers(
     tx: TransactionScope,
     visibility: Readonly<Record<string, unknown>> | undefined,
 ): Promise<void> {
-    // Saved since, or with the timeline off: its layers stay as saved.
-    if (visibility?.outsideByLayers === true || !timelineOn(tx) || tx.time.field === null) {
+    // Saved since: its layers stay as saved.
+    if (visibility?.outsideByLayers === true || tx.time.field === null) {
         return;
     }
 
@@ -3033,9 +2996,6 @@ export function projectOf(
             now: new Date().toISOString(),
         });
         problems.push(...loads.problems);
-        if (dispatcher.services.timeline?.() === false) {
-            problems.push(...timelineLeftOff(state));
-        }
         projectBoundary(session, "open");
         // After the boundary, which keeps the work it replaces under its own id; before anything
         // the project names is fetched, so the page's remembered hosts for it apply.

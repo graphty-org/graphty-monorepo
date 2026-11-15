@@ -417,37 +417,31 @@ describe("Workspace autosave with the real graphty-element", () => {
     });
 
     it("reopens this tab's timed work after a reload with exactly the style layers it had", async () => {
-        resetSiteConfig();
-        await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features: ["timeline"] }))}`);
-        try {
-            const first = mountWorkspace();
-            await openBy(first.store, () => pickSample(MARVEL.name));
-            const { element, session } = openedElement();
-            // The timeline gives the project its Timeline Hidden row, and the reader times the films
-            // by release: a time field read back on reopening once brought every starting row back
-            // beside the saved ones (issue #7843).
-            await session.time.setField({ edges: { start: "released" } });
-            assert.include(
-                session.styles.tree().map((row) => row.name),
-                "Timeline Hidden",
-            );
-            const rows = session.styles.tree().map((row) => row.name);
-            const layers = JSON.stringify(session.styles.list());
-            await leave(element, first.view);
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(MARVEL.name));
+        const { element, session } = openedElement();
+        // The timeline gives the project its Timeline Hidden row, and the reader times the films
+        // by release: a time field read back on reopening once brought every starting row back
+        // beside the saved ones (issue #7843).
+        await session.time.setField({ edges: { start: "released" } });
+        assert.include(
+            session.styles.tree().map((row) => row.name),
+            "Timeline Hidden",
+        );
+        const rows = session.styles.tree().map((row) => row.name);
+        const layers = JSON.stringify(session.styles.list());
+        await leave(element, first.view);
 
-            const second = mountWorkspace();
-            await openBy(second.store, () => Promise.resolve());
-            const reopened = openedElement();
-            assert.strictEqual(reopened.session.data.statistics().nodeCount, MARVEL.nodes);
-            assert.deepEqual(
-                reopened.session.styles.tree().map((row) => row.name),
-                rows,
-            );
-            assert.strictEqual(JSON.stringify(reopened.session.styles.list()), layers);
-            second.view.unmount();
-        } finally {
-            resetSiteConfig();
-        }
+        const second = mountWorkspace();
+        await openBy(second.store, () => Promise.resolve());
+        const reopened = openedElement();
+        assert.strictEqual(reopened.session.data.statistics().nodeCount, MARVEL.nodes);
+        assert.deepEqual(
+            reopened.session.styles.tree().map((row) => row.name),
+            rows,
+        );
+        assert.strictEqual(JSON.stringify(reopened.session.styles.list()), layers);
+        second.view.unmount();
     });
 
     it("keeps a rail click made while this tab's work reopens after a reload", async () => {

@@ -6,7 +6,7 @@
  * Every instant is UTC epoch milliseconds (or, for `unit: "ordinal"`, the plain number). A
  * date-time written with no offset is read in the zone the caller names, never the machine's local
  * time, so the same file gives the same timeline on every machine. With no zone named, strict text
- * reads in UTC and loose text as `Date.parse` reads it, which is how it reads with the timeline off.
+ * reads in UTC and loose text as `Date.parse` reads it.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -18,7 +18,6 @@ import { instantOfWall, UTC_ZONE, wallClock } from "./zone";
  * How numbers in a time column are read: epoch milliseconds, epoch seconds, calendar years (`1995`
  * is January 1, 1995 UTC; a fraction is that share of the year), or plain ordered numbers with no
  * calendar (a simulation step, a tick). Strings and dates ignore it.
- * @experimental timeline
  * @beta
  */
 export type TimeUnit = "ms" | "s" | "year" | "ordinal";
@@ -508,8 +507,7 @@ function readText(
     unit: TimeUnit,
     timeZone: string | undefined,
 ): { readonly at: number; readonly how: InstantReading } {
-    // With the timeline off nothing names a zone: `time.parse` passes none and the window bounds'
-    // zone is the timeline's, so text reads below as it did before zones.
+    // With no zone named, text reads below as it did before zones.
     if (timeZone !== undefined) {
         const exact = exactIso(value);
         if (!Number.isNaN(exact)) {

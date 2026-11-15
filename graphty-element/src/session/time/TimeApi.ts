@@ -17,7 +17,6 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, MeasurementDeclaration, NodeId, Path, RunId, Scope } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
-import { featureOff } from "../../features/resolve";
 import type { StylePatchCommand } from "../commands/style";
 import type { Dispatcher } from "../project/Dispatcher";
 import { RevisionCache } from "../revision";
@@ -93,7 +92,6 @@ export type { TimeMeasure, TimeSeries, TimeSeriesOptions, TimeSeriesRow } from "
 
 /**
  * One table's time column.
- * @experimental timeline
  * @beta
  */
 export interface TimeSource {
@@ -129,7 +127,6 @@ export interface TimeSource {
 /**
  * The designated time field: on nodes, on edges, or on both (then both name the same column).
  * Designating a column makes it a time column: its measurement reads `"time"`.
- * @experimental timeline
  * @beta
  */
 export interface TimeField {
@@ -139,7 +136,6 @@ export interface TimeField {
 
 /**
  * How {@link TimeApi.setField} designates a field.
- * @experimental timeline
  * @beta
  */
 export interface TimeFieldOptions {
@@ -153,7 +149,6 @@ export interface TimeFieldOptions {
 
 /**
  * How many elements of one kind have a usable time.
- * @experimental timeline
  * @beta
  */
 export interface TimeCounts {
@@ -167,14 +162,12 @@ export interface TimeCounts {
 
 /**
  * A notice about the values of a designated column.
- * @experimental timeline
  * @beta
  */
 export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect" | "time.age-fade-inactive";
 
 /**
  * What designating a field found.
- * @experimental timeline
  * @beta
  */
 export interface TimeFieldResult {
@@ -195,7 +188,6 @@ export interface TimeFieldResult {
 /**
  * The span of the data's time, half-open: `to` is just past the last instant. Open ends do not
  * stretch it: it runs over the finite bounds.
- * @experimental timeline
  * @beta
  */
 export interface TimeExtent {
@@ -208,7 +200,6 @@ export interface TimeExtent {
 /**
  * One histogram bar: elements whose instant is in `[start, end)`, or, for spans, the spans that
  * overlap it, so an element can count in many bars and twice in one.
- * @experimental timeline
  * @beta
  */
 export interface TimeBin {
@@ -222,7 +213,6 @@ export interface TimeBin {
 
 /**
  * What {@link TimeApi.bins} counts.
- * @experimental timeline
  * @beta
  */
 export interface TimeBinsOptions {
@@ -261,7 +251,6 @@ export interface TimeBinsOptions {
 
 /**
  * Node and edge ids.
- * @experimental timeline
  * @beta
  */
 export interface TimeIds {
@@ -271,7 +260,6 @@ export interface TimeIds {
 
 /**
  * What entered and left the window on the last move.
- * @experimental timeline
  * @beta
  */
 export interface TimeChanges {
@@ -281,7 +269,6 @@ export interface TimeChanges {
 
 /**
  * Node and edge counts.
- * @experimental timeline
  * @beta
  */
 export interface TimeCountPair {
@@ -291,7 +278,6 @@ export interface TimeCountPair {
 
 /**
  * What one move of the window did. Numbers only; the application writes the words.
- * @experimental timeline
  * @beta
  */
 export interface TimeStepEvent {
@@ -317,7 +303,6 @@ export interface TimeStepEvent {
  * A window as `time.window` takes it: the attribute defaults to the designated field, and a bound
  * left out keeps the current window's. With no window yet, `from` defaults to the start of the
  * data and `to` to one step after `from`, so `time.window({ step: "week" })` opens the first week.
- * @experimental timeline
  * @beta
  */
 export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
@@ -328,14 +313,12 @@ export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
 
 /**
  * How playback moves the window: both ends (`sliding`), or only the end (`cumulative`).
- * @experimental timeline
  * @beta
  */
 export type TimePlayMode = "sliding" | "cumulative";
 
 /**
  * What `time.play` takes. Each one given is also written onto the window, so it is saved.
- * @experimental timeline
  * @beta
  */
 export interface TimePlayOptions {
@@ -367,7 +350,6 @@ export interface TimePlayOptions {
 
 /**
  * How `session.time` moves windows: {@link TimePlayback} with every default filled in.
- * @experimental timeline
  * @beta
  */
 export interface TimeSettings {
@@ -393,14 +375,12 @@ export interface TimeSettings {
     /**
      * Fade by age: the opacity of edges at the window's first instant, rising to 1 at its end;
      * 1 (the default) draws no fade. See {@link TimePlayback.ageFade}.
-     * @experimental timeline
      */
     readonly ageFade: number;
 }
 
 /**
  * A column that reads as time, from {@link TimeApi.candidates}.
- * @experimental timeline
  * @beta
  */
 export interface TimeCandidate {
@@ -417,10 +397,7 @@ export interface TimeCandidate {
 }
 
 /**
- * The timeline: designate a time field, read its distribution, and move a window along it. It
- * needs `features="timeline"`: otherwise an action refuses with `E_FEATURE_OFF` and a read answers
- * as it does with no field designated.
- * @experimental timeline
+ * The timeline: designate a time field, read its distribution, and move a window along it.
  * @beta
  */
 export interface TimeApi {
@@ -501,7 +478,6 @@ export interface TimeApi {
      * @param of.incident - Whether the edges at the given nodes count too.
      * @returns The span of all their spans, `to` just past the last bound and an open bound held to
      *     {@link TimeApi.extent}'s, so it is always a usable window; null when none has a time.
-     * @throws `E_FEATURE_OFF` with the experiment off.
      */
     spanOf(of: {
         readonly nodes?: readonly NodeId[];
@@ -518,8 +494,7 @@ export interface TimeApi {
     /**
      * The window history and the project file hold (`visibility.window`). It stays put while a
      * smooth play or a `seek` with `commit: false` moves {@link TimeApi.current}; a stepped play
-     * records each window in the play's one history step, so it follows every step. Reading it with
-     * the experiment off throws `E_FEATURE_OFF`.
+     * records each window in the play's one history step, so it follows every step.
      */
     readonly committed: TimeWindow | null;
     /**
@@ -582,7 +557,6 @@ export interface TimeApi {
      * @returns A run resolving to the rows, one per window; it can be cancelled. It rejects with
      *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows or for a
      *     `from` or `to` that is not finite, and `E_BAD_COMMAND` (`reason: "measure"`) for a measure it does not have.
-     * @throws `E_FEATURE_OFF` with the experiment off.
      */
     series(options?: TimeSeriesOptions): Run<TimeSeries>;
     /**
@@ -621,8 +595,6 @@ export interface TimeApi {
 /** What `session.time` reads from the rest of the session. */
 export interface TimeSources {
     readonly snapshot: () => GraphSnapshot;
-    /** Whether the timeline experiment is on; absent reads on. */
-    readonly timeline?: () => boolean;
     /** Whether the working graph is on, so bins naming no scope count what the filter passes. */
     readonly workingGraph?: () => boolean;
     /** Moves on every write to the graph's rows or records. */
@@ -710,68 +682,6 @@ export interface TimeInternals {
 
 /** The elements a question names: the given ones, and with `incident` the edges at the given nodes. */
 type TimeElements = NonNullable<TimeBinsOptions["of"]>;
-
-/** The members of `session.time` that return a promise, so refuse by rejecting it. */
-const REJECTING_MEMBERS: ReadonlySet<keyof TimeApi> = new Set<keyof TimeApi>([
-    "setField",
-    "setSettings",
-    "stepBy",
-    "seek",
-    "commit",
-]);
-
-/**
- * `session.time` behind its experiment. While it is off an action refuses with `E_FEATURE_OFF`
- * (the ones returning a promise read as a function that rejects, the rest throw when read) and a
- * read gives the answer it gives with nothing designated, so a consumer's display needs no check.
- * `parse` stays open: it reads text and touches no timeline, and date conditions rely on it.
- * Asked per member, because an element's session settles its features only when it first renders.
- * @param api - The timeline.
- * @param on - Whether the experiment is on now.
- * @returns The gated timeline.
- */
-export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
-    const nothing: Partial<TimeApi> = {
-        field: null,
-        current: null,
-        atStart: false,
-        atEnd: false,
-        playing: false,
-        timeZone: UTC_ZONE,
-        settings: DEFAULT_TIME_SETTINGS,
-        mode: DEFAULT_TIME_SETTINGS.mode,
-        interval: DEFAULT_INTERVAL,
-        ready: Promise.resolve(),
-        extent: () => null,
-        bins: () => null,
-        candidates: () => [],
-        notices: () => [],
-        changes: () => NO_CHANGES,
-    };
-    const gated = {} as TimeApi;
-    for (const key of Object.keys(api) as (keyof TimeApi)[]) {
-        Object.defineProperty(gated, key, {
-            get: () => {
-                if (key !== "parse" && !on()) {
-                    if (key in nothing) {
-                        return nothing[key];
-                    }
-
-                    const refusal = featureOff("timeline", `time.${key}`);
-                    if (REJECTING_MEMBERS.has(key)) {
-                        return () => Promise.reject(refusal);
-                    }
-
-                    throw refusal;
-                }
-
-                return Reflect.get(api, key) as unknown;
-            },
-        });
-    }
-
-    return Object.freeze(gated);
-}
 
 /** Every timeline setting at its default. */
 const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
@@ -1259,9 +1169,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                       start: path,
                       ...(unit === null ? {} : { unit }),
                       ...(parseZone === null ? {} : { parseZone }),
-                      // With the timeline off they stay saved and are not read.
-                      ...(end === null || sources.timeline?.() === false ? {} : { end }),
-                      ...(spells === null || sources.timeline?.() === false ? {} : { spells }),
+                      ...(end === null ? {} : { end }),
+                      ...(spells === null ? {} : { spells }),
                   });
         const nodes = sourceOf(
             known.nodeTimePath,
@@ -1285,9 +1194,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
     /**
      * The write mark to compare an index by, read after the snapshot's freeze has run.
-     * @returns The mark; empty with the timeline off, where nothing is counted.
+     * @returns The mark.
      */
-    const rewritesNow = (): string => (sources.timeline?.() === false ? "" : (sources.rewrites?.() ?? ""));
+    const rewritesNow = (): string => sources.rewrites?.() ?? "";
 
     /**
      * The data as a key: what moved when an index built over it no longer fits.
@@ -1315,12 +1224,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const graph = sources.snapshot();
         const path = columnOf(((field.edges ?? field.nodes) as TimeSource).start);
         const attribute = `${ATTRIBUTE_PREFIX}${path}`;
-        // With the timeline off no zone is named, and text reads as it did before zones.
-        const zoneFor = (source: TimeSource): string | undefined =>
-            sources.timeline?.() === false ? undefined : (source.parseZone ?? UTC_ZONE);
-        // With the timeline off the values are read as they always were.
+        const zoneFor = (source: TimeSource): string | undefined => source.parseZone ?? UTC_ZONE;
         const columnReader = (kind: "node" | "edge", column: string): KindPlan["read"] | null =>
-            sources.timeline?.() === false ? null : (sources.column?.(kind, column) ?? null);
+            sources.column?.(kind, column) ?? null;
         const beside = (kind: "node" | "edge", path: Path | undefined): SpanColumn | undefined => {
             if (path === undefined) {
                 return undefined;
@@ -1386,7 +1292,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const rows =
             (field.nodes === undefined ? 0 : graph.nodeCount) + (field.edges === undefined ? 0 : graph.edgeCount);
 
-        return rows >= SLICED_ROWS && sources.timeline?.() !== false;
+        return rows >= SLICED_ROWS;
     };
 
     /**
@@ -1559,10 +1465,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
     /**
      * Whether a read that wants an answer now should still start no build: rows are arriving, so it
-     * would read the column only to read it again. With the timeline off, reads go on as they were.
+     * would read the column only to read it again.
      * @returns True during a load.
      */
-    const loadHoldsBuilds = (): boolean => sources.timeline?.() !== false && (sources.loading?.() ?? null) !== null;
+    const loadHoldsBuilds = (): boolean => (sources.loading?.() ?? null) !== null;
 
     /**
      * The unit the designated field reads in, as far as is known without a build: the designation's,
@@ -2815,8 +2721,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         parse(text: string, options: { readonly timeZone?: string } = {}): number | null {
-            // With the timeline off parse stays open, and reads as it did before zones.
-            const zone = sources.timeline?.() === false ? undefined : (options.timeZone ?? parseZoneNow());
+            const zone = options.timeZone ?? parseZoneNow();
             if (zone !== undefined && !isTimeZone(zone)) {
                 throw badZone("timeZone", zone);
             }
@@ -3268,7 +3173,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         edgeAges(): EdgeAgeFade | null {
             const { ageFade, outside } = settingsNow();
-            if (ageFade >= 1 || sources.timeline?.() === false) {
+            if (ageFade >= 1) {
                 return null;
             }
 

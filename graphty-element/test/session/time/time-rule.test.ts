@@ -6,10 +6,9 @@
  * the rows it crossed, not the graph.
  */
 import type { GraphSnapshot } from "@graphty/graph-format";
-import { assert, beforeAll, describe, it, vi } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
@@ -20,11 +19,6 @@ import { slideCounters } from "../../../src/session/visibility/slide";
 import { assertScalesLinearly } from "../../helpers/cost";
 import { windowCount, windowEdges, windowNodes } from "../../helpers/time-window";
 import { type Harness, makeSession } from "../helpers";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const SPAN = 1000;
 
@@ -387,7 +381,7 @@ describe("the window's rule", () => {
         ["a window", (time: GraphSession["time"]) => time.window({ from: 30, to: 50, step: 20, nodes: "all" })],
     ] as const) {
         it(`names what ${name} changed by the graph it moved on, when a removal lands as it records`, async () => {
-            const session = createGraphSession({ features: ["timeline"] });
+            const session = createGraphSession();
             await session.data.addNodes(["a", "b", "c", "d", "e"].map((id, at) => ({ id, t: at * 10 })));
             await session.data.addEdges([
                 { source: "a", target: "b" },
@@ -728,7 +722,6 @@ describe("a window over a graph that changes between moves", () => {
             const pick = (count: number): number => Math.floor(next() * count);
             let scores = new Map<string, number>();
             const session = createGraphSession({
-                features: ["timeline"],
                 runs: { execute: (context) => Promise.resolve(scored(context, session.snapshot(), scores)) },
             });
             const nodes = new Map(Array.from({ length: 30 }, (_, at) => [`n${String(at)}`, pick(SPAN)]));

@@ -428,13 +428,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "SessionVisibilityApi", members: ["filterBytes", "passingBytes"], reason: "raw-data", kind: BY_DESIGN },
     { root: "SessionVisibilityApi", members: ["hold"], reason: "panel-state", kind: BY_DESIGN },
-    {
-        root: "SessionVisibilityApi",
-        members: ["holdsInstants"],
-        reason: "covered-by",
-        by: "time.status",
-        kind: BY_DESIGN,
-    },
     { root: "TimeApi", members: ["commit"], reason: "in-flight", kind: BY_DESIGN },
     {
         root: "TimeApi",
@@ -624,6 +617,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "SessionDataApi", members: ["prepare"], reason: "needs-host", kind: BY_DESIGN },
+    // The column a role would pick: `columns.list` gives each column's facts to choose from.
+    {
+        root: "SessionDataApi",
+        members: ["roleCandidate"],
+        reason: "covered-by",
+        by: "columns.list",
+        kind: BY_DESIGN,
+    },
     {
         root: "SessionDataApi",
         members: ["structureValue"],

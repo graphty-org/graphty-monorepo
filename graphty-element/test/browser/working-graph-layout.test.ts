@@ -575,9 +575,6 @@ describe("a third party's engine over the working graph", () => {
 });
 
 describe("the time window and the working graph", () => {
-    beforeEach(() => {
-        setDefaultFeatures(["timeline"]);
-    });
     afterEach(() => {
         setDefaultFeatures([]);
     });

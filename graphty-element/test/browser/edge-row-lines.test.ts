@@ -438,7 +438,6 @@ describe("a masked edge stored with no Edge", () => {
                 { src: 1, dst: 2, t: 1 },
             ],
             true,
-            { features: ["timeline"] },
         );
         const lines = element.graph.getEdgeRowLines();
         assert.isNotNull(lines);
@@ -460,7 +459,6 @@ describe("a masked edge stored with no Edge", () => {
                 { src: 1, dst: 2, t: 5 },
             ],
             true,
-            { features: ["timeline"] },
         );
         const lines = element.graph.getEdgeRowLines();
         assert.isNotNull(lines);

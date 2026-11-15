@@ -7,16 +7,10 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { windowNodeIds } from "../helpers/time-window";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /** Twenty nodes, node i timed i, on a path. */
 const COUNT = 20;

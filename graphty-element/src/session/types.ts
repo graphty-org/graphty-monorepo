@@ -1702,8 +1702,7 @@ export interface SessionDataApi {
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries,
      *     `E_BAD_COMMAND` (`details.reason: "role-kind"`, with `details.roles`) for a role the
      *     column's kind has no field for, and `E_UNSUPPORTED` (`details.reason: "reload"`) for
-     *     `key`, `source`, `target` or `edgeId` on rows already loaded, and `E_FEATURE_OFF` for
-     *     `time` with the `timeline` experiment off.
+     *     `key`, `source`, `target` or `edgeId` on rows already loaded.
      * @since 3.30.0
      */
     setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
@@ -1712,8 +1711,7 @@ export interface SessionDataApi {
      * a reader picks one for {@link SessionDataApi.setRole}. Changes nothing. Only a column with
      * no role yet, not hidden and not made by a run or a formula is offered.
      *
-     * - `time`: the column whose values read as time best (`session.time.candidates()`), with
-     *   the `timeline` experiment on.
+     * - `time`: the column whose values read as time best (`session.time.candidates()`).
      * - `label`: the first of `label`, `Label`, `name`, `Name`, `title` and `Title` holding text,
      *   as a load names its nodes.
      * - `weight`, for edges: as a load reads one -- a number column named `confidence`, `score`
@@ -2321,7 +2319,6 @@ export interface DatasetLoadOptions extends ImportOptions {
 
 /**
  * A column of a {@link LoadDraft} that looks like time.
- * @experimental timeline
  * @beta
  */
 export interface TimeFound extends CodedFact<"time.found"> {
@@ -2358,8 +2355,7 @@ export interface LoadDraft {
     readonly mapping: LoadMappingRead;
     /**
      * What the element noticed in the file and applied nowhere: one {@link TimeFound} for each
-     * column that {@link DraftColumn.looksLike} time. Empty with the timeline experiment off.
-     * @experimental timeline
+     * column that {@link DraftColumn.looksLike} time.
      * @beta
      */
     readonly findings: readonly TimeFound[];
@@ -2482,7 +2478,7 @@ export interface DraftTable {
     readonly rowCount: number;
     /**
      * True when the format sets the roles (every format but CSV). A mapping for it is refused with
-     * `E_BAD_COMMAND`, except one naming only `time` and `timeUnit` with the timeline experiment on.
+     * `E_BAD_COMMAND`, except one naming only `time` and `timeUnit`.
      */
     readonly fixed: boolean;
     /** Its columns, in the order the file has them, computed over every row. */
@@ -2510,11 +2506,9 @@ export interface DraftColumn extends Pick<
     /** The role the element gives it by itself; absent when it is a plain attribute. */
     readonly suggested?: ColumnRole;
     /**
-     * Set when the column has no role and its values look like time, with the timeline experiment
-     * on: every sampled value is a strict date, or the name speaks of time and every number fits an
+     * Set when the column has no role and its values look like time: every sampled value is a strict date, or the name speaks of time and every number fits an
      * epoch or a calendar year. It applies nothing: a load designates the column only when the
      * mapping gives it the `time` role. {@link LoadDraft.findings} holds its span.
-     * @experimental timeline
      * @beta
      */
     readonly looksLike?: "time";
@@ -2640,7 +2634,6 @@ export interface TableMapping {
      * calendar years (`"year"`) or plain ordered numbers (`"ordinal"`, such as steps); left out,
      * the values decide when the column is designated. Written to
      * `data.knownFields.nodeTimeUnit` or `edgeTimeUnit`.
-     * @experimental timeline
      * @beta
      */
     readonly timeUnit?: TimeUnit | null;
@@ -3518,9 +3511,9 @@ export interface ProjectConfig {
      * settings' colors and sizes, a blue ring and band by default) and Hovered (pinned to the
      * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
      * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.
-     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; with the `timeline`
-     * experiment enabled, a Timeline Hidden row (the elements outside the time window, the state
-     * `"outsideWindow"`, hidden or ghosted as {@link ProjectConfig.timelineHiddenLook} says). The rows
+     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; a Timeline Hidden row
+     * (the elements outside the time window, the state `"outsideWindow"`, hidden or ghosted as
+     * {@link ProjectConfig.timelineHiddenLook} says) always does. The rows
      * are ordinary data: a reader may delete or change any of them, and no later setting adds,
      * removes or rewrites one.
      * @since 3.26.0
@@ -3541,8 +3534,7 @@ export interface ProjectConfig {
      * How the Timeline Hidden starting row starts: `"hidden"` (the default) sets `visible: false`,
      * so what lies outside the time window is not drawn at all; `"ghost"` draws it grey at low
      * opacity. Read only when the default rows are written, which is when
-     * {@link ProjectConfig.startingRows} turns on while the `timeline` experiment is enabled;
-     * changing it never rewrites a row already there.
+     * {@link ProjectConfig.startingRows} turns on; changing it never rewrites a row already there.
      *
      * ```ts
      * await session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
@@ -3885,45 +3877,38 @@ export interface SessionEventMap {
     "visibility:not-drawn-changed": { readonly notDrawn: readonly HiddenNotDrawn[] };
     /**
      * The time window moved through `session.time`: where it is now and what entered and left.
-     * @experimental timeline
      * @beta
      */
     "time:step": TimeStepEvent;
     /**
      * Playback started, from this window (null when it opens one).
-     * @experimental timeline
      * @beta
      */
     "time:play": { readonly window: TimeWindow | null };
     /**
      * Playback stopped at this window.
-     * @experimental timeline
      * @beta
      */
     "time:pause": { readonly window: TimeWindow | null };
     /**
      * Playback reached the end of the data; `time:pause` follows.
-     * @experimental timeline
      * @beta
      */
     "time:end": { readonly window: TimeWindow | null };
     /**
      * The designated time field changed through `session.time.setField`, or a load designated the
      * time field its file declares (a dynamic GEXF graph, an XGMML graph with `start` and `end`).
-     * @experimental timeline
      * @beta
      */
     "time:field": { readonly field: TimeField | null };
     /**
      * The designated time field was indexed, so `time.extent()` and `time.bins()` answer.
-     * @experimental timeline
      * @beta
      */
     "time:ready": { readonly field: TimeField | null };
     /**
      * A run the `results: "rerun"` setting re-ran after a window move failed: which run, and the
      * error's code and details.
-     * @experimental timeline
      * @beta
      */
     "time:rerun-failed": { readonly run: RunId; readonly error: CodedFact };
@@ -5165,9 +5150,7 @@ export interface GraphSession {
     readonly visibility: VisibilityApi;
     /**
      * The timeline: designate a time field, read its extent and histogram, and move the time
-     * window along it -- set it, step it, seek it, or play it. It needs `features="timeline"`, and
-     * refuses with `E_FEATURE_OFF` otherwise.
-     * @experimental timeline
+     * window along it -- set it, step it, seek it, or play it.
      * @beta
      */
     readonly time: TimeApi;

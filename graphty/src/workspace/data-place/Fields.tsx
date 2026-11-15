@@ -10,7 +10,7 @@ import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddButton, type AddOption } from "../style/Section";
 import { failWords } from "../table/columns";
-import { designate, timelineOn, unitOf } from "../time/timeActions";
+import { designate, unitOf } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import { useTimeFieldVersion } from "../time/useTimeVersion";
 import { pickEnd } from "./commands";
@@ -483,8 +483,7 @@ function SideGroup({
         return entry.load !== undefined && reloadable ? loadValue(roles, entry.load) : null;
     };
     const present = (entry: FieldEntry): boolean => holderOf(entry) !== null;
-    const available = (entry: FieldEntry): boolean =>
-        (entry.load === undefined || reloadable) && (entry.id !== "time" || timelineOn(session));
+    const available = (entry: FieldEntry): boolean => entry.load === undefined || reloadable;
     const entries = FIELD_ENTRIES[side].filter(available);
     const presentNow = new Set(entries.filter(present).map((entry) => entry.id));
     // An entry asked for -- just added from "+", or from elsewhere (the Overview's Set in Data) --

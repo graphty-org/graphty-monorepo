@@ -300,8 +300,7 @@ export const STARTING_GHOST_LOOK = {
  * @param look.pinned.scale - The halo's size.
  * @param look.pinned.opacity - How solid the halo is.
  * @param look.timelineHidden - How the Timeline Hidden row draws what lies outside the time window
- *   (`"hidden"` sets `visible: false`; `"ghost"` draws it grey and faint); no Timeline Hidden row
- *   when absent (the timeline is off).
+ *   (`"hidden"` sets `visible: false`; `"ghost"` draws it grey and faint).
  * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Timeline Hidden,
  *   Pinned, Selected and Hovered, each pinned to the top above the one before.
  */
@@ -314,7 +313,7 @@ export function startingRows(look: {
     };
     readonly everything?: StaticStyle;
     readonly pinned?: { readonly color: string; readonly scale: number; readonly opacity: number };
-    readonly timelineHidden?: TimelineHiddenLook;
+    readonly timelineHidden: TimelineHiddenLook;
 }): readonly StartingRow[] {
     const source = (templateId: StartingRowId): RowSpec["source"] => ({ by: "template", templateId });
     const { selection, pinned } = look;
@@ -331,26 +330,22 @@ export function startingRows(look: {
                 source: source("graphty:starting-everything"),
             },
         },
-        ...(look.timelineHidden === undefined
-            ? []
-            : [
-                  {
-                      templateId: TIMELINE_HIDDEN_ROW_ID,
-                      pin: "top",
-                      spec: {
-                          name: "Timeline Hidden",
-                          target: "both",
-                          selector: { match: "state", state: "outsideWindow" },
-                          // Ghost says it draws (visible: true), so what reads the look from the
-                          // layers (`time.settings.outside`, a branches view) agrees with the row.
-                          set:
-                              look.timelineHidden === "ghost"
-                                  ? { ...STARTING_GHOST_LOOK, "node.visible": true, "edge.visible": true }
-                                  : { "node.visible": false, "edge.visible": false },
-                          source: source(TIMELINE_HIDDEN_ROW_ID),
-                      },
-                  } as const,
-              ]),
+        {
+            templateId: TIMELINE_HIDDEN_ROW_ID,
+            pin: "top",
+            spec: {
+                name: "Timeline Hidden",
+                target: "both",
+                selector: { match: "state", state: "outsideWindow" },
+                // Ghost says it draws (visible: true), so what reads the look from the layers
+                // (`time.settings.outside`, a branches view) agrees with the row.
+                set:
+                    look.timelineHidden === "ghost"
+                        ? { ...STARTING_GHOST_LOOK, "node.visible": true, "edge.visible": true }
+                        : { "node.visible": false, "edge.visible": false },
+                source: source(TIMELINE_HIDDEN_ROW_ID),
+            },
+        },
         ...(pinned === undefined
             ? []
             : [

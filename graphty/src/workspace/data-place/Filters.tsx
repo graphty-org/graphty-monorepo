@@ -42,7 +42,7 @@ import { cardsWords, rowTest, rowWords, shownWords, stepWords, VERB_WORDS } from
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, cardFields, type Side } from "../style/cards";
-import { panelsInView, timelineOn } from "../time/timeActions";
+import { panelsInView } from "../time/timeActions";
 import {
     conditionWords,
     keepChange,
@@ -916,11 +916,7 @@ function clearFilters(session: GraphSession, store: WorkspaceStore): void {
                     await tx.visibility.updateCondition(c.id, { on: false });
                 }
             }
-            // A timeline window only changes the drawing, so it is no filter to clear; a saved one
-            // narrows what is visible while the timeline is off.
-            if (!timelineOn(session) && tx.visibility.window !== null) {
-                await tx.visibility.setWindow(null);
-            }
+            // A timeline window only changes the drawing, so it is no filter to clear.
         })
         .catch((error: unknown) => {
             store.set({ notice: { message: filterFailureWords(error), error: true } });
@@ -962,8 +958,7 @@ export function FilterChip(): React.JSX.Element | null {
     }, [session, store]);
 
     const hiding = session?.visibility.conditions.filter((c) => c.on && hides(c)) ?? [];
-    const savedWindow = session !== null && !timelineOn(session) && session.visibility.window !== null;
-    if (session === null || (hiding.length === 0 && !savedWindow)) {
+    if (session === null || hiding.length === 0) {
         return null;
     }
     const counts = session.visibility.conditionCounts();
@@ -971,11 +966,10 @@ export function FilterChip(): React.JSX.Element | null {
     // Edges are counted when a card speaks of them, or when the filter left any out (a node card
     // hides the edges at the nodes it hides).
     const edges =
-        savedWindow ||
         summary.visibleEdges < summary.totalEdges ||
         hiding.some((c) => (counts.find((each) => each.id === c.id)?.edges ?? null) !== null);
     const words = chipWords(summary, edges);
-    const on = [...hiding.map((c) => conditionWords(session, c.rule)), ...(savedWindow ? ["Time window"] : [])];
+    const on = hiding.map((c) => conditionWords(session, c.rule));
     const name = chipName(words, on);
     return (
         <Group gap={0} wrap="nowrap">

@@ -1714,7 +1714,6 @@ export class Graph implements GraphContext {
             // style layers hide or ghost. Visible stays the data scope everything else reads.
             visibility: this.session.visibility.drawnMasks,
             ghost: () => this.session.visibility.ghosting,
-            timeline: () => this.session.features.enabled.includes("timeline"),
             timeWindow: () => this.session.time.current !== null,
             ageFade: () => this.session.edgeAges(),
         };

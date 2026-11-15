@@ -4,9 +4,7 @@ Show a graph as it was over time: pick the column that holds each element's time
 along it. Style layers decide how what falls outside the window is drawn: hidden, faint, or as
 everything else.
 
-Everything on this page needs the `timeline` experiment. Switch it on with `features="timeline"` on
-the element, or see [Experiments](./experiments) for the other ways. The JavaScript snippets below
-assume it is on, and `g` is the element and `time` is `g.session.time`.
+In the JavaScript snippets below, `g` is the element and `time` is `g.session.time`.
 
 ## Your first timeline
 
@@ -20,7 +18,6 @@ bob,cid,2026-01-02T09:00:00Z
 
 ```html
 <graphty-element
-    features="timeline"
     data-source="url"
     data-source-config='{"url": "emails.csv"}'
     edge-time-path="data.sent"
@@ -86,7 +83,6 @@ name the end column, beside the start:
 
 ```html
 <graphty-element
-    features="timeline"
     data-source="url"
     data-source-config='{"url": "tenures.csv"}'
     node-time-path="hired"
@@ -254,7 +250,7 @@ await g.session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
 ```
 
 Timeline Hidden is an ordinary row: edit it, hide it or delete it like any other. It is added only
-while the `timeline` experiment is on and no layer already selects `"outsideWindow"`, so it never
+when no layer already selects `"outsideWindow"`, so it never
 comes twice, and a project file brings back exactly the rows it saved. Changing
 `timelineHiddenLook` later never rewrites a row that is already there. You can also write the row
 yourself:

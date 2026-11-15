@@ -4,10 +4,9 @@
  * asks of them. The real objects are drawn in test/browser/time-changed-rows.test.ts.
  */
 import type { Scene as BabylonScene } from "@babylonjs/core";
-import { assert, beforeAll, describe, it, vi } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession } from "../../session";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import type { DataManager } from "../../src/managers/DataManager";
 import type { GraphContext } from "../../src/managers/GraphContext";
 import type { LayoutManager } from "../../src/managers/LayoutManager";
@@ -181,7 +180,6 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         visibility: session.visibility.insideMasks,
         showContext: () => session.visibility.showContext,
         ghost: () => false,
-        timeline: () => true,
         ...overrides,
     });
 
@@ -268,10 +266,6 @@ function random(seed: number): () => number {
 }
 
 describe("changed rows reach the renderer", () => {
-    beforeAll(() => {
-        setDefaultFeatures(["timeline"]);
-    });
-
     it("writes and places only the rows a step changed, with no walk", async () => {
         const scene = await sliding();
         const step = await scene.session.time.seek(30, { commit: false });
@@ -432,37 +426,17 @@ describe("changed rows reach the renderer", () => {
         assert.strictEqual(work.edgeWrites, EDGES);
         assert.strictEqual(work.nodeWrites, scene.nodes.length);
     });
-
-    it("keeps the walk with the experiment off, whatever the masks can answer", async () => {
-        const scene = await sliding("ends", { timeline: () => false });
-        const step = await scene.session.time.seek(50, { commit: false });
-        assert.isAbove(step.entered.nodes, 0);
-        const work = scene.frame();
-        assert.strictEqual(work.edgeWrites, EDGES);
-        assert.strictEqual(work.nodeWrites, scene.nodes.length);
-        assert.strictEqual(work.updates, EDGES, "a revealed edge still forces the walk");
-    });
 });
 
 describe("the ranged upload switch", () => {
-    beforeAll(() => {
-        setDefaultFeatures(["timeline"]);
-    });
-
-    it("stays off with the experiment off, even with a window in force", async () => {
-        const scene = await sceneOf({ timeline: () => false, timeWindow: () => true });
-        scene.manager.syncViewMasks();
-        assert.isFalse(batchUploadFrames.rangedUploads(scene.babylon()).on);
-    });
-
-    it("turns on with the experiment on and a window in force", async () => {
-        const scene = await sceneOf({ timeline: () => true, timeWindow: () => true });
+    it("turns on with a window in force", async () => {
+        const scene = await sceneOf({ timeWindow: () => true });
         scene.manager.syncViewMasks();
         assert.isTrue(batchUploadFrames.rangedUploads(scene.babylon()).on);
     });
 
     it("turns on in the new scene when the engine changes with a window in force", async () => {
-        const scene = await sceneOf({ timeline: () => true, timeWindow: () => true });
+        const scene = await sceneOf({ timeWindow: () => true });
         scene.manager.syncViewMasks();
 
         scene.replaceBabylon();

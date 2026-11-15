@@ -12,7 +12,6 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -22,8 +21,6 @@ import { TIMELINE_STYLE } from "../preferences";
 
 const MARVEL = "Marvel films";
 const ROW = "Timeline Hidden";
-/** A sample with no time in it, for the experiment off. */
-const LES_MIS = "Les Miserables";
 
 /**
  * Shows the start screen.
@@ -102,9 +99,7 @@ beforeAll(async () => {
     await page.viewport(1366, 768);
 });
 
-describe("Default timeline style with the timeline experiment on", () => {
-    withFeatures(["timeline"]);
-
+describe("Default timeline style", () => {
     it("gives a new project a Timeline Hidden row drawn as a ghost with Ghost", async () => {
         const store = mount();
         await chooseStyle("Ghost");
@@ -171,24 +166,5 @@ describe("Default timeline style with the timeline experiment on", () => {
         const { inside } = session.time;
         assert.isNotNull(inside);
         assert.isBelow(inside?.edges ?? Number.POSITIVE_INFINITY, session.visibility.summary.visibleEdges);
-    });
-});
-
-describe("Default timeline style with the timeline experiment off", () => {
-    withFeatures([]);
-
-    it("offers no setting and adds no row", async () => {
-        const store = mount();
-        const dialog = await openSettings();
-        await within(dialog).findByText("Number format");
-        assert.isNull(within(dialog).queryByText("Default timeline style"));
-        await closeSettings(dialog);
-        const session = await openBy(store, () => pickSample(LES_MIS));
-        const rows = await treeRows();
-        assert.isFalse(
-            rows.some((row) => row.startsWith(ROW)),
-            rows.join(", "),
-        );
-        assert.isFalse(session.styles.list().some((layer) => layer.name === ROW));
     });
 });

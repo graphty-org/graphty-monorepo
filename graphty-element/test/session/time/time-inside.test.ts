@@ -9,7 +9,7 @@ import { createGraphSession } from "../../../session";
 
 describe("time.inside", () => {
     it("counts what the window holds, null with no window, and leaves the summary whole", async () => {
-        const session = createGraphSession({ features: ["timeline"] });
+        const session = createGraphSession();
         const nodes = Array.from({ length: 4 }, (_, i) => ({ id: `n${String(i)}`, t: i }));
         await session.data.import({ type: "json", config: { data: JSON.stringify({ nodes, edges: [] }) } });
         await session.time.setField({ nodes: { start: "t", unit: "ms" } });

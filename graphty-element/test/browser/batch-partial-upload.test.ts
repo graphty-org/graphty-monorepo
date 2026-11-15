@@ -6,11 +6,9 @@
 import "../../src/graphty-element";
 
 import { ArcRotateCamera, Buffer, Engine, Logger, Mesh, MeshBuilder, Scene, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { isGraphtyError } from "../../src/errors";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import { ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import { useBundledStandardShaders } from "../../src/meshes/bundledStandardShaders";
@@ -20,11 +18,6 @@ import { EdgeLineBatch, isEdgeLineBatchMesh } from "../../src/meshes/EdgeLineBat
 import { batchUploadFrames } from "../../src/meshes/FrameRoster";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
-
-// The timeline is an experiment: the element tests below switch it on or off themselves.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const SLOTS = 512;
 
@@ -379,16 +372,14 @@ async function drawn(element: Graphty): Promise<void> {
 describe("the element's switch", () => {
     /**
      * A graph of timed edges, with no window yet.
-     * @param features - The element's `features` attribute.
      * @returns The element.
      */
-    async function timedElement(features: string): Promise<Graphty> {
+    async function timedElement(): Promise<Graphty> {
         const element = document.createElement("graphty-element");
         element.style.width = "400px";
         element.style.height = "300px";
         element.style.display = "block";
         element.viewMode = "2d";
-        element.setAttribute("features", features);
         document.body.appendChild(element);
         mounted = element;
         await element.updateComplete;
@@ -412,7 +403,7 @@ describe("the element's switch", () => {
     }
 
     it("is on only while a window is in force, and a step then sends runs of the edge buffers", async () => {
-        const element = await timedElement("timeline");
+        const element = await timedElement();
         element.setAttribute("edge-time-path", "t");
         const scene = element.graph.getScene();
         await element.session.time.setField({ edges: { start: "t" } });
@@ -465,22 +456,6 @@ describe("the element's switch", () => {
         await element.session.time.window(null);
         await drawn(element);
         assert.isFalse(batchUploadFrames.rangedUploads(scene).on, "the window is gone");
-    });
-
-    it("stays off with the timeline off", async () => {
-        const element = await timedElement("");
-        element.setAttribute("edge-time-path", "t");
-        let refused: unknown = null;
-        try {
-            await element.session.time.window({ from: 500, to: 600, step: 10, nodes: "ends" });
-        } catch (error) {
-            refused = error;
-        }
-
-        assert.isTrue(isGraphtyError(refused) && refused.code === "E_FEATURE_OFF");
-        await drawn(element);
-
-        assert.isFalse(batchUploadFrames.rangedUploads(element.graph.getScene()).on);
     });
 });
 

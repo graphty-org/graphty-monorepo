@@ -13,7 +13,7 @@ import React from "react";
 
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { designate, reportTimeError, timelineOn, unitOf } from "../time/timeActions";
+import { designate, reportTimeError, unitOf } from "../time/timeActions";
 import {
     autoLabel,
     CALENDAR_STEPS,
@@ -73,7 +73,7 @@ function sourceOf(picked: string, unit?: TimeUnit): TimeField | null {
 export function TimeCard(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     useTimeFieldVersion(session);
-    if (session === null || !timelineOn(session)) {
+    if (session === null) {
         return null;
     }
     const { time } = session;

@@ -294,8 +294,7 @@ if (column !== null) {
 }
 ```
 
-It offers only a column with no role yet. `time` is the column whose values read as time best (the
-`timeline` experiment on); `label` the first of `label`, `name` or `title` holding text; an edge's
+It offers only a column with no role yet. `time` is the column whose values read as time best; `label` the first of `label`, `name` or `title` holding text; an edge's
 `weight` a number column named `confidence`, `score` or `strength`, else the only number column.
 Every other role, and a node's weight, answers null.
 

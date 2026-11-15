@@ -108,8 +108,6 @@ interface CommandServices {
     layoutPrepare?: () => Promise<void>;
     /** The project settings in effect, with every unset key at its default. */
     config?: () => ProjectConfig;
-    /** Whether the timeline experiment is on; absent reads on, as a store with no session has no switch. */
-    timeline?: () => boolean;
     /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. */
     batched?: () => boolean;
     /** Whether the file styles experiment is on; absent reads on, as a store with no session has no switch. */
@@ -962,7 +960,6 @@ export class Dispatcher {
             },
             strict: this.strict,
             session: true,
-            countsRewrites: () => this.services.timeline?.() === true,
             batched: () => this.services.batched?.() === true,
             touchLater: (key) => {
                 this.lane.touchLater("graph", key);

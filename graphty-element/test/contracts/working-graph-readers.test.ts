@@ -150,6 +150,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "assets.rename()": "writes",
     "assets.usedBy()": "not the graph",
     "data.readExample()": "not the graph",
+    // A column's name, read from the column descriptors as `data.attributes()` is.
+    "data.roleCandidate()": "not the graph",
     "data.sourceSettings()": "not the graph",
     "features.has()": "not the graph",
     "project.assetChoices()": "not the graph",
@@ -758,7 +760,6 @@ type Hider = "filter" | "window";
 async function sessionOf(withHidden: boolean, hider: Hider | null): Promise<GraphSession> {
     const session = createGraphSession({
         runs: { execute: executeNothing },
-        features: ["timeline"],
         workingGraph: true,
     });
     await session.data.addNodes(withHidden ? [...SHOWN, HIDDEN] : SHOWN);

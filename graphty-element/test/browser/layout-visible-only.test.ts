@@ -7,18 +7,12 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import type { ElementSession } from "../../src/session/types";
 import { windowCount } from "../helpers/time-window";
-
-// The timeline is an experiment: the time window's case switches it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /** Twenty nodes on a path. */
 const IDS = Array.from({ length: 20 }, (_, index) => `n${String(index)}`);

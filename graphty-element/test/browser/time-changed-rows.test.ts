@@ -6,18 +6,12 @@
 import "../../src/graphty-element";
 
 import { TransformNode } from "@babylonjs/core";
-import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { STARTING_GHOST_LOOK } from "../../src/session/styles/rows";
 import type { ElementSession } from "../../src/session/types";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const NODES = 300;
 const EDGES = 1_500;

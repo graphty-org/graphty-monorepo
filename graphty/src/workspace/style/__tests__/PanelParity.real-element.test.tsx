@@ -289,8 +289,8 @@ function difference(row: Map<string, boolean>, reader: Map<string, boolean>): st
 }
 
 describe.each([
-    ["off", ["timeline"]],
-    ["on", ["timeline", "selection-workspace"]],
+    ["off", []],
+    ["on", ["selection-workspace"]],
 ])("the panel of every style row, selection workspace %s", (_state, features) => {
     beforeAll(async () => {
         await siteFeatures(features);

@@ -5,14 +5,9 @@
  * open, it never comes twice, and a project saved with its older name (Ghost) opens with that row.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { setDefaultFeatures } from "../../../src/features/resolve";
-
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /**
  * A small timed graph with the starting rows drawn.
@@ -180,12 +175,5 @@ describe("the Timeline Hidden row", () => {
         );
         assert.strictEqual(opened.time.settings.outside, "hide");
         opened.dispose();
-    });
-
-    it("is not added while the timeline is off", async () => {
-        const session = await timed({ features: [] });
-        assert.lengthOf(named(session, "Timeline Hidden"), 0);
-        assert.lengthOf(named(session, "Selected"), 2);
-        session.dispose();
     });
 });

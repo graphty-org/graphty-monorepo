@@ -63,7 +63,6 @@ import type {
 } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
-import { featureOff } from "../../features/resolve";
 import { VISIBILITY_DEFINITIONS, type VisibilityCommand } from "../commands/visibility";
 import { Dispatcher } from "../project/Dispatcher";
 import type { VisibilityState } from "../project/state";
@@ -122,7 +121,6 @@ import {
     type TimeWindow,
     windowBounds,
     windowInstants,
-    windowNeedsTimeline,
     windowReadsRecords,
 } from "./filter";
 import { bytesOf, type FilterBytes, slideCounters, type SlideCounts, type SlideTarget, WindowSlider } from "./slide";
@@ -376,8 +374,8 @@ export interface VisibilityApi {
     readonly edges: ReadonlySet<EdgeId>;
     /**
      * How much of the graph is showing: the one shown-versus-total count, after the filter and
-     * every step that is on. A time window with the `timeline` experiment on changes only how
-     * elements are drawn (style layers selecting the `outsideWindow` state), never this count.
+     * every step that is on. A time window changes only how elements are drawn (style layers
+     * selecting the `outsideWindow` state), never this count.
      */
     readonly summary: VisibilitySummary;
     /**
@@ -421,11 +419,10 @@ export interface VisibilityApi {
      * Apply a time window, or clear it with null: one undoable step, on the same terms as
      * {@link VisibilityApi.set}.
      *
-     * With the `timeline` experiment on, a window changes only how elements are drawn: what lies
-     * outside it is in the element state `outsideWindow`, which style layers select, and the
-     * visible masks, every count, run, selection and export stay as the filter leaves them. With
-     * it off, a window narrows the same masks as {@link VisibilityApi.set}. Moving the window
-     * never re-layouts, rebuilds or removes data.
+     * A window changes only how elements are drawn: what lies outside it is in the element state
+     * `outsideWindow`, which style layers select, and the visible masks, every count, run,
+     * selection and export stay as the filter leaves them. Moving the window never re-layouts,
+     * rebuilds or removes data.
      * @param window - The stretch of the timeline to keep, or null to stop windowing.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns The run, which resolves with the counts.
@@ -636,13 +633,11 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     restoreConditions(conditions: readonly FilterCondition[]): Run<FilterResult>;
     /**
-     * Record a window read back from a project file, kept as saved whatever the session switched
-     * on, so a project saved with the timeline on survives being opened and saved with it off.
+     * Record a window read back from a project file, kept as saved.
      * @param window - The window.
-     * @param raw - Whether the file says its bounds are values to compare as they stand.
      * @returns The run, which resolves with the counts.
      */
-    restoreWindow(window: TimeWindow, raw: boolean): Run<FilterResult>;
+    restoreWindow(window: TimeWindow): Run<FilterResult>;
     /**
      * Record timeline settings read back from a project file, or clear them, kept as saved
      * whatever the session switched on.
@@ -650,12 +645,6 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @returns Resolves once they are recorded.
      */
     restorePlayback(playback: TimePlayback | null): Promise<unknown>;
-    /**
-     * Whether a window's bounds are instants of a time column's parsed values.
-     * @param window - The window.
-     * @returns True with the timeline on, and for a window a project saved as instants.
-     */
-    holdsInstants(window: TimeWindow): boolean;
     /**
      * Move the time window without recording it, writing only the rows whose membership of the
      * window changes: every move of `session.time`. Only the in-window masks and the
@@ -1251,16 +1240,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const nodeMaskValue = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1, sources.onMaskVersion);
     const edgeMaskValue = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1, sources.onMaskVersion);
 
-    // What the filter and its steps keep with no window, for the working graph: evaluated only
-    // while a window is in force.
-    const keptNodes = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1);
-    const keptEdges = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1);
-    let keptTag: {
-        readonly graph: GraphSnapshot;
-        readonly filter: RuleTree | null;
-        readonly inputs: readonly unknown[];
-    } | null = null;
-
     // What the filter alone keeps, for drawing ghosts: evaluated only while ghosting.
     const drawnNodes = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1);
     const drawnEdges = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1);
@@ -1347,38 +1326,17 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const passSources = (graph: GraphSnapshot): FilterSources => {
         const { scope, dependencies } = sources;
         if (scope === undefined) {
-            return { ...sources, holdsInstants };
+            return sources;
         }
 
         return {
             ...sources,
-            holdsInstants,
             scope: (spec): ScopeLeaf =>
                 dependencies !== undefined && visibilityCycle({ kind: "member", of: spec }, dependencies) !== null
                     ? { nodes: makeMask(graph.nodeCount), edges: null }
                     : scope(spec),
         };
     };
-
-    /**
-     * Whether a time window hides by style: with the timeline on it never reaches the visible
-     * masks, and only the in-window masks and the `outsideWindow` state follow it. With the
-     * timeline off a window narrows what is visible, as a filter does.
-     * @returns True with the timeline on.
-     */
-    const byStyle = (): boolean => sources.timeline?.() === true;
-
-    /** The window a project restored as instants, as text: undo brings back a copy of it. */
-    let savedInstants: string | null = null;
-
-    /**
-     * Whether a window's bounds are instants. With the timeline off a window set live reads values
-     * as they stand, as it did before the timeline; only a saved one holds instants.
-     * @param window - The window.
-     * @returns True for instants.
-     */
-    const holdsInstants = (window: TimeWindow): boolean =>
-        sources.timeline?.() !== false || JSON.stringify(window) === savedInstants;
 
     /**
      * Write the whole membership into the masks from a filter and a window.
@@ -1407,14 +1365,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         unresolvedValue = compiled.unresolvedPaths();
         // Kept for the readers of the filter alone: the window's slides, and under the working
         // graph the selection a filter change drops, so neither compiles the filter again.
-        const sliding = sources.timeline?.() === true;
-        if (sliding) {
-            slideCounters.filterReads++;
-        }
-
-        if (sliding || sources.workingGraph?.() === true) {
-            lastCompiled = { key: [filter, graph, ...inputsFor(filter, null)], filter: compiled.filter };
-        }
+        slideCounters.filterReads++;
+        lastCompiled = { key: [filter, graph, ...inputsFor(filter, null)], filter: compiled.filter };
     };
 
     /**
@@ -1528,10 +1480,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns The tag.
      */
     const wantedTag = (): MaskTag => {
-        const window = byStyle() ? null : dispatcher.state.visibility.window;
         const filter = ruleNow();
 
-        return { token: dispatcher.state.graph.token, filter, window, inputs: inputsFor(filter, window) };
+        return { token: dispatcher.state.graph.token, filter, window: null, inputs: inputsFor(filter, null) };
     };
 
     /**
@@ -1666,9 +1617,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     /**
      * Whether a time window is in force: what lies outside it stays drawn, for the style layers.
-     * @returns True while the timeline is on and a window is recorded or slid to.
+     * @returns True while a window is recorded or slid to.
      */
-    const windowInForce = (): boolean => byStyle() && (dispatcher.state.visibility.window !== null || slid);
+    const windowInForce = (): boolean => dispatcher.state.visibility.window !== null || slid;
     /**
      * Whether the working graph is on: then nothing outside the view is drawn.
      * @returns True when on.
@@ -1783,33 +1734,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         drawnTag = { graph: active.graph, filter, window, inputs };
 
         return active;
-    };
-
-    /**
-     * Bring the window-free masks up to date: evaluated again only when the graph, the filter or
-     * what it reads changed, so a window step costs nothing here.
-     */
-    const keptUpToDate = (): void => {
-        const active = upToDate();
-        const filter = ruleNow();
-        const inputs = inputsFor(filter, null);
-        if (keptTag?.graph === active.graph && keptTag.filter === filter && sameInputs(keptTag.inputs, inputs)) {
-            return;
-        }
-
-        keptNodes.grow(active.graph.nodeCount);
-        keptEdges.grow(active.graph.edgeCount);
-        keptNodes.clear();
-        keptEdges.clear();
-        if (filter === null) {
-            keptNodes.fill();
-            keptEdges.fill();
-        } else {
-            const compiled = compileVisibility(active.graph, filter, null, passSources(active.graph));
-            runPass({ compiled, edges: keptEdges, graph: active.graph, nodes: keptNodes });
-        }
-
-        keptTag = { graph: active.graph, filter, inputs };
     };
 
     type ElementBytes = { readonly node: Uint8Array; readonly edge: Uint8Array };
@@ -2057,7 +1981,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     // The visibility ops of this dispatcher refuse what this session cannot evaluate.
     dispatcher.services.visibility = {
-        timeline: () => sources.timeline?.() !== false,
         check: (filter, window) => {
             assertEvaluable(filter, window, sources);
         },
@@ -2847,8 +2770,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const drawnEdgeCopy = copies(drawnEdges);
     const insideNodeCopy = copies(inNodes);
     const insideEdgeCopy = copies(inEdges);
-    const keptNodeCopy = copies(keptNodes);
-    const keptEdgeCopy = copies(keptEdges);
 
     return {
         nodeMask(): Uint8Array {
@@ -2948,9 +2869,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         setWindow(window: TimeWindow | null, options: RunOptions = {}): Run<FilterResult> {
             assertVisibility(null, window);
-            if (sources.timeline?.() === false && windowNeedsTimeline(window)) {
-                throw featureOff("timeline", "visibility.window");
-            }
 
             return edit({ op: "visibility.window", window }, ruleNow(), window, options);
         },
@@ -3098,9 +3016,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             );
         },
 
-        restoreWindow(window: TimeWindow, raw: boolean): Run<FilterResult> {
+        restoreWindow(window: TimeWindow): Run<FilterResult> {
             assertVisibility(null, window);
-            savedInstants = raw ? null : JSON.stringify(window);
 
             return edit({ op: "visibility.window", window }, ruleNow(), window, {});
         },
@@ -3108,8 +3025,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         restorePlayback(playback: TimePlayback | null): Promise<unknown> {
             return dispatcher.dispatch({ op: "visibility.playback", playback });
         },
-
-        holdsInstants,
 
         get rule(): RuleTree | null {
             return ruleNow();
@@ -3251,22 +3166,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         // A timeline window hides by style and never reaches the visible masks, which then are
         // already what the filter keeps.
         keptMasks: {
-            nodes: () => {
-                if (dispatcher.state.visibility.window === null || byStyle()) {
-                    return visibleNodeCopy();
-                }
-
-                keptUpToDate();
-                return keptNodeCopy();
-            },
-            edges: () => {
-                if (dispatcher.state.visibility.window === null || byStyle()) {
-                    return visibleEdgeCopy();
-                }
-
-                keptUpToDate();
-                return keptEdgeCopy();
-            },
+            nodes: visibleNodeCopy,
+            edges: visibleEdgeCopy,
         },
 
         get ghosting(): boolean {

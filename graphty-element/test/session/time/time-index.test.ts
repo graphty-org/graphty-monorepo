@@ -7,12 +7,11 @@
  */
 
 import { mulberry32 } from "@graphty/algorithms";
-import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import type { FormatDescriptor } from "../../../src/catalog/types";
 import { type BaseDataSourceConfig, DataSource, type DataSourceChunk } from "../../../src/data/DataSource";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import { edgeSpaceOf } from "../../../src/session/scope/ScopeApi";
 import { readInstant } from "../../../src/session/time/parse";
@@ -36,10 +35,6 @@ const T0 = 1_600_000_000;
 const NEW_YORK = "America/New_York";
 
 const sessions: GraphSession[] = [];
-
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 beforeEach(() => {
     timeIndexCounters.parsed = 0;
@@ -891,149 +886,5 @@ describe("a streaming load", () => {
             from: (T0 + 1) * 1000,
             to: (T0 + 1) * 1000 + 1,
         });
-    });
-});
-
-describe("with the timeline off", () => {
-    it("counts no writes", async () => {
-        const session = createGraphSession({ features: [] });
-        sessions.push(session);
-        setDefaultFeatures([]);
-        const before = dispatcherOf(session).graph.rewrites;
-        await session.data.addNodes([{ id: "a", t: 1 }]);
-        await session.data.updateNodes([{ id: "a", values: { t: 2 } }]);
-        setDefaultFeatures(["timeline"]);
-
-        assert.strictEqual(dispatcherOf(session).graph.rewrites, before);
-        assert.strictEqual(timeIndexCounters.parsed, 0);
-    });
-
-    /**
-     * A session with the timeline off and a designated node column, as a saved project leaves one,
-     * with a zone it must not read.
-     * @param values - The column.
-     * @returns The session.
-     */
-    async function offSession(values: readonly unknown[]): Promise<GraphSession> {
-        const session = createGraphSession({ features: [] });
-        sessions.push(session);
-        await session.data.addNodes(values.map((t, at) => ({ id: `n${String(at)}`, t })));
-        await session.config.set({ data: { knownFields: { nodeTimePath: "t", nodeTimeParseZone: NEW_YORK } } });
-
-        return session;
-    }
-
-    /**
-     * The node mask under a range leaf read as time: the path that reaches the index with the
-     * timeline off, because a saved window's bounds are instants of the parsed column.
-     * @param session - The session.
-     * @param min - The first instant kept.
-     * @param max - The last instant kept.
-     * @returns The mask.
-     */
-    async function keptBetween(session: GraphSession, min: number, max: number): Promise<number[]> {
-        const rule = { kind: "range", attribute: "data.t", min, max, as: "time" } as const;
-        await session.visibility.setConditions([{ effect: "keep", rule }]);
-        return [...windowNodes(session.visibility)];
-    }
-
-    it("reads each value as readInstant does with no zone", async () => {
-        const min = Date.UTC(2026, 0, 15);
-        const max = Date.UTC(2026, 0, 16);
-        const cases = [
-            {
-                values: ["2026-01-15T22:00:00", "Jan 15, 2026 12:00", "2026-01-15", "2027-01-01", "no such date", 7],
-                strayNumbers: true,
-            },
-            { values: [1_768_478_400_000, 1_700_000_000_000, "1768478400002"], strayNumbers: false },
-        ];
-
-        for (const { values, strayNumbers } of cases) {
-            const session = await offSession(values);
-            const expected = values.map((value) => {
-                const { at, how } = readInstant(value, "ms");
-                const stray = strayNumbers && typeof value === "number";
-                return !stray && (how === "strict" || how === "loose") && at >= min && at <= max ? 1 : 0;
-            });
-
-            assert.deepEqual(await keptBetween(session, min, max), expected);
-        }
-    });
-
-    it("rebuilds the whole column after an append: nothing merges or counts writes", async () => {
-        const session = await offSession(Array.from({ length: 30 }, (_, at) => T0 * 1000 + at));
-        const rewrites = vi.spyOn(dispatcherOf(session).graph, "rewrites", "get");
-        await keptBetween(session, T0 * 1000, T0 * 1000 + 10);
-        const { parsed: before } = timeIndexCounters;
-
-        await session.data.addNodes([{ id: "late", t: T0 * 1000 + 5 }]);
-        await keptBetween(session, T0 * 1000, T0 * 1000 + 11);
-
-        assert.strictEqual(timeIndexCounters.parsed - before, 31);
-        assert.strictEqual(rewrites.mock.calls.length, 0);
-    });
-
-    it("builds a time range whole and at once over the threshold", async () => {
-        const values = Array.from({ length: SLICED_ROWS + 10 }, (_, at) => T0 * 1000 + at);
-        const session = await offSession(values);
-        const { parsed: before } = timeIndexCounters;
-
-        const mask = await keptBetween(session, T0 * 1000 + 5, T0 * 1000 + 7);
-
-        assert.deepEqual(
-            mask.flatMap((kept, row) => (kept === 1 ? [row] : [])),
-            [5, 6, 7],
-        );
-        assert.strictEqual(timeIndexCounters.parsed - before, values.length);
-    });
-
-    it("reads parse's text as it does with no zone, whatever zone a project saved", async () => {
-        const session = await offSession([T0 * 1000, T0 * 1000 + 1]);
-
-        for (const [text, at] of [
-            ["2026-01-15", Date.UTC(2026, 0, 15)],
-            ["2026-01-15T12:00:00", Date.UTC(2026, 0, 15, 12)],
-            ["2026-01-15T12:30:45.123Z", Date.UTC(2026, 0, 15, 12, 30, 45, 123)],
-            ["2026-01-15T12:00:00+02:00", Date.UTC(2026, 0, 15, 10)],
-            ["Jan 15, 2026 12:00", Date.UTC(2026, 0, 15, 12)],
-            ["no such date", null],
-        ] as const) {
-            assert.strictEqual(session.time.parse(text), at, text);
-            assert.strictEqual(session.time.parse(text, { timeZone: NEW_YORK }), at, text);
-        }
-    });
-
-    it("lets a load hold back neither parse nor a time range", async () => {
-        const session = await offSession([T0 * 1000, T0 * 1000 + 1]);
-        const kept = await keptBetween(session, T0 * 1000, T0 * 1000 + 1);
-        assert.deepEqual(kept, [1, 1]);
-        const { load, open } = await heldLoad(session, [
-            { nodes: [{ id: "first", t: T0 * 1000 + 5 }], edges: [] },
-            { nodes: [], edges: [] },
-        ]);
-        const { parsed: before } = timeIndexCounters;
-
-        assert.strictEqual(session.time.parse("2026-01-15"), Date.UTC(2026, 0, 15));
-        assert.strictEqual(timeIndexCounters.parsed - before, 3);
-        assert.deepEqual([...windowNodes(session.visibility)], [1, 1, 0]);
-
-        open();
-        await load;
-    });
-
-    it("reads an edge column through the per-row reads", async () => {
-        const session = createGraphSession({ features: [] });
-        sessions.push(session);
-        await session.data.addEdges(
-            Array.from({ length: 3 }, (_, at) => ({ source: "a", target: "b", t: T0 * 1000 + at })),
-        );
-        await session.config.set({ data: { knownFields: { edgeTimePath: "t" } } });
-        const walked = vi.spyOn(dispatcherOf(session).graph.slice.edges, "entries");
-        const { parsed: before } = timeIndexCounters;
-
-        session.time.parse("2026-01-15");
-
-        assert.strictEqual(timeIndexCounters.parsed - before, 3);
-        assert.strictEqual(walked.mock.calls.length, 0);
     });
 });

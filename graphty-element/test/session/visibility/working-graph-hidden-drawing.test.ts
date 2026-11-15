@@ -8,7 +8,6 @@
 import { assert, describe, it } from "vitest";
 
 import type { UnionLeaf } from "../../../src/catalog/types";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createGraphSession } from "../../../src/session";
 import { workingGraphOfSession } from "../../../src/session/GraphSession";
 import type { ElementSession } from "../../../src/session/types";
@@ -245,7 +244,6 @@ describe("time ghosts and the working graph", () => {
      * @returns The session.
      */
     async function ghostTrace(workingGraph: boolean): Promise<ElementSession> {
-        setDefaultFeatures(["timeline"]);
         const session = createGraphSession({ workingGraph }) as ElementSession;
         const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `s${String(i)}`, step: i }));
         await session.data.import({

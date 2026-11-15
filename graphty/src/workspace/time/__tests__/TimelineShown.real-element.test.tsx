@@ -1,7 +1,6 @@
 /**
- * The timeline behind its experiment, on the real element: with it off a reader finds no trace of
- * it over a graph with a column of dates, or in a project saved with it on, and the same clicks
- * find it with it on. A window that project saved still applies, so the reader sees it and clears it.
+ * The timeline in the app, on the real element, with no feature switched on: a reader finds it over
+ * a graph with a column of dates and in a project saved with a time field.
  */
 
 import "@graphty/graphty-element";
@@ -12,7 +11,6 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { columnVerb, openColumnMenu } from "../../../test/column-header";
-import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { openDataPage } from "../../data-page/request";
 import { REGISTRATIONS } from "../../registrations";
@@ -27,12 +25,12 @@ const DATED_EDGES = "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,202
 const FIRST_TWO_DAYS = { from: Date.UTC(2026, 0, 1), to: Date.UTC(2026, 0, 3) };
 
 /**
- * A project saved with the timeline on: a date column as its time field, its Timeline Hidden row, playback, a
+ * A project saved with a time field: a date column as its time field, its Timeline Hidden row, playback, a
  * zone that puts the first day on Dec 31, and a window.
  * @returns the file's text.
  */
 async function timedProject(): Promise<string> {
-    const saved = createGraphSession({ features: ["timeline"] });
+    const saved = createGraphSession();
     await saved.data.import({ type: "csv", config: { data: DATED_EDGES } });
     await saved.config.set({ startingRows: true });
     await saved.data.setType({ kind: "edge", name: "sent" }, "date");
@@ -104,10 +102,8 @@ async function savedDates(): Promise<string> {
         assert.match(table.textContent, /[A-Z][a-z]{2} \d+, 202\d/);
     });
     const words = table.textContent;
-    // With the timeline on, its settings open from the dock's settings button.
-    if (session.features.has("timeline")) {
-        await openTimelineSettings();
-    }
+    // Its settings open from the dock's settings button.
+    await openTimelineSettings();
     return words;
 }
 
@@ -221,54 +217,13 @@ const TIME_COMMANDS = [
     "Play or pause time",
 ];
 
-describe("the timeline's switch in the app", () => {
+describe("the timeline in the app", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
     });
 
-    it("shows no timeline with the experiment off, and the data stays", async () => {
-        await siteFeatures([]);
+    it("offers the timeline over a column of dates", async () => {
         const session = await open();
-        assert.deepEqual(session.features.enabled, []);
-        await waitFor(() => {
-            assert.isAbove(session.data.statistics().edgeCount, 0);
-        });
-
-        await userEvent.click(await dataPlace().findByRole("button", { name: "Add to node attributes" }));
-        const offered = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
-        assert.include(offered, "City");
-        assert.notInclude(offered, "Time", "no Time in Fields");
-        await userEvent.keyboard("{Escape}");
-
-        assert.isNull(screen.queryByRole("region", { name: "Timeline" }), "no dock");
-        assert.isNull(screen.queryByRole("button", { name: "Timeline" }), "no toolbar button");
-        assert.isNull(screen.queryByRole("button", { name: /^Time: / }), "no header chip");
-
-        await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
-        await screen.findAllByRole("option");
-        assert.isNull(screen.queryByRole("option", { name: "Time window" }), "no Filters entry");
-        await userEvent.keyboard("{Escape}");
-
-        // The timeline's key does nothing.
-        await userEvent.keyboard("t");
-        assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
-        assert.include(
-            session.data.attributes().map((each) => each.name),
-            "sent",
-        );
-
-        const listed = await shortcuts();
-        assert.include(listed, "Quick actions", "the dialog lists the other commands");
-        for (const label of TIME_KEYS) {
-            assert.notInclude(listed, label);
-        }
-        assert.notInclude(await sampleCommands(), "Paper citations");
-    });
-
-    it("offers the same reader the timeline with the experiment on", async () => {
-        await siteFeatures(["timeline"]);
-        const session = await open();
-        assert.deepEqual(session.features.enabled, ["timeline"]);
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add to edge attributes" }));
         // "sent" reads as time: it leads Time's submenu.
@@ -301,101 +256,22 @@ describe("the timeline's switch in the app", () => {
         await screen.findByRole("menuitem", { name: "Set in Data" });
     });
 
-    it("offers no time role on the Data page with the experiment off", async () => {
-        await siteFeatures([]);
-        assert.notInclude(await loadRoles(), "Date or time");
-    });
-
-    it("offers no time role in a header with the experiment off", async () => {
-        await siteFeatures([]);
-        await open();
-        assert.notInclude(await headerRoles("edge", "sent"), "Time");
-    });
-
-    it("offers the time role on the Data page with the experiment on", async () => {
-        await siteFeatures(["timeline"]);
+    it("offers the time role on the Data page", async () => {
         assert.include(await loadRoles(), "Date or time (suggested)");
     });
 
-    it("offers nothing that works the timeline over a project's time field with the experiment off", async () => {
-        await siteFeatures([]);
-        const session = await mount("data");
-        await session.project.open(await timedProject(), { discard: true });
-        await waitFor(() => {
-            assert.strictEqual(session.visibility.summary.visibleEdges, 2);
-        });
-
-        await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
-        await screen.findAllByRole("option");
-        assert.isNull(screen.queryByRole("option", { name: "Time window" }), "no Filters entry");
-        await userEvent.keyboard("{Escape}");
-
-        const commands = await timeCommands();
-        for (const label of TIME_COMMANDS) {
-            assert.notInclude(commands, label);
-        }
-
-        await columnVerb("edge", "sent", "Details");
-        await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
-        await screen.findAllByRole("menuitem");
-        assert.isNull(screen.queryByRole("menuitem", { name: "Set in Data" }), "no column verb");
-    });
-
-    it("offers Set in Data in the Overview with the experiment on", async () => {
-        await siteFeatures(["timeline"]);
+    it("offers Set in Data in the Overview", async () => {
         await open("graph");
         const overview = within(screen.getByRole("complementary", { name: "Inspector" }));
         await overview.findByRole("button", { name: "Set in Data" });
     });
 
-    it("offers no Set in Data in the Overview with the experiment off", async () => {
-        await siteFeatures([]);
-        await open("graph");
-        const overview = within(screen.getByRole("complementary", { name: "Inspector" }));
-        await overview.findByText("Direction");
-        assert.isNull(overview.queryByRole("button", { name: "Set in Data" }));
-    });
-
-    it("shows nothing of a project saved with the timeline, and lets the reader clear its window", async () => {
-        await siteFeatures([]);
-        const session = await mount("graph");
-        const report = await session.project.open(await timedProject(), { discard: true });
-        assert.isNotEmpty(report.problems);
-        await waitFor(() => {
-            assert.strictEqual(session.visibility.summary.visibleEdges, 2);
-        });
-
-        assert.isNull(screen.queryByRole("region", { name: "Timeline" }), "no dock");
-        assert.isNull(screen.queryByRole("button", { name: "Timeline" }), "no toolbar button");
-        assert.isNull(screen.queryByRole("button", { name: /^Time: / }), "no header chip");
-        await userEvent.keyboard("t");
-        assert.isNull(screen.queryByRole("region", { name: "Timeline" }), "no key");
-
-        await screen.findByRole("button", { name: /^Filter: .*"Time window"/ });
-        await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-        await waitFor(() => {
-            assert.isNull(session.visibility.window);
-            assert.strictEqual(session.visibility.summary.visibleEdges, 4);
-            assert.isNull(screen.queryByRole("button", { name: "Clear filters" }));
-        });
-    });
-
-    it("reads a project's dates in UTC, its saved zone left out, with the experiment off", async () => {
-        await siteFeatures([]);
-        const words = await savedDates();
-        assert.include(words, "Jan 1, 2026");
-        assert.notInclude(words, "Dec 31, 2025");
-        assert.isNull(screen.queryByRole("radiogroup", { name: "Zone" }), "no zone row");
-    });
-
-    it("reads the same project's dates in its saved zone with the experiment on", async () => {
-        await siteFeatures(["timeline"]);
+    it("reads a saved project's dates in its saved zone", async () => {
         assert.include(await savedDates(), "Dec 31, 2025");
         await screen.findByRole("radiogroup", { name: "Zone" });
     });
 
-    it("shows the same project's Timeline Hidden row with the experiment on", async () => {
-        await siteFeatures(["timeline"]);
+    it("shows a saved project's Timeline Hidden row", async () => {
         const session = await mount("graph");
         await session.project.open(await timedProject(), { discard: true });
         await waitFor(async () => {
@@ -405,7 +281,7 @@ describe("the timeline's switch in the app", () => {
     });
 });
 
-describe("the timeline's switch on a phone", () => {
+describe("the timeline on a phone", () => {
     beforeAll(async () => {
         await page.viewport(390, 844);
     });
@@ -418,7 +294,7 @@ describe("the timeline's switch on a phone", () => {
         const store = createWorkspaceStore({ project: { name: "Phone", id: 1 }, place: "graph", timelineOpen: true });
         const session = await mount("graph", store);
         await session.project.open(await timedProject(), { discard: true });
-        // The saved window is back (with the timeline on it narrows only the drawing).
+        // The saved window is back (it narrows only the drawing).
         await waitFor(() => {
             assert.strictEqual(session.data.statistics().edgeCount, 4);
             assert.isNotNull(session.visibility.window);
@@ -426,23 +302,7 @@ describe("the timeline's switch on a phone", () => {
         return session;
     }
 
-    it("leaves the side panels where they are with the experiment off", async () => {
-        await siteFeatures([]);
-        const session = await openOnPhone();
-
-        const refusal: unknown = await session.time
-            .setField({ edges: { start: "sent" } })
-            .catch((error: unknown) => error);
-
-        assert.propertyVal(refusal, "code", "E_FEATURE_OFF");
-        assert.isNull(document.querySelector(".tl-phone"));
-        assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
-        assert.isNull(screen.queryByRole("dialog", { name: "Time window" }));
-        assert.isAbove(screen.getByRole("complementary", { name: "Left panel" }).clientWidth, 0);
-    });
-
-    it("moves them aside for the same project's dock with the experiment on", async () => {
-        await siteFeatures(["timeline"]);
+    it("moves the side panels aside for a saved project's dock", async () => {
         await openOnPhone();
 
         await screen.findByRole("region", { name: "Timeline" });

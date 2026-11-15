@@ -117,27 +117,27 @@ export interface GraphtyElementJSXProps {
      */
     edgeWeightPath?: Graphty["edgeWeightPath"];
     /**
-     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge time column. Updates graph configuration.
      */
     edgeTimePath?: Graphty["edgeTimePath"];
     /**
-     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node time column. Updates graph configuration.
      */
     nodeTimePath?: Graphty["nodeTimePath"];
     /**
-     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge end column. Updates graph configuration.
      */
     edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
     /**
-     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node end column. Updates graph configuration.
      */
     nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
      */
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the node time column's numbers are read. Updates graph configuration.
      */
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
     /**
@@ -391,27 +391,27 @@ export interface GraphtyElementJSXProps {
      */
     "edge-weight-path"?: string;
     /**
-     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge time column. Updates graph configuration.
      */
     "edge-time-path"?: string;
     /**
-     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node time column. Updates graph configuration.
      */
     "node-time-path"?: string;
     /**
-     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge end column. Updates graph configuration.
      */
     "edge-time-end-path"?: string;
     /**
-     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node end column. Updates graph configuration.
      */
     "node-time-end-path"?: string;
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
      */
     "edge-time-unit"?: string;
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the node time column's numbers are read. Updates graph configuration.
      */
     "node-time-unit"?: string;
     /**

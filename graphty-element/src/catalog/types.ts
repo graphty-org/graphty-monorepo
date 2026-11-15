@@ -1377,7 +1377,7 @@ export type Selector =
 /**
  * Who put a layer in the stack. Every layer names its source. An element layer's `reason` says
  * what it is for: `"default"` the look every element is drawn from, `"selection"`, `"hover"` and
- * `"notes"` what they paint, and `"time"` (experimental, with the `timeline` experiment on) the two
+ * `"notes"` what they paint, and `"time"` the two
  * locked layers that hide what lies outside a time window.
  */
 export type LayerSource =

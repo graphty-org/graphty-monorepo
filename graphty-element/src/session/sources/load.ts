@@ -766,10 +766,7 @@ export async function previewSource(
         nodes: Object.freeze(nodes),
         rows: Object.freeze(nodes.map((row) => Object.freeze({ id: row.id as NodeId, name: nameOf(row, labelPath) }))),
         edges: Object.freeze(edges),
-        columns: Object.freeze([
-            ...describeRows(nodes, "node", [], host.readDates()),
-            ...describeRows(edges, "edge", [], host.readDates()),
-        ]),
+        columns: Object.freeze([...describeRows(nodes, "node"), ...describeRows(edges, "edge")]),
         more: (read.info?.next ?? null) !== null || read.held.nodes.length > maxNodes,
         serverFacts: Object.freeze(
             Object.entries(facts).map(([name, value]) => Object.freeze({ code: `source.${name}`, params: { value } })),

@@ -7,16 +7,11 @@
  * makes `counts` walk every element again.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { StyleCounts } from "../../../src/session/styles";
 import { countCounters } from "../../../src/session/styles/explain";
-
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const NODES = 60;
 

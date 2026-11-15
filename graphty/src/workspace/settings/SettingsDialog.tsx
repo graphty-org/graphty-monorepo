@@ -13,7 +13,7 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { siteFileStyles, siteTimeline } from "../../siteConfig";
+import { siteFileStyles } from "../../siteConfig";
 import { AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
 import { AI_PROVIDER_SECTION, assistantOn } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
@@ -23,7 +23,6 @@ import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
 import { useAssistantSendsTo } from "../privacy/useAssistantSendsTo";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { timelineOn } from "../time/timeActions";
 import { setNumberFormat, useNumberFormats } from "./numberFormat";
 import {
     ACCELERATION,
@@ -58,8 +57,6 @@ function General(): React.JSX.Element {
     // start screen has no session yet, so there the site's feature list decides, as the element will.
     const { session } = useWorkspace();
     const styled = session ? fileStylesOn(session) : siteFileStyles();
-    // Likewise the timeline experiment decides whether Default timeline style is offered.
-    const timed = session ? timelineOn(session) : siteTimeline();
     const [timelineStyle, setTimelineStyle] = useState(() => readPreference(TIMELINE_STYLE));
     return (
         <Stack gap="md">
@@ -94,25 +91,23 @@ function General(): React.JSX.Element {
                     ]}
                 />
             </Input.Wrapper>
-            {timed ? (
-                <Input.Wrapper
-                    label="Default timeline style"
-                    description="How a new project draws what lies outside the time window. Hidden leaves it out; Ghost draws it nearly transparent."
-                >
-                    <SegmentedControl
-                        value={timelineStyle}
-                        onChange={(value) => {
-                            const next = TIMELINE_STYLE.values.find((v) => v === value) ?? TIMELINE_STYLE.fallback;
-                            setTimelineStyle(next);
-                            writePreference(TIMELINE_STYLE, next);
-                        }}
-                        data={[
-                            { value: "hidden", label: "Hidden" },
-                            { value: "ghost", label: "Ghost" },
-                        ]}
-                    />
-                </Input.Wrapper>
-            ) : null}
+            <Input.Wrapper
+                label="Default timeline style"
+                description="How a new project draws what lies outside the time window. Hidden leaves it out; Ghost draws it nearly transparent."
+            >
+                <SegmentedControl
+                    value={timelineStyle}
+                    onChange={(value) => {
+                        const next = TIMELINE_STYLE.values.find((v) => v === value) ?? TIMELINE_STYLE.fallback;
+                        setTimelineStyle(next);
+                        writePreference(TIMELINE_STYLE, next);
+                    }}
+                    data={[
+                        { value: "hidden", label: "Hidden" },
+                        { value: "ghost", label: "Ghost" },
+                    ]}
+                />
+            </Input.Wrapper>
             {styled ? (
                 <Switch
                     label="Import styles from files"

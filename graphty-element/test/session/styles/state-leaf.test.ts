@@ -3,16 +3,11 @@
  * reading one follows the state live, and the leaf sits beside other conditions in a selection.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession, isGraphtyError } from "../../../session";
 import type { ElementState, RuleTree, UnionLeaf } from "../../../src/catalog/types";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { selectorRule, selectorStates } from "../../../src/session/styles";
-
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /** Four nodes in a line, each at its step; nodes 1 and 2 are tagged. */
 async function line(): Promise<GraphSession> {

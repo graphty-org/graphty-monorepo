@@ -5,8 +5,6 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryContext, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
-import { siteFeatures } from "../test/siteFeatures";
 import type { WorkspaceState } from "../workspace/state/store";
 import { Workspace } from "../workspace/Workspace";
 import { freshStore } from "./freshStore";
@@ -104,15 +102,6 @@ const meta: Meta<typeof Workspace> = {
     title: "Workspace/Time dock",
     component: Workspace,
     parameters: { layout: "fullscreen" },
-    // The timeline is an experiment: these stories switch it on, as a site's site.json does, and
-    // put the page's own configuration back afterwards.
-    beforeEach: async () => {
-        await siteFeatures(["timeline"]);
-        return async () => {
-            resetSiteConfig();
-            await loadSiteConfig();
-        };
-    },
     ...freshStore(ON_GRAPH),
 };
 

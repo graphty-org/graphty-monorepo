@@ -383,16 +383,10 @@ interface PageSources {
      */
     timeParsed?(kind: "node" | "edge", column: string): number | undefined;
     /**
-     * The columns whose values read as time, most read first (`session.time.candidates()`), empty
-     * with the timeline off.
+     * The columns whose values read as time, most read first (`session.time.candidates()`).
      * @returns the candidates
      */
     timeCandidates?(): readonly { readonly kind: "node" | "edge"; readonly column: string }[];
-    /**
-     * Whether the timeline experiment is on; absent reads on.
-     * @returns true when it is
-     */
-    timeline?(): boolean;
     /**
      * Whether the file styles experiment is on; absent reads on.
      * @returns true when it is
@@ -1908,7 +1902,6 @@ export class SessionData implements SessionDataApi {
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
             labelPath: () => this.readConfig().knownFields.nodeLabelPath,
-            readDates: () => this.timelineOn,
             credentialSlotOf: (load) => {
                 const key = this.sources().find((each) => each.loadKey === load)?.key;
                 return key === undefined ? undefined : this.loadFacts.get(key)?.credentialSlot;
@@ -1984,12 +1977,7 @@ export class SessionData implements SessionDataApi {
     ): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
-        const read = await readWithProgress(
-            source,
-            options.signal,
-            (change) => this.writes.progress?.(change),
-            this.pages.timeline?.() === true,
-        );
+        const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
         this.reads.set(source, read);
         return this.draftOf(source, read, options);
     }
@@ -2016,7 +2004,6 @@ export class SessionData implements SessionDataApi {
             read,
             {
                 config: () => this.readConfig(),
-                timeline: () => this.timelineOn,
                 graph: () => {
                     const slice = this.writes.slice();
                     const snapshot = this.current();
@@ -3902,7 +3889,7 @@ export class SessionData implements SessionDataApi {
      */
     async matchesSource(source: DataSourceInput): Promise<SourceKey | null> {
         this.requireLive("matchesSource");
-        const read = await readWithProgress(source, undefined, () => undefined, this.pages.timeline?.() === true);
+        const read = await readWithProgress(source, undefined, () => undefined);
         if (read.tables.every((held) => held.table.fixed)) {
             return null;
         }
@@ -4552,14 +4539,6 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Whether the timeline experiment is on; a session built without the switch reads on.
-     * @returns True when it is on.
-     */
-    private get timelineOn(): boolean {
-        return this.pages.timeline?.() !== false;
-    }
-
-    /**
      * Every attribute the graph's records carry.
      * @returns the descriptors, node attributes first
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
@@ -4573,7 +4552,7 @@ export class SessionData implements SessionDataApi {
         // and so is what a collapsed group keeps for its expand.
         const described = this.attributeCache.get("", () =>
             Object.freeze(
-                describeAttributes(snapshot, this.records, this.timelineOn).filter(
+                describeAttributes(snapshot, this.records).filter(
                     (each) => !isSourceFactKey(each.name) && each.name !== GROUP_RESTORE,
                 ),
             ),
@@ -4619,7 +4598,6 @@ export class SessionData implements SessionDataApi {
             joined,
             parsed,
             snapshot,
-            timeline: this.timelineOn,
         };
         const result =
             declarations.size === 0 &&
@@ -5030,10 +5008,6 @@ export class SessionData implements SessionDataApi {
      */
     async setRole(column: ColumnRef, role: ColumnRole | null): Promise<void> {
         this.requireLive("setRole");
-        if (role === "time" && !this.timelineOn) {
-            throw featureOff("timeline", "data.setRole");
-        }
-
         const { kind, name } = resolveColumn(this.attributes(), column);
         const fields = ROLE_FIELDS[kind];
         const snapshot = this.current();
@@ -5916,8 +5890,6 @@ function unboundFactsOf(
 
 /** What `attributes()` lays over the described columns. */
 interface AttributeOverlay {
-    /** Whether the timeline experiment is on, so a time role measures time. */
-    readonly timeline: boolean;
     readonly declarations: ReadonlyMap<string, MeasurementDeclaration>;
     readonly roles: ReadonlyMap<string, AttributeRole[]>;
     readonly uses: ReadonlyMap<string, AttributeUse[]>;
@@ -5940,7 +5912,6 @@ interface ColumnOverlay {
     readonly isJoined: boolean;
     readonly times: number | undefined;
     readonly rows: number;
-    readonly timeline: boolean;
 }
 
 /**
@@ -5961,7 +5932,6 @@ function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay)
         isJoined: overlay.joined.has(key),
         times: overlay.parsed.get(each),
         rows: each.kind === "node" ? overlay.snapshot.nodeCount : overlay.snapshot.edgeCount,
-        timeline: overlay.timeline,
     };
     return facts.declared === undefined &&
         facts.played === undefined &&
@@ -5982,7 +5952,7 @@ function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay)
  * @returns The fields.
  */
 function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial<AttributeDescriptor> {
-    const { declared, played, used, from, typed, isHidden, isJoined, times, rows, timeline } = facts;
+    const { declared, played, used, from, typed, isHidden, isJoined, times, rows } = facts;
     return {
         ...(isJoined ? { origin: "joined" as const } : {}),
         ...(typed === undefined ? {} : typedFields(each, typed)),
@@ -5994,7 +5964,7 @@ function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial
                   measurementSource: "declared" as const,
               }),
         // Designating a column as the time field makes it time.
-        ...(timeline && declared === undefined && played?.includes("time") === true
+        ...(declared === undefined && played?.includes("time") === true
             ? { measurement: "time" as const, measurementSource: "declared" as const }
             : {}),
         ...(played === undefined ? {} : { roles: Object.freeze(played) }),
@@ -6727,7 +6697,6 @@ export function headlessDataService(
         loadComplete: () => undefined,
         loadFailed: () => undefined,
         progress: (change) => dispatcher.services.progress?.(change),
-        timeline: () => dispatcher.services.timeline?.() === true,
         batched: () => dispatcher.services.batched?.() === true,
     });
 
@@ -6819,7 +6788,6 @@ function fileOf(
  * @param source - What `prepare` takes.
  * @param signal - Abandons the read.
  * @param publish - Where the progress goes.
- * @param timeline - Whether the timeline experiment is on, so the reader keeps the time data it reads.
  * @returns What was read.
  * @throws What reading throws, after the end is published.
  */
@@ -6827,7 +6795,6 @@ async function readWithProgress(
     source: DataSourceInput,
     signal: AbortSignal | undefined,
     publish: (change: ProgressChange) => void,
-    timeline = false,
 ): Promise<Awaited<ReturnType<typeof readSource>>> {
     const named = progressSource(source.config, source.name);
     let completed = 0;
@@ -6856,7 +6823,6 @@ async function readWithProgress(
                 fraction = share ?? null;
                 change("progress");
             },
-            timeline,
         );
         change("end", { outcome: "succeeded" });
         return read;

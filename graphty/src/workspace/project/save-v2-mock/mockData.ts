@@ -22,12 +22,12 @@ export const SECTION_LABELS: Record<SectionName, string> = {
 /** What each section of the example project holds, as one short line. */
 export const SECTION_SUMMARIES: Record<SectionName, string> = {
     data: "3 sources . 5 nodes . 5 edges . 5 types",
-    style: "Fraud review style 3.1.0 . 6 layers . 1 palette",
-    recipe: "Card-testing sweep 1.2.0 . 5 steps",
+    style: "Fraud review style . 6 layers . 1 palette",
+    recipe: "Card-testing sweep . 5 steps",
     settings: "Background . run placement . transition . playback",
-    results: "4 runs . PageRank, communities, route, layout",
+    results: "3 runs and the layout . PageRank, communities, route",
     notes: "3 notes . M. Okafor",
-    view: "Camera . 1 saved view . 1 set . 2 layers . 1 run",
+    view: "Camera . 1 saved view . 2 sets . filter . 2 layers . 3 runs . layout",
 };
 
 /** The save presets, one per use case, and the sections each picks. */
@@ -42,7 +42,7 @@ export const PRESETS: { value: string; label: string; sections: SectionName[] }[
     { value: "recipe", label: "Recipe only", sections: ["recipe"] },
     { value: "kit", label: "Starting kit", sections: ["style", "recipe", "settings"] },
     { value: "journal", label: "Journal", sections: ["notes", "view"] },
-    { value: "record", label: "Record", sections: ["data", "recipe", "results"] },
+    { value: "record", label: "Record", sections: ["data", "recipe", "results", "view"] },
 ];
 
 /** A data source of the example project, as the save dialog lists it. */
@@ -52,18 +52,18 @@ export interface MockSource {
     detail: string;
     /** How the example file keeps it. */
     storage: "embed" | "reference";
-    /** The reader's own edits: always embedded. */
+    /** The reader's own operations (merge, remove, add, edit), in the order made: always embedded. */
     reader?: boolean;
 }
 
 export const SOURCES: MockSource[] = [
-    { id: "reader", label: "Your changes", detail: "1 edit", storage: "embed", reader: true },
+    { id: "reader", label: "Your changes", detail: "1 operation . edit acct-1003", storage: "embed", reader: true },
     { id: "accounts", label: "accounts-2026-11.csv", detail: "CSV . 142 B . 3 accounts", storage: "embed" },
     {
         id: "activity",
         label: "Bank API: card activity, week 46",
         detail: "JSON . api.example-bank.test . 1.9 KB",
-        storage: "reference",
+        storage: "embed",
     },
 ];
 
@@ -77,17 +77,26 @@ export interface ReportLine {
 /** The report of saving the style section alone. */
 export const REPORT_STYLE_ONLY: ReportLine[] = [
     { item: "Suspects (layer)", outcome: "Left out", reason: "Picks acct-1002, acct-1003" },
-    { item: "Route from Ben Ode to Cy Lam (layer)", outcome: "Left out", reason: "Run from account acct-1002" },
+    { item: "Route from Ben Ode to Cy Lam (layer)", outcome: "Left out", reason: "Reads route, a hand-started run" },
 ];
 
 /** The report of saving everything while a colleague's newer style section is held. */
 export const REPORT_EVERYTHING_HELD: ReportLine[] = [
     { item: "Suspects (layer)", outcome: "Moved to view", reason: "Picks acct-1002, acct-1003" },
-    { item: "Route from Ben Ode to Cy Lam (layer)", outcome: "Moved to view", reason: "Run from account acct-1002" },
-    { item: "Route (run)", outcome: "Kept in view", reason: "Option names account acct-1002" },
+    {
+        item: "Route from Ben Ode to Cy Lam (layer)",
+        outcome: "Moved to view",
+        reason: "Reads route, a hand-started run",
+    },
+    { item: "PageRank, communities (runs)", outcome: "Cannot be replayed", reason: "Ran on the week filter" },
     { item: "Style", outcome: "Kept as opened", reason: "Version 3, newer than this release" },
     { item: "2 style changes", outcome: "Not saved", reason: "Style section held" },
     { item: "Bank API: card activity, week 46", outcome: "Referenced", reason: "Fetched again on open" },
+    {
+        item: "Selected edge, row 3 of card activity",
+        outcome: "Will not bind",
+        reason: "Row without an id; embed the source",
+    },
 ];
 
 /** A column, type, source role or run a reusable section needs, and the open data's candidates. */
@@ -141,7 +150,7 @@ export const MAPPING_ROWS: MappingRow[] = [
     },
 ];
 
-/** How one dataset-bound section binds to the open data. */
+/** How one dataset-bound section binds to the open data; results bind per run. */
 export interface BindRow {
     section: SectionName;
     binding: "Match" | "Partial" | "No match";
@@ -149,17 +158,22 @@ export interface BindRow {
     detail: string;
 }
 
-/** Same dataset, refreshed since the file was saved: the activity source changed. */
+/** Same dataset, refreshed since the file was saved: the accounts file has a new copy id. */
 export const BIND_PARTIAL: BindRow[] = [
-    { section: "results", binding: "Partial", bound: "4 runs . stale", detail: "Changed: Bank API: card activity" },
-    { section: "notes", binding: "Partial", bound: "3 of 3 notes", detail: "" },
-    { section: "view", binding: "Partial", bound: "11 of 12 references", detail: "Unbound: payment pay-890" },
+    {
+        section: "results",
+        binding: "Partial",
+        bound: "3 runs and the layout . stale",
+        detail: "Copy id changed: accounts",
+    },
+    { section: "notes", binding: "Match", bound: "3 of 3 notes", detail: "Unbound target: account acct-1003" },
+    { section: "view", binding: "Match", bound: "11 of 12 references", detail: "Unbound, kept in its set: acct-1003" },
 ];
 
 /** Other data open: the sections bind by key only if the reader says so. */
 export const BIND_NONE: BindRow[] = [
-    { section: "results", binding: "No match", bound: "4 runs", detail: "Same file: accounts-2026-11.csv" },
-    { section: "notes", binding: "No match", bound: "1 of 3 notes", detail: "Unbound: acct-1002, pay-889" },
+    { section: "results", binding: "No match", bound: "3 runs and the layout", detail: "Same copy id: accounts" },
+    { section: "notes", binding: "No match", bound: "1 of 3 notes", detail: "Unbound: acct-1002, edge pay-889" },
     { section: "view", binding: "No match", bound: "4 of 12 references", detail: "Unbound: dev-9f3, merch-77, ..." },
 ];
 
@@ -167,7 +181,7 @@ export const BIND_NONE: BindRow[] = [
 export const STYLE_FILE = {
     fileName: "fraud-look.graphty-style.json",
     name: "Fraud review style",
-    revision: "3.1.0",
+    modified: "2026-11-12",
     authors: "Fraud analytics team",
     license: "CC-BY-4.0",
     from: "example-bank.test/kits/fraud-team-kit.graphty.json",
@@ -181,3 +195,39 @@ export const STYLE_FILE = {
         { expected: "Run communities", found: "", state: "Waits for the run" },
     ],
 };
+
+/** A view run record, or the layout record, as the open dialog lists it. */
+export interface RunRecord {
+    id: string;
+    label: string;
+    detail: string;
+    /** False when the run cannot be replayed exactly: its saved results are restored instead. */
+    replayable: boolean;
+}
+
+/** The example file's view: three runs in the order made, then the layout record. */
+export const RUNS: RunRecord[] = [
+    {
+        id: "card_testing__pagerank",
+        label: "PageRank",
+        detail: "Card-testing sweep . on the week filter",
+        replayable: false,
+    },
+    {
+        id: "card_testing__communities",
+        label: "Communities",
+        detail: "Card-testing sweep . on the week filter",
+        replayable: false,
+    },
+    { id: "route", label: "Ben Ode to Cy Lam", detail: "Shortest path . started by hand", replayable: true },
+    { id: "layout", label: "Layout", detail: "Force . 3D . seed 52211", replayable: true },
+];
+
+/** Adding the file's sources to open data: a node key that adds keys to a space another source fills. */
+export const SPACE_OVERLAPS: { source: string; space: string; overlap: string }[] = [
+    {
+        source: "accounts-2026-11.csv",
+        space: "account",
+        overlap: "3 keys already in account, from accounts-2026-10.csv",
+    },
+];

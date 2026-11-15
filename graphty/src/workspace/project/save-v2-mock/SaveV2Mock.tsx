@@ -30,11 +30,14 @@ import {
     MAPPING_ROWS,
     PRESETS,
     type ReportLine,
+    type RunRecord,
+    RUNS,
     SECTION_LABELS,
     SECTION_SUMMARIES,
     type SectionName,
     SECTIONS,
     SOURCES,
+    SPACE_OVERLAPS,
     STYLE_FILE,
 } from "./mockData";
 
@@ -173,7 +176,11 @@ export function SaveDialogMock({ preset = "everything" }: Readonly<{ preset?: st
                         }
                     }}
                 />
-                <SectionChecks chosen={chosen} onChange={setChosen} />
+                <SectionChecks
+                    chosen={chosen}
+                    onChange={setChosen}
+                    summaries={{ ...SECTION_SUMMARIES, results: `${SECTION_SUMMARIES.results} . off by default` }}
+                />
                 {chosen.includes("data") ? (
                     <Stack gap={6}>
                         <Text size="sm" fw={500}>
@@ -250,19 +257,64 @@ export function SaveReportMock({
 }
 
 /**
- * Open for a full file: which sections to load, rerun or restore, data replace or add, and a
- * warning for a section held because this release cannot read it.
+ * One run record, or the layout record, on open: rerun (the default) or restore its saved results.
+ * A run that cannot be replayed exactly only restores.
+ * @param props - Component props
+ * @param props.run - the record.
+ * @param props.saved - whether the file's results section is being loaded.
+ * @returns the row.
+ */
+function RunRow({ run, saved }: Readonly<{ run: RunRecord; saved: boolean }>): React.JSX.Element {
+    const [choice, setChoice] = useState("rerun");
+    let fixed: string | null = null;
+    if (!run.replayable) {
+        fixed = saved ? "Restores saved results" : "Not run: no saved results";
+    }
+    return (
+        <Group justify="space-between" wrap="nowrap">
+            <Stack gap={0} style={{ minWidth: 0 }}>
+                <Text size="sm" truncate>
+                    {run.label}
+                </Text>
+                <Text size="xs" c={SECONDARY}>
+                    {run.detail}
+                </Text>
+            </Stack>
+            {fixed === null ? (
+                <SegmentedControl
+                    size="xs"
+                    label={`On open, ${run.label}`}
+                    value={saved ? choice : "rerun"}
+                    data={[
+                        { value: "rerun", label: "Rerun" },
+                        { value: "restore", label: "Restore", disabled: !saved },
+                    ]}
+                    onChange={setChoice}
+                />
+            ) : (
+                <Text size="xs" c={SECONDARY}>
+                    {fixed}
+                </Text>
+            )}
+        </Group>
+    );
+}
+
+/**
+ * Open for a full file: which sections to load, data replace or add (with the space question for
+ * added sources), each run rerun or restored, and a warning for a section held because this release
+ * cannot read it. Opening restores the session; the recipe is kept, not applied.
  * @param props - Component props
  * @param props.held - sections held on open.
  * @returns the dialog.
  */
 export function OpenDialogMock({ held = [] }: Readonly<{ held?: readonly SectionName[] }>): React.JSX.Element {
     const [chosen, setChosen] = useState<SectionName[]>(SECTIONS.filter((s) => !held.includes(s)));
-    const [rerun, setRerun] = useState(true);
     const [mode, setMode] = useState("replace");
+    const [spaces, setSpaces] = useState<Record<string, string>>({});
     const summaries = {
         ...SECTION_SUMMARIES,
-        results: `${SECTION_SUMMARIES.results} . ${rerun ? "compared with rerun" : "restored"}`,
+        recipe: `${SECTION_SUMMARIES.recipe} . kept, not applied`,
     };
 
     return (
@@ -284,13 +336,42 @@ export function OpenDialogMock({ held = [] }: Readonly<{ held?: readonly Section
                     ]}
                     onChange={setMode}
                 />
-                <Switch
-                    label="Rerun layouts and algorithms"
-                    checked={rerun}
-                    onChange={(event) => {
-                        setRerun(event.currentTarget.checked);
-                    }}
-                />
+                {mode === "add"
+                    ? SPACE_OVERLAPS.map((item) => (
+                          <Group key={item.source} justify="space-between" wrap="nowrap">
+                              <Stack gap={0} style={{ minWidth: 0 }}>
+                                  <Text size="sm" truncate>
+                                      {item.source}
+                                  </Text>
+                                  <Text size="xs" c={SECONDARY}>
+                                      {item.overlap}
+                                  </Text>
+                              </Stack>
+                              <SegmentedControl
+                                  size="xs"
+                                  label={`Space for ${item.source}`}
+                                  value={spaces[item.source] ?? "separate"}
+                                  data={[
+                                      { value: "merge", label: "Merge" },
+                                      { value: "separate", label: "Keep separate" },
+                                  ]}
+                                  onChange={(value) => {
+                                      setSpaces((now) => ({ ...now, [item.source]: value }));
+                                  }}
+                              />
+                          </Group>
+                      ))
+                    : null}
+                {chosen.includes("view") ? (
+                    <Stack gap={6}>
+                        <Text size="sm" fw={500}>
+                            Runs
+                        </Text>
+                        {RUNS.map((run) => (
+                            <RunRow key={run.id} run={run} saved={chosen.includes("results")} />
+                        ))}
+                    </Stack>
+                ) : null}
             </Stack>
             <ModalFooter mt="md">
                 <Button variant="default">Cancel</Button>
@@ -398,7 +479,7 @@ export function BindReportMock({ other = false }: Readonly<{ other?: boolean }>)
                                     <Badge
                                         size="sm"
                                         variant="light"
-                                        color={row.binding === "No match" ? "red" : "yellow"}
+                                        color={{ Match: "green", Partial: "yellow", "No match": "red" }[row.binding]}
                                     >
                                         {row.binding}
                                     </Badge>
@@ -436,7 +517,7 @@ export function StyleFilePreviewMock(): React.JSX.Element {
     const file = STYLE_FILE;
     const facts: [string, string][] = [
         ["Name", file.name],
-        ["Revision", file.revision],
+        ["Modified", file.modified],
         ["Authors", file.authors],
         ["License", file.license],
         ["From", file.from],

@@ -36,7 +36,7 @@ export const SaveStyleOnly: Story = { render: () => <SaveDialogMock preset="styl
 /** Save as..., the Starting kit preset: style, recipe and settings, no data. */
 export const SaveStartingKit: Story = { render: () => <SaveDialogMock preset="kit" /> };
 
-/** Save as..., the Record preset: data, recipe and results. */
+/** Save as..., the Record preset: data, recipe, view and results. */
 export const SaveRecord: Story = { render: () => <SaveDialogMock preset="record" /> };
 
 /** The report after saving the style alone: the layers that pick nodes are left out. */
@@ -49,7 +49,7 @@ export const SaveReportHeldSection: Story = {
     render: () => <SaveReportMock file="card-fraud-week-46.graphty.json" lines={REPORT_EVERYTHING_HELD} />,
 };
 
-/** Open a full file: each section with what it holds, rerun, data replace or add. */
+/** Open a full file: the session restored, each run rerun or restored, data replace or add. */
 export const OpenFullFile: Story = { render: () => <OpenDialogMock /> };
 
 /** Open a full file whose style section is newer than this release: held, warned before editing. */
@@ -58,7 +58,7 @@ export const OpenHeldSection: Story = { render: () => <OpenDialogMock held={["st
 /** A starting kit meets new data: expected column to open column, and what waits while unpaired. */
 export const OpenColumnMapping: Story = { render: () => <ColumnMappingMock /> };
 
-/** Notes, view and results meet the same data refreshed since the save. */
+/** Notes, view and results meet the same data refreshed since the save: runs stale by copy id. */
 export const OpenBindReportRefreshed: Story = { render: () => <BindReportMock /> };
 
 /** Notes, view and results meet other data: bound by key only when the reader says so. */

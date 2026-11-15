@@ -1792,8 +1792,8 @@ export const simpleLayoutInternals = {
     byRow(engine: StaticLayoutEngine): boolean;
     /** Hold an `Edge` built late for an edge the engine already laid out by row, without marking the layout stale. */
     adoptEdge(engine: StaticLayoutEngine, e: Edge): void;
-    /** Tell the engine whether the consumer has paused the layout: while it has, a re-run that would move existing rows waits. */
-    whilePaused(engine: StaticLayoutEngine, paused: () => boolean): void;
+    /** Tell a static engine whether the consumer has paused the layout: while it has, a re-run that would move existing rows waits. Any other engine is left alone. */
+    whilePaused(engine: LayoutEngine | null, paused: () => boolean): void;
     /** Mark the re-run a pause held back as due; true when there was one. */
     resume(engine: StaticLayoutEngine): boolean;
 };
@@ -1841,7 +1841,9 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             engine.#edges.push(e);
         };
         simpleLayoutInternals.whilePaused = (engine, paused) => {
-            engine.#paused = paused;
+            if (engine instanceof StaticLayoutEngine) {
+                engine.#paused = paused;
+            }
         };
         simpleLayoutInternals.resume = (engine) => {
             if (!engine.#deferred) {
@@ -2336,17 +2338,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             return;
         }
 
-        // PAUSED, A CHANGE THAT WOULD MOVE EXISTING NODES WAITS FOR THE RESUME. A removal (or any
-        // change that is not an add) re-runs the whole arrangement; while the consumer has paused
-        // the layout every remaining node keeps its row in the array instead, and that array is
-        // what both render paths draw. The graph as it stands becomes the one laid out, so an add
-        // made while still paused places only its new nodes.
-        if (this.#keep === null && this.#laidOut !== null && this.#paused?.() === true) {
-            this.stale = false;
-            this.#deferred = true;
-            this.#column = new Float32Array(0);
-            this.#loaded = null;
-            this.#laidOut = this.#load().source;
+        if (this.#holdWhilePaused()) {
             return;
         }
 
@@ -2394,23 +2386,53 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
                 : toPositionColumn(this.result, this.scalingFactor, null);
         this.#laidOut = loaded?.source ?? null;
 
-        // A held row is dropped from the answer rather than skipped at publish time, so that a
-        // later publish of the same answer cannot move it either: NaN is never written.
+        this.#dropKept(loaded);
+        this.publishComputed();
+    }
+
+    /**
+     * PAUSED, A CHANGE THAT WOULD MOVE EXISTING NODES WAITS FOR THE RESUME. A removal (or any
+     * change that is not an add) re-runs the whole arrangement; while the consumer has paused the
+     * layout every remaining node keeps its row in the array instead, and that array is what both
+     * render paths draw. The graph as it stands becomes the one laid out, so an add made while
+     * still paused places only its new nodes.
+     * @returns true when the re-run was held back
+     */
+    #holdWhilePaused(): boolean {
+        if (this.#keep !== null || this.#laidOut === null || this.#paused?.() !== true) {
+            return false;
+        }
+
+        this.stale = false;
+        this.#deferred = true;
+        this.#column = new Float32Array(0);
+        this.#loaded = null;
+        this.#laidOut = this.#load().source;
+        return true;
+    }
+
+    /**
+     * Drop the rows an add keeps from the answer just computed. A held row is dropped rather than
+     * skipped at publish time, so that a later publish of the same answer cannot move it either:
+     * NaN is never written.
+     * @param loaded - the graph the answer was computed for
+     */
+    #dropKept(loaded: LoadedGraph | null): void {
         const keep = this.#keep;
         this.#keep = null;
-        if (keep !== null && loaded?.positions) {
+        if (keep === null) {
+            return;
+        }
+
+        if (loaded?.positions) {
             alignToHeld(this.#column, loaded.positions, keep);
         }
 
-        if (keep !== null) {
-            for (let row = 0; row < this.#column.length / 3; row++) {
-                if (maskTest(keep, row)) {
-                    this.#column.fill(Number.NaN, 3 * row, 3 * row + 3);
-                }
+        for (let row = 0; row < this.#column.length / 3; row++) {
+            if (maskTest(keep, row)) {
+                this.#column.fill(Number.NaN, 3 * row, 3 * row + 3);
             }
         }
-
-        this.publishComputed();
     }
 
     /**

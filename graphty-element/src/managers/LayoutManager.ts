@@ -1648,9 +1648,7 @@ export class LayoutManager implements Manager {
             );
         }
 
-        if (engine instanceof StaticLayoutEngine) {
-            simpleLayoutInternals.whilePaused(engine, () => this._paused);
-        }
+        simpleLayoutInternals.whilePaused(engine, () => this._paused);
 
         if (engine) {
             engine.clusterColumn = (path, graph = this.dataManager.getSnapshot()) =>

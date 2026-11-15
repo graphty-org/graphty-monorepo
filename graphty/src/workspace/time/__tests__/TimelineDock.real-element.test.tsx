@@ -518,6 +518,29 @@ describe("the timeline dock on the real element", () => {
         const all = await within(dock).findByRole("button", { name: "Show all time" });
         // Show all time sits just before it, never over it.
         assert.isAtMost(all.getBoundingClientRect().right, atEnd().left);
+
+        // Squeezed until the bar wraps, the gear still ends the last line with Show all time beside
+        // it, and Show all time covers no other button.
+        const bar = all.closest(".tl-bar");
+        assert.isNotNull(bar);
+        const oneLine = bar.getBoundingClientRect().height;
+        dock.style.width = "360px";
+        await waitFor(() => {
+            assert.isAbove(bar.getBoundingClientRect().height, oneLine * 1.5);
+        });
+        const gear = atEnd();
+        const shown = all.getBoundingClientRect();
+        assert.isAtMost(shown.right, gear.left);
+        assert.closeTo(shown.top, gear.top, 1);
+        for (const other of within(bar as HTMLElement).getAllByRole("button")) {
+            if (other === all) {
+                continue;
+            }
+            const box = other.getBoundingClientRect();
+            const overlaps =
+                box.left < shown.right && shown.left < box.right && box.top < shown.bottom && shown.top < box.bottom;
+            assert.isFalse(overlaps, `Show all time covers ${other.getAttribute("aria-label") ?? other.textContent}`);
+        }
     });
 
     it("names the selection's line in a legend while it is drawn", async () => {

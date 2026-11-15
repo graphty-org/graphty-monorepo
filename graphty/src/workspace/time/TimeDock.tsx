@@ -570,7 +570,6 @@ function AllTimeButton({
     return (
         <Tooltip label="Show all time">
             <ActionIcon
-                className="tl-all"
                 variant="subtle"
                 aria-label="Show all time"
                 onClick={() => {
@@ -788,10 +787,11 @@ export function TimeDock(): React.JSX.Element | null {
     // What the line over the bars is, while it is drawn: a swatch of it and its name.
     const legend = <SelectionLegend shown={selected !== null} />;
     const viewButtons = <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />;
-    const allTime = <AllTimeButton session={session} store={store} />;
-    // Always the bar's last button, at its right end, whatever comes and goes before it.
+    // Always the bar's last buttons, at its right end, whatever comes and goes before them. Show all
+    // time is drawn in the same flow, so it stays beside the gear on whatever line the bar wraps it to.
     const settingsButton = (
         <div className="tl-settings">
+            <AllTimeButton session={session} store={store} />
             <SettingsButton />
         </div>
     );
@@ -875,7 +875,6 @@ export function TimeDock(): React.JSX.Element | null {
                             {counts}
                             {legend}
                             {viewButtons}
-                            {allTime}
                             {settingsButton}
                         </>
                     }
@@ -894,7 +893,6 @@ export function TimeDock(): React.JSX.Element | null {
                         {settingsButton}
                     </Group>
                     {chart}
-                    {allTime}
                 </>
             )}
         </section>

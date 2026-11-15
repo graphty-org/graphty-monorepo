@@ -96,8 +96,8 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * The pull request rules (results-service.md 6.1, 6.3) as runShard()'s `judge`. Quarantined tests pass loudly. A
  * test that failed and then passed fails as `[NEW-FLAKY]` when the pull request touched it, else passes as
  * `[FLAKY-UNRELATED]`. A test that failed every time passes as `[KNOWN]` when master's own runs failed it the
- * same way (`failingOnBase`, same family, flags and key), touched or not; else it fails when touched and,
- * untouched, passes loudly as `[UNRELATED]` (#3925: a failure with another source must not block a merge; the full run with bisect and
+ * same way (`failingOnBase`, same family, flags and key) and the pull request did not change its file (`changed`,
+ * or not touched at all); else it fails when touched and, untouched, passes loudly as `[UNRELATED]` (#3925: a failure with another source must not block a merge; the full run with bisect and
  * revert is the net), with a job summary line. GPU families are never excused. Each untouched case names its base-check.yml dispatch, and with `out` also writes it to
  * `<out>/<shard>.jsonl` as one JSON line `{ base, file, variant, repeat }`, which ci.yml's base-checks job dispatches: the base check's master
  * records are what quarantine a flaky test and file its issue, so nobody has to read the warning to dispatch it.
@@ -119,8 +119,13 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
     const onBase = (plan?.failingOnBase ?? []).filter(
         (b) => b.variant.split("|")[0] === family && flagsOf(b.variant) === flagsOf(variant),
     );
+    const known = (f) => onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
+    // #8051: the same failure (same key) master already has is not this pull request's, even when the pull request
+    // changed the test's imports; never when it changed the test file itself, and never without the plan's
+    // `changed` list to tell the two apart (a screenshot plan, where every test counts as touched)
+    const changed = plan?.changed ? new Set(plan.changed) : null;
     const gpu = /^webgpu-graph-algorithms/.test(family); // never excused (CLAUDE.md, WebGPU)
-    const known = (f) => !gpu && onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
+    const excusable = (f) => !gpu && (!touched(f) || (changed !== null && !changed.has(f.file)));
     const list = storeList(plan);
     const check = (f, repeat) => {
         if (out) {
@@ -157,9 +162,7 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
         // "every time" only when a retry ran: a failure that was not retried failed once (#5128)
         const how = unretried ? `failed (${unretried})` : "failed every time";
         for (const f of d.failing) {
-            // the same failure (same key) master already has is not this pull request's, touched or not (#8051);
-            // a changed test file never reaches failingOnBase, and a failure the change made differs in its key
-            const k = known(f);
+            const k = excusable(f) && known(f);
             if (k) warn(`[KNOWN] ${shard}: ${idOf(f)} fails the same way on master ${k.sha}, ${issue(k)}`);
             else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} ${how}`);
             else {

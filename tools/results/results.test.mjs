@@ -985,6 +985,8 @@ describe("planRead", () => {
         );
         assert.equal(q.get("inputs"), variants.map(() => "-").join(","));
         assert.equal(q.get("files"), "layout/src/x.ts");
+        // the changed files stay in the plan, so a re-run's prJudge() still never excuses a changed test (#8051)
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")).changed, ["layout/src/x.ts"]);
     });
     it("finds the packages that import an affected package by relative path, which nx leaves out (#6229)", () => {
         const packages = ["graph-io", "graphty-element", "graphty", "layout"];
@@ -1190,10 +1192,30 @@ describe("the pull request rules", () => {
     it("#8051: says [KNOWN] for a touched test master fails the same way; a touched test's own failure still fails", () => {
         const { key } = failureHashes("AssertionError: known", "a.test.ts");
         const row = { variant: `${FAMILY}|flags=off|whole`, sha: "m1", file: "a.test.ts", name: "known", key };
-        const plan = { quarantine: [], failingOnBase: [row], affected: ["a.test.ts"] };
+        const plan = { quarantine: [], failingOnBase: [row], affected: ["a.test.ts"], changed: ["a.ts"] };
         const known = report(fail("known"));
         assert.deepEqual(tags(judge(plan, known, known)), ["warn [KNOWN]"]);
         assert.equal(judge(plan, known, known).pass, true);
+        // the pull request changed the test file itself (a re-run's plan has the row back), or the plan cannot
+        // tell (no `changed`: a screenshot plan): it fails
+        assert.deepEqual(tags(judge({ ...plan, changed: ["a.test.ts"] }, known, known)), ["fail [FAIL]"]);
+        assert.deepEqual(tags(judge({ ...plan, changed: undefined }, known, known)), ["fail [FAIL]"]);
+        // a GPU family is never excused
+        const gpu = { ...plan, failingOnBase: [{ ...row, variant: "webgpu-graph-algorithms-node|flags=off|whole" }] };
+        const gpuJudge = prJudge(gpu, {
+            ...o,
+            family: "webgpu-graph-algorithms-node",
+            shard: "webgpu-graph-algorithms-node",
+            variant: "webgpu-graph-algorithms-node|flags=off|whole",
+        });
+        const d = decide({
+            family: "webgpu-graph-algorithms-node",
+            first: known,
+            firstOutcome: "failed",
+            second: known,
+            list: [],
+        });
+        assert.deepEqual(tags(gpuJudge(d, { firstOutcome: "failed" })), ["fail [FAIL]"]);
         // the same test failing another way (another key) is this pull request's: it fails
         const other = { ...plan, failingOnBase: [{ ...row, key: "nope" }] };
         assert.deepEqual(tags(judge(other, known, known)), ["fail [FAIL]"]);

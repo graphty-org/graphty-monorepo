@@ -97,9 +97,12 @@ GLTFValidation.Configuration = {
  * their colors up (`_setDataForCurrentFaceWithPattern3`), and an object after an `o` or `g` line
  * loses them in `_unwrapData`, which copies them only when the array it fills is already
  * non-empty. Each face corner gets its color here, and the colors are put where `_unwrapData`
- * should have put them. Delete when Babylon fixes `SolidParser`.
+ * should have put them. It also gives a vertex the file wrote no color for a shared gray
+ * (`_grayColor`), so an object with no colors at all would draw gray and state a color it never
+ * had; such an object keeps no colors. Delete when Babylon fixes `SolidParser`.
  */
 interface ObjParser {
+    _grayColor: unknown;
     _wrappedColorsForBabylon: { r: number; g: number; b: number; a: number }[];
     _unwrappedColorsForBabylon: number[];
     _unwrapData: (this: ObjParser) => void;
@@ -109,6 +112,10 @@ interface ObjParser {
 const parser = SolidParser.prototype as unknown as ObjParser;
 const { _unwrapData: unwrapData, _setData: setData } = parser;
 parser._unwrapData = function (this: ObjParser): void {
+    if (this._wrappedColorsForBabylon.every((color) => color === this._grayColor)) {
+        this._wrappedColorsForBabylon.length = 0;
+    }
+
     const colors = this._wrappedColorsForBabylon.flatMap((c) => [c.r, c.g, c.b, c.a]);
     unwrapData.call(this);
     if (colors.length > 0 && this._unwrappedColorsForBabylon.length === 0) {
@@ -301,9 +308,10 @@ async function readOwn(
     rootUrl: string,
 ): Promise<{ parts: Part[]; materials: PartMaterial[] }> {
     const bytes = files.get(main) as Uint8Array;
-    const one = (geometry: Geometry, material: PartMaterial = {}): { parts: Part[]; materials: PartMaterial[] } => ({
+    // A part the file gives no look has no material, as an OBJ without an .mtl.
+    const one = (geometry: Geometry, material?: PartMaterial): { parts: Part[]; materials: PartMaterial[] } => ({
         parts: [{ name: main, geometry }],
-        materials: [material],
+        materials: material === undefined ? [] : [material],
     });
     switch (format) {
         case "stl":
@@ -311,7 +319,7 @@ async function readOwn(
         case "ply": {
             const read = readPly(bytes);
             const texture = read.textureFile === undefined ? undefined : rootUrl + read.textureFile;
-            return one(read.geometry, texture === undefined ? {} : { texture });
+            return one(read.geometry, texture === undefined ? undefined : { texture });
         }
         case "babylon": {
             let json: unknown;

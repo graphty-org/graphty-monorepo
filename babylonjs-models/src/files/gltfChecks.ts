@@ -70,6 +70,18 @@ const READABLE_EXTENSIONS = new Set([
     "EXT_mesh_gpu_instancing",
 ]);
 
+/**
+ * Required extensions that are drawn without: the transmission family. A part using one is drawn
+ * opaque with `W_MODEL_EXTENSION_IGNORED`, rather than the whole model refused.
+ */
+export const IGNORED_EXTENSIONS: ReadonlySet<string> = new Set([
+    "KHR_materials_transmission",
+    "KHR_materials_volume",
+    "KHR_materials_dispersion",
+    "KHR_materials_diffuse_transmission",
+    "KHR_materials_volume_scatter",
+]);
+
 /** The compression each glTF extension stands for, in {@link ModelCompression} terms. */
 const COMPRESSION: ReadonlyMap<string, ModelCompression> = new Map([
     ["KHR_draco_mesh_compression", "draco"],
@@ -362,7 +374,7 @@ function checkExtensions(json: Record<string, unknown>): string[] {
         ? json.extensionsRequired.filter((e) => typeof e === "string")
         : [];
     for (const extension of required) {
-        if (!READABLE_EXTENSIONS.has(extension)) {
+        if (!READABLE_EXTENSIONS.has(extension) && !IGNORED_EXTENSIONS.has(extension)) {
             refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "gltf", extension: cut(extension) });
         }
     }
@@ -1128,7 +1140,9 @@ export function checkGltf(input: GltfInput): GltfChecked {
         ...(hasVertexColors(meshes) ? { vertexColors: true } : {}),
     });
 
-    const warnings: ModelFact[] = [];
+    const warnings: ModelFact[] = [...used, ...extensionsRequired]
+        .filter((extension, i, all) => IGNORED_EXTENSIONS.has(extension) && all.indexOf(extension) === i)
+        .map((extension) => ({ code: "W_MODEL_EXTENSION_IGNORED", params: { extension } }));
     if (clips.length > 0) {
         warnings.push({ code: "W_MODEL_HAS_ANIMATIONS", params: { clips: clips.map((c) => c.name) } });
     }

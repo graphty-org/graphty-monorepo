@@ -626,7 +626,8 @@ function tgaSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
  * larger than any GPU draws.
  * @param bytes - The image file.
  * @param name - What to call it in a refusal.
- * @returns `width x height x 4 x 4/3` (RGBA with mipmaps).
+ * @returns `width x height x 4 x 4/3` (RGBA with mipmaps); a KTX2 picture stays compressed on the
+ *     GPU, so it counts 1 byte a pixel, `width x height x 4/3`.
  */
 export function textureBytesOf(bytes: Uint8Array, name: string): number {
     const size = imageSize(bytes);
@@ -639,5 +640,6 @@ export function textureBytesOf(bytes: Uint8Array, name: string): number {
         refuse("E_MODEL_TOO_LARGE", { what: "textureSize", found: side, limit: MAX_IMAGE_SIDE, name: cut(name) });
     }
 
-    return Math.ceil((size.width * size.height * 4 * 4) / 3);
+    const perPixel = KTX2_MAGIC.every((b, i) => bytes[i] === b) ? 1 : 4;
+    return Math.ceil((size.width * size.height * perPixel * 4) / 3);
 }

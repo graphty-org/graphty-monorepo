@@ -35,6 +35,8 @@ export type {
     ModelPart,
     ModelPartRole,
     ModelPartState,
+    ModelProgress,
+    ModelProgressListener,
     ModelSource,
     ModelSummary,
     NamedBlob,

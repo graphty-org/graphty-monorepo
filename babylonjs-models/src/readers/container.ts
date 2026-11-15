@@ -2,10 +2,11 @@
  * @file Turn what babylonjs-models' own model readers produce into a Babylon.js asset container
  * that is not in the scene, so the template is made from it exactly as from a loaded glTF.
  *
- * Each part is a `Mesh` with a `StandardMaterial`: its diffuse color, its diffuse picture (named
- * under the load's guarded root, so the request guard serves it from the file set), or its
- * vertex colors, which the template keeps and the instanced color multiplies. Reached only
- * through the model chunk.
+ * Each part is a `Mesh` with a `StandardMaterial` when the file gives it one: its diffuse color,
+ * or its diffuse picture (named under the load's guarded root, so the request guard serves it from
+ * the file set). A file that names no material (most STL and PLY files) gives its parts none, as
+ * Babylon's OBJ loader does for an OBJ without an `.mtl`: the scene's default material draws them,
+ * with their vertex colors when they carry any.
  */
 
 import { AssetContainer } from "@babylonjs/core/assetContainer.js";
@@ -61,7 +62,7 @@ function onCycle(parts: readonly Part[], start: number): boolean {
  * Build a container from parts and materials.
  * @param scene - The scene the container belongs to.
  * @param parts - The parts.
- * @param materials - Their materials (none: one plain white material).
+ * @param materials - Their materials (none: the parts have no material).
  * @returns The container, not in the scene.
  */
 export function buildContainer(
@@ -70,7 +71,7 @@ export function buildContainer(
     materials: readonly PartMaterial[] = [],
 ): AssetContainer {
     const container = new AssetContainer(scene);
-    const made = (materials.length > 0 ? materials : [{}]).map((look, i) => {
+    const made = materials.map((look, i) => {
         const material = new StandardMaterial(`babylonjs-models-material-${String(i)}`, scene);
         const [r, g, b] = look.color ?? [1, 1, 1];
         material.diffuseColor = new Color3(r, g, b);
@@ -99,7 +100,7 @@ export function buildContainer(
             data.colors = part.geometry.colors ?? null;
             data.applyToMesh(mesh);
         }
-        mesh.material = made[part.material ?? 0] ?? made[0];
+        mesh.material = made[part.material ?? 0] ?? made[0] ?? null;
         if (part.position !== undefined) {
             mesh.position = Vector3.FromArray(part.position);
         }

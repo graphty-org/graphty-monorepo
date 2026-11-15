@@ -14,14 +14,21 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import { allowed } from "../decoders/config.js";
 import type { BuiltInModelFormat, ModelFormat } from "../files/detect.js";
-import { readGlb } from "../files/gltfChecks.js";
+import { IGNORED_EXTENSIONS, readGlb } from "../files/gltfChecks.js";
 import { checkModelFiles, fetchModelSet, readModelFiles } from "../files/intake.js";
 import { DEFAULT_MODEL_LIMITS } from "../files/limits.js";
 import { ModelReadError } from "../files/readers/geometry.js";
 import { isGltf1, readGlb1, upgradeGltf1 } from "../files/readers/gltf1.js";
 import { ModelError } from "../files/references.js";
 import { withSkips } from "../files/textFormats.js";
-import type { ModelFact, ModelFileOptions, ModelLimits, ModelSource, ModelSummary } from "../files/types.js";
+import type {
+    ModelFact,
+    ModelFileOptions,
+    ModelLimits,
+    ModelProgressListener,
+    ModelSource,
+    ModelSummary,
+} from "../files/types.js";
 import { loadBabylonModel, type LoaderOptions, loadOwnModel, type ModelExtension, type OwnFormat } from "./loaders.js";
 import { guardRequests, REFUSED } from "./requestGuard.js";
 
@@ -106,7 +113,16 @@ function prepareGltf(files: ReadonlyMap<string, Uint8Array>, main: string, forma
     const used = strings(json.extensionsUsed);
     const required = strings(json.extensionsRequired);
     if (!isGltf1(json)) {
-        const plain = withoutClimbs(json, files, main, body);
+        // An extension drawn without (the transmission family) is taken out of the file's lists, so
+        // the loader draws those parts opaque rather than refusing the file or building the
+        // scene-wide render target transmission needs.
+        const stripped = [...used, ...required].some((name) => IGNORED_EXTENSIONS.has(name));
+        if (stripped) {
+            json.extensionsRequired = required.filter((name) => !IGNORED_EXTENSIONS.has(name));
+            json.extensionsUsed = used.filter((name) => !IGNORED_EXTENSIONS.has(name));
+        }
+
+        const plain = withoutClimbs(json, files, main, body, stripped);
         return {
             files: plain.files,
             extension: plain.extension ?? (READERS[format] as ModelExtension),
@@ -135,6 +151,7 @@ function prepareGltf(files: ReadonlyMap<string, Uint8Array>, main: string, forma
  * @param files - The file set.
  * @param main - The main file.
  * @param body - A GLB's binary chunk.
+ * @param changedJson - Whether the JSON was changed already, so it is written out even with no climb.
  * @returns The set to load, and the loader when it changed.
  */
 function withoutClimbs(
@@ -142,6 +159,7 @@ function withoutClimbs(
     files: ReadonlyMap<string, Uint8Array>,
     main: string,
     body: Uint8Array | undefined,
+    changedJson: boolean,
 ): { files: ReadonlyMap<string, Uint8Array>; extension?: ModelExtension } {
     const entries = ["buffers", "images"].flatMap((key) => {
         const list = json[key];
@@ -150,7 +168,7 @@ function withoutClimbs(
             : [];
     });
     const climbing = entries.filter((e) => typeof e.uri === "string" && !/^data:/i.test(e.uri) && e.uri.includes(".."));
-    if (climbing.length === 0) {
+    if (climbing.length === 0 && !changedJson) {
         return { files };
     }
 
@@ -373,6 +391,8 @@ export interface LoadModelOptions extends LoadModelFilesOptions, Pick<ModelFileO
     readonly limits?: Partial<ModelLimits>;
     /** Stops a download. */
     readonly signal?: AbortSignal;
+    /** Hears how far the files have been downloaded, read or unpacked. */
+    readonly onProgress?: ModelProgressListener;
 }
 
 /** What {@link loadModel} loaded. */
@@ -416,8 +436,8 @@ export async function loadModel(
 
     const read =
         url === undefined
-            ? await readModelFiles(source as Exclude<ModelSource, string>, limits)
-            : await fetchModelSet(url, limits, options.signal);
+            ? await readModelFiles(source as Exclude<ModelSource, string>, limits, options.onProgress)
+            : await fetchModelSet(url, limits, options.signal, undefined, options.onProgress);
     const main = options.main ?? read.main;
     const checked = await checkModelFiles(
         read.given,

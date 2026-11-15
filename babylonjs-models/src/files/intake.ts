@@ -40,6 +40,7 @@ import type {
     ModelFileOptions,
     ModelLimits,
     ModelPart,
+    ModelProgressListener,
     ModelSource,
     ModelSummary,
     NamedBlob,
@@ -121,11 +122,18 @@ function entriesOfSource(source: Exclude<ModelSource, string>): { entries: Sourc
 /**
  * Read entries into path to bytes, refusing a bad path and two paths that differ only by case.
  * @param entries - The entries.
+ * @param total - Their bytes in all.
+ * @param onProgress - Hears the bytes read so far.
  * @returns Normalized path to a copy of the bytes.
  */
-async function readEntries(entries: readonly SourceEntry[]): Promise<Map<string, Uint8Array>> {
+async function readEntries(
+    entries: readonly SourceEntry[],
+    total: number,
+    onProgress?: ModelProgressListener,
+): Promise<Map<string, Uint8Array>> {
     const given = new Map<string, Uint8Array>();
     const lower = new Map<string, string>();
+    let loaded = 0;
     for (const [name, value] of entries) {
         const path = normalizePath(name);
         if (path === undefined || path === "") {
@@ -139,7 +147,11 @@ async function readEntries(entries: readonly SourceEntry[]): Promise<Map<string,
 
         lower.set(path.toLowerCase(), path);
         // A copy, so the caller changing its array later cannot change what the digest covers.
-        given.set(path, value instanceof Uint8Array ? value.slice() : new Uint8Array(await value.arrayBuffer()));
+        onProgress?.({ stage: "reading", loaded, total, part: path });
+        const bytes = value instanceof Uint8Array ? value.slice() : new Uint8Array(await value.arrayBuffer());
+        given.set(path, bytes);
+        loaded += bytes.length;
+        onProgress?.({ stage: "reading", loaded, total, part: path });
     }
 
     return given;
@@ -150,11 +162,13 @@ async function readEntries(entries: readonly SourceEntry[]): Promise<Map<string,
  * limit before reading anything.
  * @param source - The source.
  * @param limits - The limits in force.
+ * @param onProgress - Hears the bytes read so far, file by file (stage `"reading"`).
  * @returns The file set as given, and the main file the source named.
  */
 export async function readModelFiles(
     source: Exclude<ModelSource, string>,
     limits: ModelLimits,
+    onProgress?: ModelProgressListener,
 ): Promise<{ given: Map<string, Uint8Array>; main?: string }> {
     const read = entriesOfSource(source);
     const { entries } = read;
@@ -171,7 +185,7 @@ export async function readModelFiles(
         refuse("E_MODEL_TOO_LARGE", { what: "bytes", found: total, limit: limits.maxBytes });
     }
 
-    const given = await readEntries(entries);
+    const given = await readEntries(entries, total, onProgress);
     const stripped = stripCommonFolder(given);
     if (main !== undefined && stripped !== given) {
         const prefix = [...given.keys()][0].slice(0, [...given.keys()][0].length - [...stripped.keys()][0].length);
@@ -186,12 +200,14 @@ export async function readModelFiles(
  * however they arrived: a zip, a folder or parts supplied one by one.
  * @param given - The set as given.
  * @param limits - The limits in force.
+ * @param onProgress - Hears the zip being unpacked (stage `"unpacking"`).
  * @returns The zip's entries without their common folder, or the set unchanged.
  * @throws ModelError `E_MODEL_ZIP` or `E_MODEL_TOO_LARGE` for a zip that cannot be read safely.
  */
 export async function unpackZip(
     given: ReadonlyMap<string, Uint8Array>,
     limits: ModelLimits,
+    onProgress?: ModelProgressListener,
 ): Promise<ReadonlyMap<string, Uint8Array>> {
     if (given.size !== 1) {
         return given;
@@ -205,7 +221,10 @@ export async function unpackZip(
         return given;
     }
 
-    return stripCommonFolder(await unzipModel(only, limits.maxBytes));
+    onProgress?.({ stage: "unpacking", loaded: 0, total: only.length, part: name });
+    const unpacked = stripCommonFolder(await unzipModel(only, limits.maxBytes));
+    onProgress?.({ stage: "unpacking", loaded: only.length, total: only.length, part: name });
+    return unpacked;
 }
 
 /**
@@ -278,6 +297,7 @@ interface FetchContext {
     readonly gate: RedirectGate | undefined;
     readonly hops: number;
     readonly shown: string;
+    readonly onProgress: ModelProgressListener | undefined;
 }
 
 /**
@@ -381,18 +401,20 @@ async function followRedirect(
     }
 
     // The reader allowed the host it was sent to: fetch that address.
-    return await fetchModel(to, context.limits, context.signal, context.gate, context.hops + 1);
+    return await fetchModel(to, context.limits, context.signal, context.gate, context.hops + 1, context.onProgress);
 }
 
 /**
  * Read a stream until it ends or passes the byte cap, cancelling it then.
  * @param reader - The stream's reader.
  * @param maxBytes - The byte cap.
+ * @param onChunk - Hears the bytes counted after each chunk.
  * @returns The chunks kept, and the bytes counted (past the cap when it was passed).
  */
 async function readChunks(
     reader: ReturnType<NonNullable<FetchResponse["body"]>["getReader"]>,
     maxBytes: number,
+    onChunk: (total: number) => void,
 ): Promise<{ chunks: Uint8Array[]; total: number }> {
     const chunks: Uint8Array[] = [];
     let total = 0;
@@ -411,6 +433,8 @@ async function readChunks(
         if (value !== undefined) {
             chunks.push(value);
         }
+
+        onChunk(total);
     }
 
     return { chunks, total };
@@ -422,6 +446,7 @@ async function readChunks(
  * @param limits - The limits in force.
  * @param signal - The caller's signal.
  * @param shown - The URL as a fact shows it.
+ * @param onChunk - Hears the bytes read after each chunk.
  * @returns The bytes.
  */
 async function readBody(
@@ -429,6 +454,7 @@ async function readBody(
     limits: ModelLimits,
     signal: AbortSignal | undefined,
     shown: string,
+    onChunk: (total: number) => void,
 ): Promise<Uint8Array> {
     let read: { chunks: Uint8Array[]; total: number };
     try {
@@ -436,7 +462,7 @@ async function readBody(
             const whole = new Uint8Array(await response.arrayBuffer());
             read = { chunks: [whole], total: whole.length };
         } else {
-            read = await readChunks(response.body.getReader(), limits.maxBytes);
+            read = await readChunks(response.body.getReader(), limits.maxBytes, onChunk);
         }
     } catch {
         signal?.throwIfAborted();
@@ -474,13 +500,14 @@ function fetchedName(url: URL): string {
 }
 
 /**
- * Fetch a model with no credentials, no referrer, a time limit and a byte cap enforced while the
- * body streams.
+ * Fetch a model with no credentials, no referrer, an idle time limit and a byte cap enforced while
+ * the body streams.
  * @param url - The URL.
- * @param limits - The limits in force.
+ * @param limits - The limits in force; `fetchTimeoutMs` is how long the fetch may receive nothing.
  * @param signal - The caller's signal.
  * @param gate - What to ask when the answer comes from another host; none reads it.
  * @param hops - Redirects to another host followed so far.
+ * @param onProgress - Hears the bytes received so far (stage `"downloading"`).
  * @returns The file set: the one fetched file, named after the URL's last path segment.
  */
 export async function fetchModel(
@@ -489,20 +516,23 @@ export async function fetchModel(
     signal?: AbortSignal,
     gate?: RedirectGate,
     hops = 0,
+    onProgress?: ModelProgressListener,
 ): Promise<Map<string, Uint8Array>> {
     checkFetchable(url);
     const shown = shownUrl(url);
     const controller = new AbortController();
-    const timer = setTimeout(() => {
-        controller.abort();
-    }, limits.fetchTimeoutMs);
+    const idle = (): ReturnType<typeof setTimeout> =>
+        setTimeout(() => {
+            controller.abort();
+        }, limits.fetchTimeoutMs);
+    let timer = idle();
     const onAbort = (): void => {
         controller.abort();
     };
     signal?.addEventListener("abort", onAbort);
     try {
         const response = await send(url, controller.signal, signal, shown);
-        const redirected = await followRedirect(response, url, { limits, signal, gate, hops, shown });
+        const redirected = await followRedirect(response, url, { limits, signal, gate, hops, shown, onProgress });
         if (redirected !== undefined) {
             return redirected;
         }
@@ -516,8 +546,18 @@ export async function fetchModel(
             refuse("E_MODEL_TOO_LARGE", { what: "bytes", found: declared, limit: limits.maxBytes });
         }
 
-        const bytes = await readBody(response, limits, signal, shown);
-        return new Map([[fetchedName(url), bytes]]);
+        // A body compressed on the way is longer than its declared length once read.
+        const encoded = (response.headers.get("content-encoding") ?? "") !== "";
+        const total = Number.isFinite(declared) && declared > 0 && !encoded ? declared : null;
+        const part = fetchedName(url);
+        onProgress?.({ stage: "downloading", loaded: 0, total, part });
+        const bytes = await readBody(response, limits, signal, shown, (loaded) => {
+            // Each chunk starts the idle wait again: the time limit is for a fetch that stalls.
+            clearTimeout(timer);
+            timer = idle();
+            onProgress?.({ stage: "downloading", loaded, total, part });
+        });
+        return new Map([[part, bytes]]);
     } finally {
         clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);
@@ -634,6 +674,7 @@ interface PartFetch {
     readonly given: Map<string, Uint8Array>;
     /** The bytes fetched so far, misses included. */
     total: number;
+    readonly onProgress: ModelProgressListener | undefined;
 }
 
 /**
@@ -716,6 +757,13 @@ async function fetchAttempt(attempt: URL, fetching: PartFetch): Promise<Uint8Arr
                 { ...limits, maxBytes: Math.max(0, limits.maxBytes - fetching.total) },
                 fetching.signal,
                 fetching.gate,
+                0,
+                fetching.onProgress === undefined
+                    ? undefined
+                    : (progress) => {
+                          // A part's bytes add to the set's; the set's size is not known ahead.
+                          fetching.onProgress?.({ ...progress, loaded: fetching.total + progress.loaded, total: null });
+                      },
             )
         ).values();
         return bytes;
@@ -812,6 +860,7 @@ async function fetchPart(fact: ModelFact, fetching: PartFetch, tried: Map<string
  * @param limits - The limits in force.
  * @param signal - The caller's signal.
  * @param gate - What to ask when an answer comes from another host.
+ * @param onProgress - Hears the bytes received so far, the main file's and then its parts'.
  * @returns The file set and its main file (none for a zip, whose main file is inside it).
  */
 export async function fetchModelSet(
@@ -819,12 +868,13 @@ export async function fetchModelSet(
     limits: ModelLimits,
     signal?: AbortSignal,
     gate?: RedirectGate,
+    onProgress?: ModelProgressListener,
 ): Promise<{ given: Map<string, Uint8Array>; main?: string }> {
     if (isKnownWebPage(url)) {
         refuse("E_MODEL_WEB_PAGE", webPageParams(url));
     }
 
-    const given = await fetchModel(url, limits, signal, gate);
+    const given = await fetchModel(url, limits, signal, gate, 0, onProgress);
     const [[main, first]] = given;
     if (isWebPage(first)) {
         refuse("E_MODEL_WEB_PAGE", webPageParams(url));
@@ -839,7 +889,7 @@ export async function fetchModelSet(
         return { given, main };
     }
 
-    const fetching: PartFetch = { url, limits, signal, gate, given, total: first.length };
+    const fetching: PartFetch = { url, limits, signal, gate, given, total: first.length, onProgress };
     const tried = new Map<string, string[]>();
     for (;;) {
         const facts = await problemsOf(given, main, limits, url.href);

@@ -279,4 +279,76 @@ describe("fetching a model by URL", () => {
         });
         assert.strictEqual((await code(`${BASE}huge.glb`)).code, "E_MODEL_TOO_LARGE");
     });
+
+    it("reports bytes as they arrive, and stops only a download that stalls", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            const bytes = fixture("glb", "cube.glb");
+            const third = Math.ceil(bytes.length / 3);
+            // The test hands the body over chunk by chunk, moving the fake clock between chunks.
+            let asked: (deliver: (value: Uint8Array | undefined) => void) => void = () => undefined;
+            const nextRead = () =>
+                new Promise<(value: Uint8Array | undefined) => void>((resolve) => {
+                    asked = resolve;
+                });
+            vi.stubGlobal("fetch", (url: string, init: { signal: AbortSignal }) =>
+                Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    redirected: false,
+                    url,
+                    headers: { get: (name: string) => (name === "content-length" ? String(bytes.length) : null) },
+                    body: {
+                        getReader: () => ({
+                            read: () =>
+                                new Promise<{ done: boolean; value?: Uint8Array }>((resolve, reject) => {
+                                    init.signal.addEventListener("abort", () => {
+                                        reject(new Error("aborted"));
+                                    });
+                                    asked((value) => {
+                                        resolve(value === undefined ? { done: true } : { done: false, value });
+                                    });
+                                }),
+                            cancel: () => Promise.resolve(),
+                        }),
+                    },
+                    arrayBuffer: () => Promise.resolve(bytes.slice().buffer),
+                }),
+            );
+
+            const heard: { loaded: number; total: number | null }[] = [];
+            let reading = nextRead();
+            const fetching = fetchModelSet(
+                new URL(`${BASE}slow.glb`),
+                DEFAULT_MODEL_LIMITS,
+                undefined,
+                undefined,
+                (p) => {
+                    heard.push({ loaded: p.loaded, total: p.total });
+                },
+            );
+            // Three chunks, then the end of the body.
+            const chunks = [0, third, third * 2].map((at) => bytes.slice(at, at + third));
+            for (const chunk of [...chunks, undefined]) {
+                const deliver = await reading;
+                reading = nextRead();
+                // 20 s between chunks: under the 30 s idle limit each time, over it in all.
+                vi.advanceTimersByTime(20_000);
+                deliver(chunk);
+            }
+            const fetched = await fetching;
+            assert.strictEqual(fetched.given.get("slow.glb")?.length, bytes.length);
+            assert.deepStrictEqual(heard.at(-1), { loaded: bytes.length, total: bytes.length });
+            assert.isTrue(heard.every((p, i) => i === 0 || p.loaded >= heard[i - 1].loaded));
+            assert.isAbove(heard.length, 3);
+
+            reading = nextRead();
+            const stalled = refusal(fetchModelSet(new URL(`${BASE}stalled.glb`), DEFAULT_MODEL_LIMITS));
+            await reading;
+            vi.advanceTimersByTime(DEFAULT_MODEL_LIMITS.fetchTimeoutMs);
+            assert.strictEqual((await stalled).code, "E_MODEL_FETCH");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });

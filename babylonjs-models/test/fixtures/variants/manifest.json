@@ -146,6 +146,28 @@
     },
     {
         "geometry": "mesh",
+        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-morph-animated",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB whose one clip moves a morph target's weight (held at rest when played)",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-skinned-animated",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB with a skin and two clips that turn its joint, 'turn' about Y and 'tip' about X",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
         "warnings": [],
         "refused": null,
         "upload": "files",
@@ -153,6 +175,17 @@
         "format": "glb",
         "color": "blue",
         "what": "GLB with a skin",
+        "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-skinned-z-up",
+        "format": "glb",
+        "color": "blue",
+        "what": "GLB authored Z up, three times taller than wide, whose root joint stands it up (as BrainStem)",
         "files": ["cube.glb"]
     },
     {
@@ -190,7 +223,7 @@
     },
     {
         "geometry": "mesh",
-        "warnings": [],
+        "warnings": ["W_MODEL_EXTENSION_IGNORED"],
         "refused": null,
         "upload": "files",
         "id": "gltf-transmission-used",
@@ -198,6 +231,18 @@
         "color": "blue",
         "what": "GLB using KHR_materials_transmission (drawn opaque)",
         "files": ["cube.glb"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_EXTENSION_IGNORED"],
+        "refused": null,
+        "upload": "files",
+        "id": "gltf-transmission-required",
+        "format": "gltf",
+        "compression": ["webp"],
+        "color": "green",
+        "what": ".gltf shaped as ChronographWatch glTF-WEBP: WebP, transmission and texture transform required, three 2048 x 2048 pictures (drawn opaque)",
+        "files": ["cube.gltf", "cube.bin", "base.webp", "orm.webp", "normal.webp"]
     },
     {
         "geometry": "mesh",

@@ -19,7 +19,7 @@ import { MAX_POINTS_DRAWN, ModelReadError, pointsToSolids, splatRowsToSolids } f
 import { isGltf1, readGlb1, upgradeGltf1 } from "../src/files/readers/gltf1.js";
 import { readPly } from "../src/files/readers/ply.js";
 import { readStl, stlFacts } from "../src/files/readers/stl.js";
-import { imageSize } from "../src/files/references.js";
+import { imageSize, textureBytesOf } from "../src/files/references.js";
 import { hasReader } from "../src/load/loadModel.js";
 
 const VARIANTS = join(dirname(fileURLToPath(import.meta.url)), "fixtures/variants");
@@ -269,5 +269,34 @@ describe("picture sizes", () => {
         }
         const ktx2 = imageSize(fixture("gltf-ktx2", "cube.ktx2"));
         assert.isAbove(ktx2?.width ?? 0, 0);
+    });
+
+    it("counts a KTX2 picture at 1 byte a pixel and others at 4, with mipmaps", () => {
+        const ktx2 = fixture("gltf-ktx2", "cube.ktx2");
+        const { width, height } = imageSize(ktx2) ?? { width: 0, height: 0 };
+        assert.strictEqual(textureBytesOf(ktx2, "ktx2"), Math.ceil((width * height * 4) / 3));
+        const webp = fixture("gltf-transmission-required", "base.webp");
+        assert.strictEqual(textureBytesOf(webp, "base.webp"), Math.ceil((2048 * 2048 * 4 * 4) / 3));
+    });
+});
+
+describe("the transmission family", () => {
+    it("is drawn without: a glTF requiring it is accepted with W_MODEL_EXTENSION_IGNORED", () => {
+        const json = parseGltfJson(new TextDecoder().decode(fixture("gltf-transmission-required", "cube.gltf")));
+        const buffers = new Map([["cube.bin", fixture("gltf-transmission-required", "cube.bin")]]);
+        const images = new Map(
+            ["base.webp", "orm.webp", "normal.webp"].map((name) => [name, fixture("gltf-transmission-required", name)]),
+        );
+        const { warnings } = checkGltf({
+            json,
+            path: "cube.gltf",
+            format: "gltf",
+            limits: DEFAULT_MODEL_LIMITS,
+            files: new Map([...buffers, ...images]),
+        });
+        assert.deepInclude(warnings, {
+            code: "W_MODEL_EXTENSION_IGNORED",
+            params: { extension: "KHR_materials_transmission" },
+        });
     });
 });

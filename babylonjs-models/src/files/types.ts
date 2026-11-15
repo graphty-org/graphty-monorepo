@@ -155,12 +155,34 @@ export interface ModelLimits {
     readonly maxTextBytes: number;
     /** Per model, counted per use. Default 1,000,000. */
     readonly maxTriangles: number;
-    /** Decoded texture bytes per model. Default 64 MB. */
+    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 128 MB. */
     readonly maxTextureBytes: number;
     /** What every glTF accessor decodes to, together. Default 256 MB. */
     readonly maxDecodedBytes: number;
     /** Pixels per texture side; larger textures earn `W_MODEL_TEXTURES_REDUCED`. Default 2048. */
     readonly maxTextureSize: number;
-    /** A fetch that has not finished after this many milliseconds is stopped. Default 30,000. */
+    /**
+     * A fetch that receives nothing for this many milliseconds is stopped; every chunk that arrives
+     * starts the wait again, so a large file on a slow but steady connection still loads.
+     * Default 30,000.
+     */
     readonly fetchTimeoutMs: number;
 }
+
+/** How far a model's files have been read, as `onProgress` reports it. */
+export interface ModelProgress {
+    /** `"downloading"` a URL, `"reading"` files, `"unpacking"` a zip. */
+    readonly stage: "downloading" | "reading" | "unpacking";
+    /** Bytes read so far in this stage, across every file of the set. */
+    readonly loaded: number;
+    /**
+     * Bytes there are in all, or null when not known in advance: a URL whose answer is compressed
+     * on the way, or a model's parts, which are found only once the main file is read.
+     */
+    readonly total: number | null;
+    /** The file being read, by its name in the set. */
+    readonly part?: string;
+}
+
+/** Hears how far a model's files have been read. Called often: keep it cheap. */
+export type ModelProgressListener = (progress: ModelProgress) => void;

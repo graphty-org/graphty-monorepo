@@ -185,15 +185,17 @@ function crc32(bytes: Uint8Array): number {
 }
 
 /**
- * An 8 x 8 PNG of one color.
+ * A square PNG of one color, 8 x 8 unless `side` says otherwise.
  * @param rgb - The color.
+ * @param side - Its width and height in pixels.
  * @returns The PNG.
  */
-function png(rgb: number[]): Uint8Array {
-    const raw = new Uint8Array(8 * (1 + 8 * 3));
-    for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-            raw.set(rgb, y * 25 + 1 + x * 3);
+function png(rgb: number[], side = 8): Uint8Array {
+    const row = 1 + side * 3;
+    const raw = new Uint8Array(side * row);
+    for (let y = 0; y < side; y++) {
+        for (let x = 0; x < side; x++) {
+            raw.set(rgb, y * row + 1 + x * 3);
         }
     }
     const chunk = (type: string, data: Uint8Array): Uint8Array => {
@@ -206,8 +208,8 @@ function png(rgb: number[]): Uint8Array {
         return out;
     };
     const ihdr = new Uint8Array(13);
-    new DataView(ihdr.buffer).setUint32(0, 8);
-    new DataView(ihdr.buffer).setUint32(4, 8);
+    new DataView(ihdr.buffer).setUint32(0, side);
+    new DataView(ihdr.buffer).setUint32(4, side);
     ihdr.set([8, 2, 0, 0, 0], 8);
     return concat([
         Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -342,7 +344,18 @@ interface CubeOptions {
     readonly unlit?: boolean;
     readonly twoScenes?: boolean;
     readonly transmissionUsed?: boolean;
+    /**
+     * Skinned and authored Z up, as BrainStem is: three times as tall along Z as it is wide, with a
+     * root joint turning Z up to Y up. Drawn upright only when the skin is applied.
+     */
+    readonly skinnedZUp?: boolean;
+    /** Transmission required, not only used, as the ChronographWatch sample requires it. */
+    readonly transmissionRequired?: boolean;
     readonly gpuInstancing?: boolean;
+    /** With `skinned`: two clips that turn the joint, "turn" about Y and "tip" about X. */
+    readonly animatedJoint?: boolean;
+    /** With `morph`: a clip, "grow", that moves the morph target's weight from 0 to 1. */
+    readonly animatedWeights?: boolean;
 }
 
 /**
@@ -390,14 +403,20 @@ function cubeGltf(options: CubeOptions = {}): { json: Record<string, unknown>; b
             },
         );
     } else {
+        const tall = options.skinnedZUp === true ? 3 : 1;
         attributes.POSITION = accessor(
-            bin.view(bytesOf(positions, Float32Array), { target: 34962 }),
+            bin.view(
+                bytesOf(tall === 1 ? positions : positions.map((v, i) => (i % 3 === 2 ? v * tall : v)), Float32Array),
+                {
+                    target: 34962,
+                },
+            ),
             5126,
             count,
             "VEC3",
             {
-                min: [-0.5, -0.5, -0.5],
-                max: [0.5, 0.5, 0.5],
+                min: [-0.5, -0.5, -0.5 * tall],
+                max: [0.5, 0.5, 0.5 * tall],
             },
         );
     }
@@ -428,7 +447,7 @@ function cubeGltf(options: CubeOptions = {}): { json: Record<string, unknown>; b
             },
         ];
     }
-    if (options.skinned) {
+    if (options.skinned === true || options.skinnedZUp === true) {
         primitive.attributes = {
             ...attributes,
             JOINTS_0: accessor(bin.view(new Uint8Array(24 * 4)), 5121, 24, "VEC4"),
@@ -474,10 +493,13 @@ function cubeGltf(options: CubeOptions = {}): { json: Record<string, unknown>; b
         material.extensions = { [name]: {} };
         extensionsUsed.push(name);
     }
-    if (options.transmissionUsed) {
+    if (options.transmissionUsed === true || options.transmissionRequired === true) {
         const name = "KHR_materials_transmission";
         material.extensions = { [name]: { transmissionFactor: 1 } };
         extensionsUsed.push(name);
+        if (options.transmissionRequired === true) {
+            extensionsRequired.push(name);
+        }
     }
     if (options.quantized) {
         extensionsUsed.push("KHR_mesh_quantization");
@@ -485,9 +507,13 @@ function cubeGltf(options: CubeOptions = {}): { json: Record<string, unknown>; b
     }
 
     const nodes: Record<string, unknown>[] = [{ mesh: 0, ...(options.quantized ? { scale: [0.5, 0.5, 0.5] } : {}) }];
-    if (options.skinned) {
+    if (options.skinned === true || options.skinnedZUp === true) {
         nodes[0].skin = 0;
-        nodes.push({ name: "joint" });
+        // Z up to Y up: -90 degrees about X.
+        nodes.push({
+            name: "joint",
+            ...(options.skinnedZUp === true ? { rotation: [-Math.SQRT1_2, 0, 0, Math.SQRT1_2] } : {}),
+        });
         const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         json.skins = [
             { joints: [1], inverseBindMatrices: accessor(bin.view(bytesOf(identity, Float32Array)), 5126, 1, "MAT4") },
@@ -504,21 +530,31 @@ function cubeGltf(options: CubeOptions = {}): { json: Record<string, unknown>; b
         extensionsUsed.push(name);
         extensionsRequired.push(name);
     }
-    if (options.animated) {
+    if (options.animated === true || options.animatedJoint === true || options.animatedWeights === true) {
         const input = accessor(bin.view(bytesOf([0, 1], Float32Array)), 5126, 2, "SCALAR", { min: [0], max: [1] });
-        const output = accessor(bin.view(bytesOf([0, 0, 0, 1, 0, 0.7071, 0, 0.7071], Float32Array)), 5126, 2, "VEC4");
+        const clip = (name: string, node: number, path: string, values: number[], type: string) => ({
+            name,
+            samplers: [{ input, output: accessor(bin.view(bytesOf(values, Float32Array)), 5126, 2, type) }],
+            channels: [{ sampler: 0, target: { node, path } }],
+        });
+        const aboutY = [0, 0, 0, 1, 0, 0.7071, 0, 0.7071];
         json.animations = [
-            {
-                name: "spin",
-                samplers: [{ input, output }],
-                channels: [{ sampler: 0, target: { node: 0, path: "rotation" } }],
-            },
+            ...(options.animated === true ? [clip("spin", 0, "rotation", aboutY, "VEC4")] : []),
+            ...(options.animatedJoint === true
+                ? [
+                      clip("turn", 1, "rotation", aboutY, "VEC4"),
+                      clip("tip", 1, "rotation", [0, 0, 0, 1, 0.7071, 0, 0, 0.7071], "VEC4"),
+                  ]
+                : []),
+            ...(options.animatedWeights === true ? [clip("grow", 0, "weights", [0, 1], "SCALAR")] : []),
         ];
     }
 
     Object.assign(json, {
         scene: 0,
-        scenes: options.twoScenes ? [{ nodes: [0] }, { nodes: [1] }] : [{ nodes: options.skinned ? [0, 1] : [0] }],
+        scenes: options.twoScenes
+            ? [{ nodes: [0] }, { nodes: [1] }]
+            : [{ nodes: options.skinned === true || options.skinnedZUp === true ? [0, 1] : [0] }],
         nodes: options.twoScenes ? [...nodes, { mesh: 0, translation: [3, 0, 0] }] : nodes,
         meshes: [{ primitives: [primitive], ...(options.morph ? { weights: [0.5] } : {}) }],
         materials: [material],
@@ -979,7 +1015,27 @@ async function main(): Promise<void> {
         "W_MODEL_HAS_ANIMATIONS",
     ]);
     gltfOne("gltf-morph", { morph: true }, "blue", "GLB with a morph target");
+    gltfOne(
+        "gltf-morph-animated",
+        { morph: true, animatedWeights: true },
+        "blue",
+        "GLB whose one clip moves a morph target's weight (held at rest when played)",
+        ["W_MODEL_HAS_ANIMATIONS"],
+    );
+    gltfOne(
+        "gltf-skinned-animated",
+        { skinned: true, animatedJoint: true },
+        "blue",
+        "GLB with a skin and two clips that turn its joint, 'turn' about Y and 'tip' about X",
+        ["W_MODEL_HAS_ANIMATIONS"],
+    );
     gltfOne("gltf-skinned", { skinned: true }, "blue", "GLB with a skin");
+    gltfOne(
+        "gltf-skinned-z-up",
+        { skinnedZUp: true },
+        "blue",
+        "GLB authored Z up, three times taller than wide, whose root joint stands it up (as BrainStem)",
+    );
     gltfOne("gltf-unlit", { unlit: true }, "blue", "GLB with KHR_materials_unlit");
     gltfOne("gltf-two-scenes", { twoScenes: true }, "blue", "GLB with two scenes (the default one is drawn)");
     gltfOne(
@@ -993,7 +1049,57 @@ async function main(): Promise<void> {
         { transmissionUsed: true },
         "blue",
         "GLB using KHR_materials_transmission (drawn opaque)",
+        ["W_MODEL_EXTENSION_IGNORED"],
     );
+    {
+        // As the ChronographWatch glTF-WEBP sample: EXT_texture_webp, KHR_materials_transmission and
+        // KHR_texture_transform required, KHR_materials_variants used, and three 2048 x 2048 WebP
+        // pictures (67 MB decoded, over the old 64 MB texture limit).
+        const { json, bin } = cubeGltf({ transmissionRequired: true });
+        const webp = (name: string): Record<string, unknown> => ({ uri: name, mimeType: "image/webp" });
+        json.images = [webp("base.webp"), webp("orm.webp"), webp("normal.webp")];
+        const [webpName, variantsName, transformName] = [
+            "EXT_texture_webp",
+            "KHR_materials_variants",
+            "KHR_texture_transform",
+        ];
+        json.textures = [0, 1, 2].map((source) => ({ extensions: { [webpName]: { source } } }));
+        json.extensionsUsed = [
+            "EXT_texture_webp",
+            "KHR_materials_transmission",
+            "KHR_materials_variants",
+            "KHR_texture_transform",
+        ];
+        json.extensionsRequired = ["EXT_texture_webp", "KHR_materials_transmission", "KHR_texture_transform"];
+        json.extensions = { [variantsName]: { variants: [{ name: "Default" }] } };
+        const [material] = json.materials as Record<string, Record<string, unknown>>[];
+        material.pbrMetallicRoughness = {
+            baseColorTexture: { index: 0, extensions: { [transformName]: { scale: [1, 1] } } },
+            metallicRoughnessTexture: { index: 1 },
+            metallicFactor: 0,
+            roughnessFactor: 1,
+        };
+        material.normalTexture = { index: 2 };
+        const big = (): Uint8Array => converted("webp", ["-scale", "2048x2048!", "-define", "webp:lossless=true"]);
+        write(
+            {
+                ...mesh,
+                id: "gltf-transmission-required",
+                format: "gltf",
+                compression: ["webp"],
+                color: "green",
+                what: ".gltf shaped as ChronographWatch glTF-WEBP: WebP, transmission and texture transform required, three 2048 x 2048 pictures (drawn opaque)",
+                warnings: ["W_MODEL_EXTENSION_IGNORED"],
+            },
+            {
+                "cube.gltf": withBufferUri(json, "cube.bin"),
+                "cube.bin": bin,
+                "base.webp": big(),
+                "orm.webp": big(),
+                "normal.webp": big(),
+            },
+        );
+    }
 
     // Encoded glTF.
     {

@@ -23,7 +23,6 @@ import type { DatasetMeta } from '@graphty/graph-samples';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
-import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core/Engines/engine.js';
 import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineInstrumentation.js';
 import { ExtractedStyles } from '@graphty/graph-io/styles';

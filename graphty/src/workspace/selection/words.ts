@@ -46,6 +46,18 @@ export const NOUNS: Readonly<Record<Side, { one: string; many: string }>> = {
 export const countWords = (count: number, of: number, side: Side): string =>
     `${String(count)} of ${String(of)} ${of === 1 ? NOUNS[side].one : NOUNS[side].many}`;
 
+/**
+ * What a count over the whole graph adds while other filters hide some of its matches: ", 49 shown".
+ * A filter's own count reads the whole graph, so beside other filters it can count nodes that are
+ * not drawn; this says how many are. Empty when every match is shown.
+ * @param total - the count and how many of it are shown.
+ * @param total.count - how many match.
+ * @param total.shown - how many of them are shown.
+ * @returns the words, or "".
+ */
+export const shownWords = (total: { readonly count: number; readonly shown: number }): string =>
+    total.shown < total.count ? `, ${formatNumber(total.shown)} shown` : "";
+
 export { letterOf } from "./model";
 
 /** From this count up, a sidebar row writes it short ("200k"); its tooltip has every digit. */

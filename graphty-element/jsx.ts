@@ -231,10 +231,6 @@ export interface GraphtyElementJSXProps {
      */
     background?: Graphty["background"];
     /**
-     * Moves the map's credits up from the corner.
-     */
-    attributionOffset?: Graphty["attributionOffset"];
-    /**
      * Sets how the globe looks.
      */
     globeLook?: Graphty["globeLook"];
@@ -296,6 +292,10 @@ export interface GraphtyElementJSXProps {
      * healthy.
      */
     acceleration?: Graphty["acceleration"];
+    /**
+     * Switches the working graph on or off.
+     */
+    workingGraph?: Graphty["workingGraph"];
     /**
      * Sets the renderer the element opens when it is first drawn.
      *
@@ -459,10 +459,6 @@ export interface GraphtyElementJSXProps {
      */
     "layout-2d"?: boolean;
     /**
-     * Moves the map's credits up from the corner.
-     */
-    "attribution-offset"?: string;
-    /**
      * Sets how long camera moves take.
      */
     "camera-transition-duration"?: string;
@@ -494,6 +490,10 @@ export interface GraphtyElementJSXProps {
      * Sets detailed profiling mode. Enables hierarchical timing and advanced stats collection.
      */
     "enable-detailed-profiling"?: boolean;
+    /**
+     * Switches the working graph on or off.
+     */
+    "working-graph"?: boolean;
     /**
      * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
      */

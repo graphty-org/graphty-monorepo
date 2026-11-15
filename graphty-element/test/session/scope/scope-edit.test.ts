@@ -163,6 +163,35 @@ describe("scope.edit", () => {
         );
     });
 
+    it("Done keeps the run an open filter draft reads, so the draft written after it still filters", async () => {
+        // The selection workspace's Done ends the visit, then commits the filter's draft: the
+        // draft's run must survive the visit, or the committed filter reads no result and hides all.
+        const { session } = await pathSession();
+        const edit = session.scope.edit();
+        const rule = measuring("louvain");
+        const draft = session.visibility.draft({ id: "f1", effect: "keep", rule });
+        const run = await readRun(session, rule);
+        await edit.commit();
+        assert.deepEqual(
+            session.runs.list().map((each) => each.id),
+            [run],
+        );
+        await draft.commit();
+        assert.deepEqual(session.runs.readers(run), [{ kind: "filter", id: "f1" }]);
+        assert.strictEqual(session.visibility.summary.visibleNodes, 5);
+    });
+
+    it("Done drops the run of a draft already cancelled", async () => {
+        const { session } = await pathSession();
+        const edit = session.scope.edit();
+        const rule = measuring("louvain");
+        const draft = session.visibility.draft({ id: "f1", effect: "keep", rule });
+        await readRun(session, rule);
+        draft.cancel();
+        await edit.commit();
+        assert.deepEqual(session.runs.list(), []);
+    });
+
     it("a run the visit did not start is never removed, even when nothing reads it", async () => {
         const { session } = await pathSession();
         const analyze = session.runs.start("degree", {}, { scope: "graph", style: false });

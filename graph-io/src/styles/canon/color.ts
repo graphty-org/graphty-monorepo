@@ -5,7 +5,7 @@
 
 import { STYLE_ISSUE } from "../codes.js";
 import type { StyleColor, StyleDialect } from "../types.js";
-import { CSS_COLORS, DVIPS_COLORS, JAVA_COLORS } from "./color-tables.js";
+import { CSS_COLORS, DVIPS_COLORS, JAVA_COLORS, X11_COLORS } from "./color-tables.js";
 import { graphvizColor, type GraphvizColorUse } from "./graphviz.js";
 import { num6 } from "./number.js";
 import { type CanonSite, noteAt, scalarText, spendAt } from "./site.js";
@@ -567,6 +567,8 @@ function channels(raw: object): { hex: StyleColor; alpha: number } | null {
  *   what Graphviz draws. `x11`: the same names, and an unknown one is null.
  * - `java`, `gephi`, `cytoscape`: the `java.awt.Color` names first, then CSS; a `java` integer is an RGB value.
  * - `dvips`: Pajek's names.
+ * - `tk`: CSS, then the forms of Tk_GetColor CSS lacks (`#RRRGGGBBB`, `#RRRRGGGGBBBB`, X11 names written with spaces):
+ *   the GML draft's colors.
  * - `yed`: `#RRGGBBAA` with the alpha last; `yfiles3`: `#AARRGGBB` with the alpha first and constants such as
  *   `DARK_ORANGE`.
  * - `gexf` and `gephi` also take `{ r, g, b, a }` objects.
@@ -701,9 +703,28 @@ function textColor(trimmed: string, dialect: StyleDialect): { hex: StyleColor; a
             const java = JAVA_COLORS.get(lower);
             return java === undefined ? cssColor(trimmed) : { hex: java as StyleColor, alpha: 1 };
         }
+        case "tk":
+            return cssColor(trimmed) ?? tkColor(lower);
         default:
             return cssColor(trimmed);
     }
+}
+
+/**
+ * The colors Tk_GetColor reads that CSS does not (https://www.tcl.tk/man/tcl8.6/TkLib/GetColor.htm): `#RRRGGGBBB`
+ * and `#RRRRGGGGBBBB`, each component's high-order 8 bits drawn, and a name of Tk's (X11's) color table written with
+ * spaces (`light blue`).
+ * @param lower - the value, trimmed and lowercase
+ * @returns the color, or null
+ */
+function tkColor(lower: string): { hex: StyleColor; alpha: number } | null {
+    if (/^#(?:[\da-f]{9}|[\da-f]{12})$/.test(lower)) {
+        const digits = (lower.length - 1) / 3;
+        const [r, g, b] = [0, 1, 2].map((i) => Number.parseInt(lower.slice(1 + i * digits, 3 + i * digits), 16));
+        return { hex: rgbHex(r, g, b), alpha: 1 };
+    }
+    const named = X11_COLORS.get(lower.replaceAll(/\s+/g, ""));
+    return named === undefined ? null : { hex: named as StyleColor, alpha: 1 };
 }
 
 /**

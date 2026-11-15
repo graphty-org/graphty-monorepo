@@ -24691,15 +24691,15 @@
             "node.shape": []
         },
         "gml-specimen-edges-lines~specification": {
-            "edge.route": ["smooth-1-s->smooth-1-t#g0"],
-            "edge.curve": ["smooth-1-s->smooth-1-t#g0"],
-            "edge.opacity": ["stipple-gray25-s->stipple-gray25-t#g0","stipple-gray50-s->stipple-gray50-t#g0"],
+            "edge.route": [],
+            "edge.curve": [],
+            "edge.opacity": [],
             "edge.arrow": []
         },
         "gml-specimen-edges-lines~specification@matched": {
-            "edge.route": ["smooth-1-s->smooth-1-t#g0"],
-            "edge.curve": ["smooth-1-s->smooth-1-t#g0"],
-            "edge.opacity": ["stipple-gray25-s->stipple-gray25-t#g0","stipple-gray50-s->stipple-gray50-t#g0"],
+            "edge.route": [],
+            "edge.curve": [],
+            "edge.opacity": [],
             "edge.arrow": []
         },
         "gml-specimen-groups": {
@@ -24961,12 +24961,12 @@
 
         },
         "gml-specimen-images-charts~specification": {
-            "node.shape": ["bitmap-fill","bitmap-xbm","image-png","image-png-wide"],
-            "node.stroke": ["bitmap-fill","bitmap-xbm","image-png","image-png-wide"]
+            "node.shape": [],
+            "node.stroke": []
         },
         "gml-specimen-images-charts~specification@matched": {
-            "node.shape": ["bitmap-fill","bitmap-xbm","image-png","image-png-wide"],
-            "node.stroke": ["bitmap-fill","bitmap-xbm","image-png","image-png-wide"]
+            "node.shape": [],
+            "node.stroke": []
         },
         "gml-specimen-labels": {
             "node.present": [],
@@ -25869,14 +25869,14 @@
             "node.shape": []
         },
         "gml-specimen-node-fills-borders~specification": {
-            "node.fill": ["fill-hex12","fill-hex9","fill-name-space"],
-            "node.fillOpacity": ["stipple-gray12","stipple-gray25","stipple-gray50","stipple-gray75"],
-            "node.stroke": ["width-0"]
+            "node.fill": [],
+            "node.fillOpacity": [],
+            "node.stroke": []
         },
         "gml-specimen-node-fills-borders~specification@matched": {
-            "node.fill": ["fill-hex12","fill-hex9","fill-name-space"],
-            "node.fillOpacity": ["stipple-gray12","stipple-gray25","stipple-gray50","stipple-gray75"],
-            "node.stroke": ["width-0"]
+            "node.fill": [],
+            "node.fillOpacity": [],
+            "node.stroke": []
         },
         "gml-specimen-node-shapes": {
             "node.present": [],
@@ -26265,12 +26265,12 @@
             "node.shape": []
         },
         "gml-specimen-node-shapes~specification": {
-            "node.shape": ["type-bitmap","type-image"],
-            "node.stroke": ["type-bitmap","type-image"]
+            "node.shape": [],
+            "node.stroke": []
         },
         "gml-specimen-node-shapes~specification@matched": {
-            "node.shape": ["type-bitmap","type-image"],
-            "node.stroke": ["type-bitmap","type-image"]
+            "node.shape": [],
+            "node.stroke": []
         },
         "gml-specimen-node-sizes-opacity": {
             "node.present": [],

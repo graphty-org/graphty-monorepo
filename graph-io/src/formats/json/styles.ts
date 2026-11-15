@@ -4117,6 +4117,39 @@ function keepScaled(table: Table, sizes: readonly (StyleValue | null)[], replace
     writeKey(table, "scaling", scaling, replaced);
 }
 
+/**
+ * vis.js: each edge's written `dashes`, noting the line styles and dash lengths vis-network draws only approximately.
+ * @param p - the picture of a target's property
+ * @param widths - each edge's written width
+ * @param approximated - where approximations are counted
+ * @returns each edge's dashes, or null
+ */
+function visEdgeDashes(
+    p: (target: StyleTarget, property: string) => readonly (StyleValue | null)[],
+    widths: readonly (StyleValue | null)[],
+    approximated: StyleApproximations,
+): (boolean | number[] | null)[] {
+    const [dashLengths, dashGaps] = [p("edge", "dashLength"), p("edge", "dashGap")];
+    return p("edge", "lineStyle").map((s, e) => {
+        if (typeof s === "string" && s !== "solid" && s !== "dashed") {
+            approximated.add("edge", "lineStyle", s);
+        }
+        const values: Record<string, StyleValue | null> = {
+            lineStyle: s,
+            width: widths[e],
+            dashLength: dashLengths[e],
+            dashGap: dashGaps[e],
+        };
+        const dashes = visDashesOut((property) => values[property] ?? null);
+        const dash = dashLengths[e];
+        if (Array.isArray(dashes) && typeof dash === "number" && dash < visWidthOut((q) => values[q] ?? null)) {
+            // a round-capped dash is at least as long as the line is wide
+            approximated.add("edge", "dashLength", dash);
+        }
+        return dashes;
+    });
+}
+
 function writeVis(
     out: ReturnType<GraphSnapshot["withColumns"]>,
     input: ExporterStyleInput,
@@ -4219,30 +4252,7 @@ function writeVis(
     writeKey(out.edges, "width", widths, replaced);
     // an edge's `value` would scale its width again on reading: a scaling range of its own width keeps it
     keepScaled(out.edges, widths, replaced);
-    const [dashLengths, dashGaps] = [p("edge", "dashLength"), p("edge", "dashGap")];
-    writeKey(
-        out.edges,
-        "dashes",
-        p("edge", "lineStyle").map((s, e) => {
-            if (typeof s === "string" && s !== "solid" && s !== "dashed") {
-                approximated.add("edge", "lineStyle", s);
-            }
-            const values: Record<string, StyleValue | null> = {
-                lineStyle: s,
-                width: widths[e],
-                dashLength: dashLengths[e],
-                dashGap: dashGaps[e],
-            };
-            const dashes = visDashesOut((property) => values[property] ?? null);
-            const dash = dashLengths[e];
-            if (Array.isArray(dashes) && typeof dash === "number" && dash < visWidthOut((q) => values[q] ?? null)) {
-                // a round-capped dash is at least as long as the line is wide
-                approximated.add("edge", "dashLength", dash);
-            }
-            return dashes;
-        }),
-        replaced,
-    );
+    writeKey(out.edges, "dashes", visEdgeDashes(p, widths, approximated), replaced);
     const to = p("edge", "targetArrow");
     const from = p("edge", "sourceArrow");
     writeKey(

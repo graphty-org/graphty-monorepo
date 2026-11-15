@@ -224,6 +224,8 @@ describe("every model format and variant, through the Load custom model dialog",
                 name: variant.needs,
             });
             await userEvent.click(within(row).getByRole("button", { name: `Load without ${variant.needs}` }));
+            // The waiting model's stand-in preview is already up: the caption shows once the reload is in.
+            await within(dialog).findByTestId("model-variant");
         }
 
         await assertPreview(dialog, variant);

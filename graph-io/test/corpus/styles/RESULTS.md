@@ -368,7 +368,7 @@ Tool values are elements drawn with the writing program's default.
 | json/fidelity/vis-lesmiserables.json | ok | 77 | 254 | 15 | 3 | 126 | 0% | 0% | 0 | 4018 | 0 |  |
 | json/fidelity/vis-nodelegend.json | ok | 21 | 15 | 8 | 4 | 69 | 48% | 1% | 0 | 306 | 0 |  |
 | json/fidelity/vis-siblings.json | ok | 200 | 284 | 6 | 3 | 158 | 0% | 0% | 0 | 4808 | 0 |  |
-| json/fidelity/vis-synth.json | ok | 72 | 84 | 10 | 5 | 234 | 66% | 24% | 0 | 1052 | 0 | W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/vis-synth.json | ok | 72 | 84 | 10 | 6 | 234 | 65% | 24% | 0 | 1052 | 0 | W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/vis-transparency.json | ok | 50 | 100 | 3 | 3 | 0 | - | - | 0 | 1850 | 0 |  |
 | json/fidelity/vis-unix.json | ok | 41 | 49 | 3 | 3 | 0 | - | - | 0 | 916 | 0 |  |
 | json/fidelity/vis-world.json | ok | 48 | 69 | 3 | 3 | 0 | - | - | 0 | 1308 | 0 |  |

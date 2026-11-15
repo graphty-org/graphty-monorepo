@@ -189,12 +189,12 @@ async function assertHalo(scene: Drawn, want: { color: string; alpha: number; cl
     );
 }
 
-/** The gold halo an element nobody has configured draws. */
+/** The halo an element nobody has configured draws: solid blue, 3:1 or better on light and dark canvases (#811). */
 export const Default: Story = {
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "Default");
 
-        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
+        await assertHalo(scene, { color: "#0077BB", alpha: 1, clearance: 1.45 });
     },
 };
 
@@ -205,7 +205,7 @@ export const Color: Story = {
         const scene = await selected(canvasElement, "Color");
 
         // The scale and the opacity are untouched: the setting is merged, not replaced.
-        await assertHalo(scene, { color: "#00BCD4", alpha: 0.4, clearance: 1.45 });
+        await assertHalo(scene, { color: "#00BCD4", alpha: 1, clearance: 1.45 });
     },
 };
 
@@ -215,11 +215,11 @@ export const Scale: Story = {
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "Scale");
 
-        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 2.6 });
+        await assertHalo(scene, { color: "#0077BB", alpha: 1, clearance: 2.6 });
     },
 };
 
-/** A solid halo rather than a faint one. */
+/** A see-through halo rather than the solid default. */
 export const Opacity: Story = {
     args: { selectionStyle: { color: "#E91E63", opacity: 0.85 } },
     play: async ({ canvasElement }) => {
@@ -234,7 +234,7 @@ export const RestyledWhileSelected: Story = {
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "RestyledWhileSelected");
 
-        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
+        await assertHalo(scene, { color: "#0077BB", alpha: 1, clearance: 1.45 });
 
         const element = await renderedElement(canvasElement, "RestyledWhileSelected: no <graphty-element> rendered");
         element.selectionStyle = { color: "#7CB342", scale: 2, opacity: 0.7 };
@@ -294,6 +294,6 @@ export const Box: Story = {
 
         await holds(scene.graph.getNode(SELECTED)?.shapeType === "box", "Box: the selected node is drawn as a box");
 
-        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
+        await assertHalo(scene, { color: "#0077BB", alpha: 1, clearance: 1.45 });
     },
 };

@@ -3757,11 +3757,11 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.arrowhead": 0.92,
-            "raster.canvas": 0.95,
-            "raster.edge": 0.86,
+            "raster.canvas": 0.96,
+            "raster.edge": 0.87,
             "raster.label": 0.91,
             "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.9,
+            "raster.nodeOutline": 0.91,
             "edge.wiggle": 1
         },
         "cx-syn-mappings@matched": {
@@ -7059,7 +7059,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.9,
+            "raster.arrowhead": 0.91,
             "raster.canvas": 0.95,
             "raster.edge": 0.86,
             "raster.label": 0.91,
@@ -11222,11 +11222,11 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.arrowhead": 0.92,
-            "raster.canvas": 0.95,
-            "raster.edge": 0.86,
+            "raster.canvas": 0.96,
+            "raster.edge": 0.87,
             "raster.label": 0.91,
             "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.9,
+            "raster.nodeOutline": 0.91,
             "edge.wiggle": 1
         },
         "cys-syn-mappings@matched": {
@@ -38922,12 +38922,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.91,
-            "raster.canvas": 0.95,
+            "raster.arrowhead": 0.92,
+            "raster.canvas": 0.96,
             "raster.edge": 0.86,
             "raster.label": 0.91,
             "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.9,
+            "raster.nodeOutline": 0.91,
             "edge.wiggle": 1
         },
         "xgmml-syn-mappings@matched": {
@@ -56203,12 +56203,6 @@
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.992,
-                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
-                "date": "2026-11-01"
             }
         },
         "cx-syn-mappings@matched": {
@@ -56222,12 +56216,6 @@
                 "floor": 0.985,
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.992,
-                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             }
         },
@@ -56265,12 +56253,6 @@
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.992,
-                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
-                "date": "2026-11-01"
             }
         },
         "cx2-syn-mappings@matched": {
@@ -56278,12 +56260,6 @@
                 "floor": 1,
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.992,
-                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             }
         },
@@ -56327,12 +56303,6 @@
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.992,
-                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
-                "date": "2026-11-01"
             }
         },
         "cys-syn-mappings@matched": {
@@ -56346,12 +56316,6 @@
                 "floor": 0.985,
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.992,
-                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             }
         },
@@ -56691,12 +56655,6 @@
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.992,
-                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
-                "date": "2026-11-01"
             }
         },
         "xgmml-syn-mappings@matched": {
@@ -56710,12 +56668,6 @@
                 "floor": 0.985,
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.992,
-                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             }
         },

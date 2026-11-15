@@ -81,6 +81,7 @@ export type GraphEvent =
     | GraphDataClearedEvent
     | GraphLayoutInitializedEvent
     | CameraStateChangedEvent
+    | OverviewChangedEvent
     | GraphGenericEvent
     | DataLoadingProgressEvent
     | DataLoadingErrorEvent
@@ -262,6 +263,14 @@ export interface CameraStateChangedEvent {
     };
 }
 
+/**
+ * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at
+ * most once per drawn frame, never per node; read `getOverview()` in the listener.
+ */
+export interface OverviewChangedEvent {
+    type: "overview-changed";
+}
+
 // Generic events for internal manager communication
 export interface GraphGenericEvent {
     type:
@@ -269,7 +278,9 @@ export interface GraphGenericEvent {
         | "manager-initialized"
         | "lifecycle-initialized"
         | "lifecycle-disposed"
+        // A skybox image arrived (`url`), or could not be loaded (`skybox-failed`, `url`).
         | "skybox-loaded"
+        | "skybox-failed"
         | "operation-queue-active"
         | "operation-queue-idle"
         | "operation-batch-complete"

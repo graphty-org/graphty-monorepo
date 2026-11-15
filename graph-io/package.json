@@ -102,6 +102,11 @@
             "import": "./dist/sources-sparql.js",
             "default": "./dist/sources-sparql.js"
         },
+        "./sources/github": {
+            "types": "./dist/sources-github.d.ts",
+            "import": "./dist/sources-github.js",
+            "default": "./dist/sources-github.js"
+        },
         "./styles": {
             "types": "./dist/styles.d.ts",
             "import": "./dist/styles.js",

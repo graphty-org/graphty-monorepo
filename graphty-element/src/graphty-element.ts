@@ -14,6 +14,7 @@ import type {
     AutosaveRestored,
     AutosaveStatus,
 } from "./autosave/types";
+import type { GraphOverview, OverviewOptions } from "./camera/overview";
 import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type {
@@ -42,6 +43,7 @@ import type { ExportGraphOptions, ExportResult } from "./data/export";
 import type { GraphtyWarningCode } from "./errors/codes";
 import { isGraphtyError } from "./errors/GraphtyError";
 import {
+    type GraphEvent,
     type GraphtyForwardedEventMap,
     isDomForwardableEvent,
     NODE_EVENT_DOM_NAMES,
@@ -97,6 +99,7 @@ import type {
     TransactionScope,
 } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
+import { Minimap } from "./ui/Minimap";
 import { downloadBlob } from "./utils/download";
 
 /**
@@ -192,6 +195,21 @@ export class Graphty extends LitElement {
            anywhere on the page; see the constructor. */
         [data-pointer-focus] canvas:focus-visible {
             outline: none;
+        }
+
+        /* The minimap's defaults: small, in a corner, plain. Restyle it from the page with
+           ::part(minimap); its points and viewport rectangle are drawn in its color. */
+        [part="minimap"] {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            width: 160px;
+            height: 160px;
+            box-sizing: border-box;
+            border: 1px solid #888;
+            background: rgb(255 255 255 / 75%);
+            color: #444;
+            touch-action: none;
         }
     `;
 
@@ -796,6 +814,10 @@ export class Graphty extends LitElement {
 
         this.#wired = true;
         this.renderRoot.appendChild(this.#element);
+        if (this.#minimapOn) {
+            this.#minimapView.attach(this.renderRoot);
+        }
+
         this.#reportStrayObjectAttributes();
 
         // Autosave reads its key and options in the task after connecting, so a script that sets
@@ -980,6 +1002,7 @@ export class Graphty extends LitElement {
                     composed: true,
                 }),
             );
+            this.#announceSkybox(event);
         });
 
         // Node events reach the DOM too, and under a prefixed name with a reduced detail.
@@ -3203,6 +3226,91 @@ export class Graphty extends LitElement {
         this.requestUpdate("labelDeclutter", oldValue);
     }
 
+    /** Whether the minimap is shown; see {@link Graphty.minimap}. */
+    #minimapOn = false;
+
+    /** The minimap overlay, built on first use. */
+    #minimapDrawn: Minimap | undefined;
+
+    /** The accessible name the minimap carries; see {@link Graphty.minimapLabel}. */
+    #minimapName = "minimap";
+
+    /**
+     * The minimap overlay, built on first use.
+     * @returns The overlay.
+     */
+    get #minimapView(): Minimap {
+        if (this.#minimapDrawn === undefined) {
+            this.#minimapDrawn = new Minimap(this);
+            this.#minimapDrawn.setLabel(this.#minimapName);
+        }
+
+        return this.#minimapDrawn;
+    }
+
+    /**
+     * Whether a minimap is drawn over the graph: every node seen from where the camera looks (a
+     * density heatmap above 5,000 nodes) and the rectangle the view shows. A click on it centres
+     * the view there, a drag scrubs, and with it focused the arrow keys step the view.
+     * @remarks
+     * A preference of this view, not part of the project: switching it, and moving the camera with
+     * it, records no undo step. Off by default. It is a canvas in the shadow root, exposed as
+     * `::part(minimap)`: set its size, place, border and background from the page, and the color
+     * its points and rectangle are drawn in with `color`. To draw a minimap of your own instead,
+     * see {@link Graphty.getOverview}.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element minimap></graphty-element>
+     * <style>
+     *     graphty-element::part(minimap) { left: 8px; right: auto; width: 200px; color: teal; }
+     * </style>
+     * ```
+     * @returns True when the minimap is shown
+     */
+    @property({ attribute: "minimap", type: Boolean, reflect: true })
+    get minimap(): boolean {
+        return this.#minimapOn;
+    }
+    /**
+     * Shows or hides the minimap.
+     */
+    set minimap(value: boolean) {
+        const oldValue = this.#minimapOn;
+        this.#minimapOn = value;
+        if (!value) {
+            this.#minimapDrawn?.detach();
+        } else if (this.#wired) {
+            this.#minimapView.attach(this.renderRoot);
+        }
+
+        this.requestUpdate("minimap", oldValue);
+    }
+
+    /**
+     * The minimap's accessible name, which a screen reader announces. `"minimap"` unless set;
+     * a page in another language sets its own word.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element minimap minimap-label="Carte"></graphty-element>
+     * ```
+     * @returns The name
+     */
+    @property({ attribute: "minimap-label" })
+    get minimapLabel(): string {
+        return this.#minimapName;
+    }
+    /**
+     * Sets the minimap's accessible name.
+     */
+    set minimapLabel(value: string) {
+        const oldValue = this.#minimapName;
+        this.#minimapName = value;
+        this.#minimapDrawn?.setLabel(value);
+        this.requestUpdate("minimapLabel", oldValue);
+    }
+
     /**
      * How fast the 3D view turns on its own, in radians per second.
      * @remarks
@@ -3591,8 +3699,10 @@ export class Graphty extends LitElement {
      * @remarks
      * A colour accepts anything CSS does -- a hex string, `rgb(...)`, or a name such as
      * `whitesmoke` -- and is normalised to hex. A skybox wraps the graph in a photo dome built
-     * from an image, given as a URL or a base64 PNG, and the element emits
-     * `graphty-skybox-loaded` once its texture has arrived. Either may carry a background
+     * from an image, given as a URL or a base64 PNG, and the element fires
+     * `graphty-skybox-loaded` (`detail.url`) once its texture has arrived, once per new image; an
+     * image that cannot be loaded fires `graphty-skybox-failed` instead, a coded failure
+     * `{ code: "E_IMAGE_LOAD", params: { url } }`. Either may carry a background
      * `shader`, drawn over the colour or the image; where its alpha is low, they show. With no
      * `color`, the element draws its default (`session.config.backgroundColor` says which).
      * @since 2.0.0
@@ -3774,6 +3884,45 @@ export class Graphty extends LitElement {
             value === undefined || value === null || !Number.isFinite(value) ? undefined : value,
         );
         this.requestUpdate("cameraTransitionDuration", oldValue);
+    }
+
+    /**
+     * Whether the graph reduces motion for its reader.
+     * @remarks
+     * True: every camera move (fitting the graph, a preset view, the glide to a picked node)
+     * jumps to its end, `autoRotate` holds still, a layout transition is skipped, and a running
+     * layout is drawn once it has settled instead of moving into place. `"auto"`: the same while
+     * the platform asks for reduced motion (`prefers-reduced-motion: reduce`), following it as it
+     * changes. False (the default): nothing changes. As an attribute, `reduced-motion` alone or
+     * `reduced-motion="true"` is true, and `reduced-motion="auto"` is `"auto"`. A preference of
+     * this view, not saved with the project.
+     * @since 3.54.0
+     * @example
+     * ```html
+     * <graphty-element reduced-motion="auto"></graphty-element>
+     * ```
+     * @returns true, false or "auto"
+     */
+    @property({
+        attribute: "reduced-motion",
+        converter: (value: string | null): boolean | "auto" => {
+            if (value === "auto") {
+                return "auto";
+            }
+
+            return value !== null && value !== "false";
+        },
+    })
+    get reducedMotion(): boolean | "auto" {
+        return this.#graph.getReducedMotion();
+    }
+    /**
+     * Sets whether the graph reduces motion.
+     */
+    set reducedMotion(value: boolean | "auto") {
+        const oldValue = this.reducedMotion;
+        this.#graph.setReducedMotion(value);
+        this.requestUpdate("reducedMotion", oldValue);
     }
 
     /**
@@ -4277,12 +4426,45 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Stop the camera's animated moves: the one under way stops where the camera is now, and
-     * moves still waiting their turn are dropped. Every caller awaiting one of them resolves.
-     * @returns True if a camera move was cancelled, false if none was under way or waiting
+     * Stop the camera's animated moves: the one under way stops where the camera is now, moves
+     * still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
+     * awaiting one of them resolves.
+     * @returns True if a camera move or tour was cancelled, false if none was under way or waiting
      */
     cancelCameraAnimation(): boolean {
         return this.#graph.cancelCameraAnimation();
+    }
+
+    /**
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
+     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
+     * `position` and `target`; `duration` is the flight to it and `hold` the time spent there, in
+     * milliseconds. Every stop is checked before the camera moves. `cameraTransitionDuration`,
+     * when set, replaces each flight's duration. `cancelCameraAnimation` ends the tour. To record
+     * the same tour, pass it as `cameraPath` to `captureAnimation`.
+     * @param path - The stops, in order.
+     * @param options - How to fly.
+     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
+     * @returns Settles when the last stop's hold is over, or the tour is ended.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
+     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @example
+     * ```typescript
+     * const el = document.querySelector("graphty-element");
+     * await el.session.views.save([{ name: "cluster-a", camera: el.getCameraState() }]);
+     * await el.playTour([
+     *     { view: "fitToGraph", hold: 2000 },
+     *     { view: "cluster-a", duration: 1500, hold: 3000 },
+     * ]);
+     * ```
+     */
+    async playTour(
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+        options?: { easing?: "linear" | "easeIn" | "easeOut" | "easeInOut" },
+    ): Promise<void> {
+        return this.#graph.playTour(path, options);
     }
 
     /**
@@ -5864,6 +6046,55 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Everything a minimap needs: every placed node seen along the current view direction, laid
+     * flat in a unit frame (x right, y down, 0 to 1, the same scale on both axes), and `viewport`,
+     * the part of that frame the camera shows. {@link Graphty.minimap} draws a minimap from this; to
+     * draw your own, read it and redraw on `overview-changed`.
+     *
+     * Up to `maxPoints` placed nodes (default 5000) it returns one point per node; above that a
+     * `gridSize` by `gridSize` density grid (default 64) instead, so the result stays small.
+     * Reading costs one pass over the nodes after the nodes or the view direction moved, and
+     * nothing more while only the viewport moved (a 2D pan or zoom).
+     * @param options - `maxPoints` and `gridSize`.
+     * @returns The overview; empty, with a zero viewport, while no node is placed.
+     * @example
+     * ```ts
+     * element.addEventListener("overview-changed", () => {
+     *     const { points, viewport } = element.getOverview();
+     *     ctx.clearRect(0, 0, 150, 150);
+     *     for (let i = 0; i < points.length; i += 2) ctx.fillRect(points[i] * 150, points[i + 1] * 150, 2, 2);
+     *     ctx.strokeRect(viewport.x * 150, viewport.y * 150, viewport.width * 150, viewport.height * 150);
+     * });
+     * ```
+     */
+    getOverview(options?: OverviewOptions): GraphOverview {
+        return this.#graph.getOverview(options);
+    }
+
+    /**
+     * Move the camera so the view is centred on a point of the overview frame, keeping its zoom
+     * and direction: click-to-centre and drag-to-scrub on a minimap. It changes only the camera,
+     * so it is not an undo step. Does nothing while no node is placed.
+     * @param point - The point, in the frame {@link Graphty.getOverview} returns (0 to 1, y down).
+     * @param point.x - Frame x.
+     * @param point.y - Frame y.
+     * @param options - Animation options, as for `setCameraState`.
+     * @returns Resolves once the camera is there.
+     * @example
+     * ```ts
+     * minimap.addEventListener("pointerdown", (e) => {
+     *     void element.centerOnOverview({ x: e.offsetX / 150, y: e.offsetY / 150 });
+     * });
+     * ```
+     */
+    async centerOnOverview(
+        point: { x: number; y: number },
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.centerOnOverview(point, options);
+    }
+
+    /**
      * The node under a point on the element: the node a click at that point would select.
      * @remarks
      * The point is in CSS pixels from the element's top-left corner, as `worldToScreen` returns.
@@ -6788,6 +7019,22 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Re-dispatches a skybox's graph event under the element's own name, with plain values:
+     * `graphty-skybox-loaded` (`{ url }`) or `graphty-skybox-failed` (`E_IMAGE_LOAD`, `params.url`).
+     * @param event - Any graph event; only the skybox ones are announced.
+     */
+    #announceSkybox(event: GraphEvent): void {
+        if (event.type !== "skybox-loaded" && event.type !== "skybox-failed") {
+            return;
+        }
+
+        const url = typeof event.url === "string" ? event.url : "";
+        const detail: GraphtySkyboxLoadedDetail | CodedFact<"E_IMAGE_LOAD"> =
+            event.type === "skybox-loaded" ? { url } : { code: "E_IMAGE_LOAD", params: { url: url.slice(0, 256) } };
+        this.dispatchEvent(new CustomEvent(`graphty-${event.type}`, { detail, bubbles: true, composed: true }));
+    }
+
+    /**
      * Dispatches a warning as a `graphty-warning` event.
      * @param warning - The code and its parameters.
      */
@@ -7033,6 +7280,15 @@ export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields
  */
 export type GraphtyModelChangeDetail = ModelChange;
 
+/**
+ * The detail of `graphty-skybox-loaded`: the skybox image whose texture arrived. Fires once per new
+ * skybox image; one that cannot be loaded fires `graphty-skybox-failed` (`E_IMAGE_LOAD`) instead.
+ */
+export interface GraphtySkyboxLoadedDetail {
+    /** The image, as the background's `data` gave it: a URL or a `data:` address. */
+    readonly url: string;
+}
+
 /** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
 export interface GraphtyCapabilitiesChangeDetail {
     /** The acceleration and XR capabilities after the change. */
@@ -7085,6 +7341,8 @@ declare global {
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
         "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
+        "graphty-skybox-loaded": CustomEvent<GraphtySkyboxLoadedDetail>;
+        "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
     }
 
     // Every one bubbles and is composed, so a listener on the document is typed the same way.
@@ -7112,6 +7370,8 @@ declare global {
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
         "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
+        "graphty-skybox-loaded": CustomEvent<GraphtySkyboxLoadedDetail>;
+        "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
     }
 }
 

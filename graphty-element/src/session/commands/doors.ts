@@ -530,6 +530,15 @@ const RELOAD_SOURCE_EXPECT: readonly unknown[] = [
     },
     ...RELOAD_SOURCE_STEPS,
 ];
+/** What `data.remap({ mapping: {} })` dispatches inside its batch: reloadSource's steps, the mapping kept with the load. */
+const REMAP_STEPS: readonly SessionCommand[] = RELOAD_SOURCE_STEPS.map((step) =>
+    step.op === "data.import" ? { ...step, choices: { mapping: {} } } : step,
+);
+/** What `data.remap({ mapping: {} })` dispatches: the batch, then its steps. */
+const REMAP_EXPECT: readonly unknown[] = [
+    { ...(RELOAD_SOURCE_EXPECT[0] as object), steps: REMAP_STEPS },
+    ...REMAP_STEPS,
+];
 /** What `data.replaceSource("s1", ...)` dispatches: the batch, then its steps. */
 const REPLACE_SOURCE_EXPECT: readonly unknown[] = [
     {
@@ -881,6 +890,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     views: READ,
     layout: READ,
     positions: READ,
+    hidden: READ,
     seededNodeCount: READ,
     status: READ,
     catalog: READ,
@@ -1295,6 +1305,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     layerGroups: READ,
     counts: READ,
     drawnCount: READ,
+    drawnValues: READ,
     legendOf: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
@@ -1339,7 +1350,6 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     lockRow: calls(["no-such-row", true], [{ op: "style.patch", action: "lockRow", id: "no-such-row", locked: true }]),
     hideRow: calls(["no-such-row", true], [{ op: "style.patch", action: "hideRow", id: "no-such-row", hidden: true }]),
     deleteRow: calls(["no-such-row"], [{ op: "style.patch", action: "deleteRow", id: "no-such-row" }]),
-    restoreStartingRows: calls([], [{ op: "style.patch", action: "restoreStartingRows" }]),
     toFile: READ,
     setDefaultPalettes: PALETTE_DEFAULTS,
     setHighlightColor: HIGHLIGHT_DEFAULT,
@@ -1451,6 +1461,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "config.set", values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } } },
             ]),
             labelDeclutter: VIEW_SETTING,
+            minimap: VIEW_SETTING,
+            minimapLabel: VIEW_SETTING,
             accessibleDescription: VIEW_SETTING,
             accessibleAnnouncement: VIEW_SETTING,
             accessibleNodeList: VIEW_SETTING,
@@ -1478,6 +1490,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             attributionOffset: CAMERA,
             globeLook: VIEW_SETTING,
             cameraTransitionDuration: CAMERA,
+            reducedMotion: VIEW_SETTING,
             startingCameraDistance: CAMERA,
             autoFrame: CAMERA,
             zoomToPointer: CAMERA,
@@ -1493,6 +1506,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
             cancelCameraAnimation: IN_FLIGHT,
+            playTour: CAMERA,
             isAnimationCapturing: READ,
             estimateAnimationCapture: READ,
             getViewMode: READ,
@@ -1503,6 +1517,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setCameraState: CAMERA,
             setCameraPosition: CAMERA,
             setCameraTarget: CAMERA,
+            getOverview: READ,
+            centerOnOverview: CAMERA,
             setCameraZoom: CAMERA,
             setCameraPan: CAMERA,
             resetCamera: CAMERA,
@@ -1702,6 +1718,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setAttributionOffset: CAMERA,
             getCameraTransitionDuration: READ,
             setCameraTransitionDuration: CAMERA,
+            getReducedMotion: READ,
+            setReducedMotion: VIEW_SETTING,
             setSelectionStyle: calls(
                 [{ color: "#00ff00" }],
                 [{ op: "config.set", values: { selectionStyle: { color: "#00ff00" } } }],
@@ -1871,12 +1889,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
             cancelCameraAnimation: IN_FLIGHT,
+            playTour: CAMERA,
             isAnimationCapturing: READ,
             estimateAnimationCapture: READ,
             getCameraState: READ,
             setCameraState: CAMERA,
             setCameraPosition: CAMERA,
             setCameraTarget: CAMERA,
+            getOverview: READ,
+            centerOnOverview: CAMERA,
             setCameraZoom: CAMERA,
             setCameraPan: CAMERA,
             resetCamera: CAMERA,
@@ -1997,6 +2018,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             spacingRadius: READ,
             paintedColor: READ,
             borderReach: READ,
+            borderReachAlong: READ,
             framingBounds: READ,
             drawnHalfExtents: READ,
             surfaceIsBox: READ,
@@ -2289,6 +2311,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             step: TRANSPORT,
             stepBatch: TRANSPORT,
             steppedPublishes: READ,
+            reducedMotion: VIEW_SETTING,
+            drawingHeld: READ,
             placeGroups: TRANSPORT,
             groupBox: READ,
             getNodePosition: READ,
@@ -2829,6 +2853,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 },
                 expect: RELOAD_SOURCE_EXPECT,
+            },
+            // Reads the only load's rows again under the mapping, as reloadSource's one batch.
+            remap: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: [{ mapping: {} }],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import(DOOR_SHIPS_SOURCE);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: REMAP_EXPECT,
             },
             // The values the join wrote go back, and the table joins anew, as one batch.
             editJoin: {
@@ -3575,6 +3614,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
             rerun: calls([], [{ op: "layout.rerun" }]),
+            step: READ,
+            play: TRANSPORT,
+            pause: TRANSPORT,
+            tick: TRANSPORT,
+            settle: TRANSPORT,
             optionInEffect: READ,
             locationColumns: READ,
         },
@@ -3599,6 +3643,23 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ),
             pin: calls([["n1"]], [PIN_N1]),
             unpin: calls([["n1"]], [UNPIN_N1]),
+            get: READ,
+            pinnedMask: READ,
+            snapshot: READ,
+            restore: calls(
+                [{ order: ["n1"], xyz: Float32Array.of(1, 2, 3) }],
+                [{ op: "positions.set", entries: [{ id: "n1", x: 1, y: 2, z: 3 }] }],
+            ),
+        },
+    },
+    {
+        name: "SessionHidden",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            ids: READ,
+            add: calls([["n1"]], [{ op: "visibility.hide", ids: ["n1"], hidden: true }]),
+            remove: calls([["n1"]], [{ op: "visibility.hide", ids: ["n1"], hidden: false }]),
         },
     },
     {
@@ -4165,6 +4226,7 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.removeSource": "edit",
     "SessionDataApi.replaceSource": "edit",
     "SessionDataApi.reloadSource": "edit",
+    "SessionDataApi.remap": "edit",
     "SessionDataApi.editJoin": "edit",
     "SessionDataApi.setType": "edit",
     "SessionDataApi.renameColumn": "edit",

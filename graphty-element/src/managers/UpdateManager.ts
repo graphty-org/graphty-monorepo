@@ -1526,6 +1526,7 @@ export class UpdateManager implements Manager {
 
         if (painter.hasPendingNodes) {
             this.syncNodeStyles(painter, deadline);
+            this.repaintedSinceFit = this.fitRead !== null;
         }
 
         // While a load holds the draw (`DataManager.drawHeld`) no frame shows the nodes and edges
@@ -1546,6 +1547,39 @@ export class UpdateManager implements Manager {
             this.paintBatchesDone();
         }
     }
+
+    /**
+     * Whether a node repaint drawn since the last fit changed the box it framed, while that fit's
+     * picture is not final yet. A style that lands after the fit -- a layer naming a shader whose
+     * body was still loading, drawn at another extent -- left the camera on the old box, and
+     * whether it landed before or after the fit depended on the machine's speed: the same story
+     * framed at two zooms (issue #7970). Asked on a drawn frame, once the repainted meshes are
+     * built, and measured once per repaint, not per frame.
+     */
+    private noteRepaintedExtent(): void {
+        if (!this.repaintedSinceFit || this.fitRead === null || this.fittedBox === undefined) {
+            return;
+        }
+
+        if (this.graphContext.getStylePainter?.()?.hasPendingNodes === true) {
+            return;
+        }
+
+        this.repaintedSinceFit = false;
+        const box = this.measure();
+        if (box === undefined || !sameBox(box, this.fittedBox)) {
+            this.fitExtentMoved = true;
+        }
+    }
+
+    /** The box the last fit framed, before any map grew it; see {@link UpdateManager.noteRepaintedExtent}. */
+    private fittedBox: FramingBox | undefined;
+
+    /** Whether a node repaint was applied since the last fit, before its picture was final. */
+    private repaintedSinceFit = false;
+
+    /** Whether a repaint moved the fitted box before the fit's picture was final. */
+    private fitExtentMoved = false;
 
     /** The token held while a repaint's batches remain; see {@link UpdateManager.syncStyles}. */
     private paintBatches: (() => void) | null = null;
@@ -2665,6 +2699,7 @@ export class UpdateManager implements Manager {
         // `stateIsFinished` is the last pass's answer, and work can arrive between that pass and
         // this frame: a load that brings nodes and starts the layout, then a resize that calls
         // `viewMoved()`, drew a frame of unplaced meshes and called it final (issue #3517).
+        this.noteRepaintedExtent();
         if (!this.pictureIsFinished()) {
             this.stateIsFinished = false;
             return;
@@ -4557,6 +4592,9 @@ export class UpdateManager implements Manager {
 
         this.hasZoomedToFit = true;
         this.fitRead = this.fitInputs();
+        this.fittedBox = box;
+        this.fitExtentMoved = false;
+        this.repaintedSinceFit = false;
         this.forceZoomToFit = false;
         this.explicitZoomToFit = false;
         this.framingHasNothingToFrame = false;
@@ -4633,7 +4671,7 @@ export class UpdateManager implements Manager {
      * @returns True when the fit is owed again.
      */
     private fitIsStale(): boolean {
-        return this.fitRead !== null && this.fitRead !== this.fitInputs();
+        return this.fitRead !== null && (this.fitExtentMoved || this.fitRead !== this.fitInputs());
     }
 
     /**

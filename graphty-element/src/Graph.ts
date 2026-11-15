@@ -1537,6 +1537,14 @@ export class Graph implements GraphContext {
         );
         // A style edit is written at once and repainted on the session's derivation lane; until the
         // repaint of every edit so far has ended, the settle waits wait for it (issue #4219).
+        // A style edit still loading the body of a shader it names is going to change the picture
+        // the camera frames, so until it is dispatched no frame is final and the framing stays open
+        // to the extent it draws at (issue #7970).
+        this.updateManager.pending.watch(
+            "style",
+            "a style edit is still loading a shader it names",
+            () => dispatcherOf(this.session).writesAhead,
+        );
         this.updateManager.pending.watch(
             "style",
             "a style edit has not been repainted yet",

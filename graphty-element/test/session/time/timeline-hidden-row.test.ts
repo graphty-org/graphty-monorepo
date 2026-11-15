@@ -73,9 +73,10 @@ describe("the Timeline Hidden row", () => {
         assert.strictEqual(tree.indexOf("Timeline Hidden"), tree.indexOf("Selected") - 1, tree.join(", "));
         assert.strictEqual(session.config.timelineHiddenLook, "hidden");
 
-        // Asked again, nothing comes twice.
-        await session.styles.restoreStartingRows();
+        // Asked again, nothing comes twice, and a time field coming and going leaves the row alone.
         await session.config.set({ startingRows: true, editableBase: true });
+        await session.time.setField({ nodes: { start: "t" } });
+        await session.time.setField(null);
         assert.lengthOf(named(session, "Timeline Hidden"), 2);
         session.dispose();
     });

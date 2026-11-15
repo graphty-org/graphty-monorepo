@@ -22,8 +22,8 @@ const TRUSTED = new Map([
     ["graphty-release-scheduler", "Bot"],
 ]);
 
+// priority:critical is work, taken first (owner, 2026-11-14); only its non-code alarms are skipped below.
 const SKIP_LABELS = [
-    "priority:critical",
     "in-progress",
     "needs-decision",
     "needs-info",
@@ -37,8 +37,24 @@ const SKIP_LABELS = [
     "githerd-heartbeat",
     "ci-budget",
 ];
+// The priority:critical alarms tools file that are not code work, or whose code fix pipeline-round owns (master-guard's
+// revert, bisect, the fix that opens while master is red, owner-only screenshots and keys). Load-sensitive and flaky
+// test issues are code work and stay in the queue.
+const ALARM_TITLES = [
+    "Full run red:", // tools/full-run.mjs RED_TITLE
+    "Master baselines tree unsigned", // tools/full-run.mjs UNSIGNED_TITLE
+    "Failing on master:", // tools/results/run-group.mjs
+    "Red master: CI failed on", // tools/master-guard.mjs RED_PREFIX
+    "canary deploy failed on", // tools/master-guard.mjs DEPLOY_PREFIX
+    "Nightly stalled since", // tools/channel/nightly.mjs STALL_TITLE
+    "Nightly site deploy failed", // tools/channel/nightly.mjs FAILED_TITLE
+    "Nightly promotion failed:", // release.yml
+    "Shadow release run:", // release.yml
+    "Release scheduler could not start", // tools/release-scheduler/src/worker.js ISSUE_TITLE
+    "graphty-monorepo's write deploy keys", // tools/release-scheduler/src/worker.js DEPLOY_KEY_ISSUE_TITLE
+];
 const HELD_MAJOR = new Set([676, 702, 843, 1370]);
-const PRIORITIES = ["high", "medium", "low"];
+const PRIORITIES = ["critical", "high", "medium", "low"];
 const EFFORTS = ["low", "medium", "high"];
 const TYPES = ["bug", "infrastructure", "enhancement"];
 
@@ -85,6 +101,7 @@ export function skipReason(issue) {
     if (issue.title.startsWith("Release held:")) return "release held";
     if (issue.title.includes("lane red on master")) return "lane red on master";
     if (/^Nightly (held on|missed slot)/.test(issue.title)) return "nightly alarm";
+    if (ALARM_TITLES.some((t) => issue.title.startsWith(t))) return "pipeline alarm";
     if (/design\/brand|brand kit/i.test(issue.title)) return "design/brand";
     return null;
 }

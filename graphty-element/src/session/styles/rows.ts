@@ -243,36 +243,81 @@ export function partPatch(
     return Object.keys(patch).length === 0 ? null : patch;
 }
 
-/** The template id a starting row's layers carry, which is how the element finds one again. */
-export type StartingRowId =
-    "graphty:starting-everything" | "graphty:starting-selected" | "graphty:starting-hovered" | typeof PINNED_ROW_ID;
+/** The template id a default row's layers carry: data saved with the row, read by nothing that re-adds it. */
+type StartingRowId =
+    | "graphty:starting-everything"
+    | "graphty:starting-selected"
+    | "graphty:starting-hovered"
+    | typeof PINNED_ROW_ID
+    | typeof TIMELINE_HIDDEN_ROW_ID;
 
 /** The template id the Pinned row carries. */
-export const PINNED_ROW_ID = "graphty:starting-pinned";
+const PINNED_ROW_ID = "graphty:starting-pinned";
 
-/** One starting row: what it is, and where it is pinned. */
+/** One default row: its template id, where it is pinned, and what it is written with. */
 export interface StartingRow {
     readonly templateId: StartingRowId;
     readonly pin: "top" | "bottom";
     readonly spec: RowSpec;
 }
 
+/** The template id the timeline's default row, Timeline Hidden, carries. */
+export const TIMELINE_HIDDEN_ROW_ID = "graphty:timeline-hidden";
+
 /**
- * The starting rows, with the Selected row's look from the selection settings.
- * @param look - The selection settings' node halo and edge band.
- * @param look.color - The halo's color.
- * @param look.scale - The halo's size, as a multiple of the node's drawn radius.
- * @param look.edgeColor - The band's color.
- * @param look.edgeScale - The band's width, as a multiple of twice the line's width.
- * @returns The three rows, in the order they are added: Everything, Selected, Hovered.
+ * The template id the same row carried while it was called Ghost. A project saved then still
+ * names it; nothing reads it differently from any other layer's source.
+ */
+export const LEGACY_GHOST_ROW_ID = "graphty:timeline-ghost";
+
+/** How the Timeline Hidden row starts: not drawn at all, or drawn faint. */
+export type TimelineHiddenLook = "hidden" | "ghost";
+
+/**
+ * The ghost look: grey at low opacity, so the elements outside the time window stay on screen as
+ * context without reading as part of it.
+ */
+export const STARTING_GHOST_LOOK = {
+    "node.color": "#9E9E9E",
+    "node.opacity": 0.2,
+    "edge.color": "#9E9E9E",
+    "edge.opacity": 0.15,
+} as const;
+
+/**
+ * The default rows a project starts with, as plain data written once: each is an ordinary row
+ * selecting on a calculated value (`everything`, or the state `selected`, `hovered`, `pinned`,
+ * `outsideWindow`), and nothing keeps it in step with a setting afterwards.
+ * @param look - What the rows are written with.
+ * @param look.selection - The selection settings' node halo and edge band, which Selected draws.
+ * @param look.selection.color - The halo's color.
+ * @param look.selection.scale - The halo's size, as a multiple of the node's drawn radius.
+ * @param look.selection.edgeColor - The band's color.
+ * @param look.selection.edgeScale - The band's width, as a multiple of twice the line's width.
+ * @param look.everything - The values Everything holds (the base look while `editableBase` is on).
+ * @param look.pinned - The halo Pinned draws; no Pinned row when absent.
+ * @param look.pinned.color - The halo's color.
+ * @param look.pinned.scale - The halo's size.
+ * @param look.pinned.opacity - How solid the halo is.
+ * @param look.timelineHidden - How the Timeline Hidden row draws what lies outside the time window
+ *   (`"hidden"` sets `visible: false`; `"ghost"` draws it grey and faint); no Timeline Hidden row
+ *   when absent (the timeline is off).
+ * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Timeline Hidden,
+ *   Pinned, Selected and Hovered, each pinned to the top above the one before.
  */
 export function startingRows(look: {
-    readonly color: string;
-    readonly scale: number;
-    readonly edgeColor: string;
-    readonly edgeScale: number;
+    readonly selection: {
+        readonly color: string;
+        readonly scale: number;
+        readonly edgeColor: string;
+        readonly edgeScale: number;
+    };
+    readonly everything?: StaticStyle;
+    readonly pinned?: { readonly color: string; readonly scale: number; readonly opacity: number };
+    readonly timelineHidden?: TimelineHiddenLook;
 }): readonly StartingRow[] {
     const source = (templateId: StartingRowId): RowSpec["source"] => ({ by: "template", templateId });
+    const { selection, pinned } = look;
 
     return [
         {
@@ -282,9 +327,49 @@ export function startingRows(look: {
                 name: "Everything",
                 target: "both",
                 selector: { match: "everything" },
+                ...(look.everything === undefined ? {} : { set: look.everything }),
                 source: source("graphty:starting-everything"),
             },
         },
+        ...(look.timelineHidden === undefined
+            ? []
+            : [
+                  {
+                      templateId: TIMELINE_HIDDEN_ROW_ID,
+                      pin: "top",
+                      spec: {
+                          name: "Timeline Hidden",
+                          target: "both",
+                          selector: { match: "state", state: "outsideWindow" },
+                          // Ghost says it draws (visible: true), so what reads the look from the
+                          // layers (`time.settings.outside`, a branches view) agrees with the row.
+                          set:
+                              look.timelineHidden === "ghost"
+                                  ? { ...STARTING_GHOST_LOOK, "node.visible": true, "edge.visible": true }
+                                  : { "node.visible": false, "edge.visible": false },
+                          source: source(TIMELINE_HIDDEN_ROW_ID),
+                      },
+                  } as const,
+              ]),
+        ...(pinned === undefined
+            ? []
+            : [
+                  {
+                      templateId: PINNED_ROW_ID,
+                      pin: "top",
+                      spec: {
+                          name: "Pinned",
+                          target: "node",
+                          selector: { match: "state", state: "pinned" },
+                          set: {
+                              "node.haloColor": pinned.color,
+                              "node.haloScale": pinned.scale,
+                              "node.haloOpacity": pinned.opacity,
+                          },
+                          source: source(PINNED_ROW_ID),
+                      },
+                  } as const,
+              ]),
         {
             templateId: "graphty:starting-selected",
             pin: "top",
@@ -293,11 +378,11 @@ export function startingRows(look: {
                 target: "both",
                 selector: { match: "state", state: "selected" },
                 set: {
-                    "node.haloColor": look.color,
-                    "node.haloScale": look.scale,
+                    "node.haloColor": selection.color,
+                    "node.haloScale": selection.scale,
                     "node.haloOpacity": 1,
-                    "edge.bandColor": look.edgeColor,
-                    "edge.bandWidth": look.edgeScale,
+                    "edge.bandColor": selection.edgeColor,
+                    "edge.bandWidth": selection.edgeScale,
                     "edge.bandOpacity": 1,
                 },
                 source: source("graphty:starting-selected"),
@@ -314,101 +399,6 @@ export function startingRows(look: {
             },
         },
     ];
-}
-
-/** The template id the timeline's starting row, Timeline Hidden, carries. */
-export const TIMELINE_HIDDEN_ROW_ID = "graphty:timeline-hidden";
-
-/**
- * The template id the same row carried while it was called Ghost. A project saved then still
- * names it; nothing reads it differently from any other layer's source.
- */
-export const LEGACY_GHOST_ROW_ID = "graphty:timeline-ghost";
-
-/**
- * The ghost look: grey at low opacity, so the elements outside the time window stay on screen as
- * context without reading as part of it.
- */
-export const STARTING_GHOST_LOOK = {
-    "node.color": "#9E9E9E",
-    "node.opacity": 0.2,
-    "edge.color": "#9E9E9E",
-    "edge.opacity": 0.15,
-} as const;
-
-/** How the Timeline Hidden row starts: not drawn at all, or drawn faint. */
-export type TimelineHiddenLook = "hidden" | "ghost";
-
-/**
- * The Timeline Hidden row: nodes and edges in the state `"outsideWindow"` (outside the time
- * window), pinned to the top directly below Selected. An ordinary row: it hides or ghosts what lies
- * outside the window only because it selects that state, and deleting it draws those elements as
- * any other.
- * @param look - `"hidden"` sets `visible: false`; `"ghost"` sets `visible: true` and draws them grey
- * and faint.
- * @returns The row.
- */
-export function timelineHiddenRow(look: TimelineHiddenLook): {
-    readonly templateId: typeof TIMELINE_HIDDEN_ROW_ID;
-    readonly pin: "top";
-    readonly spec: RowSpec;
-} {
-    return {
-        templateId: TIMELINE_HIDDEN_ROW_ID,
-        pin: "top",
-        spec: {
-            name: "Timeline Hidden",
-            target: "both",
-            selector: { match: "state", state: "outsideWindow" },
-            // Ghost says it draws (visible: true), so what reads the look from the layers
-            // (`time.settings.outside`, a branches view) agrees with the row.
-            set:
-                look === "ghost"
-                    ? { ...STARTING_GHOST_LOOK, "node.visible": true, "edge.visible": true }
-                    : { "node.visible": false, "edge.visible": false },
-            source: { by: "template", templateId: TIMELINE_HIDDEN_ROW_ID },
-        },
-    };
-}
-
-/**
- * The Pinned row: nodes in the state `"pinned"`, pinned to the top directly below Selected,
- * drawing the halo the project setting `pinnedStyle` gives. A starting row that exists while
- * `pinnedStyle` is set.
- * @param look - The setting's node halo.
- * @param look.color - The halo's color.
- * @param look.scale - The halo's size, as a multiple of the node's drawn radius.
- * @param look.opacity - How solid the halo is.
- * @returns The row.
- */
-export function pinnedRow(look: { readonly color: string; readonly scale: number; readonly opacity: number }): {
-    readonly templateId: typeof PINNED_ROW_ID;
-    readonly pin: "top";
-    readonly spec: RowSpec;
-} {
-    return {
-        templateId: PINNED_ROW_ID,
-        pin: "top",
-        spec: {
-            name: "Pinned",
-            target: "node",
-            selector: { match: "state", state: "pinned" },
-            set: { "node.haloColor": look.color, "node.haloScale": look.scale, "node.haloOpacity": look.opacity },
-            source: { by: "template", templateId: PINNED_ROW_ID },
-        },
-    };
-}
-
-/**
- * Which starting row a layer is a part of.
- * @param entry - A layer in the stack.
- * @returns Its starting row's template id, or undefined.
- */
-export function startingRowOf(entry: CompiledLayer): StartingRowId | undefined {
-    const { source } = entry.layer;
-    return source.by === "template" && source.templateId.startsWith("graphty:starting-")
-        ? (source.templateId as StartingRowId)
-        : undefined;
 }
 
 /** Rule leaves that always read nodes: their degree, component, neighborhood or isolation. */

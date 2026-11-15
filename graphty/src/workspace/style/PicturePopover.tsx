@@ -328,6 +328,7 @@ export function PicturePopover({
                             openLabel="Add"
                             hint="Or drop a picture here"
                             progress={busy ? null : undefined}
+                            disabled={busy}
                             onDiscard={() => {
                                 store.set({ announcement: "Address discarded" });
                             }}

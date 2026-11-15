@@ -1,4 +1,4 @@
-import { DataRow, FileSource, ModalFooter, Slider, useFileDrop } from "@graphty/compact-mantine";
+import { DataRow, FileSource, ModalFooter, useFileDrop } from "@graphty/compact-mantine";
 import {
     assetFileExtensions,
     detectModelFormat,
@@ -24,7 +24,6 @@ import {
     Group,
     Loader,
     Modal,
-    Progress,
     ScrollArea,
     Stack,
     Text,
@@ -357,36 +356,22 @@ function SourceLine({
 }
 
 /**
- * How far a load has come, as graphty-element reports it: its stage, the bytes, and a bar that
- * fills when the size is known and moves when it is not.
- * @param props - Component props
- * @param props.loading - the load
- * @returns The rows
+ * How far a load has come, as graphty-element reports it, for the file loader's bar: its stage and
+ * the bytes, and the fraction done when the size is known (null when it is not).
+ * @param loading - the load
+ * @returns the bar's fraction and its status line
  */
-function LoadProgress({ loading }: Readonly<{ loading: Loading }>): React.JSX.Element {
-    const stage =
+function loadStatus(loading: Loading): { progress: number | null; status: { label: string; detail?: string } } {
+    const label =
         loading.stage === undefined
             ? CUSTOM_MODEL.stages[loading.byAddress ? "downloading" : "reading"]
             : (CUSTOM_MODEL.stages[loading.stage] ?? CUSTOM_MODEL.preparing);
     const { completed, total } = loading;
     const known = total !== null && total > 0;
-    return (
-        <Stack gap={4} data-testid="model-progress">
-            <Group gap={4} justify="space-between" wrap="nowrap">
-                <Text size="xs">{stage}</Text>
-                <Text size="xs" c="var(--cm-text-secondary)">
-                    {completed > 0 ? CUSTOM_MODEL.bytes(completed, total) : ""}
-                </Text>
-            </Group>
-            <Progress
-                size="xs"
-                value={known ? Math.min(100, Math.round((completed / total) * 100)) : 100}
-                animated={!known}
-                striped={!known}
-                aria-label={CUSTOM_MODEL.loading(loading.name)}
-            />
-        </Stack>
-    );
+    return {
+        progress: known ? Math.min(1, completed / total) : null,
+        status: completed > 0 ? { label, detail: CUSTOM_MODEL.bytes(completed, total) } : { label },
+    };
 }
 
 /**
@@ -439,45 +424,6 @@ function RotateButtons({
                 );
             })}
         </Group>
-    );
-}
-
-/**
- * The Pose slider: with a clip chosen and Speed 0, the moment of the clip the model holds.
- * @param props - Component props
- * @param props.seconds - the clip's length
- * @param props.value - Start, in seconds
- * @param props.write - writes Start
- * @returns The row
- */
-function PoseRow({
-    seconds,
-    value,
-    write,
-}: Readonly<{ seconds: number; value: number; write: (next: number) => void }>): React.JSX.Element {
-    return (
-        <div className="ws-row" data-line="pose">
-            <div className="ws-field" data-named="">
-                <span className="ws-field-label">
-                    <span className="ws-field-name" aria-hidden>
-                        {CUSTOM_MODEL.pose}
-                    </span>
-                </span>
-                <div className="ws-field-control">
-                    <Slider
-                        size="xs"
-                        min={0}
-                        max={Math.max(seconds, 0.01)}
-                        step={0.01}
-                        value={Math.min(value, seconds)}
-                        label={(v) => `${v.toFixed(2)} s`}
-                        thumbLabel={CUSTOM_MODEL.pose}
-                        onChange={write}
-                    />
-                </div>
-                <span className="ws-slot" />
-            </div>
-        </div>
     );
 }
 
@@ -674,6 +620,8 @@ export function CustomModelDialog({
         say(CUSTOM_MODEL.loaded(record.plainName ?? modelName(session, ref)));
     };
     const load = (source: AssetSource, files: readonly File[], shown: string): void => {
+        // A new source (a drop, Retry, the address field) replaces the one still loading.
+        loading?.controller.abort();
         const controller = new AbortController();
         const byAddress = typeof source === "string";
         setLoading({ name: shown, byAddress, controller, completed: 0, total: null });
@@ -783,17 +731,20 @@ export function CustomModelDialog({
     const addressProblem = problem !== null && ADDRESS_CODES.has(problem.code) ? problem : null;
     const fileProblem = problem !== null && addressProblem === null ? problem : null;
     const empty = held === null && !busy;
-    const sourcesOpen = !busy && (held === null || replacing);
+    const sourcesOpen = busy || held === null || replacing;
+    const shownLoad = loading === null ? undefined : loadStatus(loading);
     const heldFile = held === null ? "" : (held.url ?? held.record.path ?? name);
-    const clip = clips.find((c) => c.name === values["node.modelAnimation"]);
-    const speed = values["node.modelAnimationSpeed"];
-    const offset = values["node.modelAnimationOffset"];
 
     const fileSource = (
         <FileSource
             variant="drop"
-            fill={empty}
+            fill={held === null}
             autoFocus={empty}
+            disabled={busy}
+            progress={shownLoad?.progress}
+            status={shownLoad?.status}
+            onCancel={busy ? cancelLoad : undefined}
+            cancelLabel={CUSTOM_MODEL.cancelLoad}
             multiple
             folder
             url
@@ -820,20 +771,6 @@ export function CustomModelDialog({
 
     const left = (
         <Stack gap="sm" className="ws-model-left">
-            {loading === null ? null : (
-                <>
-                    <SourceLine
-                        name={loading.name}
-                        byAddress={loading.byAddress}
-                        action={
-                            <Button size="compact-xs" variant="default" onClick={cancelLoad}>
-                                {CUSTOM_MODEL.cancelLoad}
-                            </Button>
-                        }
-                    />
-                    <LoadProgress loading={loading} />
-                </>
-            )}
             {held === null || busy ? null : (
                 <SourceLine
                     name={heldFile}
@@ -923,15 +860,6 @@ export function CustomModelDialog({
                             write={write}
                             remove={unset}
                             clips={clips}
-                        />
-                    ) : null}
-                    {forLayer && clip !== undefined && speed === 0 ? (
-                        <PoseRow
-                            seconds={clip.seconds}
-                            value={typeof offset === "number" ? offset : 0}
-                            write={(next) => {
-                                write("node.modelAnimationOffset", next);
-                            }}
                         />
                     ) : null}
                 </Stack>

@@ -38,7 +38,7 @@ import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { CodedFact } from "../session/shared";
 
 /** Frames a second each clip is sampled at. */
-export const BAKE_FPS = 30;
+const BAKE_FPS = 30;
 
 /** The largest animation texture a template makes; past it, fewer frames a second. */
 const MAX_TEXTURE_BYTES = 16 * 1024 * 1024;

@@ -754,6 +754,11 @@ const css = `
     flex: 1 1 auto;
     justify-content: center;
 }
+.cm-file-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
 .cm-file-url-row {
     display: flex;
     align-items: center;

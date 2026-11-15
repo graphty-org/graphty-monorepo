@@ -189,9 +189,29 @@ describe("FileSource", () => {
         assert.equal(bar.getAttribute("aria-valuenow"), "40");
     });
 
-    it("draws a full moving bar for a load whose size is not known", async () => {
+    it("draws a full moving bar for a load whose size is not known, announced with no value", async () => {
         await renderThemed(<FileSource variant="drop" progress={null} onFiles={() => undefined} />);
-        assert.equal(screen.getByRole("progressbar", { name: "Loading" }).getAttribute("aria-valuenow"), "100");
+        const bar = screen.getByRole("progressbar", { name: "Loading" });
+        assert.isNull(bar.getAttribute("aria-valuenow"), "an indeterminate bar, not 100%");
+        assert.isNull(bar.getAttribute("aria-valuetext"));
+        assert.lengthOf(screen.getAllByRole("progressbar"), 1, "one bar, not a bar inside a bar");
+    });
+
+    it("shows a load's stage, how far it has come and a Cancel that stops it", async () => {
+        const onCancel = vi.fn();
+        await renderThemed(
+            <FileSource
+                variant="drop"
+                progress={0.25}
+                status={{ label: "Downloading", detail: "1 of 4 MB" }}
+                onCancel={onCancel}
+                onFiles={() => undefined}
+            />,
+        );
+        assert.isNotNull(screen.getByText("Downloading"));
+        assert.isNotNull(screen.getByText("1 of 4 MB"));
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        assert.equal(onCancel.mock.calls.length, 1);
     });
 
     it("says why an address was refused under the field, tied to it", async () => {

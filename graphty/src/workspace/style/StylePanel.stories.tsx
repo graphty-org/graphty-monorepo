@@ -755,16 +755,13 @@ async function serveSlowly(): Promise<void> {
     };
 }
 
-/** The dialog while an address loads: its source line with Cancel load, Downloading, the bytes and the bar. */
+/** The dialog while an address loads: the file loader with Downloading, the bytes, Cancel load and the bar. */
 export const CustomModelLoading: Story = nodeModelsStory(
     sceneStory(async () => {
         await serveSlowly();
         const dialog = await openCustomModel();
         await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${SLOW_MODEL}{Enter}`);
-        const progress = await within(dialog).findByTestId("model-progress");
-        await waitFor(() => {
-            expect(progress.textContent).toMatch(/ of /);
-        });
+        await within(dialog).findByText(/ of /);
     }),
     "Custom model, loading",
 );

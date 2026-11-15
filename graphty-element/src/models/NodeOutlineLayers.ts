@@ -11,7 +11,9 @@
  * thousand.
  *
  * One layer per scene and distinct look (color and thickness), made on first mark and disposed
- * when it marks nothing. Each node carries one mark at a time. Reached only through the model
+ * when it marks nothing, and at most {@link MAX_LAYERS} per scene: each layer holds a screen-sized
+ * target and runs its own pass, so a look past the limit (a palette over many nodes) is drawn by
+ * the layer whose look is nearest. Each node carries one mark at a time. Reached only through the model
  * chunk (./chunk.ts), so a page that never draws a model never loads it.
  */
 
@@ -46,16 +48,26 @@ export interface ModelMarkLook {
 /** The instanced attribute the layer reads to tell marked instances apart. */
 const SELECTION_ID = "instanceSelectionId";
 
-/** One layer and the nodes it marks. */
+/** The most layers a scene holds; further looks share the nearest one's. */
+const MAX_LAYERS = 8;
+
+/** One layer, its look and the nodes it marks. */
 interface Marked {
     readonly layer: SelectionOutlineLayer;
+    readonly look: ModelMarkLook;
     readonly owners: Map<object, readonly AbstractMesh[]>;
 }
 
-/** Each scene's layers by look, and the look each node is marked with. */
+/** A node's mark: the look it asked for, and the layer that draws it (the nearest when merged). */
+interface NodeMark {
+    readonly asked: string;
+    readonly layer: string;
+}
+
+/** Each scene's layers by look, and each node's mark. */
 interface SceneMarks {
     readonly layers: Map<string, Marked>;
-    readonly looks: Map<object, string>;
+    readonly looks: Map<object, NodeMark>;
 }
 
 const scenes = new WeakMap<Scene, SceneMarks>();
@@ -70,12 +82,39 @@ function keyOf(look: ModelMarkLook): string {
 }
 
 /**
+ * The layer whose look is nearest a look: the closest color, a pixel of thickness counting as
+ * much as 16 steps of one color channel.
+ * @param marks - The scene's marks; holds at least one layer.
+ * @param look - The look asked for.
+ * @returns The nearest layer's key.
+ */
+function nearestKey(marks: SceneMarks, look: ModelMarkLook): string {
+    const asked = Color3.FromHexString(look.color.slice(0, 7));
+    let best = "";
+    let bestDistance = Infinity;
+    for (const [key, marked] of marks.layers) {
+        const color = Color3.FromHexString(marked.look.color.slice(0, 7));
+        const distance =
+            ((asked.r - color.r) * 255) ** 2 +
+            ((asked.g - color.g) * 255) ** 2 +
+            ((asked.b - color.b) * 255) ** 2 +
+            ((look.thickness - marked.look.thickness) * 16) ** 2;
+        if (distance < bestDistance) {
+            best = key;
+            bestDistance = distance;
+        }
+    }
+
+    return best;
+}
+
+/**
  * Take a node's mark off its layer, and drop the layer when it marks nothing more.
  * @param marks - The scene's marks.
  * @param owner - The node.
  */
 function unmark(marks: SceneMarks, owner: object): void {
-    const key = marks.looks.get(owner);
+    const key = marks.looks.get(owner)?.layer;
     if (key === undefined) {
         return;
     }
@@ -133,8 +172,8 @@ export function markModelNode(
 
     const key = look === null ? undefined : keyOf(look);
     const current = marks.looks.get(owner);
-    if (current !== undefined && current === key) {
-        const before = marks.layers.get(current)?.owners.get(owner) ?? [];
+    if (current !== undefined && current.asked === key) {
+        const before = marks.layers.get(current.layer)?.owners.get(owner) ?? [];
         if (before.length === meshes.length && before.every((mesh, i) => mesh === meshes[i])) {
             return;
         }
@@ -145,16 +184,21 @@ export function markModelNode(
         return;
     }
 
-    let marked = marks.layers.get(key);
+    let layerKey = key;
+    if (!marks.layers.has(layerKey) && marks.layers.size >= MAX_LAYERS) {
+        layerKey = nearestKey(marks, look);
+    }
+
+    let marked = marks.layers.get(layerKey);
     if (marked === undefined) {
         const layer = new SelectionOutlineLayer(`graphty-model-mark-${key}`, scene, { mainTextureRatio: 1 });
         layer.outlineColor = Color3.FromHexString(look.color.slice(0, 7));
         layer.outlineThickness = look.thickness;
-        marked = { layer, owners: new Map() };
+        marked = { layer, look, owners: new Map() };
         marks.layers.set(key, marked);
     }
 
     marked.owners.set(owner, [...meshes]);
-    marks.looks.set(owner, key);
+    marks.looks.set(owner, { asked: key, layer: layerKey });
     marked.layer.addSelection([...meshes]);
 }

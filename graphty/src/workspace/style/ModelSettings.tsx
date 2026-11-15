@@ -1,7 +1,7 @@
-import { ComboInput, PanelField } from "@graphty/compact-mantine";
+import { ComboInput, PanelField, Slider } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
-import type { CodedFact, GraphSession } from "@graphty/graphty-element/session";
+import type { CodedFact, GraphSession, ModelSummary } from "@graphty/graphty-element/session";
 import { ActionIcon, Stack, Tooltip } from "@mantine/core";
 import React from "react";
 
@@ -14,10 +14,7 @@ import { lineIn, removeLine, writeIn } from "./row";
 import { ANIMATION_CHANNELS, CUSTOM_MODEL, failureWords, MODEL_SETTING_CHIPS, MODEL_SETTING_ROWS } from "./words";
 
 /** A model's clip, as graphty-element's summary lists it. */
-export interface ModelClip {
-    readonly name: string;
-    readonly seconds: number;
-}
+type ModelClip = ModelSummary["animations"][number];
 
 /** The Animation menu's key for drawing the model still (`node.modelAnimation` ""), which a menu cannot key. */
 const STILL = "still:";
@@ -149,6 +146,46 @@ function SettingControl({
     );
 }
 
+/**
+ * The Pose slider, under Animation while a clip is chosen: the moment of the clip the model holds.
+ * Moving it writes Start and stops the clip there (Speed 0).
+ * @param props - Component props
+ * @param props.seconds - the clip's length
+ * @param props.value - Start, in seconds
+ * @param props.write - writes Start
+ * @returns The row
+ */
+function PoseRow({
+    seconds,
+    value,
+    write,
+}: Readonly<{ seconds: number; value: number; write: (next: number) => void }>): React.JSX.Element {
+    return (
+        <div className="ws-row" data-line="pose">
+            <div className="ws-field" data-named="">
+                <span className="ws-field-label">
+                    <span className="ws-field-name" aria-hidden>
+                        {CUSTOM_MODEL.pose}
+                    </span>
+                </span>
+                <div className="ws-field-control">
+                    <Slider
+                        size="xs"
+                        min={0}
+                        max={Math.max(seconds, 0.01)}
+                        step={0.01}
+                        value={Math.min(value, seconds)}
+                        label={(v) => `${v.toFixed(2)} s`}
+                        thumbLabel={CUSTOM_MODEL.pose}
+                        onChange={write}
+                    />
+                </div>
+                <span className="ws-slot" />
+            </div>
+        </div>
+    );
+}
+
 /** Props for SettingRows. */
 interface SettingRowsProps {
     /** The rows drawn, in Model settings' order. */
@@ -168,7 +205,8 @@ interface SettingRowsProps {
  * Model settings' rows (node-models design 13.3): one compact property row each, an unset one
  * showing graphty-element's default as its placeholder, a set one with its minus. The element's
  * `W_MODEL_UP_GUESSED` and `W_MODEL_COLOR_IGNORED` mark Up and Color with a chip. Shared by the
- * Model settings pop-over and the Load custom model dialog, which writes a draft.
+ * Model settings pop-over and the Load custom model dialog, which writes a draft. While a clip is
+ * chosen, a Pose slider under Animation picks the moment of it the model holds.
  * @param props - Component props
  * @param props.channels - the rows
  * @param props.values - each row's value
@@ -189,6 +227,8 @@ export function SettingRows({
     const shown = MODEL_SETTING_ROWS.filter(
         (row) => channels.includes(row.channel) && (clips.length > 0 || !ANIMATION_CHANNELS.has(row.channel)),
     );
+    const clip = clips.find((c) => c.name === values["node.modelAnimation"]);
+    const offset = values["node.modelAnimationOffset"];
     return (
         <Stack gap={4} className="ws-model-settings">
             {shown.map(({ channel, word, choices, unit, step }) => {
@@ -238,6 +278,18 @@ export function SettingRows({
                             <div className="ws-model-chips">
                                 <ModelChip chip={{ word: chip.word, tip: chip.tip }} tone="warning" />
                             </div>
+                        ) : null}
+                        {channel === "node.modelAnimation" && clip !== undefined ? (
+                            <PoseRow
+                                seconds={clip.seconds}
+                                value={typeof offset === "number" ? offset : 0}
+                                write={(next) => {
+                                    write("node.modelAnimationOffset", next);
+                                    if (values["node.modelAnimationSpeed"] !== 0) {
+                                        write("node.modelAnimationSpeed", 0);
+                                    }
+                                }}
+                            />
                         ) : null}
                     </div>
                 );

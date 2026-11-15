@@ -367,6 +367,37 @@ describe("marks on model nodes", () => {
         assert.isAbove(glowing.left, 50, "node a glows");
         assert.strictEqual(glowing.right, 0, "node b, the same model, does not");
     });
+
+    it("draws marks of a dozen colors with at most eight outline layers, every node still marked", async () => {
+        const element = await mount(600, 300);
+        const ids = Array.from({ length: 12 }, (_, i) => `n${String(i)}`);
+        await drawModel(
+            element,
+            "glb",
+            ids.map((id, i) => ({ id, x: (i - 5.5) * 0.4 })),
+        );
+        element.graph.zoomToFit();
+        for (const [i, id] of ids.entries()) {
+            // Twelve distinct reds, so each mark asks for a look of its own.
+            await element.session.styles.add({
+                name: `glow ${id}`,
+                target: "node",
+                selector: { match: "ids", nodes: [id] },
+                set: { "node.glow": `#${(0x80 + i * 8).toString(16)}0000` },
+            });
+        }
+        await readFrame(element);
+        const layers = element.graph.scene.effectLayers.filter((layer) => layer.name.startsWith("graphty-model-mark-"));
+        assert.strictEqual(layers.length, 8, "eight layers, the most a scene holds");
+        for (const id of ids) {
+            const mesh = element.graph.getNodeMesh(id);
+            assert.isAbove(
+                Number(mesh?.instancedBuffers.instanceSelectionId ?? 0),
+                0,
+                `${id} is marked by one of them`,
+            );
+        }
+    });
 });
 
 describe("model load progress", () => {

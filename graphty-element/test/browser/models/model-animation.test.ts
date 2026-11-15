@@ -101,6 +101,20 @@ describe("model animation", () => {
         await element.waitForStableFrame();
     });
 
+    it("draws a single-sided animated glTF facing out, as its still template is drawn", async () => {
+        const element = await mount();
+        // The cube's material is single-sided, so a face wound backwards is culled; its clip starts
+        // at the rest pose, so the clip's first moment draws what the still model draws.
+        const { layer, asset } = await drawModel(element, "gltf-animated", [{ id: "a", x: 0 }]);
+        const still = await readFrame(element);
+        const held = await hold(element, layer, playing(asset, "spin", 0, 0));
+        assert.isBelow(
+            pixelsChanged(still, held),
+            50,
+            "the camera-facing sides are drawn, not the far ones from inside",
+        );
+    });
+
     it("plays a skinned model's clips, one clip a node, each drawn as its own clip", async () => {
         const element = await mount(600, 300);
         const { graph } = element;

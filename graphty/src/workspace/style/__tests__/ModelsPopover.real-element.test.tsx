@@ -3,7 +3,7 @@
  * real graphty-element, by real input: the Shape list's Model... opens the Models pop-over; a
  * sample, or a .glb chosen in the Load custom model dialog its Add custom model... opens, becomes the
  * field's value and a picture tile; a built-in shape takes the model off in one undo step; Model
- * settings writes the model's channels; the minus removes the model. Every assertion
+ * settings writes the model's channels, and its Pose holds a clip at a moment; the minus removes the model. Every assertion
  * reads what the element reports: its layers, its assets and its model states.
  */
 
@@ -105,6 +105,30 @@ describe("models in the Shape field, on the real element", () => {
             assert.equal(written(session, "node.model"), quad);
             assert.equal(written(session, "node.modelSourceUp"), "z");
         });
+    });
+
+    it("offers a Pose under Animation in Model settings, holding the clip at the moment chosen", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose files", ["../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb"]);
+        await previewOf(dialog, "cube");
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.match(String(written(session, "node.model")), /^asset:/);
+        });
+        await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
+        const panel = await screen.findByRole("dialog", { name: "Model settings" });
+        assert.isNull(within(panel).queryByRole("slider", { name: "Pose" }), "no pose while the model is still");
+        await userEvent.click(within(panel).getByRole("combobox", { name: /^Animation, / }));
+        await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
+        const pose = await within(panel).findByRole("slider", { name: "Pose" });
+        pose.focus();
+        await userEvent.keyboard("{End}");
+        await waitFor(() => {
+            assert.equal(written(session, "node.modelAnimationOffset"), 1, "the end of the one-second clip");
+            assert.equal(written(session, "node.modelAnimationSpeed"), 0, "held there");
+        });
+        assert.equal(written(session, "node.modelAnimation"), "spin");
     });
 
     it("walks the samples as one Tab stop with the arrows, stopping at the edges", async () => {

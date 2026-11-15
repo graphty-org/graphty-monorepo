@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Progress, Text, TextInput } from "@mantine/core";
+import { ActionIcon, Button, Group, Progress, Text, TextInput } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useLabels } from "../../i18n";
@@ -67,6 +67,15 @@ export interface FileSourceProps {
      * load whose size is not known (a full moving bar). No bar when absent.
      */
     progress?: number | null;
+    /**
+     * What a load under way is doing, drawn above its bar (with `progress`): a word for its stage
+     * ("Downloading") and, at the end of the line, how far it has come ("3.2 of 12.4 MB").
+     */
+    status?: { readonly label: string; readonly detail?: string };
+    /** Called by a Cancel button drawn beside the status line while a load is under way (with `progress`). */
+    onCancel?: () => void;
+    /** The Cancel button's text. Defaults to the `fileCancel` label ("Cancel"). */
+    cancelLabel?: string;
     /** Why the address in the URL field was refused, shown under the field and tied to it. */
     error?: string;
     /**
@@ -109,6 +118,65 @@ function useWidth(ref: React.RefObject<HTMLElement | null>, on: boolean): number
 }
 
 /**
+ * A load's bar, with its status line and Cancel when given. A load whose size is not known draws a
+ * full moving bar announced with no value (ARIA's indeterminate progress bar), never as 100%.
+ * @param props - Component props
+ * @param props.progress - a fraction from 0 to 1, or null when the size is not known
+ * @param props.label - the bar's accessible name
+ * @param props.status - the stage and how far it has come
+ * @param props.onCancel - stops the load
+ * @param props.cancelLabel - the Cancel button's text
+ * @returns The bar
+ */
+function LoadBar({
+    progress,
+    label,
+    status,
+    onCancel,
+    cancelLabel,
+}: Readonly<{
+    progress: number | null;
+    label: string;
+    status: FileSourceProps["status"];
+    onCancel: (() => void) | undefined;
+    cancelLabel: string;
+}>): React.JSX.Element {
+    const bar =
+        progress === null ? (
+            <Progress.Root size="xs" role="progressbar" aria-label={label}>
+                <Progress.Section value={100} animated striped withAria={false} />
+            </Progress.Root>
+        ) : (
+            <Progress size="xs" value={Math.round(Math.min(1, Math.max(0, progress)) * 100)} aria-label={label} />
+        );
+    if (status === undefined && onCancel === undefined) {
+        return bar;
+    }
+    return (
+        <div className="cm-file-progress">
+            <Group gap={4} justify="space-between" wrap="nowrap">
+                <Text size="xs" span>
+                    {status?.label}
+                </Text>
+                <Group gap={4} wrap="nowrap">
+                    {status?.detail === undefined ? null : (
+                        <Text size="xs" span className="cm-file-hint">
+                            {status.detail}
+                        </Text>
+                    )}
+                    {onCancel === undefined ? null : (
+                        <Button size="compact-xs" variant="default" onClick={onCancel}>
+                            {cancelLabel}
+                        </Button>
+                    )}
+                </Group>
+            </Group>
+            {bar}
+        </div>
+    );
+}
+
+/**
  * One way to get a file: a URL, a drop or the file picker, drawn to fit the space it has.
  *
  * Built from Mantine's TextInput, ActionIcon and Button at their compact sizes. The URL field is a
@@ -138,6 +206,9 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         folderLabel,
         hint,
         progress,
+        status,
+        onCancel,
+        cancelLabel,
         error,
         onDiscard,
         fill = false,
@@ -324,12 +395,12 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         >
             {body}
             {progress === undefined ? null : (
-                <Progress
-                    size="xs"
-                    value={progress === null ? 100 : Math.round(Math.min(1, Math.max(0, progress)) * 100)}
-                    animated={progress === null}
-                    striped={progress === null}
-                    aria-label={labels.fileLoading}
+                <LoadBar
+                    progress={progress}
+                    label={labels.fileLoading}
+                    status={status}
+                    onCancel={onCancel}
+                    cancelLabel={cancelLabel ?? labels.fileCancel}
                 />
             )}
         </div>

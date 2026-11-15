@@ -75,6 +75,41 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
+/**
+ * Serves one address as a download that arrives only when the test pushes it, and records whether
+ * it was stopped. Every other address is fetched as usual.
+ * @param url - the address.
+ * @param body - the file, for its Content-Length (four times its size, so it never finishes).
+ * @returns the push, once the download has started, and whether it was cancelled.
+ */
+function slowFetch(url: string, body: Uint8Array): { push?: (chunk: Uint8Array) => void; cancelled: boolean } {
+    const state: { push?: (chunk: Uint8Array) => void; cancelled: boolean } = { cancelled: false };
+    const original = globalThis.fetch.bind(globalThis);
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+        const to = input instanceof Request ? input.url : String(input);
+        if (to !== url) {
+            return original(input, init);
+        }
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                state.push = (chunk) => {
+                    controller.enqueue(chunk);
+                };
+            },
+            cancel() {
+                state.cancelled = true;
+            },
+        });
+        init?.signal?.addEventListener("abort", () => {
+            state.cancelled = true;
+        });
+        return Promise.resolve(
+            new Response(stream, { status: 200, headers: { "content-length": String(body.byteLength * 4) } }),
+        );
+    });
+    return state;
+}
+
 describe("the Load custom model dialog, on the real element", () => {
     it("adds the car kit's folder to the project from the Main menu, changing no layer", async () => {
         const { session, tab, store } = await openShapes();
@@ -326,7 +361,7 @@ describe("the Load custom model dialog, on the real element", () => {
         });
     });
 
-    it("writes Color, a clip, Speed 0 and the Pose it holds with the model, redrawing the preview", async () => {
+    it("writes Color, a clip and the Pose it holds (Speed 0) with the model, redrawing the preview", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose files", [`${VARIANTS}/gltf-animated/cube.glb`]);
@@ -335,11 +370,6 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.click(await screen.findByRole("option", { name: "Node color on top" }));
         await userEvent.click(within(dialog).getByRole("combobox", { name: /^Animation, / }));
         await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
-        assert.isNull(within(dialog).queryByRole("slider", { name: "Pose" }), "a playing clip holds no pose");
-        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
-        const speed = within(within(dialog).getByTestId("model-more")).getByLabelText(/^Speed/);
-        await userEvent.clear(speed);
-        await userEvent.type(speed, "0{Enter}");
         const still = (await previewOf(dialog, "cube")).src;
         const pose = await within(dialog).findByRole("slider", { name: "Pose" });
         pose.focus();
@@ -375,50 +405,42 @@ describe("the Load custom model dialog, on the real element", () => {
     it("shows an address's download as it comes, and Cancel load stops it", async () => {
         const url = "https://models.example.com/slow/panel.glb";
         const body = quadGlb();
-        let push: ((chunk: Uint8Array) => void) | undefined;
-        let cancelled = false;
-        const original = globalThis.fetch.bind(globalThis);
-        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
-            const to = input instanceof Request ? input.url : String(input);
-            if (to !== url) {
-                return original(input, init);
-            }
-            const stream = new ReadableStream<Uint8Array>({
-                start(controller) {
-                    push = (chunk) => {
-                        controller.enqueue(chunk);
-                    };
-                },
-                cancel() {
-                    cancelled = true;
-                },
-            });
-            init?.signal?.addEventListener("abort", () => {
-                cancelled = true;
-            });
-            return Promise.resolve(
-                new Response(stream, { status: 200, headers: { "content-length": String(body.byteLength * 4) } }),
-            );
-        });
+        const slow = slowFetch(url, body);
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${url}{Enter}`);
-        const progress = await within(dialog).findByTestId("model-progress");
-        assert.isNotNull(within(progress).getByText("Downloading"));
-        assert.isNotNull(within(progress).getByRole("progressbar"), "a progress bar while it downloads");
+        assert.isNotNull(await within(dialog).findByText("Downloading"));
+        assert.isNotNull(within(dialog).getByRole("progressbar"), "a progress bar while it downloads");
         await waitFor(() => {
-            assert.isDefined(push);
+            assert.isDefined(slow.push);
         });
-        push?.(body);
-        await waitFor(() => {
-            assert.match(progress.textContent, / of /, "the bytes so far, of the size the server gave");
-        });
+        slow.push?.(body);
+        assert.isNotNull(await within(dialog).findByText(/ of /), "the bytes so far, of the size the server gave");
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel load" }));
-        assert.isNotNull(await within(dialog).findByRole("button", { name: "Choose files" }), "back to the start");
         await waitFor(() => {
-            assert.isTrue(cancelled, "the download stopped");
+            assert.isFalse(
+                within(dialog).getByRole<HTMLButtonElement>("button", { name: "Choose files" }).disabled,
+                "back to the start",
+            );
+        });
+        await waitFor(() => {
+            assert.isTrue(slow.cancelled, "the download stopped");
         });
         assert.isUndefined(written(session, "node.model"));
+    });
+
+    it("replaces a load still under way with a model dropped on the dialog", async () => {
+        const url = "https://models.example.com/slow/first.glb";
+        const slow = slowFetch(url, quadGlb());
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${url}{Enter}`);
+        assert.isNotNull(await within(dialog).findByText("Downloading"));
+        dropOn(within(dialog).getByTestId("custom-model"), [quadFile()]);
+        await previewOf(dialog, "quad");
+        await waitFor(() => {
+            assert.isTrue(slow.cancelled, "the first download stopped");
+        });
     });
 
     it("names a point cloud's variant under its preview and flags it Approximated on the Details line", async () => {

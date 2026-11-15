@@ -1193,6 +1193,7 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHOR
 
     return {
         ...descriptor,
+        descriptionId: `algorithm.${descriptor.key}`,
         options: withDescriptionIds(
             `algorithm.${descriptor.key}`,
             weightMeaning === null ? descriptor.options : [...descriptor.options, weightOption],

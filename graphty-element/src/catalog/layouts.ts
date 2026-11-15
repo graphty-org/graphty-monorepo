@@ -74,10 +74,17 @@ export interface LayoutImplementation {
     plainName: string;
     technicalName: string;
     /**
-     * What this engine draws, in one sentence: catalog data, like a layout's own description.
+     * What this engine draws, in one English sentence.
      * @since 3.37.0
+     * @deprecated Word the engine from {@link LayoutImplementation.descriptionId} in the application.
      */
     description: string;
+    /**
+     * A stable id for what this engine draws, which an application keys its own words on:
+     * `layout.<layout id>:<engine>`, such as "layout.force:d3". Present on every built-in engine.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     kind: "live" | "batch";
     maxDimensions: 2 | 3;
     /** True for the engine the element runs when this layout is asked for by name. */
@@ -154,21 +161,23 @@ export type LayoutImplementationCode =
  * An implementation as it is authored here. Which one is the default is decided by position, and
  * its fact is built from its code.
  */
-type LayoutImplementationSpec = Omit<LayoutImplementation, "isDefault" | "fact"> & {
+type LayoutImplementationSpec = Omit<LayoutImplementation, "isDefault" | "fact" | "descriptionId"> & {
     code: LayoutImplementationCode;
 };
 
 /**
  * Finish one authored implementation.
+ * @param layoutId - The arrangement it draws.
  * @param spec - The implementation as authored.
  * @param isDefault - Whether it is the arrangement's default engine.
  * @returns The published implementation.
  */
-function implementation(spec: LayoutImplementationSpec, isDefault: boolean): LayoutImplementation {
+function implementation(layoutId: string, spec: LayoutImplementationSpec, isDefault: boolean): LayoutImplementation {
     const { code, ...authored } = spec;
 
     return {
         ...authored,
+        descriptionId: `layout.${layoutId}:${spec.engine}`,
         options: withDescriptionIds(`layout.${spec.engine}`, spec.options),
         isDefault,
         fact: { code, params: { engine: spec.engine } },
@@ -234,6 +243,15 @@ function engineOptions(
     return optionsFromZod(schema, { overrides });
 }
 
+/** Everything about a layout that is not its default engine, as an entry is authored. */
+interface LayoutBase extends Omit<
+    LayoutDescriptor,
+    "engine" | "options" | "honoursWeights" | "scoped" | "description" | "descriptionId"
+> {
+    /** What the layout does, in English: written to the published descriptor's deprecated field. */
+    description: string;
+}
+
 /**
  * Assemble one catalogue entry, taking the published descriptor's engine and options from the
  * default implementation so the two can never drift apart.
@@ -243,13 +261,14 @@ function engineOptions(
  * @returns The finished entry.
  */
 function entry(
-    base: Omit<LayoutDescriptor, "engine" | "options" | "honoursWeights" | "scoped">,
+    base: LayoutBase,
     primary: LayoutImplementationSpec,
     alternates: readonly LayoutImplementationSpec[] = [],
 ): LayoutCatalogEntry {
     return {
         descriptor: {
             ...base,
+            descriptionId: `layout.${base.id}`,
             engine: primary.engine,
             options: withDescriptionIds(`layout.${primary.engine}`, primary.options),
             honoursWeights: primary.honoursWeights,
@@ -257,8 +276,8 @@ function entry(
             ...(primary.requires === undefined ? {} : { requires: primary.requires }),
         },
         implementations: [
-            implementation(primary, true),
-            ...alternates.map((alternate) => implementation(alternate, false)),
+            implementation(base.id, primary, true),
+            ...alternates.map((alternate) => implementation(base.id, alternate, false)),
         ],
     };
 }

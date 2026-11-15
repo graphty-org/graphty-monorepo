@@ -505,6 +505,20 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "glyphWeight")).toEqual(["bold", "normal", null]);
     });
 
+    it("centers a vis.js icon node's label half its icon and margins plus 5 below its center", async () => {
+        // vis-network 9.1.9 Icon.draw: y + (icon.size + margin.top + margin.bottom) / 2 + 5, on a "middle" baseline
+        const r = await load({
+            nodes: [
+                { id: "a", shape: "icon", label: "a", icon: { code: "A", size: 40 } },
+                { id: "b", shape: "icon", label: "b", icon: { code: "B" }, margin: { top: 2, bottom: 10 } },
+                { id: "c", shape: "icon", label: "c", icon: { code: "C", size: 40 }, font: { vadjust: 3 } },
+            ],
+            edges: [{ from: "a", to: "b" }],
+        });
+        expect(values(r, "node", "labelPosition")).toEqual(["center", "center", "center"]);
+        expect(values(r, "node", "labelOffsetY")).toEqual([30, 36, 33]);
+    });
+
     it("reads vis.js's arrow scaleFactor as the arrow size, the target's before the source's", async () => {
         const r = await load({
             nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],

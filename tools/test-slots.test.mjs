@@ -331,6 +331,10 @@ describe("test-slots", () => {
         assert.equal(nextCount({ ...m, count: 6, held: 6, availGB: 10.5 }), 5, "under 11 GB: down one");
         assert.equal(nextCount({ ...m, count: 6, held: 6, some60: 6 }), 5, "sustained stalling: down one");
         assert.equal(nextCount({ ...m, count: 6, held: 6, availGB: 9 }), 4, "under the 10 GB floor: the default");
+        assert.equal(nextCount({ ...m, growthGB: 12 }), 4, "holders still growing to their peak: no raise");
+        assert.equal(nextCount({ ...m, availGB: 30, growthGB: 8 }), 5, "room even after the holders peak: up one");
+        assert.equal(nextCount({ ...m, count: 0, held: 4 }), 4, "a hand-written 0 is lifted to the default");
+        assert.equal(nextCount({ ...m, count: 2, held: 2 }), 4, "a count under the default rises to it");
     });
 
     it("ignores a .count file written more than two hours ago and falls back to the default", () => {

@@ -277,7 +277,8 @@ test: <name>`, stops the browser and exits 1, here and in CI. A test file is hel
 - Every `vitest run` on this machine waits for one of the machine-wide test slots
   (`tools/test-slots.mjs`; `GRAPHTY_TEST_SLOTS`, else `tmp/test-slots/.count`, else one per 8 cores) and prints one line naming
   the holders while it waits. A queued run is not hung: leave it. A run nested in one that holds a slot,
-  watch mode and GitHub Actions take none
+  watch mode and GitHub Actions take none. `node tools/test-slots.mjs recount` (issue-round runs it each round)
+  rewrites `.count` one step at a time between the default and 6 from MemAvailable, memory pressure and the queue
 - A run that holds a test slot and stops using the CPU (its whole process tree under 10 s of CPU in 10 minutes:
   a page that never loads, a wait on a server that never answers) gives its slot back to the runs waiting
   and prints `test-slots: ... gave its test slot back`. It is not killed and keeps running without a slot; end

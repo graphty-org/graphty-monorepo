@@ -228,19 +228,73 @@ describe("model variant words", () => {
         assert.equal(CUSTOM_MODEL.variantLine({ format: "stl", encoding: "ascii" }), "STL, ASCII");
     });
 
-    it("counts points and says when vertex colors are drawn", () => {
-        assert.equal(
-            CUSTOM_MODEL.detailLine({
+    it("lists a model's details as table rows, leaving out what the file does not have", () => {
+        const rows = CUSTOM_MODEL.detailRows(
+            {
                 format: "ply",
                 points: 216,
                 triangles: 1728,
+                meshes: 1,
                 materials: [],
                 textures: 0,
+                textureBytes: 0,
+                upAxis: "unknown",
                 animations: [],
+                skinned: false,
+                morphTargets: 0,
+                transparent: false,
+                extensionsRequired: [],
                 vertexColors: true,
-            }),
-            "PLY, 216 points, 1728 triangles, no materials, no textures, no animations, vertex colors",
+                bounds: { min: [0, 0, 0], max: [2, 1, 0.5] },
+            },
+            12_400_000,
         );
+        assert.deepEqual(
+            rows.map((row) => [row.name, row.value]),
+            [
+                ["Format", "PLY"],
+                ["File size", "12.4 MB"],
+                ["Points", "216"],
+                ["Meshes", "1"],
+                ["Materials", "0"],
+                ["Vertex colors", "Yes"],
+                ["Up axis", "Not stated"],
+                ["Size", "2 x 1 x 0.5"],
+            ],
+        );
+    });
+
+    it("lists clips with their lengths, and the extensions drawn without", () => {
+        const rows = CUSTOM_MODEL.detailRows(
+            {
+                format: "gltf",
+                triangles: 12,
+                meshes: 2,
+                materials: ["Glass", ""],
+                textures: 3,
+                textureBytes: 2_000_000,
+                upAxis: "y",
+                animations: [{ name: "Walk", seconds: 2 }],
+                skinned: true,
+                morphTargets: 0,
+                transparent: true,
+                extensionsRequired: ["KHR_materials_transmission"],
+            },
+            undefined,
+            ["KHR_materials_transmission"],
+        );
+        const value = (name: string): string | undefined => rows.find((row) => row.name === name)?.value;
+        assert.equal(value("Animations"), "Walk, 2.0 s");
+        assert.equal(value("Textures"), "3, 2.0 MB");
+        assert.equal(rows.find((row) => row.name === "Materials")?.tip, "Glass");
+        assert.equal(value("Extensions ignored"), "KHR_materials_transmission");
+        assert.equal(value("Skinned"), "Yes");
+        assert.isUndefined(value("File size"));
+    });
+
+    it("says how much of a load has come", () => {
+        assert.equal(CUSTOM_MODEL.bytes(3_200_000, 12_400_000), "3.2 of 12.4 MB");
+        assert.equal(CUSTOM_MODEL.bytes(640_000, null), "640 KB");
     });
 
     it("says why a decoder failed by its reason, and calls approximated points a chip", () => {

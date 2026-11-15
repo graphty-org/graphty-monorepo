@@ -74,6 +74,11 @@ export const MODEL_CHANNELS: readonly Channel[] = [
     "node.modelTint",
     "node.modelFit",
     "node.modelCenter",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelDoubleSided",
+    "node.unlit",
 ];
 
 /**
@@ -357,6 +362,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.modelSourceUp": "Model up axis",
     "node.modelTurn": "Model turn",
     "node.modelTint": "Use node color",
+    "node.modelDoubleSided": "Model double-sided",
+    "node.modelAnimation": "Model animation",
+    "node.modelAnimationSpeed": "Model animation speed",
+    "node.modelAnimationOffset": "Model animation start",
     "node.modelFit": "Model fit",
     "node.modelCenter": "Model center",
     "node.texture": "Texture",
@@ -1076,7 +1085,13 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
     W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
     W_MODEL_POINTS_APPROXIMATED: (p) => `This model's ${amount(p.points)} points are drawn as small solids.`,
-    W_MODEL_HAS_ANIMATIONS: () => "This model has animations; they do not play yet.",
+    W_MODEL_HAS_ANIMATIONS: () => "This model has animations. Choose one under Animation to play it.",
+    W_MODEL_EXTENSION_IGNORED: (p) => `This model's ${said(p.extension)} look is drawn opaque.`,
+    W_MODEL_ANIMATION_UNKNOWN: (p) =>
+        `This model has no animation called ${said(p.name)}. It has ${said(p.available) || "none"}.`,
+    W_MODEL_ANIMATION_REDUCED: (p) =>
+        `This model's animations play at ${amount(p.fps)} frames a second to save memory.`,
+    W_MODEL_ANIMATION_PARTIAL: () => "Some parts of this model hold still: their shape keys do not play.",
     W_MODEL_COLOR_IGNORED: () => "The model keeps its own colors. Use node color to paint it.",
     W_MODEL_HEAVY: (p) => `This model is detailed; with ${amount(p.nodes)} nodes the graph may be slow.`,
     W_MODEL_BUDGET: (p) => `The graph draws ${amount(p.triangles)} triangles and may be slow.`,
@@ -1952,19 +1967,6 @@ export const MODEL_TILE = "Model...";
 export const MODEL_PICK = "+model";
 
 /**
- * A count and its noun: "no animations", "1 material", "12 triangles".
- * @param n - the count.
- * @param noun - the noun, singular.
- * @returns the words.
- */
-function counted(n: number, noun: string): string {
-    if (n === 0) {
-        return `no ${noun}s`;
-    }
-    return n === 1 ? `1 ${noun}` : `${String(n)} ${noun}s`;
-}
-
-/**
  * What a refused file should be instead: "choose a GLB, GLTF, OBJ, STL file".
  * @param formats - the formats' extensions, ".glb".
  * @returns the words.
@@ -1999,21 +2001,78 @@ function formatWord(format: string): string {
 }
 
 /** The Load custom model dialog's words (node-models design 14.6). */
+/**
+ * Bytes as a reader reads a file's size: "12.4 MB", "640 KB".
+ * @param bytes - how many.
+ * @returns the words.
+ */
+function megabytes(bytes: number): string {
+    return bytes < 1_000_000 ? `${formatCount(Math.ceil(bytes / 1000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+/**
+ * A model's extent along one axis, in the file's own units, to three figures.
+ * @param value - the extent.
+ * @returns the words.
+ */
+function sizeNumber(value: number): string {
+    return String(Number(value.toPrecision(3)));
+}
+
 export const CUSTOM_MODEL = {
     title: "Load custom model",
-    button: "Custom model...",
+    button: "Add custom model...",
     description: "Load a 3D model file or address into this project",
     address: "Model address",
-    load: "Load model address",
+    load: "Load",
     chooseFiles: "Choose files",
     chooseFolder: "Choose folder",
     /**
-     * The drop zone's hint, with the model formats graphty-element draws.
+     * The drop target's caption, with the model formats graphty-element draws.
      * @param formats - the formats' extensions, ".glb".
      * @returns the words.
      */
     dropHint: (formats: readonly string[]): string =>
-        `or drop files, a folder or a .zip -- ${formats.map((e) => e.replace(/^\./, "").toUpperCase()).join(", ")}`,
+        `Drop a model, folder or .zip -- ${formats.map((e) => e.replace(/^\./, "").toUpperCase()).join(", ")}`,
+    cancelLoad: "Cancel load",
+    /**
+     * Said when the reader stops a load.
+     * @param name - what was loading.
+     * @returns the words.
+     */
+    cancelled: (name: string): string => `Stopped loading ${name}`,
+    /** What a load is doing, by graphty-element's stage. */
+    stages: { downloading: "Downloading", reading: "Reading", unpacking: "Unpacking" } as Readonly<
+        Record<string, string>
+    >,
+    /** Said once graphty-element has the files and draws the model. */
+    preparing: "Preparing",
+    /**
+     * How much of a load has come: "3.2 of 12.4 MB", or "3.2 MB" when the size is not known.
+     * @param completed - bytes so far.
+     * @param total - bytes in all, or null.
+     * @returns the words.
+     */
+    bytes: (completed: number, total: number | null): string =>
+        total === null || total <= 0
+            ? megabytes(completed)
+            : `${megabytes(completed).replace(/ MB$/, "")} of ${megabytes(total)}`,
+    moreOptions: "More options",
+    animation: "Animation",
+    still: "Still",
+    pose: "Pose",
+    /**
+     * A clip as the Animation menu lists it: "Walk, 2.0 s".
+     * @param clip - the clip's name and length.
+     * @param clip.name - its name.
+     * @param clip.seconds - its length.
+     * @returns the words.
+     */
+    clip: (clip: { readonly name: string; readonly seconds: number }): string =>
+        `${clip.name || "Unnamed"}, ${clip.seconds.toFixed(1)} s`,
+    /** The rotate buttons under the preview, by `turnModelOrientation`'s step. */
+    turns: { left: "Turn left", right: "Turn right", forward: "Tip forward", back: "Tip back" } as const,
+    rotate: "Rotate",
     /** What a refused file should be instead. */
     reads: readsWords,
     checkAddress: "check the address or choose the file instead",
@@ -2029,7 +2088,6 @@ export const CUSTOM_MODEL = {
     name: "Name",
     color: "Color",
     files: "Files",
-    advanced: "Advanced",
     details: "Details",
     /**
      * Which variant of its format a model is, under its preview: "PLY, binary, point cloud", "glTF, Draco".
@@ -2048,27 +2106,57 @@ export const CUSTOM_MODEL = {
             .filter((w) => w !== "")
             .join(", "),
     /**
-     * The model's details in one line: "GLB, 12 triangles, 1 material, 1 texture, no animations".
+     * The model's details as rows of a table: each fact graphty-element reports, by its name, the
+     * ones a file does not have left out.
      * @param summary - from graphty-element's `assets.inspect`.
-     * @returns the words.
+     * @param fileBytes - the model's files, in bytes, if known.
+     * @param ignored - the extensions graphty-element drew without (`W_MODEL_EXTENSION_IGNORED`).
+     * @returns each row's name, its value, and a tooltip for a value that lists more than it shows.
      */
-    detailLine: (
-        summary: Pick<
-            ModelSummary,
-            "format" | "triangles" | "materials" | "textures" | "animations" | "points" | "vertexColors"
-        >,
-    ): string =>
-        [
-            formatWord(summary.format),
-            summary.points === undefined ? "" : counted(summary.points, "point"),
-            counted(summary.triangles, "triangle"),
-            counted(summary.materials.length, "material"),
-            counted(summary.textures, "texture"),
-            counted(summary.animations.length, "animation"),
-            summary.vertexColors === true ? "vertex colors" : "",
-        ]
-            .filter((w) => w !== "")
-            .join(", "),
+    detailRows: (
+        summary: ModelSummary,
+        fileBytes: number | undefined,
+        ignored: readonly string[] = [],
+    ): readonly { readonly name: string; readonly value: string; readonly tip?: string }[] => {
+        const rows: { name: string; value: string; tip?: string }[] = [
+            { name: "Format", value: CUSTOM_MODEL.variantLine(summary) },
+        ];
+        const add = (when: boolean, name: string, value: string, tip?: string): void => {
+            if (when) {
+                rows.push(tip === undefined ? { name, value } : { name, value, tip });
+            }
+        };
+        add(fileBytes !== undefined, "File size", megabytes(fileBytes ?? 0));
+        add(summary.points !== undefined, "Points", formatCount(summary.points ?? 0));
+        add(summary.points === undefined, "Triangles", formatCount(summary.triangles));
+        add(true, "Meshes", formatCount(summary.meshes));
+        add(
+            true,
+            "Materials",
+            formatCount(summary.materials.length),
+            summary.materials.filter((m) => m !== "").join(", ") || undefined,
+        );
+        add(summary.textures > 0, "Textures", `${formatCount(summary.textures)}, ${megabytes(summary.textureBytes)}`);
+        add(
+            summary.animations.length > 0,
+            "Animations",
+            summary.animations.map((clip) => CUSTOM_MODEL.clip(clip)).join("; "),
+        );
+        add(summary.skinned, "Skinned", "Yes");
+        add(summary.morphTargets > 0, "Morph targets", formatCount(summary.morphTargets));
+        add(summary.vertexColors === true, "Vertex colors", "Yes");
+        add(summary.transparent, "Transparent", "Yes");
+        add(true, "Up axis", summary.upAxis === "unknown" ? "Not stated" : summary.upAxis.toUpperCase());
+        const { bounds } = summary;
+        add(
+            bounds !== undefined,
+            "Size",
+            bounds === undefined ? "" : [0, 1, 2].map((i) => sizeNumber(bounds.max[i] - bounds.min[i])).join(" x "),
+        );
+        add(summary.extensionsRequired.length > 0, "Extensions required", summary.extensionsRequired.join(", "));
+        add(ignored.length > 0, "Extensions ignored", ignored.join(", "));
+        return rows;
+    },
     /**
      * What the closed Files line says about files that need nothing: "1 substituted, 2 not used".
      * @param counts - how many parts are in each state.
@@ -2086,12 +2174,11 @@ export const CUSTOM_MODEL = {
             .filter((w) => w !== "")
             .join(", "),
     /**
-     * A part row's address field placeholder.
+     * A part row's address field: its placeholder and its name.
      * @param part - the part's file name.
      * @returns the words.
      */
-    partAddress: (part: string): string => `URL for ${part}`,
-    byAddress: "Address...",
+    partAddress: (part: string): string => `${part} address`,
     useFile: "Use file",
     cancel: "Cancel",
     add: "Add model",
@@ -2140,6 +2227,10 @@ export const MODEL_SETTING_ROWS: readonly {
     readonly channel: Channel;
     readonly word: string;
     readonly choices?: readonly (readonly [string, string])[];
+    /** A number's unit, after it. */
+    readonly unit?: string;
+    /** A number's step for the arrow keys. Default 1. */
+    readonly step?: number;
 }[] = [
     {
         channel: "node.modelSourceUp",
@@ -2154,13 +2245,14 @@ export const MODEL_SETTING_ROWS: readonly {
             ["-x", "-X"],
         ],
     },
-    { channel: "node.modelTurn", word: "Turn" },
+    { channel: "node.modelTurn", word: "Turn", unit: "deg" },
     {
         channel: "node.modelTint",
         word: "Color",
         choices: [
             ["false", "Model's own"],
             ["true", "Node color on top"],
+            ["untextured", "Node color on plain parts"],
             ["replace", "Node color only"],
         ],
     },
@@ -2180,7 +2272,35 @@ export const MODEL_SETTING_ROWS: readonly {
             ["origin", "File's origin"],
         ],
     },
+    // Its choices are the model's clips, which the row reads from graphty-element's summary.
+    { channel: "node.modelAnimation", word: "Animation", choices: [["", "Still"]] },
+    { channel: "node.modelAnimationSpeed", word: "Speed", unit: "x", step: 0.1 },
+    { channel: "node.modelAnimationOffset", word: "Start", unit: "s", step: 0.1 },
+    {
+        channel: "node.modelDoubleSided",
+        word: "Sides",
+        choices: [
+            ["file", "File's choice"],
+            ["true", "Both sides"],
+            ["false", "Front only"],
+        ],
+    },
+    {
+        channel: "node.unlit",
+        word: "Light",
+        choices: [
+            ["false", "Lit"],
+            ["true", "Unlit"],
+        ],
+    },
 ];
+
+/** The Model settings rows that only a model with animations shows. */
+export const ANIMATION_CHANNELS: ReadonlySet<Channel> = new Set([
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+]);
 
 /** A warning chip on a Model settings row: its word and its tooltip (design 13.3). */
 export const MODEL_SETTING_CHIPS: Readonly<

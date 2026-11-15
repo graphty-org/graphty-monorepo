@@ -615,21 +615,34 @@ export const Parts: Story = nodeModelsStory(
  */
 async function openCustomModel(): Promise<HTMLElement> {
     const { models } = await openModels();
-    await userEvent.click(within(models).getByRole("button", { name: "Custom model..." }));
+    await userEvent.click(within(models).getByRole("button", { name: "Add custom model..." }));
     return page().findByRole("dialog", { name: "Load custom model" });
 }
 
 /**
- * Chooses files in the dialog's Choose files input, as the button opens it.
+ * Drops files on a target as the browser delivers a drag from the desktop: dragenter, dragover and
+ * drop, each carrying the files. A page cannot start a drag of a file from the operating system,
+ * so a story drops them this way; the file picker a button opens has no page to answer it here.
+ * @param target - where they are dropped.
+ * @param files - the files.
+ */
+function dropFiles(target: Element, files: File[]): void {
+    const dataTransfer = new DataTransfer();
+    for (const file of files) {
+        dataTransfer.items.add(file);
+    }
+    for (const type of ["dragenter", "dragover", "drop"]) {
+        target.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+    }
+}
+
+/**
+ * Loads files in the Load custom model dialog by dropping them on it.
  * @param dialog - the dialog.
  * @param files - the files.
  */
 async function chooseInDialog(dialog: HTMLElement, files: File[]): Promise<void> {
-    const chooser = dialog.querySelector<HTMLInputElement>("input[type=file]:not([data-folder])");
-    if (chooser === null) {
-        throw new Error("no file input");
-    }
-    await userEvent.upload(chooser, files);
+    dropFiles(await within(dialog).findByTestId("custom-model"), files);
 }
 
 /**
@@ -647,7 +660,7 @@ async function carKit(picture?: string): Promise<File[]> {
     return files;
 }
 
-/** The Load custom model dialog, empty: the address field, the file choosers and the drop zone. */
+/** The Load custom model dialog, empty: one file loader filling it, with Choose files, Choose folder, the formats and the address. */
 export const CustomModelEmpty: Story = nodeModelsStory(
     sceneStory(async () => {
         await openCustomModel();
@@ -655,7 +668,7 @@ export const CustomModelEmpty: Story = nodeModelsStory(
     "Custom model, empty",
 );
 
-/** The dialog with police.glb and its picture loaded: the preview graphty-element draws, Name and Color. */
+/** The dialog with police.glb and its picture loaded: Name and Color left, the preview graphty-element draws right with its rotate buttons and Details. */
 export const CustomModelLoaded: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
@@ -689,19 +702,71 @@ export const CustomModelUrlError: Story = nodeModelsStory(
     "Custom model, address error",
 );
 
-/** The dialog with police loaded and Advanced open: Up, Turn, Fit, Center and the model's details. */
-export const CustomModelAdvanced: Story = nodeModelsStory(
+/** The dialog with police loaded and More options open: Up, Turn, Fit, Center, Sides and Light. */
+export const CustomModelMoreOptions: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
         await within(dialog).findByRole("img", { name: "police preview" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Advanced" }));
-        await within(dialog).findByTestId("model-details");
-        // However tall the dialog grows, Add model stays in view: the body scrolls, the footer stays.
+        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
+        await within(dialog).findByRole("combobox", { name: /^Up, / });
+        // However tall the settings grow, Add model stays in view: the left column scrolls, the footer stays.
         const add = within(dialog).getByRole("button", { name: "Add model" }).getBoundingClientRect();
         expect(add.bottom).toBeLessThanOrEqual(window.innerHeight);
     }),
-    "Custom model, advanced",
+    "Custom model, more options",
+);
+
+/** The dialog with police loaded and Details open: the model's facts as a table under the preview. */
+export const CustomModelDetails: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, await carKit("colormap.png"));
+        await within(dialog).findByRole("img", { name: "police preview" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Details" }));
+        await within(await within(dialog).findByTestId("model-details")).findByRole("group", { name: "Format" });
+    }),
+    "Custom model, details",
+);
+
+/** The address police.glb is "downloaded" from in the loading story: a server that sends its first part and waits. */
+const SLOW_MODEL = "https://models.example.com/slow/police.glb";
+
+/**
+ * Answers SLOW_MODEL with the first quarter of police.glb and then nothing more, the size known,
+ * so the dialog shows a load a quarter of the way.
+ */
+async function serveSlowly(): Promise<void> {
+    const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+    const original = globalThis.fetch.bind(globalThis);
+    globalThis.fetch = (input, init) => {
+        const to = input instanceof Request ? input.url : String(input);
+        if (to !== SLOW_MODEL) {
+            return original(input, init);
+        }
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(police.subarray(0, Math.floor(police.byteLength / 4)));
+            },
+        });
+        return Promise.resolve(
+            new Response(stream, { status: 200, headers: { "content-length": String(police.byteLength) } }),
+        );
+    };
+}
+
+/** The dialog while an address loads: its source line with Cancel load, Downloading, the bytes and the bar. */
+export const CustomModelLoading: Story = nodeModelsStory(
+    sceneStory(async () => {
+        await serveSlowly();
+        const dialog = await openCustomModel();
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${SLOW_MODEL}{Enter}`);
+        const progress = await within(dialog).findByTestId("model-progress");
+        await waitFor(() => {
+            expect(progress.textContent).toMatch(/ of /);
+        });
+    }),
+    "Custom model, loading",
 );
 
 /**
@@ -714,7 +779,7 @@ async function fixtureFile(url: string, name: string): Promise<File> {
     return new File([await (await fetch(url)).arrayBuffer()], name);
 }
 
-/** The dialog with a binary PLY point cloud: its variant under the preview, and Guessed and Approximated on Advanced. */
+/** The dialog with a binary PLY point cloud: its variant under the preview, and Guessed and Approximated on Details. */
 export const CustomModelPointCloud: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
@@ -735,11 +800,11 @@ export const CustomModelDrawFailed: Story = nodeModelsStory(
     "Custom model, draw failed",
 );
 
-/** The Main menu open on Custom model..., which opens the dialog with no layer to write to. */
+/** The Main menu open on Add custom model..., which opens the dialog with no layer to write to. */
 export const CustomModelMainMenu: Story = nodeModelsStory(
     sceneStory(async () => {
         await userEvent.click(page().getByRole("button", { name: "Main menu" }));
-        await page().findByRole("menuitem", { name: "Custom model..." });
+        await page().findByRole("menuitem", { name: "Add custom model..." });
     }),
     "Custom model, main menu",
 );
@@ -748,7 +813,7 @@ export const CustomModelMainMenu: Story = nodeModelsStory(
 export const CustomModelProjectTile: Story = nodeModelsStory(
     sceneStory(async () => {
         await userEvent.click(page().getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await page().findByRole("menuitem", { name: "Custom model..." }));
+        await userEvent.click(await page().findByRole("menuitem", { name: "Add custom model..." }));
         const dialog = await page().findByRole("dialog", { name: "Load custom model" });
         await chooseInDialog(dialog, await carKit("colormap.png"));
         await within(dialog).findByRole("img", { name: "police preview" });
@@ -776,12 +841,10 @@ export const Picture: Story = nodeModelsStory(
         // Key people sets its color: Fill's "+" has only Picture left, and adds it at once.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
         const picture: HTMLElement = await page().findByRole("dialog", { name: "Picture" });
-        const chooser = picture.querySelector<HTMLInputElement>("input[type=file]");
-        if (chooser === null) {
-            throw new Error("no file input");
-        }
         const colormap = new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer());
-        await userEvent.upload(chooser, new File([colormap], "colormap.png", { type: "image/png" }));
+        dropFiles(within(picture).getByRole("button", { name: "Choose picture" }), [
+            new File([colormap], "colormap.png", { type: "image/png" }),
+        ]);
         await within(tab).findByRole("textbox", { name: "Node picture, colormap" });
         await waitFor(() => {
             expect(session.assets.list().some((r) => r.kind === "image" && r.state === "accepted")).toBe(true);

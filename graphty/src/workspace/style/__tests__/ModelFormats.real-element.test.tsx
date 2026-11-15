@@ -21,7 +21,7 @@ import { commands, userEvent } from "vitest/browser";
 import { screen, within } from "../../../test/test-utils";
 import { modelChip } from "../modelWords";
 import { CUSTOM_MODEL } from "../words";
-import { addModel, fileInput, openCustom, openShapes, previewOf, reaches, written } from "./modelHarness";
+import { addModel, choose as chooseIn, openCustom, openShapes, previewOf, reaches, written } from "./modelHarness";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -113,9 +113,10 @@ async function assertPreview(dialog: HTMLElement, variant: Variant): Promise<voi
 async function choose(dialog: HTMLElement, variant: Variant): Promise<void> {
     const folder = `${VARIANTS}/${variant.id}`;
     await (variant.upload === "folder"
-        ? userEvent.upload(fileInput(dialog, true), folder)
-        : userEvent.upload(
-              fileInput(dialog),
+        ? chooseIn(dialog, "Choose folder", [folder])
+        : chooseIn(
+              dialog,
+              "Choose files",
               variant.files.map((f) => `${folder}/${f}`),
           ));
 }
@@ -141,12 +142,12 @@ function serveAddresses(served: ReadonlyMap<string, Uint8Array<ArrayBuffer>>): s
 }
 
 /**
- * The closed Advanced line, with its chips.
+ * The closed Details line, with its chips.
  * @param dialog - the dialog.
  * @returns the line.
  */
-function advancedLine(dialog: HTMLElement): HTMLElement {
-    const advanced = within(dialog).getByRole("button", { name: "Advanced" });
+function detailsLine(dialog: HTMLElement): HTMLElement {
+    const advanced = within(dialog).getByRole("button", { name: "Details" });
     return advanced.parentElement ?? dialog;
 }
 
@@ -220,7 +221,7 @@ describe("every model format and variant, through the Load custom model dialog",
             "the caption names the variant",
         );
         for (const code of variant.warnings.filter((w) => w !== "W_MODEL_PART_SKIPPED")) {
-            assert.isNotNull(within(advancedLine(dialog)).getByText(modelChip({ code, params: {} }).word), code);
+            assert.isNotNull(within(detailsLine(dialog)).getByText(modelChip({ code, params: {} }).word), code);
         }
 
         await addModel(dialog);
@@ -341,7 +342,8 @@ describe("every model format and variant, through the Load custom model dialog",
             "another site is not fetched by itself",
         );
 
-        await userEvent.click(within(row).getByRole("button", { name: "Load cube.png from address" }));
+        await userEvent.click(field);
+        await userEvent.keyboard("{Enter}");
         const question = await screen.findByRole("dialog", { name: "Open a web address?" });
         assert.include(question.textContent, "Load a part of this model from assets.example.com?");
         await userEvent.click(within(question).getByRole("button", { name: "Continue" }));
@@ -357,7 +359,7 @@ describe("every model format and variant, through the Load custom model dialog",
     it("lists a missing texture, takes it from its row's Choose, and draws the model with it", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await userEvent.upload(fileInput(dialog), [
+        await chooseIn(dialog, "Choose files", [
             `${VARIANTS}/obj-mtl-missing-png/cube.obj`,
             `${VARIANTS}/obj-mtl-missing-png/cube.mtl`,
         ]);
@@ -365,7 +367,7 @@ describe("every model format and variant, through the Load custom model dialog",
         const row = await within(files).findByRole("group", { name: "cube.png" });
         assert.isNotNull(within(row).getByText("Texture"));
         assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), "true");
-        await userEvent.upload(fileInput(row), [`${VARIANTS}/obj-mtl-png/cube.png`]);
+        await chooseIn(row, "Choose cube.png", [`${VARIANTS}/obj-mtl-png/cube.png`]);
         const waiting = TABLE.find((v) => v.id === "obj-mtl-missing-png");
         assert.isDefined(waiting);
         // Its blue Kd times the green picture draws dark: no one color to look for.

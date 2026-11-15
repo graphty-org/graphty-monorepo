@@ -1,3 +1,4 @@
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -41,6 +42,35 @@ const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
 const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: string]> = (ctx, name, mimeType, text) => {
     ctx.page.once("filechooser", (chooser) => {
         void chooser.setFiles({ name, mimeType, buffer: Buffer.from(text) });
+    });
+};
+
+/** A file a test chooses: a path from this package's folder (a folder chooses all of it), or its bytes. */
+type ChosenFile =
+    { readonly path: string } | { readonly name: string; readonly mimeType: string; readonly base64: string };
+
+/**
+ * Answers the next file picker the page opens with several files, or a folder, as the reader
+ * choosing them; call it before the click that opens the picker, as {@link chooseNextFile}. A path
+ * that names a folder chooses that folder (a picker opened for a folder).
+ * @param ctx - the browser command context.
+ * @param files - the files, by path from this package's folder or by their bytes.
+ */
+const chooseNextFiles: BrowserCommand<[files: ChosenFile[]]> = (ctx, files) => {
+    const folder = files.find((file) => "path" in file && statSync(path.resolve(dirname, file.path)).isDirectory());
+    const payloads = (): { name: string; mimeType: string; buffer: Buffer }[] =>
+        files.map((file) =>
+            "path" in file
+                ? {
+                      name: path.basename(file.path),
+                      mimeType: "",
+                      buffer: readFileSync(path.resolve(dirname, file.path)),
+                  }
+                : { name: file.name, mimeType: file.mimeType, buffer: Buffer.from(file.base64, "base64") },
+        );
+    const chosen = folder !== undefined && "path" in folder ? path.resolve(dirname, folder.path) : payloads();
+    ctx.page.once("filechooser", (chooser) => {
+        void chooser.setFiles(chosen);
     });
 };
 
@@ -166,6 +196,7 @@ const chromium = () => ({
     instances: [{ browser: "chromium" as const }],
     commands: {
         chooseNextFile,
+        chooseNextFiles,
         failRequests,
         grantClipboard,
         watchOffOriginRequests,

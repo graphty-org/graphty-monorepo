@@ -1,13 +1,11 @@
 /**
- * Models and pictures dropped on or chosen in the Models pop-over: reading what was dropped (files,
- * a folder, a .zip) and naming what graphty-element holds. Whether files are a model or a picture,
- * and whether one is fine, is graphty-element's call (`session.assets.add`); this file only hands
- * it the files.
+ * Naming the models and pictures graphty-element holds, and drawing a model's picture. Whether
+ * files are a model or a picture, and whether one is fine, is graphty-element's call
+ * (`session.assets.add`).
  */
 
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import {
-    type AssetSource,
     type CodedFact,
     type CodedFactParam,
     type GraphSession,
@@ -15,76 +13,9 @@ import {
     isGraphtyError,
     type ModelChange,
 } from "@graphty/graphty-element/session";
-import { type HTMLAttributes, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-
-/** What was dropped: the files, and the same files as graphty-element's assets take them. */
-interface Dropped {
-    /** Every file, for asking the element what they are. */
-    readonly files: readonly File[];
-    /** For `session.assets.add`: the files, or a folder's files by path. */
-    readonly source: AssetSource;
-}
-
-/**
- * Every file under a dropped folder entry, by its path from the drop.
- * @param entry - the folder or file entry.
- * @param into - path to file.
- */
-async function walk(entry: FileSystemEntry, into: Map<string, File>): Promise<void> {
-    if (entry.isFile) {
-        const file = await new Promise<File>((resolve, reject) => {
-            (entry as FileSystemFileEntry).file(resolve, reject);
-        });
-        into.set(entry.fullPath.replace(/^\//, ""), file);
-        return;
-    }
-    const reader = (entry as FileSystemDirectoryEntry).createReader();
-    for (;;) {
-        const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => {
-            reader.readEntries(resolve, reject);
-        });
-        if (batch.length === 0) {
-            return;
-        }
-        await Promise.all(batch.map((child) => walk(child, into)));
-    }
-}
-
-/**
- * What a drop holds. Must be called during the drop event: the browser empties the transfer after.
- * @param transfer - the drop's data.
- * @returns the files, with a dropped folder's files keyed by their paths.
- */
-export async function readDrop(transfer: DataTransfer): Promise<Dropped> {
-    const files = [...transfer.files];
-    const entries = [...transfer.items].map((item) => item.webkitGetAsEntry());
-    if (!entries.some((entry) => entry?.isDirectory === true)) {
-        return { files, source: files };
-    }
-    const byPath = new Map<string, File>();
-    await Promise.all(entries.flatMap((entry) => (entry === null ? [] : [walk(entry, byPath)])));
-    return { files: [...byPath.values()], source: { files: byPath } };
-}
-
-/**
- * The files of a source handed over one by one: what a chooser or a drop gave.
- * @param source - the files.
- * @returns them, or none for a URL or bytes.
- */
-export function filesOf(source: AssetSource): File[] {
-    if (typeof source === "string" || source instanceof ArrayBuffer || source instanceof Uint8Array) {
-        return [];
-    }
-    if (source instanceof File) {
-        return [source];
-    }
-    if ("files" in source && source.files instanceof Map) {
-        return [...source.files.values()].filter((f): f is File => f instanceof File);
-    }
-    return [...(source as Iterable<unknown>)].filter((f): f is File => f instanceof File);
-}
 
 /**
  * A file's name for the reader: the last part of its path or address, without its query, its
@@ -246,33 +177,4 @@ export function useModelPicture(
     style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
 ): string | undefined {
     return useModelDraw(ref, size, style).url;
-}
-
-/**
- * Whether files are held over a drop target, and the handlers that tell: the target is drawn as
- * the compact-mantine file drop zone draws itself while files are held over it.
- * @returns the flag and the handlers to spread on the target.
- */
-export function useDropOver(): {
-    readonly over: boolean;
-    readonly handlers: Pick<HTMLAttributes<HTMLElement>, "onDragOver" | "onDragLeave" | "onDrop">;
-} {
-    const [over, setOver] = useState(false);
-    return {
-        over,
-        handlers: {
-            onDragOver: (event) => {
-                event.preventDefault();
-                setOver(true);
-            },
-            onDragLeave: (event) => {
-                if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) {
-                    setOver(false);
-                }
-            },
-            onDrop: () => {
-                setOver(false);
-            },
-        },
-    };
 }

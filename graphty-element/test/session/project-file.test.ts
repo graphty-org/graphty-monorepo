@@ -231,6 +231,32 @@ describe("the project file", () => {
         session.dispose();
     });
 
+    it("computes a reopened run over the filtered graph it was saved over", async () => {
+        const { harness } = withDegree();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }]);
+        await session.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
+        // d has no links, so the filter hides it; the run names no scope, so it reads the visible graph.
+        await session.visibility.set({ kind: "degree", min: 1 });
+        await session.runs.start("degree", undefined, { as: "links", style: false });
+        const before = session.runs.get("links")?.record;
+        assert.strictEqual(before?.scope.nodes, 3);
+        const { text } = await session.project.save();
+
+        const { harness: target } = withDegree();
+        await target.session.project.open(text);
+        const after = target.session.runs.get("links")?.record;
+        assert.strictEqual(after?.scope.nodes, 3, "the run read the filtered graph, not the whole one");
+        assert.strictEqual(after?.scope.edges, before?.scope.edges);
+        assert.isNull(after?.stale, "the restored filter is the one the run read");
+
+        session.dispose();
+        target.session.dispose();
+    });
+
     it("gives a reopened run the record it was saved with, summary included", async () => {
         const source = await busySession();
         const before = source.session.runs.get("links")?.record;

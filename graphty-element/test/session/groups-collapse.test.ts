@@ -18,7 +18,8 @@ const RED = "#ff0000";
 
 /**
  * A grouping run that puts team x in group 0 and everyone else in group 1; asked for an edge
- * metric, one that scores each edge by its position (1, 2, ...).
+ * metric, one that scores each edge by its place among the edges sorted by their ends (1, 2, ...),
+ * so the score follows the graph, not the order the edges were added in.
  * @param session - Reads the graph the run is over.
  * @param context - The run.
  * @returns Its outcome.
@@ -30,6 +31,9 @@ function teams(session: () => GraphSession, context: RunExecutionContext): Promi
     }));
     const nodes = session().data.nodes();
     const edges = session().data.edges();
+    const endsOf = (edge: { source: unknown; target: unknown }): string =>
+        `${String(edge.source)}>${String(edge.target)}`;
+    const ends = edges.map(endsOf).sort();
     const caveats = {
         exact: true,
         direction: "as-loaded",
@@ -45,7 +49,7 @@ function teams(session: () => GraphSession, context: RunExecutionContext): Promi
                 shape: "edge-metric",
                 fields,
                 measured: { nodes: nodes.length, edges: edges.length },
-                edges: edges.map((edge, at) => ({ id: edge.id, values: { value: at + 1 } })),
+                edges: edges.map((edge) => ({ id: edge.id, values: { value: ends.indexOf(endsOf(edge)) + 1 } })),
                 caveats,
                 durationMs: 1,
             }),

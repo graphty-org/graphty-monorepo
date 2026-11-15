@@ -2038,6 +2038,36 @@ async function readProject(
         }
     });
 
+    // The filter and window before the runs: a run over the visible graph is computed again on open,
+    // so it must read the filter it was saved under. A filter that needs what only the runs bring
+    // back (a set that reads a result) is tried again after them.
+    const visibility = state.visibility as Record<string, unknown> | undefined;
+    const restoreFilter = async (): Promise<void> => {
+        if (visibility === undefined) {
+            return;
+        }
+
+        if (visibility.filter !== null && visibility.filter !== undefined) {
+            await tx.visibility.set(remap(visibility.filter) as never);
+        }
+
+        if (visibility.window !== null && visibility.window !== undefined) {
+            await (tx.visibility as SessionVisibilityApi).restoreWindow(
+                visibility.window as TimeWindow,
+                visibility.windowRaw === true,
+            );
+        }
+
+        await readFilterConditions(opening, visibility, remap);
+    };
+    let filterBack = false;
+    try {
+        await restoreFilter();
+        filterBack = true;
+    } catch {
+        // Tried again after the runs, where a failure is reported.
+    }
+
     const results = first("graphty-results");
     for (const run of (results.runs ?? []) as SavedRun[]) {
         await attempt(opening, "runs", () => readRun(opening, run, remap), run.id);
@@ -2061,22 +2091,13 @@ async function readProject(
     // The collapses, made again once the runs they group by are back, inside the open's own step.
     await readGroups(opening, state.groups);
 
-    const visibility = state.visibility as Record<string, unknown> | undefined;
     if (visibility !== undefined) {
-        await attempt(opening, "visibility", async () => {
-            if (visibility.filter !== null && visibility.filter !== undefined) {
-                await tx.visibility.set(remap(visibility.filter) as never);
-            }
+        if (filterBack) {
+            opening.restored.add("visibility");
+        } else {
+            await attempt(opening, "visibility", restoreFilter);
+        }
 
-            if (visibility.window !== null && visibility.window !== undefined) {
-                await (tx.visibility as SessionVisibilityApi).restoreWindow(
-                    visibility.window as TimeWindow,
-                    visibility.windowRaw === true,
-                );
-            }
-
-            await readFilterConditions(opening, visibility, remap);
-        });
         // Read on their own, so a filter that cannot be read never loses them.
         await attempt(opening, "visibility", async () => {
             if (typeof visibility.playback === "object" && visibility.playback !== null) {

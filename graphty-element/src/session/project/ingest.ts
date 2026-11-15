@@ -17,7 +17,7 @@ import type { FileLayout } from "@graphty/graph-io";
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { DataSource, type DataSourceChunk, type DeclaredDirection, TIMELINE_READERS } from "../../data/DataSource";
-import { decideRepeat, edgeIdOf, pairKey } from "../../data/edgeIdentity";
+import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
@@ -606,6 +606,8 @@ interface EdgeBatch {
     readonly legacyFallback: boolean;
     /** The counters of the load or call. */
     readonly tally: ImportTally;
+    /** The element-assigned ids to give the records back, by position, when the call names them. */
+    readonly ids?: readonly (EdgeId | undefined)[];
 }
 
 /** The nodes and edges the load in progress supplied, and the nodes it made. */
@@ -835,7 +837,7 @@ export class Ingest<K extends KnownEdge> {
                     this.applyDeclaredDirection("data.apply", { directed, statedBy, conflictingEdges: 0 }, writer);
                 }
 
-                this.addEdges(mutation.records, addEdgesOptions(mutation), writer);
+                this.addEdges(mutation.records, addEdgesOptions(mutation), writer, mutation.ids);
                 return;
             case "set-attributes":
                 for (const id of mutation.ids) {
@@ -1366,6 +1368,7 @@ export class Ingest<K extends KnownEdge> {
      * @param edges - Array of edge data objects
      * @param options - the endpoint expressions and the repeat policy for this call
      * @param writer - the graph primitives to write through
+     * @param ids - the element-assigned ids to give the edges back, by position, when named
      * @throws A `GraphtyError` with `E_EDGE_ENDPOINTS_UNRESOLVED` when no spelling answers, and
      *     with `E_DUPLICATE_EDGE` under the `"error"` repeat policy.
      */
@@ -1373,10 +1376,11 @@ export class Ingest<K extends KnownEdge> {
         edges: readonly Record<string | number, unknown>[],
         options: AddEdgesOptions | undefined,
         writer: GraphWriter,
+        ids?: readonly (EdgeId | undefined)[],
     ): void {
         // A write of its own, not the rows of a load running beside it (issue #5416).
         this.outsideLoad(() => {
-            this.addEdgeRows(edges, options, writer);
+            this.addEdgeRows(edges, options, writer, ids);
         });
     }
 
@@ -1386,11 +1390,13 @@ export class Ingest<K extends KnownEdge> {
      * @param edges - Array of edge data objects
      * @param options - the endpoint expressions and the repeat policy for this call
      * @param writer - the graph primitives to write through
+     * @param ids - the element-assigned ids to give the edges back, by position, when named
      */
     private addEdgeRows(
         edges: readonly Record<string | number, unknown>[],
         options: AddEdgesOptions | undefined,
         writer: GraphWriter,
+        ids?: readonly (EdgeId | undefined)[],
     ): void {
         this.logger.debug("Adding edges", { count: edges.length });
 
@@ -1428,6 +1434,7 @@ export class Ingest<K extends KnownEdge> {
             tally,
             ...(options?.repeatedScope === "held" ? { ownEdges: new Set<number>() } : {}),
             ownPolicy: knownFields.repeatedEdges,
+            ...(ids === undefined ? {} : { ids }),
         };
         if (this.loadTally === null) {
             // An earlier push that threw mid-batch was rolled back, and the endpoints it noted
@@ -1436,10 +1443,12 @@ export class Ingest<K extends KnownEdge> {
         }
 
         this.host.edgesArriving?.(edges.length);
+        let at = 0;
         for (const edge of edges) {
-            if (this.addEdgeRecord(edge, batch, writer)) {
+            if (this.addEdgeRecord(edge, batch, writer, batch.ids?.[at])) {
                 legacyWeights++;
             }
+            at++;
         }
 
         if (legacyWeights > 0) {
@@ -1488,9 +1497,15 @@ export class Ingest<K extends KnownEdge> {
      * @param edge - The edge record.
      * @param batch - What the whole batch was resolved to.
      * @param writer - The graph primitives to write through.
+     * @param given - The element-assigned id to give it back, when the call names one.
      * @returns True when its weight was read from the legacy `value` key.
      */
-    private addEdgeRecord(edge: Record<string | number, unknown>, batch: EdgeBatch, writer: GraphWriter): boolean {
+    private addEdgeRecord(
+        edge: Record<string | number, unknown>,
+        batch: EdgeBatch,
+        writer: GraphWriter,
+        given?: EdgeId,
+    ): boolean {
         const { endpoints, tally, weightPath } = batch;
         tally.edgeRecords++;
         const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
@@ -1527,6 +1542,7 @@ export class Ingest<K extends KnownEdge> {
             weight.weight,
             record,
             isStorableRecordId(recordId) ? recordId : undefined,
+            given === undefined ? undefined : edgeCounterOf(given),
         );
         if (edgeIndex === INVALID_INDEX) {
             // graph-format will not hold an edge between these ids -- most often because the

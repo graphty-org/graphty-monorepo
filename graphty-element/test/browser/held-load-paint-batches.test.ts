@@ -15,7 +15,6 @@
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
-import type { UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 
 const COUNT = 4096;
@@ -59,7 +58,7 @@ describe("a held batched load's node batches", () => {
         await operationQueueOf(graph).waitForCompletion();
         await dispatcherOf(graph.getSession()).lane.settled();
 
-        const manager = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+        const manager = graph.getUpdateManager();
         let frames = 0;
         while (painter.hasPending && frames < COUNT) {
             manager.update(16);

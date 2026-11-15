@@ -24,7 +24,7 @@ The built-in sources are `ndex` (NDEx, the repository of biological networks), `
 [NDEx](./sources/ndex.md), [Cypher](./sources/cypher.md), [REST](./sources/rest.md) and
 [SPARQL](./sources/sparql.md). All of
 them are experimental. Graph files kept on a file host load through a source too: see
-[GitHub](./sources/github.md), which lists a repository's files and loads one by its format. `listSources()` lists them with their descriptors and examples. To read from your own service, see
+[GitHub](./sources/github.md), [Amazon S3](./sources/s3.md) and [Zenodo](./sources/zenodo.md), each of which lists the host's files and loads one by its format. `listSources()` lists them with their descriptors and examples. To read from your own service, see
 [Writing a source](./writing-a-source.md).
 
 ## Options

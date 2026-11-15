@@ -51,7 +51,7 @@ test("the map that arrives after everything else is in the stable frame", async 
         await graph.init();
         holdImageLoads(held);
         // the element's own account of what it still waits for, which the public wait reports only on a timeout
-        const { updateManager } = graph as unknown as { updateManager: { whyFrameIsNotStable(): string } };
+        const updateManager = graph.getUpdateManager();
         graph.getScene().onAfterRenderObservable.add(() => {
             const waitingForMap = updateManager.whyFrameIsNotStable().includes("map");
             if (held.length > 0 && (graph.isFrameStable || waitingForMap)) {

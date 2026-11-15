@@ -154,6 +154,43 @@ describe("routes at nodes that cut a line badly", () => {
         assert.strictEqual(passRate(o, g, "edge.route"), 1);
     });
 
+    it("cuts a line to the middle of a node the oracle drew no body for at the box the program says it drew", () => {
+        // vis-network runs a line to its text node's middle (json-vis-synth 3 -> 4); graphty stops at its own node's
+        // box.
+        const o = (drawnBox: boolean): PScene =>
+            scene(
+                "oracle",
+                [
+                    node("q", 300, 200, {
+                        w: 40,
+                        h: 20,
+                        shape: null,
+                        fill: null,
+                        faceless: [],
+                        ...(drawnBox ? { drawnBox: true as const } : {}),
+                    }),
+                ],
+                [
+                    edge("e", "q", [
+                        [300, 300],
+                        [300, 200],
+                    ]),
+                ],
+            );
+        const g = scene(
+            "graphty",
+            [node("q", 300, 200, { w: 40, h: 20, shape: "other", fill: null, faceless: [] })],
+            [
+                edge("e", "q", [
+                    [300, 280],
+                    [300, 210],
+                ]),
+            ],
+        );
+        assert.strictEqual(passRate(o(true), g, "edge.route"), 1);
+        assert.strictEqual(passRate(o(false), g, "edge.route"), 0);
+    });
+
     it("pairs an edge at a node the oracle draws nothing of, its end named after graphty's node", () => {
         // the oracle's association names the end after graphty's node it found no body for (drawn under another)
         const o = scene(

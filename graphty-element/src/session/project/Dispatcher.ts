@@ -32,6 +32,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { LegacyService, RunService } from "../commands/algo";
 import type { DataService, EdgeIdentityService } from "../commands/data";
+import type { DataDeriveCommand } from "../commands/derive";
 import type { LayoutAdvice, LayoutService } from "../commands/layout";
 import type { NoteService } from "../commands/notes";
 import type { SetService } from "../commands/sets";
@@ -134,6 +135,8 @@ interface CommandServices {
     timeFieldChanged?: () => void;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */
     progress?: (change: ProgressChange) => void;
+    /** The command that brings the computed columns up to date now, or null when nothing changes. */
+    derive?: () => DataDeriveCommand | null;
 }
 
 /** What the queue hands a queued command when its slot comes up. */

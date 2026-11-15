@@ -580,6 +580,14 @@ export interface CodedFact<Code extends string = string> {
 // @public
 export type CodedFactParam = string | number | boolean | null | readonly (string | number | boolean | null)[];
 
+// @beta
+export interface CollapsedGroup {
+    readonly group: GroupValue;
+    readonly groupBy: Path;
+    readonly node: NodeId;
+    readonly size: number;
+}
+
 // @public
 export interface CollapseResult {
     readonly kept: readonly CodedFact<"W_COLLAPSE_KEPT">[];
@@ -645,6 +653,7 @@ export interface CommandOutcomeMap {
     "data.collapse": Promise<void>;
     "data.columns": Promise<void>;
     "data.declare": Promise<void>;
+    "data.derive": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
     "data.import-source": Promise<void>;
@@ -898,7 +907,6 @@ export interface CreateGraphSessionOptions {
     readonly features?: readonly string[];
     readonly limits?: Readonly<LimitsOption>;
     readonly runs?: SessionRunsOptions;
-    readonly workingGraph?: boolean;
 }
 
 export { Credential_2 as Credential }
@@ -990,6 +998,18 @@ export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
 export function defaultReading(result: RunResult, options: ReadingOptions): string;
 
 export { defineSource }
+
+// @public
+export interface DerivedColumn {
+    readonly expression: Query;
+    readonly kind: "node" | "edge";
+    readonly name: string;
+}
+
+// @public
+export interface DeriveOptions {
+    readonly kind?: "node" | "edge";
+}
 
 // @public
 export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
@@ -1505,24 +1525,11 @@ export type FilterConditionInput = Omit<FilterCondition, "id" | "on"> & {
 // @beta
 export interface FilterConditionMatches {
     readonly matched: number;
-    readonly shown: number;
     readonly total: number;
 }
 
 // @public @deprecated
 export type FilterDirection = SelectionDirection;
-
-// @beta
-export interface FilterDraft {
-    cancel(): void;
-    commit(options?: RunOptions): Run<FilterResult & {
-        readonly id: string;
-    }>;
-    readonly condition: FilterCondition;
-    counts(): FilterConditionCount;
-    readonly open: boolean;
-    update(change: Partial<Omit<FilterCondition, "id">>): void;
-}
 
 // @beta
 export type FilterEffect = "keep" | "exclude" | "select";
@@ -1714,6 +1721,8 @@ export interface GraphSession {
     readonly features: EnabledFeatures;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
+    // @beta
+    readonly groups: GroupsApi;
     readonly hidden: SessionHidden;
     readonly history: SessionHistory;
     readonly journal: JournalApi;
@@ -1745,7 +1754,6 @@ export interface GraphSession {
     undo(): Promise<HistoryOutcome>;
     readonly views: SessionViews;
     readonly visibility: VisibilityApi;
-    workingGraph: boolean;
 }
 
 // @public
@@ -2007,6 +2015,13 @@ export type GraphtyErrorCode =
 * `details.id` names it. The caller lists the entries again.
 */
 | "E_AUTOSAVE_UNKNOWN_ENTRY"
+/**
+* Autosave's kept work could not be listed: another tab holds the browser's database and did
+* not let go within `details.afterMs` (a tab the browser suspended in the middle of a write).
+* `details.step` is `"list"`. Nothing is known about the kept work; the caller offers none and
+* asks again later.
+*/
+| "E_AUTOSAVE_STALLED"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -2518,7 +2533,7 @@ export type GraphtyErrorCode =
 /**
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
-* no camera to draw from. `details.media` is `"image"` or `"video"`, `details.destination` is
+* no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
 * `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
 * @since 3.40.0
 */
@@ -2895,6 +2910,22 @@ export interface GroupOverlap {
     readonly count: number;
 }
 
+// @beta
+export type GroupRef = {
+    readonly run: RunRef;
+    readonly group: GroupValue;
+} | {
+    readonly groupBy: Path;
+    readonly group: GroupValue;
+};
+
+// @beta
+export interface GroupsApi {
+    collapse(ref: GroupRef): Promise<NodeId>;
+    expand(ref: GroupRef): Promise<void>;
+    list(): readonly CollapsedGroup[];
+}
+
 // @public
 export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
 
@@ -2914,12 +2945,7 @@ export interface GroupTableOptions {
 export type GroupTableRow = Readonly<Record<string, string | number | boolean | null>>;
 
 // @beta
-export interface HiddenNotDrawn {
-    readonly code: "W_HIDDEN_NOT_DRAWN";
-    readonly params: {
-        readonly asked: "showContext" | "hold" | "full";
-    };
-}
+export type GroupValue = string | number | boolean;
 
 // @public
 export interface HighlightSpec {
@@ -2972,7 +2998,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -3017,6 +3043,13 @@ export interface HopsLeaf {
     // (undocumented)
     readonly max?: number;
     readonly of?: StepReference;
+}
+
+// @public
+export interface HoverDrawn {
+    readonly radius: number;
+    readonly x: number;
+    readonly y: number;
 }
 
 // @public
@@ -4507,6 +4540,10 @@ export interface ProjectConfig {
         readonly minDelta: number;
     };
     readonly layoutTransition?: LayoutTransitionConfig;
+    readonly minMarkSize?: {
+        readonly node?: number;
+        readonly edge?: number;
+    };
     readonly name?: string;
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     readonly runAlgorithmsOnLoad: boolean;
@@ -4532,6 +4569,7 @@ export interface ProjectConfigPatch {
     // (undocumented)
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     readonly layoutTransition?: LayoutTransitionConfig;
+    readonly minMarkSize?: ProjectConfig["minMarkSize"];
     readonly name?: string | null;
     readonly pinnedStyle?: GraphSelectionStyleInput;
     // (undocumented)
@@ -5297,7 +5335,6 @@ export type RuleTree = {
     readonly percentile?: number;
     readonly from?: "high" | "low";
     readonly missing?: MissingValues;
-    readonly within?: "graph" | "visible";
 }
 /**
 * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -6070,7 +6107,7 @@ export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -6091,13 +6128,13 @@ export interface SessionDataApi {
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
-    count(options?: {
-        readonly scope?: "graph" | "visible";
-    }): {
+    count(): {
         readonly nodes: number;
         readonly edges: number;
     };
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
+    derivedColumns(): readonly DerivedColumn[];
     edge(id: EdgeId): EdgeRecord | undefined;
     edgeName(edge: {
         readonly source: NodeId_2;
@@ -6111,9 +6148,7 @@ export interface SessionDataApi {
     };
     // (undocumented)
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
-    edges(options?: {
-        readonly scope?: "graph" | "visible";
-    }): readonly EdgeRecord[];
+    edges(): readonly EdgeRecord[];
     editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
     expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<SourceExpandResult>;
@@ -6122,9 +6157,7 @@ export interface SessionDataApi {
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     groupTable(groupBy: Path, options?: GroupTableOptions): GroupTable;
     hiddenColumns(): readonly ColumnRef[];
-    histogram(column: ColumnRef, options?: HistogramOptions & {
-        readonly scope?: "graph" | "visible";
-    }): ColumnHistogram;
+    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
@@ -6155,9 +6188,7 @@ export interface SessionDataApi {
     };
     // (undocumented)
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
-    nodes(options?: {
-        readonly scope?: "graph" | "visible";
-    }): readonly NodeRecord[];
+    nodes(): readonly NodeRecord[];
     nodeSource(id: NodeId_2): NodeSource | null;
     overRepresented(groupBy: Path, options?: {
         readonly columns?: readonly Path[];
@@ -6199,9 +6230,7 @@ export interface SessionDataApi {
         readonly scope?: "all" | "visible";
     }): GraphStatistics;
     readonly store: SessionGraphStore;
-    structureValue(id: NodeId_2, path: Path, options?: {
-        readonly scope?: "graph" | "visible";
-    }): number | undefined;
+    structureValue(id: NodeId_2, path: Path): number | undefined;
     structureValues(): readonly StructureValue[];
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
@@ -6209,7 +6238,6 @@ export interface SessionDataApi {
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
     valueCounts(path: Path, options?: {
         readonly kind?: "node" | "edge";
-        readonly scope?: "graph" | "visible";
     }): ValueCounts;
     valueLabels(path: Path): ReadonlyMap<string, string>;
 }
@@ -6266,6 +6294,7 @@ export interface SessionEventMap {
     "selection:hover-changed": {
         readonly before: NodeId_2 | null;
         readonly after: NodeId_2 | null;
+        readonly drawn?: HoverDrawn;
     };
     "selection:origin-changed": {
         readonly origin: SelectionTarget | null;
@@ -6325,10 +6354,6 @@ export interface SessionEventMap {
     // @beta
     "time:step": TimeStepEvent;
     "visibility:changed": VisibilityChange;
-    // @beta
-    "visibility:not-drawn-changed": {
-        readonly notDrawn: readonly HiddenNotDrawn[];
-    };
 }
 
 // @public
@@ -7081,7 +7106,6 @@ export interface StepsReading {
     readonly total: {
         readonly count: number;
         readonly of: number;
-        readonly shown: number;
     };
 }
 
@@ -7220,6 +7244,31 @@ export interface StyleFileDocument extends StyleDocument {
 }
 
 // @public
+export interface StyleGrayCollision {
+    readonly colors: readonly [StyleGrayColor, StyleGrayColor];
+    readonly difference: number;
+}
+
+// @public
+export interface StyleGrayCollisionOptions {
+    readonly threshold?: number;
+}
+
+// @public
+export interface StyleGrayColor {
+    readonly color: string;
+    readonly lightness: number;
+    readonly uses: readonly StyleGrayUse[];
+}
+
+// @public
+export interface StyleGrayUse {
+    readonly channel: Channel;
+    readonly layer: LayerId;
+    readonly value?: unknown;
+}
+
+// @public
 export interface StyleProblem {
     readonly error: GraphtyError;
     readonly runId: RunId;
@@ -7266,9 +7315,7 @@ export interface StylesApi {
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     categories(id: LayerId, channel: Channel): readonly ValueCategory[];
     colors(rowIds: readonly StyleRowId[]): readonly StyleColor[];
-    counts(id: LayerId, options?: {
-        readonly scope?: "graph" | "visible";
-    }): StyleCounts;
+    counts(id: LayerId): StyleCounts;
     defaultValue(channel: Channel): ChannelValue | undefined;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     drawnCount(id: LayerId): number;
@@ -7276,6 +7323,7 @@ export interface StylesApi {
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
+    grayCollisions(options?: StyleGrayCollisionOptions): readonly StyleGrayCollision[];
     groups(id: LayerId, path: Path): readonly ValueGroup[];
     hideRow(id: StyleRowId, hidden: boolean, options?: RunOptions): Run<StyleRow>;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
@@ -7321,7 +7369,6 @@ export interface StylesApi {
     // @beta
     showBranches(view: BranchesView): {
         end(): void;
-        readonly notDrawn: readonly HiddenNotDrawn[];
     };
     // @beta
     readonly showingBranches: boolean;
@@ -7971,16 +8018,12 @@ export interface VisibilityApi {
     conditionCounts(): readonly FilterConditionCount[];
     // @beta
     readonly conditions: readonly FilterCondition[];
-    // @beta
-    draft(target: FilterConditionInput | string): FilterDraft;
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
     isVisible(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
-    // @beta
-    readonly notDrawn: readonly HiddenNotDrawn[];
     // @beta
     removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;

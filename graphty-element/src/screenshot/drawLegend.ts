@@ -10,6 +10,9 @@ const CHIP = 10;
 const RAMP_WIDTH = 120;
 const RAMP_HEIGHT = 8;
 const FONT = "12px system-ui, sans-serif";
+
+/** The key's sizes, for a figure that lays it out as {@link drawLegend} does. */
+export const LEGEND_METRICS = { PAD, LINE, GAP, CHIP, RAMP_HEIGHT } as const;
 const BOLD = "600 12px system-ui, sans-serif";
 
 /**
@@ -53,17 +56,25 @@ function measure(
 }
 
 /**
+ * The key's card size: the width inside its padding and its height, in canvas (CSS) pixels.
+ * @param sections - The key.
+ * @returns The size; zero where no canvas can measure text.
+ */
+export function legendSize(sections: readonly ScreenshotLegendSection[]): { inner: number; height: number } {
+    const ctx = new OffscreenCanvas(1, 1).getContext("2d");
+    return ctx ? measure(ctx, sections) : { inner: 0, height: 0 };
+}
+
+/**
  * Where the key {@link drawLegend} draws sits, with a gap of the card's own padding around it.
  * @param sections - The key.
  * @returns The card's right and bottom edges from the image's top left, in canvas (CSS) pixels.
  */
 export function legendBox(sections: readonly ScreenshotLegendSection[]): { right: number; bottom: number } {
-    const ctx = new OffscreenCanvas(1, 1).getContext("2d");
-    if (!ctx) {
+    const { inner, height } = legendSize(sections);
+    if (inner === 0) {
         return { right: 0, bottom: 0 };
     }
-
-    const { inner, height } = measure(ctx, sections);
 
     return { right: PAD + inner + PAD * 2 + PAD, bottom: PAD + height + PAD };
 }

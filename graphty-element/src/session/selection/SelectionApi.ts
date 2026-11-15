@@ -43,7 +43,7 @@ import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import { edgeSpaceOf, nodeSpaceOf, type ScopeResolver } from "../scope/ScopeApi";
 import { createSetAs } from "../sets/SetsApi";
 import { deepEquals } from "../styles/predicate";
-import { ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "../types";
+import { ATTRIBUTE_UNIQUE_CAP, type HoverDrawn, type SessionRecordSource } from "../types";
 import {
     resolveTarget,
     type SelectionMatch,
@@ -552,6 +552,13 @@ export interface SelectionOwner extends SelectionApi {
     /** Clear a peek without a promise or a check: the session's end. */
     endPeek(): void;
     /**
+     * {@link SelectionApi.hover} from the pointer, with where the node was drawn in the frame the
+     * pointer found it in, which `selection:hover-changed` carries.
+     * @param id - The node, or null.
+     * @param drawn - Where it was drawn, when the pick says.
+     */
+    hoverAt(id: NodeId | null, drawn: HoverDrawn | undefined): void;
+    /**
      * The node mask itself, for the scope resolver's `selection` source.
      * @returns The live mask, which the caller must not mutate.
      */
@@ -665,8 +672,9 @@ export interface SelectionSources {
      * Called when the node under the pointer changes.
      * @param before - The node that was hovered, or null.
      * @param after - The node hovered now, or null.
+     * @param drawn - Where `after` was drawn when the pointer found it, when the pointer says.
      */
-    readonly onHover?: (before: NodeId | null, after: NodeId | null) => void;
+    readonly onHover?: (before: NodeId | null, after: NodeId | null, drawn: HoverDrawn | undefined) => void;
     /**
      * Called when a peek starts, ends or moves, with the elements whose peeked state moved.
      * @param dirty - Their dense indices, by kind.
@@ -1264,13 +1272,17 @@ class Selection implements SelectionOwner {
     }
 
     hover(id: NodeId | null): void {
+        this.hoverAt(id, undefined);
+    }
+
+    hoverAt(id: NodeId | null, drawn: HoverDrawn | undefined): void {
         const before = this.#hovered;
         if (before === id) {
             return;
         }
 
         this.#hovered = id;
-        this.#sources.onHover?.(before, id);
+        this.#sources.onHover?.(before, id, id === null ? undefined : drawn);
     }
 
     get hoverPreview(): boolean {

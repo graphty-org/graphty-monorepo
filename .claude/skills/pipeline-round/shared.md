@@ -283,7 +283,9 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > `node tools/branch-note.mjs update --done "<what is done>" --left "<what is left>" --next "<the next step>"`.
 > Before you stop, `servherd_stop` then `servherd_remove` every server you started (name each after your branch;
 > check `servherd_info` first, since servherd keys a server by name plus directory) and list them in your report;
-> leave one running only when the owner must open it, named in the report. Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL. A change to the graphty app's
+> leave one running only when the owner must open it, named in the report. Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL as soon as the commit is pushed
+> and its local checks pass, never after waiting on CI; for a mock, story, demo or new behavior the owner can look at,
+> also the local URL of the server left running for it and what to look at. A change to the graphty app's
 > UI follows the owner's UI rules: no sentences as UI in the data screens (use Figma patterns: property rows, chips,
 > dropdowns, + sections, pop-overs, context menus); every hotkey has a visible button showing its key; never remove
 > or restyle owner-approved UI; compact-mantine's look stays locked to Figma. A guard or hook that refuses a command

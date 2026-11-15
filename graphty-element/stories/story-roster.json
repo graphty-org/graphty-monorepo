@@ -103,6 +103,8 @@
         "Graphty::graphty",
         "Labels::CardDrawing",
         "Labels::CardLook",
+        "Legend::Categorical",
+        "Legend::Continuous",
         "Layout/2D::Arf",
         "Layout/2D::Bfs",
         "Layout/2D::Bipartite",

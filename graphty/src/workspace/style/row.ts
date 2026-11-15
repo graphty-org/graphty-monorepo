@@ -721,23 +721,20 @@ export function sourceName(session: GraphSession, binding: Pick<DataBinding, "by
 }
 
 /**
- * A layer as the reader knows it: its tree row's name, or undefined for graphty-element's own base
- * layers, which the tree never shows and the panel calls "the default".
+ * A layer as the reader knows it: its tree row's name, or undefined for a layer with no row in the
+ * tree (the floor graphty-element paints beneath every row), which the panel calls "the default".
  * @param session - the element's session.
  * @param id - the layer.
- * @returns the name, or undefined for a base layer.
+ * @returns the name, or undefined for a layer with no row.
  */
 export function layerWord(session: GraphSession, id: LayerId): string | undefined {
     const layer = session.styles.get(id);
     if (layer === undefined) {
         return id;
     }
-    if (layer.source.by === "element" && layer.source.reason === "default") {
-        return undefined;
-    }
     // A row made from a file's styles goes by the words for its facts, as the tree names it.
     const row = layer.row ?? layer.id;
-    return findTreeRow(session.styles.tree(), row) === undefined ? layer.name : rowName(session, row);
+    return findTreeRow(session.styles.tree(), row) === undefined ? undefined : rowName(session, row);
 }
 
 /**

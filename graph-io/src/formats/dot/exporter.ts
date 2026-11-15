@@ -5,8 +5,10 @@
  * container node with its members nested inside), then every logical edge in index order with its
  * explicit weight, `key` (the edge id role), ports and attributes.
  *
- * What the format keeps and what check() reports: any id and any text (DOT quotes everything
- * except a text ending in a backslash, which the lexer cannot read back); bool / i32 / f64 cells
+ * What the format keeps and what check() reports: any id and any text (written quoted, except an
+ * attribute value the importer listed as an HTML string in `meta.extra.dot.html`, written bare; a
+ * text with a backslash before a quote or a line break, or at its end, cannot be quoted and fails
+ * the save); bool / i32 / f64 cells
  * (f64 written with a decimal point so the dtype survives re-import; other numeric dtypes are
  * written and read back inferred); containment through the parent role (clusters); graph
  * attributes; node positions as `pos="x,y"`. Mixed direction is folded per onMixedDirection
@@ -18,7 +20,14 @@ import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/grap
 import { type ChildrenCsr, childrenCsr } from "../../children.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { isWritableDotText, quoteDotId } from "../../common/escape.js";
-import { capabilities, checkCapabilities, countMixedEdges, LOSS, sanitizeIds } from "../../common/export.js";
+import {
+    capabilities,
+    checkCapabilities,
+    countMixedEdges,
+    LOSS,
+    type SanitizedIds,
+    sanitizeIds,
+} from "../../common/export.js";
 import { formatDecimal, formatF32, formatF64, formatInteger, idText } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
@@ -41,7 +50,7 @@ import {
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
-import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotStyledExport, isHtmlString } from "./styles.js";
+import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotHtmlTexts, dotStyledExport } from "./styles.js";
 
 /** The node columns written as rank subgraphs rather than as node attributes. */
 const RANK_COLUMNS: ReadonlySet<string> = new Set([RANK_COLUMN, RANK_SET_COLUMN]);
@@ -307,6 +316,7 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
 function checkPlain(snapshot: GraphSnapshot, options?: DotExportOptions & CommonExportOptions): LossNote[] {
     const resolved = resolveExportOptions(options);
     const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
+        idsAsText: true,
         positionDtype: "f64",
         roles: KEPT_ROLES,
         roleNames: ROLE_NAMES,
@@ -337,17 +347,6 @@ function* writeDot(snapshot: GraphSnapshot, options?: DotExportOptions & CommonE
  */
 function endsWithBackslash(text: string): boolean {
     return !isWritableDotText(text);
-}
-
-/**
- * Write an attribute value as a DOT ID: an HTML string bare, everything else through quoteDotId.
- * A node id is always quoted (quoteDotId): the importer names a node written as an HTML string
- * by the text inside its angle brackets, so no node id is HTML.
- * @param text - the text
- * @returns the DOT ID
- */
-function writeId(text: string): string {
-    return isHtmlString(text) ? text : quoteDotId(text);
 }
 
 /**
@@ -544,6 +543,9 @@ class ExportPlan {
 
     private readonly extraNotes: LossNote[] = [];
 
+    /** The texts written as HTML strings (styles.ts dotHtmlTexts). */
+    private readonly html: ReadonlySet<string>;
+
     /**
      * Plan one export.
      * @param snapshot - the snapshot
@@ -553,6 +555,7 @@ class ExportPlan {
     constructor(snapshot: GraphSnapshot, resolved: ResolvedExportOptions, options?: DotExportOptions) {
         this.snapshot = snapshot;
         this.resolved = resolved;
+        this.html = dotHtmlTexts(snapshot);
         const { indent, name, strict } = options ?? {};
         if (name !== undefined && name !== null && typeof name !== "string") {
             throw badOption("name", name, "a string or null");
@@ -1104,7 +1107,7 @@ class ExportPlan {
                 text = "UTF-8";
             }
             if (text !== null) {
-                out.push(`${quoteDotId(this.attributeName(column))}=${writeId(text)}`);
+                out.push(`${quoteDotId(this.attributeName(column))}=${this.writeId(text)}`);
             }
         }
         return out;
@@ -1130,7 +1133,7 @@ class ExportPlan {
             }
             const key = this.keyText(e);
             if (key !== null) {
-                attributes.unshift(`${KEY_ATTRIBUTE}=${writeId(key)}`);
+                attributes.unshift(`${KEY_ATTRIBUTE}=${this.writeId(key)}`);
             }
             const source = `${quoteDotId(this.idText(list.src[e]))}${this.portText(this.sourcePort, e)}`;
             const target = `${quoteDotId(this.idText(list.dst[e]))}${this.portText(this.targetPort, e)}`;
@@ -1170,13 +1173,28 @@ class ExportPlan {
     }
 
     /**
-     * The id text of a node.
+     * Write a text as a DOT ID: an HTML string (styles.ts dotHtmlTexts) bare, everything else through quoteDotId (a
+     * quoted `"<init>"` decodes to the same text as the HTML `<init>`, so the DOT importer records which was which).
+     * A node id is always quoted: the importer names a node written as an HTML string by the text inside its brackets.
+     * @param text - the text
+     * @returns the DOT ID
+     */
+    private writeId(text: string): string {
+        return this.html.has(text) ? text : quoteDotId(text);
+    }
+
+    /**
+     * The id text of a node: String(id), with a suffix for an id whose text an earlier id has (sanitizeIds).
      * @param i - the node index
-     * @returns String(id)
+     * @returns the text
      */
     private idText(i: number): string {
-        return idText(this.snapshot.ids.idOf(i));
+        this.written ??= sanitizeIds(this.snapshot, CAPABILITIES.idCharset, this.resolved.sanitizeIds);
+        return idText(this.written.idAt(i));
     }
+
+    /** The node ids to write, made on first use. */
+    private written: SanitizedIds | null = null;
 }
 
 /**

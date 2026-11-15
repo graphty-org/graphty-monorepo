@@ -237,6 +237,13 @@ export type GraphtyErrorCode =
      */
     | "E_AUTOSAVE_UNKNOWN_ENTRY"
     /**
+     * Autosave's kept work could not be listed: another tab holds the browser's database and did
+     * not let go within `details.afterMs` (a tab the browser suspended in the middle of a write).
+     * `details.step` is `"list"`. Nothing is known about the kept work; the caller offers none and
+     * asks again later.
+     */
+    | "E_AUTOSAVE_STALLED"
+    /**
      * A document being serialised refers to a run whose id was derived rather than author
      * assigned, so the reference would resolve differently on reload. The caller re-runs with an
      * explicit `as:` id and saves again.
@@ -747,7 +754,7 @@ export type GraphtyErrorCode =
     /**
      * A screenshot, a video or a clipboard copy was started and could not be finished: the
      * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
-     * no camera to draw from. `details.media` is `"image"` or `"video"`, `details.destination` is
+     * no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
      * `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
      * @since 3.40.0
      */
@@ -1046,6 +1053,7 @@ const CODE_TABLE = {
     E_UNSAVED_CHANGES: "E_UNSAVED_CHANGES",
     E_AUTOSAVE_ENTRY_TAKEN: "E_AUTOSAVE_ENTRY_TAKEN",
     E_AUTOSAVE_UNKNOWN_ENTRY: "E_AUTOSAVE_UNKNOWN_ENTRY",
+    E_AUTOSAVE_STALLED: "E_AUTOSAVE_STALLED",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",

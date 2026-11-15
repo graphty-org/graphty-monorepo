@@ -22,7 +22,7 @@ import {
     type UnionStep,
 } from "@graphty/graphty-element/session";
 
-import { groupAlgorithms, HEADINGS, wordsFor } from "../analyze/words";
+import { ALGORITHM_DESCRIPTIONS, groupAlgorithms, HEADINGS, wordsFor } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { ranOverWords } from "../runWords";
 import {
@@ -339,6 +339,7 @@ export function pickSections(
                             field.name !== "percentile",
                     );
                     const method = wordsFor(each).name;
+                    const tip = ALGORITHM_DESCRIPTIONS[each.descriptionId ?? ""];
                     // The catalog's own words find it too: its keywords and its technical name.
                     const aliases = [...(each.keywords ?? []), each.technicalName];
                     // One entry per algorithm (the workspace's cards): its card chooses the field.
@@ -347,7 +348,7 @@ export function pickSections(
                         key: `alg:${each.key}:${field.name}`,
                         name: fields.length === 1 || perAlgorithm ? method : `${method}: ${field.plainName}`,
                         glyph: GLYPHS.analyze,
-                        ...(each.description === undefined || each.description === "" ? {} : { tip: each.description }),
+                        ...(tip === undefined ? {} : { tip }),
                         // Its field's name finds it too: "Label propagation: comm".
                         aliases: [...aliases, field.plainName],
                         onPick: () => {

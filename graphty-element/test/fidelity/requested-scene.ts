@@ -60,6 +60,29 @@ function channel(merged: Readonly<Record<string, unknown>>, name: string): unkno
     return merged[name] ?? channelDescriptor(name)?.default;
 }
 
+type LabelPlace = NonNullable<SceneNode["label"]>["position"];
+
+/**
+ * Where a centered label sits once its offset moves it: outside the node's box when its center leaves it, on the side
+ * it went furthest, as the drawn scene reads a label from its box (extract-scene.ts labelPlace; an icon node's label,
+ * centered a fixed distance below it, vis-network's)
+ * @param place - the class its location gives
+ * @param dx - the label style's `offsetX`, in scene units
+ * @param dy - the label style's `offsetY`, in scene units, down
+ * @param w - the node's width, in scene units
+ * @param h - the node's height, in scene units
+ * @returns the class
+ */
+function offsetPlace(place: LabelPlace, dx: number, dy: number, w: number, h: number): LabelPlace {
+    if (place !== "inside" || (Math.abs(dx) <= w / 2 && Math.abs(dy) <= h / 2)) {
+        return place;
+    }
+    if (Math.abs(dy) >= Math.abs(dx)) {
+        return dy < 0 ? "above" : "below";
+    }
+    return dx < 0 ? "left" : "right";
+}
+
 /**
  * The arrow class an edge end asks for: an open triangle with an inside color (`edge.arrowHeadFillColor`) is drawn
  * filled, so it reads as the reference's filled triangle, as the browser tier reads it (oracle/drawn-primitives.ts)
@@ -170,12 +193,14 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
         const text = merged["node.label"];
         const sizePx = num(labelStyle.sizePx ?? channel(merged, "node.labelSize"), 12);
         const fitted = fittedExtent(merged, size, text, sizePx);
+        const w = (fitted?.width ?? num(merged["node.width"], size)) * SCENE_PER_UNIT.node;
+        const h = (fitted?.height ?? num(merged["node.height"], size)) * SCENE_PER_UNIT.node;
         return {
             id,
             x: placed && Number.isFinite(at.x) ? at.x * scale : 0,
             y: placed && Number.isFinite(at.y) ? -at.y * scale : 0,
-            w: (fitted?.width ?? num(merged["node.width"], size)) * SCENE_PER_UNIT.node,
-            h: (fitted?.height ?? num(merged["node.height"], size)) * SCENE_PER_UNIT.node,
+            w,
+            h,
             shape: shapeClassOf(channel(merged, "node.shape")),
             fill: fill?.hex ?? null,
             fillOpacity: bodiless ? 0 : num(channel(merged, "node.opacity"), 1) * (fill?.alpha ?? 1),
@@ -194,7 +219,17 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
                           text,
                           fontSize: sizePx,
                           color: colorOf(labelStyle.color ?? channel(merged, "node.labelColor"))?.hex ?? "#000000",
-                          position: labelPositionOf(labelStyle.location),
+                          // a bodiless node's label is where its offset takes it (an icon node's, vis-network's);
+                          // a body's offset label stays read by its location (cx-ddram's, #8152)
+                          position: bodiless
+                              ? offsetPlace(
+                                    labelPositionOf(labelStyle.location),
+                                    num(labelStyle.offsetX, 0),
+                                    num(labelStyle.offsetY, 0),
+                                    w,
+                                    h,
+                                )
+                              : labelPositionOf(labelStyle.location),
                           visible: labelStyle.enabled !== false,
                       }
                     : null,

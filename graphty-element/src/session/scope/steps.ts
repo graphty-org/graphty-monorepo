@@ -260,7 +260,7 @@ export interface ValueHistogramOptions extends HistogramOptions {
 
 /**
  * The branch colors when a session sets none: six hues each at least 3:1 against both a white and
- * a near-black panel, clear of the selection's gold ring and blue edge band.
+ * a near-black panel, clear of the selection's blue ring and edge band.
  * Experimental: may change or be removed in a minor release.
  * @beta
  */

@@ -616,6 +616,7 @@ export function defineLayout<const O extends OptionsShorthand = NoOptions>(
         id,
         plainName: name,
         technicalName: name,
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the element still fills the field it deprecated (#7961)
         description,
         family: "custom",
         kind: "batch",

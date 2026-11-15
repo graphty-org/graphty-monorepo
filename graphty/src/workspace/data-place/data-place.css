@@ -362,3 +362,13 @@
 .dp[data-tabs] .dp-filter:is(:hover, :has(:focus-visible), :has([data-expanded])) .dp-filter-more {
     opacity: 1;
 }
+
+/* A section's filters: the box focus looks in for its own "+" or row. */
+.dp-filters-root {
+    display: contents;
+}
+
+/* A load with no filter yet: one "Filter +" row in place of an empty Filters header. */
+.dp-filter-plus-row {
+    padding: 4px 8px;
+}

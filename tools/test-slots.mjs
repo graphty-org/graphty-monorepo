@@ -192,6 +192,67 @@ function statOf(pid) {
  */
 const startOf = (pid) => statOf(pid)?.[19] ?? null;
 
+const TICK_MS = 10; // /proc reports CPU time in clock ticks, 100 a second on Linux
+
+/**
+ * The CPU time a process and every process under it have used, the reaped children of each included.
+ * @param pid the root of the tree
+ * @returns milliseconds of CPU, or null off Linux or once the process is gone
+ */
+export function treeCpuMs(pid) {
+    const self = statOf(pid);
+    if (!self) return null;
+    const kids = new Map();
+    for (const entry of readdirSync("/proc")) {
+        const stat = /^\d+$/.test(entry) ? statOf(entry) : null;
+        if (stat) kids.set(Number(entry), stat);
+    }
+    let ticks = 0;
+    const seen = new Set();
+    for (const queue = [[pid, self]]; queue.length;) {
+        const [p, stat] = queue.pop();
+        if (seen.has(p)) continue;
+        seen.add(p);
+        // utime, stime, cutime, cstime: fields 14 to 17 of the stat line, 11 to 14 after the command name
+        ticks += Number(stat[11]) + Number(stat[12]) + Number(stat[13]) + Number(stat[14]);
+        for (const [k, s] of kids) if (Number(s[1]) === p) queue.push([k, s]);
+    }
+    return ticks * TICK_MS;
+}
+
+/**
+ * When a test slot holder counts as stalled. A run that is getting somewhere uses the CPU: vitest, its workers
+ * and its browser all do. One that waits on something that will never come (a page that never loads, a server
+ * that never answers) sits near zero, and no test guard ends it when it is not a guarded vitest test: a command
+ * wrapped by this file, a benchmark, a script (#8041: a load-time benchmark held a slot for over 90 minutes at
+ * 25 s of CPU while 9 to 13 runs queued). So a holder whose whole process tree uses under `cpuMs` of CPU in
+ * `ms` gives its slot back and is told; the run is never killed, so a long run that is busy keeps its slot
+ * however long it takes. Sampled every `every`.
+ */
+export const IDLE = { ms: 10 * 60_000, cpuMs: 10_000, every: 60_000, cpu: treeCpuMs };
+
+/**
+ * Tracks one holder's CPU use.
+ * @param cpu reads the tree's CPU time so far (milliseconds, or null when it cannot be read)
+ * @param since when the hold began (epoch milliseconds)
+ * @param limits the limits of IDLE
+ * @param limits.ms how long a stall lasts before it counts
+ * @param limits.cpuMs the CPU time under which the tree counts as stalled
+ * @returns sample(now): true once the tree has used under `cpuMs` of CPU for `ms`
+ */
+export function progressWatch(cpu, since, { ms, cpuMs }) {
+    let mark = cpu() ?? 0;
+    let busyAt = since;
+    return (now) => {
+        const used = cpu();
+        if (used === null) return false;
+        if (used - mark >= cpuMs) busyAt = now;
+        // A child that exited before its parent reaped it takes its time out of the sum: start counting again.
+        if (used - mark >= cpuMs || used < mark) mark = used;
+        return now - busyAt >= ms;
+    };
+}
+
 /**
  * Whether a ticket's process still runs.
  * @param ticket a parsed ticket
@@ -293,6 +354,7 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * @param options.kind "test", "gpu" or "lint", for the wait log (tools/wait-log.mjs)
  * @param options.waitLog records a wait that happened, and each hold when it ends (a test replaces it)
  * @param options.what what holds the slot, for the hold's log line: a package or a shard family
+ * @param options.idle when a test slot holder counts as stalled and gives its slot back (IDLE; null: never)
  * @returns a function that gives the slot back and logs the hold, `<kind>-slot-held` with `what` and the exit
  *   code it is called with (an exit listener's); its `free` gives the slot back without logging, for a teardown
  *   that runs before the exit code is known. A no-op when no slot was taken.
@@ -309,6 +371,7 @@ export async function acquire({
     kind = "test",
     waitLog = logWait,
     what,
+    idle = IDLE,
 }) {
     const none = () => {};
     if (slots === 0 || env[HELD]) {
@@ -355,7 +418,7 @@ export async function acquire({
         const at = placeInLine(live, name);
         if (at === -1) {
             // Our ticket is gone (a cleanup removed the directory): queue again at the back.
-            return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog, what });
+            return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog, what, idle });
         }
         if (at < slots) {
             // Marked held: placeInLine counts a low ticket that holds a slot (ordinary ones ignore the mark).
@@ -372,6 +435,32 @@ export async function acquire({
                 waitLog({ kind: `${kind}-slot-held`, start: granted, waiter: label, extra: { what, exit } });
             };
             release.free = free;
+            if (kind === "test" && idle) {
+                // A holder that stops using the CPU gives its slot back (#8041); the run itself goes on.
+                const stalled = progressWatch(() => idle.cpu(pid), granted, idle);
+                const timer = setInterval(() => {
+                    if (!stalled(Date.now())) return;
+                    clearInterval(timer);
+                    free();
+                    log(
+                        `test-slots: ${label} used under ${idle.cpuMs / 1000} s of CPU in ${idle.ms / 60_000} minutes, ` +
+                            `so it gave its test slot back to the runs waiting for one. It keeps running without a ` +
+                            `slot; if it is hung (a page that never loads, a wait on nothing), end it.`,
+                    );
+                    waitLog({ kind: `${kind}-slot-idle`, start: granted, waiter: label, extra: { what } });
+                }, idle.every);
+                timer.unref();
+                const done = release;
+                const stop = (code) => {
+                    clearInterval(timer);
+                    done(code);
+                };
+                stop.free = () => {
+                    clearInterval(timer);
+                    free();
+                };
+                return stop;
+            }
             return release;
         }
         if (!holders) {

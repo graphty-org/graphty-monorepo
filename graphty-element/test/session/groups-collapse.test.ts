@@ -17,7 +17,8 @@ import { withConsumerStrictState } from "./helpers";
 const RED = "#ff0000";
 
 /**
- * A grouping run that puts team x in group 0 and everyone else in group 1.
+ * A grouping run that puts team x in group 0 and everyone else in group 1; asked for an edge
+ * metric, one that scores each edge by its position (1, 2, ...).
  * @param session - Reads the graph the run is over.
  * @param context - The run.
  * @returns Its outcome.
@@ -28,6 +29,29 @@ function teams(session: () => GraphSession, context: RunExecutionContext): Promi
         path: `results.${context.runId}.${field.name}`,
     }));
     const nodes = session().data.nodes();
+    const edges = session().data.edges();
+    const caveats = {
+        exact: true,
+        direction: "as-loaded",
+        precision: "f64",
+        method: "teams",
+        facts: [],
+        notes: [],
+    } as const;
+    if (algorithmByKey(context.algorithm)?.shape === "edge-metric") {
+        return Promise.resolve({
+            result: createRunResult({
+                runId: context.runId,
+                shape: "edge-metric",
+                fields,
+                measured: { nodes: nodes.length, edges: edges.length },
+                edges: edges.map((edge, at) => ({ id: edge.id, values: { value: at + 1 } })),
+                caveats,
+                durationMs: 1,
+            }),
+        });
+    }
+
     return Promise.resolve({
         result: createRunResult({
             runId: context.runId,
@@ -35,7 +59,7 @@ function teams(session: () => GraphSession, context: RunExecutionContext): Promi
             fields,
             measured: { nodes: nodes.length, edges: session().data.edges().length },
             nodes: nodes.map((node) => ({ id: node.id, values: { group: node.team === "x" ? 0 : 1 } })),
-            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "teams", facts: [], notes: [] },
+            caveats,
             durationMs: 1,
         }),
     });
@@ -80,8 +104,18 @@ async function graph(): Promise<GraphSession> {
 }
 
 /**
- * Everything a round trip must give back: nodes, edges (without their element-assigned ids),
- * coordinates and pins.
+ * A JSON replacer leaving out an edge's element-assigned id, wherever the edge is kept.
+ * @param key - The key.
+ * @param value - Its value.
+ * @returns The value, or nothing for an edge's id.
+ */
+function withoutEdgeIds(this: Record<string, unknown>, key: string, value: unknown): unknown {
+    return key === "id" && "source" in this && "target" in this ? undefined : value;
+}
+
+/**
+ * Everything a round trip must give back: nodes, edges (without their element-assigned ids, also
+ * where a collapsed node keeps them), coordinates and pins.
  * @param session - The session.
  * @returns A comparable picture.
  */
@@ -91,7 +125,7 @@ function picture(session: GraphSession): unknown {
     return {
         nodes: session.data
             .nodes()
-            .map((node) => JSON.stringify(node))
+            .map((node) => JSON.stringify(node, withoutEdgeIds))
             .sort(),
         edges: session.data
             .edges()
@@ -278,6 +312,79 @@ describe("collapsing a group", () => {
                 ?.hex;
         assert.strictEqual(color("a"), RED);
         assert.notStrictEqual(color("d"), RED);
+        opened.dispose();
+    });
+
+    it("keeps a run's edge values across a collapse and expand, and through save and open", async () => {
+        const session = await graph();
+        await session.runs.start("edge-betweenness", {}, { style: false });
+        // Each edge as `source>target=value`, read from the run by the edge's id.
+        const scores = (on: GraphSession): string[] => {
+            const [{ result }] = on.runs.list();
+            return on.data
+                .edges()
+                .map((edge) => `${String(edge.source)}>${String(edge.target)}=${String(result?.edge(edge.id)?.value)}`)
+                .sort();
+        };
+        const before = scores(session);
+        assert.notInclude(before.join(), "undefined");
+
+        await session.groups.collapse(X);
+        await session.groups.expand(X);
+        assert.deepEqual(scores(session), before);
+
+        await session.groups.collapse(X);
+        const { text } = await session.project.save();
+        session.dispose();
+        const opened: GraphSession = createGraphSession({
+            runs: { execute: (context) => teams(() => opened, context) },
+        });
+        assert.deepEqual((await opened.project.open(text)).problems, []);
+        await opened.groups.expand(X);
+        assert.deepEqual(scores(opened), before);
+        opened.dispose();
+    });
+
+    it("opens a collapsed node moved by hand where it was left, with its pin", async () => {
+        const session = await graph();
+        const node = await session.groups.collapse(X);
+        await session.positions.set([{ id: node, x: 20, y: -4, z: 1 }]);
+        await session.positions.pin([node]);
+        const collapsed = picture(session);
+        const { text } = await session.project.save();
+        session.dispose();
+
+        const opened = createGraphSession();
+        assert.deepEqual((await opened.project.open(text)).problems, []);
+        assert.deepEqual(picture(opened), collapsed);
+        assert.isTrue(opened.positions.pinned.has(node));
+        opened.dispose();
+    });
+
+    it("saves a collapse of collapsed groups unfolded to the members, and opens it in order", async () => {
+        const session = await graph();
+        const before = picture(session);
+        await session.groups.collapse(X);
+        await session.groups.collapse(Y);
+        // The two collapsed nodes share their `_group.by`: one group of groups.
+        const outer = { groupBy: "data._group.by", group: "data.team" } as const;
+        const node = await session.groups.collapse(outer);
+        assert.strictEqual(session.data.node(node)?.["_group.size"], 2);
+        const collapsed = picture(session);
+        const { text } = await session.project.save();
+        session.dispose();
+
+        const saved = JSON.parse(text) as { members: { kind: string; graph?: { nodes: { id: string }[] } }[] };
+        const data = saved.members.find((member) => member.kind === "graphty-data");
+        assert.deepEqual(data?.graph?.nodes.map((each) => each.id).sort(), ["a", "b", "c", "d", "e", "f"]);
+
+        const opened = createGraphSession();
+        assert.deepEqual((await opened.project.open(text)).problems, []);
+        assert.deepEqual(picture(opened), collapsed);
+        await opened.groups.expand(outer);
+        await opened.groups.expand(Y);
+        await opened.groups.expand(X);
+        assert.deepEqual(picture(opened), before);
         opened.dispose();
     });
 

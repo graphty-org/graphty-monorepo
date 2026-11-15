@@ -1025,6 +1025,17 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Whether the edge on a snapshot row is directed: its own direction in a graph whose edges
+     * state one (a GraphML or GEXF file that mixes both), the graph's otherwise.
+     * @param row - The edge's row.
+     * @returns true when the edge is directed
+     * @internal
+     */
+    edgeDirected(row: number): boolean {
+        return this.store.edgeDirected(row);
+    }
+
+    /**
      * The node on a row of the snapshot.
      * @param row - The row.
      * @returns The node, or undefined when the row holds none.

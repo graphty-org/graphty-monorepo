@@ -208,7 +208,7 @@ describe("calendar steps in a zone", () => {
         session.dispose();
     });
 
-    it("snaps a sliding window to a new zone as to a new step", async () => {
+    it("moves a window to the nearest boundaries in a new zone, and back again", async () => {
         const session = await edgesAt(SPREAD);
         await session.time.setField({ edges: { start: "at" } });
         await session.time.setSettings({ step: "month" });
@@ -218,8 +218,15 @@ describe("calendar steps in a zone", () => {
         await session.time.stepBy(1);
         await session.time.setSettings({ timeZone: NEW_YORK });
         assert.strictEqual(session.time.current?.timeZone, NEW_YORK);
-        assert.strictEqual(session.time.current?.from, Date.UTC(2026, 0, 1, 5));
-        assert.strictEqual(session.time.current?.to, Date.UTC(2026, 1, 1, 5));
+        assert.strictEqual(session.time.current?.from, Date.UTC(2026, 1, 1, 5));
+        assert.strictEqual(session.time.current?.to, Date.UTC(2026, 2, 1, 5));
+
+        // Switching back and forth never walks the window along.
+        for (const zone of ["UTC", NEW_YORK, "UTC"]) {
+            await session.time.setSettings({ timeZone: zone });
+        }
+        assert.strictEqual(session.time.current?.from, Date.UTC(2026, 1, 1));
+        assert.strictEqual(session.time.current?.to, Date.UTC(2026, 2, 1));
         session.dispose();
     });
 

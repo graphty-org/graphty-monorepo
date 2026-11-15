@@ -543,7 +543,8 @@ export interface TimeApi {
      * Change how windows move, one undoable step saved in the project (`visibility.playback`).
      * A sliding window snaps to a new step; switching to cumulative grows the window from the start
      * of the data, and back to sliding keeps one step ending where it ended. A new `timeZone` is
-     * written on the window, and snaps it as a new step does. With no window only the setting is
+     * written on the window and moves each bound that sat on a step boundary to the nearest boundary
+     * in that zone, so switching back returns the same window. With no window only the setting is
      * stored. `results: "rerun"` re-runs the runs a window move left out of date. `ageFade` moves
      * no window: it changes only how edges in it are drawn.
      * @param settings - The settings that change.
@@ -2499,7 +2500,18 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const to = boundOf(current, "to");
         const was = zoneOf(undefined, current);
         const zone = zoneOf(newZone, current);
-        const resized = step !== current.step || (zone !== was && isCalendarStep(step));
+        const restepped = step !== current.step;
+        const resized = restepped || (zone !== was && isCalendarStep(step));
+        // A bound on a boundary in the old zone moves to the nearest boundary in the new one; any
+        // other bound stays. Two zones lie under a step apart, so switching back returns each bound.
+        const rezoned = (at: number): number => {
+            if (alignAt(at, step, was) !== at) {
+                return at;
+            }
+            const below = alignAt(at, step, zone);
+            const above = addSteps(below, step, 1, zone);
+            return at - below <= above - at ? below : above;
+        };
         const { timeZone: _timeZone, ...unzoned } = current;
         let window: TimeWindow = Object.freeze({
             ...(newZone === undefined ? current : unzoned),
@@ -2513,6 +2525,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             // Back to sliding: one step ending where the cumulative window ended.
             const { mode: _mode, ...rest } = window;
             window = Object.freeze({ ...rest, from: Math.max(extent.from, addSteps(to, step, -1, zone)) });
+        } else if (resized && !restepped) {
+            // A new zone alone never snaps the window to one step; a cumulative window keeps its start.
+            const start = next.mode === "sliding" ? rezoned(from) : from;
+            const end = rezoned(to);
+            window = Object.freeze({ ...window, ...(start < end ? { from: start, to: end } : {}) });
         } else if (resized && next.mode === "sliding") {
             // A new step or zone snaps a sliding window to one step on its boundary.
             const start = alignAt(from, step, zone);

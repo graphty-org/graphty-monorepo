@@ -31,6 +31,8 @@ const PRE_STEPS = 1000;
 const OFFICE_EMAIL = `${import.meta.env.BASE_URL}samples/office-email.json`;
 /** The zone the browser is put in: never UTC, and five hours from it in January. */
 const NEW_YORK = "America/New_York";
+/** A day, longer than any zone's offset from UTC. */
+const DAY_MS = 86_400_000;
 /** autosave's database (graphty-element's AUTOSAVE_DATABASE). */
 const AUTOSAVE_DATABASE = "graphty-autosave";
 
@@ -653,6 +655,36 @@ describe("the timeline dock on the real element", () => {
             assert.match(within(dock).getByTestId("time-readout").textContent, /^1995 - /);
         });
         assert.equal(session.time.settings.timeZone, NEW_YORK);
+    });
+
+    it("switching Zone back and forth leaves the window where it was", async () => {
+        await inBrowserZone(NEW_YORK, async () => {
+            const { session, dock } = await openDock();
+            await windowOn(session, Date.UTC(2025, 2, 10), Date.UTC(2025, 2, 12));
+            const before = windowOf(session);
+            const readout = within(dock).getByTestId("time-readout").textContent;
+            await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
+            const zone = await screen.findByRole("radiogroup", { name: "Zone" });
+
+            for (const [label, timeZone] of [
+                ["Local", NEW_YORK],
+                ["UTC", "UTC"],
+                ["Local", NEW_YORK],
+                ["UTC", "UTC"],
+            ]) {
+                await userEvent.click(within(zone).getByText(label));
+                await waitFor(() => {
+                    assert.equal(session.time.timeZone, timeZone);
+                });
+                // The zone moves the window to its own boundaries, never a step along.
+                const now = windowOf(session);
+                assert.isAtMost(Math.abs(now.from - before.from), DAY_MS, `start after ${label}`);
+                assert.isAtMost(Math.abs(now.to - before.to), DAY_MS, `end after ${label}`);
+            }
+
+            assert.deepEqual(windowOf(session), before);
+            assert.equal(within(dock).getByTestId("time-readout").textContent, readout);
+        });
     });
 
     it("keeps UTC on an hour's readout under the default zone", async () => {

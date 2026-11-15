@@ -40,7 +40,9 @@ none) takes it from there.
 reports, check this session's open pull requests (the broker file `tmp/pr-status/status.json`, or ONE GraphQL query
 for all of them) and start a fix job at once for each red or conflicting one that has no fix job running, before any
 new issue: a red pull request keeps its files blocked for every other issue (step 4). Its prompt follows
-`tmp/issue-round/red-pr-prompt.md` (main checkout). It counts against the limits below like any fix job.
+`tmp/issue-round/red-pr-prompt.md` (main checkout). It counts against the limits below like any fix job. A pull
+request red only on a break master already has gets no job: link the master-break issue and update the branch when
+its fix merges ("Inherited failures" in `.claude/skills/pipeline-round/shared.md`).
 
 **While master is red, jobs still start** (see "While master is red" in the shared file): they commit, push and
 write their `ready` marker, and open their pull requests in a later round once master is green. CI's runners are not

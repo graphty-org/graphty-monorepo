@@ -243,6 +243,7 @@ import { type DrawnTarget, RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import type { AssetsApiInternal } from "./session/assets/AssetsApi";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
 import {
@@ -7338,7 +7339,8 @@ export class Graph implements GraphContext {
      * @param options - The size and the node's style values.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected or waiting model, its first problem's code and params; for an accepted model that
+     *     rejected or waiting model, its first problem's code and params (a waiting model with
+     *     `standInMissing` is drawn unless it waits for its geometry or an answer); for an accepted model that
      *     could not be drawn, the load failure's code (`E_MODEL_STRUCTURE`, `E_MODEL_PARSE`,
      *     `E_MODEL_DECODER_UNAVAILABLE`, `E_MODEL_EXTERNAL_URL`) and its params as `details`.
      */
@@ -7362,7 +7364,11 @@ export class Graph implements GraphContext {
                       params: { format: record.format, fileName: record.path ?? "", assetKind: "image" },
                   }
                 : record.problems[0];
-        if (record.state !== "accepted" || record.kind === "image") {
+        const standIn =
+            options.standInMissing === true && record.state !== "accepted"
+                ? (assets as AssetsApiInternal).standIn(record.id)
+                : undefined;
+        if ((record.state !== "accepted" && standIn === undefined) || record.kind === "image") {
             throw new GraphtyError({
                 code: (problem?.code ?? "E_MODEL_UNKNOWN_ASSET") as GraphtyError["code"],
                 source: "data",
@@ -7385,7 +7391,7 @@ export class Graph implements GraphContext {
         } as NonNullable<NodeStyleConfig["shape"]>;
         const is2D = this.getViewMode() === "2d";
         const key = JSON.stringify([
-            "model",
+            standIn === undefined ? "model" : "model-stand-in",
             record.digest,
             options.size,
             style["node.color"],
@@ -7405,13 +7411,12 @@ export class Graph implements GraphContext {
         let shot = this.#thumbnails.get(key);
         if (shot === undefined) {
             shot = this.#thumbnailQueue.then(async () => {
-                const files = assets.files(record.id);
                 const container = await loadModel(
                     this.scene,
-                    files,
-                    record.path ?? "",
-                    record.format,
-                    record.skipped,
+                    standIn?.files ?? assets.files(record.id),
+                    standIn?.main ?? record.path ?? "",
+                    standIn?.format ?? record.format,
+                    standIn?.skipped ?? record.skipped,
                 ).catch((error: unknown) => {
                     if (!(error instanceof ModelLoadFailure)) {
                         throw error;
@@ -7429,7 +7434,7 @@ export class Graph implements GraphContext {
                     this.scene,
                     container,
                     `graphty-model-thumbnail-${record.digest.slice(0, 8)}`,
-                    optionsOf(shape, assets.inspect(record.id).upAxis, {
+                    optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
                         unlit: style["node.unlit"] === true,
                         wireframe: style["node.wireframe"] === true,
                     }),

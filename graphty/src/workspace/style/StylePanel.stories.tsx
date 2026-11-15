@@ -690,13 +690,17 @@ export const CustomModelLoaded: Story = nodeModelsStory(
     "Custom model, loaded",
 );
 
-/** The dialog with police.glb whose picture is named paint.png: Files open on the missing part and Use file. */
+/**
+ * The dialog with police.glb whose picture is named paint.png: Files open on the missing part and
+ * Use file, and the preview draws police with a plain stand-in for the picture.
+ */
 export const CustomModelMissingParts: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("paint.png"));
         const files = await within(dialog).findByTestId("model-files");
         await within(files).findByRole("combobox", { name: "File for colormap.png" });
+        await within(dialog).findByRole("img", { name: "police preview" });
     }),
     "Custom model, missing parts",
 );

@@ -79,10 +79,11 @@ or point the bundler's alias for `@graphty/webgpu-graph-algorithms` at an empty 
 
 ### The explicit import
 
-`import "@graphty/graphty-element/webgpu"` registers the same accelerator statically, at a moment you
-choose. You do not need it with the root entry point. It is the way to get a GPU from the entry
-points that do not load the package by themselves (`./session` and the other Node-safe entries),
-and a way to load the package eagerly rather than on first use.
+`import "@graphty/graphty-element/webgpu"` registers the same accelerator at a moment you choose; the
+package itself still downloads on first use. You do not need it with the root entry point. It is
+the way to get a GPU from the entry points that do not load the package by themselves (`./session`
+and the other Node-safe entries), and from a toolchain that cannot build the root entry's optional
+import (webpack before 5.90.2).
 
 ## Policies
 

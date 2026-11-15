@@ -100,19 +100,6 @@ const MINIMUM_WORK_TESTS = [
 ];
 
 /**
- * Each shard's own Vite dependency cache, when it runs as one of several parallel shards
- * (COVERAGE_DIR names the shard, tools/prepush-tests.mjs and CI set it). The shards of the
- * pre-push gate share one checkout: with a shared cache, a stale one (a change to the
- * pre-bundled list, the lockfile) is re-optimized by every shard at once, each swapping the deps
- * directory under the others ("The file does not exist ... in the optimize deps directory"). The
- * gate's warm-up shard does not fill every project's cache either: graphty-element-browser-1 holds
- * no "xr" test file. Unset, Vite's default directory.
- */
-const SHARD_CACHE_DIR = process.env.COVERAGE_DIR
-    ? path.join("node_modules/.vite", path.basename(process.env.COVERAGE_DIR))
-    : undefined;
-
-/**
  * Babylon modules the element imports only for their side effects (see
  * test/packaging/babylon-side-effects.test.ts). Pre-bundled in every browser project: a
  * dependency Vite discovers mid-run makes it reload the page under the test that is running.

@@ -69,7 +69,10 @@ async function loadFactory(): Promise<Loaded> {
             ? {}
             : { summarizeAdapter: peer.summarizeAdapter as NonNullable<WebGpuPeerBrowser["summarizeAdapter"]> }),
     };
-    return { factory: createWebGpuFactory(peer.root, peerBrowser), sharesDevice: createWebGpuSharesDevice(peerBrowser) };
+    return {
+        factory: createWebGpuFactory(peer.root, peerBrowser),
+        sharesDevice: createWebGpuSharesDevice(peerBrowser),
+    };
 }
 
 /**

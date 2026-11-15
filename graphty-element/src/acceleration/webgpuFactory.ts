@@ -241,7 +241,9 @@ export function createWebGpuFactory(root: WebGpuPeerRoot, browser: WebGpuPeerBro
  * on a software adapter, which draws a frame slower with the layout on the same device than beside
  * it. A peer without `summarizeAdapter` says no, and the accelerator finds its own device.
  */
-export function createWebGpuSharesDevice(browser: Pick<WebGpuPeerBrowser, "summarizeAdapter">): (adapter: unknown) => boolean {
+export function createWebGpuSharesDevice(
+    browser: Pick<WebGpuPeerBrowser, "summarizeAdapter">,
+): (adapter: unknown) => boolean {
     const { summarizeAdapter: summarize } = browser;
     return (adapter) => summarize !== undefined && !summarize(adapter as GPUAdapter).software;
 }

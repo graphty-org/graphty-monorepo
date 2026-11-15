@@ -34,8 +34,8 @@ npm run api:report                   # after build, when the public API changed
   must resolve in Node with no Babylon.js, Lit or DOM. A value import that reaches a mesh, material, scene,
   `LitElement` or `document` from anything they reach fails `test/packaging/node-safe-entries.test.ts`, far from the
   file you edited. Use `import type` when you only need a type.
-- Two files import the optional peer `@graphty/webgpu-graph-algorithms`: `webgpu.ts` (statically, the explicit
-  entry) and `src/acceleration/autoload.ts` (a literal `await import()` directly inside `try`, reached only from
+- Two files import the optional peer `@graphty/webgpu-graph-algorithms`: `webgpu.ts` (the explicit entry, on first
+  use) and `src/acceleration/autoload.ts` (a literal `await import()` directly inside `try`, reached only from
   `index.ts`, run at the first probe). That form lets every bundler build a consumer with the package absent: never
   compute the specifier, move it into a `.then()` chain or import the peer statically from a lazy module.
   `npm run test:bundlers` (`scripts/bundler-matrix.mjs`) checks it with the package absent, present and broken.

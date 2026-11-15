@@ -35,6 +35,19 @@ describe("the root entry's WebGPU loader", () => {
         assert.strictEqual(status.code, "E_NO_WEBGPU");
         assert.strictEqual(warn.mock.calls.length, 1);
     });
+
+    it("shares the renderer's device on a hardware adapter, never on a software one", async () => {
+        const sharesDevice = acceleratorRegistry.list()[0]?.sharesDevice;
+        const adapter = (architecture: string): unknown => ({
+            info: { vendor: "acme", architecture, device: "", description: "" },
+            limits: {},
+            features: new Set(),
+        });
+
+        assert.isDefined(sharesDevice);
+        assert.isTrue(await sharesDevice?.(adapter("gen-1")));
+        assert.isFalse(await sharesDevice?.(adapter("swiftshader")));
+    });
 });
 
 describe("a default registration", () => {

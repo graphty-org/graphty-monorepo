@@ -32,21 +32,20 @@ import {
     WEBGPU_ACCELERATOR_NAME,
 } from "./src/acceleration/webgpuFactory";
 
-/** The factory and the device-sharing answer, built over the peer once, on first use. */
-let loaded: Promise<{ factory: AcceleratorFactory; sharesDevice: (adapter: unknown) => boolean }> | undefined;
+/** The peer's browser module and the factory built over the peer, once, on first use. */
+let loaded:
+    | Promise<{ factory: AcceleratorFactory; browser: typeof import("@graphty/webgpu-graph-algorithms/browser") }>
+    | undefined;
 
 /**
- * Loads the peer's root and browser entry points, once, and builds over them.
- * @returns The factory and the device-sharing answer.
+ * Loads the peer's root and browser entry points, once, and builds the factory over them.
+ * @returns The factory and the browser module.
  */
 function load(): NonNullable<typeof loaded> {
     loaded ??= Promise.all([
         import("@graphty/webgpu-graph-algorithms"),
         import("@graphty/webgpu-graph-algorithms/browser"),
-    ]).then(([root, browser]) => ({
-        factory: createWebGpuFactory(root, browser),
-        sharesDevice: createWebGpuSharesDevice(browser),
-    }));
+    ]).then(([root, browser]) => ({ factory: createWebGpuFactory(root, browser), browser }));
     return loaded;
 }
 
@@ -54,5 +53,5 @@ registerAccelerator({
     name: WEBGPU_ACCELERATOR_NAME,
     backend: "webgpu",
     factory: async (options) => (await load()).factory(options),
-    sharesDevice: async (adapter) => (await load()).sharesDevice(adapter),
+    sharesDevice: async (adapter) => createWebGpuSharesDevice((await load()).browser)(adapter),
 });

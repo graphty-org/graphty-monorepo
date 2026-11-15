@@ -2,14 +2,14 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/graphty-settings/v1.json",
     "title": "graphty settings section, version 1",
-    "description": "Project settings that belong to no other section, keyed by the paths graphty-element's config.set accepts, and timeline playback. Reusable.",
+    "description": "Project settings that belong to no other section, keyed by the dotted paths graphty-element's config.set accepts, and timeline playback. Reusable.",
     "type": "object",
     "allOf": [
         {
             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/header"
         }
     ],
-    "required": ["kind", "version", "generator", "settings"],
+    "required": ["kind", "version", "generator"],
     "properties": {
         "kind": {
             "const": "graphty-settings"
@@ -22,9 +22,12 @@
         },
         "settings": {
             "type": "object",
-            "description": "Keyed by config.set path, written flat (layoutBehavior.preSteps). Open: a key a reader does not know is kept.",
+            "description": "Keyed by config.set path, written flat (layoutBehavior.preSteps). Open: a key a reader does not know is kept. No data.* key is written here.",
             "propertyNames": {
-                "pattern": "^[A-Za-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*)*$"
+                "pattern": "^[A-Za-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*)*$",
+                "not": {
+                    "pattern": "^data(\\.|$)"
+                }
             },
             "properties": {
                 "runPlacement": {

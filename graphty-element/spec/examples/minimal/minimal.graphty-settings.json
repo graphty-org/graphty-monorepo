@@ -4,6 +4,5 @@
     "generator": {
         "name": "graphty-element",
         "version": "3.40.0"
-    },
-    "settings": {}
+    }
 }

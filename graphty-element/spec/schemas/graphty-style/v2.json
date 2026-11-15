@@ -60,9 +60,7 @@
                                                 "of": {
                                                     "oneOf": [
                                                         {
-                                                            "type": "string",
-                                                            "minLength": 1,
-                                                            "description": "graph, visible, selection, largest-component (an open vocabulary)."
+                                                            "enum": ["graph", "largest-component"]
                                                         },
                                                         {
                                                             "type": "object",
@@ -130,8 +128,7 @@
                                         }
                                     }
                                 ]
-                            },
-                            "after": false
+                            }
                         }
                     }
                 ]
@@ -172,9 +169,8 @@
             "items": {
                 "type": "object",
                 "properties": {
-                    "column": {
-                        "type": "string",
-                        "minLength": 1
+                    "path": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/path"
                     },
                     "value": {
                         "type": ["string", "number", "boolean"]
@@ -183,7 +179,7 @@
                         "type": "string"
                     }
                 },
-                "required": ["column", "value", "label"],
+                "required": ["path", "value", "label"],
                 "unevaluatedProperties": false
             }
         },

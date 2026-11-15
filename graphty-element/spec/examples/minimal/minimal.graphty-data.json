@@ -6,6 +6,8 @@
         "version": "3.40.0"
     },
     "id": "minimal-data",
+    "build": "01JCC0000000000000000000AA",
+    "directed": false,
     "sources": [],
     "types": [],
     "joins": [],

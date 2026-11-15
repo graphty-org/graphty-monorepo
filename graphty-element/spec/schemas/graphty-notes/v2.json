@@ -31,7 +31,7 @@
                 "properties": {
                     "id": {
                         "type": "string",
-                        "pattern": "^note_[0-9A-Za-z_-]{1,64}$"
+                        "pattern": "^note_[0-9A-HJKMNP-TV-Z]{26}$"
                     },
                     "time": {
                         "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
@@ -83,10 +83,6 @@
                                     "properties": {
                                         "set": {
                                             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/setId"
-                                        },
-                                        "name": {
-                                            "type": "string",
-                                            "minLength": 1
                                         }
                                     },
                                     "required": ["set"],

@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/graphty-view/v1.json",
     "title": "graphty view section, version 1",
-    "description": "How this dataset is shown: camera, saved views, selection, hand-placed positions, sets, visibility, element-picking layers and the runs a recipe cannot hold. Bound to one dataset.",
+    "description": "The session a file is opened to: camera, saved views, selection, pins, every set, visibility, the layer order and the layers that name elements, every run record and the layout record. Bound to one dataset.",
     "type": "object",
     "allOf": [
         {
@@ -25,6 +25,7 @@
         },
         "camera": {
             "type": "object",
+            "description": "graphty-element's CameraState members as they are, plus dimension and controller. Open: a member a later or third-party controller adds is kept.",
             "required": ["dimension", "controller"],
             "properties": {
                 "dimension": {
@@ -35,86 +36,68 @@
                     "minLength": 1,
                     "description": "orbit, 2d, or a later or third-party controller (an open vocabulary)."
                 },
+                "type": {
+                    "type": "string",
+                    "minLength": 1
+                },
                 "position": {
-                    "type": "array",
-                    "items": {
-                        "type": "number"
-                    },
-                    "minItems": 3,
-                    "maxItems": 3
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
                 },
                 "target": {
-                    "type": "array",
-                    "items": {
-                        "type": "number"
-                    },
-                    "minItems": 3,
-                    "maxItems": 3
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
+                },
+                "alpha": {
+                    "type": "number"
+                },
+                "beta": {
+                    "type": "number"
+                },
+                "radius": {
+                    "type": "number"
                 },
                 "fov": {
                     "type": "number",
                     "exclusiveMinimum": 0
                 },
-                "pan": {
-                    "type": "array",
-                    "items": {
-                        "type": "number"
-                    },
-                    "minItems": 2,
-                    "maxItems": 2
-                },
                 "zoom": {
                     "type": "number",
                     "exclusiveMinimum": 0
                 },
+                "pan": {
+                    "type": "object",
+                    "properties": {
+                        "x": {
+                            "type": "number"
+                        },
+                        "y": {
+                            "type": "number"
+                        }
+                    },
+                    "required": ["x", "y"],
+                    "unevaluatedProperties": false
+                },
                 "rotation": {
                     "type": "number"
-                }
-            },
-            "allOf": [
-                {
-                    "if": {
-                        "properties": {
-                            "dimension": {
-                                "const": 3
-                            }
-                        }
-                    },
-                    "then": {
-                        "required": ["position", "target", "fov"]
-                    }
                 },
-                {
-                    "if": {
-                        "properties": {
-                            "dimension": {
-                                "const": 2
-                            }
-                        }
-                    },
-                    "then": {
-                        "required": ["pan", "zoom", "rotation"]
-                    }
-                }
-            ],
-            "description": "Open: a member named after a controller holds what only it understands."
-        },
-        "xr": {
-            "type": "object",
-            "properties": {
-                "center": {
+                "orthoLeft": {
+                    "type": "number"
+                },
+                "orthoRight": {
+                    "type": "number"
+                },
+                "orthoTop": {
+                    "type": "number"
+                },
+                "orthoBottom": {
+                    "type": "number"
+                },
+                "pivotRotation": {
                     "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
                 },
-                "scale": {
-                    "type": "number",
-                    "exclusiveMinimum": 0
-                },
-                "rotation": {
-                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
+                "cameraDistance": {
+                    "type": "number"
                 }
-            },
-            "required": ["center", "scale", "rotation"],
-            "unevaluatedProperties": false
+            }
         },
         "views": {
             "type": "array",
@@ -127,6 +110,7 @@
                     },
                     "camera": {
                         "type": "object",
+                        "description": "graphty-element's CameraState members as they are, plus dimension and controller. Open: a member a later or third-party controller adds is kept.",
                         "required": ["dimension", "controller"],
                         "properties": {
                             "dimension": {
@@ -137,86 +121,68 @@
                                 "minLength": 1,
                                 "description": "orbit, 2d, or a later or third-party controller (an open vocabulary)."
                             },
+                            "type": {
+                                "type": "string",
+                                "minLength": 1
+                            },
                             "position": {
-                                "type": "array",
-                                "items": {
-                                    "type": "number"
-                                },
-                                "minItems": 3,
-                                "maxItems": 3
+                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
                             },
                             "target": {
-                                "type": "array",
-                                "items": {
-                                    "type": "number"
-                                },
-                                "minItems": 3,
-                                "maxItems": 3
+                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
+                            },
+                            "alpha": {
+                                "type": "number"
+                            },
+                            "beta": {
+                                "type": "number"
+                            },
+                            "radius": {
+                                "type": "number"
                             },
                             "fov": {
                                 "type": "number",
                                 "exclusiveMinimum": 0
                             },
-                            "pan": {
-                                "type": "array",
-                                "items": {
-                                    "type": "number"
-                                },
-                                "minItems": 2,
-                                "maxItems": 2
-                            },
                             "zoom": {
                                 "type": "number",
                                 "exclusiveMinimum": 0
                             },
+                            "pan": {
+                                "type": "object",
+                                "properties": {
+                                    "x": {
+                                        "type": "number"
+                                    },
+                                    "y": {
+                                        "type": "number"
+                                    }
+                                },
+                                "required": ["x", "y"],
+                                "unevaluatedProperties": false
+                            },
                             "rotation": {
                                 "type": "number"
-                            }
-                        },
-                        "allOf": [
-                            {
-                                "if": {
-                                    "properties": {
-                                        "dimension": {
-                                            "const": 3
-                                        }
-                                    }
-                                },
-                                "then": {
-                                    "required": ["position", "target", "fov"]
-                                }
                             },
-                            {
-                                "if": {
-                                    "properties": {
-                                        "dimension": {
-                                            "const": 2
-                                        }
-                                    }
-                                },
-                                "then": {
-                                    "required": ["pan", "zoom", "rotation"]
-                                }
-                            }
-                        ],
-                        "description": "Open: a member named after a controller holds what only it understands."
-                    },
-                    "xr": {
-                        "type": "object",
-                        "properties": {
-                            "center": {
+                            "orthoLeft": {
+                                "type": "number"
+                            },
+                            "orthoRight": {
+                                "type": "number"
+                            },
+                            "orthoTop": {
+                                "type": "number"
+                            },
+                            "orthoBottom": {
+                                "type": "number"
+                            },
+                            "pivotRotation": {
                                 "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
                             },
-                            "scale": {
-                                "type": "number",
-                                "exclusiveMinimum": 0
-                            },
-                            "rotation": {
-                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
+                            "cameraDistance": {
+                                "type": "number"
                             }
-                        },
-                        "required": ["center", "scale", "rotation"],
-                        "unevaluatedProperties": false
+                        }
                     }
                 }
             }
@@ -239,7 +205,7 @@
             },
             "unevaluatedProperties": false
         },
-        "placed": {
+        "pinned": {
             "type": "array",
             "items": {
                 "type": "object",
@@ -249,9 +215,6 @@
                     },
                     "position": {
                         "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
-                    },
-                    "pinned": {
-                        "type": "boolean"
                     }
                 },
                 "required": ["node", "position"],
@@ -262,7 +225,6 @@
             "type": "array",
             "items": {
                 "type": "object",
-                "required": ["id", "name", "kind"],
                 "properties": {
                     "id": {
                         "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/setId"
@@ -270,127 +232,130 @@
                     "name": {
                         "type": "string"
                     },
-                    "kind": {
-                        "type": "string",
-                        "minLength": 1
+                    "definition": {
+                        "type": "object",
+                        "required": ["kind"],
+                        "properties": {
+                            "kind": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        },
+                        "description": "graphty-element's SetDefinition, its node and edge members written as element references. Closed per kind.",
+                        "allOf": [
+                            {
+                                "if": {
+                                    "properties": {
+                                        "kind": {
+                                            "const": "fixed"
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "type": "object",
+                                    "properties": {
+                                        "kind": true,
+                                        "nodes": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                            }
+                                        },
+                                        "edges": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
+                                            }
+                                        },
+                                        "reading": {
+                                            "enum": ["induced", "listed"]
+                                        }
+                                    },
+                                    "required": ["nodes", "reading"],
+                                    "unevaluatedProperties": false
+                                }
+                            },
+                            {
+                                "if": {
+                                    "properties": {
+                                        "kind": {
+                                            "const": "path"
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "type": "object",
+                                    "properties": {
+                                        "kind": true,
+                                        "nodes": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                            },
+                                            "minItems": 1
+                                        },
+                                        "edges": {
+                                            "type": "array",
+                                            "items": {
+                                                "oneOf": [
+                                                    {
+                                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
+                                                    },
+                                                    {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
+                                                        }
+                                                    },
+                                                    {
+                                                        "type": "null"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "directed": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": ["nodes"],
+                                    "unevaluatedProperties": false
+                                }
+                            },
+                            {
+                                "if": {
+                                    "properties": {
+                                        "kind": {
+                                            "const": "rule"
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "type": "object",
+                                    "properties": {
+                                        "kind": true,
+                                        "where": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/expression"
+                                                },
+                                                {
+                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/boundRuleTree"
+                                                }
+                                            ]
+                                        },
+                                        "reading": {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeReading"
+                                        }
+                                    },
+                                    "required": ["where", "reading"],
+                                    "unevaluatedProperties": false
+                                }
+                            }
+                        ]
                     }
                 },
-                "allOf": [
-                    {
-                        "if": {
-                            "properties": {
-                                "kind": {
-                                    "const": "fixed"
-                                }
-                            }
-                        },
-                        "then": {
-                            "type": "object",
-                            "properties": {
-                                "id": true,
-                                "name": true,
-                                "kind": true,
-                                "nodes": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
-                                    }
-                                },
-                                "edges": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
-                                    }
-                                },
-                                "reading": {
-                                    "enum": ["induced", "listed"]
-                                }
-                            },
-                            "required": ["nodes", "reading"],
-                            "unevaluatedProperties": false
-                        }
-                    },
-                    {
-                        "if": {
-                            "properties": {
-                                "kind": {
-                                    "const": "path"
-                                }
-                            }
-                        },
-                        "then": {
-                            "type": "object",
-                            "properties": {
-                                "id": true,
-                                "name": true,
-                                "kind": true,
-                                "nodes": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
-                                    },
-                                    "minItems": 1
-                                },
-                                "edges": {
-                                    "type": "array",
-                                    "items": {
-                                        "oneOf": [
-                                            {
-                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
-                                            },
-                                            {
-                                                "type": "array",
-                                                "items": {
-                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
-                                                }
-                                            },
-                                            {
-                                                "type": "null"
-                                            }
-                                        ]
-                                    }
-                                },
-                                "directed": {
-                                    "type": "boolean"
-                                }
-                            },
-                            "required": ["nodes"],
-                            "unevaluatedProperties": false
-                        }
-                    },
-                    {
-                        "if": {
-                            "properties": {
-                                "kind": {
-                                    "const": "rule"
-                                }
-                            }
-                        },
-                        "then": {
-                            "type": "object",
-                            "properties": {
-                                "id": true,
-                                "name": true,
-                                "kind": true,
-                                "where": {
-                                    "oneOf": [
-                                        {
-                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/expression"
-                                        },
-                                        {
-                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/boundRuleTree"
-                                        }
-                                    ]
-                                },
-                                "reading": {
-                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeReading"
-                                }
-                            },
-                            "required": ["where", "reading"],
-                            "unevaluatedProperties": false
-                        }
-                    }
-                ]
+                "required": ["id", "name", "definition"],
+                "unevaluatedProperties": false
             }
         },
         "visibility": {
@@ -402,45 +367,68 @@
                             "type": "null"
                         },
                         {
-                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/boundRuleTree"
+                            "type": "object"
                         }
                     ]
                 },
                 "window": {
                     "type": "object",
-                    "required": ["attribute"],
+                    "description": "graphty-element's TimeWindow. An instant bound is a toISOString string, a raw value a JSON number.",
+                    "required": ["attribute", "from", "to"],
                     "properties": {
                         "attribute": {
-                            "type": "string",
-                            "minLength": 1
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/path"
                         },
                         "end": {
-                            "type": "string",
-                            "minLength": 1
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/path"
                         },
                         "spells": {
-                            "type": "string",
-                            "minLength": 1
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/path"
                         },
-                        "from": true,
-                        "to": true,
+                        "from": {
+                            "oneOf": [
+                                {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
+                                },
+                                {
+                                    "type": "number"
+                                }
+                            ]
+                        },
+                        "to": {
+                            "oneOf": [
+                                {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
+                                },
+                                {
+                                    "type": "number"
+                                }
+                            ]
+                        },
                         "step": true,
                         "nodes": {
+                            "enum": ["all", "ends"]
+                        },
+                        "missing": {
+                            "enum": ["inside", "outside"]
+                        },
+                        "mode": {
+                            "enum": ["sliding", "cumulative"]
+                        },
+                        "timeZone": {
                             "type": "string",
                             "minLength": 1
                         },
-                        "raw": {
-                            "type": "boolean"
-                        }
+                        "raw": false
                     }
                 },
                 "showContext": {
                     "type": "boolean"
                 },
-                "select": {
+                "conditions": {
                     "type": "array",
                     "items": {
-                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/boundRuleTree"
+                        "type": "object"
                     }
                 },
                 "hidden": {
@@ -449,12 +437,6 @@
                         "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
                     }
                 }
-            }
-        },
-        "timeline": {
-            "type": "object",
-            "properties": {
-                "at": true
             }
         },
         "viewRotation": {
@@ -482,6 +464,13 @@
                 "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/columnRef"
             }
         },
+        "order": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "minLength": 1
+            }
+        },
         "layers": {
             "type": "array",
             "items": {
@@ -490,7 +479,6 @@
                         "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/layerBase"
                     },
                     {
-                        "required": ["after"],
                         "properties": {
                             "selector": {
                                 "allOf": [
@@ -513,9 +501,7 @@
                                                 "of": {
                                                     "oneOf": [
                                                         {
-                                                            "type": "string",
-                                                            "minLength": 1,
-                                                            "description": "graph, visible, selection, largest-component (an open vocabulary)."
+                                                            "enum": ["graph", "largest-component"]
                                                         },
                                                         {
                                                             "type": "object",
@@ -634,108 +620,284 @@
                                     }
                                 ]
                             },
-                            "after": {
-                                "type": "string",
-                                "minLength": 1
-                            }
+                            "after": false
                         }
                     }
                 ]
             }
         },
         "runs": {
-            "type": "object",
-            "patternProperties": {
-                "^[a-z][a-z0-9_]*__[a-z][a-z0-9_]*$": {
-                    "type": "object",
-                    "required": ["namespace", "as", "algorithm", "style", "scope"],
-                    "properties": {
-                        "namespace": {
-                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/namespace"
-                        },
-                        "as": {
-                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runName"
-                        },
-                        "name": {
-                            "type": "string"
-                        },
-                        "algorithm": {
-                            "type": "string",
-                            "minLength": 1
-                        },
-                        "params": {
-                            "type": "object"
-                        },
-                        "seed": {
-                            "type": "integer",
-                            "minimum": 0
-                        },
-                        "style": {
-                            "oneOf": [
-                                {
-                                    "type": "boolean"
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["id", "algorithm", "scope"],
+                "properties": {
+                    "id": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runId"
+                    },
+                    "namespace": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/namespace"
+                    },
+                    "as": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runName"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "algorithm": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "params": {
+                        "type": "object"
+                    },
+                    "seed": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "scope": {
+                        "description": "One of graphty-element's Scope forms. Bare selection and visible are never written. An unknown form stops that run's replay and is kept.",
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "minLength": 1,
+                                "not": {
+                                    "enum": ["selection", "visible"]
+                                }
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "set": {
+                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/setId"
+                                    }
                                 },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "size": {
-                                            "oneOf": [
-                                                {
-                                                    "type": "boolean"
+                                "required": ["set"],
+                                "unevaluatedProperties": false
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "where": {
+                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/expression"
+                                    }
+                                },
+                                "required": ["where"],
+                                "unevaluatedProperties": false
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "nodes": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                        }
+                                    }
+                                },
+                                "required": ["nodes"],
+                                "unevaluatedProperties": false
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "define": {
+                                        "type": "object",
+                                        "required": ["kind"],
+                                        "properties": {
+                                            "kind": {
+                                                "type": "string",
+                                                "minLength": 1
+                                            }
+                                        },
+                                        "description": "graphty-element's SetDefinition, its node and edge members written as element references. Closed per kind.",
+                                        "allOf": [
+                                            {
+                                                "if": {
+                                                    "properties": {
+                                                        "kind": {
+                                                            "const": "fixed"
+                                                        }
+                                                    }
                                                 },
-                                                {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "number",
-                                                        "minimum": 0
+                                                "then": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "kind": true,
+                                                        "nodes": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                                            }
+                                                        },
+                                                        "edges": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
+                                                            }
+                                                        },
+                                                        "reading": {
+                                                            "enum": ["induced", "listed"]
+                                                        }
                                                     },
-                                                    "minItems": 2,
-                                                    "maxItems": 2
+                                                    "required": ["nodes", "reading"],
+                                                    "unevaluatedProperties": false
                                                 }
-                                            ]
-                                        }
+                                            },
+                                            {
+                                                "if": {
+                                                    "properties": {
+                                                        "kind": {
+                                                            "const": "path"
+                                                        }
+                                                    }
+                                                },
+                                                "then": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "kind": true,
+                                                        "nodes": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                                            },
+                                                            "minItems": 1
+                                                        },
+                                                        "edges": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "oneOf": [
+                                                                    {
+                                                                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
+                                                                    },
+                                                                    {
+                                                                        "type": "array",
+                                                                        "items": {
+                                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
+                                                                        }
+                                                                    },
+                                                                    {
+                                                                        "type": "null"
+                                                                    }
+                                                                ]
+                                                            }
+                                                        },
+                                                        "directed": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": ["nodes"],
+                                                    "unevaluatedProperties": false
+                                                }
+                                            },
+                                            {
+                                                "if": {
+                                                    "properties": {
+                                                        "kind": {
+                                                            "const": "rule"
+                                                        }
+                                                    }
+                                                },
+                                                "then": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "kind": true,
+                                                        "where": {
+                                                            "oneOf": [
+                                                                {
+                                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/expression"
+                                                                },
+                                                                {
+                                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/boundRuleTree"
+                                                                }
+                                                            ]
+                                                        },
+                                                        "reading": {
+                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeReading"
+                                                        }
+                                                    },
+                                                    "required": ["where", "reading"],
+                                                    "unevaluatedProperties": false
+                                                }
+                                            }
+                                        ]
                                     }
-                                }
-                            ]
-                        },
-                        "scope": {
-                            "oneOf": [
-                                {
-                                    "type": "string",
-                                    "minLength": 1
                                 },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "nodes": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
-                                            }
+                                "required": ["define"],
+                                "unevaluatedProperties": false
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "types": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/typeName"
                                         },
-                                        "set": {
-                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/setId"
-                                        },
-                                        "window": {
-                                            "type": "object"
-                                        },
-                                        "filter": {
-                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/boundRuleTree"
-                                        },
-                                        "hidden": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
-                                            }
-                                        }
+                                        "minItems": 1
                                     }
+                                },
+                                "required": ["types"],
+                                "unevaluatedProperties": false
+                            },
+                            {
+                                "type": "object",
+                                "not": {
+                                    "anyOf": [
+                                        {
+                                            "required": ["set"]
+                                        },
+                                        {
+                                            "required": ["where"]
+                                        },
+                                        {
+                                            "required": ["nodes"]
+                                        },
+                                        {
+                                            "required": ["define"]
+                                        },
+                                        {
+                                            "required": ["types"]
+                                        }
+                                    ]
                                 }
-                            ]
-                        }
-                    }
+                            }
+                        ]
+                    },
+                    "replayable": {
+                        "type": "boolean",
+                        "default": true
+                    },
+                    "style": false
+                },
+                "dependentRequired": {
+                    "namespace": ["as"],
+                    "as": ["namespace"]
+                }
+            }
+        },
+        "layout": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "engine": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "options": {
+                    "type": "object"
+                },
+                "dimension": {
+                    "enum": [2, 3]
                 }
             },
-            "additionalProperties": false
-        }
+            "required": ["id", "dimension"],
+            "unevaluatedProperties": false
+        },
+        "xr": false,
+        "placed": false
     }
 }

@@ -1,11 +1,11 @@
 /**
  * @file The published specification of graphty documents version 2 (spec/): every JSON Schema
  * compiles, every example validates, every section file equals the matching section of the full
- * file, the worked example's hashes are the ones the specification defines, and the built-ins
- * registry (spec/builtins.md) names exactly what graphty-element's source accepts.
+ * file, the schemas refuse the members the design removed, the worked example keeps the rules on
+ * keys, build and copy ids and spaces, and the built-ins registry (spec/builtins.md) names exactly
+ * what graphty-element's source accepts.
  */
 
-import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -30,6 +30,7 @@ import { TRANSITION_PRESETS } from "../../src/transitions/presets";
 
 const SPEC = new URL("../../spec/", import.meta.url);
 const SCHEMA_URL = "https://graphty.app/schema/documents/";
+const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type JsonObject = Record<string, Json>;
@@ -69,24 +70,14 @@ function errorsOf(doc: JsonObject): string {
     return validate?.(doc) === true ? "" : ajv.errorsText(validate?.errors, { separator: "\n" });
 }
 
-/** RFC 8785 canonical JSON for values with no non-finite numbers. */
-function canon(value: Json): string {
-    if (value === null || typeof value !== "object") {
-        return JSON.stringify(value);
-    }
-    if (Array.isArray(value)) {
-        return `[${value.map(canon).join(",")}]`;
-    }
-    const keys = Object.keys(value).sort();
-    return `{${keys.map((key) => `${JSON.stringify(key)}:${canon(value[key])}`).join(",")}}`;
-}
-
-const sha = (text: string): string => `sha256:${createHash("sha256").update(text, "utf8").digest("hex")}`;
-
 const examples = (dir: string): string[] =>
     readdirSync(new URL(`examples/${dir}`, SPEC))
         .filter((file) => file.endsWith(".json"))
         .sort((a, b) => a.localeCompare(b));
+
+/** The worked example's full file, read fresh so a test may change it. */
+const cardFraud = (): JsonObject => readJson(new URL("examples/card-fraud.graphty.json", SPEC));
+const sectionsOf = (full: JsonObject): Record<string, JsonObject> => full.sections as Record<string, JsonObject>;
 
 describe("the version 2 schemas", () => {
     it("compile, each under the $id its path names", () => {
@@ -132,8 +123,7 @@ describe("the examples", () => {
             ["", "card-fraud"],
             ["minimal/", "minimal"],
         ] as const) {
-            const full = readJson(new URL(`examples/${dir}${stem}.graphty.json`, SPEC));
-            const sections = full.sections as Record<string, JsonObject>;
+            const sections = sectionsOf(readJson(new URL(`examples/${dir}${stem}.graphty.json`, SPEC)));
             for (const file of examples(dir).filter((each) => each.startsWith(`${stem}.graphty-`))) {
                 const key = file.slice(`${stem}.graphty-`.length, -".json".length);
                 const alone = readJson(new URL(`examples/${dir}${file}`, SPEC));
@@ -145,102 +135,211 @@ describe("the examples", () => {
         }
     });
 
-    it("refuse a section whose kind disagrees with its key, and a style that names an element", () => {
-        const full = readJson(new URL("examples/card-fraud.graphty.json", SPEC));
-        const sections = full.sections as Record<string, JsonObject>;
+    it("let the key decide: a known key holding another kind is held, never a refusal of the file", () => {
+        const full = cardFraud();
+        const sections = sectionsOf(full);
         const swapped = { ...full, sections: { ...sections, style: sections.recipe } };
-        assert.notStrictEqual(errorsOf(swapped), "");
-        const { style } = sections;
-        const layers = style.layers as JsonObject[];
-        const naming = {
-            ...style,
-            layers: [...layers, { id: "x", name: "x", selector: { match: "ids", nodes: [] }, set: {} }],
-        };
-        assert.notStrictEqual(errorsOf(naming), "");
+        assert.strictEqual(errorsOf(swapped), "");
     });
 
-    it("carry the hashes the specification defines", () => {
-        const data = readJson(new URL("examples/card-fraud.graphty-data.json", SPEC));
-        const results = readJson(new URL("examples/card-fraud.graphty-results.json", SPEC));
-        const view = readJson(new URL("examples/card-fraud.graphty-view.json", SPEC));
+    it("hold the key, build and copy ids the design mints", () => {
+        const { data, results } = sectionsOf(cardFraud());
+        assert.match(text(data.build), ULID);
         const sources = data.sources as JsonObject[];
-        const byId = new Map(sources.map((source) => [text(source.id), source]));
-        const hashOf = (source: JsonObject): string => text((source.origin as JsonObject).hash);
-
-        // The reader source and a network source hash the canonical JSON of their copies.
-        const reader = byId.get("reader") as JsonObject;
-        assert.strictEqual(hashOf(reader), sha(canon(reader.copy)));
-        const activity = byId.get("activity") as JsonObject;
-        assert.strictEqual(hashOf(activity), sha(canon(activity.copy)));
-
-        // The fingerprint covers every input the build reads.
-        const settings: JsonObject = {};
-        for (const source of sources.filter((each) => each.kind !== "reader")) {
-            const entry: JsonObject = {};
-            for (const key of ["format", "options", "mapping", "settings"]) {
-                if (source[key] !== undefined) {
-                    entry[key] = source[key];
-                }
-            }
-            settings[text(source.id)] = entry;
-        }
-        const types = (data.types as JsonObject[]).map(({ plainName: _plainName, ...rest }) => rest);
-        const issues = data.issues as JsonObject;
-        const fingerprint = sha(
-            canon({
-                sources: Object.fromEntries(sources.map((source) => [text(source.id), hashOf(source)])),
-                settings,
-                types,
-                kept: issues.kept,
-                joins: data.joins,
-            }),
+        const copies = Object.fromEntries(
+            sources.map((source) => [text(source.id), text((source.origin as JsonObject).copy)]),
         );
-        const bindsTo = results.bindsTo as JsonObject;
-        assert.strictEqual(bindsTo.fingerprint, fingerprint);
-        assert.deepEqual(bindsTo.sources, Object.fromEntries(sources.map((s) => [text(s.id), hashOf(s)])));
-
-        // An edge without a key is named by the hash of its source row, without its ends and id.
-        const edges = (activity.copy as JsonObject).edges as Record<string, Json[]>;
-        const edgeMapping = (activity.mapping as JsonObject).edges as Record<string, string>;
-        const skip = new Set([edgeMapping.edgeId, edgeMapping.source, edgeMapping.target]);
-        const rowHash = (row: number): string => {
-            const values: JsonObject = {};
-            for (const [column, cells] of Object.entries(edges)) {
-                if (!skip.has(column) && cells[row] !== null) {
-                    values[column] = cells[row];
-                }
-            }
-            return sha(canon({ source: "activity", row: values }));
-        };
-        const unkeyed = new Map<string, string>();
-        edges[edgeMapping.edgeId].forEach((key, row) => {
-            if (key === null) {
-                unkeyed.set(
-                    `${text(edges[edgeMapping.source][row])}>${text(edges[edgeMapping.target][row])}`,
-                    rowHash(row),
+        for (const source of sources) {
+            const copy = copies[text(source.id)];
+            if (source.kind === "reader") {
+                assert.strictEqual(source.id, "reader");
+                assert.match(copy, ULID);
+            } else {
+                assert.match(text(source.id), /^src_[0-9A-HJKMNP-TV-Z]{26}$/);
+                assert.match(
+                    copy,
+                    ["file", "url", "sample"].includes(text(source.kind)) ? /^sha256:[0-9a-f]{64}$/ : ULID,
                 );
             }
-        });
-        const selected = ((view.selection as JsonObject).edges as JsonObject[])[0];
-        const ends = `${text((selected.from as JsonObject).key)}>${text((selected.to as JsonObject).key)}`;
-        assert.strictEqual(selected.h, unkeyed.get(ends));
+        }
+        const records = [...Object.values(results.runs as Record<string, JsonObject>), results.layout as JsonObject];
+        for (const record of records) {
+            const binds = record.bindsTo as JsonObject;
+            assert.strictEqual(binds.build, data.build);
+            assert.deepEqual(binds.sources, copies);
+        }
     });
 
-    it("hold equal-length output columns in every result run", () => {
-        const results = readJson(new URL("examples/card-fraud.graphty-results.json", SPEC));
+    it("key a keyless edge row <copy id>#<row from 0>, and write every space", () => {
+        const { data } = sectionsOf(cardFraud());
+        const links = (data.graph as JsonObject).links as JsonObject[];
+        const nodes = (data.graph as JsonObject).nodes as JsonObject[];
+        for (const source of (data.sources as JsonObject[]).filter((each) => each.kind !== "reader")) {
+            const id = text(source.id);
+            const copyId = text((source.origin as JsonObject).copy);
+            const mapping = source.mapping as Record<string, Record<string, Json>>;
+            const tables = source.copy as Record<string, Record<string, Json[]>>;
+            if (mapping.nodes !== undefined) {
+                // A node key is always in a written space; a keyless node row in source:<id>.
+                const space = mapping.nodes.key === undefined ? `source:${id}` : text(mapping.nodes.space);
+                const keys = tables.nodes[text(mapping.nodes.key)];
+                for (const key of keys) {
+                    const node = nodes.find((each) => each["graphty.key"] === key && each["graphty.space"] === space);
+                    assert.isDefined(node, `${id} node ${text(key)} in ${space}`);
+                }
+            }
+            if (tables.edges === undefined) {
+                continue;
+            }
+            const cells = tables.edges[text(mapping.edges.edgeId)];
+            const expected = cells.map((cell, row) => (cell === null || cell === "" ? `${copyId}#${row}` : text(cell)));
+            const actual = links.filter((link) => link["graphty.load"] === id).map((link) => text(link["graphty.key"]));
+            assert.sameMembers(actual, expected, id);
+        }
+    });
+
+    it("hold equal-length output columns in every result run and in the layout", () => {
+        const { results } = sectionsOf(cardFraud());
+        const outputs: [string, JsonObject][] = [];
         for (const [id, run] of Object.entries(results.runs as Record<string, JsonObject>)) {
             for (const domain of ["nodes", "edges"]) {
-                const outputs = run[domain] as JsonObject | undefined;
-                if (outputs === undefined) {
-                    continue;
-                }
-                const count = (outputs.refs as Json[]).length;
-                for (const [field, values] of Object.entries(outputs.columns as Record<string, Json[]>)) {
-                    assert.lengthOf(values, count, `${id}.${domain}.${field}`);
+                if (run[domain] !== undefined) {
+                    outputs.push([`${id}.${domain}`, run[domain] as JsonObject]);
                 }
             }
         }
+        outputs.push(["layout.nodes", (results.layout as JsonObject).nodes as JsonObject]);
+        for (const [where, output] of outputs) {
+            const count = (output.refs as Json[]).length;
+            for (const [field, values] of Object.entries(output.columns as Record<string, Json[]>)) {
+                assert.lengthOf(values, count, `${where}.${field}`);
+            }
+        }
     });
+});
+
+/** A change to one section of the worked example that the schemas must refuse. */
+interface Mutation {
+    readonly name: string;
+    readonly section: string;
+    readonly change: (section: JsonObject) => void;
+}
+
+const first = (list: Json): JsonObject => (list as JsonObject[])[0];
+const sourceAt = (data: JsonObject, index: number): JsonObject => (data.sources as JsonObject[])[index];
+
+const MUTATIONS: Mutation[] = [
+    {
+        name: "an edge reference by ends and row hash (h, n)",
+        section: "notes",
+        change: (notes) => {
+            const target = first(first(notes.notes).targets);
+            Object.assign(target, { edge: { from: {}, to: {}, h: `sha256:${"0".repeat(64)}`, n: 0 } });
+        },
+    },
+    {
+        name: "a fingerprint in bindsTo",
+        section: "results",
+        change: (results) => {
+            Object.assign(results.bindsTo as JsonObject, { fingerprint: `sha256:${"0".repeat(64)}` });
+        },
+    },
+    {
+        name: "a revision in the header",
+        section: "style",
+        change: (style) => Object.assign(style, { revision: "1.0.0" }),
+    },
+    { name: "a layer kind", section: "style", change: (style) => Object.assign(first(style.layers), { kind: "base" }) },
+    { name: "a re-key log", section: "data", change: (data) => Object.assign(data, { rekeys: [] }) },
+    { name: 'copy: "graph"', section: "data", change: (data) => Object.assign(sourceAt(data, 1), { copy: "graph" }) },
+    {
+        name: "a replaced time",
+        section: "data",
+        change: (data) => Object.assign(sourceAt(data, 1), { replaced: "2026-11-14T18:00:00.000Z" }),
+    },
+    {
+        name: "per-source direction",
+        section: "data",
+        change: (data) => Object.assign(sourceAt(data, 2).settings as JsonObject, { directed: true }),
+    },
+    {
+        name: "a hand-chosen source id",
+        section: "data",
+        change: (data) => Object.assign(sourceAt(data, 1), { id: "accounts" }),
+    },
+    {
+        name: "the four reader-edit sets",
+        section: "data",
+        change: (data) => Object.assign(sourceAt(data, 0), { copy: { edits: [], added: [], removed: [], merges: [] } }),
+    },
+    {
+        name: "issues.fixed",
+        section: "data",
+        change: (data) => Object.assign(data.issues as JsonObject, { fixed: [] }),
+    },
+    {
+        name: "a join.link choice",
+        section: "data",
+        change: (data) => Object.assign(first(data.joins), { link: { column: "mcc" } }),
+    },
+    {
+        name: "a type entry's domain",
+        section: "data",
+        change: (data) => Object.assign(first(data.types), { domain: "node" }),
+    },
+    { name: "an XR placement", section: "view", change: (view) => Object.assign(view, { xr: {} }) },
+    { name: "placed positions", section: "view", change: (view) => Object.assign(view, { placed: [] }) },
+    {
+        name: "a layer anchor (after)",
+        section: "view",
+        change: (view) => Object.assign(first(view.layers), { after: "base" }),
+    },
+    {
+        name: "a view run without its id",
+        section: "view",
+        change: (view) => {
+            delete first(view.runs).id;
+        },
+    },
+    {
+        name: "a view run with style",
+        section: "view",
+        change: (view) => Object.assign(first(view.runs), { style: false }),
+    },
+    {
+        name: "a view run over the bare selection",
+        section: "view",
+        change: (view) => Object.assign(first(view.runs), { scope: "selection" }),
+    },
+    {
+        name: "a raw-window flag",
+        section: "view",
+        change: (view) => Object.assign((view.visibility as JsonObject).window as JsonObject, { raw: true }),
+    },
+    {
+        name: "a role-keyed column dependency",
+        section: "style",
+        change: (style) => {
+            const columns = (style.dependencies as JsonObject).columns as JsonObject[];
+            columns[0] = { role: "weight", schema: { type: "number" } };
+        },
+    },
+    {
+        name: "a style selector that names an element",
+        section: "style",
+        change: (style) => Object.assign(first(style.layers), { selector: { match: "ids", nodes: [] } }),
+    },
+];
+
+describe("the schemas refuse what the design removed", () => {
+    for (const mutation of MUTATIONS) {
+        it(mutation.name, () => {
+            const section = sectionsOf(cardFraud())[mutation.section];
+            assert.strictEqual(errorsOf(section), "", "the example is valid before the change");
+            mutation.change(section);
+            assert.notStrictEqual(errorsOf(section), "", mutation.name);
+        });
+    }
 });
 
 /**

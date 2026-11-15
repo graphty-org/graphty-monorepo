@@ -39,14 +39,7 @@
             "targets": [
                 {
                     "edge": {
-                        "from": {
-                            "space": "account",
-                            "key": "acct-1002"
-                        },
-                        "to": {
-                            "space": "merchant",
-                            "key": "merch-77"
-                        },
+                        "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
                         "key": "pay-889"
                     }
                 }

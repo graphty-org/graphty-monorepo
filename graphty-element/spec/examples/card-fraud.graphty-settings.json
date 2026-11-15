@@ -10,6 +10,7 @@
     "dependencies": {
         "columns": [
             {
+                "kind": "edge",
                 "name": "time",
                 "schema": {
                     "type": "string",

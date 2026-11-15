@@ -4,43 +4,41 @@
     "version": 2,
     "id": "d1a7c0de-0001-4000-8000-000000000001",
     "created": "2026-11-10T17:02:00.000Z",
-    "modified": "2026-11-14T17:42:00.000Z",
+    "modified": "2026-11-14T17:41:30.000Z",
     "generator": {
         "name": "graphty-element",
         "version": "3.40.0"
     },
+    "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+    "directed": true,
+    "repeatedEdges": "keep",
     "sources": [
         {
             "id": "reader",
             "label": "Your changes",
             "kind": "reader",
             "origin": {
-                "hash": "sha256:cc8f9f240589d5fab437538bb038dd9dcd03ec8e5dd48a23ef8aa5e98096e0c9"
+                "copy": "01JCBQ3G6J8M0P2R4T6W8Y1A3C"
             },
             "copy": {
-                "edits": [
+                "operations": [
                     {
+                        "op": "edit",
                         "node": {
                             "space": "account",
                             "key": "acct-1003"
                         },
-                        "columns": {
-                            "country": {
-                                "value": "NG",
-                                "was": "GH"
-                            }
-                        }
+                        "column": "country",
+                        "value": "NG",
+                        "was": "GH"
                     }
-                ],
-                "added": [],
-                "removed": [],
-                "merges": []
+                ]
             },
             "loaded": "2026-11-14T17:41:30.000Z"
         },
         {
-            "id": "accounts",
-            "label": "accounts-2026-11.csv",
+            "id": "src_01JCBP0A7Q3M5V8X2K4N6R9T1W",
+            "label": "accounts",
             "kind": "file",
             "format": "csv",
             "options": {
@@ -50,10 +48,9 @@
             },
             "origin": {
                 "name": "accounts-2026-11.csv",
-                "path": "accounts-2026-11.csv",
-                "size": 127,
+                "size": 142,
                 "mediaType": "text/csv",
-                "hash": "sha256:2d78d9b0925110f381b2f2f0c01ebfef2d71ef73afe53b7f3674f7a3d3d79831"
+                "copy": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4"
             },
             "mapping": {
                 "nodes": {
@@ -65,15 +62,12 @@
                 }
             },
             "settings": {
-                "directed": true,
-                "duplicateIds": "first",
-                "unmatched": "add",
-                "repeatedEdges": "keep"
+                "duplicateIds": "first"
             },
             "copy": {
                 "nodes": {
                     "account_id": ["acct-1001", "acct-1002", "acct-1003"],
-                    "holder": ["Ana Ruiz", "Ben Ode", "Cy Lam"],
+                    "label": ["Ana Ruiz", "Ben Ode", "Cy Lam"],
                     "opened": ["2021-03-02", "2026-10-30", "2026-11-01"],
                     "country": [null, "NG", "GH"]
                 }
@@ -85,10 +79,13 @@
                         "dtype": "string",
                         "nullable": false
                     },
-                    "holder": {
-                        "name": "holder",
+                    "label": {
+                        "name": "label",
                         "dtype": "string",
-                        "nullable": false
+                        "nullable": false,
+                        "origin": {
+                            "title": "holder"
+                        }
                     },
                     "opened": {
                         "name": "opened",
@@ -105,7 +102,7 @@
             "loaded": "2026-11-14T17:40:00.000Z"
         },
         {
-            "id": "activity",
+            "id": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
             "label": "Bank API: card activity, week 46",
             "kind": "network",
             "format": "json",
@@ -121,13 +118,14 @@
                 },
                 "mediaType": "application/json",
                 "size": 1873,
-                "hash": "sha256:fc9a1f29ee5b6bc787dea94715293106fe37f80a9ce153e4eb9ad07a9be88a09",
+                "copy": "01JCBQ2F5H7K9M1P3R5T7W9Y2A",
                 "etag": "\"a41f-46\"",
                 "lastModified": "Fri, 14 Nov 2026 17:30:00 GMT"
             },
             "mapping": {
                 "nodes": {
                     "key": "id",
+                    "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
                     "renamed": {
                         "name": "label"
                     }
@@ -137,6 +135,8 @@
                     "source": "account_id",
                     "sourceSpace": "account",
                     "target": "counterparty_id",
+                    "targetSpace": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                    "time": "time",
                     "renamed": {
                         "amt": "amount",
                         "ts": "time"
@@ -144,27 +144,24 @@
                 }
             },
             "settings": {
-                "time": "ts",
-                "directed": true,
                 "duplicateIds": "first",
-                "unmatched": "add",
-                "repeatedEdges": "keep"
+                "unmatched": "add"
             },
             "copy": {
                 "nodes": {
-                    "id": ["dev-9f3", "merch-77"],
-                    "kind": ["device", "merchant"],
-                    "name": ["Android 9f3", "QuickGift Cards"],
-                    "mcc": [null, "5947"]
+                    "id": ["merch-77", "dev-9f3"],
+                    "kind": ["merchant", "device"],
+                    "label": ["QuickGift Cards", "Android 9f3"],
+                    "mcc": ["5947", null]
                 },
                 "edges": {
-                    "event_id": ["pay-881", "pay-889", null, "pay-890", null],
-                    "account_id": ["acct-1001", "acct-1002", "acct-1002", "acct-1003", "acct-1003"],
-                    "counterparty_id": ["merch-77", "merch-77", "dev-9f3", "merch-77", "dev-9f3"],
-                    "event": ["payment", "payment", "device-login", "payment", "device-login"],
-                    "amt": [42.5, 980, null, 975, null],
-                    "ts": ["2026-11-10T09:14:00Z", "2026-11-10T09:15:10Z", null, "2026-11-10T09:15:40Z", null],
-                    "first_seen": [null, null, "2026-11-08T22:10:00Z", null, "2026-11-09T01:45:00Z"]
+                    "event_id": ["pay-881", "pay-889", "pay-890", null, null],
+                    "account_id": ["acct-1001", "acct-1002", "acct-1003", "acct-1002", "acct-1003"],
+                    "counterparty_id": ["merch-77", "merch-77", "merch-77", "dev-9f3", "dev-9f3"],
+                    "event": ["payment", "payment", "payment", "device-login", "device-login"],
+                    "amount": [42.5, 980, 975, null, null],
+                    "time": ["2026-11-10T09:14:00Z", "2026-11-10T09:15:10Z", "2026-11-10T09:15:40Z", null, null],
+                    "first_seen": [null, null, null, "2026-11-08T22:10:00Z", "2026-11-09T01:45:00Z"]
                 }
             },
             "columns": {
@@ -179,10 +176,13 @@
                         "dtype": "string",
                         "nullable": false
                     },
-                    "name": {
-                        "name": "name",
+                    "label": {
+                        "name": "label",
                         "dtype": "string",
-                        "nullable": false
+                        "nullable": false,
+                        "origin": {
+                            "title": "name"
+                        }
                     },
                     "mcc": {
                         "name": "mcc",
@@ -211,15 +211,21 @@
                         "dtype": "string",
                         "nullable": false
                     },
-                    "amt": {
-                        "name": "amt",
+                    "amount": {
+                        "name": "amount",
                         "dtype": "f64",
-                        "nullable": true
+                        "nullable": true,
+                        "origin": {
+                            "title": "amt"
+                        }
                     },
-                    "ts": {
-                        "name": "ts",
+                    "time": {
+                        "name": "time",
                         "dtype": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "origin": {
+                            "title": "ts"
+                        }
                     },
                     "first_seen": {
                         "name": "first_seen",
@@ -234,11 +240,11 @@
     "types": [
         {
             "name": "account",
-            "domain": "node",
+            "kind": "node",
             "plainName": "Account",
             "rules": [
                 {
-                    "source": "accounts"
+                    "source": "src_01JCBP0A7Q3M5V8X2K4N6R9T1W"
                 }
             ],
             "schema": {
@@ -261,11 +267,11 @@
         },
         {
             "name": "merchant",
-            "domain": "node",
+            "kind": "node",
             "plainName": "Merchant",
             "rules": [
                 {
-                    "source": "activity",
+                    "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
                     "column": "kind",
                     "values": ["merchant"]
                 }
@@ -276,10 +282,6 @@
                     "label": {
                         "type": "string"
                     },
-                    "kind": {
-                        "type": "string",
-                        "measurement": "categorical"
-                    },
                     "mcc": {
                         "type": "string",
                         "measurement": "categorical"
@@ -289,11 +291,11 @@
         },
         {
             "name": "device",
-            "domain": "node",
+            "kind": "node",
             "plainName": "Device",
             "rules": [
                 {
-                    "source": "activity",
+                    "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
                     "column": "kind",
                     "values": ["device"]
                 }
@@ -303,21 +305,17 @@
                 "properties": {
                     "label": {
                         "type": "string"
-                    },
-                    "kind": {
-                        "type": "string",
-                        "measurement": "categorical"
                     }
                 }
             }
         },
         {
             "name": "payment",
-            "domain": "edge",
+            "kind": "edge",
             "plainName": "Payment",
             "rules": [
                 {
-                    "source": "activity",
+                    "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
                     "column": "event",
                     "values": ["payment"]
                 }
@@ -325,10 +323,6 @@
             "schema": {
                 "type": "object",
                 "properties": {
-                    "event": {
-                        "type": "string",
-                        "measurement": "categorical"
-                    },
                     "amount": {
                         "type": "number",
                         "measurement": "quantitative",
@@ -344,11 +338,11 @@
         },
         {
             "name": "used-device",
-            "domain": "edge",
+            "kind": "edge",
             "plainName": "Used device",
             "rules": [
                 {
-                    "source": "activity",
+                    "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
                     "column": "event",
                     "values": ["device-login"]
                 }
@@ -356,10 +350,6 @@
             "schema": {
                 "type": "object",
                 "properties": {
-                    "event": {
-                        "type": "string",
-                        "measurement": "categorical"
-                    },
                     "first_seen": {
                         "type": "string",
                         "format": "date-time",
@@ -369,22 +359,27 @@
             }
         }
     ],
+    "conversions": [],
     "issues": {
-        "ignored": [],
-        "kept": [],
-        "fixed": []
+        "ignored": [
+            {
+                "code": "padded-space",
+                "kind": "node",
+                "name": "label"
+            }
+        ],
+        "kept": []
     },
     "joins": [
         {
             "op": "join.add",
-            "source": "accounts"
+            "source": "src_01JCBP0A7Q3M5V8X2K4N6R9T1W"
         },
         {
             "op": "join.add",
-            "source": "activity"
+            "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"
         }
     ],
-    "rekeys": [],
     "graph": {
         "directed": true,
         "multigraph": false,
@@ -395,7 +390,7 @@
                 "graphty.space": "account",
                 "graphty.key": "acct-1001",
                 "graphty.types": ["account"],
-                "_source.loads": ["accounts"],
+                "_source.loads": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
                 "label": "Ana Ruiz",
                 "opened": "2021-03-02"
             },
@@ -404,7 +399,7 @@
                 "graphty.space": "account",
                 "graphty.key": "acct-1002",
                 "graphty.types": ["account"],
-                "_source.loads": ["accounts"],
+                "_source.loads": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
                 "label": "Ben Ode",
                 "opened": "2026-10-30",
                 "country": "NG"
@@ -414,76 +409,76 @@
                 "graphty.space": "account",
                 "graphty.key": "acct-1003",
                 "graphty.types": ["account"],
-                "_source.loads": ["accounts"],
+                "_source.loads": ["reader", "src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
                 "label": "Cy Lam",
                 "opened": "2026-11-01",
                 "country": "NG"
             },
             {
                 "id": 3,
-                "graphty.space": "device",
-                "graphty.key": "dev-9f3",
-                "graphty.types": ["device"],
-                "_source.loads": ["activity"],
-                "kind": "device",
-                "label": "Android 9f3"
+                "graphty.space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                "graphty.key": "merch-77",
+                "graphty.types": ["merchant"],
+                "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                "label": "QuickGift Cards",
+                "mcc": "5947"
             },
             {
                 "id": 4,
-                "graphty.space": "merchant",
-                "graphty.key": "merch-77",
-                "graphty.types": ["merchant"],
-                "_source.loads": ["activity"],
-                "kind": "merchant",
-                "label": "QuickGift Cards",
-                "mcc": "5947"
+                "graphty.space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                "graphty.key": "dev-9f3",
+                "graphty.types": ["device"],
+                "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                "label": "Android 9f3"
             }
         ],
         "links": [
             {
                 "source": 0,
-                "target": 4,
-                "key": "pay-881",
+                "target": 3,
+                "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                "graphty.key": "pay-881",
                 "graphty.types": ["payment"],
-                "_source.loads": ["activity"],
-                "event": "payment",
+                "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
                 "amount": 42.5,
                 "time": "2026-11-10T09:14:00Z"
             },
             {
                 "source": 1,
-                "target": 4,
-                "key": "pay-889",
+                "target": 3,
+                "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                "graphty.key": "pay-889",
                 "graphty.types": ["payment"],
-                "_source.loads": ["activity"],
-                "event": "payment",
+                "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
                 "amount": 980,
                 "time": "2026-11-10T09:15:10Z"
             },
             {
-                "source": 1,
+                "source": 2,
                 "target": 3,
+                "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                "graphty.key": "pay-890",
+                "graphty.types": ["payment"],
+                "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                "amount": 975,
+                "time": "2026-11-10T09:15:40Z"
+            },
+            {
+                "source": 1,
+                "target": 4,
+                "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3",
                 "graphty.types": ["used-device"],
-                "_source.loads": ["activity"],
-                "event": "device-login",
+                "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
                 "first_seen": "2026-11-08T22:10:00Z"
             },
             {
                 "source": 2,
                 "target": 4,
-                "key": "pay-890",
-                "graphty.types": ["payment"],
-                "_source.loads": ["activity"],
-                "event": "payment",
-                "amount": 975,
-                "time": "2026-11-10T09:15:40Z"
-            },
-            {
-                "source": 2,
-                "target": 3,
+                "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#4",
                 "graphty.types": ["used-device"],
-                "_source.loads": ["activity"],
-                "event": "device-login",
+                "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
                 "first_seen": "2026-11-09T01:45:00Z"
             }
         ]

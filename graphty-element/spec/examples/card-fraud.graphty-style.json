@@ -3,7 +3,6 @@
     "kind": "graphty-style",
     "version": 2,
     "id": "org.example-bank.fraud-review-style",
-    "revision": "3.1.0",
     "name": "Fraud review style",
     "description": "Highlights near-limit gift card payments and colors accounts by PageRank.",
     "created": "2026-09-02T16:20:00.000Z",
@@ -24,6 +23,7 @@
     "dependencies": {
         "columns": [
             {
+                "kind": "edge",
                 "name": "amount",
                 "schema": {
                     "type": "number",
@@ -32,6 +32,7 @@
                 }
             },
             {
+                "kind": "node",
                 "name": "mcc",
                 "schema": {
                     "type": "string",
@@ -53,14 +54,6 @@
             "colors": ["#2e7d32", "#f9a825", "#c62828"],
             "capacity": null,
             "colorblindSafe": []
-        },
-        {
-            "id": "okabe-ito",
-            "plainName": "Eight Distinct Colors",
-            "kind": "categorical",
-            "colors": ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"],
-            "capacity": 8,
-            "colorblindSafe": ["deuteranopia", "protanopia", "tritanopia"]
         }
     ],
     "layers": [
@@ -68,7 +61,6 @@
             "id": "base",
             "name": "Everything",
             "target": "node",
-            "kind": "base",
             "selector": {
                 "match": "everything"
             },
@@ -108,7 +100,6 @@
             "id": "device-rings",
             "name": "Device rings",
             "target": "node",
-            "kind": "encoding",
             "selector": {
                 "match": "has",
                 "path": "results.communities.group"
@@ -120,13 +111,20 @@
                     "palette": "okabe-ito",
                     "overflow": "other"
                 }
+            },
+            "source": {
+                "by": "run",
+                "runId": "communities",
+                "algorithm": "louvain",
+                "params": {
+                    "resolution": 1
+                }
             }
         },
         {
             "id": "risk-score",
             "name": "Risk by PageRank",
             "target": "node",
-            "kind": "encoding",
             "selector": {
                 "match": "has",
                 "path": "results.pagerank.value"
@@ -143,7 +141,6 @@
             "id": "selected",
             "name": "Selected",
             "target": "node",
-            "kind": "highlight",
             "selector": {
                 "match": "state",
                 "state": "selected"
@@ -155,7 +152,7 @@
     ],
     "valueLabels": [
         {
-            "column": "mcc",
+            "path": "data.mcc",
             "value": "5947",
             "label": "Gift, card, novelty and souvenir shops"
         }

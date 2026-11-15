@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/common/v2.json",
     "title": "graphty documents version 2: shared definitions",
-    "description": "Definitions shared by the wrapper and every section schema (spec/README.md). Not a document kind: nothing is validated against this schema's root.",
+    "description": "Definitions the version 2 schemas share: the header, ids, element references, rule trees, style layers and join steps.",
     "$defs": {
         "timestamp": {
             "type": "string",
@@ -13,11 +13,6 @@
             "type": "string",
             "description": "sha256: followed by 64 lower-case hex digits.",
             "pattern": "^sha256:[0-9a-f]{64}$"
-        },
-        "semver": {
-            "type": "string",
-            "maxLength": 256,
-            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
         },
         "reverseDomain": {
             "type": "string",
@@ -83,9 +78,6 @@
                     "minLength": 1,
                     "maxLength": 2048
                 },
-                "revision": {
-                    "$ref": "#/$defs/semver"
-                },
                 "name": {
                     "type": "string",
                     "maxLength": 1024
@@ -138,7 +130,8 @@
                 },
                 "extensions": {
                     "$ref": "#/$defs/extensions"
-                }
+                },
+                "revision": false
             }
         },
         "extensionDependency": {
@@ -171,21 +164,11 @@
         },
         "columnDependency": {
             "type": "object",
-            "required": ["schema"],
-            "oneOf": [
-                {
-                    "required": ["name"]
-                },
-                {
-                    "required": ["role"]
-                }
-            ],
             "properties": {
-                "name": {
-                    "type": "string",
-                    "minLength": 1
+                "kind": {
+                    "enum": ["node", "edge"]
                 },
-                "role": {
+                "name": {
                     "type": "string",
                     "minLength": 1
                 },
@@ -193,6 +176,8 @@
                     "$ref": "#/$defs/columnSchema"
                 }
             },
+            "required": ["kind", "name", "schema"],
+            "description": "A working column a reusable section needs, spelled as graphty-element's ColumnRef, and the schema the mapping step checks it against.",
             "unevaluatedProperties": false
         },
         "reusableDependencies": {
@@ -213,29 +198,12 @@
                 },
                 "sources": {
                     "type": "array",
+                    "description": "The source role names the section names.",
                     "items": {
-                        "type": "object",
-                        "required": ["role"],
-                        "properties": {
-                            "role": {
-                                "type": "string",
-                                "minLength": 1
-                            },
-                            "columns": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string",
-                                    "minLength": 1
-                                }
-                            },
-                            "types": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/$defs/typeName"
-                                }
-                            }
-                        }
-                    }
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "uniqueItems": true
                 },
                 "results": {
                     "type": "array",
@@ -265,14 +233,16 @@
         },
         "bindsToData": {
             "type": "object",
-            "required": ["data"],
             "properties": {
                 "data": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 2048
                 }
-            }
+            },
+            "required": ["data"],
+            "description": "The data section id this section was written on.",
+            "unevaluatedProperties": false
         },
         "typeName": {
             "type": "string",
@@ -283,14 +253,13 @@
         },
         "space": {
             "type": "string",
-            "description": "An id space: a type name, shared:<name>, source:<source id>, or link:<source id>:<column>. Prefixes are an open vocabulary.",
+            "description": "An opaque id space, compared exactly after NFC normalization, never parsed. A type name, shared:<name> and source:<source id> are only the names a writer proposes.",
             "minLength": 1
         },
         "sourceId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 256,
-            "pattern": "^[^:]+$"
+            "description": "src_ plus a ULID, minted by graphty-element and never reused; the reader source's id is always reader.",
+            "pattern": "^(src_[0-9A-HJKMNP-TV-Z]{26}|reader)$"
         },
         "namespace": {
             "type": "string",
@@ -311,14 +280,15 @@
         },
         "runId": {
             "type": "string",
-            "description": "<namespace>__<as>.",
+            "description": "A run id in graphty-element's form: <namespace>__<as> for a recipe-made run, the element's own id for a hand-started one.",
+            "minLength": 1,
             "maxLength": 128,
-            "pattern": "^[a-z][a-z0-9_]*__[a-z][a-z0-9_]*$"
+            "pattern": "^[A-Za-z0-9_.:-]+$"
         },
         "setId": {
             "type": "string",
-            "maxLength": 256,
-            "pattern": "^set_[0-9A-Za-z_-]+$"
+            "description": "set_ plus a ULID; set_<namespace>.<ULID> once a recipe's set is applied under a namespace.",
+            "pattern": "^set_([a-z][a-z0-9_]*\\.)?[0-9A-HJKMNP-TV-Z]{26}$"
         },
         "columnRef": {
             "type": "object",
@@ -350,47 +320,16 @@
         },
         "edgeRef": {
             "type": "object",
-            "description": "An edge by its ends plus its key, or plus h and n. Closed.",
-            "required": ["from", "to"],
+            "description": "An edge by record key: load names the source whose row made it, key its edge-id value, a minted ULID for a reader-added edge, or <copy id>#<row from 0> for a keyless row. Closed.",
+            "required": ["load", "key"],
             "properties": {
-                "from": {
-                    "$ref": "#/$defs/nodeRef"
-                },
-                "to": {
-                    "$ref": "#/$defs/nodeRef"
+                "load": {
+                    "$ref": "#/$defs/sourceId"
                 },
                 "key": {
                     "type": "string"
-                },
-                "h": {
-                    "$ref": "#/$defs/sha256"
-                },
-                "n": {
-                    "type": "integer",
-                    "minimum": 0
                 }
             },
-            "oneOf": [
-                {
-                    "required": ["key"],
-                    "not": {
-                        "anyOf": [
-                            {
-                                "required": ["h"]
-                            },
-                            {
-                                "required": ["n"]
-                            }
-                        ]
-                    }
-                },
-                {
-                    "required": ["h", "n"],
-                    "not": {
-                        "required": ["key"]
-                    }
-                }
-            ],
             "unevaluatedProperties": false
         },
         "elementRef": {
@@ -422,26 +361,30 @@
             ]
         },
         "position": {
-            "type": "array",
-            "description": "x, y, z in the scene frame (left-handed, y up, layout units). A 2D drawing writes z as 0.",
-            "items": {
-                "type": "number"
+            "type": "object",
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "z": {
+                    "type": "number"
+                }
             },
-            "minItems": 3,
-            "maxItems": 3
+            "required": ["x", "y", "z"],
+            "description": "A point in the scene frame (left-handed, y up, layout units). A 2D drawing writes z as 0.",
+            "unevaluatedProperties": false
         },
         "number": {
-            "description": "A number, or one plain JSON cannot carry: Infinity, -Infinity, NaN, or an integer beyond 2^53 - 1 as a decimal string.",
+            "description": "A number, or one plain JSON cannot carry: Infinity, -Infinity or NaN, read as a number only where the declared type is number.",
             "oneOf": [
                 {
                     "type": "number"
                 },
                 {
                     "enum": ["Infinity", "-Infinity", "NaN"]
-                },
-                {
-                    "type": "string",
-                    "pattern": "^-?[0-9]{16,}$"
                 }
             ]
         },
@@ -1075,7 +1018,7 @@
         },
         "layerBase": {
             "type": "object",
-            "description": "A style layer. Its top level is open; its selectors, bindings and carried palettes are closed.",
+            "description": "A style layer. It has an id and no kind. Its top level is open; its selectors, bindings and carried palettes are closed.",
             "required": ["id", "name", "selector"],
             "properties": {
                 "id": {
@@ -1091,10 +1034,7 @@
                 "target": {
                     "enum": ["node", "edge"]
                 },
-                "kind": {
-                    "type": "string",
-                    "minLength": 1
-                },
+                "kind": false,
                 "set": {
                     "$ref": "#/$defs/staticStyle"
                 },
@@ -1209,7 +1149,7 @@
         },
         "joinStep": {
             "type": "object",
-            "description": "A join or combine step. Closed. op is an open vocabulary; an unknown op holds the data section, or stops a recipe's replay.",
+            "description": "A join step: { op, source, ...choices }, naming sources by id in the join history and by role in a recipe. Closed. op is an open vocabulary: an unknown op holds the data section, or stops a recipe's replay.",
             "required": ["op", "source"],
             "properties": {
                 "op": {
@@ -1217,6 +1157,10 @@
                     "pattern": "^join\\.[a-z][a-z0-9-]*$"
                 },
                 "source": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "edges": {
                     "type": "string",
                     "minLength": 1
                 },
@@ -1229,15 +1173,37 @@
                 "lookup": true,
                 "mapping": true,
                 "aggregate": true,
-                "link": true,
                 "unmatchedFrom": true,
                 "unmatchedRows": true,
-                "unknownEnds": true,
                 "compare": true,
                 "membership": true,
                 "names": true
             },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "op": {
+                                "const": "join.edge-values"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": ["edges"]
+                    }
+                }
+            ],
             "unevaluatedProperties": false
+        },
+        "ulid": {
+            "type": "string",
+            "description": "A ULID: 26 Crockford base-32 characters.",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+        },
+        "copyId": {
+            "type": "string",
+            "description": "A source's copy id: sha256: plus lower-case hex of the bytes (file, url and sample sources), or a ULID minted whenever the copy changes (network, derived and reader sources).",
+            "pattern": "^(sha256:[0-9a-f]{64}|[0-9A-HJKMNP-TV-Z]{26})$"
         }
     }
 }

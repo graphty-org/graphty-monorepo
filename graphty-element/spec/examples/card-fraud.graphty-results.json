@@ -8,13 +8,7 @@
         "version": "3.40.0"
     },
     "bindsTo": {
-        "data": "d1a7c0de-0001-4000-8000-000000000001",
-        "sources": {
-            "reader": "sha256:cc8f9f240589d5fab437538bb038dd9dcd03ec8e5dd48a23ef8aa5e98096e0c9",
-            "accounts": "sha256:2d78d9b0925110f381b2f2f0c01ebfef2d71ef73afe53b7f3674f7a3d3d79831",
-            "activity": "sha256:fc9a1f29ee5b6bc787dea94715293106fe37f80a9ce153e4eb9ad07a9be88a09"
-        },
-        "fingerprint": "sha256:b322036be091bca422b46ca73e3715fb12818e7fe7c1ec09de1e6434b951fc2c"
+        "data": "d1a7c0de-0001-4000-8000-000000000001"
     },
     "runs": {
         "card_testing__pagerank": {
@@ -25,21 +19,30 @@
                 "dampingFactor": 0.85
             },
             "engine": {
-                "name": "@graphty/algorithms",
-                "version": "2.1.2"
+                "element": "3.40.0",
+                "algorithms": "2.1.2",
+                "layout": "1.10.5"
             },
             "seed": null,
             "durationMs": 3,
+            "bindsTo": {
+                "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+                "sources": {
+                    "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                    "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                    "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+                }
+            },
             "fields": [
                 {
                     "name": "value",
-                    "domain": "node",
+                    "kind": "node",
                     "type": "number"
                 },
                 {
                     "name": "rank",
-                    "domain": "node",
-                    "type": "integer"
+                    "kind": "node",
+                    "type": "number"
                 }
             ],
             "caveats": {
@@ -47,7 +50,11 @@
                 "converged": true,
                 "iterations": 21,
                 "direction": "directed",
-                "weight": null
+                "weight": null,
+                "filterScope": true,
+                "precision": "f64",
+                "method": "pagerank",
+                "facts": []
             },
             "nodes": {
                 "refs": [
@@ -64,17 +71,17 @@
                         "key": "acct-1003"
                     },
                     {
-                        "space": "device",
-                        "key": "dev-9f3"
+                        "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "key": "merch-77"
                     },
                     {
-                        "space": "merchant",
-                        "key": "merch-77"
+                        "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "key": "dev-9f3"
                     }
                 ],
                 "columns": {
-                    "value": [0.11, 0.24, 0.23, 0.11, 0.31],
-                    "rank": [4, 2, 3, 4, 1]
+                    "value": [0.11, 0.24, 0.23, 0.31, 0.11],
+                    "rank": [4, 2, 3, 1, 4]
                 }
             }
         },
@@ -86,40 +93,41 @@
                 "resolution": 1
             },
             "engine": {
-                "name": "@graphty/algorithms",
-                "version": "2.1.2"
+                "element": "3.40.0",
+                "algorithms": "2.1.2",
+                "layout": "1.10.5"
             },
             "seed": 1873,
             "durationMs": 2,
+            "bindsTo": {
+                "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+                "sources": {
+                    "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                    "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                    "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+                }
+            },
             "fields": [
                 {
                     "name": "group",
-                    "domain": "node",
-                    "type": "integer"
-                },
-                {
-                    "name": "groupSize",
-                    "domain": "node",
-                    "type": "integer"
-                },
-                {
-                    "name": "modularity",
-                    "domain": "graph",
+                    "kind": "node",
                     "type": "number"
                 },
                 {
-                    "name": "groupCount",
-                    "domain": "graph",
-                    "type": "integer"
+                    "name": "groupSize",
+                    "kind": "node",
+                    "type": "number"
                 }
             ],
             "caveats": {
                 "exact": true,
+                "seed": 1873,
                 "direction": "directed",
                 "weight": null,
-                "scope": {
-                    "types": ["account", "device"]
-                }
+                "filterScope": true,
+                "precision": "f64",
+                "method": "louvain",
+                "facts": []
             },
             "graph": {
                 "modularity": 0.22,
@@ -140,7 +148,7 @@
                         "key": "acct-1003"
                     },
                     {
-                        "space": "device",
+                        "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
                         "key": "dev-9f3"
                     }
                 ],
@@ -150,9 +158,7 @@
                 }
             }
         },
-        "session__route": {
-            "namespace": "session",
-            "as": "route",
+        "route": {
             "algorithm": "dijkstra",
             "params": {
                 "source": {
@@ -166,27 +172,34 @@
                 "direction": "all"
             },
             "engine": {
-                "name": "@graphty/algorithms",
-                "version": "2.1.2"
+                "element": "3.40.0",
+                "algorithms": "2.1.2",
+                "layout": "1.10.5"
             },
             "seed": null,
             "durationMs": 1,
+            "bindsTo": {
+                "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+                "sources": {
+                    "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                    "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                    "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+                }
+            },
             "fields": [
                 {
                     "name": "distance",
-                    "domain": "node",
+                    "kind": "node",
                     "type": "number"
-                },
-                {
-                    "name": "onPath",
-                    "domain": "edge",
-                    "type": "boolean"
                 }
             ],
             "caveats": {
                 "exact": true,
                 "direction": "directed",
-                "weight": null
+                "weight": null,
+                "precision": "f64",
+                "method": "dijkstra",
+                "facts": []
             },
             "nodes": {
                 "refs": [
@@ -195,7 +208,7 @@
                         "key": "acct-1002"
                     },
                     {
-                        "space": "device",
+                        "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
                         "key": "dev-9f3"
                     },
                     {
@@ -206,83 +219,58 @@
                 "columns": {
                     "distance": [0, 1, 2]
                 }
-            },
-            "edges": {
-                "refs": [
-                    {
-                        "from": {
-                            "space": "account",
-                            "key": "acct-1002"
-                        },
-                        "to": {
-                            "space": "device",
-                            "key": "dev-9f3"
-                        },
-                        "h": "sha256:722d766ae12854b9fc7dc07f84c1e411f1976fb97ea6db7425d2f496c199c581",
-                        "n": 0
-                    },
-                    {
-                        "from": {
-                            "space": "account",
-                            "key": "acct-1003"
-                        },
-                        "to": {
-                            "space": "device",
-                            "key": "dev-9f3"
-                        },
-                        "h": "sha256:494bfcc1f1772e28c7e9b66385b4fc494ca53b4dfdf442e877477150dd48d87b",
-                        "n": 0
-                    }
-                ],
-                "columns": {
-                    "onPath": [true, true]
-                }
+            }
+        }
+    },
+    "layout": {
+        "id": "force",
+        "engine": "ngraph",
+        "dimension": 3,
+        "options": {
+            "seed": 52211
+        },
+        "seed": 52211,
+        "durationMs": 41,
+        "versions": {
+            "element": "3.40.0",
+            "algorithms": "2.1.2",
+            "layout": "1.10.5"
+        },
+        "bindsTo": {
+            "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+            "sources": {
+                "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
             }
         },
-        "layout": {
-            "id": "force",
-            "engine": {
-                "name": "ngraph.forcelayout",
-                "version": "3.3.1"
-            },
-            "dimension": 3,
-            "options": {
-                "seed": 52211
-            },
-            "seed": 52211,
-            "durationMs": 41,
-            "nodes": {
-                "refs": [
-                    {
-                        "space": "account",
-                        "key": "acct-1001"
-                    },
-                    {
-                        "space": "account",
-                        "key": "acct-1002"
-                    },
-                    {
-                        "space": "account",
-                        "key": "acct-1003"
-                    },
-                    {
-                        "space": "device",
-                        "key": "dev-9f3"
-                    },
-                    {
-                        "space": "merchant",
-                        "key": "merch-77"
-                    }
-                ],
-                "columns": {
-                    "position": [
-                        [-3.2, 1.1, 0.4],
-                        [2, 2.4, -0.7],
-                        [2.6, 1.5, 0.9],
-                        [4.1, 3.3, 0.2],
-                        [0, 0, 0]
-                    ]
+        "nodes": {
+            "refs": [
+                {
+                    "space": "account",
+                    "key": "acct-1001"
+                },
+                {
+                    "space": "account",
+                    "key": "acct-1002"
+                },
+                {
+                    "space": "account",
+                    "key": "acct-1003"
+                },
+                {
+                    "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                    "key": "merch-77"
+                },
+                {
+                    "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                    "key": "dev-9f3"
                 }
+            ],
+            "columns": {
+                "x": [-3.2, 2, 2.6, 0, 4.1],
+                "y": [1.1, 2.4, 1.5, 0, 3.3],
+                "z": [0.4, -0.7, 0.9, 0, 0.2]
             }
         }
     }

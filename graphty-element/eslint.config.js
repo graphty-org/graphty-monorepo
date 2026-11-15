@@ -200,4 +200,22 @@ export default tseslint.config(
             ],
         },
     },
+    // A test reaches the graph's data, layout and update managers through their public getters, never by casting
+    // the graph to a hand-written shape that TypeScript cannot check against the private fields (issue #6988).
+    {
+        files: ["**/*.test.ts", "test/**/*.ts"],
+        // Still casts for its update manager; another open pull request changes this file.
+        ignores: ["test/interactions/filter-keeps-camera.test.ts"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector:
+                        "TSAsExpression > TSTypeLiteral > TSPropertySignature[key.name=/^(dataManager|layoutManager|updateManager)$/], MemberExpression[object.type='TSAsExpression'][property.name=/^(dataManager|layoutManager|updateManager)$/]",
+                    message:
+                        "Use graph.getDataManager(), graph.getLayoutManager() or graph.getUpdateManager() instead of a cast to the private field.",
+                },
+            ],
+        },
+    },
 );

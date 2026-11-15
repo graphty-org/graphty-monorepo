@@ -8,7 +8,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { escapeXmlAttribute } from "../../common/escape.js";
-import { isBoldWeight } from "../canon/enums.js";
+import { isBoldWeight, isNumericWeight } from "../canon/enums.js";
 import { num6 } from "../canon/number.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { StyleNotes } from "../notes.js";
@@ -489,7 +489,7 @@ function fontOut(
 ): unknown {
     const bold = isBoldWeight(weight);
     // Cytoscape has only plain and bold faces: a numeric weight is drawn as the nearer of the two
-    if (weight !== null && weight !== "normal" && weight !== "bold") {
+    if (isNumericWeight(weight)) {
         approx();
     }
     const it = italic === true;

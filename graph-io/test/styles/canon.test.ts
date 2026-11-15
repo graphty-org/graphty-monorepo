@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { isBoldWeight, isNumericWeight } from "../../src/styles/canon/enums.js";
 import {
     canonBoolean,
     canonColor,
@@ -354,6 +355,21 @@ describe("canonEnum", () => {
         expect(canonEnum(kind, raw, dialect, s)).toBe(want);
         const unknown = want === null || want.startsWith("other:");
         expect(codes(s)).toEqual(unknown ? ["W_STYLE_UNKNOWN_VALUE"] : []);
+    });
+});
+
+describe("label weights in a format with only plain and bold faces", () => {
+    it.each([
+        ["normal", false, false],
+        ["bold", true, false],
+        ["100", false, true],
+        ["500", false, true],
+        ["600", true, true],
+        ["900", true, true],
+        [null, false, false],
+    ] as const)("%s is bold %s, numeric %s", (weight, bold, numeric) => {
+        expect(isBoldWeight(weight)).toBe(bold);
+        expect(isNumericWeight(weight)).toBe(numeric);
     });
 });
 

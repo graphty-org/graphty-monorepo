@@ -358,3 +358,12 @@ export function canonEnum(kind: StyleEnumKind, raw: unknown, dialect: StyleDiale
 export function isBoldWeight(weight: unknown): boolean {
     return weight === "bold" || weight === "600" || weight === "800" || weight === "900";
 }
+
+/**
+ * Whether a neutral label weight is a numeric one, which a format with only plain and bold faces draws approximately.
+ * @param weight - the neutral weight
+ * @returns whether numeric
+ */
+export function isNumericWeight(weight: unknown): boolean {
+    return typeof weight === "string" && /^[1-9]00$/.test(weight);
+}

@@ -32,7 +32,7 @@ import { isWritableDotText } from "../../common/escape.js";
 import { inferTextDtype, itemAt } from "../../common/text.js";
 import { type BendPoint, canonBends, canonNodeOffsets, flattenCubic } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
-import { canonEnum, isBoldWeight } from "../../styles/canon/enums.js";
+import { canonEnum, isBoldWeight, isNumericWeight } from "../../styles/canon/enums.js";
 import { canonNumber, DOT_POINTS_PER_INCH, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import {
@@ -3093,7 +3093,7 @@ function writeCommon(get: Get, approximate: Approximate, out: Map<string, Writte
         out.set("fontname", name);
         const drawn = graphvizFont(name);
         // Graphviz's PostScript faces are plain or bold: a numeric weight is drawn as the nearer of the two
-        if (drawn.bold !== bold || (weight !== null && weight !== "normal" && weight !== "bold")) {
+        if (drawn.bold !== bold || isNumericWeight(weight)) {
             approximate("labelWeight", get("labelWeight") ?? "normal");
         }
         if (drawn.italic !== italic) {

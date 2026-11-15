@@ -48,7 +48,6 @@ import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle, toColor
 import { quotePath } from "../predicate";
 import { FILE_STYLE_TRANSLATION_ISSUE, type FileStyleNoteCode } from "./codes";
 import { type FoldableLayer, foldToCap } from "./fold";
-import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
 import {
     ARROW_RUNS,
@@ -172,12 +171,8 @@ export interface TranslateInput {
     readonly extracted: ExtractedStyles;
     /** The graph the import built, which the styles' element indexes refer to. */
     readonly snapshot: GraphSnapshot;
-    /** The load's file-style namespace. */
+    /** The name of the style value set the layers read their per-element values from. */
     readonly namespace: string;
-    /** The graph-io format id or JSON dialect the file was read as. */
-    readonly format: string;
-    /** The load, as its layers' facts name it. */
-    readonly importId: string;
     /** The load's choices. */
     readonly options: FileStyleOptions;
     /** What the element's own base layers paint, per kind, for a file graphty wrote. */
@@ -198,6 +193,8 @@ export interface TranslateInput {
 interface TranslatedLayer {
     /** The layer. */
     readonly spec: LayerSpec;
+    /** The id of the file's rule it was made from, for this translation's ordering only; never on the layer. */
+    readonly ruleId?: string;
     /**
      * The neutral layers to use instead when the element refuses this one: set for a layer
      * rebuilt from a layer graphty wrote into the file.
@@ -274,6 +271,8 @@ interface ChannelPlan {
 /** A layer being built, with what it paints. */
 interface Building extends FoldableLayer {
     readonly bucket: number;
+    /** The id of the file's rule the layer was made from, kept for this translation only. */
+    readonly ruleId?: string;
     readonly spec: LayerSpec & { set: Record<string, unknown>; encode: Record<string, Binding> };
     readonly paint: Map<Channel, unknown[]> | null;
     /** What it paints per channel, kept even where `paint` is null to stop the fold; absent for a rebuilt layer. */
@@ -1654,7 +1653,7 @@ function inRuleOrder(
     const ranks = (kind: StyleTarget): number[] => {
         let last = -1;
         return byKind[kind].map((layer) => {
-            const key = layer.spec.fileStyle?.ruleId;
+            const key = layer.ruleId;
             last = (typeof key === "string" ? at.get(`${kind}\u0000${key}`) : undefined) ?? last;
             return last;
         });
@@ -2049,8 +2048,12 @@ class KindTranslation {
                 delete out.encode;
             }
 
-            const { fallback } = layer as Building;
-            return { spec: out as unknown as LayerSpec, ...(fallback === undefined ? {} : { fallback }) };
+            const { fallback, ruleId } = layer as Building;
+            return {
+                spec: out as unknown as LayerSpec,
+                ...(ruleId === undefined ? {} : { ruleId }),
+                ...(fallback === undefined ? {} : { fallback }),
+            };
         });
     }
 
@@ -2416,10 +2419,7 @@ class KindTranslation {
         const key = JSON.stringify(selector);
         // A layer rebuilt from one graphty wrote is never painted into by a later pass.
         const same = this.#built.filter(
-            (layer) =>
-                layer.bucket === bucket &&
-                layer.spec.fileStyle?.ruleId === rule.id &&
-                this.#rebuilt.get(rule) !== layer,
+            (layer) => layer.bucket === bucket && layer.ruleId === rule.id && this.#rebuilt.get(rule) !== layer,
         );
         const found = same.find(
             (layer) => JSON.stringify(layer.spec.selector) === key && (layer.ends ?? false) === ends,
@@ -2429,16 +2429,9 @@ class KindTranslation {
         }
 
         const kind = this.#kinds.get(rule.id) ?? layerKindOf(rule);
-        const origin: FileStyleOrigin = {
-            format: this.#input.format,
-            importId: this.#input.importId,
-            ruleId: rule.id,
-            role: rule.role,
-            origin: rule.origin,
-            ...factsOf(rule),
-        };
         const layer: Building = {
             bucket,
+            ruleId: rule.id,
             spec: {
                 name: same.length === 0 ? rule.id : `${rule.id}#${String(same.length + 1)}`,
                 target: this.#kind,
@@ -2446,7 +2439,6 @@ class KindTranslation {
                 selector,
                 set: {},
                 encode: {},
-                fileStyle: origin,
             },
             paint: new Map(),
             worth: kind === "custom" ? 0 : 1000,
@@ -2475,21 +2467,13 @@ class KindTranslation {
         const before = this.#built.length;
         neutral();
         const made = this.#built.splice(before);
-        const origin: FileStyleOrigin = {
-            format: this.#input.format,
-            importId: this.#input.importId,
-            ruleId: rule.id,
-            role: rule.role,
-            origin: rule.origin,
-            ...factsOf(rule),
-        };
         const rebuilt: Building = {
             bucket,
+            ruleId: rule.id,
             spec: {
                 ...spec,
                 set: { ...spec.set },
                 encode: { ...spec.encode },
-                fileStyle: origin,
             },
             paint: null,
             worth: 1000,
@@ -2907,7 +2891,6 @@ class KindTranslation {
         if (binding !== null) {
             layer.spec.encode[plan.channel] = binding.binding;
             layer.worth += binding.worth;
-            setFacts(layer, binding.facts);
             return;
         }
 
@@ -2915,11 +2898,6 @@ class KindTranslation {
         const path = this.#keepNew(`${property}.${rule.id}`, drawn);
         layer.spec.encode[plan.channel] = { by: path, scale: "passthrough" };
         layer.worth = 0;
-        setFacts(layer, {
-            column: path,
-            mapping: "passthrough",
-            distinctValues: new Set(drawn.filter((value) => value !== null)).size,
-        });
     }
 
     /**
@@ -2996,7 +2974,7 @@ class KindTranslation {
         drawn: readonly unknown[],
         source: ExtractedStyles,
         rule: StyleRule,
-    ): { binding: Binding; worth: number; facts: Partial<FileStyleOrigin> } | null {
+    ): { binding: Binding; worth: number } | null {
         const raw = this.#values(mapping.by, source);
         if (raw === null) {
             return null;
@@ -3015,16 +2993,11 @@ class KindTranslation {
                 : {
                       binding: { by: at, scale: "passthrough" },
                       worth: 0,
-                      facts: {
-                          column: at,
-                          mapping: "passthrough",
-                          distinctValues: new Set(raw.filter((value) => value !== null)).size,
-                      },
                   };
         }
 
         if (mapping.kind === "discrete") {
-            return this.#discrete(plan, raw, drawn, match, path, mapping.table.length);
+            return this.#discrete(plan, raw, drawn, match, path);
         }
 
         if (mapping.kind === "continuous") {
@@ -3042,7 +3015,6 @@ class KindTranslation {
      * @param drawn - The channel's values.
      * @param match - Which elements the rule selects.
      * @param path - Gives the column's path.
-     * @param entries - How many entries the file's table holds.
      * @returns The binding, or null.
      */
     #discrete(
@@ -3051,8 +3023,7 @@ class KindTranslation {
         drawn: readonly unknown[],
         match: readonly boolean[],
         path: () => Path | null,
-        entries: number,
-    ): { binding: Binding; worth: number; facts: Partial<FileStyleOrigin> } | null {
+    ): { binding: Binding; worth: number } | null {
         const read = discreteTable(raw, drawn, match);
         if (read === null) {
             return null;
@@ -3086,7 +3057,6 @@ class KindTranslation {
         return {
             binding: { by: at, scale: "passthrough", map: table, unmapped: "skip" },
             worth: map.size,
-            facts: { column: at, mapping: "discrete", entries: Math.max(entries, map.size) },
         };
     }
 
@@ -3103,7 +3073,7 @@ class KindTranslation {
         mapping: Extract<Mapping, { kind: "continuous" }>,
         plan: ChannelPlan,
         path: () => Path | null,
-    ): { binding: Binding; worth: number; facts: Partial<FileStyleOrigin> } | null {
+    ): { binding: Binding; worth: number } | null {
         const descriptor = channelDescriptor(plan.channel);
         // a stops binding interpolates without rounding, so a mapping the tool rounds (step) is kept per element
         if ((descriptor?.accepts !== "number" && descriptor?.accepts !== "color") || mapping.step !== undefined) {
@@ -3132,7 +3102,6 @@ class KindTranslation {
             : {
                   binding: { by: at, stops },
                   worth: stops.length,
-                  facts: { column: at, mapping: "continuous", entries: stops.length },
               };
     }
 
@@ -3690,6 +3659,7 @@ class KindTranslation {
         const path = this.#keepNew("zIndex", values);
         this.#built.push({
             bucket: this.#rules.length,
+            ruleId: "node.groups",
             spec: {
                 name: "node.groups",
                 target: "node",
@@ -3697,16 +3667,6 @@ class KindTranslation {
                 selector: this.#scoped({ match: "has", path }),
                 set: {},
                 encode: { "node.zIndex": { by: path, scale: "passthrough" } },
-                fileStyle: {
-                    format: this.#input.format,
-                    importId: this.#input.importId,
-                    ruleId: "node.groups",
-                    role: "group",
-                    origin: "inferred",
-                    column: path,
-                    mapping: "passthrough",
-                    elements: children.size,
-                },
             },
             paint: new Map([["node.zIndex", values]]),
             worth: 0,
@@ -3730,6 +3690,7 @@ class KindTranslation {
         const path = this.#keepNew("drawOrder", values);
         this.#built.push({
             bucket: this.#rules.length,
+            ruleId: "node.drawOrder",
             spec: {
                 name: "node.drawOrder",
                 target: "node",
@@ -3737,16 +3698,6 @@ class KindTranslation {
                 selector: this.#scoped({ match: "has", path }),
                 set: {},
                 encode: { "node.drawOrder": { by: path, scale: "passthrough" } },
-                fileStyle: {
-                    format: this.#input.format,
-                    importId: this.#input.importId,
-                    ruleId: "node.drawOrder",
-                    role: "passthrough",
-                    origin: "inferred",
-                    column: path,
-                    mapping: "passthrough",
-                    elements: this.#n,
-                },
             },
             paint: new Map([["node.drawOrder", values]]),
             worth: 0,
@@ -3765,17 +3716,9 @@ class KindTranslation {
             encode[channel] = { by: this.#keepNew(`fold.${channel}`, values), scale: "passthrough" };
         }
 
-        const origin: FileStyleOrigin = {
-            format: this.#input.format,
-            importId: this.#input.importId,
-            ruleId: `${this.#kind}.folded`,
-            role: "passthrough",
-            origin: "inferred",
-            reason: "LAYER_CAP",
-            elements: this.#n,
-        };
         return {
             bucket: 0,
+            ruleId: `${this.#kind}.folded`,
             spec: {
                 name: `${this.#kind}.folded`,
                 target: this.#kind,
@@ -3783,7 +3726,6 @@ class KindTranslation {
                 selector: this.#scoped({ match: "everything" }),
                 set: {},
                 encode,
-                fileStyle: origin,
             },
             paint: new Map(paint as Map<Channel, unknown[]>),
             worth: 0,
@@ -4032,30 +3974,4 @@ function listOf(where: Predicate): readonly Predicate[] | null {
  */
 function layerKindOf(rule: StyleRule): LayerKind {
     return rule.role === "mapping" || rule.role === "group" ? "encoding" : "custom";
-}
-
-/**
- * The facts of a rule a layer carries.
- * @param rule - The rule.
- * @returns The facts.
- */
-function factsOf(rule: StyleRule): Partial<FileStyleOrigin> {
-    const facts = rule.facts ?? {};
-    const meanings: FileStyleMeaning[] | undefined = facts.names?.map(([value, name]) => ({ value, name }));
-    return {
-        ...(facts.elements === undefined ? {} : { elements: facts.elements }),
-        ...(facts.classes === undefined ? {} : { classes: facts.classes }),
-        ...(facts.distinctValues === undefined ? {} : { distinctValues: facts.distinctValues }),
-        ...(facts.reason === undefined ? {} : { reason: facts.reason }),
-        ...(meanings === undefined ? {} : { meanings }),
-    };
-}
-
-/**
- * Add facts to a layer's origin.
- * @param layer - The layer.
- * @param facts - The facts.
- */
-function setFacts(layer: Building, facts: Partial<FileStyleOrigin>): void {
-    layer.spec.fileStyle = { ...(layer.spec.fileStyle as FileStyleOrigin), ...facts };
 }

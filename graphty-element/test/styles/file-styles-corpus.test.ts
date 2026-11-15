@@ -20,15 +20,15 @@ import { gunzipSync } from "node:zlib";
 
 import { afterAll, assert, describe, it, vi } from "vitest";
 
-import { createGraphSession, FILE_STYLE_ISSUE, fileStyleOf, type GraphSession, type Layer } from "../../session";
+import { createGraphSession, FILE_STYLE_ISSUE, type GraphSession, type Layer } from "../../session";
 import { DataSource } from "../../src/data/DataSource";
 import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle } from "../../src/session/styles/channels";
 import type { FileStylesRead } from "../../src/session/styles/fileStyles/apply";
 import { dataPaths, logicalEdgeRows } from "../../src/session/styles/fileStyles/columns";
-import { fileStyleNamespace } from "../../src/session/styles/fileStyles/path";
 import { translateFileStyles } from "../../src/session/styles/fileStyles/translate";
 import { quotePath } from "../../src/session/styles/predicate";
 import { fileStylesOn } from "../helpers/file-styles-on";
+import { loadedLayers } from "../helpers/loaded-layers";
 
 fileStylesOn();
 
@@ -133,7 +133,7 @@ interface FileResult {
  * @returns Them, bottom first.
  */
 function fileLayers(session: GraphSession): Layer[] {
-    return session.styles.list().filter((layer) => fileStyleOf(layer) !== null);
+    return loadedLayers(session);
 }
 
 /**
@@ -207,13 +207,10 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
     });
 
     // The translation, again, with what the load gave it.
-    const namespace = fileStyleNamespace(read.format, new Set());
     const translation = translateFileStyles({
         extracted: read.extracted,
         snapshot,
-        namespace,
-        format: read.format,
-        importId: namespace,
+        namespace: "values",
         options: {},
         base: baseValues(session),
         dataPath: dataPaths(read.path),

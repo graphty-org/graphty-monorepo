@@ -94,6 +94,7 @@ import {
     type SessionCommand,
 } from "./planning";
 export { dispatcherOf } from "./dispatchers";
+import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
 import {
@@ -185,8 +186,14 @@ import {
 } from "./styles";
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
-import { fileStyleWords, isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
-import { asFileStyleStore, FILE_STYLES_VALUE, fileStyleColumn, type FileStyleStore } from "./styles/fileStyles/store";
+import { isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
+import {
+    asStyleValueStore,
+    STYLE_VALUES_VALUE,
+    styleValueAttributes,
+    styleValueColumn,
+    type StyleValueStore,
+} from "./styles/fileStyles/store";
 import { createHoverSource } from "./styles/hover";
 import { readsWholeColumn } from "./styles/labelTemplate";
 import type { CompiledLayer } from "./styles/Layer";
@@ -233,6 +240,7 @@ import type {
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    SessionAnnotations,
     SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
@@ -403,6 +411,7 @@ const TX_PARTS = [
     "shaders",
     "time",
     "views",
+    "annotations",
     "positions",
     "config",
 ] as const satisfies readonly (keyof GraphSession)[];
@@ -589,6 +598,7 @@ class Session implements ElementSession {
     readonly styles: SessionStylesApi;
     readonly shaders: SessionShaders;
     readonly views: SessionViews;
+    readonly annotations: SessionAnnotations;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
     readonly project: ProjectApi;
@@ -790,6 +800,7 @@ class Session implements ElementSession {
         SESSION_RUNS.set(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
+        this.annotations = annotationsOf(this.dispatcher);
         this.runner = new LayoutRunner({
             // The working graph, never the store: a hidden node is not laid out.
             working: () => (this.working.enabled ? this.working.filtered() : this.working.view("graph")),
@@ -1944,6 +1955,34 @@ function layoutOf(
  */
 const IGNORED_IN_2D_OPTIONS: ReadonlyMap<string, string> = new Map([["location-map.mapDimension", "2d"]]);
 
+/**
+ * The annotations: the `annotations` graph value, read live, with the verbs that write it.
+ * @param dispatcher - The dispatcher.
+ * @returns The annotations surface.
+ */
+function annotationsOf(dispatcher: Dispatcher): SessionAnnotations {
+    const held = (): DrawnAnnotations | null =>
+        drawnAnnotationsOf(dispatcher.state.graph.values.get(ANNOTATIONS_VALUE));
+    return Object.freeze({
+        get scale() {
+            return held()?.scale ?? 1;
+        },
+        list: () => held()?.annotations ?? Object.freeze([]),
+        add: async (annotation: DrawnAnnotation) => {
+            await dispatcher.dispatch({ op: "annotations.patch", action: "add", annotation });
+        },
+        update: async (id: string, patch: Readonly<Record<string, unknown>>) => {
+            await dispatcher.dispatch({ op: "annotations.patch", action: "update", id, patch });
+        },
+        remove: async (id: string) => {
+            await dispatcher.dispatch({ op: "annotations.patch", action: "remove", id });
+        },
+        clear: async () => {
+            await dispatcher.dispatch({ op: "annotations.set", annotations: [], scale: held()?.scale ?? 1 });
+        },
+    });
+}
+
 function viewsOf(dispatcher: Dispatcher): SessionViews {
     const held = dispatcher.state.views;
     const views: SessionViews = Object.freeze({
@@ -2687,13 +2726,13 @@ function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, 
  * consumer can say why a layer paints nothing rather than showing a confident empty screen.
  * @param data - The session's data surface.
  * @param runs - The runs this session holds.
- * @param fileStyles - Reads the file-style store as it stands now.
+ * @param styleValues - Reads the style value store as it stands now.
  * @returns The directory.
  */
-function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => FileStyleStore): PathDirectory {
+function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, styleValues: () => StyleValueStore): PathDirectory {
     return {
         // A note value is always answerable: it reads nothing until a note names the element. A
-        // file-style column is answerable wherever a load holds it.
+        // style value column is answerable wherever the store holds it.
         answers: (path: Path, target: "node" | "edge"): boolean => {
             const end = edgeEndPathOf(path);
             if (end !== undefined) {
@@ -2702,11 +2741,14 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => 
 
             return (
                 noteFieldOf(path) !== undefined ||
-                answersFileStyle(fileStyles(), path, target) ||
+                answersStyleValue(styleValues(), path, target) ||
                 answersReadable(data, runs, path, target)
             );
         },
-        candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
+        candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => [
+            ...answerablePaths(data, runs, target),
+            ...styleValuePaths(styleValues(), target),
+        ],
     };
 }
 
@@ -2725,15 +2767,27 @@ function searchedPaths(data: SessionDataApi, kind: "node" | "edge"): readonly Pa
 }
 
 /**
- * Whether a file-style path names a column some load holds, for the kind of element asking.
- * @param store - The file-style store.
+ * Whether a style value path names a column the store holds, for the kind of element asking.
+ * @param store - The style value store.
  * @param path - The path.
  * @param target - Whether the asking layer paints nodes or edges.
  * @returns True when the store holds that column.
  */
-function answersFileStyle(store: FileStyleStore, path: Path, target: "node" | "edge"): boolean {
+function answersStyleValue(store: StyleValueStore, path: Path, target: "node" | "edge"): boolean {
     const parts = parseFileStylePath(path);
-    return parts?.kind === target && fileStyleColumn(store, parts.namespace, parts.kind, parts.key) !== undefined;
+    return parts?.kind === target && styleValueColumn(store, parts.namespace, parts.kind, parts.key) !== undefined;
+}
+
+/**
+ * The paths of every column the style value store holds for one kind of element.
+ * @param store - The style value store.
+ * @param target - Nodes or edges.
+ * @returns The paths, in set and column order.
+ */
+function styleValuePaths(store: StyleValueStore, target: "node" | "edge"): readonly Path[] {
+    return styleValueAttributes(store, { node: 0, edge: 0 })
+        .filter((column) => column.kind === target)
+        .map((column) => column.path);
 }
 
 /**
@@ -2766,13 +2820,14 @@ function fieldWordsOf(
             }
         }
 
-        // The values graphty-element keeps itself: a node's degrees and a file's style columns.
+        // The values graphty-element keeps itself: a node's degrees and the style value columns, each named by its key.
         const structure = target === "node" ? STRUCTURE_VALUES.find((each) => each.path === path) : undefined;
         if (structure !== undefined) {
             return { plainName: structure.plainName, technicalName: structure.technicalName };
         }
 
-        return parseFileStylePath(path)?.kind === target ? fileStyleWords(path) : undefined;
+        const style = parseFileStylePath(path);
+        return style?.kind === target ? { plainName: style.key, technicalName: style.key } : undefined;
     };
 }
 
@@ -3898,7 +3953,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
     // snapshot the session holds NOW.
-    const readFileStyles = (): FileStyleStore => asFileStyleStore(dispatcher.state.graph.values.get(FILE_STYLES_VALUE));
+    const readStyleValues = (): StyleValueStore =>
+        asStyleValueStore(dispatcher.state.graph.values.get(STYLE_VALUES_VALUE));
     const elements: SessionSelectorSource = createSelectorSource({
         snapshot,
         results: (runId) => runs.get(runId)?.result,
@@ -3908,13 +3964,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             () => dispatcher.lane.writes("notes"),
             snapshot,
         ),
-        // The file-style store, read from the project as it stands now: a load writes a new store
-        // object, so a reader never holds a stale one.
-        fileStyles: (namespace, kind, key) => fileStyleColumn(readFileStyles(), namespace, kind, key),
+        // The style value store, read from the project as it stands now: every write makes a new
+        // store object, so a reader never holds a stale one.
+        styleValues: (namespace, kind, key) => styleValueColumn(readStyleValues(), namespace, kind, key),
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
-    const paths = pathDirectoryOf(data, runs, readFileStyles);
+    const paths = pathDirectoryOf(data, runs, readStyleValues);
     query = createQueryEngine({
         snapshot,
         revision: () => inputs.tick.value,
@@ -4612,8 +4668,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const recordsOnly = ![...dirty].some(
                 (key) => key === ROWS_MOVED || !(key.startsWith("n:") || namesEdges(key) || key.startsWith("v:")),
             );
-            // A load's style values moved: every layer reading a `graphty.style.` path repaints.
-            const stylesMoved = dirty.has(FILE_STYLES_KEY);
+            // The style value store moved: every layer reading a `graphty.style.` path repaints.
+            const stylesMoved = dirty.has(STYLE_VALUES_KEY);
             const readers = recordsOnly
                 ? stack.filter(
                       (entry) => readsAnyField(entry, changed) || (stylesMoved && entry.reads.some(isFileStylePath)),
@@ -4913,17 +4969,17 @@ function changesRowsOnly(key: string): boolean {
     return (
         key.startsWith("n:") ||
         namesEdges(key) ||
-        // A graph value (the import report an add replaces) is read by no layer; the file-style
+        // A graph value (the import report an add replaces) is read by no layer; the style value
         // store is, so a change to it repaints what reads it rather than only the rows.
-        (key.startsWith("v:") && key !== FILE_STYLES_KEY) ||
+        (key.startsWith("v:") && key !== STYLE_VALUES_KEY) ||
         key === ROWS_MOVED ||
         key === NODES_ADDED ||
         key === EDGES_ADDED
     );
 }
 
-/** The dirty key a write of the file-style store raises in the `graph` hook. */
-const FILE_STYLES_KEY = `v:${FILE_STYLES_VALUE}`;
+/** The dirty key a write of the style value store raises in the `graph` hook. */
+const STYLE_VALUES_KEY = `v:${STYLE_VALUES_VALUE}`;
 
 /**
  * Whether a layer paints each element from that element alone: fixed values only, selected by

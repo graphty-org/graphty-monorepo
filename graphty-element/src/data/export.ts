@@ -79,7 +79,7 @@ import { partitionGroupRanks } from "../session/results/pageColumns";
 import type { CodedFact, CodedFactParam } from "../session/shared";
 import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
-import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
+import { asStyleValueStore, STYLE_VALUES_VALUE } from "../session/styles/fileStyles/store";
 import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
 import { wholeGraph } from "../session/working/graphs";
 import { writtenPositions } from "./filePositions";
@@ -1290,7 +1290,7 @@ function sessionStyles(
                 (row) => edgeMask[row] !== 1 && shown(allEdges[row].source) && shown(allEdges[row].target),
             ),
         },
-        fileStyles: asFileStyleStore(state.graph.values.get(FILE_STYLES_VALUE)),
+        fileStyles: asStyleValueStore(state.graph.values.get(STYLE_VALUES_VALUE)),
         format: exporter.format,
         keepsBlock: block === "native" || (block === "attributes" && exporter.capabilities.graphAttributes),
     });

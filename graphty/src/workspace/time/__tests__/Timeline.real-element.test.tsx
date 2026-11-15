@@ -679,7 +679,9 @@ describe("the Overview and the import of time", () => {
         const graph = session.data.snapshot();
         const ghostLayer = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
         assert.isDefined(ghostLayer);
-        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").matched;
+        // Ghosts lie outside what is visible, so counting them names the whole graph. The time window
+        // is not part of the working graph the app reads, so they are drawn with it on.
+        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "", { scope: "graph" }).matched;
         assert.equal(ghosts(), 0, "hidden, not ghosted, by default");
 
         await userEvent.click(within(outside).getByText("Ghost"));
@@ -688,6 +690,7 @@ describe("the Overview and the import of time", () => {
             assert.isAbove(ghosts(), 0);
             assert.equal(ghosts(), graph.nodeCount - session.visibility.summary.visibleNodes);
         });
+        assert.deepEqual(session.visibility.notDrawn, [], "nothing asked for is kept from drawing");
         // Ghosts are drawn but not visible: the counts are the window's.
         const visibleBefore = [...session.visibility.nodes].sort();
 

@@ -18,6 +18,7 @@ import {
     NO_DATA_ROWS_CODE,
     NO_ENDPOINT_COLUMNS_CODE,
     NO_ID_COLUMN_CODE,
+    POSSIBLE_HEADER_CODE,
     ROLE_TAKEN_CODE,
     splitNeighbour,
 } from "../../../src/formats/csv/importer.js";
@@ -436,6 +437,18 @@ describe("csvImporter: header and delimiter handling", () => {
         expect(edgesOf(forced.snapshot)).toEqual(["source->target", "a->b"]);
         const declared = await load("p,q\na,b\n", { header: true, sourceColumn: "p", targetColumn: "q" });
         expect(edgesOf(declared.snapshot)).toEqual(["a->b"]);
+    });
+
+    it("warns when a first row read as data could be a header of unknown names", async () => {
+        const unknown = await load("from_node,to_node\nalice,bob\nbob,carol\n");
+        expect(edgesOf(unknown.snapshot)).toEqual(["from_node->to_node", "alice->bob", "bob->carol"]);
+        expect(codes(unknown.report)).toEqual([POSSIBLE_HEADER_CODE]);
+        // a later row repeating a first-row cell makes the first row an edge, so no warning
+        const chained = await load("alice,bob\nbob,carol\n");
+        expect(codes(chained.report)).toEqual([]);
+        // the caller decided: no warning
+        const forced = await load("from_node,to_node\nalice,bob\n", { header: false });
+        expect(codes(forced.report)).toEqual([]);
     });
 
     it("resolves explicit endpoint columns by name and by position", async () => {

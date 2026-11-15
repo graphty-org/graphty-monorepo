@@ -5,7 +5,14 @@ import {
     RangeSlider,
     useNumberParser,
 } from "@graphty/compact-mantine";
-import type { GraphSession, Layer, LayerPatch, RuleTree, Scope } from "@graphty/graphty-element/session";
+import {
+    fileStyleOf,
+    type GraphSession,
+    type Layer,
+    type LayerPatch,
+    type RuleTree,
+    type Scope,
+} from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Autocomplete,
@@ -65,13 +72,14 @@ import {
     type Side,
     spanOf,
     startWords,
+    styleLeafOf,
     TEXT_WORDS,
     type TextMode,
 } from "./cards";
 import { DrawnSwatches } from "./drawnSwatches";
 import { keystrokeTarget } from "./useFocusLine";
 import { useStepWriter } from "./useStepWriter";
-import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, NATURAL, prefixFirst, valueName } from "./words";
+import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, nameRank, NATURAL, prefixFirst, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
 interface PickRow {
@@ -227,7 +235,7 @@ function patchesOf(
                 // node card cleared for a moment leaves the edges on every edge, and they follow
                 // the node cards again once there are some.
                 const own = edgeCards(session, row.edge.selector, edgeFields).filter((c) => c.type !== "ends");
-                const leaves = cards.flatMap((card) => leafOf(card) ?? []);
+                const leaves = cards.flatMap((card) => styleLeafOf(card) ?? []);
                 const edge = selectorOf([{ type: "ends", key: "ends", reading }, ...own], leaves);
                 patches.push({ id: row.edge.id, patch: { selector: edge, ...named(row.edge) } });
             }
@@ -259,7 +267,7 @@ function unionRule(rows: readonly PickRow[]): RuleTree | null {
         if (row.cards.some((card) => card.type === "ends" || (card.type === "fixed" && card.leaf === null))) {
             return null;
         }
-        const leaves = row.cards.flatMap((card) => leafOf(card) ?? []);
+        const leaves = row.cards.flatMap((card) => styleLeafOf(card) ?? []);
         if (leaves.length === 0) {
             return null;
         }
@@ -311,7 +319,7 @@ function useLeafCount(
  * @returns the rule.
  */
 function allOf(cards: readonly Card[]): RuleTree | null {
-    const leaves = cards.flatMap((card) => leafOf(card) ?? []);
+    const leaves = cards.flatMap((card) => styleLeafOf(card) ?? []);
     if (leaves.length === 0) {
         return null;
     }
@@ -328,7 +336,7 @@ function allOf(cards: readonly Card[]): RuleTree | null {
  * @returns the words.
  */
 function useHead(session: GraphSession, rows: readonly PickRow[], side: Side, held?: readonly Card[]): string {
-    const stats = session.data.statistics();
+    const stats = session.data.statistics({ scope: "all" });
     // A layer paints only what is showing, and its row counts over that (4 of 15 under a filter):
     // said over the same base, never the whole graph's.
     const { summary } = session.visibility;
@@ -400,6 +408,11 @@ interface WhichPickerProps {
     readonly adding?: string;
     /** Goes to the other kind's tab with a card on a field it carries. */
     readonly onElsewhere?: (field: CardField) => void;
+    /**
+     * Given, the folded row reads the cards as this one line instead of a chip per card, unless it
+     * has no words for them.
+     */
+    readonly summary?: (session: GraphSession, cards: readonly Card[], rows: readonly string[], side: Side) => string;
 }
 
 /**
@@ -415,6 +428,7 @@ interface WhichPickerProps {
  * @param props.autoOpen - open on arrival when it has no cards
  * @param props.adding - a field to open on with a card on it
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
+ * @param props.summary - reads the folded row's cards as one line
  * @param props.held - cards it edits instead of a layer's
  * @returns The picker
  */
@@ -426,6 +440,7 @@ export function WhichPicker({
     autoOpen = false,
     adding,
     onElsewhere,
+    summary,
 }: WhichPickerProps): React.JSX.Element | null {
     const rows = held === undefined ? pickRows(session, ids, side) : [];
     const shown = held === undefined ? shownOf(rows) : heldShown(held.cards);
@@ -434,8 +449,13 @@ export function WhichPicker({
     // several layers at once and held cards keep the cards. Cards opened stay until
     // they close, even when an edit there leaves a selector the selection editor reads (the last
     // card removed): swapping editors mid-edit would drop the cards and their notice's Undo.
+    // A layer read from a file selects by a mark the load left, which the selection editor can only
+    // spell out raw: with a summary to give, its row reads the rule line instead.
+    const fromFile = summary !== undefined && rows.length === 1 && fileStyleOf(rows[0].layer) !== null;
     const editable =
-        held === undefined && rows.length === 1 ? layerSelection(session, rows[0].layer.selector, side) : null;
+        held === undefined && rows.length === 1 && !fromFile
+            ? layerSelection(session, rows[0].layer.selector, side)
+            : null;
     const [onCards, setOnCards] = useState(() => open && editable === null);
     const selection = open && onCards ? null : editable;
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
@@ -448,9 +468,11 @@ export function WhichPicker({
     // A card that changes the count says so -- also when the key that changed it (Enter in a
     // number box) closed the cards. The count the picker opens with is not news, nor is a count
     // still being worked out ("of 24 nodes", ""). The screen follows each keystroke; the count is
-    // spoken once, when typing pauses.
+    // spoken once, when typing pauses. While a keystroke's write is on its way the count is still the
+    // old text's, so it waits: each keystroke starts the pause again, however slow the machine.
     const head = useHead(session, rows, side, held?.cards);
-    const [settled] = useDebouncedValue(head, SPEAK_AFTER_MS);
+    const [writing, setWriting] = useState(false);
+    const [settled] = useDebouncedValue(writing ? "" : head, SPEAK_AFTER_MS);
     // Under an open selection workspace only the workspace says its count: this row is covered (or
     // beside it), and its count is often over another base (tier 5 round 1). It stays quiet until its
     // count settles after the workspace closes, so a change made in the workspace is not said twice.
@@ -476,7 +498,13 @@ export function WhichPicker({
         <div className="ws-which" data-testid="which-picker" data-side={side}>
             {selection !== null && (
                 // The outline is the layer's recipe at rest: it is always drawn, never folded.
-                <StyleSelection session={session} layer={rows[0].layer} name={rows[0].name} side={side} />
+                <StyleSelection
+                    session={session}
+                    layer={rows[0].layer}
+                    name={rows[0].name}
+                    side={side}
+                    onWriting={setWriting}
+                />
             )}
             {selection === null && open && (
                 <Cards
@@ -490,6 +518,7 @@ export function WhichPicker({
                     adding={adding}
                     onElsewhere={onElsewhere}
                     onClose={close}
+                    onWriting={setWriting}
                     onLeave={() => {
                         setOpen(false);
                         setOnCards(false);
@@ -505,6 +534,16 @@ export function WhichPicker({
                     side={side}
                     buttonRef={rowButton}
                     regionId={regionId}
+                    line={
+                        summary === undefined
+                            ? undefined
+                            : summary(
+                                  session,
+                                  shown.map((each) => each.card),
+                                  ids,
+                                  side,
+                              ) || undefined
+                    }
                     onOpen={(key) => {
                         // With no card, focus lands on Add a condition, whose list opens on a
                         // press: open already, the press would close it.
@@ -529,6 +568,7 @@ export function WhichPicker({
  * @param props.side - nodes or edges
  * @param props.buttonRef - the row button, which focus returns to
  * @param props.regionId - the open cards' id, which the row controls
+ * @param props.line - the cards as one line, drawn in place of the chips
  * @param props.onOpen - opens the cards, on a chip's card when one was clicked
  * @returns The row
  */
@@ -540,6 +580,7 @@ function WhichRow({
     side,
     buttonRef,
     regionId,
+    line,
     onOpen,
 }: Readonly<{
     session: GraphSession;
@@ -549,9 +590,11 @@ function WhichRow({
     side: Side;
     buttonRef: React.RefObject<HTMLButtonElement | null>;
     regionId: string;
+    line?: string;
     onOpen: (key?: string) => void;
 }>): React.JSX.Element {
-    const stats = session.data.statistics();
+    // "All N nodes" names the whole graph.
+    const stats = session.data.statistics({ scope: "all" });
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const head = useHead(session, rows, side, held);
     const words = shown.map((each) => chipWords(session, each, rows.length));
@@ -563,6 +606,11 @@ function WhichRow({
         return `${words[at].replace(LAYER_TOKEN, LAYER_SPOKEN)}${countWords}`;
     });
     const hint = `All ${many(total, side)}`;
+    // What the folded row reads after its count: every element, the one rule line, or each chip.
+    let ruleWords: readonly string[] = line === undefined ? spoken : [line];
+    if (shown.length === 0 && line === undefined) {
+        ruleWords = [hint];
+    }
     // A layer whose conditions leave nothing is flagged on its count, or on a chip that leaves none.
     const none =
         held === undefined &&
@@ -584,12 +632,7 @@ function WhichRow({
                 aria-expanded={false}
                 aria-controls={regionId}
                 // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
-                aria-label={[
-                    `Which ${NOUN[side].many}`,
-                    head,
-                    none ? `no ${NOUN[side].one} matches` : "",
-                    ...(shown.length === 0 ? [hint] : spoken),
-                ]
+                aria-label={[`Which ${NOUN[side].many}`, head, none ? `no ${NOUN[side].one} matches` : "", ...ruleWords]
                     .filter((part) => part !== "")
                     .join(", ")}
                 onClick={(event) => {
@@ -608,12 +651,18 @@ function WhichRow({
                     {together && <NoneBadge side={side} />}
                 </Group>
                 <span className="ws-which-chips">
-                    {shown.length === 0 ? (
+                    {line !== undefined && (
+                        <Text size="xs" span truncate="end" title={line} className="ws-which-line">
+                            {line}
+                        </Text>
+                    )}
+                    {line === undefined && shown.length === 0 && (
                         // Read with the panel, not a warning: every element is a fine answer.
                         <Text size="xs" c="dimmed" span className="ws-which-hint">
                             {hint}
                         </Text>
-                    ) : (
+                    )}
+                    {line === undefined &&
                         shown.map((each, at) => (
                             <Chip
                                 key={each.key}
@@ -625,8 +674,7 @@ function WhichRow({
                                     setCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
                                 }}
                             />
-                        ))
-                    )}
+                        ))}
                 </span>
             </UnstyledButton>
         </div>
@@ -707,7 +755,7 @@ function Chip({
 }>): React.JSX.Element {
     const { card } = shown;
     // A card picked by hand says its count in its words.
-    const count = useLeafCount(session, shown.shared && !isPicked(card) ? leafOf(card) : null, side);
+    const count = useLeafCount(session, shown.shared && !isPicked(card) ? styleLeafOf(card) : null, side);
     useEffect(() => {
         onCount(count);
     }, [count, onCount]);
@@ -757,6 +805,7 @@ type OnCard = (next: Card) => void;
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
  * @param props.onClose - closes the cards, handing focus back to the Which row
  * @param props.onLeave - closes the cards where focus has already gone elsewhere
+ * @param props.onWriting - told whether an edit is still on its way to the layers
  * @returns The region
  */
 function Cards({
@@ -771,6 +820,7 @@ function Cards({
     onElsewhere,
     onClose,
     onLeave,
+    onWriting,
 }: Readonly<{
     session: GraphSession;
     rows: readonly PickRow[];
@@ -783,6 +833,7 @@ function Cards({
     onElsewhere?: (field: CardField) => void;
     onClose: () => void;
     onLeave: () => void;
+    onWriting: (on: boolean) => void;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     // Focus that left the cards for another control closes them, as every pop-out does; the
@@ -810,14 +861,19 @@ function Cards({
     // Named for the act, as other style steps are ("changing node size on Hubs"), so Undo reads
     // "Undid changing the conditions on Group 1."
     const changed = rows.length === 1 ? rows[0].name : `${String(rows.length)} layers`;
-    const writer = useStepWriter(session, `changing the conditions on ${changed}`, () => {
-        for (const row of drawn.current) {
-            const now = session.styles.get(row.layer.id);
-            if (now !== undefined) {
-                held.current.set(row.layer.id, now.selector);
+    const writer = useStepWriter(
+        session,
+        `changing the conditions on ${changed}`,
+        () => {
+            for (const row of drawn.current) {
+                const now = session.styles.get(row.layer.id);
+                if (now !== undefined) {
+                    held.current.set(row.layer.id, now.selector);
+                }
             }
-        }
-    });
+        },
+        onWriting,
+    );
     // A held rule (a filter step) speaks both kinds at once, so it lists Data source once, with the nodes.
     const sourceTwice = holder !== undefined && side === "edge";
     // The columns follow the data: one that arrives while the picker is open is listed, so they
@@ -1391,6 +1447,15 @@ export function AddCondition({
         .map(({ group, items }) => ({ group, items: prefixFirst(items.filter(foundRow), (each) => each.name, search) }))
         .filter(({ items }) => items.length > 0);
     const extraRows = [...moreShown.flatMap(({ items }) => items), ...extra];
+    // How well each listed row matches, in list order: its name is the search, starts with it,
+    // holds it, or only its other words or its words in any order match. Enter takes the best,
+    // whatever group it is in.
+    const ranks = [...groups.flatMap(({ items }) => items), ...moreShown.flatMap(({ items }) => items), ...extras]
+        .map(({ name }) => {
+            const rank = nameRank(name, typed);
+            return rank < 2 || name.toLowerCase().includes(typed) ? rank : 3;
+        })
+        .join(",");
     const count =
         groups.reduce((sum, { items }) => sum + items.length, 0) +
         moreShown.reduce((sum, { items }) => sum + items.length, 0) +
@@ -1446,19 +1511,31 @@ export function AddCondition({
             setActive(null);
             return;
         }
-        // The first match not already a condition is lit, so Enter adds something new.
+        // The best match not already a condition is lit, so Enter adds something new: an exact
+        // name before a name that starts with the search, before the rest; a tie goes to the first.
         const first = selectFirstOption();
         const options = [
             ...(document.getElementById(listId)?.querySelectorAll<HTMLElement>("[data-combobox-option]") ?? []),
         ];
-        const unused = options.findIndex((option) => option.dataset.used === undefined);
-        if (unused > 0) {
-            selectOption(unused);
-            setActive(options[unused].id === "" ? first : options[unused].id);
+        const rankOf = ranks.split(",").map(Number);
+        const score = (option: HTMLElement, index: number): number => {
+            if (option.dataset.comboboxDisabled !== undefined) {
+                return Number.POSITIVE_INFINITY;
+            }
+            const used = option.dataset.used === undefined ? 0 : 10;
+            return used + (rankOf[index] ?? 9);
+        };
+        const best = options.reduce(
+            (chosen, option, index) => (score(option, index) < score(options[chosen], chosen) ? index : chosen),
+            0,
+        );
+        if (best > 0) {
+            selectOption(best);
+            setActive(options[best].id === "" ? first : options[best].id);
             return;
         }
         setActive(first);
-    }, [typed, dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, listId]);
+    }, [typed, ranks, dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, listId]);
     const keys = (event: React.KeyboardEvent<HTMLInputElement>): void => {
         if (event.nativeEvent.isComposing) {
             return;
@@ -2107,21 +2184,22 @@ export function CardBody({
             // The rule's own text: an expression as it was typed, any other leaf as the element holds it.
             return card.leaf === null ? null : (
                 <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
-                    {fixedText(card.leaf)}
+                    {fixedText(session, card.leaf)}
                 </Text>
             );
     }
 }
 
 /**
- * A fixed card's leaf as its body says it: the ids picked by hand, an expression as it was typed,
- * any other leaf as the element holds it.
+ * A fixed card's leaf as its body says it: the nodes picked by hand by name, an expression as it
+ * was typed, any other leaf as the element holds it.
+ * @param session - the element's session, which names the nodes.
  * @param leaf - the leaf.
  * @returns the text.
  */
-function fixedText(leaf: RuleTree): string {
+function fixedText(session: GraphSession, leaf: RuleTree): string {
     if (leaf.kind === "member" && typeof leaf.of === "object" && "nodes" in leaf.of) {
-        const ids = leaf.of.nodes.map(String);
+        const ids = leaf.of.nodes.map((id) => session.data.nodeName(id).name);
         return ids.length > 5 ? `${ids.slice(0, 5).join(", ")}, +${String(ids.length - 5)}` : ids.join(", ");
     }
     if (leaf.kind === "state") {
@@ -2508,11 +2586,12 @@ function NumberCard({
         () =>
             given ??
             (within === undefined
-                ? session.data.valueCounts(path, { kind: side }).missing
+                ? session.data.valueCounts(path, { kind: side, scope: "graph" }).missing
                 : session.scope.histogram(path, { within }).missing),
         [session, path, side, within, given],
     );
-    const stats = session.data.statistics();
+    // Over the card's base: the whole graph, named, unless it has one.
+    const stats = session.data.statistics({ scope: within === "visible" ? "visible" : "all" });
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const parse = useNumberParser();
     const { store } = useWorkspace();
@@ -2933,7 +3012,7 @@ function DateCard({
     const [drafts, setDrafts] = useState<Partial<Record<DateBox, string>>>({});
     const [refused, setRefused] = useState<DateBox | null>(null);
     const messageId = useId();
-    const counts = useMemo(() => session.data.valueCounts(path, { kind: on }), [session, path, on]);
+    const counts = useMemo(() => session.data.valueCounts(path, { kind: on, scope: "graph" }), [session, path, on]);
     // The column's dates as the table writes them, each once, in time order.
     const dates = useMemo(() => {
         const days = counts.values
@@ -3110,7 +3189,7 @@ function categoryCounts(
     _version: number,
 ): { values: readonly { value: unknown; count: number }[]; missing: number } {
     if (over === undefined) {
-        return session.data.valueCounts(path, { kind: side });
+        return session.data.valueCounts(path, { kind: side, scope: "graph" });
     }
     // Counted over the selection's base (or a narrowing step's input), so a value only elements
     // outside it hold reads 0.
@@ -3455,7 +3534,7 @@ function TextCard({
                 : [
                       ...new Set(
                           session.data
-                              .valueCounts(card.field.path, { kind: card.field.on })
+                              .valueCounts(card.field.path, { kind: card.field.on, scope: "graph" })
                               .values.map((each) => String(each.value)),
                       ),
                   ].sort(NATURAL.compare),
@@ -3710,7 +3789,7 @@ function LayerLine({
     side: Side;
     onPick: () => void;
 }>): React.JSX.Element {
-    const count = useLeafCount(session, card === undefined ? null : leafOf(card), side);
+    const count = useLeafCount(session, card === undefined ? null : styleLeafOf(card), side);
     const words = card === undefined ? "no card" : withoutField(cardWords(session, card), field);
     return (
         <div // NOSONAR(S6819): a list item of an ARIA list drawn as a stack; an li would draw a bullet and indent

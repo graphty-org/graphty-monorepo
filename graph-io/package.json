@@ -92,10 +92,30 @@
             "import": "./dist/sources-rest.js",
             "default": "./dist/sources-rest.js"
         },
+        "./sources/gremlin": {
+            "types": "./dist/sources-gremlin.d.ts",
+            "import": "./dist/sources-gremlin.js",
+            "default": "./dist/sources-gremlin.js"
+        },
         "./sources/sparql": {
             "types": "./dist/sources-sparql.d.ts",
             "import": "./dist/sources-sparql.js",
             "default": "./dist/sources-sparql.js"
+        },
+        "./sources/github": {
+            "types": "./dist/sources-github.d.ts",
+            "import": "./dist/sources-github.js",
+            "default": "./dist/sources-github.js"
+        },
+        "./sources/s3": {
+            "types": "./dist/sources-s3.d.ts",
+            "import": "./dist/sources-s3.js",
+            "default": "./dist/sources-s3.js"
+        },
+        "./sources/zenodo": {
+            "types": "./dist/sources-zenodo.d.ts",
+            "import": "./dist/sources-zenodo.js",
+            "default": "./dist/sources-zenodo.js"
         },
         "./styles": {
             "types": "./dist/styles.d.ts",
@@ -193,16 +213,16 @@
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
         "cytoscape": "3.34.3",
-        "esbuild": "0.25.10",
+        "esbuild": "0.28.2",
         "eslint": "^9.29.0",
         "fast-check": "^4.2.0",
-        "fast-xml-parser": "^5.11.1",
+        "fast-xml-parser": "^5.12.0",
         "graphology": "0.26.0",
         "lit": "^3.3.1",
         "neo4j-driver": "^5.28.3",
         "playwright": "^1.53.0",
         "prettier": "^3.4.2",
-        "sigma": "4.0.1",
+        "sigma": "4.0.6",
         "storybook": "^9.1.21",
         "svgcanvas": "2.6.0",
         "tsx": "^4.20.3",

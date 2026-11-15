@@ -22,6 +22,7 @@ import { csrOfArcs, type HostCsr, simpleSymmetricOracle } from "../oracle/coo.js
 import { groupByKeyOracle } from "../oracle/group-by-key.js";
 import { triangleOracle } from "../oracle/structure.js";
 import { fakeCaps } from "./caps-tables.js";
+import { refusedReport } from "./check-report.js";
 import { bindingOf, readF32, readU32, uploadBuffer } from "./device.js";
 import { completeEdges, type EdgeSpec, gridEdges, KARATE_EDGES, randomEdgesLoose, snapshotOf } from "./graphs.js";
 import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
@@ -264,7 +265,7 @@ function wordsReport(label: string, got: ArrayLike<number>, want: ArrayLike<numb
 }
 
 /**
- * A report that is Infinity when `run` throws.
+ * A report that is Infinity when the driver refuses the result (E_VALIDATION); any other error is rethrown.
  * @param label - the report label
  * @param run - the measured check
  * @returns the report
@@ -272,8 +273,8 @@ function wordsReport(label: string, got: ArrayLike<number>, want: ArrayLike<numb
 async function guarded(label: string, run: () => Promise<CheckReport>): Promise<CheckReport> {
     try {
         return await run();
-    } catch {
-        return { worst: Infinity, worstLabel: `${label} threw`, samples: 1 };
+    } catch (err) {
+        return refusedReport(label, err);
     }
 }
 

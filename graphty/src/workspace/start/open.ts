@@ -149,12 +149,12 @@ export function preferLocalDatasets(prefer: boolean): void {
 
 /**
  * Where the datasets are read from: this machine's copy where there is one, else the site's own
- * (its site.json's `datasets`), else graph-samples' default.
- * @returns the options naming it, or none for graph-samples' default.
+ * (its site.json's `datasets`), else graph-samples' default. graphty-element has no default of
+ * its own, so every load names one.
+ * @returns the options naming it.
  */
-export function datasetBase(): { readonly baseUrl?: string } {
-    const baseUrl = localDatasets ?? siteConfig().datasets;
-    return baseUrl === undefined ? {} : { baseUrl };
+export function datasetBase(): { readonly baseUrl: string } {
+    return { baseUrl: localDatasets ?? siteConfig().datasets ?? DEFAULT_DATASET_BASE_URL };
 }
 
 /**
@@ -165,9 +165,7 @@ export function datasetBase(): { readonly baseUrl?: string } {
  * @returns the address, or undefined when it has no picture.
  */
 export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
-    return entry.thumbnail === undefined
-        ? undefined
-        : new URL(entry.thumbnail, datasetBase().baseUrl ?? DEFAULT_DATASET_BASE_URL).href;
+    return entry.thumbnail === undefined ? undefined : new URL(entry.thumbnail, datasetBase().baseUrl).href;
 }
 
 /** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */

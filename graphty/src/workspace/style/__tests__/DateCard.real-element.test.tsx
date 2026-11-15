@@ -38,7 +38,9 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
         return;
     }
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+        await userEvent.click(
+            within(where).getAllByRole("button", { name: /^(Edit |Style (Nodes|Edges)\.\.\.)/ })[0] ?? document.body,
+        );
     }
     const control = await waitFor(() => {
         const ws = document.querySelector<HTMLElement>(".sel-ws");

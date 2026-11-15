@@ -132,11 +132,13 @@ export {
 export { defineSource, sourceEndpoint, sourceFileName } from "./sources/define.js";
 export {
     CYPHER_SOURCE_ID,
+    GITHUB_SOURCE_ID,
     NDEX_SOURCE_ID,
     NEO4J_SOURCE_ID,
     NEPTUNE_SOURCE_ID,
     OPENALEX_SOURCE_ID,
     REST_SOURCE_ID,
+    S3_SOURCE_ID,
     SOURCE_ATTR_PREFIX,
     SOURCE_DEGREE_ATTR,
     SOURCE_ENTITY_ATTR,
@@ -144,6 +146,7 @@ export {
     SOURCE_STUB_ATTR,
     SPARQL_SOURCE_ID,
     URL_SOURCE_ID,
+    ZENODO_SOURCE_ID,
 } from "./sources/ids.js";
 export { type SourceParamsMap } from "./sources/params.js";
 export { sha256Hex } from "./sources/sigv4.js";

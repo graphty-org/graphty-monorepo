@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BROKEN_AFTER, createNotifier, MAX_MESSAGE, MAX_TRIES, TIMEOUT_MS } from "../lib/notify.mjs";
 import { tempDir } from "./helpers/temp-dir.mjs";
@@ -48,10 +48,10 @@ function groupAlive(pgid) {
 
 /**
  * A notifier over a fresh state, running the fake command.
- * @param {{maxPerHour?: number, command?: string[] | null, timeoutMs?: number, state?: any, held?: string}} [options] overrides
+ * @param {{maxPerHour?: number, command?: string[] | null, startTimer?: (fire: () => void, ms: number) => () => void, state?: any, held?: string}} [options] overrides
  * @returns {{notifier: ReturnType<typeof createNotifier>, state: any}} the notifier and its state
  */
-function make({ maxPerHour = 6, command, timeoutMs, state = { schema: 1 }, held } = {}) {
+function make({ maxPerHour = 6, command, startTimer, state = { schema: 1 }, held } = {}) {
     const notifier = createNotifier({
         notify: () => ({
             command:
@@ -64,7 +64,7 @@ function make({ maxPerHour = 6, command, timeoutMs, state = { schema: 1 }, held 
         state,
         ledger: (entry) => ledger.push(entry),
         now: () => new Date(clock),
-        timeoutMs,
+        startTimer,
     });
     return { notifier, state };
 }
@@ -135,14 +135,27 @@ describe("createNotifier", () => {
 
     it("kills a hanging command's process group at the timeout and retries it on the next flush", async () => {
         expect(TIMEOUT_MS).toBe(15_000);
-        const { notifier, state } = make({ timeoutMs: 300 });
+        // The test fires the timeout itself, once the hanging command is running, so neither
+        // run depends on how fast a fresh Node process starts.
+        /** @type {{fire: () => void, ms: number}[]} */
+        const timers = [];
+        const { notifier, state } = make({
+            startTimer: (fire, ms) => {
+                timers.push({ fire, ms });
+                return () => {};
+            },
+        });
         behavior = "hang";
         notifier.send({ key: "k", status: "waiting", message: "m" });
-        await notifier.flush();
+        const flushed = notifier.flush();
+        await vi.waitFor(() => expect(calls()).toHaveLength(1));
+        expect(timers.map((t) => t.ms)).toEqual([TIMEOUT_MS]);
+        timers[0].fire();
+        await flushed;
         const [hung] = calls();
         expect(groupAlive(hung.pid)).toBe(false);
         expect(state.notify.pending.k.tries).toBe(1);
-        expect(state.notify.lastError).toBe("timed out after 0.3 s");
+        expect(state.notify.lastError).toBe("timed out after 15 s");
         expect(state.notified.k).toBeUndefined();
 
         behavior = "ok";

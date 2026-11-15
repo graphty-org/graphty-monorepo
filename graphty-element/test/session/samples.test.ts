@@ -3,10 +3,10 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { resolve } from "node:path";
 
-import { afterAll, assert, beforeAll, describe, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "../../catalog";
-import { isGraphtyError } from "../../src/errors/GraphtyError";
+import { type GraphtyError, isGraphtyError } from "../../src/errors/GraphtyError";
 import { createGraphSession } from "../../src/session";
 
 /** graph-samples' built dataset files, served the way graphty.app serves them. */
@@ -121,9 +121,25 @@ describe("session.catalog.datasets and data.loadDataset", () => {
         session.dispose();
     });
 
-    it("refuses an unknown dataset, and says so when the download fails", async () => {
+    it("names no download host of its own: a load without a baseUrl is refused", async () => {
         const session = createGraphSession();
-        assert.strictEqual(await codeOf(session.data.loadDataset("karat")), "E_UNKNOWN_DATASET");
+        const fetched = vi.fn(fetch);
+        vi.stubGlobal("fetch", fetched);
+        try {
+            const error = await session.data.loadDataset("karate").catch((caught: unknown) => caught);
+            assert.isTrue(isGraphtyError(error));
+            assert.strictEqual((error as GraphtyError).code, "E_OPTION_RANGE");
+            assert.strictEqual((error as GraphtyError).details?.option, "baseUrl");
+            assert.strictEqual(fetched.mock.calls.length, 0, "nothing was downloaded");
+            assert.strictEqual(session.data.snapshot().nodeCount, 0);
+        } finally {
+            vi.unstubAllGlobals();
+            session.dispose();
+        }
+    });
+
+    it("says so when the download fails", async () => {
+        const session = createGraphSession();
         assert.strictEqual(await codeOf(session.data.loadDataset("nothing-here", { baseUrl })), "E_FETCH_FAILED");
         assert.strictEqual(session.data.snapshot().nodeCount, 0);
         session.dispose();

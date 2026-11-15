@@ -6,12 +6,10 @@
  * with an existing name in the same table the importer names it `<name>#<origin.id>` and records a
  * coercion issue.
  *
- * One situation, eight outcomes: the caller's sink already holds a node column `label` (i32, no
- * role) and the file labels its node "A". GraphML and Neo4j rename and keep the value (5.6), CSV
- * keeps it under a different name, GEXF and Pajek record E_COLUMN_EXISTS and lose the label, GML
- * and DOT adopt the caller's i32 column and then record E_COLUMN_TYPE for the text (the label is
- * lost), JSON records E_COLUMN_TYPE. The test fails deliberately: it asserts the 5.6 outcome for
- * every format and reports the divergence.
+ * The situation: the caller's sink already holds a node column `label` (i32, no role) and the file
+ * labels its node "A". The audit once found eight different outcomes; the test asserts the 5.6
+ * outcome (the label kept under a renamed column, with a coercion warning) for every format that
+ * declares columns, and E_COLUMN_TYPE for JSON, whose keys are inferred rather than declared.
  */
 
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";

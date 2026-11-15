@@ -135,7 +135,7 @@ async function drag(graph: Graph): Promise<void> {
     handler.onDragStart(start);
     handler.onDragUpdate(start.add(DRAG));
     handler.onDragEnd();
-    for (let wait = 0; wait < 600 && session.history.steps.length === steps; wait++) {
+    while (session.history.steps.length === steps) {
         await nextFrame();
     }
 

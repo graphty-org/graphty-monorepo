@@ -660,7 +660,7 @@ export class FormatRegistry {
         const { request, ...rest } = opts;
         const signal = request?.signal ?? rest.signal ?? null;
         const method = request?.method ?? "GET";
-        const where = `${method} ${String(url)}`;
+        const where = `${method} ${shownUrl(url)}`;
         let response: Response;
         try {
             response = await fetch(url, { signal: rest.signal, ...request });
@@ -1282,7 +1282,7 @@ export function checkExport(
  * @throws ImportError when the file could not be loaded; `err.issue?.code` is "E_FETCH" for a
  *   network failure, a CORS refusal or a status outside 200-299 (`err.details.url`,
  *   `err.details.status` -- null for a network failure -- and `err.details.cause`, fetch's own
- *   error), "E_UNKNOWN_FORMAT" when no format recognizes the file (pass `format`), or the code of
+ *   error rebuilt without the URL's secrets), "E_UNKNOWN_FORMAT" when no format recognizes the file (pass `format`), or the code of
  *   the parse error
  * @throws GraphFormatError with code E_UNSUPPORTED when `format` names no registered importer
  * @throws the signal's reason when `signal` aborts
@@ -1477,7 +1477,7 @@ export function sniff(hints: SniffHints): SniffResult | null {
  * @param url - the URL
  * @param message - the message
  * @param status - the HTTP status, or null for a network failure
- * @param cause - fetch's own error, or null
+ * @param cause - fetch's own error, or null; attached with the URL's secrets taken out
  * @returns never; always throws
  */
 function fetchFailed(
@@ -1488,7 +1488,61 @@ function fetchFailed(
     cause: unknown,
 ): never {
     const format = options.format === undefined || options.format === "auto" ? "unknown" : options.format;
-    return new ImportReportBuilder(format, 0).fail(FETCH_CODE, message, undefined, { url: String(url), status, cause });
+    return new ImportReportBuilder(format, 0).fail(FETCH_CODE, withoutSecrets(url, message), undefined, {
+        url: shownUrl(url),
+        status,
+        cause: redactedError(url, cause, 0),
+    });
+}
+
+/**
+ * fetch's error rebuilt with the URL's secrets taken out: its name, message, `code` and cause
+ * chain, never its stack or other fields, since runtimes put the URL as given in all of those (Node
+ * does for a URL with user info).
+ * @param url - the URL fetch was called with
+ * @param err - what fetch threw, or null
+ * @param depth - how many causes deep this is
+ * @returns the redacted error, or null for null
+ */
+function redactedError(url: string | URL, err: unknown, depth: number): Error | null {
+    if (err === null || err === undefined) {
+        return null;
+    }
+    const { name, message, code, cause } = (typeof err === "object" ? err : {}) as Record<string, unknown>;
+    const out = new Error(withoutSecrets(url, typeof message === "string" ? message : messageOf(err)));
+    out.name = typeof name === "string" ? name : "Error";
+    if (typeof code === "string") {
+        Object.assign(out, { code: withoutSecrets(url, code) });
+    }
+    // three levels hold what undici and browsers nest; deeper is dropped rather than walked
+    const inner = depth < 3 ? redactedError(url, cause, depth + 1) : null;
+    if (inner !== null) {
+        out.cause = inner;
+    }
+    return out;
+}
+
+/**
+ * Text with every spelling of a URL's secrets replaced: the URL as given and as resolved become
+ * its shownUrl(), and any user info, query string or fragment left over is removed.
+ * @param url - the URL
+ * @param text - the text to clean
+ * @returns the text without the URL's secrets
+ */
+function withoutSecrets(url: string | URL, text: string): string {
+    const shown = shownUrl(url);
+    let out = text.replaceAll(String(url), shown);
+    try {
+        const absolute = new URL(url);
+        out = out.replaceAll(absolute.href, shown);
+        const user = absolute.username + (absolute.password === "" ? "" : `:${absolute.password}`);
+        for (const secret of [user === "" ? "" : `${user}@`, absolute.search, absolute.hash]) {
+            out = secret === "" ? out : out.replaceAll(secret, "");
+        }
+    } catch {
+        // a relative URL: shownUrl() already cut its query string and fragment
+    }
+    return out;
 }
 
 /**
@@ -1537,6 +1591,23 @@ function fetchErrorText(url: string | URL, err: unknown): string {
     const cause = (err as { cause?: { message?: unknown } } | null)?.cause?.message;
     const detail = typeof cause === "string" && cause !== "" ? ` (${cause})` : "";
     return `the server could not be reached, or (in a browser) it does not allow this page to read the file (CORS)${detail}`;
+}
+
+/**
+ * A URL as errors show it: origin and path, never the query string, fragment or user info, which
+ * can hold a signature or a key.
+ * @param url - the URL, absolute or relative
+ * @returns the URL without its secrets
+ */
+function shownUrl(url: string | URL): string {
+    try {
+        const absolute = new URL(url);
+        return `${absolute.protocol}//${absolute.host}${absolute.pathname}`;
+    } catch {
+        const text = String(url);
+        const cut = text.search(/[?#]/);
+        return cut === -1 ? text : text.slice(0, cut);
+    }
 }
 
 /**

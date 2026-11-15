@@ -94,7 +94,7 @@ export type Selector =
      * The top `n` elements by one run field, `results.<run>.<field>`, cut only between tie
      * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
      * So a layer never paints more than `n` elements, and paints none on a graph whose highest
-     * value is shared by more than `n`. `RunResult.top` is the same cut with its reason. With
+     * value is shared by more than `n`. `RunResult.top` is the same cut, with the tie group it left out. With
      * `ties: "all"` the group the cut falls in is painted whole instead, past `n`.
      */
     | { readonly match: "top"; readonly path: Path; readonly n: number; readonly ties?: TopTies }

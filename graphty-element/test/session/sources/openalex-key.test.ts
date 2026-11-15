@@ -263,10 +263,17 @@ describe("the OpenAlex key in a session", () => {
         await rememberedKey(session, asked);
         await session.project.open(text);
         const [pending] = session.data.pendingSourceLoads();
-        // OpenAlex reads only its own origin, so the run is refused; what matters is no key went out
-        await session.data.runPendingSourceLoad(pending.id, { fetch: standIn }).catch(() => undefined);
+        // OpenAlex reads only its own origin, so the run is refused before any request goes out.
+        let error: GraphtyError | undefined;
+        try {
+            await session.data.runPendingSourceLoad(pending.id, { fetch: standIn });
+        } catch (thrown) {
+            error = thrown as GraphtyError;
+        }
+        assert.strictEqual(error?.code, "E_SOURCE_PARAM");
+        assert.deepInclude(error?.details, { name: "endpoint", reason: "origin" });
         assert.deepEqual([...new Set(asked)], ["openalex https://evil.example api_key"]);
-        assert.isTrue(seen.every((s) => s.apiKey === null));
+        assert.lengthOf(seen, 0, "no request went out, so no key did");
     });
 });
 

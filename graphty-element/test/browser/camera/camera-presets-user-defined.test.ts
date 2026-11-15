@@ -1,5 +1,4 @@
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors/index.js";
 import { Graph } from "../../../src/Graph.js";
@@ -138,6 +137,21 @@ describe("Camera Presets - User Defined", () => {
             assert.equal(view1.position.y, 30);
             assert.equal(view1.position.z, 30);
         }
+    });
+
+    test("importCameraPresets reports a preset the views refuse as graph-error", async () => {
+        const reported: { code: unknown; details: unknown }[] = [];
+        graph.addListener("error", (event) => {
+            const { error, details } = event as { error: unknown; details?: unknown };
+            reported.push({ code: isGraphtyError(error) ? error.code : undefined, details });
+        });
+
+        // A blank name is refused by the views; nobody holds the import's promise.
+        graph.importCameraPresets({ " ": { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } } });
+
+        await vi.waitFor(() => {
+            assert.deepEqual(reported, [{ code: "E_BAD_COMMAND", details: { op: "views.save" } }]);
+        });
     });
 
     test("getCameraPresets returns both built-in and user-defined presets", async () => {

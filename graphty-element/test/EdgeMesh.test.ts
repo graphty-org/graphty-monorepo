@@ -14,7 +14,7 @@ import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import { EDGE_CONSTANTS } from "../src/constants/meshConstants";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
 import { MeshCache } from "../src/meshes/MeshCache";
-import { edgeLineFor } from "./helpers/edgeLine";
+import { batchLineFor, edgeLineFor } from "./helpers/edgeLine";
 
 describe("EdgeMesh", () => {
     let scene: Scene;
@@ -216,6 +216,21 @@ describe("EdgeMesh", () => {
             assert.isAtLeast(Math.min(...right.z), -1e-9);
             assert.notStrictEqual(left.mesh, whole.mesh);
             assert.notStrictEqual(left.mesh, right.mesh);
+        });
+
+        test("stops a half barb's line where Cytoscape stops it under HALF_TOP, half-open's where its arm meets", () => {
+            // Cytoscape's HALF_TOP: barb tip 0.3 of the arrow's size off the node, 1.135 long, line cut at 0.5 (#7769)
+            for (const type of ["half-barb", "half-barb-flipped"]) {
+                const end = EdgeMesh.calculateLineEndpoint(
+                    new Vector3(0, 0, 0),
+                    new Vector3(1, 0, 0),
+                    1.135,
+                    EdgeMesh.getArrowGeometry(type),
+                );
+                assert.closeTo(end.x, -0.2, 1e-9, type);
+            }
+            // graphty's own half arrow keeps its stop at the arm's inner corner
+            assert.closeTo(EdgeMesh.getArrowGeometry("half-open").lineStop ?? 1, 0.4, 1e-9);
         });
 
         test("runs a crossed delta's line through its bar to the back of its delta", () => {
@@ -514,7 +529,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 0.5);
@@ -531,7 +546,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 1);
@@ -548,7 +563,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 0);
@@ -565,7 +580,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 0.7);

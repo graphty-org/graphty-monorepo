@@ -15,6 +15,7 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
+import { isGraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
@@ -65,7 +66,7 @@ async function loadedGraph(): Promise<Graph> {
  */
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
-    for (let wait = 0; wait < 600 && graph.getLayoutManager().running; wait++) {
+    while (graph.getLayoutManager().running) {
         await nextFrame();
     }
 
@@ -277,8 +278,12 @@ describe("the layout as a step", () => {
         await graph.setViewMode("2d");
         const steps = session.history.steps.length;
 
-        // This browser has no WebXR, so entry fails.
-        await graph.setViewMode("vr");
+        // XR is off here, so entry fails, and says so.
+        const refused: unknown = await graph.setViewMode("vr").then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+        assert.isTrue(isGraphtyError(refused) && refused.code === "E_UNSUPPORTED", "the entry did not reject, coded");
 
         assert.lengthOf(session.history.steps, steps, "no step for a switch the reader never got");
         assert.strictEqual(graph.getViewMode(), "2d");

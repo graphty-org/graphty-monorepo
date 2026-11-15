@@ -14,15 +14,22 @@
 //           origin/channel/nightly fetched when it exists
 //       writes resume (true | false), and when true sha (P), tested (H), held, source_run (the run that judged H
 //           green-images: its visual-final-* captures and its kept builds) and why to GITHUB_OUTPUT
-//   node tools/channel/resume.mjs record    the unhold job (approved) or the resume job (rejected)
-//       env STATE (approved | rejected), TESTED, ACCEPT, WHY, RUN_URL, RESULTS_URL and the job's OIDC token,
-//           GH_TOKEN, GITHUB_REPOSITORY; a rejection is also commented on the hold issue (the open "Nightly held on"
-//           issue, or a new one, when the store records none) and then fails, so the run ends red
+//   node tools/channel/resume.mjs record    the unhold job (approved) or the resume job (refused)
+//       env STATE (approved | refused), TESTED, ACCEPT, SOURCE_RUN (refused), WHY, RUN_URL, RESULTS_URL and the job's
+//           OIDC token, GH_TOKEN, GITHUB_REPOSITORY; a refusal is also commented on the hold issue (the open "Nightly
+//           held on" issue, or a new one, when the store records none) and then fails, so the run ends red
+//
+// A refusal by the promotion gate is `refused`, never `rejected` (#6783): `rejected` is the owner's rejection or an
+// abandon and ends the candidate for good, while a refusal is often a pipeline defect. Its lane keeps the run that
+// judged the candidate green-images ("accept <sha12> run <id>"), so a later promote-nightly dispatch of the same
+// candidate (after the cause is fixed on master) still finds that run's captures and builds. A full slot's catch-up
+// never retries a refused approval: it would refuse again every slot while the cause stands, and test nothing.
 //
 // A promotion happens exactly once, and an older candidate never after a newer one: the resume refuses an approval
 // already in channel/nightly (done), one whose history lacks channel/nightly (older than nightly; the land job's
 // ancestry check refuses it too), one for a head that is not the held one, one for a head whose latest verdict is
-// not green-images (red, or recorded approved by an earlier resume), and one that is not H plus accept-only commits.
+// not green-images or (promote-nightly only) refused (red, rejected, or recorded approved by an earlier resume), and
+// one that is not H plus accept-only commits.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -62,11 +69,13 @@ export function acceptsIn(commits) {
  * @param [o.acceptOnly] whether P is H plus accept-only commits: no merge, nothing outside visual-baselines/ and
  *   visual-review-approvals/
  * @param o.hold the store's held candidate ({ head, issue }) or null
- * @param o.latest H's latest verdict in the store ({ state, runId }) or null
+ * @param o.latest H's latest verdict in the store ({ state, runId, lane }) or null
+ * @param [o.retry] whether a refused approval may be tried again (promote-nightly; never a full slot's catch-up)
  * @param [o.onMaster] whether master holds P (its pull request merged)
  * @param [o.promoted] whether channel/nightly holds P already
  * @param [o.older] whether P's history lacks channel/nightly
- * @returns `{ run, why, comment }`: comment is the hold issue to tell why it did not run, when it should be told
+ * @returns `{ run, why, comment, sourceRun }`: comment is the hold issue to tell why it did not run, when it should
+ *   be told; sourceRun the run that judged H green-images
  */
 export function resumeDecision({
     candidate,
@@ -74,6 +83,7 @@ export function resumeDecision({
     acceptOnly = true,
     hold,
     latest,
+    retry = true,
     onMaster = true,
     promoted,
     older,
@@ -90,10 +100,20 @@ export function resumeDecision({
         return no(
             `nightly is held on ${short(hold.head)}, not on ${short(candidate)}: this approval is for an older head`,
         );
-    if (latest?.state !== "green-images")
+    const refused = retry && latest?.state === "refused";
+    if (latest?.state !== "green-images" && !refused)
         return no(`the latest verdict on ${short(candidate)} is ${latest?.state ?? "missing"}, not green-images`);
+    const sourceRun = refused ? /\brun (\d+)$/.exec(latest.lane ?? "")?.[1] : latest.runId;
+    if (refused && !sourceRun)
+        return no(`the refusal recorded on ${short(candidate)} names no run that judged it green-images`);
     if (older) return no(`the approval ${a} lacks channel/nightly: nightly moved past ${short(candidate)} already`);
-    return { run: true, why: `the owner approved the screenshots of ${short(candidate)} (accept ${a})`, comment: null };
+    const again = refused ? ", again after a refusal" : "";
+    return {
+        run: true,
+        why: `the owner approved the screenshots of ${short(candidate)} (accept ${a})${again}`,
+        comment: null,
+        sourceRun,
+    };
 }
 
 const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -122,15 +142,16 @@ const NIGHTLY = "refs/remotes/origin/channel/nightly";
  * The approval of a candidate on master (HEAD, the run's master checkout): the head of the pull request that brought
  * its newest accept commit in, the second parent of the first merge on master's first-parent line that holds it.
  * @param candidate H
+ * @param [ref] master's commit to read (a freshly fetched FETCH_HEAD, for the verdict's replace check)
  * @returns P, or null
  */
-function approvalOnMaster(candidate) {
+export function approvalOnMaster(candidate, ref = "HEAD") {
     const log = git(
         "log",
         "--format=%H %P%x09%s",
         "--fixed-strings",
         `--grep=approve visual baselines at ${short(candidate)}`,
-        "HEAD",
+        ref,
     );
     const commits = log
         .split("\n")
@@ -142,7 +163,7 @@ function approvalOnMaster(candidate) {
         });
     const accept = acceptsIn(commits).find((c) => c.candidate === candidate)?.accept;
     if (!accept) return null;
-    const merges = git("log", "--merges", "--first-parent", "--reverse", "--format=%P", `${accept}..HEAD`);
+    const merges = git("log", "--merges", "--first-parent", "--reverse", "--format=%P", `${accept}..${ref}`);
     for (const line of merges.split("\n").filter(Boolean)) {
         const [, second] = line.split(" ");
         if (second && gitOk("merge-base", "--is-ancestor", accept, second)) return second;
@@ -227,7 +248,8 @@ async function check(env) {
         throw new Error("CANDIDATE and ACCEPT must be full commit ids");
     const accept = acceptPrefix(candidate, found.accept);
     const latest = (r.data.recent ?? []).find((v) => v.sha === candidate) ?? null;
-    const d = resumeDecision({ candidate, accept, hold, latest, ...approvalFacts(candidate, accept) });
+    const retry = env.MODE === "promote-nightly";
+    const d = resumeDecision({ candidate, accept, hold, latest, retry, ...approvalFacts(candidate, accept) });
     if (!d.run) {
         console.log(`::notice::no promotion: ${d.why}`);
         // a full slot's catch-up never comments: it would repeat on every slot
@@ -241,25 +263,32 @@ async function check(env) {
         sha: accept,
         tested: candidate,
         held: hold?.head ?? "",
-        source_run: latest.runId,
+        source_run: d.sourceRun,
         why: d.why,
     });
 }
 
 async function record(env) {
-    if (!["approved", "rejected"].includes(env.STATE)) throw new Error("STATE must be approved or rejected");
+    if (!["approved", "refused"].includes(env.STATE)) throw new Error("STATE must be approved or refused");
     const cfg = config(env);
-    const body = { sha: env.TESTED, state: env.STATE, lane: `accept ${short(env.ACCEPT)}` };
+    // a refusal keeps the judging run, which a retry needs (resumeDecision)
+    const run = env.STATE === "refused" && env.SOURCE_RUN ? ` run ${env.SOURCE_RUN}` : "";
+    const body = { sha: env.TESTED, state: env.STATE, lane: `accept ${short(env.ACCEPT)}${run}` };
     const r = cfg ? await call(cfg, "POST", "/v1/verdicts", body) : { ok: false, why: "no store configured" };
     console.log(
         r.ok
             ? `recorded ${env.STATE} on ${env.TESTED}`
             : `::warning::the results store did not record ${env.STATE} on ${env.TESTED} (${r.why})`,
     );
-    if (env.STATE !== "rejected") return;
+    if (env.STATE !== "refused") return;
     const h = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false };
     const issue = h.ok ? h.data.hold?.issue : null;
-    const text = `The approval ${env.ACCEPT} of ${env.TESTED} did not promote: ${env.WHY}. ${env.RUN_URL ?? ""}`.trim();
+    const retry = `gh workflow run release.yml --ref master -f mode=promote-nightly -f candidate=${env.TESTED} -f accept=${env.ACCEPT}`;
+    const text = [
+        `The approval ${env.ACCEPT} of ${env.TESTED} did not promote: ${env.WHY}. ${env.RUN_URL ?? ""}`.trim(),
+        "",
+        `Once the cause is fixed on master, \`${retry}\` tries this approval again; a newer green full run replaces it otherwise.`,
+    ].join("\n");
     if (issue) commentOn(issue, text);
     else {
         // a hold with no issue recorded (#5835): comment on the open "Nightly held on" issue, or open one

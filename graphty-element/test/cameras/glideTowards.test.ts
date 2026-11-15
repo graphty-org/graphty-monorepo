@@ -1,6 +1,5 @@
 import { Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { describe, test } from "vitest";
+import { assert, describe, test } from "vitest";
 
 import { glideTowards } from "../../src/cameras/CameraManager";
 

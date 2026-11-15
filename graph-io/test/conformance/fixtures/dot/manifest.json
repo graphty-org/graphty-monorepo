@@ -84,8 +84,7 @@
           "z",
           "q"
         ]
-      },
-      "roundTripFailure": "the DOT export writes subgraph members before the other nodes, so node order changes on re-import"
+      }
     },
     {
       "file": "graphviz-graphs/b22.gv",
@@ -1426,8 +1425,7 @@
           "node1",
           "node2"
         ]
-      },
-      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4)"
+      }
     },
     {
       "file": "graphviz-issues/2801.dot",
@@ -2475,8 +2473,7 @@
           "<b>b2 #rules!</b>",
           "b4"
         ]
-      },
-      "knownFailure": "an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4)"
+      }
     },
     {
       "file": "pydot/html_labels.dot",
@@ -2497,8 +2494,7 @@
           "more <b>html</b>",
           "<more <b>html</b>>"
         ]
-      },
-      "knownFailure": "an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4)"
+      }
     },
     {
       "file": "pydot/numeric_ids_unicode.dot",
@@ -3001,8 +2997,7 @@
           "a",
           "b"
         ]
-      },
-      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4)"
+      }
     },
     {
       "file": "authored/hash-midline.gv",
@@ -3021,8 +3016,7 @@
           "b",
           "c"
         ]
-      },
-      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4)"
+      }
     },
     {
       "file": "authored/hash-line-directive.gv",
@@ -3319,7 +3313,7 @@
           "W_DOT_EDGE_OPERATOR"
         ]
       },
-      "roundTripFailure": "a mixed-direction graph is refused by the DOT exporter under the default onMixedDirection \"error\""
+      "roundTripRefusal": "E_MIXED_DIRECTION"
     },
     {
       "file": "authored/edge-default-scope.gv",

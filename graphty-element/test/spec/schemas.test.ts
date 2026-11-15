@@ -343,9 +343,24 @@ const MUTATIONS: Mutation[] = [
         change: (view) => Object.assign(view.camera as JsonObject, { type: "arcRotate" }),
     },
     {
-        name: "a visibility filter that is not graph.filter's { on, where }",
+        // A filter is graph.filter's { on, where } or a rule tree, told apart by structure.
+        name: "a visibility filter that is neither graph.filter's { on, where } nor a rule tree",
         section: "view",
-        change: (view) => Object.assign(view.visibility as JsonObject, { filter: { kind: "degree", min: 0 } }),
+        change: (view) => Object.assign(view.visibility as JsonObject, { filter: { on: "nodes" } }),
+    },
+    {
+        name: "a view layout naming its layout in engine",
+        section: "view",
+        change: (view) => Object.assign(view.layout as JsonObject, { engine: "ngraph" }),
+    },
+    {
+        name: "a recipe layout.set with an engine",
+        section: "recipe",
+        change: (recipe) => {
+            const commands = recipe.commands as JsonObject[];
+            const layout = commands.find((command) => command.op === "layout.set");
+            Object.assign(layout as JsonObject, { engine: "ngraph" });
+        },
     },
     {
         name: "a network origin member outside its closed list",

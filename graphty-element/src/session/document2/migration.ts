@@ -751,20 +751,15 @@ function resultEntry(
  * @returns The record, or undefined when the file names no layout or holds no position.
  */
 function layoutRecord(context: Context, data: MigratedData, positions: readonly Placed[]): JsonObject | undefined {
-    const layout = layoutOf(context.members.get("graphty-session"));
+    const layout = layoutOf(context.members.get("graphty-session"), context);
     const free = positions.filter((each) => !each.pinned);
     if (layout === undefined || free.length === 0) {
         return undefined;
     }
 
-    const { engine, ...rest } = layout;
     return {
-        ...rest,
-        // The layout that drew it; version 1 may name only the catalogue id, which a registered
-        // engine name is read as.
-        algorithm: typeof engine === "string" ? engine : rest.id,
+        ...layout,
         seed: null,
-        engine: engineOf(context),
         bindsTo: data.binding,
         nodes: {
             refs: free.map((each) => each.node),
@@ -944,11 +939,13 @@ function migrateSettings(session: JsonObject, context: Context): JsonObject {
 }
 
 /**
- * The layout in force, exactly version 1's `{ id, engine, options, dimension }`.
+ * The layout in force, as view's layout record: version 1's `{ id, engine, options, dimension }`,
+ * the layout's name in `algorithm` and `engine` graphty-element's EngineVersions.
  * @param session - The session member, if any.
+ * @param context - The file.
  * @returns The layout record, or undefined for none.
  */
-function layoutOf(session: JsonObject | undefined): JsonObject | undefined {
+function layoutOf(session: JsonObject | undefined, context: Context): JsonObject | undefined {
     const layout = isObject(session?.layout) ? session.layout : undefined;
     if (layout === undefined || typeof layout.id !== "string" || layout.id === "") {
         return undefined;
@@ -956,9 +953,11 @@ function layoutOf(session: JsonObject | undefined): JsonObject | undefined {
 
     return {
         id: layout.id,
-        ...(typeof layout.engine === "string" && layout.engine !== "" ? { engine: layout.engine } : {}),
+        // Version 1 may name only the catalogue id, which a registered engine name is read as.
+        algorithm: typeof layout.engine === "string" && layout.engine !== "" ? layout.engine : layout.id,
         dimension: layout.dimension === "2d" || layout.dimension === 2 ? 2 : 3,
         ...(isObject(layout.options) && Object.keys(layout.options).length > 0 ? { options: layout.options } : {}),
+        engine: engineOf(context),
     };
 }
 
@@ -1021,7 +1020,7 @@ function visibilityOf(visibility: JsonObject, context: Context, data: MigratedDa
             : undefined;
     const hidden = nodeRefs(visibility.hidden, data);
     return {
-        filter: filterOf(visibility.filter, context),
+        filter: filterOf(visibility.filter, context, data),
         ...(window === undefined ? {} : { window }),
         ...(typeof visibility.showContext === "boolean" ? { showContext: visibility.showContext } : {}),
         ...(conditions.length === 0 ? {} : { conditions }),
@@ -1030,13 +1029,14 @@ function visibilityOf(visibility: JsonObject, context: Context, data: MigratedDa
 }
 
 /**
- * A version 1 filter in force as graph.filter's `{ on, where }` (spec 4.7 rule 4): one expression
- * leaf on nodes or edges. Any other filter has no such form, and is reported.
+ * A version 1 filter in force (spec 4.7 rule 4): one expression leaf on nodes or edges as
+ * graph.filter's `{ on, where }`; any other filter as its bound rule tree, as a rule set holds it.
  * @param filter - The version 1 filter.
  * @param context - The file.
+ * @param data - The data.
  * @returns The filter, or null.
  */
-function filterOf(filter: unknown, context: Context): JsonObject | null {
+function filterOf(filter: unknown, context: Context, data: MigratedData): JsonObject | null {
     if (!isObject(filter)) {
         return null;
     }
@@ -1045,8 +1045,7 @@ function filterOf(filter: unknown, context: Context): JsonObject | null {
         return { on: filter.kind === "edges" ? "edges" : "nodes", where: filter.where };
     }
 
-    context.problems.push(leftOut("graphty-session", "/visibility/filter"));
-    return null;
+    return renameSets(boundRule(filter, data), context) as JsonObject;
 }
 
 /**
@@ -1091,7 +1090,7 @@ function migrateView(
         const ref = typeof position === "number" ? data.edgeAt(position) : undefined;
         return ref === undefined ? [] : [ref];
     };
-    const layout = layoutOf(session);
+    const layout = layoutOf(session, context);
     return {
         ...header("view", context, { bindsTo: { data: data.dataId } }),
         ...(views.length === 0 ? {} : { views }),
@@ -1135,8 +1134,13 @@ function migrateRecipe1(recipe: JsonObject, context: Context): JsonObject | unde
         }
 
         if (command.op === "layout.set") {
-            const { dimension, ...rest } = command;
-            return { ...rest, dimension: dimension === 2 || dimension === "2d" ? 2 : 3 };
+            // Version 2 names the layout `algorithm`: a recipe says what to run, not what ran.
+            const { dimension, engine, ...rest } = command;
+            return {
+                ...rest,
+                ...(typeof engine === "string" ? { algorithm: engine } : {}),
+                dimension: dimension === 2 || dimension === "2d" ? 2 : 3,
+            };
         }
 
         return command;

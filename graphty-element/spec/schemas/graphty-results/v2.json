@@ -206,7 +206,7 @@
                 "algorithm": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "The layout that drew it, as layout.set spells its engine."
+                    "description": "The layout that drew it, as layout.set spells it in algorithm."
                 },
                 "engine": {
                     "type": "object",

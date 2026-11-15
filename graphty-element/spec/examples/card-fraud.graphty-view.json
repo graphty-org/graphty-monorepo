@@ -260,10 +260,15 @@
     ],
     "layout": {
         "id": "force",
-        "engine": "ngraph",
+        "algorithm": "ngraph",
         "options": {
             "seed": 52211
         },
-        "dimension": 3
+        "dimension": 3,
+        "engine": {
+            "element": "3.40.0",
+            "algorithms": "2.1.2",
+            "layout": "1.10.5"
+        }
     }
 }

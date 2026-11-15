@@ -446,7 +446,7 @@ A recipe section holds `commands` (REQUIRED) and `namespace`. The commands, in o
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `graph.filter` | `where` (an expression), `on` (`nodes` default, or `edges`), `dropIsolated`, `description`                                                    |
 | `algo.run`     | `algorithm`, `as`, `style` (REQUIRED), `params`, `scope`, `seed`, `sample`, `exact`, `recordedCapSeconds`, `recordedPrecision`, `description` |
-| `layout.set`   | `id`, `dimension` (`2` or `3`, REQUIRED), `engine`, `options` (the seed among them), `description`                                            |
+| `layout.set`   | `id`, `dimension` (`2` or `3`, REQUIRED), `algorithm`, `options` (the seed among them), `description`; no `engine`                            |
 | `set.define`   | `id` (`set_` plus a ULID, bare), `name`, `where` (an expression or a rule tree naming no element), `reading`, `description`                   |
 | `join.<shape>` | a join step (4.1.8), naming sources by role                                                                                                   |
 
@@ -455,7 +455,9 @@ A recipe section holds `commands` (REQUIRED) and `namespace`. The commands, in o
    `{ "set": <set id> }`.
 3. Every `algo.run` writes `style`: the run's suggested-style setting, or `false` when any saved
    layer reads the run, in a style or view section, in the same file or not.
-4. Steps carry no algorithm or layout version; the version that ran is recorded in results.
+4. Steps carry no algorithm or layout version; the version that ran is recorded in results and
+   view. A recipe says what to run, not what ran: `layout.set` names the layout in `algorithm`
+   and has no `engine`.
 5. A recipe never names an element. A rule naming an element cannot be a recipe step: the writer
    leaves it out and reports it.
 6. **Applying under a namespace** writes each `set.define` id as `set_<namespace>.<ULID>` and
@@ -497,7 +499,7 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
 4. Outputs are columns: `{ "refs": [<element references>], "columns": { <field>: [values] } }`,
    every column as long as `refs`.
 5. `layout` is the layout's record: `id`, the catalogue id; `algorithm`, the layout that drew it,
-   as `layout.set` spells its engine; `dimension`; `options`; `seed`; `durationMs`; `engine`
+   as `layout.set` spells it in `algorithm`; `dimension`; `options`; `seed`; `durationMs`; `engine`
    (`EngineVersions`, as every run's); `bindsTo`; and `nodes: { refs, columns: { x, y, z } }`. It
    has no run id; one layout is in force at a time. In results, `engine` always means
    `EngineVersions`.
@@ -532,7 +534,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 | `order`         | one list of layer ids for the whole stack, bottom first, style and view layers alike                                                |
 | `layers`        | the layers that name elements or a dataset (section 5 rule 5)                                                                       |
 | `runs`          | the single ordered list of every run record, in the order made (rule 5)                                                             |
-| `layout`        | the layout record in force: `{ id, engine, options, dimension }`                                                                    |
+| `layout`        | the layout record in force: `{ id, algorithm, options, dimension, engine }` (rule 7)                                                |
 
 1. Positions and cameras are in the frame of section 7. Every other position is layout output.
 2. **Camera.** `dimension` (`2` or `3`, closed; it follows the layout's dimension) and
@@ -547,9 +549,13 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 3. **Sets.** `definition` is graphty-element's set definition (`fixed`, `rule` or `path`), its node
    and edge members written as element references and its source leaves by source id. View holds
    every set in force, rule sets included whatever their rule names.
-4. **Visibility.** `filter` is the filter in force in the shape of a `graph.filter` command
-   without its `op` (common schema `graphFilter`): `{ "on", "where" }`, `on` being `nodes` or
-   `edges`. A filter no such pair expresses is refused and reported. `window` is graphty-element's `TimeWindow`: an instant bound is
+4. **Visibility.** `filter` is the filter in force, in one of two forms. One expression on nodes
+   or edges is written in the shape of a `graph.filter` command without its `op` (common schema
+   `graphFilter`): `{ "on", "where" }`, `on` being `nodes` or `edges`. Any other filter (a degree
+   rule, one naming members, a group of leaves) is written as a rule tree in exactly the shape a
+   rule set's `definition` holds its `where` (common schema `boundRuleTree`), element-naming
+   leaves as element references. A reader tells the two apart by structure, not a tag: a rule
+   tree has a `kind`, a `graphFilter` has none. No filter is left out. `window` is graphty-element's `TimeWindow`: an instant bound is
    a `toISOString` string, a raw value (a step number, a year) a JSON number; `attribute`, `end`
    and `spells` are value paths (`data.<working column>`); the window's own `missing`, `mode` and
    `timeZone` win over playback's; the element's `windowRaw` flag is not written. `conditions`
@@ -571,7 +577,9 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    elements, and whose run source `params` hold element references. A layer reading a run no
    recipe step makes, or a run or set whose name several open ones share, names it by run id or
    full set id.
-7. **Layout.** A layout scope (`layoutScope`) is not saved, and the save reports it.
+7. **Layout.** The layout record names the layout in `algorithm`, as `layout.set` spells it, and
+   `engine` is graphty-element's `EngineVersions`, exactly as in results' `layout` and every run.
+   A layout scope (`layoutScope`) is not saved, and the save reports it.
 
 ## 5. Placement
 

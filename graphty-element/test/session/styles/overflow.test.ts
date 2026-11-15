@@ -10,10 +10,12 @@ import { assert, describe, it } from "vitest";
 import type { Channel, FieldDescriptor, LayerSpec, RunId } from "../../../src/catalog/types";
 import { OKABE_ITO_COLORS, OTHER_GROUP_COLOR } from "../../../src/config/palettes/categorical";
 import { isGraphtyError } from "../../../src/errors";
+import { createGraphSession } from "../../../src/session";
 import type { RunRef } from "../../../src/session/results/types";
 import type { ColorValue } from "../../../src/session/styles/channels";
 import {
     type EncodedValue,
+    OVERFLOW_PATTERNS,
     OVERFLOW_SHAPES,
     prepareBinding,
     type PreparedBinding,
@@ -288,5 +290,65 @@ describe('overflow: "extend"', () => {
         assert.deepEqual(painted.slice(0, 8), okabe);
         assert.lengthOf(new Set(painted), 10);
         assert.notInclude(painted, undefined);
+    });
+});
+
+describe("the overflow list a binding carries", () => {
+    const edgeLayer = {
+        name: "Patterns",
+        target: "edge",
+        selector: { match: "everything" },
+        encode: { "edge.color": { by: "data.k", scale: "ordinal", overflow: "pattern" } },
+    } as const;
+
+    it("is written into the stored binding, so a save file holds the order it draws in", async () => {
+        const session = createGraphSession();
+        const layer = await session.styles.add(edgeLayer);
+        assert.deepEqual(bindingOf(layer, "edge.color").overflowValues, [...OVERFLOW_PATTERNS]);
+        session.dispose();
+    });
+
+    it("is what the cycle steps through, in place of the build's own list", () => {
+        const { names, values } = column(4);
+        const shape = prepare(
+            "node.shape",
+            {
+                by: "g",
+                scale: "ordinal",
+                colors: ["#111111", "#222222"],
+                overflow: "shape",
+                overflowValues: ["torus", "box"],
+            },
+            values,
+        );
+        assert.deepEqual(
+            names.map((name) => shape.paint(name)),
+            ["torus", "torus", "box", "box"],
+        );
+    });
+
+    it("is dropped, not refused, when the binding switches to a policy that steps through no list", async () => {
+        const session = createGraphSession();
+        const layer = await session.styles.add(edgeLayer);
+        const binding = bindingOf(layer, "edge.color");
+        const updated = await session.styles.update(layer.id, {
+            encode: { "edge.color": { ...binding, overflow: "other" } },
+        });
+        assert.isUndefined(bindingOf(updated, "edge.color").overflowValues);
+        session.dispose();
+    });
+
+    it("refuses a list that is not values of the cue's channel", () => {
+        const session = createGraphSession();
+        const result = session.styles.validate({
+            ...edgeLayer,
+            encode: { "edge.color": { ...edgeLayer.encode["edge.color"], overflowValues: ["torus"] } },
+        });
+        assert.isFalse(result.ok);
+        assert.include(
+            result.errors.map((error) => error.path),
+            "encode.edge.color.overflowValues",
+        );
+        session.dispose();
     });
 });

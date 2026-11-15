@@ -1024,7 +1024,9 @@ function checkOverflow(
  */
 function checkOverflowValues(binding: RuleBinding, path: string, log: ProblemLog): void {
     const values: unknown = binding.overflowValues;
-    if (values === undefined) {
+    // A policy that steps through no list ignores one left over from "shape" or "pattern", and the
+    // stored layer drops it, so switching a binding's policy keeps working.
+    if (values === undefined || (binding.overflow !== "shape" && binding.overflow !== "pattern")) {
         return;
     }
 
